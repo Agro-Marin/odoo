@@ -1,5 +1,3 @@
-"""The digest's "Open Tasks" KPI counts what the app calls open."""
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -9,11 +7,6 @@ from .test_project_base import TestProjectCommon
 @tagged("post_install", "-at_install")
 class TestDigestOpenTasks(TestProjectCommon):
     def test_openness_is_state_not_folded_step(self) -> None:
-        """The KPI keyed off ``step_id.fold``, the last place in the module that
-        did. It disagreed with the app in both directions: a done task parked in
-        a non-folded column counted as open, and an in-progress task dragged
-        into a folded one did not. ``state`` is the single closure signal — see
-        ProjectTask._compute_date_closed."""
         project = self.env["project.project"].create({"name": "Digest"})
         Step = self.env["project.workflow.step"]
         open_step = Step.create(

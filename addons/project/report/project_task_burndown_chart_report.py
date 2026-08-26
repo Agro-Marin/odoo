@@ -1,5 +1,3 @@
-"""Burndown/burnup chart report for project tasks."""
-
 from typing import Any
 
 from odoo import _, api, fields, models
@@ -10,8 +8,6 @@ from odoo.addons.resource.models.utils import filter_domain_leaf
 
 
 class ProjectTaskBurndownChartReport(models.AbstractModel):
-    """Burndown chart showing task counts over time grouped by workflow step."""
-
     _name = "project.task.burndown.chart.report"
     _description = "Burndown Chart"
     _auto = False
@@ -63,7 +59,6 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
 
     @property
     def task_specific_fields(self) -> list[str]:
-        """Fields that map to project.task columns for CTE filtering."""
         return [
             "date_assign",
             "date_end",
@@ -100,14 +95,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         )
         self.env.flush_query(project_task_query.subselect())
 
-        # Get the step_id field's ir.model.fields id to inject directly in the
-        # query, avoiding a join on ir_model_fields.
-        field_id = (
-            self.sudo()
-            .env["ir.model.fields"]
-            .search([("name", "=", "step_id"), ("model", "=", "project.task")])
-            .id
-        )
+        field_id = self.env["ir.model.fields"]._get("project.task", "step_id").id
 
         groupby = self.env.context.get(
             "project_task_burndown_chart_report_groupby",
@@ -115,10 +103,6 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         )
         date_groupby = next(g for g in groupby if g.startswith("date"))
 
-        # Defensive default. A bare "date" groupby never reaches here — the ORM
-        # rejects it upstream ("Granularity not set on a date(time) field") — but
-        # _search also reads this groupby out of the context, where a caller can
-        # put anything, and split(":")[1] on a bare "date" would raise IndexError.
         interval = date_groupby.split(":")[1] if ":" in date_groupby else "month"
         sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
 
@@ -212,7 +196,17 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                         step_id,
                         date_closed
               )
-              SELECT (project_id*10^13 + step_id*10^7 + to_char(date, 'YYMMDD')::integer)::bigint as id,
+              -- row_number(), not arithmetic on the grouping keys. The old
+              -- expression was not a key twice over: `^` is float8
+              -- exponentiation in Postgres, so project_id*10^13 passes 2^53 at
+              -- project_id 901 and consecutive days collapsed onto one id
+              -- (measured: 7 distinct ids for 14 distinct dates at 950); and
+              -- all_step_task_moves also groups by planned_hours and
+              -- date_closed, so two tasks in one (project, step) already
+              -- collided at any id. Nothing consumed the id -- both views are
+              -- graph-only with disable_linking -- so nothing was broken, but a
+              -- model whose id is not a key is a trap for whoever adds a list.
+              SELECT row_number() OVER ()::bigint as id,
                      planned_hours,
                      project_id,
                      step_id,
@@ -240,11 +234,6 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
 
     @api.model
     def _validate_group_by(self, groupby: list[str]) -> None:
-        """Check that both `date` and `step_id` are part of `group_by`.
-
-        :param groupby: List of group by fields.
-        :raises UserError: If required groupby fields are missing.
-        """
         is_closed_or_step_in_groupby = False
         date_in_groupby = False
         for gb in groupby:
@@ -262,11 +251,6 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
 
     @api.model
     def _determine_domains(self, domain: list) -> tuple[list, list]:
-        """Split domain into burndown-specific and task-specific parts.
-
-        :param domain: The domain passed to read_group.
-        :return: Tuple of (burndown_domain, task_domain).
-        """
         burndown_chart_specific_fields = list(
             set(self._fields) - set(self.task_specific_fields)
         )

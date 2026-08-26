@@ -1,26 +1,12 @@
-"""Extended task dependency model supporting all four PMI relationship types.
-
-PMI defines four logical relationships between activities:
-- FS (Finish-to-Start): B cannot start until A finishes (most common)
-- SS (Start-to-Start): B cannot start until A starts
-- FF (Finish-to-Finish): B cannot finish until A finishes
-- SF (Start-to-Finish): B cannot finish until A starts (rare)
-
-This model enriches the existing M2M (predecessor_ids/successor_ids) with
-dependency_type and lag_hours. The M2M remains the backbone for backward
-compatibility; this model adds metadata for advanced scheduling.
-"""
-
 from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.tools import SQL
 
 
 class ProjectTaskDependency(models.Model):
-    """A typed dependency between two tasks with optional lag."""
-
     _name = "project.task.dependency"
     _description = "Task Dependency"
     _order = "id"
@@ -64,7 +50,6 @@ class ProjectTaskDependency(models.Model):
         default=0.0,
         help="Delay after the dependency condition is met. Negative = lead time.",
     )
-    # Denormalized project for domain filtering
     project_id = fields.Many2one(
         related="task_id.project_id",
         store=True,
@@ -92,56 +77,43 @@ class ProjectTaskDependency(models.Model):
 
     @api.constrains("task_id", "depends_on_id")
     def _check_no_cycle(self) -> None:
-        """Prevent circular dependencies via the typed dependency model.
-
-        Walks the successor graph in Postgres with a recursive CTE, which
-        visits only the connected component of the edge being added. The
-        previous version read the whole ``project_task_dependency`` table into
-        Python on every create/write (~78ms at 125k rows, growing with
-        unrelated projects). Scoping that read by project is NOT a valid
-        shortcut: a dependency may cross projects, so a cycle can leave and
-        re-enter one.
-        """
-        # Raw read bypasses ORM auto-flush, so flush the endpoints first.
         self.flush_model(["task_id", "depends_on_id"])
-        for dep in self:
-            self.env.cr.execute(
-                """
-                WITH RECURSIVE reachable(id) AS (
-                        SELECT task_id
-                          FROM project_task_dependency
-                         WHERE depends_on_id = %(start)s
-                     UNION
-                        SELECT d.task_id
-                          FROM project_task_dependency d
-                          JOIN reachable r ON d.depends_on_id = r.id
-                )
-                SELECT 1 FROM reachable WHERE id = %(target)s LIMIT 1
-                """,
-                {"start": dep.task_id.id, "target": dep.depends_on_id.id},
+        starts = [dep.task_id.id for dep in self]
+        targets = [dep.depends_on_id.id for dep in self]
+        if not starts:
+            return
+        self.env.cr.execute(
+            """
+            WITH RECURSIVE reachable(source, id) AS (
+                    SELECT d.depends_on_id, d.task_id
+                      FROM project_task_dependency d
+                     WHERE d.depends_on_id = ANY(%(starts)s)
+                 UNION
+                    SELECT r.source, d.task_id
+                      FROM project_task_dependency d
+                      JOIN reachable r ON d.depends_on_id = r.id
             )
-            if self.env.cr.fetchone():
-                # depends_on_id is reachable by following successors of
-                # task_id, so this dependency closes a cycle.
-                raise ValidationError(
-                    _("Adding this dependency would create a circular reference.")
-                )
+            SELECT 1
+              FROM reachable r
+              JOIN unnest(%(starts)s::integer[], %(targets)s::integer[])
+                     AS edge(start_id, target_id)
+                ON r.source = edge.start_id AND r.id = edge.target_id
+             LIMIT 1
+            """,
+            {"starts": starts, "targets": targets},
+        )
+        if self.env.cr.fetchone():
+            raise ValidationError(
+                _("Adding this dependency would create a circular reference.")
+            )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> ProjectTaskDependency:
-        """Sync new typed dependencies to the M2M predecessor_ids."""
         records = super().create(vals_list)
         records._sync_to_m2m()
         return records
 
     def write(self, vals: dict) -> bool:
-        """Keep the backing M2M in sync when a dependency's endpoints move.
-
-        ``create``/``unlink`` cover their own cases; without this, editing an
-        existing dependency's ``task_id``/``depends_on_id`` would leave the old
-        ``predecessor_ids`` link in place and never add the new one, so the
-        blocked-state computation would track the wrong predecessor.
-        """
         remap = "task_id" in vals or "depends_on_id" in vals
         old_pairs = [(dep.task_id, dep.depends_on_id) for dep in self] if remap else []
         res = super().write(vals)
@@ -157,28 +129,41 @@ class ProjectTaskDependency(models.Model):
         return res
 
     def unlink(self) -> bool:
-        """Remove from M2M when typed dependency is deleted."""
+        preds_by_task = defaultdict(lambda: self.env["project.task"])
         for dep in self:
-            dep.task_id.with_context(skip_dependency_sync=True).write(
-                {
-                    "predecessor_ids": [fields.Command.unlink(dep.depends_on_id.id)],
-                }
+            preds_by_task[dep.task_id] |= dep.depends_on_id
+        for task, preds in preds_by_task.items():
+            task.with_context(skip_dependency_sync=True).write(
+                {"predecessor_ids": [fields.Command.unlink(p.id) for p in preds]}
             )
         return super().unlink()
 
     def _sync_to_m2m(self) -> None:
-        """Ensure the legacy M2M predecessor_ids reflects typed dependencies.
-
-        Group the links per task and write once per task: a single
-        ``predecessor_ids`` write runs the framework cycle check once, instead
-        of once per dependency row (which, on a batch create, re-validated the
-        whole graph N times).
-        """
-        preds_by_task = defaultdict(lambda: self.env["project.task"])
+        new_pairs = set()
         for dep in self:
             if dep.depends_on_id not in dep.task_id.predecessor_ids:
-                preds_by_task[dep.task_id] |= dep.depends_on_id
-        for task, preds in preds_by_task.items():
-            task.with_context(skip_dependency_sync=True).write(
-                {"predecessor_ids": [fields.Command.link(p.id) for p in preds]}
+                new_pairs.add((dep.task_id.id, dep.depends_on_id.id))
+        if not new_pairs:
+            return
+
+        Task = self.env["project.task"]
+        field = Task._fields["predecessor_ids"]
+        pairs = sorted(new_pairs)
+        self.env.cr.execute(
+            SQL(
+                "INSERT INTO %s (%s, %s) "
+                "SELECT * FROM unnest(%s::integer[], %s::integer[]) "
+                "ON CONFLICT DO NOTHING",
+                SQL.identifier(field.relation),
+                SQL.identifier(field.column1),
+                SQL.identifier(field.column2),
+                [task_id for task_id, _pred in pairs],
+                [pred for _task, pred in pairs],
             )
+        )
+        tasks = Task.browse({task_id for task_id, _pred in new_pairs})
+        tasks.invalidate_recordset(["predecessor_ids"])
+        Task.browse(
+            {task_id for pair in new_pairs for task_id in pair}
+        ).invalidate_recordset(["successor_ids"])
+        tasks._check_no_cyclic_dependencies()

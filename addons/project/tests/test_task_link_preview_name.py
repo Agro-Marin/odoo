@@ -35,7 +35,6 @@ class TestTaskLinkPreviewName(HttpCase):
 
     def test_01_task_link_preview_name(self) -> None:
         self.authenticate(self.admin.login, self.admin.login)
-        # retrieve metadata of an record with customerized link_preview_name
         response_with_preview_name = self.url_open(
             "/html_editor/link_preview_internal",
             data=json_safe.dumps(

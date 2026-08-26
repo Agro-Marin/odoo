@@ -1,5 +1,3 @@
-"""Sprint commitment: what a closed sprint remembers."""
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -9,8 +7,6 @@ from .test_project_base import TestProjectCommon
 @tagged("post_install", "-at_install")
 class TestSprintCommitmentHistory(TestProjectCommon):
     def test_closed_sprint_does_not_report_full_completion(self) -> None:
-        """Closing a sprint detaches unfinished work, so completion was
-        computed against the delivered tasks alone — 100%, always."""
         project = self.env["project.project"].create(
             {"name": "Sprints", "use_sprints": True}
         )

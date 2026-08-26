@@ -1,5 +1,3 @@
-"""User onboarding for project triage buckets."""
-
 from typing import Self
 
 from odoo import api, fields, models
@@ -26,7 +24,6 @@ class ResUsers(models.Model):
         return res
 
     def _onboard_users_into_project(self, users: Self) -> Self | None:
-        """Create default triage buckets for new internal users."""
         if internal_users := users.filtered(lambda u: not u.share):
             TriageSudo = self.env["project.triage"].sudo()
             create_vals = []

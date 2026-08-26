@@ -11,9 +11,6 @@ class ProjectShareWizard(models.TransientModel):
 
     @api.model
     def default_get(self, fields: list[str]) -> dict[str, Any]:
-        # The project share action could be called in `project.collaborator`
-        # and so we have to check the active_model and active_id to use
-        # the right project.
         active_model = self.env.context.get("active_model", "")
         active_id = self.env.context.get("active_id", False)
         if active_model == "project.collaborator":
@@ -98,20 +95,6 @@ class ProjectShareWizard(models.TransientModel):
             wizard.existing_partner_ids = wizard.collaborator_ids.partner_id
 
     def _apply_collaborators(self) -> None:
-        """Push each wizard's collaborator list onto its project.
-
-        Called from ``action_send_mail`` — the single funnel both share paths
-        end in — and NOT from ``create``. It used to run on ``create``, i.e.
-        the moment the dialog was saved, which meant the access change was
-        already committed by the time ``action_share_record`` asked "grant
-        portal access?": discarding that confirmation left the collaborators
-        added and the removed ones removed. A transient's ``create`` is the
-        wrong place for a side effect on another record in any case — the
-        record exists to collect input, and nothing has been confirmed yet.
-
-        Idempotent, because it writes the diff between the wizard's list and
-        the project's: running it twice changes nothing the second time.
-        """
         for wizard in self:
             collaborator_ids_to_add = []
             collaborator_ids_to_add_with_limited_access = []
@@ -166,7 +149,7 @@ class ProjectShareWizard(models.TransientModel):
                     Command.create({"partner_id": partner_id})
                     for partner_id in partners.ids
                 )
-                project.tasks.message_subscribe(partner_ids=partners.ids)
+                project.task_ids.message_subscribe(partner_ids=partners.ids)
             if collaborator_ids_to_add_with_limited_access:
                 partners = project._get_new_collaborators(
                     self.env["res.partner"].browse(
@@ -195,11 +178,7 @@ class ProjectShareWizard(models.TransientModel):
                 project.message_unsubscribe(project_followers_to_remove)
 
     def action_share_record(self) -> dict[str, Any] | None:
-        # Confirmation dialog is only opened if new portal user(s) need to be created in a 'on invitation' website
         self.ensure_one()
-        # An emptied list is not "nothing to do": it is a request to remove
-        # every collaborator, and it reaches the project through the same
-        # funnel as an addition. Returning early here would silently drop it.
         on_invite = self.env["res.users"]._get_signup_invitation_scope() == "b2b"
         new_portal_user = (
             self.collaborator_ids.filtered(
@@ -226,11 +205,6 @@ class ProjectShareWizard(models.TransientModel):
         }
 
     def action_send_mail(self) -> dict[str, Any]:
-        # Apply first: this is the confirmed action, and it is where the
-        # project's collaborator list is actually changed (see
-        # _apply_collaborators). Both share paths end here — the direct one via
-        # action_share_record, the "Grant Portal Access" button of the
-        # confirmation dialog directly.
         self._apply_collaborators()
         result = {
             "type": "ir.actions.client",
@@ -253,7 +227,6 @@ class ProjectShareWizard(models.TransientModel):
         if partner_ids_in_edit_mode:
             new_collaborators = self.env["res.partner"].browse(partner_ids_in_edit_mode)
             portal_partners = new_collaborators.filtered("user_ids")
-            # send mail to users
             self._send_public_link(portal_partners)
             self._send_signup_link(
                 partners=new_collaborators.with_context({"signup_valid": True})

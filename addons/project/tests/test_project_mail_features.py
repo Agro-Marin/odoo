@@ -13,17 +13,14 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
     def setUpClass(cls) -> None:
         super().setUpClass()
 
-        # set high threshold to be sure to not hit mail limit during tests for a model
         cls.env["ir.config_parameter"].sudo().set_param(
             "mail.gateway.loop.threshold", 50
         )
 
-        # be sure to test emails
         cls.user_employee.notification_type = "email"
         cls.user_projectuser.notification_type = "email"
         cls.user_projectmanager.notification_type = "inbox"
 
-        # simple template used in auto acknowledgement
         cls.test_template = cls.env["mail.template"].create(
             {
                 "auto_delete": True,
@@ -36,7 +33,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
             }
         )
 
-        # Test followers-based project
         cls.project_followers = cls.env["project.project"].create(
             {
                 "alias_name": "help",
@@ -65,12 +61,10 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
             }
         )
         cls.project_followers_alias = cls.project_followers.alias_id
-        # add some project followers to check followers propagation notably
         cls.project_followers.message_subscribe(
             partner_ids=(
                 cls.user_projectuser.partner_id + cls.user_projectmanager.partner_id
             ).ids,
-            # follow 'new tasks' to receive notification for incoming emails directly
             subtype_ids=(
                 cls.env.ref("mail.mt_comment")
                 + cls.env.ref("project.mt_project_task_new")
@@ -94,14 +88,12 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
             self.flush_tracking()
 
     def test_assert_initial_values(self) -> None:
-        """Check base values coherency for tests clarity"""
         self.assertEqual(
             self.project_followers.message_partner_ids,
             self.user_projectuser.partner_id + self.user_projectmanager.partner_id,
         )
         self.assertEqual(self.test_task.project_id, self.project_followers)
 
-        # check for partner creation, should not pre-exist
         self.assertFalse(
             self.env["res.partner"].search(
                 [
@@ -155,7 +147,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                     self.assertTrue(has_button_access)
 
     def test_task_creation_no_stage(self) -> None:
-        """Test receiving email in a project without stage, should create task as intended"""
         internal_followers = (
             self.user_projectuser.partner_id + self.user_projectmanager.partner_id
         )
@@ -189,14 +180,10 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                     "message_values": {
                         "author_id": self.user_portal.partner_id,
                         "email_from": self.user_portal.email_formatted,
-                        # coming from incoming email
                         "incoming_email_cc": incoming_cc,
                         "incoming_email_to": incoming_to_filtered,
                         "mail_server_id": self.env["ir.mail_server"],
-                        # followers of 'new task' subtype (but not original To as they
-                        # already received the email)
                         "notified_partner_ids": internal_followers,
-                        # deduced from 'To' and 'Cc' (recognized only)
                         "partner_ids": self.partner_1 + self.partner_2,
                         "parent_id": self.env["mail.message"],
                         "reply_to": formataddr(
@@ -223,9 +210,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
         )
 
     def test_task_creation_notifies_author(self) -> None:
-        """Check auto acknowledgment mail sent at new task. It should notify
-        task creator, based on stage template.
-        """
         internal_followers = (
             self.user_projectuser.partner_id + self.user_projectmanager.partner_id
         )
@@ -281,12 +265,10 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                         "Should parse name/email correctly",
                     )
 
-                # do not converts Cc into partners, used only to populate email_cc field
                 new_partner_cc = self.env["res.partner"].search(
                     [("email_normalized", "=", "new.cc@test.agrolait.com")]
                 )
                 self.assertFalse(new_partner_cc)
-                # do not convert other people in To, simply recognized if they exist
                 new_partner_customer = self.env["res.partner"].search(
                     [
                         (
@@ -309,14 +291,11 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                 self.assertEqual(
                     task.step_id, self.project_followers.workflow_step_ids[0]
                 )
-                # followers: email cc is added in followers at creation time, aka only recognized partners
                 self.assertEqual(
                     task.message_partner_ids,
                     internal_followers + author + self.partner_1 + self.partner_2,
                 )
-                # messages
                 self.assertEqual(len(task.message_ids), 2)
-                # first message: incoming email: sent to email followers
                 incoming_email = task.message_ids[1]
                 self.assertMailNotifications(
                     incoming_email,
@@ -329,14 +308,10 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                                 "email_from": formataddr(
                                     (author.name, author.email_normalized)
                                 ),
-                                # coming from incoming email
                                 "incoming_email_cc": incoming_cc,
                                 "incoming_email_to": incoming_to_filtered,
                                 "mail_server_id": self.env["ir.mail_server"],
-                                # followers of 'new task' subtype (but not original To as they
-                                # already received the email)
                                 "notified_partner_ids": internal_followers,
-                                # deduced from 'To' and 'Cc' (recognized partners)
                                 "partner_ids": self.partner_1 + self.partner_2,
                                 "parent_id": self.env["mail.message"],
                                 "reply_to": formataddr(
@@ -362,9 +337,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                     ],
                 )
 
-                # second message: acknowledgment: sent to email author
                 acknowledgement = task.message_ids[0]
-                # task created by odoobot if not incoming user -> odoobot author of ack email
                 acknowledgement_author = (
                     test_user.partner_id if test_user else self.partner_root
                 )
@@ -380,9 +353,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                                 "incoming_email_cc": False,
                                 "incoming_email_to": False,
                                 "mail_server_id": self.env["ir.mail_server"],
-                                # default recipients: partner_id, no note followers
                                 "notified_partner_ids": author,
-                                # default recipients: partner_id
                                 "partner_ids": author,
                                 "parent_id": incoming_email,
                                 "reply_to": formataddr(
@@ -392,11 +363,9 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                                     )
                                 ),
                                 "subject": f"Test Acknowledge {task.name}",
-                                # defined by _track_template
                                 "subtype_id": self.env.ref("mail.mt_note"),
                             },
                             "notif": [
-                                # specific email for portal customer, due to portal mixin
                                 {
                                     "partner": author,
                                     "type": "email",
@@ -407,9 +376,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                     ],
                 )
 
-                # uses Chatter: fetches suggested recipients, post a message
-                # - checks all suggested: email_cc field, primary email
-                # ------------------------------------------------------------
                 suggested_all = task.with_user(
                     self.user_projectuser
                 )._message_get_suggested_recipients(
@@ -437,16 +403,16 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                 expected_all = []
                 if not test_user:
                     expected_all = [
-                        {  # last message recipient is proposed
+                        {
                             "create_values": {},
                             "email": "new.author@test.agrolait.com",
                             "name": "New Author",
-                            "partner_id": author.id,  # already created by project upon initial email reception
+                            "partner_id": author.id,
                         }
                     ]
                 elif test_user == self.user_portal:
                     expected_all = [
-                        {  # customer is proposed, even if follower, because shared
+                        {
                             "create_values": {},
                             "email": self.user_portal.email_normalized,
                             "name": self.user_portal.name,
@@ -454,26 +420,24 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                         }
                     ]
                 expected_all += [
-                    {  # mixin.mail.thread.cc: email_cc field
+                    {
                         "create_values": {},
                         "email": "new.cc@test.agrolait.com",
                         "name": "New Cc",
                         "partner_id": new_partner_cc.id,
                     },
-                    {  # incoming email other recipients (new.customer)
+                    {
                         "create_values": {},
                         "email": "new.customer@test.agrolait.com",
                         "name": "New Customer",
                         "partner_id": new_partner_customer.id,
                     },
-                    # other CC (partner_2) and customer (partner_id) already follower
                 ]
                 for suggested, expected in zip(
                     suggested_all, expected_all, strict=True
                 ):
                     self.assertDictEqual(suggested, expected)
 
-                # finally post the message with recipients
                 with self.mock_mail_gateway():
                     recipients = new_partner_cc + new_partner_customer
                     if not test_user:
@@ -504,9 +468,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                         {
                             "content": "Well received !",
                             "mail_mail_values": {
-                                "mail_server_id": self.env[
-                                    "ir.mail_server"
-                                ],  # no specified server
+                                "mail_server_id": self.env["ir.mail_server"],
                             },
                             "message_type": "comment",
                             "message_values": {
@@ -515,12 +477,10 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                                 "incoming_email_cc": False,
                                 "incoming_email_to": False,
                                 "mail_server_id": self.env["ir.mail_server"],
-                                # projectuser not notified of its own message, even if follower
                                 "notified_partner_ids": self.user_projectmanager.partner_id
                                 + author
                                 + external_partners,
                                 "parent_id": incoming_email,
-                                # coming from post
                                 "partner_ids": recipients,
                                 "reply_to": formataddr(
                                     (
@@ -532,7 +492,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                                 "subtype_id": self.env.ref("mail.mt_comment"),
                             },
                             "notif": [
-                                # original author has a specific email with links and tokens
                                 {
                                     "partner": author,
                                     "type": "email",
@@ -554,15 +513,12 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                     ],
                 )
 
-                # SMTP emails really sent (not Inbox guy then)
-                # expected Msg['To'] : Reply-All behavior: actual recipient, then
-                # all "not internal partners" and catchall (to receive answers)
                 for partner in (
                     responsible_answer.notified_partner_ids
                     - self.user_projectmanager.partner_id
                 ):
                     exp_msg_to_partners = partner | external_partners
-                    if author != self.user_employee.partner_id:  # external only !
+                    if author != self.user_employee.partner_id:
                         exp_msg_to_partners |= author
                     exp_msg_to = exp_msg_to_partners.mapped("email_formatted")
                     with self.subTest(name=partner.name):
@@ -579,8 +535,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                             msg_to_lst=exp_msg_to,
                         )
 
-                # customer replies using "Reply All" + adds new people
-                # ------------------------------------------------------------
                 self.gateway_mail_reply_from_smtp_email(
                     MAIL_TEMPLATE,
                     [author.email_normalized],
@@ -620,17 +574,13 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                             "message_values": {
                                 "author_id": author,
                                 "email_from": author.email_formatted,
-                                # coming from incoming email
                                 "incoming_email_cc": f'"Another Cc" <another.cc@test.agrolait.com>, {self.partner_3.email}',
-                                # To: received email Msg-To - customer who replies, without email Reply-To
                                 "incoming_email_to": ", ".join(
                                     external_partners.mapped("email_formatted")
                                 ),
                                 "mail_server_id": self.env["ir.mail_server"],
-                                # notified: followers - already emailed, aka internal only
                                 "notified_partner_ids": internal_followers,
                                 "parent_id": responsible_answer,
-                                # same reasoning as email_to/cc
                                 "partner_ids": external_partners + self.partner_3,
                                 "reply_to": formataddr(
                                     (
@@ -655,17 +605,14 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                     ],
                 )
 
-                # clear for other loops
                 (new_partner_cc + new_partner_customer).unlink()
 
     @users("bastien")
     def test_task_notification_on_project_update(self) -> None:
-        """Test changing task's project notifies people following 'New Task'"""
         test_task = self.test_task.with_user(self.env.user)
         with self.mock_mail_gateway():
             test_task.project_id = False
             self.flush_tracking()
-        # voiding project should not do anything
         self.assertNotSentEmail()
 
         with self.mock_mail_gateway():
@@ -677,7 +624,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
             test_task.project_id = self.project_followers.id
             self.flush_tracking()
 
-        # find notification, not in message_ids as it is a personal message
         notification_msg = self.env["mail.message"].search(
             [
                 ("model", "=", "project.task"),
@@ -687,7 +633,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
         )
         self.assertTrue(notification_msg)
 
-        # should trigger a notification
         self.assertSentEmail(
             self.env.user.email_formatted,
             [self.user_projectuser.email_formatted],
@@ -703,9 +648,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                         "author_id": self.user_projectmanager.partner_id,
                         "email_from": self.user_projectmanager.partner_id.email_formatted,
                         "mail_server_id": self.env["ir.mail_server"],
-                        # followers of 'new task' type but not author itself
                         "notified_partner_ids": self.user_projectuser.partner_id,
-                        # followers of 'new task' type
                         "partner_ids": (
                             self.user_projectuser + self.user_projectmanager
                         ).partner_id,
@@ -730,8 +673,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
         )
 
     def test_task_notification_on_user_ids_update(self) -> None:
-        """This test will check that an assignment mail is sent when adding an assignee to a task"""
-        # avoid messing with followers to ease notif check
         self.project_followers.message_unsubscribe(
             partner_ids=self.project_followers.message_partner_ids.ids
         )
@@ -753,14 +694,11 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
         with self.mock_mail_gateway():
             test_task.copy()
             self.flush_tracking()
-        # check that no mail was received for the assignee of the task
         self.assertNotSentEmail(self.user_projectuser.email_formatted)
 
     def test_copy_task_logs_chatter(self) -> None:
-        """Test that copying a task logs a message in the chatter."""
         copied_task = self.task_1.copy()
 
-        # Ensure only one message is logged in chatter
         self.assertEqual(
             "Task Created",
             copied_task.message_ids[0].preview,
@@ -768,14 +706,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
         )
 
     def test_task_portal_share_adds_followers(self) -> None:
-        """Test that sharing a task through the portal share wizard adds recipients as followers.
-
-        Test Cases:
-        ===========
-        1) Verify that the portal user is not a follower of the task.
-        2) Create and execute a portal share wizard to share the task with the portal user.
-        3) Verify that the portal user has been added as a follower after sharing.
-        """
         self.assertNotIn(
             self.user_portal.partner_id,
             self.task_1.message_partner_ids,
@@ -800,10 +730,8 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
         )
 
     def test_mail_alais_assignees_from_recipient_list(self) -> None:
-        # including all types of users in recipient list
         new_user = new_test_user(self.env, "int_user")
 
-        # format: Name <some@email.com>
         incoming_to_emails_with_name = (
             f'"{self.project_goats.name}" <{self.project_goats.alias_name}@{self.project_goats.alias_domain_id.name}>'
             f'"{self.user_public.name}" <{self.user_public.email}>,'
@@ -811,7 +739,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
             f'"{self.user_portal.name}" <{self.user_portal.email}>,'
             f'"{self.user_projectuser.name}" <{self.user_projectuser.email}>,'
         )
-        # format: some@email.com
         incoming_to_emails = (
             f"{self.project_goats.alias_name}@{self.project_goats.alias_domain_id.name},"
             f"{self.user_public.email},"
@@ -832,25 +759,21 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                 )
                 self.flush_tracking()
             self.assertTrue(task, "Task has not been created from a incoming email")
-            # only internal users are set as asssignees
             self.assertEqual(
                 task.user_ids,
                 self.user_projectmanager + self.user_projectuser,
                 "Assignees have not been set from the to address of the mail",
             )
-            # public and portal users are ignored
             self.assertNotIn(
                 task.user_ids,
                 self.user_public + self.user_portal,
                 "Assignees should not be set for user other than internal users",
             )
-            # sender should not be added as user in the task
             self.assertNotIn(
                 task.user_ids,
                 self.user_employee,
                 "Sender can never be in assignees",
             )
-            # internal users in cc of mail shoudl be added in email_cc field
             self.assertEqual(
                 task.email_cc,
                 new_user.email,
@@ -858,9 +781,6 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
             )
 
     def test_task_creation_removes_email_signatures(self) -> None:
-        """Tests that email signature is correctly removed from a task
-        description when a task is created from an email alias.
-        """
         gmail_email_source = f"""From: "{self.user_portal.name}" <{self.user_portal.email_formatted}>
 To: {self.project_followers_alias.alias_full_name}
 Subject: Test Gmail Signature Removal
@@ -900,7 +820,6 @@ Content-Type: text/html;
                 custom_values={"project_id": self.project_followers.id},
             )
 
-        # Verify Gmail signature removal
         self.assertTrue(gmail_task_id, "Gmail task creation should return a valid ID.")
         gmail_task = self.env["project.task"].browse(gmail_task_id)
 
@@ -924,7 +843,6 @@ Content-Type: text/html;
             "The Gmail signature should have been removed.",
         )
 
-        # Verify Outlook signature removal
         self.assertTrue(
             outlook_task_id, "Outlook task creation should return a valid ID."
         )
@@ -950,12 +868,6 @@ Content-Type: text/html;
         "odoo.addons.mail.models.mixin_mail_gateway",
     )
     def test_task_creation_from_mail(self) -> None:
-        """This test checks a `default_` key passed in the context with an invalid field doesn't prevent the task
-        creation.
-
-        This is related to the `_ensure_fields_write` method checking field write access rights
-        for collaborator portals
-        """
         server = self.env["fetchmail.server"].create(
             {
                 "name": "Test server",
@@ -984,7 +896,6 @@ Content-Type: text/html;
         self.assertEqual(task.project_id, self.project_pigs)
 
     def test_task_access_action(self):
-        """Test that the access action link is correctly generated for portal users"""
         project_portal = self.env["project.project"].create(
             {
                 "name": "Portal Project",
@@ -998,7 +909,6 @@ Content-Type: text/html;
             }
         )
 
-        # Portal User + Project Sharing -> Project Sharing Link
         project_portal.message_subscribe(partner_ids=self.user_portal.partner_id.ids)
         project_portal._add_collaborators(self.user_portal.partner_id)
         action = task_portal.with_user(self.user_portal)._get_access_action()

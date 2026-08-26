@@ -10,22 +10,12 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         pigs = self.project_pigs.with_user(self.user_projectmanager)
         dogs = pigs.copy()
         self.assertEqual(
-            len(dogs.tasks),
+            len(dogs.task_ids),
             2,
             "project: duplicating a project must duplicate its tasks",
         )
 
     def test_subtask_process(self) -> None:
-        """Check subtask mecanism and change it from project.
-
-        For this test, 2 projects are used:
-            - the 'pigs' project which has a partner_id
-            - the 'goats' project where the partner_id is removed at the beginning of the tests and then restored.
-
-        2 parent tasks are also used to be able to switch the parent task of a sub-task:
-            - 'parent_task' linked to the partner_2
-            - 'another_parent_task' linked to the partner_3
-        """
         Task = self.env["project.task"].with_context({"tracking_disable": True})
 
         parent_task = Task.create(
@@ -48,12 +38,10 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             }
         )
 
-        # remove the partner_id of the 'goats' project
         goats_partner_id = self.project_goats.partner_id
 
         self.project_goats.write({"partner_id": False})
 
-        # the child task 1 is linked to a project without partner_id (goats project)
         child_task_1 = Task.with_context(
             default_project_id=self.project_goats.id,
             default_parent_id=parent_task.id,
@@ -64,7 +52,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             }
         )
 
-        # the child task 2 is linked to a project with a partner_id (pigs project)
         child_task_2 = Task.create(
             {
                 "name": "Task Child without project",
@@ -96,7 +83,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             "Planned hours of subtask should impact parent task",
         )
 
-        # change the parent of a subtask without a project partner_id
         child_task_1.write({"parent_id": another_parent_task.id})
 
         self.assertEqual(
@@ -105,7 +91,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             "When changing the parent task of a subtask with no project partner_id, the partner_id should remain the same.",
         )
 
-        # change the parent of a subtask with a project partner_id
         child_task_2.write({"parent_id": another_parent_task.id})
 
         self.assertEqual(
@@ -114,7 +99,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             "When changing the parent task of a subtask with a project, the partner_id should remain the same.",
         )
 
-        # set a project with partner_id to a subtask without project partner_id
         child_task_1.write({"project_id": self.project_pigs.id})
 
         self.assertNotEqual(
@@ -123,10 +107,8 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             "When the project changes, the subtask should keep its partner id as its partner id is set.",
         )
 
-        # restore the partner_id of the 'goats' project
         self.project_goats.write({"partner_id": goats_partner_id})
 
-        # set a project with partner_id to a subtask with a project partner_id
         child_task_2.write({"project_id": self.project_goats.id})
 
         self.assertEqual(
@@ -136,10 +118,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
 
     def test_rating_parent_name_follows_the_parent_rename(self) -> None:
-        """rating.parent_res_name is stored and depends only on
-        (parent_res_model, parent_res_id), so nothing recomputed it when the
-        project itself was renamed -- every child rating kept the old project
-        name, which is what the rating list views show."""
         task = self.env["project.task"].create(
             {"name": "rated", "project_id": self.project_pigs.id}
         )
@@ -164,14 +142,12 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             "renaming the parent must reach the name denormalised onto its ratings",
         )
 
-        # a write that cannot move display_name must not drag the ratings in
         stamp = rating.write_date
         self.project_pigs.sequence = 42
         self.env.flush_all()
         self.assertEqual(rating.write_date, stamp)
 
     def test_rating(self) -> None:
-        """Check if rating works correctly even when task is changed from project A to project B"""
         Task = self.env["project.task"].with_context({"tracking_disable": True})
         first_task = Task.create(
             {
@@ -214,8 +190,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             }
         )
 
-        # We need to invalidate cache since it is not done automatically by the ORM
-        # Our One2Many is linked to a res_id (int) for which the orm doesn't create an inverse
         self.env.invalidate_all()
 
         self.assertEqual(rating_good.rating_text, "top")
@@ -233,20 +207,15 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             0,
             "Since there is no rating in this project, the Average Rating should be equal to 0.",
         )
-        self.assertEqual(
-            self.project_pigs.rating_child_percentage_satisfaction, 0
-        )  # There is a rating but not a "great" on, just an "okay".
+        self.assertEqual(self.project_pigs.rating_child_percentage_satisfaction, 0)
         self.assertEqual(
             self.project_pigs.rating_child_avg,
             rating_bad.rating,
             "Since there is only one rating the Average Rating should be equal to the rating value of this one.",
         )
 
-        # Consuming rating_good
         first_task.rating_apply(5, rating_good.access_token)
 
-        # We need to invalidate cache since it is not done automatically by the ORM
-        # Our One2Many is linked to a res_id (int) for which the orm doesn't create an inverse
         self.env.invalidate_all()
 
         rating_avg = (rating_good.rating + rating_bad.rating) / 2
@@ -262,11 +231,8 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         self.assertEqual(self.project_pigs.rating_child_avg, rating_avg)
         self.assertEqual(self.project_pigs.rating_child_avg_percentage, rating_avg / 5)
 
-        # We change the task from project_pigs to project_goats, ratings should be associated with the new project
         first_task.project_id = self.project_goats.id
 
-        # We need to invalidate cache since it is not done automatically by the ORM
-        # Our One2Many is linked to a res_id (int) for which the orm doesn't create an inverse
         self.env.invalidate_all()
 
         self.assertEqual(rating_good.parent_res_id, self.project_goats.id)
@@ -276,12 +242,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         self.assertEqual(self.project_pigs.rating_child_avg, 0)
 
     def test_task_with_no_project(self) -> None:
-        """With this test, we want to make sure the fact that a task has no project doesn't affect the entire
-        behaviours of projects.
-
-        1) Try to compute every field of a task which has no project.
-        2) Try to compute every field of a project and assert it isn't affected by this use case.
-        """
         task_without_project = (
             self.env["project.task"]
             .with_context({"mail_create_nolog": True})
@@ -306,13 +266,11 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                     + e.args[0]
                 ) from e
 
-        # tasks with no project set should only be visible to the users assigned to them
         task_without_project.user_ids = [Command.link(self.user_projectuser.id)]
         task_without_project.with_user(self.user_projectuser).read(["name"])
         with self.assertRaises(AccessError):
             task_without_project.with_user(self.user_projectmanager).read(["name"])
 
-        # Tests that tasks assigned to the current user should be in the right default stage
         task = self.env["project.task"].create(
             {
                 "name": "Test Task!",
@@ -399,7 +357,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             )
 
     def test_email_track_template(self) -> None:
-        """Update some tracked fields linked to some template -> message with onchange"""
         project_settings = self.env["res.config.settings"].create(
             {"group_project_stages": True}
         )
@@ -430,7 +387,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         project_stage = self.env.ref("project.project_phase_1")
         self.assertNotEqual(project_A.phase_id, project_stage)
 
-        # Assign email template
         project_stage.mail_template_id = mail_template.id
         self.flush_tracking()
         init_nb_log = len(project_A.message_ids)
@@ -450,21 +406,11 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 "name": "Test Private Task",
             }
         )
-        # Tag name_search should not raise Error if project_id is False
         task.tag_ids.with_context(project_id=task.project_id.id).name_search(
             domain=["!", ["id", "in", []]]
         )
 
     def test_copy_project_with_default_name(self) -> None:
-        """Test the new project after the duplication got the exepected name
-
-        Test Cases:
-        ==========
-        1. Duplicate a project
-        2. Check the new project got the name of the project to copy plus `(copy)`
-        3. Duplicate a project with default name
-        4. Check the new project got the name defined in the default
-        """
         project = self.project_pigs.copy()
         self.assertEqual(
             project.name,
@@ -480,7 +426,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
 
     def test_description_field_history_on_update(self) -> None:
-        """Test updating 'description' field in project task and checking history content at revision id."""
         task = self.env["project.task"].create(
             {
                 "name": "Test Task",
@@ -582,9 +527,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
 
     def test_do_not_copy_project_stage(self) -> None:
-        stage = self.env["project.phase"].create(
-            {"name": "Custom stage"}
-        )  # Default sequence is 50
+        stage = self.env["project.phase"].create({"name": "Custom stage"})
         self.project_pigs.phase_id = stage.id
         project_copy = self.project_pigs.with_context(default_phase_id=stage.id).copy()
         self.assertNotEqual(
@@ -634,18 +577,6 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
 
     def test_project_multi_tasks_copy_with_archive_user(self) -> None:
-        """Step 1: Create new  an active project user
-        Step 2: Create three tasks
-            - Task 1: No users assigned.
-            - Task 2: Assigned to two active users.
-            - Task 3: Assigned to one active and one soon-to-be-archived user.
-        Step 3: Archive one of the users
-        Step 4: Copy all tasks
-        Step 5: Validate expected user_ids on copied tasks
-           - Task1 had no users → expect no users in the copied task.
-           - Task2 had 2 active users → both should be preserved.
-           - Task3 had one active + one archived user → only active (self.user_projectuser) should be preserved in the copy.
-        """
         user_projectuser = self.user_projectuser.copy()
 
         tasks = self.env["project.task"].create(

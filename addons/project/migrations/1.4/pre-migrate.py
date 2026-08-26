@@ -1,96 +1,35 @@
-"""Pre-upgrade migration for project module v1.4 — PMI terminology alignment.
-
-Full-change approach: renames tables/columns in-place and splits the legacy
-``project.task.type`` god-model into canonical tables. After this migration,
-old table/column names no longer exist — the ORM finds everything under the
-new names.
-
-Tables created (from project_task_type split):
-    project_workflow_step             — shared Kanban workflow steps
-    project_workflow_step_project_rel — M2M: step ↔ project
-    project_triage                    — personal time-horizon buckets
-    project_task_triage               — junction: task ↔ user ↔ triage bucket
-
-Tables renamed:
-    project_project_stage     → project_phase
-    task_dependencies_rel     → project_task_dependency_rel
-
-Columns renamed on project_task:
-    stage_id                  → step_id
-    date_last_stage_update    → date_last_status_change
-
-Columns renamed on project_project:
-    stage_id                  → phase_id
-
-State value renames on project_task.state:
-    01_in_progress       → in_progress
-    02_changes_requested → changes_requested
-    03_approved          → approved
-    04_waiting_normal    → blocked
-    1_done               → done
-    1_canceled           → canceled
-
-Cleanup:
-    project_task_user_rel.stage_id — orphaned column dropped (pure M2M now)
-    project_task_user_rel.id       — orphaned column dropped (pure M2M now)
-
-Serialized references updated:
-    ir_filters (domain, context, sort, model_id)
-    ir_rule (domain_force)
-    ir_act_server (code, update_path)
-
-Design notes:
-    - All source IDs are preserved, so FK relationships remain valid.
-    - The ORM will find the renamed tables/columns and only ALTER to add any
-      standard columns it expects (create_uid, write_uid, etc.).
-    - All operations are idempotent: IF NOT EXISTS / IF EXISTS / ON CONFLICT.
-    - ir_model, ir_model_data, ir_model_fields are updated so the ORM
-      recognizes the renamed models/fields.
-    - Constraint names on new tables match the ORM-generated names to avoid
-      duplicate constraint errors on first upgrade.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)
 
 
 def migrate(cr, version: str | None) -> None:
-    """Entry point called by Odoo's migration runner."""
     if not version:
-        # Fresh install: ORM creates all tables from scratch.
         return
 
     _logger.info("project v1.4 pre-migrate: PMI terminology alignment starting")
 
-    # Phase 1: Split project_task_type into two new tables
     _create_workflow_step_table(cr)
     _create_workflow_step_project_rel(cr)
     _create_triage_table(cr)
     _create_task_triage_table(cr)
 
-    # Phase 2: Rename tables
     _rename_project_stage_to_phase(cr)
     _rename_task_dependency_rel(cr)
 
-    # Phase 3: Rename columns on existing tables
     _rename_project_task_columns(cr)
     _rename_project_project_columns(cr)
 
-    # Phase 4: Migrate state values
     _migrate_state_values(cr)
 
-    # Phase 5: Update ORM registry tables
     _update_ir_model(cr)
     _update_ir_model_data(cr)
     _update_ir_model_fields(cr)
 
-    # Phase 6: Update serialized references in user-created records
     _update_ir_filters(cr)
     _update_ir_rules(cr)
     _update_server_actions(cr)
 
-    # Phase 7: Clean up orphaned columns and constraints
     _drop_orphaned_stage_id_from_user_rel(cr)
     _update_foreign_keys(cr)
     _drop_orphaned_wizard_rel(cr)
@@ -98,17 +37,7 @@ def migrate(cr, version: str | None) -> None:
     _logger.info("project v1.4 pre-migrate: PMI terminology alignment complete")
 
 
-# ---------------------------------------------------------------------------
-# Table creation helpers (project_task_type split — can't rename, must split)
-# ---------------------------------------------------------------------------
-
-
 def _create_workflow_step_table(cr) -> None:
-    """Create project_workflow_step from project_task_type rows with user_id IS NULL.
-
-    Fields match project.task.type minus user_id, with auto_validation_state
-    renamed to auto_update_state.
-    """
     cr.execute("""
         CREATE TABLE IF NOT EXISTS project_workflow_step (
             id                      SERIAL PRIMARY KEY,
@@ -155,7 +84,6 @@ def _create_workflow_step_table(cr) -> None:
     inserted = cr.rowcount
     _logger.info("project_workflow_step: inserted %d rows", inserted)
 
-    # Advance the sequence past the highest copied id so new records don't collide.
     cr.execute("""
         SELECT setval(
             'project_workflow_step_id_seq',
@@ -166,7 +94,6 @@ def _create_workflow_step_table(cr) -> None:
 
 
 def _create_workflow_step_project_rel(cr) -> None:
-    """Create the M2M relation table between workflow steps and projects."""
     cr.execute("""
         CREATE TABLE IF NOT EXISTS project_workflow_step_project_rel (
             step_id    INTEGER NOT NULL,
@@ -187,10 +114,6 @@ def _create_workflow_step_project_rel(cr) -> None:
 
 
 def _create_triage_table(cr) -> None:
-    """Create project_triage from project_task_type rows with user_id IS NOT NULL.
-
-    Only personal-bucket fields are kept; workflow-step fields are omitted.
-    """
     cr.execute("""
         CREATE TABLE IF NOT EXISTS project_triage (
             id          SERIAL PRIMARY KEY,
@@ -232,14 +155,6 @@ def _create_triage_table(cr) -> None:
 
 
 def _create_task_triage_table(cr) -> None:
-    """Create project_task_triage from project_task_user_rel.
-
-    The triage_id column mirrors the old stage_id since project_triage.id values
-    are identical to the project_task_type.id values they were copied from.
-
-    Note: project_task_user_rel is NOT renamed — it is still used by the
-    user_ids M2M field on project.task (task assignees).
-    """
     cr.execute("""
         CREATE TABLE IF NOT EXISTS project_task_triage (
             id          SERIAL PRIMARY KEY,
@@ -278,14 +193,7 @@ def _create_task_triage_table(cr) -> None:
     """)
 
 
-# ---------------------------------------------------------------------------
-# Table renames (full-change approach — old names disappear)
-# ---------------------------------------------------------------------------
-
-
 def _rename_project_stage_to_phase(cr) -> None:
-    """Rename project_project_stage → project_phase."""
-    # Check if already renamed
     cr.execute("""
         SELECT 1 FROM information_schema.tables
         WHERE table_name = 'project_project_stage'
@@ -294,7 +202,6 @@ def _rename_project_stage_to_phase(cr) -> None:
         cr.execute("ALTER TABLE project_project_stage RENAME TO project_phase")
         _logger.info("Renamed table: project_project_stage → project_phase")
 
-        # Rename the sequence too
         cr.execute("""
             DO $$
             BEGIN
@@ -311,7 +218,6 @@ def _rename_project_stage_to_phase(cr) -> None:
 
 
 def _rename_task_dependency_rel(cr) -> None:
-    """Rename task_dependencies_rel → project_task_dependency_rel."""
     cr.execute("""
         SELECT 1 FROM information_schema.tables
         WHERE table_name = 'task_dependencies_rel'
@@ -329,13 +235,7 @@ def _rename_task_dependency_rel(cr) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# Column renames on existing tables (full-change — old column names disappear)
-# ---------------------------------------------------------------------------
-
-
 def _column_exists(cr, table: str, column: str) -> bool:
-    """Check whether a column exists on a table via information_schema."""
     cr.execute(
         """
         SELECT 1
@@ -349,7 +249,6 @@ def _column_exists(cr, table: str, column: str) -> bool:
 
 
 def _rename_project_task_columns(cr) -> None:
-    """Rename stage_id → step_id and date_last_stage_update → date_last_status_change."""
     if _column_exists(cr, "project_task", "stage_id"):
         cr.execute("ALTER TABLE project_task RENAME COLUMN stage_id TO step_id")
         _logger.info("Renamed column: project_task.stage_id → step_id")
@@ -372,7 +271,6 @@ def _rename_project_task_columns(cr) -> None:
 
 
 def _rename_project_project_columns(cr) -> None:
-    """Rename stage_id → phase_id and allow_task_dependencies → allow_dependencies on project_project."""
     if _column_exists(cr, "project_project", "stage_id"):
         cr.execute("ALTER TABLE project_project RENAME COLUMN stage_id TO phase_id")
         _logger.info("Renamed column: project_project.stage_id → phase_id")
@@ -394,12 +292,8 @@ def _rename_project_project_columns(cr) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# State value migration
-# ---------------------------------------------------------------------------
-
 _STATE_MAP = {
-    "00_todo": "todo",  # new native state added to project.task
+    "00_todo": "todo",
     "01_in_progress": "in_progress",
     "02_changes_requested": "changes_requested",
     "03_approved": "approved",
@@ -410,7 +304,6 @@ _STATE_MAP = {
 
 
 def _migrate_state_values(cr) -> None:
-    """Rename state values on project_task to drop numeric sort-hack prefixes."""
     old_values = list(_STATE_MAP.keys())
     cr.execute(
         """
@@ -437,10 +330,6 @@ def _migrate_state_values(cr) -> None:
         _logger.info("project_task.state: %s → %s (%d rows)", old, new, counts[old])
 
 
-# ---------------------------------------------------------------------------
-# ORM registry updates (ir_model, ir_model_data, ir_model_fields)
-# ---------------------------------------------------------------------------
-
 _MODEL_RENAMES = {
     "project.task.type": "project.workflow.step",
     "project.project.stage": "project.phase",
@@ -448,7 +337,6 @@ _MODEL_RENAMES = {
 }
 
 _FIELD_RENAMES = {
-    # (model, old_field_name): new_field_name
     ("project.task", "stage_id"): "step_id",
     ("project.task", "date_last_stage_update"): "date_last_status_change",
     ("project.project", "stage_id"): "phase_id",
@@ -457,7 +345,6 @@ _FIELD_RENAMES = {
 
 
 def _update_ir_model(cr) -> None:
-    """Update ir_model entries for renamed models."""
     for old_name, new_name in _MODEL_RENAMES.items():
         cr.execute(
             "UPDATE ir_model SET model = %s WHERE model = %s",
@@ -468,13 +355,6 @@ def _update_ir_model(cr) -> None:
 
 
 def _update_ir_model_data(cr) -> None:
-    """Update ir_model_data entries for renamed models.
-
-    For the project.task.type split, we need to figure out which records
-    became project.workflow.step vs project.triage based on the original
-    user_id value.
-    """
-    # First, rename all project.task.type → project.workflow.step
     cr.execute("""
         UPDATE ir_model_data
         SET model = 'project.workflow.step'
@@ -485,7 +365,6 @@ def _update_ir_model_data(cr) -> None:
         "ir_model_data: project.task.type → project.workflow.step (%d rows)", step_count
     )
 
-    # Then fix the ones that should be project.triage (personal stages)
     cr.execute("""
         UPDATE ir_model_data imd
         SET model = 'project.triage'
@@ -499,7 +378,6 @@ def _update_ir_model_data(cr) -> None:
         triage_count,
     )
 
-    # Simple renames for the other models
     cr.execute("""
         UPDATE ir_model_data
         SET model = 'project.phase'
@@ -521,10 +399,6 @@ def _update_ir_model_data(cr) -> None:
 
 
 def _update_ir_model_fields(cr) -> None:
-    """Update ir_model_fields for renamed fields.
-
-    Also update the model name on fields that belong to renamed models.
-    """
     for (model, old_field), new_field in _FIELD_RENAMES.items():
         cr.execute(
             "UPDATE ir_model_fields SET name = %s WHERE model = %s AND name = %s",
@@ -533,7 +407,6 @@ def _update_ir_model_fields(cr) -> None:
         if cr.rowcount:
             _logger.info("ir_model_fields: %s.%s → %s", model, old_field, new_field)
 
-    # Update model references on fields belonging to renamed models
     for old_model, new_model in _MODEL_RENAMES.items():
         cr.execute(
             "UPDATE ir_model_fields SET model = %s WHERE model = %s",
@@ -547,7 +420,6 @@ def _update_ir_model_fields(cr) -> None:
                 new_model,
             )
 
-    # Update relation references (fields pointing TO renamed models)
     for old_model, new_model in _MODEL_RENAMES.items():
         cr.execute(
             "UPDATE ir_model_fields SET relation = %s WHERE relation = %s",
@@ -562,14 +434,6 @@ def _update_ir_model_fields(cr) -> None:
             )
 
 
-# ---------------------------------------------------------------------------
-# Serialized domain/context text replacements (user-created records)
-# ---------------------------------------------------------------------------
-
-# Field name replacements scoped to specific models.  Each entry is
-# (model_id_value, old_token, new_token).  The model_id_value filters
-# ir_filters rows so we don't accidentally rename unrelated "stage_id"
-# fields in CRM, HR recruitment, etc.
 _FILTER_FIELD_RENAMES = [
     ("project.task", "stage_id", "step_id"),
     ("project.task", "date_last_stage_update", "date_last_status_change"),
@@ -586,9 +450,6 @@ _FILTER_FIELD_RENAMES = [
     ("project.project", "type_ids", "workflow_step_ids"),
 ]
 
-# State value replacements — only within domains scoped to project.task.
-# The old values are always quoted strings in serialized Python domains
-# (e.g., "'01_in_progress'").
 _FILTER_STATE_RENAMES = [
     ("00_todo", "todo"),
     ("01_in_progress", "in_progress"),
@@ -609,7 +470,6 @@ def _text_replace(
     where_clause: str = "",
     params: tuple[str, ...] = (),
 ) -> int:
-    """Replace a text token in a text/varchar column, scoped by WHERE clause."""
     sql = f"""
         UPDATE {table}
         SET {column} = replace({column}, %s, %s)
@@ -624,14 +484,8 @@ def _text_replace(
 
 
 def _update_ir_filters(cr) -> None:
-    """Update serialized field names and state values in user-created filters.
-
-    ir_filters stores domain/context/sort as Python literal text.
-    model_id is a Selection (varchar) storing the model name string.
-    """
     total = 0
 
-    # Rename model_id values for removed models
     for old_model, new_model in _MODEL_RENAMES.items():
         cr.execute(
             "UPDATE ir_filters SET model_id = %s WHERE model_id = %s",
@@ -646,7 +500,6 @@ def _update_ir_filters(cr) -> None:
             )
             total += cr.rowcount
 
-    # Rename field names in domain/context/sort columns
     for model, old_field, new_field in _FILTER_FIELD_RENAMES:
         for column in ("domain", "context", "sort"):
             count = _text_replace(
@@ -669,7 +522,6 @@ def _update_ir_filters(cr) -> None:
                 )
                 total += count
 
-    # Rename state values in domain column (only for project.task filters)
     for old_state, new_state in _FILTER_STATE_RENAMES:
         count = _text_replace(
             cr,
@@ -693,16 +545,8 @@ def _update_ir_filters(cr) -> None:
 
 
 def _update_ir_rules(cr) -> None:
-    """Update domain_force text in user-created ir.rule records.
-
-    XML-shipped rules are reloaded on upgrade, so only user-created rules
-    (noupdate=1 or no ir_model_data entry) need patching.
-    """
     total = 0
 
-    # Field renames in domain_force — scope by the rule's model_id FK.
-    # ir_rule.model_id is a Many2one to ir_model, so we join to get the
-    # model name string.
     for model, old_field, new_field in _FILTER_FIELD_RENAMES:
         cr.execute(
             """
@@ -725,7 +569,6 @@ def _update_ir_rules(cr) -> None:
             )
             total += cr.rowcount
 
-    # State value renames in domain_force for project.task rules
     for old_state, new_state in _FILTER_STATE_RENAMES:
         cr.execute(
             """
@@ -751,15 +594,9 @@ def _update_ir_rules(cr) -> None:
 
 
 def _update_server_actions(cr) -> None:
-    """Update field references in ir.actions.server code and update_path.
-
-    Server actions may contain Python code or dot-path field traversals
-    that reference old field names.
-    """
     total = 0
 
     for model, old_field, new_field in _FILTER_FIELD_RENAMES:
-        # update_path column
         cr.execute(
             """
             UPDATE ir_act_server a
@@ -781,7 +618,6 @@ def _update_server_actions(cr) -> None:
             )
             total += cr.rowcount
 
-        # code column
         cr.execute(
             """
             UPDATE ir_act_server a
@@ -806,24 +642,11 @@ def _update_server_actions(cr) -> None:
     _logger.info("ir_act_server: %d total updates", total)
 
 
-# ---------------------------------------------------------------------------
-# Cleanup helpers
-# ---------------------------------------------------------------------------
-
-
 def _drop_orphaned_stage_id_from_user_rel(cr) -> None:
-    """Drop the orphaned stage_id column from project_task_user_rel.
-
-    After the triage split, project_task_user_rel is a pure M2M junction
-    for user_ids (task ↔ user assignees).  The stage_id column is no longer
-    referenced by any field.
-    """
     if _column_exists(cr, "project_task_user_rel", "stage_id"):
         cr.execute("ALTER TABLE project_task_user_rel DROP COLUMN stage_id")
         _logger.info("project_task_user_rel: dropped orphaned stage_id column")
-    # Also drop the id column if present — pure M2M junctions don't have id
     if _column_exists(cr, "project_task_user_rel", "id"):
-        # First drop the primary key constraint if it exists
         cr.execute("""
             DO $$
             BEGIN
@@ -837,18 +660,10 @@ def _drop_orphaned_stage_id_from_user_rel(cr) -> None:
 
 
 def _update_foreign_keys(cr) -> None:
-    """Update FK constraints after column/table renames.
-
-    project_task.stage_id was renamed to step_id but the FK constraint
-    still references the old column name and points to project_task_type.
-    Recreate it pointing to project_workflow_step.
-    """
-    # Drop old FK on project_task (stage_id → project_task_type)
     cr.execute("""
         ALTER TABLE project_task
         DROP CONSTRAINT IF EXISTS project_task_stage_id_fkey
     """)
-    # Create new FK (step_id → project_workflow_step)
     cr.execute("""
         DO $$
         BEGIN
@@ -862,7 +677,6 @@ def _update_foreign_keys(cr) -> None:
     """)
     _logger.info("project_task: FK step_id → project_workflow_step")
 
-    # Drop old FK on project_task_type_rel (type_id → project_task_type)
     cr.execute("""
         ALTER TABLE project_task_type_rel
         DROP CONSTRAINT IF EXISTS project_task_type_rel_type_id_fkey
@@ -871,7 +685,6 @@ def _update_foreign_keys(cr) -> None:
 
 
 def _drop_orphaned_wizard_rel(cr) -> None:
-    """Drop the transient wizard junction table for the old task type delete wizard."""
     cr.execute("""
         DROP TABLE IF EXISTS project_task_type_project_task_type_delete_wizard_rel
     """)

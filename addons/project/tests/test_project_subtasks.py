@@ -12,7 +12,6 @@ from odoo.addons.project.tests.test_project_base import TestProjectCommon
 @tagged("-at_install", "post_install")
 class TestProjectSubtasks(TestProjectCommon):
     def test_task_display_project_with_default_form(self) -> None:
-        """Create a task in the default task form should take the project set in the form or the default project in the context"""
         with Form(
             self.env["project.task"].with_context({"tracking_disable": True})
         ) as task_form:
@@ -44,7 +43,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_task_display_project_with_task_form2(self) -> None:
-        """Create a task in the task form 2 should take the project set in the form or the default project in the context"""
         with Form(
             self.env["project.task"].with_context({"tracking_disable": True}),
             view="project.view_task_form2",
@@ -78,7 +76,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_task_display_project_with_quick_create_task_form(self) -> None:
-        """Create a task in the quick create form should take the default project in the context"""
         task_form = Form(
             self.env["project.task"].with_context(
                 {
@@ -98,7 +95,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_task_display_project_with_any_task_form(self) -> None:
-        """Create a task in any form should take the default project in the context"""
         form_views = self.env["ir.ui.view"].search(
             [("model", "=", "project.task"), ("type", "=", "form")]
         )
@@ -114,10 +110,6 @@ class TestProjectSubtasks(TestProjectCommon):
                 ),
                 view=form_view,
             )
-            # Some views have the `name` field invisible
-            # As the goal is simply to test the default project field and not the name, we can skip setting the name
-            # in the view and set it using `default_name` instead
-            # Quick create form use display_name and for the same goal, we can add default_display_name for that form
             task = task_form.save()
 
             self.assertEqual(
@@ -129,31 +121,8 @@ class TestProjectSubtasks(TestProjectCommon):
 
     @mute_logger("odoo.db")
     def test_subtask_project(self) -> None:
-        """1) Create a subtask
-            - Should have a project set
-            - Shouldn't be displayed
-        2) Set project on subtask
-            - Should not change parent project
-            - Project should be correct
-            - Should be displayed
-        3) Reset the project to False
-            - Should raise an error
-        3bis) Reset the parent task project to False
-            - Should raise an error
-        4) Set project on parent to same project as subtask
-            - Project should be correct
-            - Shouldn't change subtask's display
-        5) Set project on subtask and change parent task project
-            - Project should be the one set by the user
-        6) Remove parent task:
-            - The project id should remain unchanged
-        7) Remove project id then parent id:
-            - Project should be removed
-            - Parent should be removed
-        """
         parent_task = self.task_1.with_context({"tracking_disable": True})
 
-        # 1)
         child_task = parent_task.create(
             {
                 "name": "Test Subtask 1",
@@ -171,7 +140,6 @@ class TestProjectSubtasks(TestProjectCommon):
             "By default, subtasks shouldn't be displayed in project.",
         )
 
-        # 2)
         child_task.project_id = self.project_goats
         self.assertEqual(
             self.task_1.project_id,
@@ -188,15 +156,12 @@ class TestProjectSubtasks(TestProjectCommon):
             "As the subtask isn't in the same project as its parent, it should be displayed",
         )
 
-        # 3)
         with self.assertRaises(CheckViolation):
             child_task.project_id = False
 
-        # 3bis)
         with self.assertRaises(ValidationError):
             parent_task.project_id = False
 
-        # 4)
         parent_task.project_id = self.task_1.child_ids.project_id
         self.assertEqual(
             self.task_1.project_id,
@@ -213,7 +178,6 @@ class TestProjectSubtasks(TestProjectCommon):
             "Changing the project of the task shouldn't change de value of display_in_project of its subtask",
         )
 
-        # 5)
         parent_task.write(
             {
                 "project_id": self.project_pigs.id,
@@ -238,7 +202,6 @@ class TestProjectSubtasks(TestProjectCommon):
             "The project of the subtask should have the one set by the user",
         )
 
-        # 6)
         child_task.parent_id = False
         self.assertEqual(
             child_task.project_id,
@@ -247,7 +210,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
         self.assertFalse(child_task.parent_id, "Parent should be false")
 
-        # 7)
         other_child_task = parent_task.create(
             {
                 "name": "Test Subtask 1",
@@ -271,12 +233,8 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_subtask_stage(self) -> None:
-        """The stage of the new child must be the default one of the project"""
         parent_task = self.task_1.with_context({"tracking_disable": True})
 
-        # The project already owns its seeded first column; push the two test
-        # stages behind it so "the default one of the project" is unambiguous
-        # and is still stage_a.
         self.project_pigs.workflow_step_ids.sequence = 100
         stage_a = self.env["project.workflow.step"].create({"name": "a", "sequence": 1})
         stage_b = self.env["project.workflow.step"].create(
@@ -372,13 +330,12 @@ class TestProjectSubtasks(TestProjectCommon):
 
         task_count_with_subtasks_including_archived = 6
         task_count_in_project_pigs = self.project_pigs.task_count
-        self.project_goats._compute_task_count()  # recompute without archived tasks and subtasks
+        self.project_goats._compute_task_count()
         task_count_in_project_goats = self.project_goats.task_count
         project_goats_duplicated = self.project_goats.copy()
-        self.project_pigs._compute_task_count()  # retrigger since a new task should be added in the project after the duplication of Project Goats
+        self.project_pigs._compute_task_count()
 
         def dfs(task) -> None:
-            # ABGH: i used dfs to avoid visiting a task 2 times as it can be a direct task for the project and a subtask for another task like child 6
             visited[task.id] = True
             total_count = 1
             for child_id in task.child_ids:
@@ -388,7 +345,7 @@ class TestProjectSubtasks(TestProjectCommon):
 
         visited = {}
         tasks_copied_count = 0
-        for task in project_goats_duplicated.tasks:
+        for task in project_goats_duplicated.task_ids:
             if task.id not in visited:
                 tasks_copied_count += dfs(task)
 
@@ -410,13 +367,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_subtask_creation_with_form(self) -> None:
-        """1) test the creation of sub-tasks through the notebook
-        2) set a parent task on an existing task
-        3) test the creation of sub-sub-tasks
-        4) check the correct nb of sub-tasks is displayed in the 'sub-tasks' stat button and on the parent task kanban card
-        5) sub-tasks should be copied when the parent task is duplicated
-        6) verify if there is a copy in the subtask name.
-        """
         task_form = Form(self.task_1.with_context({"tracking_disable": True}))
         with task_form.child_ids.new() as child_task_form:
             child_task_form.name = "Test Subtask 1"
@@ -447,7 +397,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_subtask_copy_display_in_project(self) -> None:
-        """Check if `display_in_project` of subtask is not set to `True` during copy"""
         project = self.env["project.project"].create(
             {
                 "name": "Project",
@@ -509,10 +458,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_subtask_copy_name(self) -> None:
-        """This test ensure that the name of task and project have the '(copy)' added to their name when needed.
-        If a project is copied, the project's name should contain the 'copy' but the project's task should keep the same name as their original.
-        If a task is copied (alone or in a recordset), its name as well as the name of its children should contain the 'copy'.
-        """
         project = self.env["project.project"].create(
             {
                 "name": "Project",
@@ -671,7 +616,6 @@ class TestProjectSubtasks(TestProjectCommon):
             )
 
     def test_subtask_copy_followers(self) -> None:
-        """This test will check that a task will propagate its followers to its subtasks"""
         task_form = Form(self.task_1.with_context({"tracking_disable": True}))
         with task_form.child_ids.new() as child_task_form:
             child_task_form.name = "Child Task"
@@ -684,7 +628,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_toggle_active_task_with_subtasks(self) -> None:
-        """This test will check archiving task should archive it's subtasks and vice versa"""
         parent_task = (
             self.env["project.task"]
             .with_context({"mail_create_nolog": True})
@@ -757,8 +700,6 @@ class TestProjectSubtasks(TestProjectCommon):
                 }
             )
         )
-        # child_ids is newest-first (_order ends in `id desc`), so bind children
-        # by name rather than by position to keep the assertions order-independent.
         child_1 = parent_task.child_ids.filtered(lambda c: c.name == "child 1")
         child_2 = parent_task.child_ids.filtered(lambda c: c.name == "child 2")
         child_3 = parent_task.child_ids.filtered(lambda c: c.name == "child 3")
@@ -792,7 +733,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_display_in_project_unset_parent(self) -> None:
-        """Test _onchange_parent_id when there is no parent task"""
         Task = self.env["project.task"]
         task = Task.create(
             {
@@ -849,13 +789,6 @@ class TestProjectSubtasks(TestProjectCommon):
         self.assertTrue(invisible_subtask.display_in_project)
 
     def test_convert_tasks_to_subtask(self) -> None:
-        """Check if the parent task is linked with the subtask through the 'Convert to Subtask' wizard.
-
-        Steps:
-            - Open the subtask wizard
-            - Choose the parent task
-            - Check the parent and subtask
-        """
         with Form(
             self.task_1,
             view="project.project_task_convert_to_subtask_view_form",
@@ -871,13 +804,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_action_convert_to_subtask_on_private_task(self) -> None:
-        """Check if a warning is triggered when the user selects a private task as a subtask.
-
-        Steps:
-            - Create a private task
-            - Perform the action convert_to_subtask
-            - Check the returned action result
-        """
         private_task = self.env["project.task"].create(
             {
                 "name": "Private task",
@@ -921,8 +847,6 @@ class TestProjectSubtasks(TestProjectCommon):
                 ],
             }
         )
-        # Both subtasks share a name; identify them by project rather than by
-        # position (child_ids is newest-first, _order ends in `id desc`).
         subtask_1 = task.child_ids.filtered(
             lambda c: c.project_id == self.project_goats
         )
@@ -953,16 +877,6 @@ class TestProjectSubtasks(TestProjectCommon):
         self.assertTrue(subtask_2.display_in_project)
 
     def test_subtask_private_project_and_parent_task(self) -> None:
-        """Test that an assigned employee to a subtask can open it even when
-        they don't have access to the parent task or project.
-
-        Test Case:
-        ==========
-        1) Create a private project with a parent task and a subtask.
-        2) assign an employee to the subtask.
-        3) Ensure the employee can access the subtask even if they don't have
-           access to the parent task or project.
-        """
         private_project = self.env["project.project"].create(
             {
                 "name": "Private Project",
@@ -992,7 +906,6 @@ class TestProjectSubtasks(TestProjectCommon):
             }
         )
 
-        # Ensure the employee can read subtask fields that depends on the parent task
         parent_dependent_fields = [
             name
             for name, field in self.env["project.task"]._fields.items()
@@ -1040,13 +953,6 @@ class TestProjectSubtasks(TestProjectCommon):
         )
 
     def test_subtask_default_tags_are_commands(self) -> None:
-        """default_get must return tag_ids in write format, not as a recordset.
-
-        create() accepts a recordset for an x2many, so the inheritance above
-        passes either way. The onchange RPC path does not: web_onchange reads
-        this value as command triples, so a recordset silently dropped the
-        parent's tags from its sub-field prefetch.
-        """
         task = self.env["project.task"].create(
             {
                 "name": "Parent task",

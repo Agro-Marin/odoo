@@ -1,24 +1,10 @@
-"""Project lifecycle phases (PMI terminology alignment).
-
-PMI/PMBOK defines a *phase* as "a collection of logically related project
-activities that culminates in the completion of one or more deliverables" —
-exactly what Odoo's project stages represent at the project level.
-"""
-
 from typing import Any
 
-from odoo import _, fields, models
-from odoo.exceptions import UserError
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 
 
 class ProjectPhase(models.Model):
-    """A lifecycle phase of a project (e.g. Planning, Execution, Closing).
-
-    Phases are shared across projects within the same company. A project
-    occupies exactly one phase at any given time. Folded phases are shown
-    collapsed in Kanban/List views and are treated as closed.
-    """
-
     _name = "project.phase"
     _description = "Project Phase"
     _inherit = ["mixin.project.pm"]
@@ -43,8 +29,22 @@ class ProjectPhase(models.Model):
     company_id = fields.Many2one("res.company", string="Company")
     color = fields.Integer(string="Color", export_string_translation=False)
 
+    @api.constrains("mail_template_id")
+    def _check_mail_template_model(self) -> None:
+        for phase in self:
+            template = phase.mail_template_id
+            if template and template.model != "project.project":
+                raise ValidationError(
+                    _(
+                        "The email template %(template)s is defined on %(model)s, but a "
+                        "phase email is sent about a project. Choose a template whose "
+                        "model is Project.",
+                        template=template.display_name,
+                        model=template.model,
+                    )
+                )
+
     def unlink_wizard(self, stage_view: bool = False) -> dict[str, Any]:
-        """Open the delete/archive confirmation wizard for these phases."""
         wizard = self.env["project.phase.delete.wizard"].create({"phase_ids": self.ids})
         context = dict(self.env.context, stage_view=stage_view)
         return {
@@ -64,7 +64,6 @@ class ProjectPhase(models.Model):
         }
 
     def write(self, vals: dict) -> bool:
-        """Guard company switches when projects are already assigned to this phase."""
         if vals.get("company_id"):
             project = self.env["project.project"].search(
                 [

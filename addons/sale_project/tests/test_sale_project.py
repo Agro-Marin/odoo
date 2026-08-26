@@ -110,7 +110,14 @@ class TestSaleProjectServices(TestSaleProjectCommon):
                 "line_ids": [
                     Command.create(
                         {
-                            "product_id": self.company_data["product_order_no"].id,
+                            # A SERVICE: sale_timesheet constrains a billable
+                            # project's sale_line_id to one, and this test errored
+                            # on that constraint whenever sale_timesheet happened
+                            # to be installed alongside. Ordered-policy, so the
+                            # line is invoiceable the moment the order is
+                            # confirmed -- which is what the assertions below are
+                            # actually about.
+                            "product_id": self.product_service_ordered_prepaid.id,
                             "product_qty": 5,
                             "tax_ids": False,
                         }
@@ -131,3 +138,41 @@ class TestSaleProjectServices(TestSaleProjectCommon):
 
         self.assertEqual(order.invoice_state, "done")
         self.assertFalse(self.project_global.has_any_so_to_invoice)
+
+    def test_project_update_description_renders_for_a_billable_project(self):
+        """The default description template reads the sale-order-line keys that
+        ``_get_template_values`` actually puts in the dict.
+
+        Regression: the Python half of this fork's ``product_uom_qty`` ->
+        ``product_qty`` split was done and the QWeb half was not, so the
+        template asked for ``sol['product_uom_qty']`` against a dict built from
+        ``product_qty``. Creating a Project Update on a billable project raised
+        ``KeyError: 'product_uom_qty'`` — a 500 behind an "Oops!" dialog, on a
+        button in the project dashboard.
+        """
+        order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_service_ordered_prepaid.id,
+                            "product_qty": 5,
+                            "tax_ids": False,
+                        }
+                    ),
+                ],
+            }
+        )
+        order.action_confirm()
+        project = order.project_ids[:1] or self.project_global
+        project.allow_billable = True
+        project.sale_line_id = order.line_ids[0]
+
+        description = self.env["project.update"]._prepare_description(project)
+        self.assertTrue(description)
+
+        update = self.env["project.update"].create(
+            {"name": "Update", "project_id": project.id, "status": "on_track"}
+        )
+        self.assertTrue(update.exists())

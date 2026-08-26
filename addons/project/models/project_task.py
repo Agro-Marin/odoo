@@ -79,11 +79,9 @@ PROJECT_TASK_READABLE_FIELDS = {
     "cd3_score",
     "access_token",
     "access_url",
-    # Readable, never writable — see the note under the writable set. The
-    # portal's task list offers "Last Status Change" as a sort option, so the
-    # read has to stay.
     "date_last_status_change",
     "is_closed",
+    "lost_reason_id",
 }
 
 PROJECT_TASK_WRITABLE_FIELDS = {
@@ -101,38 +99,14 @@ PROJECT_TASK_WRITABLE_FIELDS = {
     "priority",
     "state",
 }
-# NB: ``date_last_status_change`` and ``is_closed`` used to be in the writable
-# set. Neither belongs there. ``readonly=True`` is a client-side hint, not an
-# ORM guard, so listing the first let a portal collaborator stamp any value
-# they liked onto the timestamp that drives rotting, stage-duration tracking
-# and the burndown chart. The second is a non-stored compute with no inverse,
-# so writing it was accepted and silently did nothing. Both stay readable.
 
 CLOSED_STATES = {
     "done": "Done",
     "canceled": "Cancelled",
 }
 
-# Closed is not the same as delivered, and the metrics need both.
-#
-# ``CLOSED_STATES`` answers "is this task still in play?" — it drives WIP,
-# staleness and the open/closed counters, and a cancelled task is out of play.
-# ``DELIVERED_STATES`` answers "did this task ship?" — it drives throughput,
-# lead/cycle time and deadline compliance, where a cancellation is not a
-# delivery and must not count as one in either the numerator or the
-# denominator. A cancelled task did not miss its deadline; it was abandoned.
-#
-# Both are exported for SQL: the analytics computes in project_project.py and
-# the report views used to spell ``'done', 'canceled'`` by hand in seventeen
-# places, which is how the project-level deadline metric came to disagree with
-# the task-level ``deadline_met`` field. Pass these as query parameters instead
-# of retyping the literals.
 DELIVERED_STATES = ("done",)
 
-# Review verdicts: they describe the outcome of examining the task where it
-# stood, so moving it to another workflow step makes them stale and they fall
-# back to in_progress. Every other open state — notably the ``todo`` default —
-# is the user's and survives the move.
 STATES_RESET_ON_STEP_CHANGE = ("approved", "changes_requested")
 
 
@@ -147,9 +121,6 @@ class ProjectTask(models.Model):
         "mixin.mail.tracking.duration",
         "mixin.portal",
         "mixin.rating",
-        # Allocation, not just projection: a task's committed hours genuinely
-        # are the sum of its per-assignee reservations. The allocation mixin
-        # inherits the scheduling one, so this covers both.
         "mixin.resource.allocation",
     ]
     _mail_post_access = "read"
@@ -158,8 +129,6 @@ class ProjectTask(models.Model):
     _primary_email = "email_from"
     _systray_view = "list"
     _track_duration_field = "step_id"
-    # This fork renames the rotting "last update" field; the mixin reads it
-    # through this attribute so no rotting method needs re-implementing.
     _track_duration_last_update_field = "date_last_status_change"
 
     def _get_fields_versioned(self) -> list[str]:
@@ -174,7 +143,6 @@ class ProjectTask(models.Model):
         return False
 
     def _default_step_id(self) -> int | bool:
-        """Gives default step_id"""
         project_id = self.env.context.get("default_project_id")
         if not project_id:
             return False
@@ -317,10 +285,6 @@ class ProjectTask(models.Model):
         readonly=True,
         help="Date on which this task was last assigned (or unassigned). Based on this, you can get statistics on the time it usually takes to assign tasks.",
     )
-    # Scheduled time range — PMI Constraint Start Date / Constraint End Date.
-    # User-entered values (independent of the CPM-calculated cpm_date_start /
-    # cpm_date_end below).  ``date_end`` doubles as the deadline label
-    # for backward compatibility with vanilla Odoo's project module.
     planned_date_begin = fields.Datetime(
         "Start date",
         tracking=True,
@@ -375,6 +339,12 @@ class ProjectTask(models.Model):
         compute="_compute_is_closed",
         search="_search_is_closed",
     )
+    lost_reason_id = fields.Many2one(
+        comodel_name="project.task.lost.reason",
+        ondelete="restrict",
+        index=True,
+        tracking=True,
+    )
 
     step_id = fields.Many2one(
         "project.workflow.step",
@@ -412,7 +382,6 @@ class ProjectTask(models.Model):
         string="Project Roles",
         help="When you create a project from a template, you can choose which employee takes each role. These employees will be added to the tasks, along with anyone already assigned.",
     )
-    # Tracking of this field is done in the write function
     user_ids = fields.Many2many(
         "res.users",
         relation="project_task_user_rel",
@@ -427,8 +396,6 @@ class ProjectTask(models.Model):
     )
     tag_ids = fields.Many2many("project.tags", string="Tags")
 
-    # PMI hours model: scheduled (duration) -> planned (effort) ->
-    # allocated (commitment). See reference/business/pmi-hours-model.md.
     scheduled_hours = fields.Float(
         "Working Duration",
         compute="_compute_scheduled_hours",
@@ -469,14 +436,6 @@ class ProjectTask(models.Model):
         "formula, so the formula stops overwriting their estimate. Cleared by "
         "writing back the value the formula would produce.",
     )
-    # NB: this is NOT a plain writable Float, whatever the definition below
-    # looks like. ``mixin.resource.scheduling`` declares it
-    # compute="_compute_allocated_hours" / store=True / readonly=False, and
-    # attribute merge carries all three over — this redefinition only adds
-    # tracking and the fork's help text. So it is the *commitment ledger*
-    # aggregated from reservation_ids, zero until the task is scheduled, and it
-    # is NOT the estimate: that is ``planned_hours``. Reading it as an estimate
-    # is what silently broke project_enterprise's smart scheduler.
     allocated_hours = fields.Float(
         "Allocated Hours",
         tracking=True,
@@ -500,35 +459,18 @@ class ProjectTask(models.Model):
         "effort.  Operational signal for PMs.  Pattern analog to "
         "invoice_state on sale.order.",
     )
-    # allocated_percentage inherited from mixin.resource.scheduling —
-    # uniform fractional allocation passed through to every reservation
-    # via _get_reservation_vals_list.  Per-resource fractional units (PMI
-    # strict per-assignment Units) lives on resource.reservation.
     subtask_planned_hours = fields.Float(
         "Sub-tasks Planned Hours",
         compute="_compute_subtask_planned_hours",
         export_string_translation=False,
         help="Sum of the planned hours for all the sub-tasks (and their own sub-tasks) linked to this task. Usually less than or equal to the planned hours of this task.",
     )
-    # User names displayed in project sharing views
     portal_user_names = fields.Char(
         compute="_compute_portal_user_names",
         compute_sudo=True,
         search="_search_portal_user_names",
         export_string_translation=False,
     )
-    # Per-user triage bucket assignment — see project_task_triage.py.
-    #
-    # READ-ONLY BY CONSTRUCTION. The relation table is a real model
-    # (project.task.triage) whose third column, ``user_id``, is NOT NULL: a
-    # Many2many write emits INSERT (task_id, triage_id) and dies on the
-    # constraint, whatever the command. Nothing in the product can reach it —
-    # the web kanban refuses to drag records grouped by a Many2many
-    # (MOVABLE_RECORD_TYPES in web's dynamic_group_list.js) — but RPC, imports,
-    # automations and Studio all could, and every one of them was a 500. The
-    # field exists only so read_group/group_expand can group on the junction;
-    # the writable face of it is ``triage_id`` (related through
-    # personal_triage_id), which goes through the model and its owner check.
     triage_ids = fields.Many2many(
         "project.triage",
         "project_task_triage",
@@ -542,7 +484,6 @@ class ProjectTask(models.Model):
         string="Personal Triage Buckets",
         export_string_translation=False,
     )
-    # Personal Stage computed from the user
     personal_triage_id = fields.Many2one(
         "project.task.triage",
         string="Personal Stage State",
@@ -562,7 +503,6 @@ class ProjectTask(models.Model):
         domain="[('user_id', '=', uid)]",
         group_expand="_read_group_triage_ids",
     )
-    # Need this field to check there is no email loops when Odoo reply automatically
     email_from = fields.Char("Email From")
     email_cc = fields.Char(
         help="Email addresses that were in the CC of the incoming emails from this task and that are not currently linked to an existing customer."
@@ -575,14 +515,12 @@ class ProjectTask(models.Model):
         export_string_translation=False,
         help="Attachments that don't come from a message",
     )
-    # In the domain of displayed_image_id, we couln't use attachment_ids because a one2many is represented as a list of commands so we used res_model & res_id
     displayed_image_id = fields.Many2one(
         "ir.attachment",
         domain="[('res_model', '=', 'project.task'), ('res_id', '=', id), ('mimetype', 'ilike', 'image')]",
         string="Cover Image",
     )
 
-    # Task Dependencies fields
     allow_dependencies = fields.Boolean(
         related="project_id.allow_dependencies",
         export_string_translation=False,
@@ -616,7 +554,6 @@ class ProjectTask(models.Model):
         compute="_compute_subtask_completion_percentage",
         export_string_translation=False,
     )
-    # Tracking of this field is done in the write function
     predecessor_ids = fields.Many2many(
         "project.task",
         relation="project_task_dependency_rel",
@@ -652,7 +589,6 @@ class ProjectTask(models.Model):
         compute="_compute_successor_count",
         export_string_translation=False,
     )
-    # Typed dependencies (FS/SS/FF/SF) — enriches the M2M above
     dependency_ids = fields.One2many(
         "project.task.dependency",
         "task_id",
@@ -667,7 +603,6 @@ class ProjectTask(models.Model):
         export_string_translation=False,
     )
 
-    # Critical path fields — computed on demand via project action
     earliest_start = fields.Datetime(
         "Earliest Start",
         copy=False,
@@ -692,11 +627,6 @@ class ProjectTask(models.Model):
         help="True when total_float is zero (no scheduling slack).",
         export_string_translation=False,
     )
-    # NB: these are deliberately NOT named planned_date_start/planned_date_end.
-    # project_enterprise (auto_install) owns ``planned_date_start`` as a
-    # non-stored alias of planned_date_begin whose inverse writes back to
-    # planned_date_begin (or, when that is unset, to date_end).  Reusing the
-    # name made every CPM run overwrite the user's start date or deadline.
     cpm_date_start = fields.Datetime(
         "CPM Start",
         copy=False,
@@ -713,7 +643,6 @@ class ProjectTask(models.Model):
         export_string_translation=False,
     )
 
-    # Resource overallocation warning
     is_overallocated = fields.Boolean(
         "Overallocated Assignee",
         compute="_compute_is_overallocated",
@@ -725,8 +654,6 @@ class ProjectTask(models.Model):
         export_string_translation=False,
     )
 
-    # ── Elapsed time metrics (calendar-adjusted) ──────────────────
-    # Queue time: create → assign (how long before someone picks it up)
     queue_time_hours = fields.Float(
         "Queue Time (hours)",
         compute="_compute_elapsed",
@@ -742,7 +669,6 @@ class ProjectTask(models.Model):
         aggregator="avg",
         help="Working days from task creation to first assignment.",
     )
-    # Lead time: create → end (total request-to-delivery)
     lead_time_hours = fields.Float(
         "Lead Time (hours)",
         compute="_compute_elapsed",
@@ -758,7 +684,6 @@ class ProjectTask(models.Model):
         aggregator="avg",
         help="Working days from task creation to closure. Includes queue wait.",
     )
-    # Cycle time: assign → end (active work only, excludes queue)
     cycle_time_hours = fields.Float(
         "Cycle Time (hours)",
         compute="_compute_elapsed",
@@ -775,7 +700,6 @@ class ProjectTask(models.Model):
         help="Working days from first assignment to closure. Excludes queue wait.",
     )
 
-    # Deadline compliance — foundation for estimation improvement
     deadline_met = fields.Selection(
         [("met", "Met"), ("missed", "Missed")],
         "Deadline Result",
@@ -789,7 +713,6 @@ class ProjectTask(models.Model):
         export_string_translation=False,
     )
 
-    # Economic prioritization — Reinertsen: cost of delay / duration
     cost_of_delay = fields.Float(
         "Cost of Delay",
         tracking=True,
@@ -809,7 +732,6 @@ class ProjectTask(models.Model):
         export_string_translation=False,
     )
 
-    # Sprint fields — feature-flagged via use_sprints on project
     sprint_id = fields.Many2one(
         "project.sprint",
         string="Sprint",
@@ -827,7 +749,6 @@ class ProjectTask(models.Model):
         help="Relative effort estimate. Used for sprint velocity tracking.",
     )
 
-    # recurrence fields
     allow_recurring_tasks = fields.Boolean(
         related="project_id.allow_recurring_tasks",
         export_string_translation=False,
@@ -878,10 +799,6 @@ class ProjectTask(models.Model):
         compute_sudo=True,
         readonly=False,
     )
-    # Which occurrences an edit reaches. Not stored: it qualifies one write and
-    # is meaningless afterwards, exactly like `planning.slot.recurrence_update`
-    # -- whose vocabulary this reuses rather than inventing a third spelling of
-    # the same three choices (`calendar.event` has its own, tied to iCal).
     recurrence_update = fields.Selection(
         [
             ("this", "This task"),
@@ -914,7 +831,6 @@ class ProjectTask(models.Model):
         export_string_translation=False,
     )
 
-    # customer portal: include comment and (incoming/outgoing) emails in communication history
     website_message_ids = fields.One2many(
         domain=lambda self: [
             ("model", "=", self._name),
@@ -941,7 +857,6 @@ class ProjectTask(models.Model):
         store=True,
     )
 
-    # Project sharing fields
     display_parent_task_button = fields.Boolean(
         compute="_compute_display_parent_task_button",
         compute_sudo=True,
@@ -958,7 +873,6 @@ class ProjectTask(models.Model):
         export_string_translation=False,
     )
 
-    # Quick creation shortcuts
     display_name = fields.Char(
         inverse="_inverse_display_name",
         help="""Use these keywords in the title to set new tasks:\n
@@ -987,7 +901,6 @@ class ProjectTask(models.Model):
 
     @api.constrains("company_id", "partner_id")
     def _ensure_company_consistency_with_partner(self) -> None:
-        """Ensures that the company of the task is valid for the partner."""
         for task in self:
             if (
                 task.partner_id
@@ -1003,7 +916,6 @@ class ProjectTask(models.Model):
 
     @api.constrains("child_ids", "project_id")
     def _ensure_super_task_is_not_private(self) -> None:
-        """Ensures that the company of the task is valid for the partner."""
         for task in self:
             if not task.project_id and task.subtask_count:
                 raise ValidationError(
@@ -1048,20 +960,6 @@ class ProjectTask(models.Model):
 
     @api.depends("predecessor_ids.state")
     def _compute_state(self) -> None:
-        """Drive only the blocked/unblocked transition.
-
-        ``step_id`` is deliberately NOT a dependency. Discarding a stale review
-        verdict when a task moves column is a policy about that move, so it
-        lives in ``write`` (see ``STATES_RESET_ON_STEP_CHANGE``) where it can
-        apply to exactly the verdict states. Expressed here as a compute over
-        ``step_id`` it also swept up ``todo`` — the fork's own default, which
-        could therefore not survive a single column move.
-
-        A task with an unfinished predecessor is blocked; one whose
-        predecessors have all closed leaves ``blocked`` for ``in_progress``
-        (there is no memory of the state it held before it was blocked). Every
-        other open state is the user's to set.
-        """
         for task in self:
             if task.state in CLOSED_STATES:
                 continue
@@ -1077,20 +975,6 @@ class ProjectTask(models.Model):
 
     @api.depends("state")
     def _compute_date_closed(self) -> None:
-        """Stamp the closure timestamp from the one closure signal: ``state``.
-
-        ``date_closed`` used to be written only when a task entered a *folded*
-        workflow step, which made it disagree with ``state`` in both
-        directions: closing a task from the state widget left it empty (so
-        lead/cycle time, deadline_met, throughput and the forecast all read
-        the task as never closed), while dragging an open task into a folded
-        column stamped a closure date on a task that was still in progress.
-
-        Sticky on purpose: an already-closed task keeps its original timestamp
-        across re-saves, step moves and project moves — losing it would
-        rewrite delivery history. Reopening clears it, because the task is no
-        longer closed.
-        """
         now = fields.Datetime.now()
         for task in self:
             if task.state in CLOSED_STATES:
@@ -1108,10 +992,6 @@ class ProjectTask(models.Model):
         return [("state", "in", searched_states)]
 
     def _get_fields_rotting_depends(self) -> list[str]:
-        # project.task's rotting additionally depends on is_closed (see the
-        # _get_rotting_domain override). The renamed last-update field is handled
-        # by the mixin through _track_duration_last_update_field, so the rest of
-        # the rotting machinery no longer needs re-implementing here.
         return super()._get_fields_rotting_depends() + ["is_closed"]
 
     def _get_rotting_domain(self) -> list:
@@ -1119,7 +999,6 @@ class ProjectTask(models.Model):
 
     @property
     def OPEN_STATES(self) -> list[str]:
-        """Return a list of the technical names complementing the CLOSED_STATES, a.k.a the open states"""
         return list(
             set(self._fields["state"].get_values(self.env)) - set(CLOSED_STATES)
         )
@@ -1142,21 +1021,6 @@ class ProjectTask(models.Model):
         )
 
     def _apply_predecessor_block(self) -> None:
-        """Put newly created tasks that already have an open predecessor into
-        ``blocked``.
-
-        ``_compute_state`` cannot do this at create time: ``state`` carries a
-        ``default``, so the ORM writes ``todo`` straight to the row and the
-        compute is never invoked (instrumented: zero calls). The record then
-        stored ``todo`` while ``is_blocked_by_predecessors()`` answered True —
-        the same fact, two answers, depending on whether the dependency arrived
-        in the create call or in a later write.
-
-        The form was never affected (its onchange chain runs the compute), so
-        this is about every other producer: ``create`` from other modules,
-        ``_load_records_create``, and the spreadsheet import, where a batch of
-        dependent tasks all landed unblocked.
-        """
         blocked = self.sudo().filtered(
             lambda task: (
                 task.allow_dependencies
@@ -1183,7 +1047,6 @@ class ProjectTask(models.Model):
     @api.depends_context("uid")
     @api.depends("user_ids")
     def _compute_personal_triage_id(self) -> None:
-        # An user may only access his own 'personal stage' and there can only be one pair (user, task_id)
         personal_triages = self.env["project.task.triage"].search(
             [("user_id", "=", self.env.uid), ("task_id", "in", self.ids)]
         )
@@ -1195,9 +1058,6 @@ class ProjectTask(models.Model):
     def _search_personal_triage_id(self, operator: str, value: Any) -> list:
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        # value may be a scalar (e.g. domain [("personal_triage_id", "=", 5)]);
-        # normalise a local copy for the type check only — the original value is
-        # what the sub-domain expects — else `for v in value` raises on an int.
         values = value if isinstance(value, (list, tuple)) else [value]
         field_name = "display_name" if any(isinstance(v, str) for v in values) else "id"
         domain = Domain(field_name, operator, value) & Domain(
@@ -1254,20 +1114,11 @@ class ProjectTask(models.Model):
         ]
 
     def _populate_missing_triages(self) -> None:
-        """Ensure every (task, assignee) pair has a triage junction row with a default bucket.
-
-        Two-phase process:
-        1. Create missing ``project.task.triage`` junction rows for all
-           (task, user) pairs that don't have one yet.
-        2. Assign the first triage bucket to any junction row that still has
-           ``triage_id = False``.
-        """
         if not self:
             return
 
         TaskTriage = self.env["project.task.triage"].sudo()
 
-        # --- Phase 1: create missing junction rows ---
         existing = TaskTriage.search([("task_id", "in", self.ids)])
         existing_pairs = {(r.task_id.id, r.user_id.id) for r in existing}
         to_create = [
@@ -1279,7 +1130,6 @@ class ProjectTask(models.Model):
         if to_create:
             TaskTriage.create(to_create)
 
-        # --- Phase 2: fill in missing triage buckets ---
         triages_without_bucket = TaskTriage.search(
             [("task_id", "in", self.ids), ("triage_id", "=", False)]
         )
@@ -1291,16 +1141,12 @@ class ProjectTask(models.Model):
             triage_by_user[task_triage.user_id] |= task_triage
 
         Triage = self.env["project.triage"].sudo()
-        # One query for every user's buckets instead of a search per user (N+1).
-        # setdefault keeps the first bucket per user in _order (matches the old
-        # search(limit=1) semantics).
         bucket_by_user = {}
         for bucket in Triage.search(
             [("user_id", "in", [u.id for u in triage_by_user])]
         ):
             bucket_by_user.setdefault(bucket.user_id.id, bucket)
 
-        # Group junction writes by target bucket to minimise write() calls.
         triages_by_bucket = defaultdict(self.env["project.task.triage"].sudo)
         for user_id, user_triages in triage_by_user.items():
             bucket = bucket_by_user.get(user_id.id)
@@ -1317,19 +1163,6 @@ class ProjectTask(models.Model):
             user_triages.write({"triage_id": bucket.id})
 
     def _prune_orphan_triages(self) -> None:
-        """Drop the triage rows of users who are no longer assigned to the task.
-
-        ``_populate_missing_triages`` only ever adds, and nothing removed: a task
-        reassigned from A to B kept A's junction row for good, so
-        ``personal_triage_id`` went on answering for A and the task stayed filed
-        in A's personal triage. The default "My Tasks" filter
-        (``user_ids in uid``) hides that, which is why it went unnoticed — clear
-        the filter and the task is back in A's bucket, and the rows accumulate
-        either way.
-
-        Paired with ``_populate_missing_triages`` on every ``user_ids`` write, so
-        the junction table holds exactly one row per (task, current assignee).
-        """
         if not self:
             return
         rows = (
@@ -1345,9 +1178,6 @@ class ProjectTask(models.Model):
             stale.unlink()
 
     def message_subscribe(self, partner_ids=None, subtype_ids=None) -> bool:
-        # Set task notification based on project notification preference if user follow the project.
-        # Work on a local copy: never mutate the caller's list, and tolerate a
-        # None partner_ids (e.g. message_subscribe(subtype_ids=...)).
         partner_ids = list(partner_ids or [])
         if not subtype_ids and partner_ids:
             project_followers = self.project_id.sudo().message_follower_ids.filtered(
@@ -1377,18 +1207,6 @@ class ProjectTask(models.Model):
             raise ValidationError(_("Two tasks cannot depend on each other."))
 
     def _sync_dependency_rows(self) -> None:
-        """Reconcile ``project.task.dependency`` with ``predecessor_ids``.
-
-        The two are one fact in two tables. The typed model synced itself into
-        the M2M but nothing came back, so an edge drawn on the task form — the
-        only place most users create one — existed solely as an M2M row: it had
-        no type, no lag, and was invisible to anything reading the typed model.
-        That is what let the critical path silently drop whole edges.
-
-        Reconciling from the M2M keeps it the field users edit while making the
-        typed model complete. New rows take the ``fs``/no-lag default, which is
-        exactly what an untyped link means.
-        """
         Dependency = self.env["project.task.dependency"].sudo()
         existing_per_task = defaultdict(dict)
         for dependency in Dependency.search([("task_id", "in", self.ids)]):
@@ -1470,7 +1288,6 @@ class ProjectTask(models.Model):
                 )
             return
         if tasks_with_dependency:
-            # need the sudo for project sharing
             total_and_closed_predecessor_count = {
                 dependent_on.id: (
                     count,
@@ -1493,8 +1310,6 @@ class ProjectTask(models.Model):
     def _compute_successor_count(self) -> None:
         tasks_with_dependency = self.filtered("allow_dependencies")
         (self - tasks_with_dependency).successor_count = 0
-        # New (unsaved) records carry NewId values that cannot be fed to
-        # _read_group; count in-memory instead, mirroring _compute_predecessor_count.
         if not any(self._ids):
             for task in tasks_with_dependency:
                 task.successor_count = len(task.successor_ids)
@@ -1528,8 +1343,6 @@ class ProjectTask(models.Model):
         return [("res_id", "=", self.id), ("res_model", "=", "project.task")]
 
     def _compute_attachment_ids(self) -> None:
-        # Batch the attachment lookup for the whole recordset (one query instead
-        # of one search per task): this field is read in kanban/list prefetch.
         attachments_by_task: dict[int, list[int]] = {}
         if self.ids:
             attachment_data = self.env["ir.attachment"]._read_group(
@@ -1540,9 +1353,7 @@ class ProjectTask(models.Model):
             attachments_by_task = dict(attachment_data)
         for task in self:
             attachment_ids = attachments_by_task.get(task.id, [])
-            message_attachment_ids = task.mapped(
-                "message_ids.attachment_ids"
-            ).ids  # from mail_thread
+            message_attachment_ids = task.mapped("message_ids.attachment_ids").ids
             task.attachment_ids = [
                 (6, 0, list(set(attachment_ids) - set(message_attachment_ids)))
             ]
@@ -1554,26 +1365,6 @@ class ProjectTask(models.Model):
         "project_id.resource_calendar_id",
     )
     def _compute_elapsed(self) -> None:
-        """Queue, lead and cycle time, in working hours where a calendar says so.
-
-        Falls back to elapsed wall-clock time when no calendar resolves — for a
-        private task, or a company with no working time configured. Reporting
-        0.0 there does not read as "unknown": it reads as delivered instantly,
-        and it silently flattened the flow metrics of every such task.
-
-        One calendar round-trip per (calendar, leave domain), not per task per
-        span. This used to call ``get_work_duration_data`` three times for every
-        record — measured at exactly 3.00 calls and 3 extra queries per task,
-        with no caching between identical runs — which every bulk close, bulk
-        assign and calendar change paid in full: ~3 000 queries to close 1 000
-        tasks. The batch form asks the calendar for the whole window once and
-        clips each span out of the result, which is what
-        ``get_work_duration_data`` does internally anyway.
-
-        The window spans the whole batch, so it is indexed once here and each
-        task bisects into it — see ``_elapsed_spans_calendar`` for why clipping
-        rather than intersecting is what makes that window's width affordable.
-        """
         by_calendar = defaultdict(lambda: self.env["project.task"])
         for task in self:
             if not task.create_date:
@@ -1606,14 +1397,12 @@ class ProjectTask(models.Model):
                 localized(max(bounds)),
                 domain=leave_domain,
             )[False]
-            # Index the (sorted, disjoint) window once for the whole group.
             items = list(intervals)
             index = (items, [item[0] for item in items], [item[1] for item in items])
             for task in tasks:
                 task._set_elapsed(**task._elapsed_spans_calendar(calendar, index))
 
     def _elapsed_spans_wall_clock(self) -> dict[str, tuple[float, float]]:
-        """Queue/lead/cycle as raw elapsed time, for tasks with no calendar."""
         self.ensure_one()
 
         def span(start, stop):
@@ -1631,23 +1420,6 @@ class ProjectTask(models.Model):
     def _elapsed_spans_calendar(
         self, calendar: Any, index: tuple[list, list, list]
     ) -> dict[str, tuple[float, float]]:
-        """Queue/lead/cycle clipped out of one pre-computed interval set.
-
-        ``index`` is that set decomposed once by the caller into its items and
-        their start/stop keys.
-
-        The set covers the whole batch's window, and this used to intersect it
-        *whole* — ``intervals & Intervals([span])``, three times per task, each
-        walk proportional to the window rather than to the span. Profiled at 300
-        tasks spread over six years: 900 intersections walking 2 818 800 interval
-        elements and 5.66M ``_boundaries`` calls, 785 ms, against 204 ms for the
-        same 300 tasks spread over one month. The window itself is cheap to build
-        (13.8 ms for 6.6 years) — it was only ever expensive to intersect.
-
-        The items are sorted and disjoint, so each span's slice is two bisections
-        away and only the intervals it actually touches get clipped: O(log n + k)
-        per span instead of O(n).
-        """
         self.ensure_one()
         items, item_starts, item_stops = index
 
@@ -1655,8 +1427,6 @@ class ProjectTask(models.Model):
             if not (start and stop) or start >= stop:
                 return 0.0, 0.0
             low, high = localized(start), localized(stop)
-            # First item that ends after the span starts, first item that starts
-            # at or after the span ends.
             clipped = [
                 (max(item_start, low), min(item_stop, high), recs)
                 for item_start, item_stop, recs in items[
@@ -1680,19 +1450,6 @@ class ProjectTask(models.Model):
 
     @api.depends("date_closed", "date_end", "state")
     def _compute_deadline_met(self) -> None:
-        """Determine whether a delivered task met its deadline.
-
-        Tri-state: empty (no deadline, not delivered), 'met', or 'missed'. The
-        empty case must stay distinct from 'missed' so reports don't count
-        deadline-less tasks as late.
-
-        Keyed on ``DELIVERED_STATES``, not ``CLOSED_STATES``: a cancelled task
-        did not miss its deadline, it was abandoned, and counting it as a miss
-        punishes teams for killing work early. This also makes the field agree
-        with ``project.deadline_compliance_pct``, which has always measured
-        delivered work only — the two used to return different answers about
-        the same task.
-        """
         for task in self:
             if not task.date_end or task.state not in DELIVERED_STATES:
                 task.deadline_met = False
@@ -1703,11 +1460,6 @@ class ProjectTask(models.Model):
 
     @api.depends("cost_of_delay", "planned_hours")
     def _compute_cd3_score(self) -> None:
-        """Compute Cost of Delay Divided by Duration for value-based prioritization.
-
-        Uses ``planned_hours`` (estimate-based) so prioritization works
-        even before resources are assigned.  See PMI hours model.
-        """
         for task in self:
             if task.cost_of_delay and task.planned_hours:
                 task.cd3_score = task.cost_of_delay / task.planned_hours
@@ -1716,13 +1468,6 @@ class ProjectTask(models.Model):
 
     @api.depends("reservation_ids.schedule_overlap_count")
     def _compute_is_overallocated(self) -> None:
-        """Concurrent overcommit on any of this task's reservations.
-
-        Delegates to ``resource.reservation.schedule_overlap_count``,
-        which counts other reservations of the same resource overlapping
-        in time AND summing > 100% allocation.  Captures real PMBOK
-        overallocation (concurrency, not lifetime backlog volume).
-        """
         for task in self:
             task.is_overallocated = any(
                 r.schedule_overlap_count for r in task.reservation_ids
@@ -1744,7 +1489,6 @@ class ProjectTask(models.Model):
         "company_id",
     )
     def _compute_scheduled_hours(self) -> None:
-        """Working hours within the task's scheduled range."""
         for task in self:
             task.scheduled_hours = round(
                 task._scheduling_get_work_hours(
@@ -1756,12 +1500,6 @@ class ProjectTask(models.Model):
             )
 
     def _planned_hours_formula(self) -> float:
-        """PMBOK Effort = Duration x Resources x Units, for one task.
-
-        Zero for an unscheduled task: with no date range the formula has no
-        opinion. Single source for the compute, the inverse and the override
-        detection, which used to spell it out three times.
-        """
         self.ensure_one()
         return round(
             self.scheduled_hours
@@ -1772,24 +1510,6 @@ class ProjectTask(models.Model):
 
     @api.depends("scheduled_hours", "planned_resources", "allocated_percentage")
     def _compute_planned_hours(self) -> None:
-        """PMBOK Effort = Duration x Resources x Units (uniform rate).
-
-        An unscheduled task keeps whatever estimate it was given. Without a
-        date range the formula has no opinion — it yields 0 — and zeroing the
-        field there silently discarded every estimate that did not come from a
-        schedule: the "3h" quick-create syntax, imports, and anything a PM
-        typed before planning the dates.
-
-        A task whose estimate was overridden by hand keeps it too. The field
-        advertises an override and the inverse below logs one to the chatter,
-        but the formula used to take it straight back: an estimate entered
-        before the dates was replaced the moment the task was scheduled, and one
-        entered after survived only until the next nudge of a date. Worse, the
-        outcome depended on the shape of the write rather than on the intent —
-        "3 h" plus dates in one save kept the 3, the same two values in two
-        saves did not. ``planned_hours_manual`` records the intent so both paths
-        agree and the override outlives the dates that follow it.
-        """
         for task in self:
             if task.planned_hours_manual or not task.scheduled_hours:
                 task.planned_hours = task.planned_hours or 0.0
@@ -1797,21 +1517,6 @@ class ProjectTask(models.Model):
             task.planned_hours = task._planned_hours_formula()
 
     def _inverse_planned_hours(self) -> None:
-        """Flag and log genuine manual overrides of the derived planned_hours.
-
-        ``planned_hours`` is a stored compute with ``readonly=False``, so this
-        inverse runs on every direct write. A value that matches what the
-        formula would produce is not an override — writing it back is how a user
-        hands the field back to the formula — so it clears the flag.
-
-        Only a value that contradicts a formula which actually produced one is
-        worth a chatter entry; on an unscheduled task ``planned_hours`` is the
-        only estimate there is, so the flag is set silently.
-
-        Batched: this used to be one ``message_post`` per record, which turned
-        a 200-task write into 810 queries and 200 chatter entries against 5
-        queries for the write itself.
-        """
         diverging = self.filtered(
             lambda task: float_compare(
                 task.planned_hours,
@@ -1837,23 +1542,6 @@ class ProjectTask(models.Model):
         )
 
     def _get_cpm_duration_hours(self) -> float:
-        """Activity duration in working hours, for schedule computation.
-
-        PMBOK separates Duration (elapsed working time) from Work/Effort
-        (person-hours).  ``allocated_hours`` and ``planned_hours`` are both
-        effort: staffing an activity with a second person doubles them while
-        the activity still takes just as long.  Feeding effort to CPM made
-        every extra assignee push the successors further out.
-
-        Scheduled activities carry their duration directly in
-        ``scheduled_hours``.  For an activity that is not scheduled yet — the
-        normal CPM input — invert the PMBOK relation
-        ``Effort = Duration x Resources x Units`` to recover it, preferring the
-        planning estimate and falling back to the committed one.  A single
-        resource makes effort and duration numerically equal, which is why
-        dividing by the assignee count (never zero) is the right conversion
-        rather than a special case.
-        """
         self.ensure_one()
         if self.scheduled_hours:
             return self.scheduled_hours
@@ -1866,7 +1554,6 @@ class ProjectTask(models.Model):
 
     @api.depends("planned_hours", "allocated_hours")
     def _compute_allocation_state(self) -> None:
-        """Resource allocation health relative to plan."""
         for task in self:
             if float_is_zero(task.planned_hours, precision_digits=2):
                 task.allocation_state = "unestimated"
@@ -1930,9 +1617,6 @@ class ProjectTask(models.Model):
 
     @api.depends("project_id")
     def _compute_step_id(self) -> None:
-        # The default step only depends on the target project, so resolve it
-        # once per distinct project instead of running step_find per task
-        # (matters when moving/duplicating many tasks at once).
         default_step_by_project: dict[int, int | bool] = {}
         for task in self:
             project = task.project_id or task.parent_id.project_id
@@ -1948,16 +1632,7 @@ class ProjectTask(models.Model):
 
     @api.depends("user_ids")
     def _compute_portal_user_names(self) -> None:
-        """This compute method allows to see all the names of assigned users to each task contained in `self`.
-
-        When we are in the project sharing feature, the `user_ids` contains only the users if we are a portal user.
-        That is, only the users in the same company of the current user.
-        So this compute method is a related of `user_ids.name` but with more records that the portal user
-        can normally see.
-        """
         if self._origin:
-            # fetch 'user_ids' in superuser mode (and override value in cache
-            # browse is useful to avoid miscache because of the newIds contained in self
             self.invalidate_recordset(fnames=["user_ids"])
             self._origin.fetch(["user_ids"])
         for task in self.with_context(prefetch_fields=False):
@@ -2034,7 +1709,6 @@ class ProjectTask(models.Model):
         return [r"(?![#!@\s])"]
 
     def _extract_tags_and_users(self, title: str) -> str:
-        """Pull #tags and @users out of ``title``, returning what is left."""
         tags = []
         users = []
         tags_and_users_group = self._get_group_pattern()["tags_and_users"]
@@ -2047,7 +1721,7 @@ class ProjectTask(models.Model):
             if len(matched_users) == 1:
                 user_ids.append(Command.link(matched_users[0][0]))
             else:
-                users_to_keep.append(r"%s\b" % user)
+                users_to_keep.append(r"%s\b" % re.escape(user))
         self.user_ids = user_ids
         if tags:
             domain = Domain.OR(Domain("name", "=ilike", tag) for tag in tags)
@@ -2065,7 +1739,6 @@ class ProjectTask(models.Model):
         return re.subn(pattern, "", title)[0]
 
     def _extract_priority(self, title: str) -> str:
-        """Pull a trailing !/!!/!!! out of ``title``, returning what is left."""
         priority_group = self._get_group_pattern()["priority"]
         match = re.search(priority_group, title)
         if not match:
@@ -2080,15 +1753,6 @@ class ProjectTask(models.Model):
         ]
 
     def _inverse_display_name(self) -> None:
-        """Parse "Fix login #bug @alice !!" into name, tags, assignees, priority.
-
-        The title is carried through the extractors as a plain string. They
-        used to read and rewrite ``self.display_name`` between steps, but
-        assigning ``user_ids``/``tag_ids`` invalidates that computed field —
-        so the next extractor read ``False`` and quick-create died with
-        "expected string or bytes-like object, got 'bool'" on any title that
-        combined a mention or tag with another marker.
-        """
         for task in self:
             if not task.display_name:
                 continue
@@ -2145,7 +1809,6 @@ class ProjectTask(models.Model):
             }
         )
         vals_list = super().copy_data(default=default)
-        # filter only readable fields
         vals_list = [
             {
                 k: v
@@ -2188,9 +1851,6 @@ class ProjectTask(models.Model):
                     if self.env.context.get("copy_from_template")
                     else []
                 )
-                # Use a distinct dict for the recursive child copy — rebinding
-                # the loop-shared `default` here would narrow the caller's
-                # defaults for every subsequent task in this batch.
                 child_default = {
                     key: value
                     for key, value in default.items()
@@ -2205,10 +1865,6 @@ class ProjectTask(models.Model):
                     Command.create(child_id.copy_data(child_default)[0])
                     for child_id in child_ids.filtered(lambda c: c.active)
                 ]
-            # ``.get()``: with project_hr installed, ``user_ids`` is a read-only
-            # computed mirror of ``employee_ids`` (copy=False), so copy_data
-            # emits no ``user_ids`` key at all — indexing crashed every task
-            # copy on such databases.
             if not has_default_users and vals.get("user_ids"):
                 task_active_users = task.user_ids & active_users
                 vals["user_ids"] = [Command.set(task_active_users.ids)]
@@ -2224,22 +1880,7 @@ class ProjectTask(models.Model):
         return vals_list
 
     def _create_task_mapping(self, copied_tasks: Self) -> tuple[dict, dict]:
-        """Thanks to the way create and command.create is handled, when a task with 2 children is copied, we have the guarantee that the children of the
-        copied task will have the same index in the child_ids recordset. We can use this behavior to create a mapping containing all the original tasks and their copy.
-        :return:
-            task_mapping: a dict containing the mapping of the original task ids and their copied task (k: original_task.id, v: new_task)
-            task_dependencies: a dict containing the ids of the dependencies of the original task when they have one.
-            (k: original_task_id, v: [original_task.predecessor_ids.ids, original_task.successor_ids.ids]
-        """
         task_mapping, task_dependencies = {}, {}
-        # `copied_tasks` (read back as a child_ids/One2many) is returned in the
-        # model's _order, which does NOT match `self`'s iteration order — so a
-        # positional zip mis-pairs originals with copies (and, one level down,
-        # zips a parent's real children against the wrong copy's empty child set,
-        # raising `zip strict`). copy_data builds the copies by iterating this
-        # same `self` and Command.create assigns ids in creation order, so the
-        # i-th original corresponds to the i-th *smallest copied id*. Sort the
-        # copies by id to restore that correspondence.
         copied_tasks = copied_tasks.sorted("id")
         for original_task, copied_task in zip(self, copied_tasks, strict=True):
             task_mapping[original_task.id] = copied_task
@@ -2250,13 +1891,8 @@ class ProjectTask(models.Model):
                     original_task.predecessor_ids.ids,
                     original_task.successor_ids.ids,
                 ]
-            # Only active children are duplicated by copy_data (archived subtasks
-            # are skipped), so the mapping must walk the same active-only set —
-            # otherwise the strict zip above blows up when an archived subtask
-            # exists (project duplication would crash).
             active_children = original_task.child_ids.filtered("active")
             if active_children:
-                # If the task has children, we have to call the method create_task_mapping to get their ids and dependencies mapping too.
                 children_mapping, children_dependencies = (
                     active_children._create_task_mapping(copied_task.child_ids)
                 )
@@ -2274,8 +1910,6 @@ class ProjectTask(models.Model):
             predecessor_ids,
             successor_ids,
         ) in task_dependencies.items():
-            # If one of the task_id in the dependencies mapping is also a key of the task_mapping, it means that this task was copied too.
-            # In this case, we should exchange this id with the id of the corresponding copied task
             task_mapping[original_task_id].predecessor_ids = [
                 (task_id if task_id not in task_mapping else task_mapping[task_id].id)
                 for task_id in predecessor_ids
@@ -2284,6 +1918,39 @@ class ProjectTask(models.Model):
                 (task_id if task_id not in task_mapping else task_mapping[task_id].id)
                 for task_id in successor_ids
             ]
+        self._copy_dependency_metadata(task_mapping)
+
+    def _copy_dependency_metadata(self, task_mapping: dict) -> None:
+        if not task_mapping:
+            return
+        Dependency = self.env["project.task.dependency"].sudo()
+        originals = Dependency.search([("task_id", "in", list(task_mapping))])
+        if not originals:
+            return
+
+        def mapped(task_id):
+            copied = task_mapping.get(task_id)
+            return copied.id if copied else task_id
+
+        wanted = {}
+        for dependency in originals:
+            if dependency.dependency_type == "fs" and not dependency.lag_hours:
+                continue
+            key = (mapped(dependency.task_id.id), mapped(dependency.depends_on_id.id))
+            wanted[key] = (dependency.dependency_type, dependency.lag_hours)
+        if not wanted:
+            return
+
+        copies = Dependency.search(
+            [("task_id", "in", [task_id for task_id, _pred in wanted])]
+        )
+        per_value = defaultdict(Dependency.browse)
+        for copy_row in copies:
+            value = wanted.get((copy_row.task_id.id, copy_row.depends_on_id.id))
+            if value:
+                per_value[value] |= copy_row
+        for (dependency_type, lag_hours), rows in per_value.items():
+            rows.write({"dependency_type": dependency_type, "lag_hours": lag_hours})
 
     def copy(self, default=None) -> Self:
         default = default or {}
@@ -2321,23 +1988,12 @@ class ProjectTask(models.Model):
         )
         return super().get_empty_list_help(help_message)
 
-    # ----------------------------------------
-    # Case management
-    # ----------------------------------------
-
     def step_find(
         self,
         section_id: int | bool,
         domain: list | None = None,
         order: str = "sequence, id",
     ) -> int | bool:
-        """Override of the base.stage method
-        Parameter of the stage search taken from the lead:
-
-        :param section_id: if set, stages must belong to this section or
-            be a default stage; if not set, stages must be default stages
-        """
-        # collect all section_ids
         domain = domain or []
         section_ids = []
         if section_id:
@@ -2349,16 +2005,11 @@ class ProjectTask(models.Model):
             for sec_id in section_ids:
                 search_domain.append(("project_ids", "=", sec_id))
         search_domain += list(domain)
-        # perform search, return the first found
         return (
             self.env["project.workflow.step"]
             .search(search_domain, order=order, limit=1)
             .id
         )
-
-    # ------------------------------------------------
-    # CRUD overrides
-    # ------------------------------------------------
 
     @api.model
     def _get_view_cache_key(
@@ -2367,9 +2018,6 @@ class ProjectTask(models.Model):
         view_type: str = "form",
         **options: Any,
     ) -> tuple:
-        """The override of fields_get making fields readonly for portal users
-        makes the view cache dependent on the fact the user has the group portal or not
-        """
         key = super()._get_view_cache_key(view_id, view_type, **options)
         return key + (self.env.user._is_portal(),)
 
@@ -2380,17 +2028,13 @@ class ProjectTask(models.Model):
         if project_id := self.env.context.get("default_create_in_project_id"):
             vals["project_id"] = project_id
 
-        # prevent creating new task in the waiting state
         if "state" in fields and vals.get("state") == "blocked":
             vals["state"] = "in_progress"
 
-        # A context default wins: super() already honoured default_repeat_until,
-        # and clobbering it here made that context key impossible to use.
         if "repeat_until" in fields and not vals.get("repeat_until"):
             vals["repeat_until"] = Date.today() + timedelta(days=7)
 
         if "partner_id" in vals and not vals["partner_id"]:
-            # if the default_partner_id=False or no default_partner_id then we search the partner based on the project and parent
             project_id = vals.get("project_id")
             parent_id = vals.get("parent_id", self.env.context.get("default_parent_id"))
             if project_id or parent_id:
@@ -2414,14 +2058,6 @@ class ProjectTask(models.Model):
         if parent_id:
             parent = self.env["project.task"].browse(parent_id)
             if not vals.get("tag_ids"):
-                # Commands, not the recordset: default_get returns write-format
-                # values. create() happens to accept a recordset for an x2many,
-                # which is why this read as working, but the onchange RPC path
-                # does not -- web_onchange iterates this value expecting command
-                # triples, so a recordset made every `cmd[0] == Command.*` test
-                # compare a project.tags record against an enum. Those tags were
-                # then missing from the sub-field prefetch, and the new-subtask
-                # form got them back without the sub-fields it asked for.
                 vals["tag_ids"] = [Command.set(parent.tag_ids.ids)]
 
         return vals
@@ -2431,7 +2067,6 @@ class ProjectTask(models.Model):
     def _portal_accessible_fields(
         self,
     ) -> tuple[frozenset[str], frozenset[str]]:
-        """Readable and writable fields by portal users."""
         readable = frozenset(self.TASK_PORTAL_READABLE_FIELDS)
         writeable = frozenset(self.TASK_PORTAL_WRITABLE_FIELDS)
         return readable | writeable, writeable
@@ -2440,7 +2075,6 @@ class ProjectTask(models.Model):
         if not super()._has_field_access(field, operation):
             return False
         if not self.env.su and self.env.user._is_portal():
-            # additional checks for portal users
             readable, writeable = self._portal_accessible_fields()
             if operation == "read":
                 return field.name in readable
@@ -2495,9 +2129,6 @@ class ProjectTask(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        # Some values are determined by this override and must be written as
-        # sudo for portal users, because they do not have access to these
-        # fields. Other values must not be written as sudo.
         additional_vals_list = [{} for _ in vals_list]
 
         new_context = dict(self.env.context)
@@ -2513,11 +2144,8 @@ class ProjectTask(models.Model):
             )
             if len(parent_task) == 1:
                 default_project_id = parent_task.sudo().project_id.id
-        # (portal) users that don't have write access can still create a task
-        # in the project that will be checked using record rules
         new_context["default_create_in_project_id"] = default_project_id
         if not self._has_field_access(self._fields["user_ids"], "write"):
-            # remove user_ids if we have no access to it
             new_context.pop("default_user_ids", False)
         self_ctx = self.with_context(new_context)
 
@@ -2532,13 +2160,10 @@ class ProjectTask(models.Model):
                 default_stage=default_stage,
             )
 
-        # create the task, write computed inaccessible fields in sudo
         for vals, computed_vals in zip(vals_list, additional_vals_list, strict=True):
             for field_name in list(computed_vals):
                 if self_ctx._has_field_access(self_ctx._fields[field_name], "write"):
                     vals[field_name] = computed_vals.pop(field_name)
-        # no track when the portal user create a task to avoid using during tracking
-        # process since the portal does not have access to tracking models
         tasks = super(
             ProjectTask,
             self_ctx.with_context(
@@ -2546,9 +2171,6 @@ class ProjectTask(models.Model):
                 mail_notrack=not self_ctx.env.su and self_ctx.env.user._is_portal(),
             ),
         ).create(vals_list)
-        # Write the sudo-only computed vals grouped by identical content, so a
-        # batch create issues one write per distinct vals set instead of one
-        # write (and one recompute cascade) per task.
         grouped_tasks = defaultdict(self.env["project.task"].sudo)
         vals_by_key = {}
         for task, computed_vals in zip(tasks.sudo(), additional_vals_list, strict=True):
@@ -2561,7 +2183,9 @@ class ProjectTask(models.Model):
             group_tasks.write(vals_by_key[key])
         tasks.sudo()._populate_missing_triages()
         if not self_ctx.env.context.get("skip_dependency_sync"):
-            tasks.filtered("predecessor_ids")._sync_dependency_rows()
+            (
+                tasks.filtered("predecessor_ids") | tasks.successor_ids
+            )._sync_dependency_rows()
         tasks._apply_predecessor_block()
         self_ctx._task_message_auto_subscribe_notify(
             {task: task.user_ids - self_ctx.env.user for task in tasks}
@@ -2575,12 +2199,6 @@ class ProjectTask(models.Model):
         return tasks
 
     def _create_subscribe_followers(self, tasks: Self, current_partner: Any) -> None:
-        """Give the new tasks their followers and their portal token.
-
-        The parent's followers, the creator, and any internal user named in
-        ``email_cc``. The CC partners are resolved for the whole batch first —
-        one search rather than one per task.
-        """
         all_partner_emails = []
         for task in tasks.sudo():
             all_partner_emails += tools.email_normalize_all(task.email_cc)
@@ -2615,27 +2233,10 @@ class ProjectTask(models.Model):
             task.message_subscribe(partners_with_internal_user.ids)
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Write, in ordered phases around the ORM's own write.
-
-        The phases were one 130-line body (cyclomatic complexity 44, the worst
-        in the module) interleaving milestone propagation, step stamping,
-        recurrence, assignee dating, privacy-scoped sudo writes, dependency
-        sync, rating mail and two notification paths. Each is now a named
-        method, so the ORDER of the phases — which is the part that actually
-        matters here, and which the comments used to carry alone — is readable
-        in one screen.
-
-        The phases mutate ``vals`` and ``additional_vals`` in place, as the
-        original did: keys are removed before ``super()`` sees them (a
-        milestone rewritten as sudo, a cleared triage that has no column) and
-        added to the sudo batch for values a portal user may not write.
-        """
         self.check_access("write")
         if len(self) == 1:
             handle_history_divergence(self, "description", vals)
 
-        # Values this override determines that a portal user may not write for
-        # themselves; applied as a separate sudo write below.
         additional_vals = {}
         if self.env.user._is_portal() and not self.env.su:
             self._ensure_fields_write(vals, defaults=False)
@@ -2646,23 +2247,20 @@ class ProjectTask(models.Model):
             raise UserError(_("Sorry. You can't set a task as its parent task."))
 
         now = fields.Datetime.now()
+        state_changed = (
+            self.filtered(lambda task: task.state != vals["state"])
+            if "state" in vals
+            else self.browse()
+        )
         self._write_apply_step_change(vals, additional_vals, now)
 
         task_ids_without_user_set = set()
         if "user_ids" in vals and "date_assign" not in vals:
-            # Captured before the write: after it, every task has assignees.
             task_ids_without_user_set = {task.id for task in self if not task.user_ids}
 
-        # Before _write_sync_recurrence: that phase pushes the repeat_* values
-        # onto the shared recurrence record, and the scope decision is about
-        # which *tasks* the rest of the write reaches.
         recurrence_scope = self._write_capture_recurrence_scope(vals)
         self._write_sync_recurrence(vals)
 
-        # Track user_ids to send assignment notifications. Only when the write
-        # touches them: this read is a full m2m fetch of the recordset and the
-        # dict it feeds is walked per task by _task_message_auto_subscribe_notify,
-        # both of which every unrelated write used to pay for nothing.
         old_user_ids = (
             {t: t.user_ids for t in self.sudo()} if "user_ids" in vals else {}
         )
@@ -2675,8 +2273,6 @@ class ProjectTask(models.Model):
         if vals.get("parent_id") is False:
             additional_vals["display_in_project"] = True
         if "description" in vals:
-            # A portal user cannot access html_field_history, so the description
-            # is written as sudo rather than granting them that access.
             additional_vals["description"] = vals.pop("description")
 
         if self.env.su or not self.env.user._is_portal():
@@ -2685,21 +2281,21 @@ class ProjectTask(models.Model):
             super(ProjectTask, self.sudo()).write(additional_vals)
         result = super().write(vals)
 
-        if "predecessor_ids" in vals and not self.env.context.get(
-            "skip_dependency_sync"
-        ):
-            self._sync_dependency_rows()
+        if not self.env.context.get("skip_dependency_sync"):
+            to_sync = self.browse()
+            if "predecessor_ids" in vals:
+                to_sync |= self
+            if "successor_ids" in vals:
+                to_sync |= self.successor_ids
+            if to_sync:
+                to_sync._sync_dependency_rows()
 
-        # After super(): the siblings are written with the values this task has
-        # just taken, and a deadline shift is measured against the value that
-        # was captured before it changed.
         self._write_propagate_recurrence(recurrence_scope, vals)
 
         self._write_apply_assignment(vals, now, task_ids_without_user_set)
         self._write_send_step_rating(vals)
-        self._write_apply_state(vals, now)
+        self._write_apply_state(vals, now, state_changed)
 
-        # Do not recompute the state when changing the parent (to avoid resetting the state)
         if "parent_id" in vals:
             self.env.remove_to_compute(self._fields["state"], self)
 
@@ -2722,23 +2318,9 @@ class ProjectTask(models.Model):
         default_triage: Any,
         default_stage: dict[int, int | bool],
     ) -> None:
-        """Fill in one task's create values.
-
-        ``vals`` collects what the caller may write themselves; ``additional_vals``
-        collects what this override decides and a portal user may not, which
-        ``create`` then applies as sudo. ``default_stage`` is a per-batch cache so
-        a batch of tasks in one project resolves its default step once.
-
-        ``self`` here is the context-bearing recordset ``create`` built, not the
-        caller's — the defaults it reads live in that context.
-        """
         project_id = vals.get("project_id") or default_project_id
 
         if vals.get("user_ids"):
-            # Resolve the commands before stamping: the web client sends
-            # [(6, 0, [])] for "no assignee", which is truthy but assigns
-            # nobody — that used to date-stamp an assignment that never
-            # happened, and queue/cycle time were measured from it.
             user_ids = self._fields["user_ids"].convert_to_cache(
                 vals["user_ids"], self.env["project.task"]
             )
@@ -2767,9 +2349,6 @@ class ProjectTask(models.Model):
             vals["step_id"] = False
 
         if project_id and "step_id" not in vals:
-            # 1) Allows keeping the batch creation of tasks
-            # 2) Ensure the defaults are correct (and computed once by project),
-            # by using default get (instead of _default_step_id or _step_find),
             if project_id not in default_stage:
                 default_stage[project_id] = (
                     self.with_context(default_project_id=project_id)
@@ -2778,11 +2357,8 @@ class ProjectTask(models.Model):
                 )
             vals["step_id"] = default_stage[project_id]
 
-        # Step change: stamp date_last_status_change. date_closed is NOT
-        # touched here — it is derived from state (_compute_date_closed).
         if vals.get("step_id"):
             additional_vals["date_last_status_change"] = fields.Datetime.now()
-        # recurrence
         rec_fields = vals.keys() & self._get_fields_recurrence()
         if rec_fields and vals.get("recurring_task") is True:
             rec_values = {rec_field: vals[rec_field] for rec_field in rec_fields}
@@ -2790,16 +2366,10 @@ class ProjectTask(models.Model):
             vals["recurrence_id"] = recurrence.id
 
     def _write_propagate_milestone(self, vals: dict[str, Any]) -> None:
-        """Reset a milestone that does not belong to the task's project, and
-        push a valid one down to the subtasks that shared the parent's."""
         if "milestone_id" in vals:
-            # WARNING: has to be done after 'project_id' vals is written on subtasks
-            # Capture the target milestone id up front: `vals["milestone_id"]` may be
-            # popped below (branch 1) yet is still needed for the subtask propagation.
             milestone_id_val = vals["milestone_id"]
             milestone = self.env["project.milestone"].browse(milestone_id_val)
 
-            # 1. Task for which the milestone is unvalid -> milestone_id is reset
             if "project_id" not in vals:
                 unvalid_milestone_tasks = (
                     self.filtered(lambda task: task.project_id != milestone.project_id)
@@ -2822,7 +2392,6 @@ class ProjectTask(models.Model):
                     )
                 del vals["milestone_id"]
 
-            # 2. Parent's milestone is set to subtask with no milestone recursively
             subtasks_to_update = valid_milestone_tasks.child_ids.filtered(
                 lambda task: (
                     task not in self
@@ -2832,8 +2401,6 @@ class ProjectTask(models.Model):
                 )
             )
 
-            # 3. If parent and child task share the same milestone, child task's milestone is updated when the parent one is changed
-            # No need to check if state is changed in vals as it won't affect the subtasks selected for update
             if "project_id" not in vals:
                 subtasks_to_update |= valid_milestone_tasks.child_ids.filtered(
                     lambda task: (
@@ -2860,20 +2427,12 @@ class ProjectTask(models.Model):
     def _write_apply_step_change(
         self, vals: dict[str, Any], additional_vals: dict[str, Any], now: Any
     ) -> None:
-        """Stamp the status-change date and discard a stale review verdict."""
         if "step_id" in vals:
-            # Only *setting* a step on a project-less task is the error. Clearing
-            # it (``step_id: False``) is what a private task already is, so the
-            # guard used to reject a write that asks for nothing.
             if (
                 vals["step_id"]
                 and "project_id" not in vals
                 and self.filtered(lambda t: not t.project_id)
             ):
-                # The old text ("You can only set a personal stage on a private
-                # task.") named the one thing this guard then refused, and it
-                # described a feature that no longer exists: personal stages are
-                # project.triage buckets, not workflow steps.
                 raise UserError(
                     _(
                         "A private task has no workflow step — steps belong to a "
@@ -2882,50 +2441,23 @@ class ProjectTask(models.Model):
                     )
                 )
 
-            additional_vals["date_last_status_change"] = now
+            moving = self.filtered(lambda task: task.step_id.id != vals["step_id"])
+            if moving == self:
+                additional_vals["date_last_status_change"] = now
+            elif moving:
+                moving.sudo().date_last_status_change = now
             if "state" not in vals:
                 self.filtered(
                     lambda t: t.state in STATES_RESET_ON_STEP_CHANGE
                 ).state = "in_progress"
 
     def _recurrence_sort_key(self) -> tuple:
-        """Order occurrences of one recurrence among themselves.
-
-        ``date_end`` is the field the recurrence postpones from occurrence to
-        occurrence, so it is what "following" means. It is optional, though, and
-        a task without a deadline has no position of its own -- those sort last
-        and then by id, which is the order they were generated in. The id is
-        also the tie-break for two occurrences sharing a deadline.
-
-        The leading flag carries "has no deadline" instead of substituting
-        ``datetime.max`` for one: ``date_end`` is a naive UTC datetime, and a
-        sentinel would have to be naive to compare with it at all.
-        """
         self.ensure_one()
         dated = bool(self.date_end)
         return (not dated, self.date_end if dated else None, self.id)
 
     def _write_capture_recurrence_scope(self, vals: dict[str, Any]) -> dict | None:
-        """Resolve which sibling occurrences a scoped edit reaches.
-
-        Runs *before* ``super().write()`` for two reasons: the key has to leave
-        ``vals`` before the ORM sees a field with no column, and the old value
-        of every postponed date has to be read while it is still the old one --
-        propagating a deadline means shifting each sibling by the same delta,
-        not stamping them all with one date, which would collapse the series
-        onto a single day.
-
-        Returns ``None`` when there is nothing to do, which is the common case.
-        """
         if "recurrence_update" in vals:
-            # Ask the model's own access machinery before taking the key out of
-            # `vals`. Popping it early is what makes the scope work at all --
-            # the field has no column, so `super().write()` would choke on it --
-            # but it also means the ORM never runs its per-field check, and a
-            # portal collaborator would silently gain an edit that reaches
-            # tasks beyond the one they opened. `TASK_PORTAL_WRITABLE_FIELDS`
-            # does not list it, so this refuses them by default rather than by
-            # a rule spelled out a second time here.
             field = self._fields["recurrence_update"]
             if not self._has_field_access(field, "write"):
                 raise AccessError(
@@ -2935,17 +2467,10 @@ class ProjectTask(models.Model):
         scope = vals.pop("recurrence_update", "this")
         if scope == "this" or not self.recurrence_id:
             return None
-        # Same rule as planning: a scoped edit is a single-record operation,
-        # because "following" is only defined relative to one occurrence.
         self.ensure_one()
 
         rule_fields = vals.keys() & set(self._get_fields_recurrence())
         if rule_fields and scope != "all":
-            # The repeat_* fields live on the one shared recurrence record, so
-            # writing them reaches every occurrence whatever this field says.
-            # Refuse rather than silently contradict the choice -- the honest
-            # answer needs the series split in two, which is a feature of its
-            # own. `calendar.event` refuses its mirror-image case the same way.
             raise UserError(
                 _(
                     "Changing how often a task repeats applies to the whole "
@@ -2968,18 +2493,13 @@ class ProjectTask(models.Model):
     def _write_propagate_recurrence(
         self, scope: dict | None, vals: dict[str, Any]
     ) -> None:
-        """Apply a scoped edit to the sibling occurrences it reached."""
         if not scope:
             return
-        # `exists()`: an earlier phase of this same write may have unlinked
-        # occurrences (turning `recurring_task` off drops the recurrence).
         targets = scope["targets"].exists()
         if not targets:
             return
 
         shifted = scope["shift_from"]
-        # The repeat_* fields are excluded because they are not per-task at all:
-        # `_write_sync_recurrence` has already put them on the shared record.
         plain = {
             fname: value
             for fname, value in vals.items()
@@ -2991,16 +2511,12 @@ class ProjectTask(models.Model):
         for fname, old_value in shifted.items():
             new_value = fields.Datetime.to_datetime(vals[fname])
             if not old_value or not new_value:
-                # Setting or clearing a deadline says nothing about how far the
-                # others should move.
                 continue
             delta = new_value - old_value
             for task in targets.filtered(fname):
                 task.write({fname: task[fname] + delta})
 
     def _write_sync_recurrence(self, vals: dict[str, Any]) -> None:
-        """Mirror the recurrence fields onto the recurrence record, creating or
-        dropping it as ``recurring_task`` is turned on and off."""
         rec_fields = vals.keys() & self._get_fields_recurrence()
         if rec_fields:
             rec_values = {rec_field: vals[rec_field] for rec_field in rec_fields}
@@ -3017,12 +2533,6 @@ class ProjectTask(models.Model):
             tasks_in_recurrence.write({"recurring_task": False})
 
     def _write_clear_triage(self, vals: dict[str, Any]) -> None:
-        # Clearing the personal triage: honour it instead of dropping the key.
-        # ``triage_id`` is a non-stored related through ``personal_triage_id``,
-        # whose inverse has nothing to write to when the value is False, so the
-        # write used to be deleted here and report success while the task stayed
-        # in its bucket. Clear the junction row directly — the only thing that
-        # ever held the value — and keep the key out of super().write().
         if "triage_id" in vals and not vals["triage_id"]:
             del vals["triage_id"]
             self.env["project.task.triage"].sudo().search(
@@ -3032,11 +2542,6 @@ class ProjectTask(models.Model):
     def _write_prepare_transfer_notice(
         self, vals: dict[str, Any]
     ) -> tuple[list[int], dict[int, Any]]:
-        """Collect who to tell about a project transfer, and the source link.
-
-        Read before ``super().write()`` because the source project is what the
-        message names, and the write is what replaces it.
-        """
         partner_ids = []
         project_link_per_task_id = {}
         if vals.get("project_id"):
@@ -3064,45 +2569,37 @@ class ProjectTask(models.Model):
     def _write_apply_assignment(
         self, vals: dict[str, Any], now: Any, task_ids_without_user_set: set[int]
     ) -> None:
-        """Give every new assignee a triage row, take it from the old ones, and
-        date the assignment."""
         if "user_ids" in vals:
             self._populate_missing_triages()
             self._prune_orphan_triages()
-            # user_ids change: update date_assign
-            for task in self.sudo():
-                if not task.user_ids and task.date_assign:
-                    task.date_assign = False
-                elif "date_assign" not in vals and task.id in task_ids_without_user_set:
-                    task.date_assign = now
+            tasks = self.sudo()
+            unassigned = tasks.filtered(lambda t: not t.user_ids and t.date_assign)
+            if unassigned:
+                unassigned.date_assign = False
+            if "date_assign" not in vals:
+                newly_assigned = (tasks - unassigned).filtered(
+                    lambda t: t.id in task_ids_without_user_set
+                )
+                if newly_assigned:
+                    newly_assigned.date_assign = now
 
     def _write_send_step_rating(self, vals: dict[str, Any]) -> None:
-        """Ask the customer to rate a task that just entered a rating step."""
         if vals.get("step_id"):
             self.sudo().filtered(
                 lambda x: x.step_id.rating_active and x.step_id.rating_status == "stage"
             )._send_task_rating_mail(force_send=True)
 
-    def _write_apply_state(self, vals: dict[str, Any], now: Any) -> None:
-        """Keep state and its timestamp consistent with what the write said."""
+    def _write_apply_state(
+        self, vals: dict[str, Any], now: Any, state_changed: Self
+    ) -> None:
         if "state" in vals:
-            # Stamp the status-change date once for the whole batch (single UPDATE)
-            # rather than per record inside the loop below.
-            self.sudo().date_last_status_change = now
-            # specific use case: when the blocked task goes from 'forced' done state to a not closed state, we fix the state back to waiting
+            if state_changed:
+                state_changed.sudo().date_last_status_change = now
             if vals["state"] not in CLOSED_STATES and vals["state"] != "blocked":
                 for task in self.sudo():
                     if task.allow_dependencies and task.is_blocked_by_predecessors():
                         task.state = "blocked"
         elif "project_id" in vals:
-            # Re-homing a task into another project drops it onto that project's
-            # default *non-folded* step (_compute_step_id → step_find fold=False).
-            # Reopen active tasks so their state matches the open step, but keep
-            # closed states sticky (same contract as _compute_state): a done or
-            # canceled task moved during a project reorganization must keep its
-            # state, or lead/cycle/throughput metrics lose the closure history
-            # irreversibly. date_closed follows state on its own.
-            # _compute_state keeps genuinely predecessor-blocked tasks blocked.
             self.filtered(
                 lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
             ).state = "in_progress"
@@ -3110,7 +2607,6 @@ class ProjectTask(models.Model):
     def _write_notify_transfer(
         self, partner_ids: list[int], project_link_per_task_id: dict[int, Any]
     ) -> None:
-        """Tell the destination project's followers where the task came from."""
         if not partner_ids:
             return
         for task in self:
@@ -3133,19 +2629,6 @@ class ProjectTask(models.Model):
             )
 
     def unlink(self) -> bool:
-        """Delete the tasks and their whole subtree, archived branches included.
-
-        ``_get_all_subtasks`` walks a recursive CTE that filters on
-        ``active_test``, so with the default context it returned only the *active*
-        descendants. ``parent_id`` carries no ``ondelete``, so every archived
-        descendant survived the delete with ``parent_id`` set to NULL — silently
-        promoted to a root task of the project, archived and therefore invisible.
-
-        Archived subtasks are the normal case, not an edge one: ``action_archive``
-        archives a task's children, and ``action_unarchive`` used to leave them
-        archived, so "archive a task, change your mind, delete it" produced
-        orphans every time.
-        """
         self |= self.with_context(active_test=False)._get_all_subtasks()
         last_task_id_per_recurrence_id = (
             self.recurrence_id._get_last_task_id_per_recurrence_id()
@@ -3155,27 +2638,10 @@ class ProjectTask(models.Model):
                 task.recurrence_id.unlink()
         return super().unlink()
 
-    # ------------------------------------------------------------------
-    # Resource reservation integration (contracts from mixin.resource.scheduling)
-    # ------------------------------------------------------------------
-
     def _get_fields_reservation_date(self):
-        """Return (start_field, end_field) names for reservation sync."""
         return ("planned_date_begin", "date_end")
 
     def _get_reservation_vals_list(self):
-        """Build one reservation dict per assignee with a resolvable resource.
-
-        Returns an empty list when the task has no scheduling dates, no
-        assignees, or no assignee with a resource (e.g. portal users).
-
-        Each assignee is rebound to their own ``company_id`` before the
-        resource lookup.  ``user._get_project_task_resource`` walks
-        ``user.employee_id``, which is a company-dependent related field;
-        without the rebind, a user editing the task from a different
-        active company would see every assignee's resource resolve to
-        False and the sync would wipe the existing reservations.
-        """
         self.ensure_one()
         start_field, end_field = self._get_fields_reservation_date()
         if not start_field or not end_field:
@@ -3187,8 +2653,6 @@ class ProjectTask(models.Model):
 
         vals_list = []
         for user in self.user_ids:
-            # The user→resource helper lives in ``project_enterprise``; in
-            # core-only deployments no task carries reservations so skip.
             get_resource = getattr(user, "_get_project_task_resource", None)
             if not get_resource:
                 continue
@@ -3209,30 +2673,16 @@ class ProjectTask(models.Model):
         return vals_list
 
     def _get_fields_sync_trigger(self):
-        """Assignees, allocation and name changes also trigger a reservation sync.
-
-        ``name`` is a trigger because the reservation label is built from
-        ``display_name`` — without it, renaming a task left its reservations
-        carrying the old title.  The sync helper skips no-op writes, so a
-        rename only rewrites the ``name`` column of the linked reservations.
-        """
         triggers = super()._get_fields_sync_trigger()
         triggers |= {"user_ids", "allocated_percentage", "name"}
         return triggers
 
     @api.onchange("date_end", "planned_date_begin")
     def _onchange_planned_dates(self):
-        """Clear ``planned_date_begin`` when ``date_end`` is removed.
-
-        Data invariant: a scheduled-start without a scheduled-end is a
-        meaningless schedule.  Mirrors what users expect when they
-        unschedule a task by clearing the deadline.
-        """
         if not self.date_end:
             self.planned_date_begin = False
 
     def action_unschedule_task(self):
-        """Clear scheduling dates (used by gantt 'unschedule' action)."""
         self.write(
             {
                 "planned_date_begin": False,
@@ -3244,13 +2694,6 @@ class ProjectTask(models.Model):
     def _calculate_planned_dates(
         self, date_start, date_stop, user_id=None, calendar=None
     ):
-        """Snap a (start, stop) range to the first/last working intervals.
-
-        Returns the input range unchanged when no calendar is resolvable
-        or when the range falls entirely outside working time.  Used by
-        ``project_enterprise`` for gantt drag-on-calendar UX, and
-        available to any consumer that needs calendar-aware date alignment.
-        """
         if not (date_start and date_stop):
             raise UserError(
                 _(
@@ -3290,13 +2733,6 @@ class ProjectTask(models.Model):
         return start, stop
 
     def action_view_schedule(self):
-        """Open the reservation view filtered to the assignees' resources.
-
-        Shows every reservation held by each assignee (across all source
-        models, not only this task) so the user can spot cross-task
-        conflicts.  The calendar view opens on this task's scheduled
-        start (or end) to save a scroll.
-        """
         self.ensure_one()
         resources = self.env["resource.resource"]
         for user in self.user_ids:
@@ -3335,15 +2771,6 @@ class ProjectTask(models.Model):
         comodel: str,
         additional_domain: list | None = None,
     ) -> list | bool:
-        """This method is called by `group_expand` methods, whose purpose is to add empty groups to the `read_group`
-        (which otherwise returns groups containing records that match the domain).
-        When specifically filtering on a comodel's field, the result of the `read_group` should contain all matching groups.
-        However, if the search isn't filtered on any comodel's field, the result shouldn't be affected,
-        which explains why we return `False` if `filtered_domain` is empty.
-
-        :return: False, or a recordset of the comodel given in parameter.
-        """
-
         def _change_operator(domain) -> str:
             new_domain = []
             for dom in domain:
@@ -3402,10 +2829,6 @@ class ProjectTask(models.Model):
             filtered_domain &= Domain(additional_domain)
         return self.env[comodel].search(filtered_domain)
 
-    # ---------------------------------------------------
-    # Subtasks
-    # ---------------------------------------------------
-
     @api.depends(
         "parent_id",
         "parent_id.partner_id",
@@ -3414,10 +2837,6 @@ class ProjectTask(models.Model):
         "has_template_ancestor",
     )
     def _compute_partner_id(self) -> None:
-        """Compute the partner_id when the tasks have no partner_id.
-
-        Use the project partner_id if any, or else the parent task partner_id.
-        """
         for task in self:
             if task.has_template_ancestor:
                 continue
@@ -3438,6 +2857,12 @@ class ProjectTask(models.Model):
                     and task.parent_id.milestone_id
                 )
 
+    @api.depends(
+        "allow_milestones",
+        "milestone_id",
+        "milestone_id.is_reached",
+        "milestone_id.deadline",
+    )
     def _compute_has_late_and_unreached_milestone(self) -> None:
         if all(not task.allow_milestones for task in self):
             self.has_late_and_unreached_milestone = False
@@ -3446,11 +2871,9 @@ class ProjectTask(models.Model):
             self.env["project.milestone"]
             .sudo()
             ._search(
-                [  # sudo is needed for the portal user in Project Sharing.
+                [
                     ("id", "in", self.milestone_id.ids),
                     ("is_reached", "=", False),
-                    # Strictly before today, matching the search method below
-                    # (a milestone due *today* is not yet late).
                     ("deadline", "<", fields.Date.today()),
                 ]
             )
@@ -3476,10 +2899,6 @@ class ProjectTask(models.Model):
                 ],
             ),
         ]
-
-    # ---------------------------------------------------
-    # Mail gateway
-    # ---------------------------------------------------
 
     def _notify_by_email_prepare_rendering_context(
         self,
@@ -3518,7 +2937,6 @@ class ProjectTask(models.Model):
         return render_context
 
     def _send_email_notify_to_cc(self, partners_to_notify: Self) -> None:
-        # TDE TODO: this should be removed with email-like recipients management
         self.ensure_one()
         template_id = self.env["ir.model.data"]._xmlid_to_res_id(
             "project.task_invitation_follower", raise_if_not_found=False
@@ -3549,7 +2967,6 @@ class ProjectTask(models.Model):
     def _task_message_auto_subscribe_notify(self, users_per_task: dict) -> None:
         if self.env.context.get("mail_auto_subscribe_no_notify"):
             return
-        # Utility method to send assignation notification upon writing/creation.
         template_id = self.env["ir.model.data"]._xmlid_to_res_id(
             "project.project_message_user_assigned", raise_if_not_found=False
         )
@@ -3588,30 +3005,17 @@ class ProjectTask(models.Model):
     ) -> list:
         if "user_ids" not in updated_values:
             return []
-        # Since the changes to user_ids becoming a m2m, the default implementation of this function
-        #  could not work anymore, override the function to keep the functionality.
-        new_followers = []
-        # Normalize input to tuple of ids
         value = self._fields["user_ids"].convert_to_cache(
             updated_values.get("user_ids", []),
             self.env["project.task"],
             validate=False,
         )
         users = self.env["res.users"].browse(value)
-        for user in users:
-            try:
-                if user.partner_id:
-                    # The you have been assigned notification is handled separately
-                    new_followers.append(
-                        (user.partner_id.id, default_subtype_ids, False)
-                    )
-            except Exception:
-                _logger.debug(
-                    "Failed to collect follower for user %s",
-                    user.id,
-                    exc_info=True,
-                )
-        return new_followers
+        return [
+            (user.partner_id.id, default_subtype_ids, False)
+            for user in users.exists()
+            if user.partner_id
+        ]
 
     def _track_template(self, changes: dict[str, Any]) -> dict:
         res = super()._track_template(changes)
@@ -3686,10 +3090,6 @@ class ProjectTask(models.Model):
         model_description: str,
         msg_vals: dict | bool = False,
     ) -> list:
-        # Handle project users and managers recipients that can assign
-        # tasks and create new one directly from notification emails. Also give
-        # access button to portal users and portal customers. If they are notified
-        # they should probably have access to the document.
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals
         )
@@ -3735,7 +3135,6 @@ class ProjectTask(models.Model):
         return groups
 
     def _notify_get_reply_to_addresses(self) -> dict:
-        # Override to set alias of tasks to their project if any
         addresses = self.sudo().mapped("project_id")._notify_get_reply_to_addresses()
         res = {
             task.id: addresses[task.project_id.id]
@@ -3761,8 +3160,6 @@ class ProjectTask(models.Model):
             project_alias_address = (
                 project.alias_name + "@" + project.alias_domain_id.name
             )
-            # Removing project alias from unresolved_emails as this will be added to cc_mail address and when
-            # a mail is sent unnecessary partner is created in the name of project_alias
             unresolved_emails.discard(project_alias_address)
         unmatched_partner_emails = [
             sanitized_email_dict.get(email) for email in unresolved_emails
@@ -3787,15 +3184,10 @@ class ProjectTask(models.Model):
         msg_dict: dict[str, Any],
         custom_values: dict[str, Any] | None = None,
     ) -> Self:
-        # remove default author when going through the mail gateway. Indeed we
-        # do not want to explicitly set user_id to False; however we do not
-        # want the gateway user to be responsible if no other responsible is
-        # found.
         create_context = dict(self.env.context or {})
         create_context["default_user_ids"] = False
         if custom_values is None:
             custom_values = {}
-        # Auto create partner if not existent when the task is created from email
         if not msg_dict.get("author_id") and msg_dict.get("email_from"):
             author = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
                 [msg_dict["email_from"]], no_create=False
@@ -3813,7 +3205,6 @@ class ProjectTask(models.Model):
         }
         defaults.update(custom_values)
 
-        # users having email address matched from emails recepients are filtered out and added as assignees to the task
         if msg_dict.get("to"):
             (
                 internal_users,
@@ -3822,7 +3213,6 @@ class ProjectTask(models.Model):
             ) = self._get_internal_users_from_address_mail(
                 msg_dict.get("to"), defaults.get("project_id")
             )
-            # set only internal users as assignees
             defaults["user_ids"] = defaults.get("user_ids", []) + internal_users
             if custom_values.get("project_id") and (
                 partner_emails_without_users or unmatched_partner_emails
@@ -3866,8 +3256,6 @@ class ProjectTask(models.Model):
             current_objects = [
                 h for h in headers.get("X-Odoo-Objects", "").split(",") if h.strip()
             ]
-            # no trailing separator on the inserted entry: the join adds it, and
-            # the extra one produced an empty element -- "project.project-1, ,task-2"
             current_objects.insert(0, "project.project-%s" % self.project_id.id)
             headers["X-Odoo-Objects"] = ",".join(current_objects)
         if self.tag_ids:
@@ -3882,7 +3270,6 @@ class ProjectTask(models.Model):
             if image_attachments:
                 self.displayed_image_id = image_attachments[0]
 
-        # use the sanitized body of the email from the message thread to populate the task's description
         if (
             not self.description
             and message.subtype_id == self._creation_subtype()
@@ -3890,7 +3277,6 @@ class ProjectTask(models.Model):
             and msg_vals["message_type"] == "email"
             and msg_vals.get("body")
         ):
-            # Remove the signature from the email body
             source_html = msg_vals.get("body")
             doc = html.fromstring(source_html)
 
@@ -3979,7 +3365,6 @@ class ProjectTask(models.Model):
                 }
             elif self.display_parent_task_button:
                 return self.parent_id.get_portal_url()
-            # The portal user has no access to the parent task, so normally the button should be invisible.
             return {}
         action = self.with_context(
             {
@@ -3996,10 +3381,6 @@ class ProjectTask(models.Model):
             "project.project_sharing_project_task_view_search"
         ).id
         return action
-
-    # ------------
-    # Actions
-    # ------------
 
     def action_open_task(self) -> dict:
         return {
@@ -4095,7 +3476,6 @@ class ProjectTask(models.Model):
         recurrent_tasks = self.env["project.task"].search(
             [("recurrence_id", "in", self.recurrence_id.ids)]
         )
-        # If all the recurrent tasks are in the same project, open the list view in sharing mode.
         if recurrent_tasks.project_id == self.project_id:
             action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
                 "project.project_sharing_project_task_recurring_tasks_action"
@@ -4110,7 +3490,6 @@ class ProjectTask(models.Model):
                 }
             )
             return action
-        # If at least one recurrent task belong to another project, open the portal page
         return {
             "name": "Portal Recurrent Tasks",
             "type": "ir.actions.act_url",
@@ -4226,14 +3605,12 @@ class ProjectTask(models.Model):
 
     @api.model
     def _get_template_default_context_whitelist(self) -> list[str]:
-        """Whitelist of fields that can be set through the `default_` context keys when creating a task from a template."""
         return [
             "parent_id",
         ]
 
     @api.model
     def _get_template_field_blacklist(self) -> list[str]:
-        """Blacklist of fields to not copy when creating a task from a template."""
         return [
             "partner_id",
         ]
@@ -4262,17 +3639,6 @@ class ProjectTask(models.Model):
         return super().action_archive()
 
     def action_unarchive(self) -> dict | bool:
-        """Restore the subtasks that ``action_archive`` took down with the parent.
-
-        The two were asymmetric: archiving a task archived every child that has
-        no life of its own in the project (``display_in_project`` False), while
-        unarchiving restored the parent alone. Its sub-tasks then stayed
-        archived for good — nothing in the UI shows them, so the only way back
-        was to find them through an archived filter and unarchive each by hand.
-
-        ``child_ids`` is read with ``active_test=False`` because the records to
-        restore are precisely the inactive ones.
-        """
         result = super().action_unarchive()
         child_tasks = self.with_context(active_test=False).child_ids.filtered(
             lambda child_task: (
@@ -4304,10 +3670,6 @@ class ProjectTask(models.Model):
                 "target": "self",
             }
         return super()._get_access_action(access_uid, force_website)
-
-    # ---------------------------------------------------
-    # Rating business
-    # ---------------------------------------------------
 
     def _send_task_rating_mail(self, force_send=False) -> None:
         for task in self:
@@ -4364,15 +3726,11 @@ class ProjectTask(models.Model):
         return "project_id"
 
     def _rating_get_operator(self) -> Self:
-        """Overwrite since we have user_ids and not user_id"""
         tasks_with_one_user = self.filtered(
             lambda task: len(task.user_ids) == 1 and task.user_ids.partner_id
         )
         return tasks_with_one_user.user_ids.partner_id or self.env["res.partner"]
 
-    # ---------------------------------------------------
-    # Privacy
-    # ---------------------------------------------------
     def _unsubscribe_portal_users(self) -> None:
         self.message_unsubscribe(
             partner_ids=self.message_partner_ids.filtered("user_ids.share").ids
@@ -4380,13 +3738,6 @@ class ProjectTask(models.Model):
 
     @api.model
     def get_unusual_days(self, date_from: str, date_to: str | None = None) -> dict:
-        """Non-working days in the range, for the date pickers.
-
-        ``date_to`` defaults to ``date_from`` (a single day) rather than being
-        an unusable default: the signature advertised it as optional while
-        ``datetime.combine(None, ...)`` raised a TypeError on every one-argument
-        call.
-        """
         calendar = self.env.company.resource_calendar_id
         if not calendar:
             return {}
@@ -4418,27 +3769,15 @@ class ProjectTask(models.Model):
         limit=None,
         order=None,
     ) -> list[tuple]:
-        # A _read_group cannot be performed if records are grouped by triage_id
-        # as it is a computed field. triage_ids behaves like a M2O from the point
-        # of view of the user, we therefore use this field instead.
         if "triage_id" in groupby:
-            # limitation: problem when both triage_id and triage_ids
-            # appear in read_group, but this has no functional utility
             groupby = [
                 ("triage_ids" if fname == "triage_id" else fname) for fname in groupby
             ]
             if order:
-                # Word-boundary replace so an order already referencing
-                # "triage_ids" isn't mangled into "triage_idss" (\b does not
-                # match between the 'd' and 's' of the plural form).
                 order = re.sub(r"\btriage_id\b", "triage_ids", order)
         return super()._read_group(
             domain, groupby, aggregates, having, offset, limit, order
         )
-
-    # ---------------------------------------------------
-    # Project Sharing
-    # ---------------------------------------------------
 
     def project_sharing_toggle_is_follower(self) -> bool:
         self.ensure_one()
@@ -4481,10 +3820,6 @@ class ProjectTask(models.Model):
         )
 
     def get_mention_suggestions(self, search: str, limit: int = 8) -> dict:
-        """Return the 'limit'-first followers of the given task or followers of its project matching
-        a 'search' string as a list of partner data (returned by `_to_store()`).
-        See similar method for all partners `get_mention_suggestions()`.
-        """
         self.ensure_one()
         project = self.project_id
         if not (
@@ -4493,7 +3828,6 @@ class ProjectTask(models.Model):
             and project._get_thread_with_access(project.id)
         ):
             return {}
-        # sudo: mail.followers - reading message_follower_ids on accessible task/project is allowed
         followers = (
             project.sudo().message_follower_ids | self.sudo().message_follower_ids
         )

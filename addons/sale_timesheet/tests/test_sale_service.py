@@ -36,8 +36,11 @@ class TestSaleService(TestCommonSaleTimesheet):
         self.assertTrue(sale_order_line.product_readonly)
         self.assertEqual(
             self.sale_order.invoice_state,
-            "no",
-            "Sale Service: there should be nothing to invoice after validation",
+            "to do",
+            "Sale Service: a confirmed order whose delivered quantity is still "
+            "zero is outstanding, not settled — c0180669ca0 made a line-level "
+            "'no' that carries a quantity mean 'not yet' rather than 'never', "
+            "so 'no' is now reserved for what will never be billed",
         )
 
         # check task creation
@@ -791,12 +794,12 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Duplicating project should erase its Sale order",
         )
         self.assertEqual(
-            len(project.tasks),
-            len(project_copy.tasks),
+            len(project.task_ids),
+            len(project_copy.task_ids),
             "Copied project must have the same number of tasks",
         )
         self.assertFalse(
-            project_copy.tasks.mapped("sale_line_id"),
+            project_copy.task_ids.mapped("sale_line_id"),
             "The tasks of the duplicated project should not have a Sale Line set.",
         )
 
@@ -915,7 +918,7 @@ class TestSaleService(TestCommonSaleTimesheet):
             "unit": 1.0,
         }
 
-        project = self.project_global.copy({"tasks": False})
+        project = self.project_global.copy({"task_ids": False})
         Product = self.env["product.product"]
         product_vals = {
             "type": "service",

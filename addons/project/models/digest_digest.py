@@ -21,13 +21,6 @@ class DigestDigest(models.Model):
                 _("Do not have access, skip this data for user's digest email")
             )
 
-        # "Open" is `state`, not the folded-ness of the board column the task
-        # happens to sit in. This was the last place in the module keying off
-        # `step_id.fold` for a closure decision, and it disagreed with the app in
-        # both directions: a done task parked in a non-folded column counted as
-        # open, and an in-progress task dragged into a folded one did not. See
-        # ProjectTask._compute_date_closed for why `state` is the single closure
-        # signal; this matches ProjectProject._compute_open_task_count.
         self._calculate_company_based_kpi(
             "project.task",
             "kpi_project_task_opened_value",

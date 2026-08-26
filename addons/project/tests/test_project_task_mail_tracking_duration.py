@@ -19,7 +19,6 @@ class TestProjectTaskMailTrackingDuration(MailTrackingDurationMixinCase):
         self._test_queries_batch_duration_tracking()
 
     def test_task_mail_tracking_duration_during_onchange_stage(self) -> None:
-        """Checks that the status bar duration is correctly set during an onchange of its stage_id."""
         task = self.rec_1
         task.step_id = self.stage_1
         initial_tracking = task.duration_tracking

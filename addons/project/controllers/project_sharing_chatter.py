@@ -10,16 +10,6 @@ class ProjectSharingChatter(PortalChatter):
     def _check_project_access_and_get_token(
         self, project_id: int, res_model: str, res_id: int, token: str | None
     ) -> str:
-        """Check if the chatter in project sharing can be accessed
-
-        If the portal user is in the project sharing, then we do not have the access token of the task
-        but we can have the one of the project (if the user accessed to the project sharing views via the shared link).
-        So, we need to check if the chatter is for a task and if the res_id is a task
-        in the project shared. Then, if we had the project token and this one is the one in the project
-        then we return the token of the task to continue the portal chatter process.
-        If we do not have any token, then we need to check if the portal user is a follower of the project shared.
-        If it is the case, then we give the access token of the task.
-        """
         project_sudo = ProjectCustomerPortal._document_check_access(
             self, "project.project", project_id, token
         )

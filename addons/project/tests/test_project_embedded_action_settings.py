@@ -54,9 +54,7 @@ class TestProjectEmbeddedActionSettings(TestProjectCommon):
         )
 
     def test_copy_embedded_action_settings(self) -> None:
-        """Test that embedded action settings are copied correctly when a project is copied."""
         copied_project = self.project_goats.copy()
-        # Check if the embedded action settings are copied
         copied_settings = self.env["res.users.settings.embedded.action"].search(
             [
                 ("user_setting_id", "=", self.user_settings.id),
@@ -106,8 +104,6 @@ class TestProjectEmbeddedActionSettings(TestProjectCommon):
         )
 
     def test_copy_custom_embedded_action_settings(self) -> None:
-        """Test that the user-specific actions are not copied in the settings when a project is copied."""
-        # Create user-specific and shared embedded actions
         user_specific_embedded_action, shared_embedded_action = self.env[
             "ir.embedded.actions"
         ].create(
@@ -118,7 +114,7 @@ class TestProjectEmbeddedActionSettings(TestProjectCommon):
                     "parent_action_id": self.window_action.id,
                     "action_id": self.window_action.id,
                     "parent_res_id": self.project_pigs.id,
-                    "user_id": self.user.id,  # User-specific action
+                    "user_id": self.user.id,
                 },
                 {
                     "name": "Custom Shared Action",
@@ -126,11 +122,10 @@ class TestProjectEmbeddedActionSettings(TestProjectCommon):
                     "parent_action_id": self.window_action.id,
                     "action_id": self.window_action.id,
                     "parent_res_id": self.project_pigs.id,
-                    "user_id": False,  # Shared action
+                    "user_id": False,
                 },
             ]
         )
-        # Create settings containing those embedded actions
         self.env["res.users.settings.embedded.action"].create(
             {
                 "user_setting_id": self.user_settings.id,
@@ -142,18 +137,15 @@ class TestProjectEmbeddedActionSettings(TestProjectCommon):
                 "embedded_visibility": True,
             }
         )
-        # Copy the project
         copied_project = self.project_pigs.copy()
-        # Get the copied shared embedded action
         copied_shared_embedded_action = self.env["ir.embedded.actions"].search(
             [
                 ("parent_res_model", "=", "project.project"),
                 ("parent_res_id", "=", copied_project.id),
-                ("user_id", "=", False),  # Ensure it's a shared action
+                ("user_id", "=", False),
             ],
             limit=1,
         )
-        # Check if the shared embedded action settings are correctly copied
         copied_settings = self.env["res.users.settings.embedded.action"].search(
             [
                 ("user_setting_id", "=", self.user_settings.id),
@@ -203,13 +195,11 @@ class TestProjectEmbeddedActionSettings(TestProjectCommon):
         )
 
     def test_unlink_project_removes_embedded_action_settings(self) -> None:
-        """Test that unlinking a project removes the embedded action settings associated with it."""
         self.assertTrue(
             self.embedded_action_settings.exists(),
             "The embedded action settings should exist before unlinking the project.",
         )
         self.project_goats.unlink()
-        # Check if the embedded action settings are removed
         self.assertFalse(
             self.embedded_action_settings.exists(),
             "The embedded action settings should be removed when the project is unlinked.",

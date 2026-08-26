@@ -1,18 +1,9 @@
-"""Historical project data for reference class forecasting.
-
-Evidence basis: Flyvbjerg (16,000 projects) — reference class forecasting
-is the strongest antidote to the planning fallacy. Kahneman: the 'outside
-view' corrects systematic optimism bias.
-"""
-
 from odoo import Command, api, fields, models
 
 from .project_task import CLOSED_STATES, DELIVERED_STATES
 
 
 class ProjectHistory(models.Model):
-    """Archived project metrics for reference class comparison."""
-
     _name = "project.history"
     _description = "Project History"
     _order = "date_completed desc, id desc"
@@ -87,7 +78,6 @@ class ProjectHistory(models.Model):
         "actual_hours",
     )
     def _compute_variances(self) -> None:
-        """Compute schedule and effort variance percentages."""
         for rec in self:
             if rec.planned_duration_days:
                 rec.duration_variance_pct = (
@@ -106,7 +96,6 @@ class ProjectHistory(models.Model):
 
     @api.model
     def create_from_project(self, project) -> ProjectHistory:
-        """Create a history record by snapshotting a completed project."""
         task_domain = [
             ("project_id", "=", project.id),
             ("is_template", "=", False),
@@ -114,20 +103,14 @@ class ProjectHistory(models.Model):
         Task = self.env["project.task"]
         tasks = Task.search(task_domain)
 
-        # Compute team size from distinct assignees
         assignees = set()
         for task in tasks:
             assignees.update(task.user_ids.ids)
 
-        # Planned duration
         planned_days = 0
         if project.date_start and project.date:
             planned_days = (project.date - project.date_start).days
 
-        # Actual completion = when the project's work really finished (latest
-        # task closure), NOT when this snapshot happens to be taken. Otherwise a
-        # project archived months after it ended records an inflated duration,
-        # corrupting the reference-class forecasting this model feeds.
         closed_tasks = tasks.filtered(lambda t: t.state in CLOSED_STATES)
         closed_dates = closed_tasks.filtered("date_closed").mapped("date_closed")
         completion_date = (
@@ -138,20 +121,11 @@ class ProjectHistory(models.Model):
         if project.date_start:
             actual_days = (completion_date - project.date_start).days
 
-        # Aggregate hours (PMI: scope baseline = sum of estimates).
         planned_hours = sum(tasks.mapped("planned_hours"))
 
-        # Actual hours — only available if timesheet module installed
         actual_hours = 0.0
         if "effective_hours" in Task._fields:
             actual_hours = sum(tasks.mapped("effective_hours"))
-        # Flow and compliance describe DELIVERED work, matching the live
-        # project fields this snapshot is meant to be comparable with
-        # (avg_lead_time, avg_cycle_time, deadline_compliance_pct all key off
-        # DELIVERED_STATES). Averaging a cancelled task's lead time in, or
-        # counting its deadline as missed, made a project that killed doomed
-        # work early look worse than one that let it run — the opposite of the
-        # lesson this reference class exists to teach.
         delivered_tasks = tasks.filtered(lambda t: t.state in DELIVERED_STATES)
         avg_lt = 0.0
         avg_ct = 0.0

@@ -229,26 +229,22 @@ class TestAllowedUsers(TestAccessRights):
     def test_project_permission_added(self) -> None:
         self.project_pigs.message_subscribe(partner_ids=[self.user.partner_id.id])
         self.assertIn(self.user.partner_id, self.project_pigs.message_partner_ids)
-        # Subscribing to a project should not cause subscription to existing tasks in the project.
         self.assertNotIn(self.user.partner_id, self.task.message_partner_ids)
 
     def test_project_default_permission(self) -> None:
         self.project_pigs.message_subscribe(partner_ids=[self.user.partner_id.id])
         created_task = self.create_task("Review the end of the world")
-        # Subscribing to a project should cause subscription to new tasks in the project.
         self.assertIn(self.user.partner_id, created_task.message_partner_ids)
 
     def test_project_default_customer_permission(self) -> None:
         self.project_pigs.privacy_visibility = "portal"
         self.project_pigs.message_subscribe(partner_ids=[self.portal.partner_id.id])
-        # Subscribing a default customer to a project should not cause its subscription to existing tasks in the project.
         self.assertNotIn(self.portal.partner_id, self.task.message_partner_ids)
         self.assertIn(self.portal.partner_id, self.project_pigs.message_partner_ids)
 
     def test_project_permission_removed(self) -> None:
         self.project_pigs.message_subscribe(partner_ids=[self.user.partner_id.id])
         self.project_pigs.message_unsubscribe(partner_ids=[self.user.partner_id.id])
-        # Unsubscribing to a project should not cause unsubscription of existing tasks in the project.
         self.assertNotIn(self.user.partner_id, self.project_pigs.message_partner_ids)
 
     def test_project_specific_permission(self) -> None:
@@ -256,7 +252,6 @@ class TestAllowedUsers(TestAccessRights):
         john = mail_new_test_user(self.env, "John")
         self.project_pigs.message_subscribe(partner_ids=[john.partner_id.id])
         self.project_pigs.message_unsubscribe(partner_ids=[self.user.partner_id.id])
-        # User specific subscribing to a project should not cause its subscription to existing tasks in the project.
         self.assertNotIn(
             john.partner_id,
             self.task.message_partner_ids,
@@ -277,7 +272,6 @@ class TestAllowedUsers(TestAccessRights):
         self.project_pigs.message_unsubscribe(partner_ids=[self.user.partner_id.id])
         self.assertIn(john.partner_id, self.task.message_partner_ids)
         self.assertNotIn(john.partner_id, task.message_partner_ids)
-        # Unsubscribing to a project should unsubscribing of existing tasks in the project.
         self.assertNotIn(self.user.partner_id, task.message_partner_ids)
         self.assertNotIn(self.user.partner_id, self.task.message_partner_ids)
 
@@ -383,9 +377,7 @@ class TestPortalProject(TestProjectPortalCommon):
         pigs = self.project_pigs
 
         pigs.write({"privacy_visibility": "employees"})
-        # Do: Alfred reads project -> ok (employee ok employee)
         pigs.with_user(self.user_projectuser).read(["user_id"])
-        # Test: all project tasks visible
         tasks = (
             self.env["project.task"]
             .with_user(self.user_projectuser)
@@ -404,15 +396,12 @@ class TestPortalProject(TestProjectPortalCommon):
             test_task_ids,
             "access rights: project user cannot see all tasks of an employees project",
         )
-        # Do: Bert reads project -> crash, no group
         self.assertRaises(
             AccessError, pigs.with_user(self.user_noone).read, ["user_id"]
         )
-        # Do: Donovan reads project -> ko (public ko employee)
         self.assertRaises(
             AccessError, pigs.with_user(self.user_public).read, ["user_id"]
         )
-        # Do: project user is employee and can create a task
         tmp_task = (
             self.env["project.task"]
             .with_user(self.user_projectuser)
@@ -425,20 +414,16 @@ class TestPortalProject(TestProjectPortalCommon):
     def test_favorite_project_access_rights(self) -> None:
         pigs = self.project_pigs.with_user(self.user_projectuser)
 
-        # we can't write on project name
         self.assertRaises(AccessError, pigs.write, {"name": "False Pigs"})
-        # we can write on is_favorite
         pigs.write({"is_favorite": True})
 
     @mute_logger("odoo.addons.base.ir.ir_model")
     def test_followers_project_access_rights(self) -> None:
         pigs = self.project_pigs
         pigs.write({"privacy_visibility": "followers"})
-        # Do: Alfred reads project -> ko (employee ko followers)
         self.assertRaises(
             AccessError, pigs.with_user(self.user_projectuser).read, ["user_id"]
         )
-        # Test: no project task visible
         tasks = (
             self.env["project.task"]
             .with_user(self.user_projectuser)
@@ -450,32 +435,26 @@ class TestPortalProject(TestProjectPortalCommon):
             "access rights: employee user should not see tasks of a not-followed followers project, only assigned",
         )
 
-        # Do: Bert reads project -> crash, no group
         self.assertRaises(
             AccessError, pigs.with_user(self.user_noone).read, ["user_id"]
         )
 
-        # Do: Donovan reads project -> ko (public ko employee)
         self.assertRaises(
             AccessError, pigs.with_user(self.user_public).read, ["user_id"]
         )
 
         pigs.message_subscribe(partner_ids=[self.user_projectuser.partner_id.id])
 
-        # Do: Alfred reads project -> ok (follower ok followers)
         donkey = pigs.with_user(self.user_projectuser)
         donkey.invalidate_model()
         donkey.read(["user_id"])
 
-        # Do: Donovan reads project -> ko (public ko follower even if follower)
         self.assertRaises(
             AccessError, pigs.with_user(self.user_public).read, ["user_id"]
         )
-        # Do: project user is follower of the project and can create a task
         self.env["project.task"].with_user(self.user_projectuser).with_context(
             {"mail_create_nolog": True}
         ).create({"name": "Pigs task", "project_id": pigs.id})
-        # not follower user should not be able to create a task
         pigs.with_user(self.user_projectuser).message_unsubscribe(
             partner_ids=[self.user_projectuser.partner_id.id]
         )
@@ -488,7 +467,6 @@ class TestPortalProject(TestProjectPortalCommon):
             {"name": "Pigs task", "project_id": pigs.id},
         )
 
-        # Do: project user can create a task without project
         self.assertRaises(
             AccessError,
             self.env["project.task"]
@@ -520,7 +498,6 @@ class TestAccessRightsPrivateTask(TestAccessRights):
 
     @users("Portal user")
     def test_portal_cannot_crud_private_task(self) -> None:
-        """Portal users have no ACL-level create permission on project.task."""
         with self.assertRaises(AccessError):
             self.create_private_task("Private task")
 
@@ -535,9 +512,6 @@ class TestAccessRightsPrivateTask(TestAccessRights):
 
     @users("Internal user")
     def test_internal_cannot_crud_others_private_task(self) -> None:
-        """Internal users (base.group_user) can create their own private tasks
-        (via project_todo ACL), but cannot access another user's private tasks.
-        """
         with self.assertRaises(AccessError):
             self.private_task.with_user(self.env.user).write({"name": "Test write"})
 

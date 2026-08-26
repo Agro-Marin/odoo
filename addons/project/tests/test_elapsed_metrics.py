@@ -1,5 +1,3 @@
-"""Queue, lead and cycle time: calendars, batching and the fallback."""
-
 from odoo import Command, fields
 from odoo.tests import tagged
 
@@ -9,15 +7,10 @@ from .test_project_base import TestProjectCommon
 @tagged("post_install", "-at_install")
 class TestElapsedWithoutCalendar(TestProjectCommon):
     def test_elapsed_falls_back_to_wall_clock(self) -> None:
-        """With no working calendar the metrics used to report 0.0, which does
-        not read as "unknown" — it reads as delivered instantly."""
         project = self.env["project.project"].create({"name": "No calendar"})
         step = self.env["project.workflow.step"].create(
             {"name": "S", "project_ids": [Command.link(project.id)]}
         )
-        # resource_calendar_id falls back to the active company, so both the
-        # project's company and env.company must be cleared for the project to
-        # genuinely resolve no calendar.
         (project.company_id | self.env.company).resource_calendar_id = False
         project.invalidate_recordset(["resource_calendar_id"])
         self.assertFalse(project.resource_calendar_id)
@@ -48,8 +41,6 @@ class TestElapsedWithoutCalendar(TestProjectCommon):
 
 @tagged("post_install", "-at_install")
 class TestElapsedBatching(TestProjectCommon):
-    """The flow metrics must survive being computed in one calendar round-trip."""
-
     def test_elapsed_matches_the_calendar(self) -> None:
         calendar = self.env.company.resource_calendar_id
         project = self.env["project.project"].create({"name": "Elapsed"})
@@ -85,8 +76,6 @@ class TestElapsedBatching(TestProjectCommon):
                 self.assertAlmostEqual(task[field], expected, places=4)
 
     def test_elapsed_costs_one_calendar_call_per_batch(self) -> None:
-        """Was exactly 3.00 ``get_work_duration_data`` calls per task — every
-        bulk close and bulk assign paid ~3 queries per record."""
         project = self.env["project.project"].create({"name": "Batched"})
         project.company_id = self.env.company
         tasks = self.env["project.task"].create(
@@ -115,10 +104,7 @@ class TestElapsedBatching(TestProjectCommon):
 
 @tagged("post_install", "-at_install")
 class TestAssignmentStamp(TestProjectCommon):
-    """date_assign is the input queue and cycle time are measured from."""
-
     def test_empty_assignee_payload_does_not_stamp_date_assign(self) -> None:
-        """The web client sends [(6, 0, [])] for "no assignee"; it is truthy."""
         task = self.env["project.task"].create(
             {
                 "name": "unassigned",

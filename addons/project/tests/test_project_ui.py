@@ -14,7 +14,6 @@ class TestUi(odoo.tests.HttpCase):
         self.start_tour("/odoo", "project_tour", login="admin")
 
     def test_project_task_history(self) -> None:
-        """This tour will check that the history works properly."""
         stage = self.env["project.workflow.step"].create({"name": "To Do"})
         _dummy, project2 = self.env["project.project"].create(
             [
@@ -40,7 +39,6 @@ class TestUi(odoo.tests.HttpCase):
         self.start_tour("/odoo?debug=1", "project_task_history_tour", login="admin")
 
     def test_project_task_last_history_steps(self) -> None:
-        """This tour will check that the history works properly."""
         stage = self.env["project.workflow.step"].create({"name": "To Do"})
         project = self.env["project.project"].create(
             [

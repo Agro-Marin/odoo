@@ -1,6 +1,3 @@
-"""The analytics snapshot: stored, searchable, refreshed — and the task-level
-fields it aggregates, which had no coverage at all."""
-
 from datetime import datetime, timedelta
 
 from odoo import Command, fields
@@ -12,12 +9,6 @@ from .test_project_base import TestProjectCommon
 
 @tagged("post_install", "-at_install")
 class TestProjectMetricsAreQueryable(TestProjectCommon):
-    """Health and flow used to be non-stored, which made them undisplayable in
-    every place that matters: ``ValueError: Cannot convert
-    project.project.health_status to SQL because it is not stored`` on any
-    filter, group-by or sort. "Show me every project that is off track" is a
-    search."""
-
     def test_health_is_searchable(self) -> None:
         self.assertIn(
             self.project_pigs,
@@ -39,10 +30,6 @@ class TestProjectMetricsAreQueryable(TestProjectCommon):
         self.assertEqual(len(groups), 1)
 
     def test_flow_metrics_are_searchable(self) -> None:
-        # One domain rather than one search per field: every leaf still has to
-        # convert to SQL for the query to run at all, so the assertion is the
-        # same and the loop-with-a-query inside it is not (test_lint counts
-        # those, and it is right to).
         Project = self.env["project.project"]
         domain = Domain.OR(
             Domain(fname, ">=", 0)
@@ -57,9 +44,6 @@ class TestProjectMetricsAreQueryable(TestProjectCommon):
         self.assertIsInstance(Project.search_count(domain), int)
 
     def test_the_snapshot_is_dated_not_reactive(self) -> None:
-        """No ``@api.depends`` on purpose: aggregating reactively would re-run a
-        project-wide aggregation on every task edit. The price is that the value
-        is a snapshot, and the refresh is what dates it."""
         project = self.env["project.project"].create({"name": "Snapshot"})
         self.env["project.task"].create(
             [{"name": f"open {i}", "project_id": project.id} for i in range(3)]
@@ -97,15 +81,11 @@ class TestProjectMetricsAreQueryable(TestProjectCommon):
         )
         self.env.flush_all()
         project.action_refresh_metrics()
-        # open + blocker; the done one and the blocked one are excluded
         self.assertEqual(project.wip_count, 2)
 
 
 @tagged("post_install", "-at_install")
 class TestTaskLevelMetrics(TestProjectCommon):
-    """``cd3_score``, ``allocation_state``, ``is_overallocated`` and
-    ``planned_resources`` shipped with no test of any kind."""
-
     def _task(self, **vals):
         return self.env["project.task"].create(
             {"name": "Metric", "project_id": self.project_pigs.id, **vals}
@@ -164,9 +144,6 @@ class TestTaskLevelMetrics(TestProjectCommon):
 
 @tagged("post_install", "-at_install")
 class TestResourceReport(TestProjectCommon):
-    """``project.resource.report`` is a hand-written SQL view with no other
-    consumer to catch a regression in it."""
-
     def test_the_view_answers(self) -> None:
         report = self.env["project.resource.report"]
         rows = report.search([])
@@ -177,8 +154,6 @@ class TestResourceReport(TestProjectCommon):
         )
 
     def test_the_view_excludes_closed_tasks(self) -> None:
-        """The view filters ``t.state <> ALL(closed)``; with no reservations in
-        the fixture it must simply be empty rather than raise."""
         self.env["project.task"].create(
             {
                 "name": "closed",
@@ -195,15 +170,8 @@ class TestResourceReport(TestProjectCommon):
         )
 
     def test_deadline_compliance_uses_date_closed(self) -> None:
-        """deadline_compliance_pct must compare actual closure (date_closed) to
-        the deadline (date_end), not a column against itself.
-
-        Bug: the SQL read ``date_end <= date_end`` (always true) → every project
-        reported 100% compliance.
-        """
         project = self.project_pigs
         now = fields.Datetime.now()
-        # Task closed on time: closed before its deadline.
         self.env["project.task"].create(
             {
                 "name": "On time",
@@ -213,7 +181,6 @@ class TestResourceReport(TestProjectCommon):
                 "date_end": now - timedelta(days=1),
             }
         )
-        # Task closed late: closed after its deadline.
         self.env["project.task"].create(
             {
                 "name": "Late",
@@ -231,13 +198,8 @@ class TestResourceReport(TestProjectCommon):
         )
 
     def test_flow_window_keys_off_date_closed(self) -> None:
-        """Rolling flow windows (throughput) must select tasks by closure date,
-        not by deadline (date_end, which in this fork is the *deadline*)."""
         project = self.project_pigs
         now = fields.Datetime.now()
-        # 4 tasks recently closed but with ancient deadlines: MUST all be counted
-        # (throughput keys off closure date, not deadline). 4 / 4.0 weeks = 1.0,
-        # an exact value that avoids the field's 1-decimal rounding.
         for i in range(4):
             self.env["project.task"].create(
                 {
@@ -248,7 +210,6 @@ class TestResourceReport(TestProjectCommon):
                     "date_end": now - timedelta(days=365),
                 }
             )
-        # Not closed, deadline in the recent window: MUST NOT be counted.
         self.env["project.task"].create(
             {
                 "name": "Open, recent deadline",
@@ -258,18 +219,11 @@ class TestResourceReport(TestProjectCommon):
             }
         )
         project.action_refresh_metrics()
-        # Under the old (buggy) code these keyed off date_end (365d ago) → 0.0.
         self.assertEqual(project.throughput_week, 1.0)
 
     def test_health_schedule_respects_utc(self) -> None:
-        """An open task whose deadline is a couple of hours in the past (naive
-        UTC) must count as overdue.
-
-        Bug: the SQL compared date_end (naive UTC) to a bare NOW() (session tz,
-        here UTC-6), so a task up to 6h overdue was still counted on-time.
-        """
         project = self.env["project.project"].create({"name": "TZProj"})
-        now = fields.Datetime.now()  # naive UTC
+        now = fields.Datetime.now()
         self.env["project.task"].create(
             {
                 "name": "just overdue",
@@ -280,8 +234,6 @@ class TestResourceReport(TestProjectCommon):
         )
         project.invalidate_recordset(["health_score", "health_status"])
         project._compute_health_indicators()
-        # The only deadline-bearing open task is overdue → schedule component 0.
-        # (Composite of schedule/staleness/milestone/risk; schedule dragged down.)
         self.assertLess(
             project.health_score,
             100,
@@ -289,7 +241,6 @@ class TestResourceReport(TestProjectCommon):
         )
 
     def test_flow_metrics_exclude_archived(self) -> None:
-        """WIP and other flow metrics must not count archived tasks."""
         project = self.env["project.project"].create({"name": "ArchProj"})
         live = self.env["project.task"].create(
             {"name": "live", "project_id": project.id, "state": "in_progress"}

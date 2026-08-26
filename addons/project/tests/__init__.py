@@ -59,3 +59,6 @@ from . import test_tag_uniqueness
 from . import test_task_closure
 from . import test_workflow_step_lifecycle
 from . import test_project_duplication
+from . import test_status_change_stamp
+from . import test_phase_mail_template
+from . import test_project_dates_alias

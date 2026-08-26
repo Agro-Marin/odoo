@@ -34,7 +34,7 @@ class TestProject(TestCommonSaleTimesheet):
 
         sale_item = self.so.line_ids[0]
         self.env.invalidate_all()
-        expected_task_sale_order_items = self.project_global.tasks.sale_line_id
+        expected_task_sale_order_items = self.project_global.task_ids.sale_line_id
         expected_sale_order_items = sale_item | expected_task_sale_order_items
         self.assertEqual(
             self.project_global._fetch_sale_order_items(), expected_sale_order_items

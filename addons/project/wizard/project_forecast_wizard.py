@@ -1,10 +1,3 @@
-"""Monte Carlo forecast wizard using historical throughput data.
-
-Evidence basis: Spolsky's Evidence-Based Scheduling, probabilistic
-forecasting from Kanban analytics. Uses random sampling from actual
-weekly throughput history to simulate completion dates.
-"""
-
 import random
 from datetime import timedelta
 
@@ -16,14 +9,9 @@ from odoo.addons.project.models.project_task import DELIVERED_STATES
 
 
 class ProjectForecastWizard(models.TransientModel):
-    """Run Monte Carlo simulation to forecast project completion dates."""
-
     _name = "project.forecast.wizard"
     _description = "Monte Carlo Forecast"
 
-    # Bounds a single simulated run. Reached only when the sampled throughput
-    # is too slow to clear the backlog; runs that hit it are reported, never
-    # silently folded into the percentiles.
     SIMULATION_WEEK_CAP = 200
 
     project_id = fields.Many2one(
@@ -49,7 +37,6 @@ class ProjectForecastWizard(models.TransientModel):
         default=12,
         help="How many weeks of throughput data to sample from.",
     )
-    # Results
     p50_weeks = fields.Float("50th Percentile (weeks)", readonly=True, digits=(5, 1))
     p85_weeks = fields.Float("85th Percentile (weeks)", readonly=True, digits=(5, 1))
     p95_weeks = fields.Float("95th Percentile (weeks)", readonly=True, digits=(5, 1))
@@ -64,17 +51,14 @@ class ProjectForecastWizard(models.TransientModel):
                 wiz.remaining_items = 0
 
     def action_run_forecast(self) -> dict:
-        """Run the Monte Carlo simulation and display results."""
         self.ensure_one()
         if self.simulation_count < 1:
             raise UserError(self.env._("The number of simulations must be at least 1."))
-        # Cap iterations so a huge user-entered value can't stall the request.
         sim_count = min(self.simulation_count, 100_000)
         if not self.remaining_items or self.remaining_items <= 0:
             self.result_text = "No remaining items to forecast."
             return self._reopen_wizard()
 
-        # Fetch weekly throughput history
         throughput = self._get_weekly_throughput()
         if not throughput or all(t == 0 for t in throughput):
             self.result_text = (
@@ -83,14 +67,12 @@ class ProjectForecastWizard(models.TransientModel):
             )
             return self._reopen_wizard()
 
-        # Run simulation
         results = []
         truncated = 0
         for _i in range(sim_count):
             weeks = 0
             remaining = self.remaining_items
             while remaining > 0:
-                # Sample a random week's throughput
                 weekly_tp = random.choice(throughput)
                 remaining -= max(weekly_tp, 0)
                 weeks += 1
@@ -136,7 +118,6 @@ class ProjectForecastWizard(models.TransientModel):
                 zeros=sum(1 for t in throughput if not t),
             ),
         ]
-        # Never let a truncated run masquerade as a finished estimate.
         if truncated:
             lines += [
                 "",
@@ -152,34 +133,6 @@ class ProjectForecastWizard(models.TransientModel):
         return self._reopen_wizard()
 
     def _get_weekly_throughput(self) -> list[int]:
-        """Fetch tasks-closed-per-week for the last N weeks, zeros included.
-
-        Every week in the window is a sample, including the ones where nothing
-        shipped. A plain ``GROUP BY`` emits no row for an empty week, which
-        silently deleted those zeros from the distribution and biased the
-        forecast optimistic by the exact factor the feature exists to remove:
-        a project delivering in 2 of 12 weeks sampled ``[2, 2]`` and forecast
-        10 weeks for 20 items instead of 60 — with P50, P85 and P95 collapsing
-        onto one value, because a sample with no variance cannot express any.
-        ``generate_series`` supplies the missing weeks.
-
-        Throughput buckets by ``date_closed`` (the actual completion timestamp),
-        not ``date_end`` (the renamed deadline) — forecasting from deadlines
-        rather than real closures would be meaningless. The rolling-window
-        boundary is computed in Python via ``cr.now()`` (naive UTC, matching the
-        column's storage): ``INTERVAL %(param)s`` is not valid SQL (the interval
-        text must be a literal, not a bind placeholder) and a bare ``NOW()``
-        would be evaluated in the session timezone against a UTC column.
-
-        Weeks before the project existed are excluded: they are not evidence
-        of slow delivery, and padding with them would bias the forecast
-        pessimistic just as dropping the real zeros biased it optimistic. The
-        floor is the *earlier* of the project's creation and its first recorded
-        closure, so backdated or imported history is never silently discarded.
-        """
-        # Raw SQL bypasses record rules, and project_id is user-settable on this
-        # transient — gate on ORM read access so a user can't read the throughput
-        # of a project they are not allowed to see.
         self.project_id.check_access("read")
         since = self.env.cr.now() - timedelta(weeks=self.weeks_of_history)
         self.env.cr.execute(
@@ -227,7 +180,6 @@ class ProjectForecastWizard(models.TransientModel):
         return [row[0] for row in self.env.cr.fetchall()]
 
     def _reopen_wizard(self) -> dict:
-        """Return action to keep the wizard open after running."""
         return {
             "type": "ir.actions.act_window",
             "res_model": self._name,

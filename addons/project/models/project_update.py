@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Any, Self
 
 from dateutil.relativedelta import relativedelta
@@ -8,13 +9,12 @@ from odoo.fields import Domain
 from odoo.tools import format_amount, formatLang
 
 STATUS_COLOR = {
-    "on_track": 20,  # green / success
-    "at_risk": 22,  # orange
-    "off_track": 23,  # red / danger
-    "on_hold": 21,  # light blue
-    "done": 24,  # purple
-    False: 0,  # default grey -- for studio
-    # Only used in project.task
+    "on_track": 20,
+    "at_risk": 22,
+    "off_track": 23,
+    "on_hold": 21,
+    "done": 24,
+    False: 0,
     "to_define": 0,
 }
 
@@ -37,8 +37,6 @@ class ProjectUpdate(models.Model):
             if "description" in fields and not result.get("description"):
                 result["description"] = self._prepare_description(project)
             if "status" in fields and not result.get("status"):
-                # `to_define` is not an option for self.status, here we actually want to default to `on_track`
-                # the goal of `to_define` is for a project to start without an actual status.
                 result["status"] = (
                     project.last_update_status
                     if project.last_update_status != "to_define"
@@ -120,35 +118,36 @@ class ProjectUpdate(models.Model):
                 update.closed_task_count * 100 / update.task_count
             )
 
-    # ---------------------------------
-    # ORM Override
-    # ---------------------------------
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         updates = super().create(vals_list)
+        per_snapshot = defaultdict(self.browse)
         for update in updates:
             project = update.project_id
             project.sudo().last_update_id = update
-            update.write(
-                {
-                    "task_count": project.task_count,
-                    "closed_task_count": project.task_count - project.open_task_count,
-                }
+            per_snapshot[
+                (project.task_count, project.task_count - project.open_task_count)
+            ] |= update
+        for (task_count, closed_task_count), group in per_snapshot.items():
+            group.write(
+                {"task_count": task_count, "closed_task_count": closed_task_count}
             )
         return updates
 
     def unlink(self) -> bool:
         projects = self.project_id
         res = super().unlink()
+        if not projects:
+            return res
+        latest_per_project = {}
+        for update in self.search(
+            [("project_id", "in", projects.ids)], order="date desc, id desc"
+        ):
+            latest_per_project.setdefault(update.project_id.id, update)
         for project in projects:
-            project.last_update_id = self.search(
-                [("project_id", "=", project.id)], order="date desc", limit=1
-            )
+            project.last_update_id = latest_per_project.get(project.id, False)
         return res
 
-    # ---------------------------------
-    # Build default description
-    # ---------------------------------
     @api.model
     def _prepare_description(self, project: Any) -> str:
         return self.env["ir.qweb"]._render(

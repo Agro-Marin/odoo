@@ -2,8 +2,6 @@ from .test_project_base import TestProjectCommon
 
 
 class TestProjectConfig(TestProjectCommon):
-    """Test module configuration and its effects on projects."""
-
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -16,12 +14,7 @@ class TestProjectConfig(TestProjectCommon):
         ]._get_or_create_for_user(cls.user_projectuser)
 
     def test_project_stages_feature_enable_views(self) -> None:
-        """Check that the Gantt, Calendar and Activities views are
-        enabled when the 'Project Stage' feature is enabled.
-        """
-        self.Settings.create(
-            {"group_project_stages": True}
-        ).execute()  # enabling feature
+        self.Settings.create({"group_project_stages": True}).execute()
         menu_ids = {
             self.env.ref("project.menu_projects").id,
             self.env.ref("project.menu_projects_config").id,
@@ -33,10 +26,6 @@ class TestProjectConfig(TestProjectCommon):
         )
 
     def test_copy_project_manager_embedded_config_as_default(self) -> None:
-        """Test that when a user gets the embedded actions configs of a projet, he gets the configs of
-        the project manager as default if he has no personal configuration yet for a particular action.
-        The configs he gets should also be copied in its user's settings.
-        """
         project = self.env["project.project"].create(
             {
                 "name": "Test Project",
@@ -49,7 +38,6 @@ class TestProjectConfig(TestProjectCommon):
                 "res_model": "project.project",
             }
         )
-        # Create the embedded action config for the project manager
         project_manager_config = self.env["res.users.settings.embedded.action"].create(
             {
                 "user_setting_id": self.user_settings_project_manager.id,
@@ -62,9 +50,7 @@ class TestProjectConfig(TestProjectCommon):
             }
         )
 
-        # The project user has no personal configuration yet
         self.assertFalse(self.user_settings_project_user.embedded_actions_config_ids)
-        # He should get the project manager configuration as default
         project_user_config = self.user_settings_project_user.with_context(
             res_model="project.project",
             res_id=project.id,
@@ -78,7 +64,6 @@ class TestProjectConfig(TestProjectCommon):
             },
         )
 
-        # Check that the config has indeed been copied for the project user
         project_user_config = (
             self.user_settings_project_user.embedded_actions_config_ids
         )
@@ -119,9 +104,6 @@ class TestProjectConfig(TestProjectCommon):
         )
 
     def test_no_copy_project_manager_embedded_config_as_default(self) -> None:
-        """Test that when a user gets the embedded actions configs of a projet, he does not get the configs of
-        the project manager as default if he already has a personal configuration for some actions.
-        """
         project = self.env["project.project"].create(
             {
                 "name": "Test Project",
@@ -134,7 +116,6 @@ class TestProjectConfig(TestProjectCommon):
                 "res_model": "project.project",
             }
         )
-        # Create the embedded action config for the project manager
         self.env["res.users.settings.embedded.action"].create(
             {
                 "user_setting_id": self.user_settings_project_manager.id,
@@ -146,7 +127,6 @@ class TestProjectConfig(TestProjectCommon):
                 "embedded_visibility": True,
             }
         )
-        # The project user already has a personal configuration
         user_config = self.env["res.users.settings.embedded.action"].create(
             {
                 "user_setting_id": self.user_settings_project_user.id,
@@ -162,7 +142,6 @@ class TestProjectConfig(TestProjectCommon):
             len(self.user_settings_project_user.embedded_actions_config_ids), 1
         )
 
-        # He should get his personal configuration as default
         project_user_config = self.user_settings_project_user.with_context(
             res_model="project.project",
             res_id=project.id,
@@ -176,7 +155,6 @@ class TestProjectConfig(TestProjectCommon):
             },
         )
 
-        # Check that no new config has been created for the project user
         project_user_config = (
             self.user_settings_project_user.embedded_actions_config_ids
         )

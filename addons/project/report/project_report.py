@@ -1,5 +1,3 @@
-"""Tasks analysis report (SQL view)."""
-
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 
@@ -8,8 +6,6 @@ from odoo.addons.rating.models.rating_data import RATING_LIMIT_MIN
 
 
 class ReportProjectTaskUser(models.Model):
-    """Aggregated task analysis report for project managers."""
-
     _name = "report.project.task.user"
     _description = "Tasks Analysis"
     _order = "name desc, project_id"
@@ -109,6 +105,7 @@ class ReportProjectTaskUser(models.Model):
     )
     parent_id = fields.Many2one("project.task", string="Parent Task", readonly=True)
     milestone_id = fields.Many2one("project.milestone", readonly=True)
+    lost_reason_id = fields.Many2one("project.task.lost.reason", readonly=True)
     message_is_follower = fields.Boolean(related="task_id.message_is_follower")
     successor_ids = fields.Many2many(
         "project.task",
@@ -143,6 +140,7 @@ class ReportProjectTaskUser(models.Model):
                 t.step_id,
                 t.state,
                 t.milestone_id,
+                t.lost_reason_id,
                 CASE WHEN t.state = ANY(%s) THEN True ELSE False END AS is_closed,
                 t.description,
                 NULLIF(t.rating_last_value, 0) as rating_last_value,
@@ -177,7 +175,8 @@ class ReportProjectTaskUser(models.Model):
                 t.queue_time_days,
                 t.queue_time_hours,
                 t.lead_time_hours,
-                t.milestone_id
+                t.milestone_id,
+                t.lost_reason_id
         """
 
     def _from(self) -> str:
@@ -212,10 +211,5 @@ class ReportProjectTaskUser(models.Model):
                 self._where(),
                 self._group_by(),
             ),
-            # ``_select()`` carries a single ``%s`` for the closed-state list.
-            # Values substituted by the ``%`` operator above are not rescanned,
-            # so it survives into the DDL and is bound here — the report's idea
-            # of "closed" therefore comes from CLOSED_STATES, not from a literal
-            # retyped in SQL.
             (list(CLOSED_STATES),),
         )

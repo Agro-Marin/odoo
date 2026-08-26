@@ -6,8 +6,6 @@ from odoo.tools import email_normalize
 
 
 class ResPartner(models.Model):
-    """Inherits partner and adds Tasks information in the partner form"""
-
     _inherit = "res.partner"
 
     project_ids = fields.One2many(
@@ -57,7 +55,6 @@ class ResPartner(models.Model):
                 )
 
     def _compute_task_count(self) -> None:
-        # retrieve all children partners and prefetch 'parent_id' on them
         all_partners = self.with_context(active_test=False).search_fetch(
             [("id", "child_of", self.ids)],
             ["parent_id"],
@@ -76,7 +73,6 @@ class ResPartner(models.Model):
                     partner.task_count += count
                 partner = partner.parent_id
 
-    # Deprecated: remove me in MASTER
     def _create_portal_users(self) -> Self:
         partners_without_user = self.filtered(lambda partner: not partner.user_ids)
         if not partners_without_user:

@@ -1,5 +1,3 @@
-"""Predecessors block a task from the moment it is created."""
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -8,8 +6,6 @@ from .test_project_base import TestProjectCommon
 
 @tagged("post_install", "-at_install")
 class TestPredecessorBlockAtCreate(TestProjectCommon):
-    """A dependency given at create time blocks the task, like one given later."""
-
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -21,10 +17,6 @@ class TestPredecessorBlockAtCreate(TestProjectCommon):
         )
 
     def test_blocked_when_predecessor_given_at_create(self) -> None:
-        """``state`` carries a default, so the ORM writes ``todo`` straight to
-        the row and ``_compute_state`` is never invoked — instrumented at zero
-        calls. The record stored ``todo`` while ``is_blocked_by_predecessors()``
-        answered True."""
         predecessor = self._predecessor()
         task = self.env["project.task"].create(
             {
@@ -48,8 +40,6 @@ class TestPredecessorBlockAtCreate(TestProjectCommon):
         self.assertEqual(task.state, "blocked")
 
     def test_blocked_through_the_import_path(self) -> None:
-        """The spreadsheet import is the path that actually suffered: a batch of
-        dependent tasks all landed unblocked."""
         predecessor = self._predecessor()
         self.env["ir.model.data"].create(
             [
@@ -109,8 +99,6 @@ class TestPredecessorBlockAtCreate(TestProjectCommon):
         self.assertNotEqual(task.state, "blocked")
 
     def test_closed_predecessor_count_reacts_to_state_change(self) -> None:
-        """closed_predecessor_count must refresh when a predecessor's state
-        changes, even though the relation itself is unchanged."""
         self.project_goats.allow_dependencies = True
         (self.task_1 + self.task_2).write({"project_id": self.project_goats.id})
         self.task_1.predecessor_ids = self.task_2
@@ -123,8 +111,6 @@ class TestPredecessorBlockAtCreate(TestProjectCommon):
         )
 
     def test_successor_count_on_new_record(self) -> None:
-        """_compute_successor_count must not feed NewId values to _read_group in
-        an onchange (new, unsaved record)."""
         project = self.env["project.project"].create(
             {"name": "NewSucc", "allow_dependencies": True}
         )
@@ -138,15 +124,9 @@ class TestPredecessorBlockAtCreate(TestProjectCommon):
                 "successor_ids": [(4, existing.id)],
             }
         )
-        # Reading the count on an unsaved record must not raise.
         self.assertEqual(new_task.successor_count, 1)
 
     def test_report_successor_ids_is_queryable(self) -> None:
-        """report.project.task.user.successor_ids must map to an existing column.
-
-        Bug: column1='predecessor_id' doesn't exist on the rel table → any read
-        of the 'Block' field raised a Fault 500.
-        """
         project = self.env["project.project"].create(
             {"name": "RepProj", "allow_dependencies": True}
         )
@@ -156,12 +136,9 @@ class TestPredecessorBlockAtCreate(TestProjectCommon):
         self.env.flush_all()
         report = self.env["report.project.task.user"]
         rows = report.search([("task_id", "=", a.id)])
-        # Reading the field must not raise; A blocks B, so A is a successor edge.
         self.assertIn(b, rows.successor_ids)
 
     def test_typed_dependency_write_resyncs_m2m(self) -> None:
-        """D1: editing a typed dependency's predecessor must re-sync the backing
-        predecessor_ids M2M."""
         self.project_pigs.allow_dependencies = True
         a, b, c = self.env["project.task"].create(
             [{"name": n, "project_id": self.project_pigs.id} for n in ("A", "B", "C")]
@@ -180,8 +157,6 @@ class TestPredecessorBlockAtCreate(TestProjectCommon):
         )
 
     def test_batch_typed_dependencies_sync_all(self) -> None:
-        """Creating several typed dependencies at once must sync every
-        predecessor_ids link (batched _sync_to_m2m), with no cycle false-positive."""
         project = self.env["project.project"].create(
             {"name": "BatchDep", "allow_dependencies": True}
         )
@@ -201,14 +176,6 @@ class TestPredecessorBlockAtCreate(TestProjectCommon):
         self.assertEqual(d.predecessor_ids, b)
 
     def test_project_copy_remaps_subtask_dependencies(self) -> None:
-        """Copying a project must remap subtask dependencies onto the COPIED
-        tasks, not leave them pointing at the originals.
-
-        Pins the fix to _create_task_mapping: child_ids is read back in _order
-        (newest-first), not creation order, so the positional zip mis-paired
-        originals with copies — mis-wiring dependencies (and crashing with
-        `zip strict` when a grandchild zipped against the wrong copy).
-        """
         project = self.env["project.project"].create(
             {"name": "DepCopy", "allow_dependencies": True}
         )

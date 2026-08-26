@@ -5,13 +5,8 @@ from odoo.tools import SQL
 
 
 class ProjectTags(models.Model):
-    """Tags of project's tasks"""
-
     _name = "project.tags"
     _description = "Project Tags"
-    # `name` (translated, unique on the source term), `active`, `color` and
-    # `code` come from the mixin, which already carried the hand-rolled index
-    # this model declared. Flat: project tags do not nest.
     _inherit = ["mixin.tag"]
 
     is_strategic = fields.Boolean(
@@ -29,7 +24,6 @@ class ProjectTags(models.Model):
     )
 
     def _get_project_tags_domain(self, domain: list, project_id: int) -> list:
-        # TODO: Remove in master
         return domain
 
     @api.model
@@ -86,14 +80,6 @@ class ProjectTags(models.Model):
     def arrange_tag_list_by_id(
         self, tag_list: list[dict], id_order: list[int]
     ) -> list[dict]:
-        """Re-order a list of record values (dict) following a given id sequence, in O(n).
-
-        :param tag_list: ordered (by id) list of record values, each record being a dict
-            containing at least an 'id' key
-
-        :param id_order: list of value (int) corresponding to the id of the records to re-arrange
-        :returns: Sorted list of record values (dict)
-        """
         tags_by_id = {tag["id"]: tag for tag in tag_list}
         return [tags_by_id[id] for id in id_order if id in tags_by_id]
 
@@ -112,8 +98,6 @@ class ProjectTags(models.Model):
             [self._search_display_name(operator, name), domain or Domain.TRUE]
         )
         if self.env.context.get("project_id"):
-            # optimisation for large projects, we look first for tags present on the last 1000 tasks of said project.
-            # when not enough results are found, we complete them with a fallback on a regular search
             tag_sql = SQL(
                 """
                 (SELECT DISTINCT project_tasks_tags.id

@@ -187,7 +187,7 @@ class ProjectTask(models.Model):
                AND remaining_hours / planned_hours %s %s
         )""",
             SQL.identifier(self._table),
-            SQL(operator),
+            SQL(operator),  # noqa: E8501  caller whitelists the operator
             value,
         )
         return [("id", "in", sql)]

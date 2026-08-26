@@ -1,16 +1,7 @@
-"""Project risk register — structured risk management.
-
-Evidence basis: PMI risk framework (most validated portion of PMBOK),
-pre-mortem analysis (Klein: +30% cause identification), consistently
-in top-5 critical success factors across meta-analyses.
-"""
-
 from odoo import api, fields, models
 
 
 class ProjectRisk(models.Model):
-    """A risk identified for a project, with probability x impact scoring."""
-
     _name = "project.risk"
     _description = "Project Risk"
     _order = "risk_score desc, id desc"
@@ -123,7 +114,6 @@ class ProjectRisk(models.Model):
 
     @api.depends("probability", "impact")
     def _compute_risk_score(self) -> None:
-        """Compute risk score and derive risk level from the score."""
         for risk in self:
             score = int(risk.probability or 0) * int(risk.impact or 0)
             risk.risk_score = score

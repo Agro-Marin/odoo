@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="project_task_lost_reason_view_search" model="ir.ui.view">
+        <field name="name">project.task.lost.reason.view.search</field>
+        <field name="model">project.task.lost.reason</field>
+        <field name="arch" type="xml">
+            <search string="Lost Reasons">
+                <field name="name" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]" />
+            </search>
+        </field>
+    </record>
+
+    <record id="project_task_lost_reason_view_tree" model="ir.ui.view">
+        <field name="name">project.task.lost.reason.view.list</field>
+        <field name="model">project.task.lost.reason</field>
+        <field name="arch" type="xml">
+            <list
+                string="Lost Reasons"
+                editable="bottom"
+                sample="1"
+                default_order="name">
+                <field name="name" placeholder="e.g. Budget withdrawn" />
+                <field name="task_count" optional="show" />
+            </list>
+        </field>
+    </record>
+
+    <record id="project_task_lost_reason_view_form" model="ir.ui.view">
+        <field name="name">project.task.lost.reason.view.form</field>
+        <field name="model">project.task.lost.reason</field>
+        <field name="arch" type="xml">
+            <form string="Lost Reason">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_tasks_lost"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-tasks">
+                            <div class="o_stat_info">
+                                <field name="task_count" class="o_stat_value" />
+                                <span class="o_stat_text">Tasks</span>
+                            </div>
+                        </button>
+                    </div>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+                    <div class="oe_title">
+                        <label for="name" />
+                        <h1>
+                            <field name="name" placeholder="e.g. Budget withdrawn" />
+                        </h1>
+                        <field name="active" invisible="1" />
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="project_task_lost_reason_action" model="ir.actions.act_window">
+        <field name="name">Lost Reasons</field>
+        <field name="res_model">project.task.lost.reason</field>
+        <field name="path">task-lost-reasons</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No lost reasons found. Let's create one!
+            </p><p>
+                Record why tasks end without delivering, so the closures can be reported on
+                instead of retold. A workflow step says where a task stopped, not what closed it.
+            </p>
+        </field>
+    </record>
+
+</odoo>

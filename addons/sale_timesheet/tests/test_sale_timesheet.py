@@ -414,8 +414,11 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "no",
-            'Sale Timesheet: "invoice on delivery" should not need to be invoiced on so confirmation',
+            "to do",
+            'Sale Timesheet: "invoice on delivery" has nothing billable on '
+            "confirmation but the quantity is still outstanding, which "
+            "c0180669ca0 spells 'to do' — 'no' now means nothing will ever be "
+            "billed here",
         )
         self.assertEqual(
             sale_order.project_account_id,
@@ -676,8 +679,10 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "no",
-            "Sale Timesheet: manually product should not need to be invoiced on so confirmation",
+            "to do",
+            "Sale Timesheet: a manually-tracked service has nothing billable on "
+            "confirmation but the quantity is still outstanding, which "
+            "c0180669ca0 spells 'to do'",
         )
 
         project_serv2 = so_line_manual_only_project.project_id
@@ -744,8 +749,10 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "no",
-            'Sale Timesheet: "invoice on delivery" should not need to be invoiced on so confirmation',
+            "to do",
+            'Sale Timesheet: "invoice on delivery" has nothing billable yet, '
+            "but the ordered quantity is still outstanding — c0180669ca0 "
+            "reserved 'no' for what will never be billed",
         )
 
         self.assertEqual(

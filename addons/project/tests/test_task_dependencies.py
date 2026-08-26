@@ -29,18 +29,10 @@ class TestTaskDependencies(TestProjectCommon):
         )
 
     def flush_tracking(self) -> None:
-        """Force the creation of tracking values."""
         self.env.flush_all()
         self.cr.precommit.run()
 
     def test_task_dependencies(self) -> None:
-        """Test the task dependencies feature
-
-        Test Case:
-        =========
-        1) Add task2 as dependency in task1
-        2) Checks if the task1 has the task in predecessor_ids field.
-        """
         self.assertEqual(
             len(self.task_1.predecessor_ids),
             0,
@@ -68,17 +60,6 @@ class TestTaskDependencies(TestProjectCommon):
         )
 
     def test_cyclic_dependencies(self) -> None:
-        """Test the cyclic dependencies
-
-        Test Case:
-        =========
-        1) Check initial setting on three tasks
-        2) Add task2 as dependency in task1
-        3) Add task3 as dependency in task2
-        4) Add task1 as dependency in task3 and check a validation error is raised
-        5) Add task1 as dependency in task2 and check a validation error is raised
-        """
-        # 1) Check initial setting on three tasks
         self.assertTrue(
             len(self.task_1.predecessor_ids)
             == len(self.task_2.predecessor_ids)
@@ -99,7 +80,6 @@ class TestTaskDependencies(TestProjectCommon):
             "The task dependencies feature should be enable.",
         )
 
-        # 2) Add task2 as dependency in task1
         self.task_1.write(
             {
                 "predecessor_ids": [Command.link(self.task_2.id)],
@@ -111,7 +91,6 @@ class TestTaskDependencies(TestProjectCommon):
             "The task 1 should have one dependency.",
         )
 
-        # 3) Add task3 as dependency in task2
         self.task_2.write(
             {
                 "predecessor_ids": [Command.link(self.task_3.id)],
@@ -123,7 +102,6 @@ class TestTaskDependencies(TestProjectCommon):
             "The task 2 should have one dependency.",
         )
 
-        # 4) Add task1 as dependency in task3 and check a validation error is raised
         with self.assertRaises(ValidationError):
             self.task_3.write(
                 {
@@ -136,7 +114,6 @@ class TestTaskDependencies(TestProjectCommon):
             "The dependency should not be added in the task 3 because of a cyclic dependency.",
         )
 
-        # 5) Add task1 as dependency in task2 and check a validation error is raised
         with self.assertRaises(ValidationError):
             self.task_2.write(
                 {
@@ -150,7 +127,6 @@ class TestTaskDependencies(TestProjectCommon):
         )
 
     def test_task_dependencies_settings_change(self) -> None:
-        # set group_project_task_dependencies(True)
         self.project_chickens = self.env["project.project"].create(
             {"name": "My Chicken Project"}
         )
@@ -159,7 +135,6 @@ class TestTaskDependencies(TestProjectCommon):
             "New Projects allow_dependencies should default to False",
         )
 
-        # set group_project_task_dependencies(False)
         self.env.user.group_ids -= self.env.ref(
             "project.group_project_task_dependencies"
         )
@@ -260,9 +235,6 @@ class TestTaskDependencies(TestProjectCommon):
             )
         )
 
-        # child_ids is newest-first (_order ends in `id desc`), so bind nodes by
-        # name, not position — otherwise node1/node3 are silently swapped and the
-        # test only passes against a mis-wired copy mapping.
         node1 = parent_task.child_ids.filtered(lambda t: t.name == "Node 1")
         node2 = parent_task.child_ids.filtered(
             lambda t: t.name == "SuperNode 2"
@@ -272,8 +244,6 @@ class TestTaskDependencies(TestProjectCommon):
         node1.successor_ids = node2
         node2.successor_ids = node3
 
-        # Test copying the whole Node tree. Copies keep the source name (with a
-        # " (copy)" suffix here), so match by prefix.
         parent_task_copy = parent_task.copy()
         parent_copy_node1 = parent_task_copy.child_ids.filtered(
             lambda t: t.name.startswith("Node 1")
@@ -285,7 +255,6 @@ class TestTaskDependencies(TestProjectCommon):
             lambda t: t.name.startswith("Node 3")
         )
 
-        # Relation should only be copied between the newly created node
         self.assertEqual(len(parent_copy_node1.successor_ids), 1)
         self.assertEqual(
             parent_copy_node1.successor_ids.ids,
@@ -299,7 +268,6 @@ class TestTaskDependencies(TestProjectCommon):
             "Node2copy - Node3copy relation should be present",
         )
 
-        # Original Node should not have new relation
         self.assertEqual(len(node1.successor_ids), 1)
         self.assertEqual(
             node1.successor_ids.ids,
@@ -313,10 +281,8 @@ class TestTaskDependencies(TestProjectCommon):
             "Only Node2 - Node3 relation should be present",
         )
 
-        # Test copying Node inside the chain
         single_copy_node2 = node2.copy()
 
-        # Relation should be present between the other original node and the newly copied node
         self.assertEqual(len(single_copy_node2.predecessor_ids), 1)
         self.assertEqual(
             single_copy_node2.predecessor_ids.ids,
@@ -330,6 +296,5 @@ class TestTaskDependencies(TestProjectCommon):
             "Node2copy - Node3 relation should be present",
         )
 
-        # Original Node should have new relations
         self.assertEqual(len(node1.successor_ids), 2)
         self.assertEqual(len(node3.predecessor_ids), 2)

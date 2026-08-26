@@ -53,23 +53,13 @@ class ProjectCollaborator(models.Model):
 
     def unlink(self) -> bool:
         res = super().unlink()
-        # Check if it remains at least a collaborator in all shared projects.
         collaborator = self.env["project.collaborator"].search([], limit=1)
-        if not collaborator:  # then disable the project sharing feature
+        if not collaborator:
             self._toggle_project_sharing_portal_rules(False)
         return res
 
     @api.model
     def _toggle_project_sharing_portal_rules(self, active: bool) -> None:
-        """Enable/disable project sharing feature
-
-        When the first collaborator is added in the model then we need to enable the feature.
-        In the inverse case, if no collaborator is stored in the model then we disable the feature.
-        To enable/disable the feature, we just need to enable/disable the ir.model.access and ir.rule
-        added to portal user that we do not want to give when we know the project sharing is unused.
-
-        :param active: contains boolean value, True to enable the project sharing feature, otherwise we disable the feature.
-        """
         access_project_sharing_portal = self.env.ref(
             "project.access_project_sharing_task_portal"
         ).sudo()

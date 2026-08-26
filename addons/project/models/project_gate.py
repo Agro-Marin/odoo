@@ -1,17 +1,8 @@
-"""Gate reviews with go/no-go criteria tied to milestones.
-
-Evidence basis: Flyvbjerg — 'Projects don't just go wrong; they start
-wrong.' Standish — killing a doomed project early is good management.
-Gate reviews force explicit go/no-go decisions at defined points.
-"""
-
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
 class ProjectGate(models.Model):
-    """A formal review point in a project lifecycle with pass/fail criteria."""
-
     _name = "project.gate"
     _description = "Project Gate Review"
     _order = "sequence, id"
@@ -70,23 +61,11 @@ class ProjectGate(models.Model):
 
     @api.depends("criterion_ids.met")
     def _compute_criteria_met_count(self) -> None:
-        """Count the MET criteria per gate.
-
-        The total is `fields.Count("criterion_ids")` and no longer computed
-        here: `len(gate.criterion_ids)` is exactly what that field declares, and
-        splitting narrows this compute's dependency to the `met` flag it
-        actually reads.
-        """
         for gate in self:
             gate.criteria_met_count = len(gate.criterion_ids.filtered("met"))
 
     @api.constrains("milestone_id", "project_id")
     def _check_milestone_project(self) -> None:
-        """The trigger milestone must belong to the gate's own project.
-
-        The form view scopes milestone_id via a domain, but ORM create/write
-        and imports bypass domains, so enforce cross-project consistency here.
-        """
         for gate in self:
             if gate.milestone_id and gate.milestone_id.project_id != gate.project_id:
                 raise ValidationError(
@@ -100,8 +79,6 @@ class ProjectGate(models.Model):
 
 
 class ProjectGateCriterion(models.Model):
-    """A single evaluable criterion within a gate review."""
-
     _name = "project.gate.criterion"
     _description = "Gate Review Criterion"
     _order = "sequence, id"

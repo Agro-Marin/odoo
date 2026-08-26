@@ -119,7 +119,6 @@ class TestBurndownChartCommon(TestProjectCommon):
         )
         cls.set_create_date("project_task", cls.task_e.id, create_date)
 
-        # Create a new task to check if a task without changing its stage is taken into account
         cls.task_f = cls.env["project.task"].create(
             {
                 "name": "Task F",
@@ -215,7 +214,6 @@ class TestBurndownChartCommon(TestProjectCommon):
             "project_id", "=", cls.project_1.id
         )
 
-        # Precommit to have the records in db and allow to rollback at the end of test
         cls.env.cr.flush()
 
         with freeze_time("%s-02-10" % (cls.current_year - 1)):
@@ -317,7 +315,6 @@ class TestBurndownChart(TestBurndownChartCommon):
         burndown_chart_domain = [("project_id", "!=", False)]
         project_domain = [("project_id", "=", self.project.id)]
 
-        # Check that we get the expected results for the complete data of `self.project`.
         project_expected_dict = {
             ("January %s" % (self.current_year - 1), self.todo_stage.id): 5,
             ("February %s" % (self.current_year - 1), self.todo_stage.id): 2,
@@ -392,7 +389,6 @@ class TestBurndownChart(TestBurndownChartCommon):
             project_expected_dict[(month_key, self.done_stage.id)] = 5
             project_expected_is_closed_dict[(month_key, "closed")] = 6
 
-        # Check that we get the expected results for the complete data of `self.project`.
         self.check_read_group_results(
             Domain.AND([burndown_chart_domain, project_domain]),
             project_expected_dict,
@@ -402,8 +398,6 @@ class TestBurndownChart(TestBurndownChartCommon):
             project_expected_is_closed_dict,
         )
 
-        # Check that we get the expected results for the complete data of `self.project` & `self.project_2` using an
-        # `ilike` in the domain.
         all_projects_domain_with_ilike = Domain.OR(
             [project_domain, [("project_id", "ilike", "mySearchTag")]]
         )
@@ -530,9 +524,6 @@ class TestBurndownChart(TestBurndownChartCommon):
         )
 
     def burndown_chart_stage_delete_stage_1(self) -> None:
-        """Currently, this behavior is not working as expected. The key 'Jan year-1, stage_1.id' is not present as expected, but there's an extra unwanted key
-        'Jan year-1, stage_2.id' is present instead
-        """
         with freeze_time("%s-08-10" % (self.current_year - 1)):
             self.stage_1.unlink()
             self.env.cr.flush()
@@ -541,9 +532,6 @@ class TestBurndownChart(TestBurndownChartCommon):
         self.check_read_group_results(self.deleted_domain, expected_dict)
 
     def burndown_chart_stage_delete_stage_2(self) -> None:
-        """Currently, this behavior is not working as expected. The key 'Feb year-1, stage_2.id' is not present as expected, but there's an extra unwanted key
-        'Feb year-1, stage_3.id' is present instead
-        """
         with freeze_time("%s-08-10" % (self.current_year - 1)):
             self.stage_2.unlink()
             self.env.cr.flush()
@@ -560,13 +548,6 @@ class TestBurndownChart(TestBurndownChartCommon):
         self.check_read_group_results(self.deleted_domain, expected_dict)
 
     def burndown_chart_all_stage_deleted(self) -> None:
-        """Currently, this behavior is not working as expected. An extra task is added for every month fetched by the query.
-        e.a. If the expected dict is :
-        {('April 2022', 390): 1, ('May 2022', 390): 1, ('June 2022', 390): 1, ('July 2022', 390): 1, ('August 2022', 390): 1, ('September 2022', 390): 1, etc : 1}
-        The fetched dict will be :
-        {('January 2022', 389): 1, ('February 2022', 389): 1, ('March 2022', 389): 1, ('April 2022', 390): 2, ('May 2022', 390): 2, ('June 2022', 390): 2, ('July 2022', 390): 2,
-        ('August 2022', 390): 2, ('September 2022', 390): 2, etc :2 }
-        """
         with freeze_time("%s-08-10" % (self.current_year - 1)):
             (self.stage_1 | self.stage_2 | self.stage_3).unlink()
             self.env.cr.flush()
@@ -616,5 +597,4 @@ class TestBurndownChart(TestBurndownChartCommon):
 @tagged("-at_install", "post_install")
 class TestBurndownChartTour(HttpCase, TestBurndownChartCommon):
     def test_burndown_chart_tour(self) -> None:
-        # Test customizing personal stages as a project user
         self.start_tour("/odoo", "burndown_chart_tour", login="admin")

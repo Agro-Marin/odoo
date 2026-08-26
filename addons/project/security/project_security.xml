@@ -118,7 +118,9 @@
     <record model="ir.rule" id="triage_visibility_rule">
         <field name="name">Triage: see own buckets</field>
         <field name="model_id" ref="model_project_triage"/>
-        <field name="domain_force">[('user_id', 'in', (False, user.id))]</field>
+        <!-- project.triage.user_id is required=True, so a False arm could never
+             match; the rule is "your own buckets", stated once. -->
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
     </record>
 
     <record model="ir.rule" id="triage_own_write_rule">

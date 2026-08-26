@@ -1,5 +1,3 @@
-"""``planned_hours``: the PMBOK formula, and the override that must outlive it."""
-
 from datetime import datetime
 
 from odoo.tests import tagged
@@ -29,9 +27,6 @@ class TestPlannedHours(TestProjectCommon):
         self.assertEqual(task.planned_hours, task.scheduled_hours * 2)
 
     def test_an_unscheduled_estimate_survives_scheduling(self) -> None:
-        """The field advertises an override and the inverse logs one, but the
-        formula used to take it straight back: an estimate entered before the
-        dates was replaced the moment the task was scheduled."""
         task = self._task(planned_hours=3.0)
         self.assertEqual(task.planned_hours, 3.0)
         self.assertTrue(task.planned_hours_manual)
@@ -43,9 +38,6 @@ class TestPlannedHours(TestProjectCommon):
         )
 
     def test_one_write_and_two_writes_agree(self) -> None:
-        """The outcome used to depend on the shape of the write rather than on
-        the intent: "3 h" plus dates in one save kept the 3, the same two values
-        in two saves did not."""
         one_write = self._task(
             planned_hours=3.0, planned_date_begin=self.START, date_end=self.END
         )
@@ -56,9 +48,6 @@ class TestPlannedHours(TestProjectCommon):
         self.assertEqual(one_write.planned_hours, 3.0)
 
     def test_an_override_outlives_a_later_date_change(self) -> None:
-        """An override that was accepted *and written to the chatter* was then
-        silently reverted by any later nudge of a date, leaving the log entry
-        describing a value the record no longer held."""
         task = self._task(planned_date_begin=self.START, date_end=self.END)
         task.write({"planned_hours": 9.0})
         self.assertTrue(task.planned_hours_manual)
@@ -70,7 +59,6 @@ class TestPlannedHours(TestProjectCommon):
         )
 
     def test_writing_the_formula_value_back_hands_the_field_over(self) -> None:
-        """The way out of an override: agree with the formula."""
         task = self._task(planned_date_begin=self.START, date_end=self.END)
         task.write({"planned_hours": 9.0})
         self.assertTrue(task.planned_hours_manual)
@@ -96,8 +84,6 @@ class TestPlannedHours(TestProjectCommon):
         )
 
     def test_an_estimate_on_an_unscheduled_task_is_not_logged(self) -> None:
-        """With no dates the formula has no opinion, so the estimate is not
-        contradicting anything — flag it, but do not narrate it."""
         task = self._task()
         before = len(task.message_ids)
         task.write({"planned_hours": 3.0})
@@ -105,9 +91,6 @@ class TestPlannedHours(TestProjectCommon):
         self.assertFalse(any("manually overridden" in (body or "") for body in bodies))
 
     def test_planned_hours_estimate_is_not_a_formula_override(self) -> None:
-        """Creating a task with an estimate posted a bogus 'manually
-        overridden (formula override)' note — on a task with no dates, where
-        the formula has no opinion at all."""
         task = self.env["project.task"].create(
             {
                 "name": "estimate",
@@ -120,8 +103,6 @@ class TestPlannedHours(TestProjectCommon):
         )
 
     def test_planned_hours_override_is_logged_once_per_batch(self) -> None:
-        """A genuine override is still reported, without a message_post per
-        record (a 200-task write cost 810 queries and 200 chatter entries)."""
         tasks = self.env["project.task"].create(
             [
                 {

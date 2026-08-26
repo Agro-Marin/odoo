@@ -1,10 +1,3 @@
-"""Shared Kanban workflow steps (PMI terminology alignment).
-
-Each project defines its own ordered set of steps; tasks move through them
-as work progresses (e.g. Backlog → In Review → Done). This model replaces
-the shared-stage half of the legacy ``project.task.type`` god-model.
-"""
-
 from datetime import timedelta
 from typing import Any
 
@@ -15,22 +8,12 @@ from .project_task import CLOSED_STATES
 
 
 class ProjectWorkflowStep(models.Model):
-    """A named position on a project's Kanban board.
-
-    Steps are shared across projects via the ``project_ids`` Many2many. Tasks
-    move through steps to reflect WHERE in the process they are. This is
-    distinct from task *state* (the internal condition) and personal *triage*
-    (the assignee's time-horizon bucket, which is ``project.triage`` — a
-    separate model, never a step: see the class comment on ``create``).
-    """
-
     _name = "project.workflow.step"
     _description = "Workflow Step"
     _inherit = ["mixin.project.pm"]
     _order = "sequence, id"
 
     def _default_project_ids(self) -> list[int] | None:
-        """Return the current project as default when created from a project context."""
         default_project_id = self.env.context.get("default_project_id")
         return [default_project_id] if default_project_id else None
 
@@ -131,25 +114,6 @@ class ProjectWorkflowStep(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> ProjectWorkflowStep:
-        """Create steps and seed the first deadline of any periodic rater.
-
-        A step used to carry a ``user_id`` ("Personal Stage Owner") and this
-        override enforced that a step was *either* a project step *or* one
-        user's personal stage. That invariant died with the model split:
-        ``migrations/1.4/pre-migrate.py`` builds this table from
-        ``project_task_type`` rows with ``user_id IS NULL`` and routes the
-        owned rows to ``project.triage``, which is where personal buckets live
-        now. Nothing read the surviving field — no record rule, no view, no
-        domain, and ``step_find`` searches ``project_ids`` alone, so an owned
-        step could never be found for any task.
-
-        The guard also got the one case that mattered wrong: it inspected
-        ``vals["project_ids"]``, while the Kanban "add column" button supplies
-        the project through the field *default* (``_default_project_ids``
-        reading ``default_project_id``). Every column added from a project
-        board therefore came out owned *and* attached — the exact state the
-        old ``write`` refused to produce.
-        """
         records = super().create(vals_list)
         records._seed_rating_deadlines()
         return records
@@ -161,7 +125,6 @@ class ProjectWorkflowStep(models.Model):
         return res
 
     def unlink_wizard(self, stage_view: bool = False) -> dict[str, Any]:
-        """Open the delete/archive confirmation wizard for these workflow steps."""
         wizard = self.env["project.workflow.step.delete.wizard"].create(
             {
                 "project_ids": self.project_ids.ids,
@@ -195,14 +158,12 @@ class ProjectWorkflowStep(models.Model):
     }
 
     def _next_rating_deadline(self):
-        """Return now + the step's configured rating period."""
         self.ensure_one()
         return fields.Datetime.now() + timedelta(
             days=self._RATING_PERIOD_DAYS.get(self.rating_status_period, 0)
         )
 
     def _seed_rating_deadlines(self) -> None:
-        """Set the first deadline for steps that just became periodic raters."""
         for step in self:
             if (
                 step.rating_active
@@ -213,10 +174,6 @@ class ProjectWorkflowStep(models.Model):
 
     @api.model
     def _send_rating_all(self) -> None:
-        """Send periodic rating requests for all eligible steps.
-
-        Called once per day by the scheduler.
-        """
         steps = self.search(
             [
                 ("rating_active", "=", True),
@@ -230,24 +187,6 @@ class ProjectWorkflowStep(models.Model):
             self.env.cr.commit()
 
     def _get_rating_tasks(self):
-        """The tasks a periodic rating request should go to for this step.
-
-        Only the tasks currently IN this step, not every task of the project:
-        ``_send_task_rating_mail`` keys off each task's own step, so blasting
-        the whole project fires premature requests for tasks sitting in other
-        (not-yet-due) periodic steps. Searching the step's tasks directly also
-        avoids materialising every task of every linked project.
-
-        Open tasks only. A periodic rater asks "how is this going?" on a
-        cadence; a task that is done or cancelled is not going anywhere, and
-        because it keeps sitting in the step the request repeated for as long
-        as the step existed. (Archived tasks are already excluded by the
-        default ``active_test``.)
-
-        Split out of ``_send_rating_all`` so the selection can be tested: that
-        method commits once per step, which a test cursor forbids outright, so
-        the scope had no way of being pinned through the cron entry point.
-        """
         self.ensure_one()
         return self.env["project.task"].search(
             [

@@ -13,11 +13,9 @@ class TestMultiCompanyCommon(TransactionCase):
     @classmethod
     def setUpMultiCompany(cls) -> None:
 
-        # create companies
         cls.company_a = cls.env["res.company"].create({"name": "Company A"})
         cls.company_b = cls.env["res.company"].create({"name": "Company B"})
 
-        # shared customers
         cls.partner_1 = cls.env["res.partner"].create(
             {
                 "name": "Valid Lelitre",
@@ -33,7 +31,6 @@ class TestMultiCompanyCommon(TransactionCase):
             }
         )
 
-        # users to use through the various tests
         user_group_employee = cls.env.ref("base.group_user")
         Users = cls.env["res.users"].with_context({"no_reset_password": True})
 
@@ -83,18 +80,15 @@ class TestMultiCompanyCommon(TransactionCase):
         old_uid = self.uid
         try:
             user = self.env["res.users"].sudo().search([("login", "=", login)])
-            # switch user
             self.uid = user.id
             self.env = self.env(user=self.uid)
             yield
         finally:
-            # back
             self.uid = old_uid
             self.env = self.env(user=self.uid)
 
     @contextmanager
     def allow_companies(self, company_ids) -> None:
-        """The current user will be allowed in each given companies (like he can sees all of them in the company switcher and they are all checked)"""
         old_allow_company_ids = self.env.user.company_ids.ids
         current_user = self.env.user
         try:
@@ -103,17 +97,14 @@ class TestMultiCompanyCommon(TransactionCase):
             self.env = self.env(user=current_user, context=context)
             yield
         finally:
-            # back
             current_user.write({"company_ids": old_allow_company_ids})
             context = dict(self.env.context, allowed_company_ids=old_allow_company_ids)
             self.env = self.env(user=current_user, context=context)
 
     @contextmanager
     def switch_company(self, company) -> None:
-        """Change the company in which the current user is logged"""
         old_companies = self.env.context.get("allowed_company_ids", [])
         try:
-            # switch company in context
             new_companies = list(old_companies)
             if company.id not in new_companies:
                 new_companies = [company.id] + new_companies
@@ -125,7 +116,6 @@ class TestMultiCompanyCommon(TransactionCase):
             self.env = self.env(context=context)
             yield
         finally:
-            # back
             context = dict(self.env.context, allowed_company_ids=old_companies)
             self.env = self.env(context=context)
 
@@ -140,7 +130,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         user_group_project_user = cls.env.ref("project.group_project_user")
         user_group_project_manager = cls.env.ref("project.group_project_manager")
 
-        # setup users
         cls.user_employee_company_a.write(
             {"group_ids": [(4, user_group_project_user.id)]}
         )
@@ -154,7 +143,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             {"group_ids": [(4, user_group_project_manager.id)]}
         )
 
-        # create project in both companies
         cls.Project = cls.env["project.project"].with_context(
             {"mail_create_nolog": True, "tracking_disable": True}
         )
@@ -210,7 +198,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
                 ],
             }
         )
-        # already-existing tasks in company A and B
         Task = cls.env["project.task"].with_context(
             {"mail_create_nolog": True, "tracking_disable": True}
         )
@@ -230,7 +217,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         )
 
     def test_create_project(self) -> None:
-        """Check project creation in multiple companies"""
         with self.sudo("manager-a"):
             project = (
                 self.env["project.project"]
@@ -264,7 +250,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
                         )
                     )
 
-                # when allowed in other company, can create a project in another company (different from the one in which you are logged)
                 with self.allow_companies([self.company_a.id, self.company_b.id]):
                     project = (
                         self.env["project.project"]
@@ -279,7 +264,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
                     )
 
     def test_generate_analytic_account(self) -> None:
-        """Check the analytic account generation, company propagation"""
         with self.sudo("manager-b"):
             with self.allow_companies([self.company_a.id, self.company_b.id]):
                 self.project_company_a._create_analytic_account()
@@ -291,7 +275,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
                 )
 
         project_no_company = self.Project.create({"name": "Project no company"})
-        # ensures that all the existing plan have a company_id
         project_no_company._create_analytic_account()
         self.assertFalse(
             project_no_company.account_id.company_id,
@@ -312,17 +295,12 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         )
 
     def test_analytic_account_company_consistency(self) -> None:
-        """This test ensures that the following invariant is kept:
-        If the company of an analytic account is set, all of its project must have the same company.
-        If the company of an analytic account is not set, its project can either have a company set, or none.
-        """
         project_no_company = self.Project.create({"name": "Project no company"})
         project_no_company._create_analytic_account()
         account_no_company = project_no_company.account_id
         self.project_company_a._create_analytic_account()
         account_a = self.project_company_a.account_id
 
-        # Set the account of the project to a new account without company_id
         self.project_company_a.account_id = account_no_company
         self.assertEqual(
             self.project_company_a.account_id,
@@ -335,7 +313,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         )
         self.project_company_a.account_id = account_a
 
-        # Set the account of the project to a new account with a company_id
         project_no_company.account_id = account_a
         self.assertEqual(
             project_no_company.company_id,
@@ -350,8 +327,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         project_no_company.account_id = account_no_company
         project_no_company.company_id = False
 
-        # Neither the project nor its account have a company_id
-        # set the company of the project
         project_no_company.company_id = self.company_a
         self.assertEqual(
             project_no_company.company_id,
@@ -363,7 +338,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             "The company of the account should not have been updated for the company of the project was False before its update.",
         )
         project_no_company.company_id = False
-        # set the company of the account
         account_no_company.company_id = self.company_a
         self.assertEqual(
             project_no_company.company_id,
@@ -376,8 +350,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             "The company of the account should have been updated.",
         )
 
-        # The project and its account have the same company (company A)
-        # set the company of the project to False
         self.project_company_a.company_id = False
         self.assertFalse(
             self.project_company_a.company_id,
@@ -388,7 +360,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             "The company of the account should be set to False, as it only has one project linked to it and the company of the project was set from company A to False",
         )
         account_a.company_id = self.company_a
-        # set the company of the project to company B
         self.project_company_a.company_id = self.company_b
         self.assertEqual(
             self.project_company_a.company_id,
@@ -400,7 +371,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             self.company_b,
             "The company of the account should have been updated, for its company was the same as the one of its project and the company of the project was set before the update.",
         )
-        # set the company of the account to company A
         account_a.company_id = self.company_a
         self.assertEqual(
             self.project_company_a.company_id,
@@ -412,7 +382,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             self.company_a,
             "The company of the account should have been updated.",
         )
-        # set the company of the account to False
         account_a.company_id = False
         self.assertEqual(
             self.project_company_a.company_id,
@@ -424,8 +393,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             "The company of the account should have been updated.",
         )
 
-        # The project has a company_id set, but not its account
-        # set the company of the account to company B (!= project.company_id)
         account_a.company_id = self.company_b
         self.assertEqual(
             self.project_company_a.company_id,
@@ -439,7 +406,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         )
         account_a.company_id = False
         self.project_company_a.company_id = self.company_a
-        # set the company of the account to company A (== project.company_id)
         account_a.company_id = self.company_a
         self.assertEqual(
             self.project_company_a.company_id,
@@ -452,7 +418,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             "The company of the account should have been updated.",
         )
         account_a.company_id = False
-        # set the company of the project to company B
         self.project_company_a.company_id = self.company_b
         self.assertEqual(
             self.project_company_a.company_id,
@@ -463,7 +428,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             account_a.company_id,
             "The company of the account should not have been updated for it is was set to False.",
         )
-        # set the company of the project to False
         self.project_company_a.company_id = False
         self.assertFalse(
             self.project_company_a.company_id,
@@ -474,7 +438,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             "The company of the account should not have been updated for it was set to False.",
         )
 
-        # creates an AAL for the account_a
         account_a.company_id = self.company_b
         aal = self.env["account.analytic.line"].create(
             {
@@ -505,7 +468,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
 
     def test_create_task(self) -> None:
         with self.sudo("employee-a"):
-            # create task, set project; the onchange will set the correct company
             with Form(
                 self.env["project.task"].with_context({"tracking_disable": True})
             ) as task_form:
@@ -520,12 +482,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             )
 
     def test_update_company_id(self) -> None:
-        """This test ensures that:
-        - All the tasks of a project with a company set have the same company as their project. Updating the task set the task to a private state.
-        Updating the company the project update all the tasks even if the company of the project is set to False.
-        - The tasks of a project without company can have any company set. Updating a task does not update the company of its project. Updating the project update
-        all the tasks even if these tasks had a company set.
-        """
         project = self.Project.create({"name": "Project"})
         task = self.env["project.task"].create(
             {
@@ -623,7 +579,7 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         )
         company_c = self.env["res.company"].create({"name": "company C"})
         project.company_id = company_c
-        for task in project.tasks:
+        for task in project.task_ids:
             self.assertEqual(
                 task.company_id,
                 company_c,
@@ -654,7 +610,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
                 )
 
     def test_create_subtask(self) -> None:
-        # 1) Create a subtask and check that every field is correctly set on the subtask
         with (
             Form(self.task_1) as task_1_form,
             task_1_form.child_ids.new() as subtask_line,
@@ -676,7 +631,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             "The company of the subtask should be the one from its project.",
         )
 
-        # 2) Change the project of the parent task and check that the subtask follows it
         with Form(self.task_1) as task_1_form:
             task_1_form.project_id = self.project_company_b
         self.assertEqual(
@@ -695,10 +649,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         )
         task_1_form.project_id = self.project_company_a
 
-        # 3) Change the parent of the subtask and check that every field is correctly set on it
-        # For `parent_id` to  be visible in the view, you need
-        # 1. The debug mode
-        # <field name="parent_id" groups="base.group_no_one"/>
         view = self.env.ref("project.view_task_form2").sudo()
         tree = etree.fromstring(view.arch)
         for node in tree.xpath('//field[@name="parent_id"][@invisible]'):
@@ -721,7 +671,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             "The company of the subtask should be the one from its new project, set from its parent.",
         )
 
-        # 4) Change the project of the subtask and check some fields
         subtask.project_id = self.project_company_a
         self.assertTrue(
             subtask.display_in_project,
@@ -735,9 +684,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
 
     def test_cross_subtask_project(self) -> None:
 
-        # For `parent_id` to  be visible in the view, you need
-        # 1. The debug mode
-        # <field name="parent_id" groups="base.group_no_one"/>
         view = self.env.ref("project.view_task_form2").sudo()
         tree = etree.fromstring(view.arch)
         for node in tree.xpath('//field[@name="parent_id"][@invisible]'):

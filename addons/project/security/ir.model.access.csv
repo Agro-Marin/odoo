@@ -9,6 +9,9 @@ access_project_workflow_step_manager,project.workflow.step.manager,model_project
 access_project_workflow_step_portal,workflow_step_portal,project.model_project_workflow_step,base.group_portal,1,0,0,0
 access_project_triage_user,project.triage.user,model_project_triage,base.group_user,1,1,1,1
 access_project_task,project.task,model_project_task,project.group_project_user,1,1,1,1
+access_project_task_lost_reason_user,project.task.lost.reason.user,model_project_task_lost_reason,base.group_user,1,0,0,0
+access_project_task_lost_reason_manager,project.task.lost.reason.manager,model_project_task_lost_reason,project.group_project_manager,1,1,1,1
+access_project_task_lost_reason_portal,project.task.lost.reason.portal,model_project_task_lost_reason,base.group_portal,1,0,0,0
 access_report_project_task_user,report.project.task.user,model_report_project_task_user,project.group_project_manager,1,0,0,0
 access_report_project_task_user_project_user,report.project.task.user.project.user,model_report_project_task_user,project.group_project_user,1,0,0,0
 access_partner_task_user,base.res.partner user,base.model_res_partner,project.group_project_user,1,0,0,0

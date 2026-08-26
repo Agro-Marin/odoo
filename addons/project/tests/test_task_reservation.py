@@ -1,5 +1,3 @@
-"""Tests for project.task ↔ resource.reservation integration."""
-
 from datetime import datetime
 
 from odoo.tests import tagged
@@ -8,13 +6,6 @@ from odoo.tests.common import TransactionCase
 
 @tagged("post_install", "-at_install")
 class TestTaskReservation(TransactionCase):
-    """Test reservation fields, sync, and cleanup on project.task.
-
-    Core module does not have planned_date_begin, so _get_fields_reservation_date
-    returns (None, None) and _sync_reservations is a no-op.  These tests verify
-    the field declarations, the cleanup hook, and the manual reservation scenario.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -29,21 +20,18 @@ class TestTaskReservation(TransactionCase):
         )
 
     def test_allocated_percentage_default(self):
-        """Task has allocated_percentage defaulting to 100."""
         task = self.env["project.task"].create(
             {"name": "Test Task", "project_id": self.project.id}
         )
         self.assertEqual(task.allocated_percentage, 100.0)
 
     def test_reservation_ids_empty(self):
-        """Task with no reservations has empty reservation_ids."""
         task = self.env["project.task"].create(
             {"name": "No Reservations", "project_id": self.project.id}
         )
         self.assertEqual(len(task.reservation_ids), 0)
 
     def test_reservation_ids_populated(self):
-        """Task with manually created reservations shows them in reservation_ids."""
         task = self.env["project.task"].create(
             {"name": "Has Reservation", "project_id": self.project.id}
         )
@@ -61,7 +49,6 @@ class TestTaskReservation(TransactionCase):
         self.assertEqual(len(task.reservation_ids), 1)
 
     def test_schedule_overlap_count(self):
-        """schedule_overlap_count reflects overlapping reservations."""
         task = self.env["project.task"].create(
             {"name": "Conflicted", "project_id": self.project.id}
         )
@@ -89,7 +76,6 @@ class TestTaskReservation(TransactionCase):
         self.assertGreater(task.schedule_overlap_count, 0)
 
     def test_unlink_cleans_reservations(self):
-        """Deleting a task removes its reservations."""
         task = self.env["project.task"].create(
             {"name": "To Delete", "project_id": self.project.id}
         )
@@ -113,7 +99,6 @@ class TestTaskReservation(TransactionCase):
         )
 
     def test_get_reservation_date_fields_returns_tuple(self):
-        """_get_fields_reservation_date returns a 2-tuple."""
         task = self.env["project.task"].create(
             {"name": "Core task", "project_id": self.project.id}
         )
@@ -122,9 +107,7 @@ class TestTaskReservation(TransactionCase):
         self.assertEqual(len(result), 2)
 
     def test_sync_reservations_no_error(self):
-        """_sync_reservations runs without error on an unscheduled task."""
         task = self.env["project.task"].create(
             {"name": "Core sync", "project_id": self.project.id}
         )
-        # Should not raise regardless of which modules are installed
         task._sync_reservations()

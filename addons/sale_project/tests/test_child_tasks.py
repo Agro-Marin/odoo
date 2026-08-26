@@ -560,10 +560,10 @@ class TestNestedTaskUpdate(TransactionCase):
             }
         )
         sale_order.action_confirm()
-        self.assertEqual(project_tempalte.tasks, parent | child)
+        self.assertEqual(project_tempalte.task_ids, parent | child)
         super_project = sale_order.line_ids.project_id
-        self.assertFalse(super_project.tasks & project_tempalte.tasks)
-        self.assertEqual(len(super_project.tasks), 2)
+        self.assertFalse(super_project.task_ids & project_tempalte.task_ids)
+        self.assertEqual(len(super_project.task_ids), 2)
         self.assertEqual(
-            super_project.tasks.parent_id, super_project.tasks.child_ids.parent_id
+            super_project.task_ids.parent_id, super_project.task_ids.child_ids.parent_id
         )

@@ -1,5 +1,3 @@
-"""Wizard to archive or delete project phases."""
-
 from typing import Any
 
 from odoo import api, fields, models
@@ -8,8 +6,6 @@ from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class ProjectPhaseDeleteWizard(models.TransientModel):
-    """Confirmation wizard for archiving/deleting project phases."""
-
     _name = "project.phase.delete.wizard"
     _description = "Project Phase Delete Wizard"
 
@@ -30,10 +26,6 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
     )
 
     def _compute_projects_count(self) -> None:
-        # One GROUP BY over every wizard's phase_ids rather than a
-        # COUNT(*) per wizard, which `test_lint E8507` counts as a query
-        # inside a loop. `phase_id` is a Many2one, so each record falls in
-        # exactly one group and summing a wizard's groups cannot double-count.
         counts = dict(
             self.env["project.project"]
             .with_context(active_test=False)

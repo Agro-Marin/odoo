@@ -310,14 +310,14 @@ class SaleOrderLine(models.Model):
                 project = project_template.action_create_from_template(values)
             else:
                 project = project_template.copy(values)
-            project.tasks.write(
+            project.task_ids.write(
                 {
                     "sale_line_id": self.id,
                     "partner_id": self.order_id.partner_id.id,
                 }
             )
             # duplicating a project doesn't set the SO on sub-tasks
-            project.tasks.filtered("parent_id").write(
+            project.task_ids.filtered("parent_id").write(
                 {
                     "sale_line_id": self.id,
                     "sale_order_id": self.order_id.id,
@@ -688,7 +688,7 @@ class SaleOrderLine(models.Model):
                         ("account_id", "!=", False),
                         "|",
                         ("sale_line_id", "=", self.id),
-                        ("tasks.sale_line_id", "=", self.id),
+                        ("task_ids.sale_line_id", "=", self.id),
                     ],
                     aggregates=["account_id:recordset"],
                 )[0]

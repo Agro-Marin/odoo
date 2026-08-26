@@ -74,11 +74,6 @@ class TestProjectProfitabilityCommon(TransactionCase):
 
 class TestProfitability(TestProjectProfitabilityCommon):
     def test_project_profitability(self) -> None:
-        """Test the project profitability has no data found
-
-        In this module, the project profitability should have no data.
-        So the no revenue and cost should be found.
-        """
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             self.project_profitability_items_empty,
@@ -101,9 +96,4 @@ class TestProjectProfitabilityAccess(TestProjectProfitabilityCommon):
 
     @users("Project User", "Project Admin")
     def test_project_profitability_read(self) -> None:
-        """Test the project profitability read access rights
-
-        In other modules, project profitability may contain some data.
-        The project user and project admin should have read access rights to project profitability.
-        """
         self.project.with_user(self.env.user)._get_profitability_items(False)

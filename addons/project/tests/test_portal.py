@@ -12,9 +12,7 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
         pigs = self.project_pigs
         pigs.write({"privacy_visibility": "portal"})
 
-        # Do: Alfred reads project -> ok (employee ok public)
         pigs.with_user(self.user_projectuser).read(["user_id"])
-        # Test: all project tasks visible
         tasks = (
             self.env["project.task"]
             .with_user(self.user_projectuser)
@@ -31,18 +29,15 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
             "access rights: project user should see all tasks of a portal project",
         )
 
-        # Do: Bert reads project -> crash, no group
         self.assertRaises(
             AccessError, pigs.with_user(self.user_noone).read, ["user_id"]
         )
-        # Test: no project task searchable
         self.assertRaises(
             AccessError,
             self.env["project.task"].with_user(self.user_noone).search,
             [("project_id", "=", pigs.id)],
         )
 
-        # Data: task follower
         pigs.with_user(self.user_projectmanager).message_subscribe(
             partner_ids=[self.user_portal.partner_id.id]
         )
@@ -52,19 +47,15 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
         self.task_3.with_user(self.user_projectuser).message_subscribe(
             partner_ids=[self.user_portal.partner_id.id]
         )
-        # Do: Chell reads project -> ok (portal ok public)
         pigs.with_user(self.user_portal).read(["user_id"])
-        # Do: Donovan reads project -> ko (public ko portal)
         self.assertRaises(
             AccessError, pigs.with_user(self.user_public).read, ["user_id"]
         )
-        # Test: no access right to project.task
         self.assertRaises(
             AccessError,
             self.env["project.task"].with_user(self.user_public).search,
             [],
         )
-        # Data: task follower cleaning
         self.task_1.with_user(self.user_projectuser).message_unsubscribe(
             partner_ids=[self.user_portal.partner_id.id]
         )
@@ -118,7 +109,7 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
             "The access token should no longer be set since now the project is private.",
         )
         self.assertFalse(
-            all(self.project_pigs.tasks.mapped("access_token")),
+            all(self.project_pigs.task_ids.mapped("access_token")),
             "The access token should no longer be set in any tasks linked to the project since now the project is private.",
         )
         self.project_pigs.privacy_visibility = "portal"
@@ -127,7 +118,7 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
             "The access token should still not be set since now the project has not been shared yet.",
         )
         self.assertFalse(
-            all(self.project_pigs.tasks.mapped("access_token")),
+            all(self.project_pigs.task_ids.mapped("access_token")),
             "The access token should no longer be set in any tasks linked to the project since now the project is private.",
         )
         wizard.action_send_mail()
@@ -166,7 +157,7 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
             "The access token should no longer be set since now the project is only available by internal users.",
         )
         self.assertFalse(
-            all(self.project_pigs.tasks.mapped("access_token")),
+            all(self.project_pigs.task_ids.mapped("access_token")),
             "The access token should no longer be set in any tasks linked to the project since now the project is only available by internal users.",
         )
 
@@ -220,7 +211,6 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
         self.assertNotIn(self.task_2.name, response.text)
 
     def test_task_templates_visibility_portal(self) -> None:
-        """Verify that a portal user can see regular tasks but not task templates or their subtasks."""
         self.authenticate(self.user_portal.login, self.user_portal.login)
         portal_project = self.env["project.project"].create({"name": "Portal Project"})
         portal_project.message_subscribe(partner_ids=[self.user_portal.partner_id.id])
@@ -242,14 +232,12 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
             ]
         )
 
-        # Check the portal my tasks page
         my_tasks_response = self.url_open("/my/tasks")
         self.assertIn(task.name, my_tasks_response.text)
         self.assertNotIn(task_template.name, my_tasks_response.text)
         self.assertNotIn(task_template.child_ids[0].name, my_tasks_response.text)
         self.assertNotIn(task_template.child_ids[1].name, my_tasks_response.text)
 
-        # Check the tasks page for the specific project
         project_tasks_response = self.url_open("/my/projects/%s" % (portal_project.id))
         self.assertIn(task.name, project_tasks_response.text)
         self.assertNotIn(task_template.name, project_tasks_response.text)
@@ -257,10 +245,6 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
         self.assertNotIn(task_template.child_ids[1].name, project_tasks_response.text)
 
     def test_home_badges_count_what_the_pages_list(self) -> None:
-        """The /my badges were looser than the pages behind them — no template
-        filter at all on projects, and only ``project_id != False`` on tasks —
-        so /my advertised template projects and template tasks that
-        /my/projects and /my/tasks then refuse to show."""
         from odoo.addons.project.controllers.portal import ProjectCustomerPortal
 
         portal = ProjectCustomerPortal()

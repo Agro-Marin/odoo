@@ -1,5 +1,3 @@
-"""The share wizard changes access when the user shares, not when the dialog saves."""
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -8,8 +6,6 @@ from .test_project_base import TestProjectCommon
 
 @tagged("post_install", "-at_install")
 class TestShareWizardAppliesOnConfirm(TestProjectCommon):
-    """Sharing changes access when the user shares, not when the dialog saves."""
-
     def _wizard(self, project, partner, access_mode="edit"):
         return self.env["project.share.wizard"].create(
             {
@@ -24,9 +20,6 @@ class TestShareWizardAppliesOnConfirm(TestProjectCommon):
         )
 
     def test_saving_the_dialog_grants_nothing(self) -> None:
-        """``_apply_collaborators`` ran from ``create``, so merely saving the
-        dialog already committed the access change — and discarding the
-        "Grant Portal Access" confirmation left it committed."""
         project = self.env["project.project"].create(
             {"name": "Shared", "privacy_visibility": "portal"}
         )
@@ -43,8 +36,6 @@ class TestShareWizardAppliesOnConfirm(TestProjectCommon):
         )
 
     def test_emptying_the_list_still_revokes(self) -> None:
-        """An emptied collaborator list is a removal request, not a no-op:
-        ``action_share_record`` used to return early on it."""
         project = self.env["project.project"].create(
             {"name": "Shared", "privacy_visibility": "portal"}
         )

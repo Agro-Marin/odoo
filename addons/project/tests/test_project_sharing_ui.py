@@ -62,15 +62,6 @@ class TestProjectSharingUi(HttpCase):
         cls.env.user.group_ids |= cls.env.ref("project.group_project_milestone")
 
     def test_blocked_task_with_project_sharing_string_portal(self) -> None:
-        """Ensure the portal user shows the message 'This task is currently blocked...'.
-        Flow:
-            - Activated Task Dependencies in a portal project
-            - Create a 'New' task stage
-            - Create a project(Test Project)
-            - Ensure the portal user receives the message 'This task is currently blocked..'.
-            - Create task(Test Task)
-            - Create a task with a Blocked task (Test Task)
-        """
         self.project_portal.write(
             {
                 "allow_dependencies": True,
@@ -90,11 +81,6 @@ class TestProjectSharingUi(HttpCase):
             )
         )
 
-        # ``action_send_mail`` is what actually grants the access: saving the
-        # dialog deliberately grants nothing since ``_apply_collaborators``
-        # moved off ``create`` (see ``test_share_wizard``), so without this the
-        # portal user is not a collaborator and /my/projects lists nothing for
-        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -135,7 +121,6 @@ class TestProjectSharingUi(HttpCase):
         )
 
     def test_01_project_sharing(self) -> None:
-        """Test Project Sharing UI with an internal user"""
         self.env.ref("base.user_admin").write(
             {
                 "email": "mitchell.admin@example.com",
@@ -144,18 +129,6 @@ class TestProjectSharingUi(HttpCase):
         self.start_tour("/odoo", "project_sharing_tour", login="admin")
 
     def test_02_project_sharing(self) -> None:
-        """Test project sharing ui with a portal user.
-
-        The additional data created here are the data created in the first test with the tour js.
-
-        Since a problem to logout Mitchell Admin to log in as Georges user, this test is created
-        to launch a tour with portal user.
-        """
-        # ``action_send_mail`` is what actually grants the access: saving the
-        # dialog deliberately grants nothing since ``_apply_collaborators``
-        # moved off ``create`` (see ``test_share_wizard``), so without this the
-        # portal user is not a collaborator and /my/projects lists nothing for
-        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -188,11 +161,6 @@ class TestProjectSharingUi(HttpCase):
         self.start_tour("/my/projects", "portal_project_sharing_tour", login="georges1")
 
     def test_03_project_sharing(self) -> None:
-        # ``action_send_mail`` is what actually grants the access: saving the
-        # dialog deliberately grants nothing since ``_apply_collaborators``
-        # moved off ``create`` (see ``test_share_wizard``), so without this the
-        # portal user is not a collaborator and /my/projects lists nothing for
-        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -230,12 +198,6 @@ class TestProjectSharingUi(HttpCase):
         )
 
     def test_04_project_sharing_chatter_message_reactions(self) -> None:
-        # portal users can load chatter messages containing partner reactions
-        # ``action_send_mail`` is what actually grants the access: saving the
-        # dialog deliberately grants nothing since ``_apply_collaborators``
-        # moved off ``create`` (see ``test_share_wizard``), so without this the
-        # portal user is not a collaborator and /my/projects lists nothing for
-        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -295,11 +257,6 @@ class TestProjectSharingUi(HttpCase):
         )
 
     def test_05_project_sharing_chatter_mention_users(self) -> None:
-        # ``action_send_mail`` is what actually grants the access: saving the
-        # dialog deliberately grants nothing since ``_apply_collaborators``
-        # moved off ``create`` (see ``test_share_wizard``), so without this the
-        # portal user is not a collaborator and /my/projects lists nothing for
-        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",

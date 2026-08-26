@@ -1,10 +1,3 @@
-"""Benefits realization tracking.
-
-Evidence basis: PMI BRM — projects routinely succeed on the iron triangle
-while failing to deliver business value. Named benefits ownership
-dramatically outperforms assumption-based approaches (ScienceDirect 2014).
-"""
-
 import logging
 
 from odoo import api, fields, models
@@ -13,8 +6,6 @@ _logger = logging.getLogger(__name__)
 
 
 class ProjectBenefit(models.Model):
-    """An expected business benefit tied to a project, with target and actual measurement."""
-
     _name = "project.benefit"
     _description = "Project Benefit"
     _order = "sequence, id"
@@ -82,12 +73,6 @@ class ProjectBenefit(models.Model):
 
     @api.model
     def _cron_check_review_dates(self) -> None:
-        """Create activities for benefits whose review date has arrived.
-
-        Called daily by ir.cron. Searches for benefits in 'expected' or
-        'tracking' state where review_date <= today and the accountable
-        owner is set, then schedules a mail.activity reminder.
-        """
         today = fields.Date.context_today(self)
         benefits = self.search(
             [
@@ -96,10 +81,6 @@ class ProjectBenefit(models.Model):
                 ("accountable_id", "!=", False),
             ]
         )
-        # Schedule at most one reminder per review_date: skip benefits already
-        # reminded for their current review_date. This survives the user
-        # completing (deleting) the activity, so the cron no longer re-creates
-        # the reminder every single day. (A domain cannot compare two fields.)
         benefits = benefits.filtered(lambda b: b.review_reminder_date != b.review_date)
         if not benefits:
             return
@@ -108,9 +89,6 @@ class ProjectBenefit(models.Model):
             "mail.mail_activity_data_todo", raise_if_not_found=False
         )
         if not activity_type:
-            # mail.activity requires an activity type; without the default To-Do
-            # type there is nothing valid to schedule — skip rather than crash
-            # the daily cron with a NOT NULL violation.
             _logger.warning(
                 "Benefit review cron: default activity type missing, skipping."
             )
@@ -123,15 +101,12 @@ class ProjectBenefit(models.Model):
                 summary=self.env._("Benefit review: %s", benefit.name),
                 user_id=benefit.accountable_id.id,
             )
-            # Mark this review_date as reminded so subsequent daily runs stay
-            # quiet until the owner moves review_date forward.
             benefit.review_reminder_date = benefit.review_date
             scheduled += 1
         _logger.info("Benefit review cron: scheduled %d activities", scheduled)
 
     @api.depends("target_value", "actual_value")
     def _compute_achievement_pct(self) -> None:
-        """Compute achievement as actual/target percentage."""
         for benefit in self:
             if benefit.target_value:
                 benefit.achievement_pct = (

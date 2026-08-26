@@ -27,7 +27,6 @@ class TestProjectCommon(TransactionCase):
             {"name": "Valid Poilboeuf", "email": "valid.poilboeuf@gmail.com"}
         )
 
-        # Test users to use through the various tests
         Users = cls.env["res.users"].with_context({"no_reset_password": True})
         cls.user_public = Users.create(
             {
@@ -87,7 +86,6 @@ class TestProjectCommon(TransactionCase):
             }
         )
 
-        # Test 'Pigs' project
         cls.project_pigs = (
             cls.env["project.project"]
             .with_context({"mail_create_nolog": True})
@@ -100,7 +98,6 @@ class TestProjectCommon(TransactionCase):
                 }
             )
         )
-        # Already-existing tasks in Pigs
         cls.task_1 = (
             cls.env["project.task"]
             .with_context({"mail_create_nolog": True})
@@ -124,7 +121,6 @@ class TestProjectCommon(TransactionCase):
             )
         )
 
-        # Test 'Goats' project, same as 'Pigs', but with 2 stages
         cls.project_goats = (
             cls.env["project.project"]
             .with_context({"mail_create_nolog": True})
@@ -159,7 +155,6 @@ class TestProjectCommon(TransactionCase):
 
 class TestProjectBase(TestProjectCommon):
     def test_delete_project_with_tasks(self) -> None:
-        """Test all tasks linked to a project are removed when the user removes this project."""
         task_type = self.env["project.workflow.step"].create(
             {"name": "Won", "sequence": 1, "fold": True}
         )
@@ -186,7 +181,7 @@ class TestProjectBase(TestProjectCommon):
             }
         )
 
-        task_count = len(project_unlink.tasks)
+        task_count = len(project_unlink.task_ids)
         self.assertEqual(task_count, 1, "The project should have 1 task")
 
         project_unlink.unlink()
@@ -197,11 +192,6 @@ class TestProjectBase(TestProjectCommon):
         )
 
     def test_auto_assign_stages_when_importing_tasks(self) -> None:
-        """Importing a task carrying a step adds that step to its project.
-
-        Every project now starts with one seeded column, so the assertions are
-        about what the import *adds*, not about the project starting empty.
-        """
         seeded = self.project_pigs.workflow_step_ids
         self.assertEqual(len(seeded), 1, "a project starts with one column")
         self.assertEqual(len(self.project_goats.workflow_step_ids), 2)
@@ -232,11 +222,6 @@ class TestProjectBase(TestProjectCommon):
         )
 
     def test_filter_visibility_unread_messages(self) -> None:
-        """Tests the visibility of the "Unread messages" filter in the project task search view
-        according to the notification type of the user.
-        A user with the email notification type must not see the Unread messages filter
-        A user with the inbox notification type must see the Unread messages filter
-        """
         user1 = self.user_projectuser
         user2 = self.user_projectuser.copy()
         user1.notification_type = "email"
@@ -254,7 +239,6 @@ class TestProjectBase(TestProjectCommon):
 
     @users("bastien")
     def test_search_favorite_order(self) -> None:
-        """Test the search method, ordering by favorite projects."""
         self.project_goats.favorite_user_ids += self.user_projectmanager
         self.env.cr.flush()
 
@@ -290,9 +274,7 @@ class TestProjectBase(TestProjectCommon):
         self.assertTrue(project2.is_favorite)
         project1.is_favorite = True
         project2.is_favorite = False
-        projects.invalidate_recordset(
-            ["is_favorite"]
-        )  # To force 'is_favorite' to recompute
+        projects.invalidate_recordset(["is_favorite"])
         self.assertTrue(project1.is_favorite)
         self.assertFalse(project2.is_favorite)
 
@@ -334,10 +316,6 @@ class TestProjectBase(TestProjectCommon):
         self.assertFalse(project2.is_favorite)
 
     def test_change_project_or_partner_company(self) -> None:
-        """Tests that it is impossible to change the company of a project
-        if the company of the partner is different and vice versa if the company of the project is set.
-        If the company of the project is not set, there are no restriction on its partner company-wise.
-        """
         company_1 = self.env.company
         company_2 = self.env["res.company"].create({"name": "Company 2"})
         partner = self.env["res.partner"].create(
@@ -347,7 +325,6 @@ class TestProjectBase(TestProjectCommon):
         )
         self.project_pigs.partner_id = partner
 
-        # Neither the partner nor the project have a company. Their companies can be updated.
         self.assertFalse(partner.company_id)
         self.assertFalse(self.project_pigs.company_id)
         self.project_pigs.company_id = company_1
@@ -357,22 +334,17 @@ class TestProjectBase(TestProjectCommon):
             "The company of the project should have been updated.",
         )
         self.project_pigs.company_id = False
-        # if the partner company is set, the project's should also be set
         partner.company_id = company_1
 
-        # If the partner has a company, the project must have the same
         self.assertEqual(
             partner.company_id,
             self.project_pigs.company_id,
             "The company of the project should have been updated.",
         )
 
-        # The partner has a company and the project has a company. The partner's can only be set to False, the project's can not be changed
         with self.assertRaises(UserError):
-            # Cannot change the company of a project if both the project and its partner have a company
             self.project_pigs.company_id = company_2
         with self.assertRaises(UserError):
-            # Cannot change the company of a partner if both the project and its partner have a company
             partner.company_id = company_2
         partner.company_id = False
         self.project_pigs.company_id = False
@@ -384,12 +356,9 @@ class TestProjectBase(TestProjectCommon):
         self.project_goats.company_id = company_1
         self.project_goats.partner_id = partner
         with self.assertRaises(UserError):
-            # Cannot change the company of a partner that part of multiple projects with different companies
             self.project_goats.partner_id.company_id = company_2
 
-        # The project has a company, but the partner has none. The partner can only be set to False/project.company but the project can have any new company.
         with self.assertRaises(UserError):
-            # Cannot change the company of a partner if both the project and its partner have a company
             partner.company_id = company_2
         self.project_pigs.company_id = company_2
         self.assertEqual(
@@ -411,12 +380,6 @@ class TestProjectBase(TestProjectCommon):
         )
 
     def test_add_customer_rating_project(self) -> None:
-        """A rating of a task reaches the project through the CHILD relation.
-
-        The rating below names the task as `res_id` and the project as
-        `parent_res_id`, so the project sees it as `rating_child_ids`. Its own
-        `rating_ids` -- ratings of the project itself -- stays empty.
-        """
         rate = self.env["rating.rating"].create(
             {
                 "res_id": self.task_1.id,
@@ -441,30 +404,20 @@ class TestProjectBase(TestProjectCommon):
         )
 
     def test_planned_dates_consistency_for_project(self) -> None:
-        """A project's start and expiration dates are a mandatory pair: a write
-        that would leave exactly one side set is rejected with a UserError,
-        rather than silently wiping the counterpart or dropping the input.
-        Setting both, clearing both, or updating one while the other is already
-        set are all allowed.
-        """
         goats = self.project_goats
         self.assertFalse(goats.date_start)
         self.assertFalse(goats.date)
 
-        # Setting both together is allowed.
         goats.write({"date_start": "2021-09-27", "date": "2021-09-28"})
         self.assertEqual(fields.Date.to_string(goats.date_start), "2021-09-27")
         self.assertEqual(fields.Date.to_string(goats.date), "2021-09-28")
 
-        # Updating one side while the other is already set keeps the pair balanced.
         goats.write({"date_start": "2021-09-26"})
         self.assertEqual(fields.Date.to_string(goats.date_start), "2021-09-26")
         self.assertEqual(fields.Date.to_string(goats.date), "2021-09-28")
         goats.write({"date": "2021-09-29"})
         self.assertEqual(fields.Date.to_string(goats.date), "2021-09-29")
 
-        # Clearing only one side is rejected (would leave a lone date), and the
-        # rejected write leaves the values untouched.
         with self.assertRaises(UserError):
             goats.date_start = False
         with self.assertRaises(UserError):
@@ -473,12 +426,10 @@ class TestProjectBase(TestProjectCommon):
         self.assertEqual(fields.Date.to_string(goats.date_start), "2021-09-26")
         self.assertEqual(fields.Date.to_string(goats.date), "2021-09-29")
 
-        # Clearing both together is allowed.
         goats.write({"date_start": False, "date": False})
         self.assertFalse(goats.date_start)
         self.assertFalse(goats.date)
 
-        # Setting only one side while the other is empty is rejected.
         with self.assertRaises(UserError):
             goats.write({"date_start": "2021-09-27"})
         with self.assertRaises(UserError):
@@ -487,7 +438,6 @@ class TestProjectBase(TestProjectCommon):
         self.assertFalse(goats.date_start)
         self.assertFalse(goats.date)
 
-        # --- batch writes across a recordset ---
         pigs = self.project_pigs
         projects = goats + pigs
         projects.write({"date_start": "2021-09-20", "date": "2021-09-28"})
@@ -495,22 +445,18 @@ class TestProjectBase(TestProjectCommon):
             self.assertEqual(fields.Date.to_string(p.date_start), "2021-09-20")
             self.assertEqual(fields.Date.to_string(p.date), "2021-09-28")
 
-        # Updating one side across the batch (both already set) is allowed.
         projects.write({"date_start": "2021-09-22"})
         for p in projects:
             self.assertEqual(fields.Date.to_string(p.date_start), "2021-09-22")
             self.assertEqual(fields.Date.to_string(p.date), "2021-09-28")
 
-        # If ANY project in the batch would become imbalanced, the whole write
-        # is rejected (atomic) and nothing changes.
         goats.write({"date_start": False, "date": False})
         with self.assertRaises(UserError):
-            projects.write({"date_start": "2021-09-25"})  # ok for pigs, lone for goats
+            projects.write({"date_start": "2021-09-25"})
         projects.invalidate_recordset(["date_start", "date"])
         self.assertFalse(goats.date_start)
         self.assertEqual(fields.Date.to_string(pigs.date_start), "2021-09-22")
 
-        # Clearing both across the whole batch is allowed.
         pigs.write({"date_start": False, "date": False})
         projects.write({"date_start": False, "date": False})
         for p in projects:
@@ -571,7 +517,6 @@ class TestProjectBase(TestProjectCommon):
         self.assertFalse(partner in task_2.message_partner_ids)
 
     def test_create_private_task_in_batch(self) -> None:
-        """This test ensures that copying private task in batch can be done correctly."""
         task_0, task_1 = (
             self.env["project.task"]
             .create(
@@ -590,7 +535,6 @@ class TestProjectBase(TestProjectCommon):
         self.assertEqual(task_1.name, "task 1 (copy)")
 
     def test_duplicate_project_with_tasks(self) -> None:
-        """Test to check duplication of projects tasks active state."""
         project = self.env["project.project"].create(
             {
                 "name": "Project",
@@ -603,7 +547,6 @@ class TestProjectBase(TestProjectCommon):
             }
         )
 
-        # Duplicate active project with active task
         project_dup = project.copy()
         self.assertTrue(
             project_dup.active,
@@ -615,11 +558,10 @@ class TestProjectBase(TestProjectCommon):
             "Duplicated project should have as many tasks as orginial project",
         )
         self.assertTrue(
-            project_dup.tasks.active,
+            project_dup.task_ids.active,
             "Active task should remain active when duplicating an active project",
         )
 
-        # Duplicate active project with archived task
         task.active = False
         project_dup = project.copy()
         self.assertTrue(
@@ -627,23 +569,21 @@ class TestProjectBase(TestProjectCommon):
             "Active project should remain active when duplicating an active project",
         )
         self.assertFalse(
-            project_dup.tasks.active,
+            project_dup.task_ids.active,
             "Archived task should remain archived when duplicating an active project",
         )
 
-        # Duplicate archived project with archived task
         project.active = False
         project_dup = project.copy()
         self.assertTrue(
             project_dup.active, "The new project should be active by default"
         )
         self.assertTrue(
-            project_dup.tasks.active,
+            project_dup.task_ids.active,
             "Archived task should be active when duplicating an archived project",
         )
 
     def test_create_analytic_account_batch(self) -> None:
-        """This test will check that the '_create_analytic_account' method assigns the accounts to the projects in the right order."""
         projects = self.env["project.project"].create(
             [
                 {
@@ -730,9 +670,6 @@ class TestProjectBase(TestProjectCommon):
         self.assertEqual(project2.closed_task_count, 0)
 
     def test_archived_duplicate_task(self) -> None:
-        """Test to check duplication of an archived task.
-        The duplicate of an archived task should be active.
-        """
         project = self.env["project.project"].create(
             {
                 "name": "Project",
@@ -788,3 +725,24 @@ class TestProjectBase(TestProjectCommon):
             task.copy().date_end,
             "The task's date fields shouldn't be copied on task duplication",
         )
+
+    def test_task_ids_is_the_only_task_relation(self) -> None:
+        Project = self.env["project.project"]
+        self.assertNotIn(
+            "tasks", Project._fields, "the duplicate relation must be gone"
+        )
+        field = Project._fields["task_ids"]
+        self.assertEqual(field.comodel_name, "project.task")
+        self.assertEqual(field.inverse_name, "project_id")
+
+    def test_task_ids_returns_closed_tasks_too(self) -> None:
+        project = self.env["project.project"].create({"name": "Both"})
+        open_task, closed_task = self.env["project.task"].create(
+            [
+                {"name": "open", "project_id": project.id},
+                {"name": "closed", "project_id": project.id},
+            ]
+        )
+        closed_task.state = "done"
+        project.invalidate_recordset(["task_ids"])
+        self.assertEqual(project.task_ids, open_task | closed_task)

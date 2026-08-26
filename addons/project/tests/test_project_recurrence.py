@@ -201,9 +201,6 @@ class TestProjectRecurrence(TransactionCase):
         )
 
     def test_disabling_recurrence(self) -> None:
-        """Disabling the recurrence of one task in a recurrence suite should disable *all*
-        recurrences option on the tasks linked to that recurrence
-        """
         with freeze_time(self.date_01_01):
             form = Form(self.env["project.task"])
             form.name = "test recurring task"
@@ -234,7 +231,6 @@ class TestProjectRecurrence(TransactionCase):
 
     @users("armandel")
     def test_closed_recurring_task(self) -> None:
-        """When an active user closes a recurring task, the next occurrence should be created"""
         form = Form(self.env["project.task"])
         form.name = "test recurring task"
         form.project_id = self.project_recurring
@@ -315,21 +311,17 @@ class TestProjectRecurrence(TransactionCase):
             )
         )
 
-        # child_ids is newest-first (_order ends in `id desc`), so bind nodes by
-        # name, not position — otherwise node1/node3 are silently swapped.
         node1 = parent_task.child_ids.filtered(lambda t: t.name == "Node 1")
         node2 = parent_task.child_ids.filtered(
             lambda t: t.name == "SuperNode 2"
         ).child_ids
         node3 = parent_task.child_ids.filtered(lambda t: t.name == "Node 3")
 
-        # Dependencies
         node1.successor_ids = node2
         node2.successor_ids = node3
         side_task1.successor_ids = node2
         node3.successor_ids = side_task2
 
-        # Task recurrence trigger
         parent_task.state = "done"
         parent_task_copy = self.env["project.task"].browse(
             parent_task.recurrence_id._get_last_task_id_per_recurrence_id().get(
@@ -342,8 +334,6 @@ class TestProjectRecurrence(TransactionCase):
             "The generated recurring task should be different than the original one",
         )
 
-        # Newly created nodes from recurrence (match by name prefix — copies may
-        # carry a " (copy)" suffix).
         parent_copy_node1 = parent_task_copy.child_ids.filtered(
             lambda t: t.name.startswith("Node 1")
         )
@@ -354,7 +344,6 @@ class TestProjectRecurrence(TransactionCase):
             lambda t: t.name.startswith("Node 3")
         )
 
-        # The nodes and dependencies ids of the orginal and newly created nodes should be different
         self.assertNotEqual(
             node1.id,
             parent_copy_node1.id,
@@ -402,7 +391,6 @@ class TestProjectRecurrence(TransactionCase):
             "The dependencies of the original and copied node3 should be different",
         )
 
-        # However, the dependency structure of the orginal and newly created nodes should be the same
         self.assertEqual(
             parent_copy_node1.successor_ids.ids,
             parent_copy_node2.ids,
@@ -431,7 +419,6 @@ class TestProjectRecurrence(TransactionCase):
             "Node3copy - Node2copy relation should be present",
         )
 
-        # The original nodes dependencies should remain untouched by the creation of the new nodes
         self.assertEqual(
             node1.successor_ids.ids,
             node2.ids,
@@ -460,7 +447,6 @@ class TestProjectRecurrence(TransactionCase):
             "Node3 - Node2 relation should be present",
         )
 
-        # The side tasks should now have dependencies from both the original and copied tasks
         self.assertCountEqual(
             side_task1.successor_ids.ids,
             [node2.id, parent_copy_node2.id],
@@ -528,7 +514,6 @@ class TestProjectRecurrence(TransactionCase):
             )
         )
         tasks_copy = self.env["project.task.recurrence"]._create_next_occurrences(tasks)
-        # Every date should be 1 week later
         self.assertEqual(datetime(2023, 1, 8, 0, 0), tasks_copy[0].date_end)
         self.assertEqual(datetime(2023, 1, 9, 0, 0), tasks_copy[0].child_ids.date_end)
         self.assertEqual(
@@ -554,14 +539,6 @@ class TestProjectRecurrence(TransactionCase):
         self.assertEqual((task.recurrence_id.task_ids - task).user_ids, self.user)
 
     def test_recurrent_sub_tasks_without_archive_user(self) -> None:
-        """Test the behavior of recurring tasks when a user assigned to a child task is archived.
-        Steps:
-        1. Create a parent task with a recurring rule.
-        2. Add a child task with assigned users.
-        3. Archive one of the users assigned to the child task.
-        4. Complete the parent task to generate a recurring task.
-        5. Verify the new task excludes archived users.
-        """
         parent_task = self.env["project.task"].create(
             {
                 "project_id": self.project_recurring.id,
@@ -591,16 +568,6 @@ class TestProjectRecurrence(TransactionCase):
         )
 
     def test_close_recurring_task_private_project(self) -> None:
-        """Test that an assigned employee to a recurrent task can close it
-        even when they don't have access to the project.
-
-        Test Case:
-        ==========
-        1) Create a private project with a parent task and a recurrent subtask.
-        2) assign an employee to the subtask.
-        3) Ensure the employee can close the subtask even if they don't have
-           access to the project.
-        """
         employee = self.env["res.users"].create(
             {
                 "name": "Employee",
@@ -636,10 +603,7 @@ class TestProjectRecurrence(TransactionCase):
 
 
 class TestRecurrenceDefaults(TestProjectCommon):
-    """Recurrence defaults, and the context keys that set them."""
-
     def test_context_default_repeat_until_wins(self) -> None:
-        """default_get clobbered a context-supplied default_repeat_until."""
         vals = (
             self.env["project.task"]
             .with_context(default_repeat_until="2030-01-01")
@@ -648,11 +612,9 @@ class TestRecurrenceDefaults(TestProjectCommon):
         self.assertEqual(str(vals["repeat_until"]), "2030-01-01")
 
     def test_recurrence_until_requires_valid_future_date(self) -> None:
-        """repeat_type='until' with an empty date must raise a clean
-        ValidationError, not a TypeError (False < date)."""
         Recurrence = self.env["project.task.recurrence"]
         with self.assertRaises(ValidationError):
-            Recurrence.create({"repeat_type": "until"})  # no repeat_until
+            Recurrence.create({"repeat_type": "until"})
         today = fields.Date.today()
         with self.assertRaises(ValidationError):
             Recurrence.create(
@@ -661,7 +623,6 @@ class TestRecurrenceDefaults(TestProjectCommon):
                     "repeat_until": today - timedelta(days=1),
                 }
             )
-        # A valid future date must succeed.
         rec = Recurrence.create(
             {
                 "repeat_type": "until",
@@ -671,10 +632,7 @@ class TestRecurrenceDefaults(TestProjectCommon):
         self.assertTrue(rec)
 
     def test_recurrence_until_respects_user_timezone(self) -> None:
-        """repeat_until (a naive calendar Date) must be compared in the user's
-        timezone, not UTC — otherwise a boundary occurrence is dropped a day
-        early in a negative-offset tz."""
-        self.env.user.tz = "Etc/GMT+6"  # UTC-6, no DST
+        self.env.user.tz = "Etc/GMT+6"
         step = self.env["project.workflow.step"].create(
             {"name": "S", "project_ids": [(4, self.project_pigs.id)]}
         )
@@ -687,8 +645,6 @@ class TestRecurrenceDefaults(TestProjectCommon):
                 "repeat_until": until,
             }
         )
-        # date_end + 1 day = until+1 @ 03:00 UTC = until @ 21:00 local (UTC-6).
-        # UTC .date() would be until+1 → skipped; local date is until → created.
         task = self.env["project.task"].create(
             {
                 "name": "Recur",
@@ -706,13 +662,6 @@ class TestRecurrenceDefaults(TestProjectCommon):
 
 
 class TestRecurrenceUpdateScope(TestProjectCommon):
-    """`recurrence_update` — which occurrences an edit reaches.
-
-    `calendar.event` and `planning.slot` both had this; `project.task` had no
-    notion of it at all, so every edit was implicitly "this task only" and there
-    was no way to correct a whole series.
-    """
-
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -722,7 +671,6 @@ class TestRecurrenceUpdateScope(TestProjectCommon):
         cls.recurrence = cls.env["project.task.recurrence"].create(
             {"repeat_interval": 1, "repeat_unit": "week", "repeat_type": "forever"}
         )
-        # Three occurrences a week apart, oldest first.
         cls.first, cls.second, cls.third = cls.env["project.task"].create(
             [
                 {
@@ -763,8 +711,6 @@ class TestRecurrenceUpdateScope(TestProjectCommon):
         self.assertEqual(self.third.name, "Renamed")
 
     def test_a_deadline_shifts_the_series_instead_of_flattening_it(self) -> None:
-        """The one case a naive implementation gets wrong: writing the same
-        `date_end` to every occurrence would collapse a series onto one day."""
         original = {task: task.date_end for task in (self.first, self.third)}
         self.second.write(
             {
@@ -794,8 +740,6 @@ class TestRecurrenceUpdateScope(TestProjectCommon):
         )
 
     def test_changing_the_rule_for_part_of_the_series_is_refused(self) -> None:
-        """`repeat_*` live on the one shared recurrence record, so a partial
-        scope cannot be honoured. Refuse rather than silently apply it to all."""
         with self.assertRaises(UserError):
             self.second.write({"repeat_interval": 3, "recurrence_update": "subsequent"})
         self.assertEqual(self.recurrence.repeat_interval, 1)
@@ -805,15 +749,12 @@ class TestRecurrenceUpdateScope(TestProjectCommon):
         self.assertEqual(self.recurrence.repeat_interval, 3)
 
     def test_scope_needs_a_single_task(self) -> None:
-        """Following is only defined relative to a single occurrence."""
         with self.assertRaises(ValueError):
             (self.first | self.third).write(
                 {"name": "Renamed", "recurrence_update": "all"}
             )
 
     def test_create_tolerates_the_scope_key(self) -> None:
-        """The field carries a default, so a form saving a *new* task sends it
-        to `create` as well -- where it means nothing and must not raise."""
         task = self.env["project.task"].create(
             {
                 "name": "Fresh",
@@ -824,9 +765,6 @@ class TestRecurrenceUpdateScope(TestProjectCommon):
         self.assertEqual(task.name, "Fresh")
 
     def test_a_portal_user_may_not_scope_an_edit(self) -> None:
-        """The key is popped before `super().write()`, so the ORM never runs
-        its per-field access check on it -- a portal collaborator would
-        otherwise silently gain an edit reaching tasks they never opened."""
         portal = mail_new_test_user(
             self.env, "recurrence_portal", groups="base.group_portal"
         )

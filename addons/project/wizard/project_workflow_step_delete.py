@@ -1,13 +1,9 @@
-"""Wizard to archive or delete workflow steps from a project."""
-
 from typing import Any
 
 from odoo import _, api, fields, models
 
 
 class ProjectWorkflowStepDeleteWizard(models.TransientModel):
-    """Confirmation wizard for archiving/deleting workflow steps."""
-
     _name = "project.workflow.step.delete.wizard"
     _description = "Workflow Step Delete Wizard"
 
@@ -35,10 +31,6 @@ class ProjectWorkflowStepDeleteWizard(models.TransientModel):
 
     @api.depends("step_ids")
     def _compute_tasks_count(self) -> None:
-        # One GROUP BY over every wizard's step_ids rather than a
-        # COUNT(*) per wizard, which `test_lint E8507` counts as a query
-        # inside a loop. `step_id` is a Many2one, so each record falls in
-        # exactly one group and summing a wizard's groups cannot double-count.
         counts = dict(
             self.env["project.task"]
             .with_context(active_test=False)

@@ -1,5 +1,3 @@
-"""Critical-path computation: which fields it owns, and which edges it sees."""
-
 from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import freeze_time, tagged
@@ -9,17 +7,7 @@ from .test_project_base import TestProjectCommon
 
 @tagged("post_install", "-at_install")
 class TestCpmFieldOwnership(TestProjectCommon):
-    """The CPM output fields must be the module's own, not enterprise's."""
-
     def test_cpm_fields_are_stored_and_distinct(self) -> None:
-        """cpm_date_start/end must be real stored columns.
-
-        They used to be called planned_date_start/planned_date_end.
-        project_enterprise (auto_install) declares planned_date_start as a
-        NON-stored compute whose inverse writes planned_date_begin — so its
-        definition won the field merge, CPM's start was never stored, and
-        writing it edited the user's schedule instead.
-        """
         Task = self.env["project.task"]
         for fname in ("cpm_date_start", "cpm_date_end"):
             field = Task._fields[fname]
@@ -30,7 +18,6 @@ class TestCpmFieldOwnership(TestProjectCommon):
             )
 
     def test_cpm_does_not_touch_user_entered_dates(self) -> None:
-        """Computing the critical path must not edit planned_date_begin/date_end."""
         project = self.env["project.project"].create(
             {"name": "CPM ownership", "allow_dependencies": True}
         )
@@ -62,12 +49,6 @@ class TestCpmFieldOwnership(TestProjectCommon):
         )
 
     def test_cpm_preserves_the_deadline_of_unscheduled_tasks(self) -> None:
-        """The common CPM input is a task with a deadline and no start date.
-
-        The enterprise inverse's else-branch wrote date_end (the deadline) when
-        planned_date_begin was unset, so one click replaced every such deadline
-        with "now".
-        """
         project = self.env["project.project"].create(
             {"name": "CPM deadlines", "allow_dependencies": True}
         )
@@ -96,12 +77,6 @@ class TestCpmFieldOwnership(TestProjectCommon):
             self.assertEqual(task.date_end, deadline, "deadline must survive CPM")
 
     def test_cpm_schedule_shape_is_stable_across_runs(self) -> None:
-        """Re-running CPM on unchanged data must not move the schedule.
-
-        CPM used allocated_hours as duration while its own writes inflated
-        allocated_hours, so run N's output became run N+1's input and the
-        project end drifted two weeks per run.
-        """
         project = self.env["project.project"].create(
             {"name": "CPM stability", "allow_dependencies": True}
         )
@@ -132,9 +107,6 @@ class TestCpmFieldOwnership(TestProjectCommon):
                 for t in (a + b)
             ]
 
-        # Freeze the clock: CPM anchors its schedule at "now" by design, so
-        # only a frozen anchor makes an exact comparison meaningful. What used
-        # to drift here was the duration, by two weeks per run.
         with freeze_time("2026-08-03 08:00:00"):
             project.action_compute_critical_path()
             first = shape()
@@ -143,7 +115,6 @@ class TestCpmFieldOwnership(TestProjectCommon):
             self.assertEqual(shape(), first, "the schedule shape must not drift")
 
     def test_cpm_duration_is_duration_not_effort(self) -> None:
-        """Staffing an activity with more people must not make it longer."""
         project = self.env["project.project"].create({"name": "CPM duration"})
         step = self.env["project.workflow.step"].create(
             {"name": "S", "project_ids": [Command.link(project.id)]}
@@ -164,7 +135,6 @@ class TestCpmFieldOwnership(TestProjectCommon):
         )
 
     def test_cpm_survives_a_company_without_a_calendar(self) -> None:
-        """plan_hours on an empty calendar recordset used to be a 500."""
         project = self.env["project.project"].create(
             {"name": "CPM no calendar", "allow_dependencies": True}
         )
@@ -186,11 +156,10 @@ class TestCpmFieldOwnership(TestProjectCommon):
         project.company_id.resource_calendar_id = False
         project.invalidate_recordset(["resource_calendar_id"])
 
-        project.action_compute_critical_path()  # must not raise
-        project.action_level_resources()  # must not raise
+        project.action_compute_critical_path()
+        project.action_level_resources()
 
     def test_cpm_honours_plain_m2m_dependencies(self) -> None:
-        """A typed dependency anywhere used to hide every plain one."""
         project = self.env["project.project"].create(
             {"name": "CPM edges", "allow_dependencies": True}
         )
@@ -208,7 +177,6 @@ class TestCpmFieldOwnership(TestProjectCommon):
                 for name in ("X", "Y", "Z")
             ]
         )
-        # X -> Y through the typed model, Y -> Z through the M2M only.
         self.env["project.task.dependency"].create(
             {"task_id": y.id, "depends_on_id": x.id}
         )
@@ -226,8 +194,6 @@ class TestCpmFieldOwnership(TestProjectCommon):
 
 @tagged("post_install", "-at_install")
 class TestDependencyStoresAgree(TestProjectCommon):
-    """predecessor_ids and project.task.dependency are one fact, two tables."""
-
     def setUp(self) -> None:
         super().setUp()
         self.project = self.env["project.project"].create(
@@ -246,9 +212,37 @@ class TestDependencyStoresAgree(TestProjectCommon):
     def _rows(self, task):
         return self.env["project.task.dependency"].search([("task_id", "=", task.id)])
 
+    def test_successor_ids_link_materialises_a_typed_row(self) -> None:
+        self.a.write({"successor_ids": [Command.link(self.b.id)]})
+        self.assertIn(self.a, self.b.predecessor_ids)
+        rows = self._rows(self.b)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows.depends_on_id, self.a)
+
+    def test_successor_ids_at_create_materialises_a_typed_row(self) -> None:
+        task = self.env["project.task"].create(
+            {
+                "name": "C",
+                "project_id": self.project.id,
+                "successor_ids": [Command.link(self.b.id)],
+            }
+        )
+        self.assertIn(task, self.b.predecessor_ids)
+        self.assertEqual(self._rows(self.b).depends_on_id, task)
+
+    def test_copy_preserves_dependency_type_and_lag(self) -> None:
+        self.b.write({"predecessor_ids": [Command.link(self.a.id)]})
+        self._rows(self.b).write({"dependency_type": "ss", "lag_hours": 24.0})
+
+        copied = self.project.copy()
+        rows = self.env["project.task.dependency"].search(
+            [("project_id", "=", copied.id)]
+        )
+        self.assertEqual(len(rows), 1, "the copied project carries the dependency")
+        self.assertEqual(rows.dependency_type, "ss")
+        self.assertEqual(rows.lag_hours, 24.0)
+
     def test_m2m_link_materialises_a_typed_row(self) -> None:
-        """An edge drawn on the task form used to exist only in the M2M:
-        untyped, lag-less, invisible to everything reading the typed model."""
         self.b.predecessor_ids = self.a
         rows = self._rows(self.b)
         self.assertEqual(len(rows), 1)
@@ -274,8 +268,6 @@ class TestDependencyStoresAgree(TestProjectCommon):
         self.assertFalse(self._rows(self.b))
 
     def test_typed_row_edit_is_not_undone_by_the_reverse_sync(self) -> None:
-        """The typed side carries the richer type/lag; syncing back from the
-        M2M must not overwrite it or bounce between the two stores."""
         dependency = self.env["project.task.dependency"].create(
             {
                 "task_id": self.b.id,
@@ -297,9 +289,40 @@ class TestDependencyStoresAgree(TestProjectCommon):
         self.assertFalse(self.b.predecessor_ids)
         self.assertFalse(self._rows(self.b))
 
+    def test_a_cycle_formed_within_one_batch_is_refused(self) -> None:
+        c = self.env["project.task"].create(
+            {"name": "C", "project_id": self.project.id, "step_id": self.step.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["project.task.dependency"].create(
+                [
+                    {"task_id": self.b.id, "depends_on_id": self.a.id},
+                    {"task_id": c.id, "depends_on_id": self.b.id},
+                    {"task_id": self.a.id, "depends_on_id": c.id},
+                ]
+            )
+
+    def test_an_acyclic_batch_is_accepted(self) -> None:
+        c = self.env["project.task"].create(
+            {"name": "C", "project_id": self.project.id, "step_id": self.step.id}
+        )
+        self.env["project.task.dependency"].create(
+            [
+                {"task_id": self.b.id, "depends_on_id": self.a.id},
+                {"task_id": c.id, "depends_on_id": self.b.id},
+            ]
+        )
+        self.env.flush_all()
+        self.assertIn(self.a, self.b.predecessor_ids)
+        self.assertIn(self.b, c.predecessor_ids)
+        self.assertEqual(
+            self.env["project.task.dependency"].search_count(
+                [("project_id", "=", self.project.id)]
+            ),
+            2,
+        )
+
     def test_cycle_detection_spans_projects(self) -> None:
-        """A dependency may cross projects, so a cycle can leave one and come
-        back. Scoping the graph read by project would miss exactly that."""
         other = self.env["project.project"].create(
             {"name": "Other", "allow_dependencies": True}
         )
@@ -312,7 +335,6 @@ class TestDependencyStoresAgree(TestProjectCommon):
         Dependency = self.env["project.task.dependency"]
         Dependency.create({"task_id": bridge.id, "depends_on_id": self.a.id})
         Dependency.create({"task_id": self.b.id, "depends_on_id": bridge.id})
-        # a -> bridge -> b ; closing b -> a is a cycle through `other`.
         with self.assertRaises(ValidationError):
             Dependency.create({"task_id": self.a.id, "depends_on_id": self.b.id})
 
@@ -323,12 +345,6 @@ class TestDependencyStoresAgree(TestProjectCommon):
             )
 
     def test_critical_path_cycle_guard(self) -> None:
-        """A dependency cycle reaching the CPM must raise a clean UserError, not
-        recurse infinitely (RecursionError → HTTP 500).
-
-        Cycles are normally blocked by @api.constrains, so we inject the reverse
-        edge with raw SQL to simulate a constraint-bypassed / drifted graph.
-        """
         project = self.env["project.project"].create(
             {
                 "name": "CycleProj",
@@ -341,14 +357,12 @@ class TestDependencyStoresAgree(TestProjectCommon):
         task_b = self.env["project.task"].create(
             {"name": "B", "project_id": project.id}
         )
-        # A -> B via the ORM (valid, no cycle yet).
         self.env["project.task.dependency"].create(
             {
                 "task_id": task_b.id,
                 "depends_on_id": task_a.id,
             }
         )
-        # B -> A injected directly, bypassing the cycle constraint.
         self.env.cr.execute(
             """INSERT INTO project_task_dependency
                (task_id, depends_on_id, dependency_type, lag_hours, project_id)
@@ -360,11 +374,6 @@ class TestDependencyStoresAgree(TestProjectCommon):
             project.action_compute_critical_path()
 
     def test_cpm_float_and_critical_path(self) -> None:
-        """CPM must compute correct float / critical-path on a diamond graph.
-
-        A(8)->B(4)->D(2) and A(8)->C(2)->D(2): path ABD=14 is critical, C has
-        2h of float. Pins the values so the iterative rewrite can't drift.
-        """
         project = self.env["project.project"].create(
             {"name": "CPM", "allow_dependencies": True}
         )
@@ -393,12 +402,10 @@ class TestDependencyStoresAgree(TestProjectCommon):
             self.assertAlmostEqual(t.total_float, 0.0, places=2)
 
     def test_cpm_long_chain_no_recursion_error(self) -> None:
-        """A dependency chain deeper than the Python recursion limit must not
-        raise RecursionError (the passes are iterative)."""
         project = self.env["project.project"].create(
             {"name": "DeepCPM", "allow_dependencies": True}
         )
-        depth = 1200  # > default recursionlimit (1000)
+        depth = 1200
         tasks = (
             self.env["project.task"]
             .create(
@@ -411,6 +418,6 @@ class TestDependencyStoresAgree(TestProjectCommon):
         )
         for i in range(1, depth):
             tasks[i].predecessor_ids = tasks[i - 1]
-        project.action_compute_critical_path()  # must not raise
+        project.action_compute_critical_path()
         tasks[-1].invalidate_recordset(["is_critical_path"])
         self.assertTrue(tasks[-1].is_critical_path, "the whole chain is critical")

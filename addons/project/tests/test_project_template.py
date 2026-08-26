@@ -35,7 +35,6 @@ class TestProjectTemplates(TestProjectCommon):
         )
 
     def test_convert_project_to_template(self) -> None:
-        """Converting a project to a project template should leave the tasks unchanged."""
         self.project_template.is_template = False
         client_action = self.project_template.action_create_template_from_project()
         created_template = self.env["project.project"].browse(
@@ -62,7 +61,6 @@ class TestProjectTemplates(TestProjectCommon):
         )
 
     def test_create_from_template(self) -> None:
-        """Creating a project through the action should result in a non template copy"""
         project = self.project_template.action_create_from_template()
         self.assertEqual(
             project.name,
@@ -104,7 +102,6 @@ class TestProjectTemplates(TestProjectCommon):
         )
 
     def test_copy_template(self) -> None:
-        """A copy of a template should be a template"""
         copied_template = self.project_template.copy()
         self.assertEqual(
             copied_template.name,
@@ -141,7 +138,6 @@ class TestProjectTemplates(TestProjectCommon):
         )
 
     def test_revert_template(self) -> None:
-        """A revert of a template should not be a template"""
         self.project_template.action_undo_convert_to_template()
         self.assertFalse(
             self.project_template.is_template,
@@ -149,9 +145,6 @@ class TestProjectTemplates(TestProjectCommon):
         )
 
     def test_tasks_dispatching_from_template(self) -> None:
-        """The tasks of a project template should be dispatched to the new project according to the role-to-users mapping defined
-        on the project template wizard.
-        """
         role1, role2, role3, role4, role5 = self.env["resource.role"].create(
             [
                 {"name": "Developer"},

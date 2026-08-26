@@ -177,7 +177,6 @@ class TestProjectUpdate(TestProjectCommon):
             panel_data["milestones"]["data"][1]["is_reached"],
             "Milestone isn't done",
         )
-        # sorting
         self.assertEqual(
             panel_data["milestones"]["data"][0]["name"],
             "Test 2",
@@ -194,7 +193,6 @@ class TestProjectUpdate(TestProjectCommon):
             "Sorting isn't correct",
         )
 
-        # Disable the "Milestones" feature in the project and check the "Milestones" section is not loaded for this project.
         self.project_pigs.write({"allow_milestones": False})
         panel_data = self.project_pigs.get_panel_data()
         self.assertNotIn(
@@ -203,7 +201,6 @@ class TestProjectUpdate(TestProjectCommon):
             'Since the "Milestones" feature is disabled in this project, the "Milestones" section is not loaded.',
         )
 
-        # Disable globally the Milestones feature and check the Milestones section is not loaded.
         self.env.user.group_ids -= self.env.ref("project.group_project_milestone")
         panel_data = self.project_pigs.get_panel_data()
         self.assertNotIn(
@@ -213,17 +210,6 @@ class TestProjectUpdate(TestProjectCommon):
         )
 
     def test_project_update_reflects_task_changes(self) -> None:
-        """Check if the project update reflects according to the task changes or not.
-        Steps:
-        1) Create a project update
-        2) Check the task count, closetask, and closed task percentag
-        3) Move Task1 to the Done stage
-        4) Repeat steps 1 and 2
-        5) Move Task2 to the Canceled stage
-        6) Create a new task
-        7) Repeat steps 1 and 2
-        """
-
         def create_project_update_view() -> None:
             update_form = Form(
                 self.env["project.update"].with_context(

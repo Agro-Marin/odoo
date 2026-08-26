@@ -43,12 +43,9 @@ class ProjectTemplateCreateWizard(models.TransientModel):
             )
 
     def _get_fields_template_whitelist(self) -> list[str]:
-        """Whitelist of fields of this wizard that will be used when creating a project from a template."""
         return ["name", "date_start", "date", "alias_name", "alias_domain_id"]
 
     def _create_project_from_template(self) -> Self:
-        """Create a project from the template and return it."""
-        # Dictionary with all whitelist fields and their values
         field_values = self._convert_to_write(
             {
                 fname: self[fname]
@@ -60,7 +57,6 @@ class ProjectTemplateCreateWizard(models.TransientModel):
         )
 
     def create_project_from_template(self) -> dict[str, Any]:
-        """Open project task views after creation of project from template."""
         return self._create_project_from_template().action_view_tasks()
 
     @api.model

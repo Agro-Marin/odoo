@@ -10,7 +10,6 @@ class TestPersonalStages(TestProjectCommon):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        # Ensure triage buckets exist (may be missing on stale test DBs)
         for user in (cls.user_projectuser, cls.user_projectmanager):
             if not cls.env["project.triage"].search_count([("user_id", "=", user.id)]):
                 cls.env["project.triage"].create(
@@ -24,7 +23,6 @@ class TestPersonalStages(TestProjectCommon):
         )
 
     def test_personal_stage_base(self) -> None:
-        # Project User is assigned to task_1 he should be able to see a personal stage
         self.task_1.with_user(self.user_projectuser)._compute_personal_triage_id()
         self.assertTrue(
             self.task_1.with_user(self.user_projectuser).triage_id,
@@ -40,7 +38,6 @@ class TestPersonalStages(TestProjectCommon):
             "Project Manager is not assigned to task 1, he should not have a personal stage assigned.",
         )
 
-        # Now assign a second user to our task_1
         self.task_1.user_ids += self.user_projectmanager
         self.assertTrue(
             self.task_1.with_user(self.user_projectmanager).triage_id,
@@ -76,7 +73,6 @@ class TestPersonalStages(TestProjectCommon):
 
     def test_personal_stage_search(self) -> None:
         self.task_2.user_ids += self.user_projectuser
-        # Make sure both personal stages are different
         self.task_1.with_user(self.user_projectuser).triage_id = self.user_stages[0]
         self.task_2.with_user(self.user_projectuser).triage_id = self.user_stages[1]
         tasks = (
@@ -93,7 +89,6 @@ class TestPersonalStages(TestProjectCommon):
             )
 
     def test_personal_stage_read_group(self) -> None:
-        # Ensure user doesnt have any tasks before hand
         (
             self.env["project.task"]
             .sudo()
@@ -113,7 +108,6 @@ class TestPersonalStages(TestProjectCommon):
         self.task_1.with_user(self.user_projectmanager).triage_id = self.manager_stages[
             1
         ]
-        # Makes sure the personal stage for project manager is saved in the database
         self.env.flush_all()
         read_group_user = (
             self.env["project.task"]
@@ -125,13 +119,11 @@ class TestPersonalStages(TestProjectCommon):
                 groupby=["triage_ids"],
             )
         )
-        # Check that the result is at least a bit coherent
         self.assertEqual(
             len(self.user_stages),
             len(read_group_user),
             "read_group should return %d groups" % len(self.user_stages),
         )
-        # User has only one task assigned the sum of all counts should be 1
         total = 0
         for group in read_group_user:
             total += group["__count"]
@@ -160,7 +152,6 @@ class TestPersonalStages(TestProjectCommon):
         total_stage_1 = 0
         for group in read_group_manager:
             total += group["__count"]
-            # Check that we have a task in both stages
             if group["triage_ids"][0] == self.manager_stages[0].id:
                 total_stage_0 += 1
             elif group["triage_ids"][0] == self.manager_stages[1].id:
@@ -174,9 +165,6 @@ class TestPersonalStages(TestProjectCommon):
         self.assertEqual(1, total_stage_1)
 
     def test_delete_personal_stage(self) -> None:
-        """When deleting personal stages, the task of this stage are transfered to the one following it sequence-wise.
-        The deletion of stages can be done in batch.
-        """
         user_1, user_2, user_3 = self.env["res.users"].create(
             [
                 {
@@ -194,11 +182,9 @@ class TestPersonalStages(TestProjectCommon):
             ]
         )
 
-        # Ensure users have no tasks or triage buckets from auto-onboarding
         self.env["project.task"].sudo().search(
             [("user_ids", "in", (user_1 + user_2 + user_3).ids)]
         ).unlink()
-        # Bypass the "last triage" protection for test cleanup via SQL
         user_ids = (user_1 + user_2 + user_3).ids
         self.env.cr.execute(
             "DELETE FROM project_task_triage WHERE triage_id IN "
@@ -228,7 +214,6 @@ class TestPersonalStages(TestProjectCommon):
             0,
         )
 
-        # Create 5 personal stages for user 1
         user_1_stages = self.env["project.triage"].create(
             [
                 {
@@ -239,7 +224,6 @@ class TestPersonalStages(TestProjectCommon):
                 for i in range(1, 6)
             ]
         )
-        # Create 3 personal stages for user 2
         user_2_stages = self.env["project.triage"].create(
             [
                 {
@@ -251,7 +235,6 @@ class TestPersonalStages(TestProjectCommon):
             ]
         )
 
-        # Create private tasks for user 1 and 2
         private_tasks = self.env["project.task"].create(
             [
                 {
@@ -283,36 +266,13 @@ class TestPersonalStages(TestProjectCommon):
             ]
         )
 
-        # Put private tasks in personal stages for user 1
         private_tasks[0].with_user(user_1.id).triage_id = user_1_stages[2].id
         private_tasks[1].with_user(user_1.id).triage_id = user_1_stages[3].id
         private_tasks[2].with_user(user_1.id).triage_id = user_1_stages[4].id
         private_tasks[3].with_user(user_1.id).triage_id = user_1_stages[4].id
 
-        # Put private tasks in personal stages for user 2
         private_tasks[0].with_user(user_2.id).triage_id = user_2_stages[0].id
         private_tasks[1].with_user(user_2.id).triage_id = user_2_stages[1].id
-
-        # ------------------------------------
-        # ------- A. Initial situation  ------
-        # ------------------------------------
-        #
-        # For user 1:
-        #
-        #  +---------+---------+---------+---------+---------+
-        #  | Stage 1 | Stage 2 | Stage 3 | Stage 4 | Stage 5 |
-        #  +---------+---------+---------+---------+---------+
-        #  |         |         | Task 1  | Task 2  | Task 3  |
-        #  |         |         |         |         | Task 4  |
-        #  +---------+---------+---------+---------+---------+
-        #
-        # For user 2:
-        #
-        #  +---------+---------+---------+
-        #  | Stage 1 | Stage 2 | Stage 3 |
-        #  +---------+---------+---------+
-        #  | Task 1  | Task 2  |         |
-        #  +---------+---------+---------+
 
         self.assertEqual(
             self.env["project.triage"]
@@ -365,19 +325,6 @@ class TestPersonalStages(TestProjectCommon):
             user_2_stages[1].id,
         )
 
-        # --------------------------------------------
-        # ---- B. Deleting an empty (own) stage  -----
-        # --------------------------------------------
-        #
-        # Deleting stage 3 for user 2
-        # Expected result for user 2:
-        #
-        #  +---------+---------+
-        #  | Stage 1 | Stage 2 |
-        #  +---------+---------+
-        #  | Task 1  | Task 2  |
-        #  +---------+---------+
-
         user_2_stages[2].with_user(user_2.id).unlink()
         self.assertEqual(
             self.env["project.triage"]
@@ -386,20 +333,6 @@ class TestPersonalStages(TestProjectCommon):
             2,
             "A user should be able to unlink its own (empty) personal stage.",
         )
-
-        # --------------------------------------------
-        # ---- C. Deleting a single (own) stage  -----
-        # --------------------------------------------
-        #
-        # Deleting stage 3 for user 1, the task in this stage should move to stage 2
-        # Expected result for user 1:
-        #
-        #  +---------+---------+---------+---------+
-        #  | Stage 1 | Stage 2 | Stage 4 | Stage 5 |
-        #  +---------+---------+---------+---------+
-        #  |         | Task 1  | Task 2  | Task 3  |
-        #  |         |         |         | Task 4  |
-        #  +---------+---------+---------+---------+
 
         private_tasks.invalidate_recordset(["triage_id"])
         user_1_stages[2].with_user(user_1.id).unlink()
@@ -422,20 +355,6 @@ class TestPersonalStages(TestProjectCommon):
             user_1_stages[1].id,
             "Tasks in a removed personal stage should be moved to the stage following it sequence-wise",
         )
-
-        # --------------------------------------------
-        # ---- D. Deleting (own) stage in batch ------
-        # --------------------------------------------
-        #
-        # Deleting stages 2 & 4 for user 1, the task in those stages should move to stage 1
-        # Expected result for user 1:
-        #
-        #  +---------+---------+
-        #  | Stage 1 | Stage 5 |
-        #  +---------+---------+
-        #  | Task 1  | Task 3  |
-        #  | Task 2  | Task 4  |
-        #  +---------+---------+
 
         user_1_stages.filtered(
             lambda s: s.id in [user_1_stages[1].id, user_1_stages[3].id]
@@ -460,32 +379,6 @@ class TestPersonalStages(TestProjectCommon):
                 user_1_stages[0].id,
                 "Tasks in a personal stage removed in batch should be moved to the stage following it sequence-wise",
             )
-
-        # ------------------------------------------------------
-        # -- E. Deleting multi-user stages in batch (as sudo) --
-        # ------------------------------------------------------
-        #
-        # Deleting stages 1 user 1 and stage 2 for user 2
-        # Expected result for user 1:
-        #
-        #  +---------+
-        #  | Stage 5 |
-        #  +---------+
-        #  | Task 1  |
-        #  | Task 2  |
-        #  | Task 3  |
-        #  | Task 4  |
-        #  +---------+
-        #
-        # Expected result for user 2:
-        #
-        #  +---------+
-        #  | Stage 1 |
-        #  +---------+
-        #  | Task 1  |
-        #  | Task 2  |
-        #  +---------+
-        #
 
         (user_1_stages[0] | user_2_stages[1]).sudo().unlink()
         self.assertEqual(
@@ -527,21 +420,6 @@ class TestPersonalStages(TestProjectCommon):
             "Tasks in a personal stage removed in batch by superuser should be moved to the stage following it sequence-wise",
         )
 
-        # ------------------------------------------------------
-        # -- F. Deleting the last personal stage not allowed  --
-        # ------------------------------------------------------
-        #
-        # Deleting stage 1 for user 2 should raise an error
-        # Expected result for user 2:
-        #
-        #  +---------+
-        #  | Stage 1 |
-        #  +---------+
-        #  | Task 1  |
-        #  | Task 2  |
-        #  +---------+
-        #
-
         with self.assertRaises(
             UserError,
             msg="Deleting the last personal stage of a user should raise an error",
@@ -566,10 +444,6 @@ class TestPersonalStages(TestProjectCommon):
             "Last personal stage of a user should not be deleted by unlink method",
         )
 
-        # -------------------------------------------------------------------
-        # - G. Deleting the last personal stage not allowed (even if empty) -
-        # -------------------------------------------------------------------
-
         empty_stage_user_3 = self.env["project.triage"].create(
             {
                 "user_id": user_3.id,
@@ -584,11 +458,6 @@ class TestPersonalStages(TestProjectCommon):
         ):
             empty_stage_user_3.with_user(user_3.id).unlink()
 
-        # ---------------------------------------------------------
-        # - H. Mixed scenario: 1 normal stage and 2 personal ones -
-        # ---------------------------------------------------------
-
-        # Create personal triage stages for both users and one normal workflow step
         empty_triages = self.env["project.triage"].create(
             [
                 {
@@ -663,14 +532,10 @@ class TestPersonalStages(TestProjectCommon):
 @tagged("-at_install", "post_install")
 class TestPersonalStageTour(HttpCase, TestProjectCommon):
     def test_personal_stage_tour(self) -> None:
-        # Give the project a workflow step so the kanban shows a real column:
-        # the tour opens its config menu to check the manager-only gating of
-        # the Edit/Delete actions.
         self.env["project.workflow.step"].create(
             {
                 "name": "Doing",
                 "project_ids": [Command.link(self.project_pigs.id)],
             }
         )
-        # Test customizing personal stages as a project user
         self.start_tour("/odoo", "personal_stage_tour", login="armandel")

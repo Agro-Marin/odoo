@@ -1,12 +1,3 @@
-"""Personal task triage buckets (PMI terminology alignment).
-
-Triage buckets are private to each user — they express *when* the user plans
-to work on tasks, not *where* in the project workflow those tasks are.
-
-Default buckets per user: Inbox, Today, This Week, This Month, Later,
-Done, Cancelled.
-"""
-
 from collections import defaultdict
 
 from odoo import _, api, fields, models
@@ -14,12 +5,6 @@ from odoo.exceptions import UserError
 
 
 class ProjectTriage(models.Model):
-    """A personal time-horizon bucket for tasks assigned to a user.
-
-    Buckets are never linked to projects (that is the job of workflow steps).
-    Each user maintains their own independent ordered list of triage buckets.
-    """
-
     _name = "project.triage"
     _description = "Personal Task Triage Bucket"
     _inherit = ["mixin.project.pm"]
@@ -35,24 +20,12 @@ class ProjectTriage(models.Model):
         string="Triage Owner",
         required=True,
         index=True,
-        # A bucket belongs to its owner and outlives nothing: deleting the user
-        # deletes their buckets, like the sibling `project.task.triage.user_id`.
-        # `required=True` alone would default to `restrict`, and since every user
-        # gets a default set of buckets that made every user undeletable.
         ondelete="cascade",
-        # Triage buckets are personal: creating one without an explicit owner
-        # (e.g. the kanban column quick-create in My Tasks, which only sends a
-        # name) must assign the current user, not crash on the NOT NULL.
         default=lambda self: self.env.user,
     )
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_remaining_triage_buckets(self) -> None:
-        """Ensure each user always has at least one triage bucket after deletion.
-
-        Tasks in the deleted buckets are moved to the nearest remaining bucket
-        by sequence order (lower sequence preferred).
-        """
         remaining_all = self.env["project.triage"]._read_group(
             [
                 ("user_id", "in", self.user_id.ids),
@@ -89,18 +62,6 @@ class ProjectTriage(models.Model):
     def _prepare_triage_deletion(
         self, remaining_buckets: list[dict], triage_to_update
     ) -> None:
-        """Reassign task triage entries when buckets are deleted.
-
-        Tasks are moved to the nearest remaining bucket by sequence order,
-        preferring the next-lower sequence (i.e. the bucket just before the
-        deleted one, falling back to the next-higher).
-
-        :param remaining_buckets: Sorted list of dicts ``{"id": int, "seq": int}``
-            representing the buckets that will survive, in descending sequence
-            order. Must not be empty.
-        :param triage_to_update: ``_read_group`` result of ``project.task.triage``
-            records grouped by ``triage_id`` for the buckets being deleted.
-        """
         buckets_to_delete = sorted(
             [{"id": b.id, "seq": b.sequence} for b in self],
             key=lambda b: b["seq"],

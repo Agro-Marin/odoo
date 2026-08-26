@@ -22,17 +22,6 @@ class TestTaskState(TestProjectCommon):
         )
 
     def test_base_state(self) -> None:
-        """Test the task base state features
-
-        Test Case:
-        =========
-        1) check that task_1 and task_2 are in_progress by default
-        2) add task_2 as a dependency for task_1, check that task_1 state has gone to waiting_normal.
-        3) force task_1 state to done, the state of task_1 should become done
-        4) switch task_1 state back to in progress, its state should automatically switch back to waiting normal because of the task_2 dependency
-        5) change task_2 state to canceled, check that task_1 state has gone back to in_progress.
-        """
-        # 1) check that task_1 and task2 are in_progress by default
         self.assertEqual(
             self.task_1.state,
             "in_progress",
@@ -44,7 +33,6 @@ class TestTaskState(TestProjectCommon):
             "The task_2 should be in progress by default",
         )
 
-        # 2) add task2 as a dependency for task 1, check that task_1 state has gone to waiting_normal.
         self.task_1.write(
             {
                 "predecessor_ids": [Command.link(self.task_2.id)],
@@ -56,7 +44,6 @@ class TestTaskState(TestProjectCommon):
             "The task_1 should be in waiting_normal after depending on another open task",
         )
 
-        # 3) force task_1 state to done, the state of task_1 should become done
         self.task_1.write(
             {
                 "state": "done",
@@ -68,8 +55,6 @@ class TestTaskState(TestProjectCommon):
             "The task_1 should be in done even if it has a depending task not closed",
         )
 
-        # 4) switch task_1 state back to in progress, its state should automatically switch back to waiting normal because of the task2 dependency
-
         self.task_1.write(
             {
                 "state": "in_progress",
@@ -80,8 +65,6 @@ class TestTaskState(TestProjectCommon):
             "blocked",
             "task_1 state should automatically switch back to waiting_normal because of the task2 dependency",
         )
-
-        # 5) change task_2 state to done, check that task_1 state has gone back to in_progress.
 
         self.task_2.write(
             {
@@ -95,17 +78,6 @@ class TestTaskState(TestProjectCommon):
         )
 
     def test_change_stage_or_project(self) -> None:
-        """Test special cases where the task is moved from a stage to another or a project to another
-
-        Test Case:
-        =========
-        1) change task_1 to an open state and task_2 to a closed state
-        2) change task_1 and task_2 stage, task_1 should go back to in_progress, task_2 should stay in its closing state
-        3) change task_1 and task_2 project, task_1 should go back to in_progress,
-           task_2 should stay in its closing state
-        """
-        # 1) change task_1 to an open state and task_2 to a closed state
-
         stage_won = self.env["project.workflow.step"].search([("name", "=", "Won")])
         project_pigs = self.env["project.project"].search([("name", "=", "Pigs")])
 
@@ -119,7 +91,6 @@ class TestTaskState(TestProjectCommon):
                 "state": "canceled",
             }
         )
-        # 2) change task_1 and task_2 from stage, task_1 should go back to in_progress, task_2 should stay in its closing state
         (self.task_1 + self.task_2).write(
             {
                 "step_id": stage_won.id,
@@ -136,9 +107,6 @@ class TestTaskState(TestProjectCommon):
             "task_2 state should stay in its closed state",
         )
 
-        # 3) change task_1 and task_2 project: task_1 reopens, task_2 stays closed
-
-        # we make change the task_1 state back to an open state
         self.task_1.write(
             {
                 "state": "changes_requested",
@@ -259,7 +227,6 @@ class TestTaskState(TestProjectCommon):
         self.assertEqual(task_1_copy.state, "blocked")
 
     def test_task_created_in_waiting_stage_gets_in_progress_state(self) -> None:
-        """Test that when a new task is created in the "Waiting" state (by grouping by state in Kanban view), it gets the state "In Progress" by default."""
         project_pigs = self.env["project.project"].search([("name", "=", "Pigs")])
         task = (
             self.env["project.task"]
@@ -304,26 +271,6 @@ class TestTaskState(TestProjectCommon):
     def test_recompute_state_when_task_dependencies_feature_changes(
         self,
     ) -> None:
-        """Test task state is correctly computed when the task dependencies feature changes
-
-        Test Case:
-        ---------
-        1. Enable the task dependencies feature globally.
-        2. Add Task 2 in the dependencies of task 1.
-        3. Check task 1 as the right state ("Waiting" state expected).
-        4. Disable the task dependencies feature on the project linked to the both tasks.
-        5. Check the state of task 1 is correctly reset.
-        6. Enable again the task dependencies feature on the project.
-        7. Check task 1 state is `Waiting` state as before.
-        8. Mark as done task 2
-        9. Task 1 state should now be reset since all the tasks in dependencies are done
-           (in that case only task 2 is in the dependencies).
-        10. Change the state of task 1 to set it to `Approved` state.
-        11. Disable the task dependencies feature on the project
-        12. Check the state of task 1 did not change
-        13. Enable again the task dependencies on the project.
-        14. Check the state of task 1 did not change.
-        """
         self.assertTrue(self.project_goats.allow_dependencies)
         self.assertTrue(
             self.env.user.has_group("project.group_project_task_dependencies")

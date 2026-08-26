@@ -53,62 +53,35 @@ class TestProjectStagesMulticompany(TestMultiCompanyProject):
         )
 
     def test_move_linked_project_stage_other_company(self) -> None:
-        """This test will check that an error is raised if a project belonging to a stage
-        (both linked to company A) is moved to another stage (belonging to company B)
-        """
         self.project_company_a.phase_id = self.stage_company_a.id
         with self.assertRaises(UserError):
             self.project_company_a.phase_id = self.stage_company_b.id
 
     def test_move_project_stage_other_company(self) -> None:
-        """This test will check that an error is raised a project belonging to a stage (both
-        not linked to any company) is moved to another stage (belonging to company B)
-        """
         self.project_company_none.phase_id = self.stage_company_none.id
         with self.assertRaises(UserError):
             self.project_company_none.phase_id = (self.stage_company_b.id,)
 
     def test_move_linked_project_stage_same_company(self) -> None:
-        """This test will check that no error is raised if a project belonging to a stage (with
-        only the project belonging to company B and the stage not linked to any company) is moved
-        to another stage (belonging to company B)
-        """
         self.project_company_b.phase_id = self.stage_company_none.id
         self.project_company_b.phase_id = self.stage_company_b.id
 
     def test_move_project_stage_same_company(self) -> None:
-        """This test will check that no error is raised if a project belonging to a stage (both
-        linked to company A) is moved to another stage (also belonging to company A)
-        """
         self.project_company_a.phase_id = self.stage_company_a.id
         self.stage_company_none.company_id = self.company_a.id
         self.project_company_a.phase_id = self.stage_company_none.id
 
     def test_change_project_company(self) -> None:
-        """This test will check that a project's stage is changed according to the
-        company it is linked to. When a project (belonging to a stage with both the
-        project and the stage linked to company A) changes company for company B,
-        the stage should change for the lowest stage in sequence that is linked to
-        company B. If there is no stage linked to company B, then the lowest stage
-        in sequence linked to no company will be chosen
-        """
         project = self.project_company_a.with_user(self.user_manager_companies)
         project.phase_id = self.stage_company_a.id
         project.company_id = self.company_b.id
 
-        # Check that project was moved to stage_company_b
         self.assertFalse(
             self.project_company_a.phase_id.company_id,
             "Project Company A should now be in a stage without company",
         )
 
     def test_project_creation_default_stage(self) -> None:
-        """Check that when creating a project with a company set, the default stage
-        for this project has the same company as the project or no company.
-        If no company is set on the project, the first stage without a company
-        should be chosen.
-        """
-        # Stage order: company A, company B, no company
         self.stage_company_a.sequence = 1
         self.stage_company_b.sequence = 3
 
@@ -125,7 +98,6 @@ class TestProjectStagesMulticompany(TestMultiCompanyProject):
         self.assertEqual(project_company_b.company_id, self.company_b)
         self.assertEqual(project_company_b.phase_id, self.stage_company_b)
 
-        # Stage order: company A, no company, company B
         self.stage_company_none.sequence = 2
 
         project_company_b = (
@@ -166,7 +138,6 @@ class TestProjectStagesMulticompany(TestMultiCompanyProject):
         self.assertFalse(project_no_company.phase_id)
 
     def test_project_creation_default_stage_in_context(self) -> None:
-        """Project's company should be the same as the default stage's company in the context."""
         project = (
             self.env["project.project"]
             .with_user(self.user_manager_companies)
@@ -180,7 +151,6 @@ class TestProjectStagesMulticompany(TestMultiCompanyProject):
         self.assertEqual(project.company_id, self.company_b)
 
     def test_create_project_in_stage(self) -> None:
-        """Test create project inside a specific stage"""
         self.env["res.config.settings"].create({"group_project_stages": True}).execute()
         stage = self.env["project.phase"].create(
             {

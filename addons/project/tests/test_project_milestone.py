@@ -30,7 +30,6 @@ class TestProjectMilestone(TestProjectCommon):
         )
 
     def test_milestones_settings_change(self) -> None:
-        # To be sure the feature is disabled globally to begin the test.
         self.env.user.group_ids -= self.env.ref("project.group_project_milestone")
         project1 = self.env["project.project"].create(
             {"name": "Test allow_milestones on New Project"}
@@ -46,7 +45,6 @@ class TestProjectMilestone(TestProjectCommon):
                 "New projects allow_milestones should be False by default.",
             )
 
-        # Now, enable the feature
         self.env.user.group_ids |= self.env.ref("project.group_project_milestone")
         project2 = self.env["project.project"].create(
             {"name": "Test allow_milestones on New Project"}
@@ -63,16 +61,6 @@ class TestProjectMilestone(TestProjectCommon):
             )
 
     def test_change_project_in_task(self) -> None:
-        """Test when a task is linked to a milestone and when we change its project the milestone is removed (and
-        we fallback on the parent milestone if it belongs to the same project)
-
-        Test Case:
-        =========
-        1) Set a milestone on the task
-        2) Change the project of that task
-        3) Check no milestone is linked to the task (or the one of its parent is used if relevant)
-        """
-        # A. No parent task
         self.task_1.milestone_id = self.milestone_pigs
         self.assertEqual(self.task_1.milestone_id, self.milestone_pigs)
 
@@ -82,7 +70,6 @@ class TestProjectMilestone(TestProjectCommon):
             "No milestone should be linked to the task since its project has changed",
         )
 
-        # B. Parent task with no milestone set
         task_2 = (
             self.env["project.task"]
             .with_context({"mail_create_nolog": True})
@@ -104,7 +91,6 @@ class TestProjectMilestone(TestProjectCommon):
             "No milestone should be linked to the task since its project has changed and its parent task has no milestone",
         )
 
-        # C. Parent task with a milestone set but on a different project
         self.task_1.project_id = self.project_pigs
         self.task_1.milestone_id = self.milestone_pigs
         task_2.project_id = self.project_pigs
@@ -117,7 +103,6 @@ class TestProjectMilestone(TestProjectCommon):
             "No milestone should be linked to the task since its project has changed and its parent task belongs to another project",
         )
 
-        # D. Parent task with a milestone set on the same project
         self.task_1.project_id = self.project_goats
         self.task_1.milestone_id = self.milestone_goats
         task_2.project_id = self.project_pigs
@@ -130,7 +115,6 @@ class TestProjectMilestone(TestProjectCommon):
             "The milestone of the task should be replaced by the one of its parent task as they now belong to the same project",
         )
 
-        # E. No milestone for private task
         task_2.parent_id = False
         self.assertEqual(task_2.milestone_id, self.milestone_goats)
         task_2.project_id = False
@@ -140,12 +124,6 @@ class TestProjectMilestone(TestProjectCommon):
         )
 
     def test_duplicate_project_duplicates_milestones_on_tasks(self) -> None:
-        """Test when we duplicate the project with tasks linked to its' milestones,
-        that the tasks in the new project are also linked to the duplicated milestones of the new project
-        We can't really robustly test that the mapping of task -> milestone is the same in the old and new project,
-        the workaround way of testing the mapping is basing ourselves on unique names and check that those are equals in the test.
-        """
-        # original unique_names, used to map between the original -> copy
         unique_name_1 = "unique_name_1"
         unique_name_2 = "unique_name_2"
         unique_names = [unique_name_1, unique_name_2]
@@ -214,9 +192,6 @@ class TestProjectMilestone(TestProjectCommon):
             )
 
     def test_duplicate_project_with_milestones_disabled(self) -> None:
-        """This test ensures that when a project that has some milestones linked to it but with the milesones feature disabled is copied,
-        the copy does not have the feature enabled, and none of the milestones have been copied.
-        """
         extra_milestone_pigs = (
             self.env["project.milestone"]
             .with_context({"mail_create_nolog": True})
@@ -247,11 +222,6 @@ class TestProjectMilestone(TestProjectCommon):
         )
 
     def test_basic_milestone_write(self) -> None:
-        """Testing basic milestone/project write operation on task, i.e:
-        1. Set/change the milestone of a task
-        2. Change the milestone/project of a task simultaneously
-        3. Set/change to an invalid milestone
-        """
         extra_milestone_pigs = (
             self.env["project.milestone"]
             .with_context({"mail_create_nolog": True})
@@ -263,7 +233,6 @@ class TestProjectMilestone(TestProjectCommon):
             )
         )
 
-        # 1. Set/change the milestone of a task
         self.task_1.project_id = self.project_pigs
         self.assertEqual(self.task_1.project_id, self.project_pigs)
         self.assertFalse(self.task_1.milestone_id)
@@ -281,7 +250,6 @@ class TestProjectMilestone(TestProjectCommon):
             "Change of the milestone of a task to a milestone from the same project is not working properly.",
         )
 
-        # 2. Change the milestone/project of a task simultaneously
         self.assertEqual(self.task_1.project_id, self.project_pigs)
         self.assertEqual(self.task_1.milestone_id, extra_milestone_pigs)
 
@@ -302,7 +270,6 @@ class TestProjectMilestone(TestProjectCommon):
             "Changing the project of a task and its milestone simultaneously is not working properly.",
         )
 
-        # 3. Set/change to an invalid milestone
         self.assertEqual(self.task_1.project_id, self.project_goats)
         self.assertEqual(self.task_1.milestone_id, self.milestone_goats)
 
@@ -313,16 +280,6 @@ class TestProjectMilestone(TestProjectCommon):
         )
 
     def test_set_milestone_parent_task(self) -> None:
-        """When a milestone is set on a parent task, it is set as well on its child tasks if they have no milestone set yet and
-        if they belong to the same project (or they have no project set).
-
-        Test Case:
-        =========
-        1) Set a milestone on the task (or not)
-        2) Change the milestone of its parent
-        3) Check the result
-        """
-        # A. Child task with no milestone set and belonging to the same project
         task_2, task_3 = (
             self.env["project.task"]
             .with_context({"mail_create_nolog": True})
@@ -352,7 +309,6 @@ class TestProjectMilestone(TestProjectCommon):
             "The milestone of the parent task should be set to its subtasks if they belong to the same project (or the subtask has not project set) and the subtask has no milestone already set.",
         )
 
-        # B. Child task with a milestone already set
         extra_milestone_pigs = (
             self.env["project.milestone"]
             .with_context({"mail_create_nolog": True})
@@ -375,7 +331,6 @@ class TestProjectMilestone(TestProjectCommon):
             "The milestone of the child task should not be modified has it has already one set.",
         )
 
-        # C. Child task with no milestone set but belonging to another project
         task_2.project_id = self.project_goats
         self.assertFalse(task_2.milestone_id)
         self.task_1.milestone_id = extra_milestone_pigs
@@ -384,7 +339,6 @@ class TestProjectMilestone(TestProjectCommon):
             "The milestone of the parent task should not be set to its child task as they belong to different projects.",
         )
 
-        # D. Recursion test (grand-parent task's milestone set to grand-child task)
         task_3.parent_id = task_2
         self.task_1.project_id = task_2.project_id = task_3.project_id = (
             self.project_pigs
@@ -400,7 +354,6 @@ class TestProjectMilestone(TestProjectCommon):
             "The milestone of the parent task should be set to its (grand)child tasks recursively.",
         )
 
-        # E. Recursion test 2 (grand-child task has no milestone but first level child does)
         self.task_1.milestone_id = False
         task_2.milestone_id = self.milestone_pigs
         task_3.milestone_id = False
@@ -415,7 +368,6 @@ class TestProjectMilestone(TestProjectCommon):
             "The milestone of the parent task should be set to its (grand)child tasks recursively. If a child task milestone should not be updated, it stops the recursion.",
         )
 
-        # F. Update of the parent's milestone, trigger the update of the subtask's milestone if they were the same before change
         self.task_1.milestone_id = self.milestone_pigs
         self.assertEqual(task_2.milestone_id, self.milestone_pigs)
         self.assertEqual(self.task_1.milestone_id, self.milestone_pigs)
@@ -426,7 +378,6 @@ class TestProjectMilestone(TestProjectCommon):
             "If parent and child tasks share the same milestone, the update of the parent's milestone should trigger the update of its child's milestone.",
         )
 
-        # G. Same as F but project and milestone of the parent task are changed at the same time -> The milestone of the child change as it will follow its parent in the other project
         self.assertEqual(task_2.milestone_id, extra_milestone_pigs)
         self.assertEqual(self.task_1.milestone_id, extra_milestone_pigs)
 
@@ -441,9 +392,8 @@ class TestProjectMilestone(TestProjectCommon):
             "The child milestone should be updated if the parent task's project is changed.",
         )
 
-        # H. Same as G but project the project writen value is the same as the previous one -> No actual change of project_id so update the subtask milestone
         self.task_1.project_id = self.project_pigs
-        task_2._compute_milestone_id()  # For some reason, though it should be auto triggered, because task_2.project_id changes with previous line, it's not
+        task_2._compute_milestone_id()
         self.task_1.milestone_id = extra_milestone_pigs
         self.assertEqual(task_2.milestone_id, extra_milestone_pigs)
         self.assertEqual(self.task_1.milestone_id, extra_milestone_pigs)
@@ -461,7 +411,6 @@ class TestProjectMilestone(TestProjectCommon):
             "The child milestone should be updated as the project of the parent task does not actually change.",
         )
 
-        # I. Same case as G but the display_on_project is set to False on the child task -> Both project and milestone of the subtask should be updated
         self.task_1.write(
             {
                 "project_id": self.project_pigs.id,
@@ -485,7 +434,6 @@ class TestProjectMilestone(TestProjectCommon):
             "The child milestone should be updated if the parent task's project is changed only if dislay_on_project is set to False for the subtask.",
         )
 
-        # J. Same case as F but subtask is closed -> no update of its milestone
         self.task_1.project_id = task_2.project_id = self.project_pigs
         self.task_1.milestone_id = task_2.milestone_id = self.milestone_pigs
         task_2.state = "done"
@@ -505,16 +453,6 @@ class TestProjectMilestone(TestProjectCommon):
         )
 
     def test_project_milestone_color(self) -> None:
-        """Test Steps:
-        1. Assign `milestone_pigs` to `task_1` and mark it as 'done'.
-        2. Set `milestone_goats` deadline to yesterday.
-        3. Compute the next milestone for `project_pigs` and `project_goats`.
-        4. Validate that:
-           - `project_goats` has exceeded the milestone deadline.
-           - `project_pigs` has not exceeded the milestone deadline.
-           - `project_pigs` can mark the milestone as done.
-           - `project_goats` cannot mark the milestone as done.
-        """
         self.task_1.write(
             {
                 "milestone_id": self.milestone_pigs.id,
@@ -547,11 +485,7 @@ class TestProjectMilestone(TestProjectCommon):
 
 @tagged("post_install", "-at_install")
 class TestMilestoneCopyAndCompletion(TestProjectCommon):
-    """Milestones through project duplication, and when one may be marked done."""
-
     def test_multi_project_copy_isolates_milestones(self) -> None:
-        """Copying several projects at once must give each copy only its own
-        milestones, not the union of every source project's milestones."""
         project_a = self.env["project.project"].create(
             {
                 "name": "Alpha",
@@ -583,8 +517,6 @@ class TestMilestoneCopyAndCompletion(TestProjectCommon):
         self.assertEqual(copies[1].milestone_ids.name, "B-M1")
 
     def test_empty_milestone_mark_done_consistent(self) -> None:
-        """M1: an empty milestone must be non-markable in both the saved and
-        the onchange (NewId) computation."""
         self.project_pigs.allow_milestones = True
         saved = self.env["project.milestone"].create(
             {"project_id": self.project_pigs.id, "name": "M"}
@@ -601,10 +533,6 @@ class TestMilestoneCopyAndCompletion(TestProjectCommon):
         )
 
     def test_milestone_markable_reacts_to_task_state(self) -> None:
-        """can_be_marked_as_done must recompute when a task's state changes.
-
-        Bug: the compute had no @api.depends, so the cached value went stale.
-        """
         project = self.env["project.project"].create(
             {"name": "MSReact", "allow_milestones": True}
         )
@@ -616,8 +544,50 @@ class TestMilestoneCopyAndCompletion(TestProjectCommon):
         )
         self.assertFalse(milestone.can_be_marked_as_done, "open task → not markable")
         task.state = "done"
-        # No manual invalidate: @api.depends must trigger the recompute.
         self.assertTrue(
             milestone.can_be_marked_as_done,
             "closing the only task must make the milestone markable (depends)",
         )
+
+    def test_late_milestone_flag_reacts_to_a_milestone_switch(self) -> None:
+        project = self.env["project.project"].create(
+            {"name": "LateSwitch", "allow_milestones": True}
+        )
+        late, soon = self.env["project.milestone"].create(
+            [
+                {
+                    "name": "LATE",
+                    "project_id": project.id,
+                    "deadline": fields.Date.today() - relativedelta(days=5),
+                },
+                {
+                    "name": "SOON",
+                    "project_id": project.id,
+                    "deadline": fields.Date.today() + relativedelta(days=5),
+                },
+            ]
+        )
+        task = self.env["project.task"].create(
+            {"name": "t", "project_id": project.id, "milestone_id": soon.id}
+        )
+        self.assertFalse(task.has_late_and_unreached_milestone)
+        task.milestone_id = late
+        self.assertTrue(task.has_late_and_unreached_milestone)
+
+    def test_late_milestone_flag_reacts_to_a_deadline_move(self) -> None:
+        project = self.env["project.project"].create(
+            {"name": "LateMove", "allow_milestones": True}
+        )
+        milestone = self.env["project.milestone"].create(
+            {
+                "name": "M",
+                "project_id": project.id,
+                "deadline": fields.Date.today() + relativedelta(days=5),
+            }
+        )
+        task = self.env["project.task"].create(
+            {"name": "t", "project_id": project.id, "milestone_id": milestone.id}
+        )
+        self.assertFalse(task.has_late_and_unreached_milestone)
+        milestone.deadline = fields.Date.today() - relativedelta(days=1)
+        self.assertTrue(task.has_late_and_unreached_milestone)

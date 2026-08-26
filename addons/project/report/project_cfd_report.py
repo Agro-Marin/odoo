@@ -1,10 +1,3 @@
-"""Cumulative Flow Diagram report for project tasks.
-
-Renders a stacked area chart showing the number of tasks in each workflow
-step over time.  The SQL reuses the same mail_tracking_value reconstruction
-as the burndown chart but aggregates as COUNT per (step_id, date_bucket).
-"""
-
 from typing import Any
 
 from odoo import _, api, fields, models
@@ -15,8 +8,6 @@ from odoo.addons.resource.models.utils import filter_domain_leaf
 
 
 class ProjectCFDReport(models.AbstractModel):
-    """Cumulative Flow Diagram showing task counts per workflow step over time."""
-
     _name = "project.cfd.report"
     _description = "Cumulative Flow Diagram"
     _auto = False
@@ -63,7 +54,6 @@ class ProjectCFDReport(models.AbstractModel):
 
     @property
     def task_specific_fields(self) -> list[str]:
-        """Fields that map to project.task columns for CTE filtering."""
         return [
             "date_assign",
             "date_end",
@@ -86,12 +76,6 @@ class ProjectCFDReport(models.AbstractModel):
         order: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        """Inject CTE-based SQL that reconstructs task step history.
-
-        The approach mirrors the burndown chart: split the incoming domain
-        into task-specific and report-specific parts, build a CTE from
-        mail_tracking_value history, and inject it into the ORM query.
-        """
         cfd_specific_domain, task_specific_domain = self._determine_domains(domain)
         main_query = super()._search(
             cfd_specific_domain,
@@ -119,10 +103,6 @@ class ProjectCFDReport(models.AbstractModel):
         )
         date_groupby = next(g for g in groupby if g.startswith("date"))
 
-        # Defensive default. A bare "date" groupby never reaches here — the ORM
-        # rejects it upstream ("Granularity not set on a date(time) field") — but
-        # _search also reads this groupby out of the context, where a caller can
-        # put anything, and split(":")[1] on a bare "date" would raise IndexError.
         interval = date_groupby.split(":")[1] if ":" in date_groupby else "month"
         sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
 
@@ -204,7 +184,17 @@ class ProjectCFDReport(models.AbstractModel):
                         %(date_end)s,
                         step_id
               )
-              SELECT (project_id*10^13 + step_id*10^7 + to_char(date, 'YYMMDD')::integer)::bigint as id,
+              -- row_number(), not arithmetic on the grouping keys. The old
+              -- expression was not a key twice over: `^` is float8
+              -- exponentiation in Postgres, so project_id*10^13 passes 2^53 at
+              -- project_id 901 and consecutive days collapsed onto one id
+              -- (measured: 7 distinct ids for 14 distinct dates at 950); and
+              -- all_step_task_moves also groups by planned_hours and
+              -- date_closed, so two tasks in one (project, step) already
+              -- collided at any id. Nothing consumed the id -- both views are
+              -- graph-only with disable_linking -- so nothing was broken, but a
+              -- model whose id is not a key is a trap for whoever adds a list.
+              SELECT row_number() OVER ()::bigint as id,
                      project_id,
                      step_id,
                      date,
@@ -226,11 +216,6 @@ class ProjectCFDReport(models.AbstractModel):
 
     @api.model
     def _validate_group_by(self, groupby: list[str]) -> None:
-        """Ensure groupby contains both date and step_id.
-
-        :param groupby: List of group by fields.
-        :raises UserError: If required groupby fields are missing.
-        """
         date_in_groupby = False
         step_in_groupby = False
         for gb in groupby:
@@ -249,11 +234,6 @@ class ProjectCFDReport(models.AbstractModel):
 
     @api.model
     def _determine_domains(self, domain: list) -> tuple[list, list]:
-        """Split domain into CFD-specific and task-specific parts.
-
-        :param domain: The domain passed to read_group.
-        :return: Tuple of (cfd_domain, task_domain).
-        """
         cfd_specific_fields = list(set(self._fields) - set(self.task_specific_fields))
         task_specific_domain = filter_domain_leaf(
             domain, lambda field: field not in cfd_specific_fields
@@ -264,7 +244,6 @@ class ProjectCFDReport(models.AbstractModel):
         return non_task_specific_domain, task_specific_domain
 
     def _read_group_select(self, aggregate_spec: str, query: Any) -> SQL:
-        """Use SUM for task_count since it's pre-aggregated in the CTE."""
         if aggregate_spec == "task_count:sum":
             return SQL("SUM(%s)", SQL.identifier(self._table, "task_count"))
         if aggregate_spec == "__count":
@@ -281,7 +260,6 @@ class ProjectCFDReport(models.AbstractModel):
         limit: int | None = None,
         order: str | None = None,
     ) -> list:
-        """Validate groupby and pass it to context for _search."""
         self._validate_group_by(groupby)
         self = self.with_context(project_cfd_report_groupby=groupby)
 

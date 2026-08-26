@@ -29,7 +29,6 @@ class TestProjectTaskQuickCreate(TestProjectCommon):
         )
 
     def test_create_task_with_valid_expressions(self) -> None:
-        # dict format = {display name: (expected name, expected tags count, expected users count, expected priority, expected planned hours)}
         valid_expressions = {
             "task A 30H 2.5h #Tag1 #tag2 @Armande @Bast @raouf1 @raouf2 !": (
                 "task A 30H 2.5h",
@@ -219,3 +218,21 @@ class TestProjectTaskQuickCreate(TestProjectCommon):
             self.project_pigs.id,
             "The task project_id should be set",
         )
+
+    def test_quick_create_survives_a_regex_metacharacter_in_a_mention(self) -> None:
+        Task = self.env["project.task"].with_context(
+            default_project_id=self.project_pigs.id
+        )
+        for title in ("Fix login @foo(", "Fix login @a[b", "Fix login @foo( !!"):
+            with self.subTest(title=title):
+                task = Task.create({"display_name": title})
+                self.assertTrue(task.name)
+
+    def test_a_resolvable_mention_still_assigns(self) -> None:
+        task = (
+            self.env["project.task"]
+            .with_context(default_project_id=self.project_pigs.id)
+            .create({"display_name": "Fix login @raouf1"})
+        )
+        self.assertIn(self.user1, task.user_ids)
+        self.assertEqual(task.name, "Fix login")

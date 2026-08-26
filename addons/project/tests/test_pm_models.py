@@ -1,11 +1,3 @@
-"""Coverage for previously-untested fork PM models + the 1.8 DB constraints.
-
-Before this file, project.sprint / project.baseline / project.gate /
-project.risk / project.retrospective had zero behavioural tests. These lock in
-the invariants (one current baseline, one active sprint, cross-project gate
-milestone, retrospective non-cyclic chain) and the core computes.
-"""
-
 from datetime import timedelta
 
 from lxml import etree
@@ -27,7 +19,6 @@ class TestPmModels(TestProjectCommon):
         super().setUpClass()
         cls.today = fields.Date.today()
 
-    # ----- project.baseline -------------------------------------------------
     def test_baseline_single_current_db_constraint(self) -> None:
         Baseline = self.env["project.baseline"]
         Baseline.create(
@@ -78,16 +69,14 @@ class TestPmModels(TestProjectCommon):
             }
         )
         baseline.action_capture_snapshot()
-        self.assertEqual(len(baseline.line_ids), len(self.project_goats.tasks))
+        self.assertEqual(len(baseline.line_ids), len(self.project_goats.task_ids))
         line = baseline.line_ids.filtered(lambda ln: ln.task_id == task)
         self.assertEqual(line.task_name, "Snap me")
         self.assertEqual(line.step_id, task.step_id)
         self.assertEqual(line.planned_end, task.date_end)
-        # Re-capturing on the same baseline is rejected.
         with self.assertRaises(UserError):
             baseline.action_capture_snapshot()
 
-    # ----- project.sprint ---------------------------------------------------
     def _make_sprint(self, name, state="planning"):
         return self.env["project.sprint"].create(
             {
@@ -160,7 +149,6 @@ class TestPmModels(TestProjectCommon):
         self.assertEqual(sprint.committed_hours, 10.0)
         self.assertEqual(sprint.velocity, 6.0)
 
-    # ----- project.gate -----------------------------------------------------
     def test_gate_milestone_must_match_project(self) -> None:
         self.project_pigs.allow_milestones = True
         self.project_goats.allow_milestones = True
@@ -179,7 +167,6 @@ class TestPmModels(TestProjectCommon):
                 }
             )
 
-    # ----- project.retrospective -------------------------------------------
     def test_retrospective_no_self_cycle(self) -> None:
         retro = self.env["project.retrospective"].create(
             {
@@ -226,10 +213,7 @@ class TestPmModels(TestProjectCommon):
         self.assertEqual(len(r2.action_ids), 1, "only open actions carry forward")
         self.assertEqual(r2.action_ids.name, "Open action")
 
-    # ----- mixin.project.pm -------------------------------------------------
     def test_pm_mixin_copy_appends_copy_suffix(self) -> None:
-        """The shared mixin must append '(copy)' on duplicate for every model
-        that used to carry its own copy_data override."""
         step = self.env["project.workflow.step"].create({"name": "Backlog"})
         phase = self.env["project.phase"].create({"name": "Planning"})
         role = self.env["resource.role"].create({"name": "Reviewer"})
@@ -244,16 +228,15 @@ class TestPmModels(TestProjectCommon):
         self.assertEqual(role.copy().name, "Reviewer (copy)")
         self.assertEqual(triage.copy().name, "Today (copy)")
 
-    # ----- project.risk -----------------------------------------------------
     def test_risk_score_level_boundaries(self) -> None:
         Risk = self.env["project.risk"]
         cases = [
-            ("1", "4", 4, "low"),  # 4  -> low  (below 5)
-            ("1", "5", 5, "medium"),  # 5  -> medium (boundary)
-            ("3", "3", 9, "medium"),  # 9  -> medium (below 10)
-            ("2", "5", 10, "high"),  # 10 -> high (boundary)
-            ("3", "5", 15, "high"),  # 15 -> high (below 16)
-            ("4", "4", 16, "critical"),  # 16 -> critical (boundary)
+            ("1", "4", 4, "low"),
+            ("1", "5", 5, "medium"),
+            ("3", "3", 9, "medium"),
+            ("2", "5", 10, "high"),
+            ("3", "5", 15, "high"),
+            ("4", "4", 16, "critical"),
         ]
         for prob, impact, score, level in cases:
             risk = Risk.create(
@@ -272,60 +255,23 @@ class TestPmModels(TestProjectCommon):
 
 @tagged("-at_install", "post_install")
 class TestPortfolioViews(TestProjectCommon):
-    """The portfolio views must only sort and aggregate on stored columns.
-
-    `_compute_health_indicators` documents that its fields are deliberately
-    non-reactive and "cannot be searched or grouped". Anything the ORM has to
-    push into SQL -- an `order`, a `read_group` aggregate -- therefore raises
-    `Cannot convert ... to SQL because it is not stored`, and the view that
-    asked for it fails to open at all rather than degrading.
-    """
-
     def test_portfolio_list_default_order_is_stored(self):
-        """The list view's default_order must be readable."""
         view = self.env.ref("project.project_portfolio_list")
         order = etree.fromstring(view.arch).get("default_order")
         self.assertTrue(order, "the portfolio list should declare a default_order")
-        # Raises if any component of the order is a non-stored field.
         self.env["project.project"].search([], order=order, limit=5)
 
     def test_portfolio_health_fields_are_aggregatable(self):
-        """The tripwire fired, and this is the revisit it asked for.
-
-        This used to assert the opposite: that health_score must stay unstored,
-        with the note "if health_score ever becomes stored this fails, which is
-        the moment to revisit the graph and pivot measures rather than discover
-        it in a view". That moment came. Unstored, the fields could not be
-        filtered, grouped or sorted at all — ``Cannot convert
-        project.project.health_status to SQL because it is not stored`` — which
-        is most of what a health indicator is for: "show me every project that
-        is off track" is a search. They are stored snapshots now, refreshed by
-        ``_cron_refresh_metrics``, so aggregating them is legal and the general
-        guard below is what keeps the views honest.
-        """
         Project = self.env["project.project"]
         for fname in Project._SNAPSHOT_METRIC_FIELDS:
             self.assertTrue(
                 Project._fields[fname].store,
                 f"{fname} must stay stored: the portfolio views measure it",
             )
-        # Both directions of the contract: aggregatable, and searchable.
         Project._read_group([], ["health_status"], ["health_score:avg"])
         Project.search([], order="health_score desc", limit=5)
 
     def test_reachable_aggregating_views_measure_stored_fields(self):
-        """No action may offer a graph/pivot that measures a non-stored field.
-
-        `read_group` pushes every measure into SQL, so a non-stored compute
-        cannot be aggregated at all -- the view opens on an error dialog rather
-        than on empty data. This is the general form of the portfolio bug, and
-        what made it easy to miss: the same field renders perfectly well in a
-        list, so it looks usable.
-
-        Checked through the actions rather than the views, because that is what
-        decides reachability: a view record kept around for future work is
-        harmless until something offers it.
-        """
         Project = self.env["project.project"]
         actions = self.env["ir.actions.act_window"].search(
             [("res_model", "=", "project.project")]
@@ -333,8 +279,6 @@ class TestPortfolioViews(TestProjectCommon):
         self.assertTrue(actions, "expected act_window actions on project.project")
         offenders = []
         for action in actions:
-            # `views` federates view_mode / view_ids / view_id, so it is the
-            # pair the client actually opens.
             for view_id, mode in action.views:
                 if mode not in ("graph", "pivot"):
                     continue
@@ -356,21 +300,6 @@ class TestPortfolioViews(TestProjectCommon):
 
 @tagged("-at_install", "post_install")
 class TestProjectActionsOpen(TestProjectCommon):
-    """Every act_window this module ships must survive being opened.
-
-    The browser sweep that would catch this (`TestMenusAdmin`, tag
-    `click_all`) is `-standard`, so it never runs; the one that does
-    (`TestMenusAdminLight`) stops at each app's landing action and cannot
-    reach a submenu. That leaves the fork's PM menus — portfolio, sprints,
-    baselines, gates, risks, retrospectives — with no coverage of the one
-    thing a user does first: open them.
-
-    This is the cheap ORM-level half: it performs, per declared view mode, the
-    read the client would issue. It does not render anything, so it catches
-    what fails in SQL (an `order` or a measure over a non-stored compute), not
-    what fails in a template.
-    """
-
     def test_every_project_action_opens(self):
         actions = self.env["ir.actions.act_window"].search([])
         actions = actions.filtered(
@@ -410,14 +339,6 @@ class TestProjectActionsOpen(TestProjectCommon):
         )
 
     def test_menu_reachable_action_contexts_evaluate_without_a_record(self):
-        """A menu entry has no active record, so its action's context must not need one.
-
-        `active_id` is legitimate on an action opened from a form button -- the
-        button executor puts it in the evaluation context first. A menu does
-        not, so the same expression raises before any view is built and the
-        entry opens on an error dialog. The two cases are indistinguishable in
-        the action record itself; only reachability tells them apart.
-        """
         menus = self.env["ir.ui.menu"].search([("action", "!=", False)])
         external_ids = menus.get_external_id()
         menus = menus.filtered(
@@ -431,7 +352,6 @@ class TestProjectActionsOpen(TestProjectCommon):
             if not context or not isinstance(context, str):
                 continue
             try:
-                # What the client has: user context only, no active record.
                 safe_eval(context, {"uid": self.env.uid, "allowed_company_ids": []})
             except Exception as exc:
                 failures.append(
@@ -447,10 +367,7 @@ class TestProjectActionsOpen(TestProjectCommon):
 
 @tagged("post_install", "-at_install")
 class TestRetrospectiveOrdering(TestProjectCommon):
-    """Retrospective actions surface the open ones first."""
-
     def test_retrospective_actions_list_open_items_first(self) -> None:
-        """_order sorted on the raw selection keys, putting Done above Open."""
         retro = self.env["project.retrospective"].create(
             {"name": "R", "project_id": self.project_pigs.id}
         )
@@ -474,15 +391,7 @@ class TestRetrospectiveOrdering(TestProjectCommon):
 
 @tagged("post_install", "-at_install")
 class TestPmModelBehaviour(TestProjectCommon):
-    """Behaviour of the PM-layer models: benefits, baselines, risks, gates, phases, roles, history."""
-
     def test_benefit_review_cron_creates_activity_with_deadline(self) -> None:
-        """The benefit-review cron must write ``date_deadline`` on mail.activity
-        (the fork's date_deadline→date_end rename is task-only).
-
-        Bug: it wrote ``date_end`` — a field mail.activity does not have — so the
-        cron raised ValueError on every run and no reminder was ever created.
-        """
         review = fields.Date.context_today(self.env["project.benefit"]) - timedelta(
             days=1
         )
@@ -504,7 +413,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
         self.assertEqual(len(activity), 1, "Cron must schedule exactly one activity")
         self.assertEqual(activity.date_deadline, review)
-        # Idempotent: a second run must not duplicate the activity.
         self.env["project.benefit"]._cron_check_review_dates()
         self.assertEqual(
             self.env["mail.activity"].search_count(
@@ -518,9 +426,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
 
     def test_benefit_cron_does_not_renag_after_completion(self) -> None:
-        """Once a reminder is scheduled for a review_date, the cron must not
-        re-create it on later runs (even after the user completes it). It
-        re-arms only when review_date moves forward."""
         Benefit = self.env["project.benefit"]
         today = fields.Date.context_today(Benefit)
         benefit = Benefit.create(
@@ -538,7 +443,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
         self.assertEqual(len(acts), 1, "first run schedules one reminder")
         self.assertEqual(benefit.review_reminder_date, benefit.review_date)
-        # User completes (deletes) the activity, then the cron runs again.
         acts.unlink()
         Benefit._cron_check_review_dates()
         self.assertEqual(
@@ -548,7 +452,6 @@ class TestPmModelBehaviour(TestProjectCommon):
             0,
             "cron must NOT re-nag for the same review_date after completion",
         )
-        # Moving review_date forward re-arms the reminder.
         benefit.review_date = today - timedelta(days=1)
         Benefit._cron_check_review_dates()
         self.assertEqual(
@@ -560,19 +463,16 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
 
     def test_duplicate_current_baseline(self) -> None:
-        """C2: copying the current baseline must not hit the partial unique index."""
         baseline = self.env["project.baseline"].create(
             {"project_id": self.project_pigs.id, "name": "B1"}
         )
         baseline.action_set_current()
         baseline.flush_recordset()
-        copy = baseline.copy()  # must not raise IntegrityError
+        copy = baseline.copy()
         copy.flush_recordset()
         self.assertFalse(copy.is_current, "the copy must not also be current")
 
     def test_baseline_snapshot_uses_planned_start(self) -> None:
-        """Baseline snapshots must capture planned_date_begin (scheduled start),
-        not date_assign (actual assignment)."""
         project = self.env["project.project"].create({"name": "BaseProj"})
         begin = fields.Datetime.now() - timedelta(days=5)
         task = self.env["project.task"].create(
@@ -591,13 +491,10 @@ class TestPmModelBehaviour(TestProjectCommon):
         self.assertEqual(line.planned_start, begin)
 
     def test_confidential_child_models_not_leaked(self) -> None:
-        """S1: a plain project user who is not a follower of a follower-only
-        project must not see that project's risks (mirrors the task rule),
-        but must still see risks of an employees-visible project."""
         Risk = self.env["project.risk"]
         secret = Risk.create(
             {
-                "project_id": self.project_goats.id,  # privacy_visibility='followers'
+                "project_id": self.project_goats.id,
                 "name": "SECRET",
                 "probability": "5",
                 "impact": "5",
@@ -605,7 +502,7 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
         visible = Risk.create(
             {
-                "project_id": self.project_pigs.id,  # privacy_visibility='employees'
+                "project_id": self.project_pigs.id,
                 "name": "OPEN",
                 "probability": "1",
                 "impact": "1",
@@ -624,7 +521,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
 
     def test_resolved_risk_excluded_from_counts(self) -> None:
-        """H1: a resolved risk no longer counts toward risk_count / health."""
         risk = self.env["project.risk"].create(
             {
                 "project_id": self.project_pigs.id,
@@ -644,7 +540,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
 
     def test_retrospective_carry_forward_idempotent(self) -> None:
-        """action_carry_forward run twice must not duplicate carried actions."""
         project = self.env["project.project"].create({"name": "RetroProj"})
         prev = self.env["project.retrospective"].create(
             {"name": "Sprint 1", "project_id": project.id}
@@ -665,16 +560,11 @@ class TestPmModelBehaviour(TestProjectCommon):
         self.assertEqual(len(current.action_ids), 1, "carry-forward must be idempotent")
 
     def test_history_duration_uses_completion_not_today(self) -> None:
-        """project.history actual duration must key off real completion (last
-        task closure), not the snapshot date."""
         start = fields.Date.today() - timedelta(days=100)
         project = self.env["project.project"].create(
-            # Both dates: a project carries its scheduling pair or neither
-            # (owner-confirmed rule, now enforced on create as well as write).
             {"name": "HistProj", "date_start": start, "date": fields.Date.today()}
         )
         task = self.env["project.task"].create({"name": "T", "project_id": project.id})
-        # Completed 90 days after start (10 days before "today").
         task.write({"state": "done"})
         task.date_closed = fields.Datetime.to_datetime(start) + timedelta(days=90)
         hist = self.env["project.history"].create_from_project(project)
@@ -686,8 +576,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         self.assertEqual(hist.date_completed, (start + timedelta(days=90)))
 
     def test_gate_criterion_counts(self) -> None:
-        """criteria_met_count / criteria_total_count must reflect the criteria
-        and react to a criterion being marked met."""
         gate = self.env["project.gate"].create(
             {"name": "G1", "project_id": self.project_pigs.id}
         )
@@ -705,7 +593,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
 
     def test_gate_criterion_milestone_cross_project_guard(self) -> None:
-        """A gate's trigger milestone must belong to the gate's project."""
         self.project_goats.allow_milestones = True
         other_ms = self.env["project.milestone"].create(
             {"name": "Other", "project_id": self.project_goats.id}
@@ -720,17 +607,13 @@ class TestPmModelBehaviour(TestProjectCommon):
             )
 
     def test_role_defaults_and_task_assignment(self) -> None:
-        """resource.role gets a color in range and can be assigned to a task."""
         role = self.env["resource.role"].create({"name": "Reviewer"})
         self.assertTrue(1 <= role.color <= 11, "default color must be in [1, 11]")
         self.task_1.role_ids = [(4, role.id)]
         self.assertIn(role, self.task_1.role_ids)
-        # copy suffix from the shared mixin.
         self.assertEqual(role.copy().name, "Reviewer (copy)")
 
     def test_phase_write_company_switch_guard(self) -> None:
-        """Switching a phase's company must raise while a project of a different
-        company is still assigned to it."""
         company_a = self.env["res.company"].create({"name": "Co A"})
         company_b = self.env["res.company"].create({"name": "Co B"})
         phase = self.env["project.phase"].create(
@@ -745,7 +628,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
         with self.assertRaises(UserError):
             phase.company_id = company_b.id
-        # No conflicting project → the switch is allowed.
         empty_phase = self.env["project.phase"].create(
             {"name": "Empty", "company_id": company_a.id}
         )
@@ -753,7 +635,6 @@ class TestPmModelBehaviour(TestProjectCommon):
         self.assertEqual(empty_phase.company_id, company_b)
 
     def test_phase_archive_cascades_to_projects(self) -> None:
-        """Archiving a phase archives every project assigned to it."""
         phase = self.env["project.phase"].create({"name": "Closing"})
         project = self.env["project.project"].create(
             {"name": "Cascade", "phase_id": phase.id}

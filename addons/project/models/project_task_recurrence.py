@@ -7,10 +7,6 @@ from odoo.exceptions import ValidationError
 class ProjectTaskRecurrence(models.Model):
     _name = "project.task.recurrence"
     _description = "Task Recurrence"
-    # `repeat_interval`, `repeat_unit`, `repeat_type` and `_get_recurrence_delta`
-    # are the mixin's. A task's recurrence ends on a *day* the user picks, so
-    # `repeat_until` stays a Date here and is declared below -- see the mixin
-    # for why it does not own that field.
     _inherit = ["mixin.recurrence.rule"]
 
     task_ids = fields.One2many("project.task", "recurrence_id", copy=False)
@@ -19,18 +15,6 @@ class ProjectTaskRecurrence(models.Model):
 
     @api.constrains("repeat_type", "repeat_until")
     def _check_repeat_until_date(self) -> None:
-        """Reject an 'until' recurrence that names no date, or a past one.
-
-        The first half overlaps the mixin's ``_until_required_check`` on
-        purpose, and the two are not redundant: the CHECK is the *invariant*,
-        held by the database against a raw write or a bad migration, while this
-        is the *error quality*. A CHECK surfaces as a ``CheckViolation`` from
-        the INSERT, and callers here are entitled to a ``ValidationError``
-        naming the field -- which is what
-        ``test_recurrence_until_requires_valid_future_date`` pins.
-
-        The second half no CHECK can express at all, because "today" moves.
-        """
         today = fields.Date.today()
         if self.filtered(lambda t: t.repeat_type == "until" and not t.repeat_until):
             raise ValidationError(_("The end date is required for 'Until' recurrence."))
@@ -80,10 +64,6 @@ class ProjectTaskRecurrence(models.Model):
                 or not task.date_end
                 or (
                     rec.repeat_until
-                    # repeat_until is a naive user-calendar Date; date_end is a
-                    # UTC Datetime. Compare in the user's timezone so a boundary
-                    # occurrence isn't dropped (or kept) one day early in a
-                    # non-UTC tz.
                     and fields.Datetime.context_timestamp(
                         rec, task.date_end + rec._get_recurrence_delta()
                     ).date()
@@ -113,10 +93,6 @@ class ProjectTaskRecurrence(models.Model):
         list_copy_data = (
             tasks.with_context(copy_project=True, active_test=False).sudo().copy_data()
         )
-        # Read as sudo, like the copy above: a portal collaborator closing a
-        # recurring task may write `state` but cannot read `recurrence_id`, and
-        # `_read_format` yields False rather than raising -- which silently
-        # detached every occurrence they created from its recurrence.
         list_fields_to_copy = tasks.sudo()._read_format(
             self._get_recurring_fields_to_copy()
         )
@@ -132,8 +108,6 @@ class ProjectTaskRecurrence(models.Model):
             strict=True,
         ):
             recurrence = recurrence_by_task[task]
-            # `_read_format` always emits `id`; neither list may leak the source
-            # task's id into the create values.
             fields_to_copy.pop("id", None)
             fields_to_postpone.pop("id", None)
             create_values = {

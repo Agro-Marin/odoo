@@ -1,5 +1,3 @@
-"""Cumulative flow diagram."""
-
 from datetime import datetime
 
 from odoo import Command
@@ -11,9 +9,6 @@ from .test_project_base import TestProjectCommon
 
 @tagged("post_install", "-at_install")
 class TestCfdReport(TestProjectCommon):
-    """The CFD is reachable from a menu and two buttons but had no test at all,
-    so nothing exercised its hand-injected SQL."""
-
     def test_cfd_reconstructs_step_history(self) -> None:
         year = datetime.now().year - 1
         project = self.env["project.project"].create({"name": "CFD"})

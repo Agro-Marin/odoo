@@ -163,6 +163,11 @@
                 action="project_tags_action"
             />
             <menuitem
+                id="menu_project_task_lost_reason_act"
+                name="Lost Reasons"
+                action="project_task_lost_reason_action"
+            />
+            <menuitem
                 name="Project Roles"
                 id="menu_project_config_roles"
                 action="resource.resource_role_action"

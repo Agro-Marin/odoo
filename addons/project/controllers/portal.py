@@ -17,15 +17,6 @@ from odoo.addons.portal.controllers.portal import pager as portal_pager
 
 class ProjectCustomerPortal(CustomerPortal):
     def _prepare_home_portal_values(self, counters: list[str]) -> dict[str, Any]:
-        """Badge counts for /my, over exactly what the linked pages list.
-
-        Both counters used to be looser than the page behind them — no template
-        filter at all on projects, and only ``project_id != False`` on tasks —
-        so /my advertised template projects and template tasks that /my/projects
-        and /my/tasks then refuse to show. Reuse the pages' own domains
-        (``_prepare_project_domain`` and ``_prepare_task_domain``) so a badge
-        never promises a row the list cannot produce.
-        """
         values = super()._prepare_home_portal_values(counters)
         if "project_count" in counters:
             values["project_count"] = (
@@ -43,9 +34,6 @@ class ProjectCustomerPortal(CustomerPortal):
             )
         return values
 
-    # ------------------------------------------------------------
-    # My Project
-    # ------------------------------------------------------------
     def _project_get_page_view_values(
         self,
         project: Any,
@@ -60,9 +48,7 @@ class ProjectCustomerPortal(CustomerPortal):
         groupby: str | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        # default filter by value
         domain = [("project_id", "=", project.id)]
-        # pager
         url = "/my/projects/%s" % project.id
         values = self._prepare_tasks_values(
             page,
@@ -77,9 +63,6 @@ class ProjectCustomerPortal(CustomerPortal):
             su=bool(access_token) and request.env.user.has_group("base.group_public"),
             project=project,
         )
-        # adding the access_token to the pager's url args,
-        # so we are not prompted for loging when switching pages
-        # if access_token is None, the arg is not present in the URL
         values["pager"]["url_args"]["access_token"] = access_token
         pager = portal_pager(**values["pager"])
 
@@ -92,7 +75,6 @@ class ProjectCustomerPortal(CustomerPortal):
             task_url=f"projects/{project.id}/task",
             preview_object=project,
         )
-        # default value is set to 'project' in _prepare_tasks_values, so we have to set it to 'none' here.
         if not groupby:
             values["groupby"] = "none"
 
@@ -109,7 +91,6 @@ class ProjectCustomerPortal(CustomerPortal):
         return [("is_template", "=", False)]
 
     def _prepare_task_domain(self) -> list:
-        """What /my/tasks lists, and therefore what the /my badge must count."""
         return [
             ("project_id", "!=", False),
             ("is_template", "=", False),
@@ -141,9 +122,6 @@ class ProjectCustomerPortal(CustomerPortal):
         domain = self._prepare_project_domain()
 
         searchbar_sortings = self._prepare_searchbar_sortings()
-        # Clamp to the declared vocabulary: `sortby` comes straight off the
-        # query string, and indexing it unchecked answered `?sortby=anything-else`
-        # with a KeyError (HTTP 500).
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "name")
         order = searchbar_sortings[sortby]["order"]
 
@@ -153,9 +131,7 @@ class ProjectCustomerPortal(CustomerPortal):
                 ("create_date", "<=", date_end),
             ]
 
-        # projects count
         project_count = Project.search_count(domain)
-        # pager
         pager = portal_pager(
             url="/my/projects",
             url_args={
@@ -168,7 +144,6 @@ class ProjectCustomerPortal(CustomerPortal):
             step=self._items_per_page,
         )
 
-        # content according to pager and archive selected
         projects = Project.search(
             domain,
             order=order,
@@ -255,7 +230,6 @@ class ProjectCustomerPortal(CustomerPortal):
         if request.env.lang:
             lang = request.env.lang
             session_info["user_context"]["lang"] = lang
-            # Update Cache
             user_context["lang"] = lang
         lang = user_context.get("lang")
 
@@ -274,7 +248,6 @@ class ProjectCustomerPortal(CustomerPortal):
                     },
                 },
             },
-            # FIXME: See if we prefer to give only the currency that the portal user just need to see the correct information in project sharing
             currencies=request.env["res.currency"].get_all_currencies(),
         )
         session_info["user_context"].update(
@@ -334,9 +307,6 @@ class ProjectCustomerPortal(CustomerPortal):
             [("project_id", "=", project_id), ("id", "=", task_id)], limit=1
         ).sudo()
         if not task_sudo:
-            # An id that does not resolve under this project — missing, or
-            # filtered out by the record rules — used to render the task page
-            # against an empty recordset, i.e. a blank task rather than a 404.
             return request.redirect("/my")
         task_sudo.attachment_ids.generate_access_token()
         values = self._task_get_page_view_values(
@@ -399,7 +369,6 @@ class ProjectCustomerPortal(CustomerPortal):
             )
             values["page_name"] = "project_subtasks"
 
-            # pager
             pager_vals = values["pager"]
             pager_vals["url_args"].update(filterby=filterby)
             pager = portal_pager(**pager_vals)
@@ -489,9 +458,6 @@ class ProjectCustomerPortal(CustomerPortal):
         except AccessError, MissingError:
             return request.not_found()
 
-    # ------------------------------------------------------------
-    # My Task
-    # ------------------------------------------------------------
     def _task_get_page_view_values(
         self, task: Any, access_token: str | None, /, **kwargs: Any
     ) -> dict[str, Any]:
@@ -760,11 +726,6 @@ class ProjectCustomerPortal(CustomerPortal):
             )
         )
 
-        # Default sort/group by value. `_resolve_searchbar_option` also clamps an
-        # unknown key from the query string, which used to be a KeyError (HTTP
-        # 500) in the template's Sort By / Group By buttons. The explicit
-        # milestone_id case stays: that key *is* in the vocabulary, it is just
-        # not usable on a project without milestones.
         if sortby == "milestone_id" and not milestones_allowed:
             sortby = None
         sortby = self._resolve_searchbar_option(
@@ -782,10 +743,8 @@ class ProjectCustomerPortal(CustomerPortal):
                 "create_date", "<=", date_end
             )
 
-        # search reset if needed
         if not milestones_allowed and search_in == "milestone_id":
             search_in = "all"
-        # search
         if search and search_in:
             domain &= Domain(
                 self._task_get_search_domain(
@@ -793,7 +752,6 @@ class ProjectCustomerPortal(CustomerPortal):
                 )
             )
 
-        # content according to pager and archive selected
         if groupby == "none":
             group_field = None
         elif groupby == "priority":
@@ -912,7 +870,6 @@ class ProjectCustomerPortal(CustomerPortal):
             },
         }
 
-        # extends filterby criteria with project the customer has access to
         projects = request.env["project.project"].search(
             project_domain or [], order="id"
         )
@@ -926,8 +883,6 @@ class ProjectCustomerPortal(CustomerPortal):
                 }
             )
 
-        # extends filterby criteria with project (criteria name is the project id)
-        # Note: portal users can't view projects they don't follow
         project_groups = request.env["project.task"]._read_group(
             Domain.AND(
                 [
@@ -989,7 +944,6 @@ class ProjectCustomerPortal(CustomerPortal):
             domain=domain,
         )
 
-        # pager
         pager_vals = values["pager"]
         pager_vals["url_args"].update(filterby=filterby)
         pager = portal_pager(**pager_vals)
@@ -1009,8 +963,6 @@ class ProjectCustomerPortal(CustomerPortal):
     def _show_task_report(
         self, task_sudo: Any, report_type: str, download: bool | None
     ) -> Response:
-        # This method is to be overriden to report timesheets if the module is installed.
-        # The route should not be called if at least hr_timesheet is not installed
         raise MissingError(_("There is nothing to report."))
 
     @http.route(["/my/tasks/<int:task_id>"], type="http", auth="public", website=True)
@@ -1034,12 +986,8 @@ class ProjectCustomerPortal(CustomerPortal):
                 task_sudo, report_type, download=kw.get("download")
             )
 
-        # ensure attachment are accessible with access token inside template
-        # (batched on the whole recordset — one write, not one per attachment)
         task_sudo.attachment_ids.generate_access_token()
         if project_sharing is True:
-            # Then the user arrives to the stat button shown in form view of project.task and the portal user can see only 1 task
-            # so the history should be reset.
             request.session["my_tasks_history"] = task_sudo.ids
         values = self._task_get_page_view_values(task_sudo, access_token, **kw)
         return request.render("project.portal_my_task", values)
@@ -1059,9 +1007,10 @@ class ProjectCustomerPortal(CustomerPortal):
         access_token: str | None = None,
         **kwargs: Any,
     ) -> Response:
+        task_id = _parse_record_id(res_id)
         try:
             task_sudo = self._document_check_access(
-                "project.task", _parse_record_id(res_id), access_token=access_token
+                "project.task", task_id, access_token=access_token
             )
             if not task_sudo.with_user(
                 request.env.uid
@@ -1076,8 +1025,6 @@ class ProjectCustomerPortal(CustomerPortal):
 
         IrAttachment = request.env["ir.attachment"]
 
-        # Avoid using sudo when not necessary: internal users can create attachments,
-        # as opposed to public and portal users.
         if not request.env.user._is_internal():
             IrAttachment = IrAttachment.sudo()
 
@@ -1086,7 +1033,7 @@ class ProjectCustomerPortal(CustomerPortal):
                 "name": name,
                 "datas": data,
                 "res_model": "project.task",
-                "res_id": res_id,
+                "res_id": task_id,
                 "access_token": IrAttachment._prepare_access_token(),
             }
         )

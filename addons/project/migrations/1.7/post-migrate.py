@@ -1,26 +1,3 @@
-"""Recompute PMI fields on every project.task (t20171).
-
-The three new stored compute fields (``scheduled_hours``,
-``planned_hours``, ``allocation_state``) are added empty by the
-pre-migrate.  Stored compute fields stay at their initial value until
-a dependency write triggers recompute, so a same-version reinstall or
-a migration that does not touch dependencies would leave existing
-records at zero.
-
-This post-migrate forces a fresh recompute of all three fields on
-every active task (with or without dates):
-
-- Tasks with ``planned_date_begin`` + ``date_end``: ``scheduled_hours``
-  is recomputed against the company calendar; ``planned_hours`` and
-  ``allocation_state`` cascade through the ``@api.depends`` chain.
-- Tasks without dates: ``scheduled_hours = 0`` →
-  ``planned_hours = 0`` → ``allocation_state = unestimated``.  Honest
-  representation; no legacy seeding.
-
-Tracking is disabled to avoid generating ``mail.tracking.value`` rows
-on the bulk recompute.
-"""
-
 import logging
 
 from odoo import SUPERUSER_ID, api
@@ -29,14 +6,6 @@ _logger = logging.getLogger(__name__)
 
 
 def migrate(cr, version):
-    # Backfill company_id where NULL.  The PMI compute resolves the
-    # calendar via task.company_id (then env.company as last resort).
-    # Without explicit company_id the result depends on the user who
-    # triggers the recompute -- non-deterministic.  Resolution chain:
-    # 1. project.company_id  (canonical Odoo default for project.task)
-    # 2. create_uid.company_id  (the user who created it implicitly chose
-    #    this company; matches what would have been picked at create time)
-    # 3. lowest-id assignee.company_id  (deterministic when no create_uid)
     cr.execute(
         """
         UPDATE project_task pt

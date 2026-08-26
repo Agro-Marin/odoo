@@ -1,17 +1,8 @@
-"""Project baseline (scope snapshot) for tracking schedule and scope variance.
-
-Evidence basis: Scope creep is one of the most common causes of project
-overruns (meta-analyses). Cone of Uncertainty: upfront plans have 4x error
-range. Baselines make accumulated slip visible.
-"""
-
 from odoo import fields, models
 from odoo.exceptions import UserError
 
 
 class ProjectBaseline(models.Model):
-    """A point-in-time snapshot of a project's tasks for variance analysis."""
-
     _name = "project.baseline"
     _description = "Project Baseline"
     _order = "date_created desc, id desc"
@@ -61,13 +52,11 @@ class ProjectBaseline(models.Model):
     )
 
     def action_set_current(self) -> None:
-        """Mark this baseline as the current one, unsetting any previous."""
         self.ensure_one()
         self.project_id.baseline_ids.filtered("is_current").write({"is_current": False})
         self.is_current = True
 
     def action_capture_snapshot(self) -> None:
-        """Create baseline lines from the project's current tasks."""
         self.ensure_one()
         if self.line_ids:
             raise UserError(
@@ -87,9 +76,6 @@ class ProjectBaseline(models.Model):
                 "baseline_id": self.id,
                 "task_id": task.id,
                 "task_name": task.name,
-                # The scheduled start (planned_date_begin), not date_assign —
-                # date_assign is the *actual* assignment timestamp, which would
-                # make every planned-vs-actual variance meaningless.
                 "planned_start": task.planned_date_begin,
                 "planned_end": task.date_end,
                 "planned_hours": task.planned_hours,
@@ -102,8 +88,6 @@ class ProjectBaseline(models.Model):
 
 
 class ProjectBaselineLine(models.Model):
-    """A single task's snapshot within a baseline."""
-
     _name = "project.baseline.line"
     _description = "Baseline Task Snapshot"
     _order = "sequence, id"

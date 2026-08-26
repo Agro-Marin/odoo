@@ -145,14 +145,6 @@ class TestProjectSharingCommon(TestProjectCommon):
 @tagged("project_sharing")
 class TestProjectSharing(TestProjectSharingCommon):
     def test_project_share_wizard(self) -> None:
-        """Test Project Share Wizard
-
-        Test Cases:
-        ==========
-        1) Create the wizard record
-        2) Check if no access rights are given to a portal user
-        3) Add access rights to a portal user
-        """
         self.project_portal.message_unsubscribe(
             partner_ids=self.user_portal.partner_id.ids
         )
@@ -373,7 +365,6 @@ class TestProjectSharing(TestProjectSharingCommon):
                 else:
                     index += 1
 
-        # Saving the dialog no longer changes the project: sharing does.
         self.assertTrue(
             self.project_portal.collaborator_ids,
             "the collaborators must survive a dialog that was never shared",
@@ -412,7 +403,7 @@ class TestProjectSharing(TestProjectSharingCommon):
                         }
                     ),
                 ],
-                "message_partner_ids": [  # readonly access
+                "message_partner_ids": [
                     Command.link(self.partner_2.id),
                 ],
             }
@@ -431,7 +422,6 @@ class TestProjectSharing(TestProjectSharingCommon):
                             collaborator_form.partner_id.id
                         ]
 
-        # Saving the dialog no longer changes the project: sharing does.
         self.assertEqual(
             len(self.project_portal.collaborator_ids),
             2,
@@ -458,7 +448,6 @@ class TestProjectSharing(TestProjectSharingCommon):
         )
 
     def test_project_sharing_access(self) -> None:
-        """Check if the different user types can access to project sharing feature as expected."""
         with self.assertRaises(
             AccessError,
             msg="The public user should not have any access to project sharing feature of the portal project.",
@@ -494,15 +483,6 @@ class TestProjectSharing(TestProjectSharingCommon):
 
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_rule")
     def test_create_task_in_project_sharing(self) -> None:
-        """Test when portal user creates a task in project sharing views.
-
-        Test Cases:
-        ==========
-        1) Give the 'read' access mode to a portal user in a project and try to create task with this user.
-        2) Give the 'comment' access mode to a portal user in a project and try to create task with this user.
-        3) Give the 'edit' access mode to a portal user in a project and try to create task with this user.
-        3.1) Try to change the project of the new task with this user.
-        """
         Task = self.env["project.task"].with_context(
             {
                 "tracking_disable": True,
@@ -510,7 +490,6 @@ class TestProjectSharing(TestProjectSharingCommon):
                 "default_user_ids": [(4, self.user_portal.id)],
             }
         )
-        # 1) Give the 'read' access mode to a portal user in a project and try to create task with this user.
         with self.assertRaises(
             AccessError,
             msg="Should not accept the portal user create a task in the project when he has not the edit access right.",
@@ -536,7 +515,6 @@ class TestProjectSharing(TestProjectSharingCommon):
             self.assertFalse(task.portal_user_names)
             self.assertTrue(task.step_id)
 
-            # Check creating a sub-task while creating the parent task works as expected.
             self.assertEqual(task.child_ids.name, "Test Subtask")
             self.assertEqual(task.child_ids.project_id, self.project_portal)
             self.assertFalse(
@@ -548,7 +526,6 @@ class TestProjectSharing(TestProjectSharingCommon):
                 "No user should be assigned to the new subtask.",
             )
 
-            # 3.1) Try to change the project of the new task with this user.
             with self.assertRaises(
                 AssertionError,
                 msg="Should not accept the portal user changes the project of the task.",
@@ -558,10 +535,8 @@ class TestProjectSharing(TestProjectSharingCommon):
 
         Task = Task.with_user(self.user_portal)
 
-        # Allow to set as parent a task he has access to
         task = Task.create({"name": "foo", "parent_id": self.task_portal.id})
         self.assertEqual(task.parent_id, self.task_portal)
-        # Disallow to set as parent a task he doesn't have access to
         with self.assertRaises(
             AccessError,
             msg="Should not accept the portal user to set a parent task he doesn't have access to.",
@@ -575,7 +550,6 @@ class TestProjectSharing(TestProjectSharingCommon):
                 {"name": "foo"}
             )
 
-        # Create/Update a forbidden task through child_ids
         with self.assertRaisesRegex(AccessError, "top-secret records"):
             Task.create(
                 {
@@ -614,8 +588,6 @@ class TestProjectSharing(TestProjectSharingCommon):
                 }
             )
 
-        # Same thing but using context defaults
-        # However, cache is updated, but nothing is written.
         with self.assertRaisesRegex(AccessError, "top-secret records"):
             Task.with_context(
                 default_child_ids=[
@@ -658,7 +630,6 @@ class TestProjectSharing(TestProjectSharingCommon):
             task.env.invalidate_all()
             self.assertFalse(task.child_ids)
 
-        # Create/update a tag through tag_ids
         with self.assertRaisesRegex(
             AccessError, "not allowed to create 'Project Tags'"
         ):
@@ -677,7 +648,6 @@ class TestProjectSharing(TestProjectSharingCommon):
         ):
             Task.create({"name": "foo", "tag_ids": [Command.delete(self.task_tag.id)]})
 
-        # Same thing but using context defaults
         with self.assertRaisesRegex(
             AccessError, "not allowed to create 'Project Tags'"
         ):
@@ -721,20 +691,6 @@ class TestProjectSharing(TestProjectSharingCommon):
 
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_rule")
     def test_edit_task_in_project_sharing(self) -> None:
-        """Test when portal user creates a task in project sharing views.
-
-        Test Cases:
-        ==========
-        1) Give the 'read' access mode to a portal user in a project and try to edit task with this user.
-        2) Give the 'comment' access mode to a portal user in a project and try to edit task with this user.
-        3) Give the 'edit' access mode to a portal user in a project and try to create task with this user.
-        3.1) Try to change the project of the new task with this user.
-        3.2) Create a sub-task
-        3.3) Create a second sub-task
-        4.1) Restrict to edit with limited access and try to edit a task with and without following it
-        4.2) Restrict to read and check he can no longer edit the tasks, even if he is within the followers
-        """
-        # 1) Give the 'read' access mode to a portal user in a project and try to create task with this user.
         with self.assertRaises(
             AccessError,
             msg="Should not accept the portal user create a task in the project when he has not the edit access right.",
@@ -766,7 +722,6 @@ class TestProjectSharing(TestProjectSharingCommon):
             }
         )
         project_share_wizard.action_send_mail()
-        # the portal user is set as follower for the task_cow. Without it he does not have read access to the task, and thus can not access its view form
         self.task_cow.message_subscribe(partner_ids=self.user_portal.partner_id.ids)
         with self.get_project_sharing_form_view(
             self.task_cow.with_context(
@@ -783,7 +738,6 @@ class TestProjectSharing(TestProjectSharingCommon):
             self.assertEqual(task.name, "Test")
             self.assertEqual(task.project_id, self.project_cows)
 
-        # 3.1) Try to change the project of the new task with this user.
         with self.assertRaises(
             AssertionError,
             msg="Should not accept the portal user changes the project of the task.",
@@ -791,7 +745,6 @@ class TestProjectSharing(TestProjectSharingCommon):
             with self.get_project_sharing_form_view(task, self.user_portal) as form:
                 form.project_id = self.project_portal
 
-        # 3.2) Create a sub-task
         with self.get_project_sharing_form_view(task, self.user_portal) as form:
             with form.child_ids.new() as subtask_form:
                 subtask_form.name = "Test Subtask"
@@ -828,7 +781,6 @@ class TestProjectSharing(TestProjectSharingCommon):
             "the portal user should not be assigned when the portal user creates a task into the project shared.",
         )
 
-        # 3.3) Create a second sub-task
         with self.get_project_sharing_form_view(task, self.user_portal) as form:
             with form.child_ids.new() as subtask_form:
                 subtask_form.name = "Test Subtask"
@@ -838,17 +790,14 @@ class TestProjectSharing(TestProjectSharingCommon):
             "Check 2 subtasks has correctly been created by the user portal.",
         )
 
-        # Allow to set as parent a task he has access to
         task.write({"parent_id": self.task_portal.id})
         self.assertEqual(task.parent_id, self.task_portal)
-        # Disallow to set as parent a task he doesn't have access to
         with self.assertRaises(
             AccessError,
             msg="Should not accept the portal user to set a parent task he doesn't have access to.",
         ):
             task.write({"parent_id": self.task_no_collabo.id})
 
-        # Create/Update a forbidden task through child_ids
         with self.assertRaisesRegex(AccessError, "top-secret records"):
             task.write(
                 {
@@ -866,7 +815,6 @@ class TestProjectSharing(TestProjectSharingCommon):
         with self.assertRaisesRegex(AccessError, "top-secret records"):
             task.write({"child_ids": [Command.set([self.task_no_collabo.id])]})
 
-        # Create/update a tag through tag_ids
         with self.assertRaisesRegex(
             AccessError, "not allowed to create 'Project Tags'"
         ):
@@ -893,8 +841,6 @@ class TestProjectSharing(TestProjectSharingCommon):
         task.write({"tag_ids": [Command.set([self.task_tag.id])]})
         self.assertEqual(task.tag_ids, self.task_tag)
 
-        # 4.1) Restrict the collaborator access to edit with limited access, restricting the collaborator to edit task
-        # on which he is in the followers only
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -911,16 +857,13 @@ class TestProjectSharing(TestProjectSharingCommon):
         ).action_send_mail()
         self.assertTrue(self.project_cows.collaborator_ids.limited_access)
 
-        # Removing the collaborator from the followers prevents him to edit the task
         task.sudo().message_partner_ids -= self.user_portal.partner_id
         with self.assertRaises(AccessError):
             task.write({"name": "foo"})
 
-        # Adding the collaborator back to the followers grants him to edit the task
         task.sudo().message_partner_ids += self.user_portal.partner_id
         task.write({"name": "foo"})
 
-        # 4.2) Restrict the access to read and check he can no longer edit the tasks, even if he is within the followers
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -932,8 +875,6 @@ class TestProjectSharing(TestProjectSharingCommon):
                             "access_mode": "read",
                         }
                     ),
-                    # Create a second collaborator with edit just so that the project sharing record rules
-                    # do not get automatically disabled when removing the last remaining edit collaborator
                     Command.create(
                         {
                             "partner_id": self.env["res.partner"]
@@ -945,27 +886,15 @@ class TestProjectSharing(TestProjectSharingCommon):
                 ],
             }
         ).action_send_mail()
-        # Sanity check: Assert the project sharing record rule is still active
         self.assertTrue(
             self.env.ref("project.project_task_rule_portal_project_sharing").active
         )
 
-        # Assert the collaborator can no longer write on the task despite he is still in the followers of the task
         self.assertIn(self.user_portal.partner_id, task.sudo().message_partner_ids)
         with self.assertRaises(AccessError):
             task.write({"name": "foo"})
 
     def test_portal_user_cannot_see_all_assignees(self) -> None:
-        """Test when the portal sees a task he cannot see all the assignees.
-
-        Because of a ir.rule in res.partner filters the assignees, the portal
-        can only see the assignees in the same company than him.
-
-        Test Cases:
-        ==========
-        1) add many assignees in a task
-        2) check the portal user can read no assignee in this task. Should have an AccessError exception
-        """
         self.task_cow.write({"user_ids": [Command.link(self.user_projectmanager.id)]})
         with self.assertRaises(
             AccessError,
@@ -993,7 +922,6 @@ class TestProjectSharing(TestProjectSharingCommon):
             }
         )
         project_share_wizard.action_send_mail()
-        # subscribe the portal user to give him read access to the task.
         self.task_cow.message_subscribe(partner_ids=self.user_portal.partner_id.ids)
         self.assertFalse(
             self.task_cow.with_user(self.user_portal).user_ids,
@@ -1009,11 +937,6 @@ class TestProjectSharing(TestProjectSharingCommon):
         )
 
     def test_portal_user_can_change_stage_with_rating(self) -> None:
-        """Test portal user can change the stage of task to a stage with rating template email
-
-        The user should be able to change the stage and the email should be sent as expected
-        if a email template is set in `rating_template_id` field in the new stage.
-        """
         self.project_portal.write(
             {
                 "collaborator_ids": [
@@ -1031,17 +954,6 @@ class TestProjectSharing(TestProjectSharingCommon):
         self.task_portal.with_user(self.user_portal).write({"step_id": stage.id})
 
     def test_orm_method_with_true_false_domain(self) -> None:
-        """Test orm method overriden in project for project sharing works
-
-        Test Case
-        =========
-        1) Share a project in edit mode for portal user
-        2) Search the portal task contained in the project shared by using a TRUE domain
-        3) Check the task is found with the `search` method
-        4) Search the task with `FALSE` and check no task is found with `search` method
-        5) Call `read_group` method with `TRUE` in the domain and check if the task is found
-        6) Call `read_group` method with `FALSE` in the domain and check if no task is found
-        """
         domain = Domain("id", "=", self.task_portal.id)
         self.project_portal.write(
             {
@@ -1087,7 +999,6 @@ class TestProjectSharing(TestProjectSharingCommon):
         )
 
     def test_milestone_read_access_right(self) -> None:
-        """This test ensures that a portal user has read access on the milestone of the project that was shared with him"""
         project_milestone = self.env["project.milestone"].create(
             {
                 "name": "Test Project Milestone",
@@ -1111,7 +1022,6 @@ class TestProjectSharing(TestProjectSharingCommon):
                 ],
             }
         )
-        # Reading the milestone should no longer trigger an access error.
         project_milestone.with_user(self.user_portal).read(["name"])
         with self.assertRaises(
             AccessError,
@@ -1135,7 +1045,6 @@ class TestProjectSharing(TestProjectSharingCommon):
             )
 
     def test_add_followers_from_share_edit_wizard(self) -> None:
-        """This test ensures that when a project is shared in edit mode, the partners are correctly set as follower in the project and their respective tasks."""
         company_partner = self.env.company.partner_id
         partners = partner_a, partner_b, partner_d = self.env["res.partner"].create(
             [
@@ -1204,7 +1113,6 @@ class TestProjectSharing(TestProjectSharingCommon):
         )
 
     def test_project_manager_remains_follower_after_sharing(self) -> None:
-        """Test that the project manager remains a follower when collaborators are added"""
         project = (
             self.env["project.project"]
             .with_context({"mail_create_nolog": True})
@@ -1250,14 +1158,6 @@ class TestProjectSharing(TestProjectSharingCommon):
     def test_portal_user_with_edit_rights_can_close_recurring_task(
         self,
     ) -> None:
-        """Test that a portal user with edit rights can close a recurrent task.
-
-        Test Case:
-        ==========
-        1) Create a project with a recurrent task.
-        2) Create a portal user and give them edit rights on the project.
-        3) Ensure the portal user can close the recurrent task.
-        """
         portal_user = self.env["res.users"].create(
             {
                 "name": "Portal User",

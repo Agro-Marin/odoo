@@ -1,34 +1,3 @@
-"""Post-migration for the 1.13 audit batch.
-
-Four repairs, each undoing a state that existing databases can only be in
-because of a defect that 1.13 fixes. All four are idempotent.
-
-1. ``project.workflow.step.user_id`` is gone. The model split in 1.4 already
-   routed personal stages to ``project.triage`` ("fields match
-   project.task.type minus user_id"), but the field survived on the step model
-   along with a create/write guard enforcing that a step was either a project
-   step or somebody's personal stage. Nothing read it — no record rule, no
-   view, no domain, and ``step_find`` searches ``project_ids`` alone — while
-   the guard itself stamped an owner onto every column added from a project's
-   Kanban board, because it inspected ``vals["project_ids"]`` and the board
-   supplies the project through the field default. Drop the column.
-
-2. Projects with no workflow step get one. Only ``name_create`` (the Many2one
-   dropdown quick-create) ever seeded the default ``New`` step, so every
-   project created from the form, an import or a script has an empty board.
-
-3. Tasks with no step join their project's first one. Adding a column to a
-   stepless project does not adopt the tasks already in it, so they would stay
-   off the board forever.
-
-4. ``deadline_met`` is cleared for cancelled tasks. The field now keys off
-   DELIVERED_STATES rather than CLOSED_STATES: a cancelled task did not miss
-   its deadline, it was abandoned, and counting it as a miss both punished
-   teams for killing doomed work early and disagreed with
-   ``project.deadline_compliance_pct``, which has always measured delivered
-   work only.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)

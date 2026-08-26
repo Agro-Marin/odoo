@@ -8,7 +8,7 @@
                     (<t t-esc="(100 * milestone.quantity_percentage).toFixed(2)"/>%)
                 </span>
             </span>
-            <div t-if="milestone.allow_billable" t-attf-class="fst-italic small {{state.colorClass and ' opacity-75' || 'text-muted'}}">
+            <div t-if="milestone.allow_billable" t-attf-class="fst-italic small {{colorClass and ' opacity-75' || 'text-muted'}}">
                 <t t-if="milestone.sale_line_display_name" t-esc="milestone.sale_line_display_name"/>
                 <span t-if="milestone.quantity_percentage &amp;&amp; milestone.sale_line_display_name">
                     (<t t-esc="(100 * milestone.quantity_percentage).toFixed(2)"/>%)

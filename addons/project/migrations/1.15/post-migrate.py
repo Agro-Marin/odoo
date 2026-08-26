@@ -1,31 +1,3 @@
-"""Move `project.role` records onto the shared `resource.role`.
-
-`project` and `planning` had each grown their own role model, field for field
--- name, active, colour, sequence -- so a role defined in one was invisible to
-the other even when both meant the same person. `resource.role` is the shared
-one, and it lives in `resource` because the question a role answers ("what can
-this resource do") belongs to the resource rather than to whichever app asks.
-
-`project.role` is the first to move; it has no other module extending it.
-
-Two things have to travel, not just the rows:
-
-- `project.task.role_ids` is a Many2many with no explicit relation, so its
-  table name is derived from the two model tables. Repointing the comodel
-  changes that name, and the ORM creates the new (empty) table on upgrade
-  while the old one keeps every link. The relation's real name is read off
-  the field rather than spelled out here, so this cannot drift from whatever
-  the ORM actually built.
-- The new ids differ from the old ones: `resource_role` has its own sequence
-  and may already hold rows. A temporary column carries the old id across so
-  the link table can be remapped, and is dropped again immediately.
-
-`project.template.role.to.users.map` also points at the model, but it is a
-TransientModel -- its rows are vacuumed, so there is nothing to migrate.
-
-Idempotent: guarded on the legacy table still existing.
-"""
-
 import logging
 
 from odoo import SUPERUSER_ID, api
@@ -50,8 +22,6 @@ def migrate(cr, version):
     total = cr.fetchone()[0]
 
     cr.execute("ALTER TABLE resource_role ADD COLUMN _legacy_project_role_id integer")
-    # `name` is translated on both sides, so it is jsonb on both and copies
-    # across whole -- every language, not just the one this upgrade runs in.
     cr.execute("""
         INSERT INTO resource_role
                (name, active, color, sequence,

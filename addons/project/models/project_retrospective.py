@@ -1,17 +1,8 @@
-"""Retrospective and action tracking for organizational learning.
-
-Evidence basis: Deming PDSA (no feedback loop = no learning), NASA LLIS
-(lessons existed but weren't applied), Google Project Aristotle
-(psychological safety built through retros is #1 predictor).
-"""
-
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
 class ProjectRetrospective(models.Model):
-    """A structured review capturing what went well, what to improve, and action items."""
-
     _name = "project.retrospective"
     _description = "Project Retrospective"
     _order = "date desc, id desc"
@@ -67,12 +58,6 @@ class ProjectRetrospective(models.Model):
 
     @api.depends("action_ids.state")
     def _compute_open_action_count(self) -> None:
-        """Count the OPEN actions per retrospective.
-
-        The total is `fields.Count("action_ids")` and no longer computed here:
-        `len(retro.action_ids)` is exactly what that field declares, and
-        splitting narrows this compute's dependency to the `state` it reads.
-        """
         for retro in self:
             retro.open_action_count = len(
                 retro.action_ids.filtered(lambda a: a.state in ("open", "in_progress"))
@@ -80,11 +65,6 @@ class ProjectRetrospective(models.Model):
 
     @api.constrains("previous_id")
     def _check_previous_no_cycle(self) -> None:
-        """A retrospective cannot chain back to itself via previous_id.
-
-        Without this, a self-link makes action_carry_forward duplicate a
-        retrospective's own actions, and a longer loop is unbounded.
-        """
         if self._has_cycle("previous_id"):
             raise ValidationError(
                 self.env._(
@@ -94,12 +74,9 @@ class ProjectRetrospective(models.Model):
             )
 
     def action_carry_forward(self) -> None:
-        """Carry forward open actions from previous retrospective."""
         self.ensure_one()
         if not self.previous_id:
             return
-        # Idempotent: skip actions already carried over, so running the button
-        # twice does not duplicate every open item.
         already_carried = set(self.action_ids.mapped("carried_from_id").ids)
         open_actions = self.previous_id.action_ids.filtered(
             lambda a: a.state in ("open", "in_progress") and a.id not in already_carried
@@ -114,8 +91,6 @@ class ProjectRetrospective(models.Model):
 
 
 class ProjectRetrospectiveAction(models.Model):
-    """A concrete action item from a retrospective."""
-
     _name = "project.retrospective.action"
     _description = "Retrospective Action Item"
     _order = "state_order, due_date, id"

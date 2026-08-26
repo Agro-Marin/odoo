@@ -35,60 +35,35 @@ class ProjectProject(models.Model):
         "mixin.rating.parent",
     ]
     _order = "sequence, name, id"
-    _rating_satisfaction_days = 30  # takes 30 days by default
+    _rating_satisfaction_days = 30
     _track_duration_field = "phase_id"
 
-    def __compute_task_count(
-        self,
-        count_field: str = "task_count",
-        additional_domain: list | None = None,
-    ) -> None:
-        count_fields = {fname for fname in self._fields if "count" in fname}
-        if count_field not in count_fields:
-            raise ValueError(
-                f"Parameter 'count_field' can only be one of {count_fields}, got {count_field} instead."
-            )
-        base_domain = Domain("is_template", "=", False)
-        if additional_domain:
-            base_domain &= Domain(additional_domain)
-        # Archiving a project cascade-archives its tasks, so counting them
-        # requires active_test=False. Split the recordset by active flag and
-        # read each half with the matching context; a single batch-wide
-        # active_test would make the minority (e.g. archived projects mixed in
-        # with active ones) report 0.
+    def _compute_task_count(self) -> None:
+        closed_states = set(CLOSED_STATES)
+        counts: dict[int, list[int]] = {}
         active_projects = self.filtered("active")
-        tasks_count_by_project = {}
         for subset, active_test in (
             (active_projects, True),
             (self - active_projects, False),
         ):
             if not subset:
                 continue
-            domain = Domain("project_id", "in", subset.ids) & base_domain
             ProjectTask = self.env["project.task"].with_context(active_test=active_test)
-            tasks_count_by_project.update(
-                dict(ProjectTask._read_group(domain, ["project_id"], ["__count"]))
-            )
+            for project, state, count in ProjectTask._read_group(
+                Domain("project_id", "in", subset.ids)
+                & Domain("is_template", "=", False),
+                ["project_id", "state"],
+                ["__count"],
+            ):
+                total = counts.setdefault(project.id, [0, 0, 0])
+                total[0] += count
+                total[2 if state in closed_states else 1] += count
         for project in self:
-            project.update({count_field: tasks_count_by_project.get(project, 0)})
-
-    def _compute_task_count(self) -> None:
-        self.__compute_task_count()
-
-    def _compute_open_task_count(self) -> None:
-        self.__compute_task_count(
-            count_field="open_task_count",
-            additional_domain=[("state", "in", self.env["project.task"].OPEN_STATES)],
-        )
-
-    def _compute_closed_task_count(self) -> None:
-        self.__compute_task_count(
-            count_field="closed_task_count",
-            additional_domain=[("state", "in", [*CLOSED_STATES])],
-        )
+            project.task_count, project.open_task_count, project.closed_task_count = (
+                counts.get(project.id, (0, 0, 0))
+            )
 
     def _default_phase_id(self) -> int | bool:
-        # Since project stages are order by sequence first, this should fetch the one with the lowest sequence number.
         return self.env["project.phase"].search([], limit=1)
 
     @api.model
@@ -103,7 +78,7 @@ class ProjectProject(models.Model):
             project.is_favorite = project in favorite_project_ids
 
     def _set_favorite_user_ids(self, is_favorite: bool) -> None:
-        self_sudo = self.sudo()  # To allow project users to set projects as favorite
+        self_sudo = self.sudo()
         if is_favorite:
             self_sudo.favorite_user_ids = [Command.link(self.env.uid)]
         else:
@@ -159,7 +134,6 @@ class ProjectProject(models.Model):
         "with Tasks (or optionally Issues if the Issue Tracker module is installed)."
     )
 
-    # Not `required` since this is an option to enable in project settings.
     phase_id = fields.Many2one(
         "project.phase",
         string="Phase",
@@ -185,8 +159,15 @@ class ProjectProject(models.Model):
         translate=True,
         default_export_compatible=True,
     )
-    active = fields.Boolean(default=True, copy=False, export_string_translation=False)
-    sequence = fields.Integer(default=10, export_string_translation=False)
+    active = fields.Boolean(
+        default=True,
+        copy=False,
+        export_string_translation=False,
+    )
+    sequence = fields.Integer(
+        default=10,
+        export_string_translation=False,
+    )
     description = fields.Html(
         help="Description to provide more information and context about this project"
     )
@@ -199,18 +180,20 @@ class ProjectProject(models.Model):
     color = fields.Integer(string="Color Index", export_string_translation=False)
     duration_tracking = fields.Json(groups="project.group_project_stages")
     date_start = fields.Date(string="Start Date", copy=False)
-    # TODO LMMG migrate all references from 'date' to 'date_end', then make
-    #  date_end the canonical stored field and date the related alias.
-    date = fields.Date(
-        string="Expiration Date",
+    date_end = fields.Date(
+        string="End Date",
         copy=False,
         index=True,
         tracking=True,
-        help="Date on which this project ends. The timeframe defined on the project is taken into account when viewing its planning.",
+        help="Date on which this project ends. The timeframe defined on the "
+        "project is taken into account when viewing its planning.",
     )
-    date_end = fields.Date(related="date", string="End Date", readonly=False)
+    date = fields.Date(
+        related="date_end",
+        string="Expiration Date",
+        readonly=False,
+    )
 
-    # Project settings
     privacy_visibility = fields.Selection(
         [
             ("followers", "Invited internal users"),
@@ -262,7 +245,6 @@ class ProjectProject(models.Model):
         help="Enable time-boxed iterations for this project.",
     )
 
-    # Sprint fields
     sprint_ids = fields.One2many(
         "project.sprint",
         "project_id",
@@ -311,17 +293,10 @@ class ProjectProject(models.Model):
         string="Workflow Steps",
         export_string_translation=False,
     )
-    tasks = fields.One2many(
-        "project.task",
-        "project_id",
-        string="Task Activities",
-    )
     task_ids = fields.One2many(
         "project.task",
         "project_id",
         string="Tasks",
-        export_string_translation=False,
-        domain="[('is_closed', '=', False)]",
     )
     task_properties_definition = fields.PropertiesDefinition("Task Properties")
     task_count = fields.Integer(
@@ -330,12 +305,12 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
     open_task_count = fields.Integer(
-        compute="_compute_open_task_count",
+        compute="_compute_task_count",
         string="Open Task Count",
         export_string_translation=False,
     )
     closed_task_count = fields.Integer(
-        compute="_compute_closed_task_count",
+        compute="_compute_task_count",
         export_string_translation=False,
     )
     task_completion_percentage = fields.Float(
@@ -343,7 +318,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # Project Sharing fields
     collaborator_ids = fields.One2many(
         "project.collaborator",
         "project_id",
@@ -358,7 +332,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # Update fields
     update_ids = fields.One2many(
         "project.update",
         "project_id",
@@ -395,7 +368,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # Milestone fields
     milestone_ids = fields.One2many(
         "project.milestone",
         "project_id",
@@ -440,7 +412,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # ── Benefits Realization ────────────────────────────────────────
     benefit_ids = fields.One2many(
         "project.benefit",
         "project_id",
@@ -453,7 +424,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # ── Baselines ────────────────────────────────────────────────────
     baseline_ids = fields.One2many(
         "project.baseline",
         "project_id",
@@ -467,7 +437,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # ── Gate Reviews ─────────────────────────────────────────────────
     gate_ids = fields.One2many(
         "project.gate",
         "project_id",
@@ -476,7 +445,6 @@ class ProjectProject(models.Model):
     )
     gate_count = fields.Count("gate_ids", "Gates", export_string_translation=False)
 
-    # ── Project History ──────────────────────────────────────────────
     history_ids = fields.One2many(
         "project.history",
         "project_id",
@@ -484,8 +452,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # ── Pre-Mortem ───────────────────────────────────────────────────
-    # Klein (1998): +30% cause identification vs standard risk identification.
     premortem_done = fields.Boolean(
         "Pre-Mortem Conducted",
         help="Was a pre-mortem exercise conducted at project kickoff?",
@@ -503,7 +469,6 @@ class ProjectProject(models.Model):
         help="'Imagine this project has failed. Why?' — capture all identified failure modes.",
     )
 
-    # ── Retrospectives ─────────────────────────────────────────────
     retrospective_ids = fields.One2many(
         "project.retrospective",
         "project_id",
@@ -516,8 +481,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # ── Health Indicators ──────────────────────────────────────────
-    # Computed from objective data to prevent status theater.
     health_score = fields.Integer(
         "Health Score",
         compute="_compute_health_indicators",
@@ -539,7 +502,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # ── Risk Register ────────────────────────────────────────────────
     risk_ids = fields.One2many(
         "project.risk",
         "project_id",
@@ -557,8 +519,6 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
-    # ── Flow Metrics ─────────────────────────────────────────────────
-    # Aggregated from task-level data. See gap_analysis_code.md §1.
     wip_count = fields.Integer(
         "WIP Count",
         compute="_compute_flow_metrics",
@@ -611,7 +571,7 @@ class ProjectProject(models.Model):
     )
 
     _project_date_greater = models.Constraint(
-        "check(date >= date_start)",
+        "check(date_end >= date_start)",
         "The project's start date must be before its end date.",
     )
 
@@ -690,7 +650,6 @@ class ProjectProject(models.Model):
 
     @api.depends("sprint_ids", "sprint_ids.state")
     def _compute_active_sprint_id(self) -> None:
-        """Find the currently active sprint for each project."""
         for project in self:
             project.active_sprint_id = project.sprint_ids.filtered(
                 lambda s: s.state == "active"
@@ -698,29 +657,16 @@ class ProjectProject(models.Model):
 
     @api.depends("baseline_ids", "baseline_ids.is_current")
     def _compute_current_baseline_id(self) -> None:
-        """Find the current baseline for each project."""
         for project in self:
             project.current_baseline_id = project.baseline_ids.filtered("is_current")[
                 :1
             ]
 
     def action_archive_to_history(self) -> None:
-        """Create a project.history record from this project's current state."""
         self.ensure_one()
         self.env["project.history"].create_from_project(self)
 
     def action_compute_critical_path(self) -> None:
-        """Compute the critical path with all four dependency types and calendar dates.
-
-        Handles FS, SS, FF, SF dependency types per PMI definitions:
-        - FS: successor.ES = max(predecessor.EF + lag)
-        - SS: successor.ES = max(predecessor.ES + lag)
-        - FF: successor.EF = max(predecessor.EF + lag) -> ES = EF - duration
-        - SF: successor.EF = max(predecessor.ES + lag) -> ES = EF - duration
-
-        After computing abstract-hour positions, converts to real calendar
-        dates using the project's resource calendar.
-        """
         self.ensure_one()
         tasks = self.env["project.task"].search(
             [
@@ -746,15 +692,6 @@ class ProjectProject(models.Model):
     def _cpm_collect_edges(
         self, tasks: Any, task_set: set[int]
     ) -> tuple[dict[int, list[tuple[int, str, float]]], dict[int, list[int]]]:
-        """Build the dependency graph: predecessors with type and lag.
-
-        ``project.task.dependency`` mirrors ``predecessor_ids`` in both
-        directions, so the typed rows are the complete graph. The M2M is still
-        read as a belt-and-braces second source: an all-or-nothing "typed if any
-        typed row exists" branch used to drop every plain edge as soon as one
-        typed row existed anywhere in the project, and a schedule that silently
-        omits edges is worse than a redundant read.
-        """
         deps_on: dict[int, list[tuple[int, str, float]]] = defaultdict(list)
         successors_of: dict[int, list[int]] = defaultdict(list)
         seen_edges: set[tuple[int, int]] = set()
@@ -768,8 +705,6 @@ class ProjectProject(models.Model):
             deps_on[tid].append((pred_id, dtype, lag))
             successors_of[pred_id].append(tid)
 
-        # Typed rows first: they carry the richer (type, lag) information, and
-        # add_edge keeps the first definition of any given edge.
         for dep in self.env["project.task.dependency"].search(
             [("project_id", "=", self.id)]
         ):
@@ -787,11 +722,6 @@ class ProjectProject(models.Model):
     def _cpm_check_acyclic(
         self, task_set: set[int], deps_on: dict[int, list[tuple[int, str, float]]]
     ) -> None:
-        # Guard against dependency cycles before running the passes: forward()
-        # and backward() are plain recursive DFS and would recurse forever
-        # (RecursionError → HTTP 500) on a cyclic graph. Dependencies are
-        # user-editable and not otherwise constrained to a DAG, so detect a
-        # back-edge with an iterative three-colour DFS and fail cleanly.
         _UNVISITED, _IN_STACK, _DONE = 0, 1, 2
         color = dict.fromkeys(task_set, _UNVISITED)
         for root in task_set:
@@ -826,13 +756,6 @@ class ProjectProject(models.Model):
         deps_on: dict[int, list[tuple[int, str, float]]],
         successors_of: dict[int, list[int]],
     ) -> list[int]:
-        """Kahn order, so the passes are iterative rather than recursive.
-
-        A plain recursive DFS blows Python's recursion limit (~1000) on a long
-        dependency chain, raising RecursionError -> HTTP 500. Cycles are
-        rejected before this runs, so Kahn consumes every node. Predecessors
-        precede their successors in the result.
-        """
         indegree = {tid: len(deps_on[tid]) for tid in task_set}
         ready = deque(sorted(tid for tid in task_set if indegree[tid] == 0))
         topo: list[int] = []
@@ -851,7 +774,6 @@ class ProjectProject(models.Model):
         deps_on: dict[int, list[tuple[int, str, float]]],
         duration: dict[int, float],
     ) -> tuple[dict[int, float], dict[int, float]]:
-        """Earliest start/finish per task, predecessors first."""
         es: dict[int, float] = {}
         ef: dict[int, float] = {}
         for tid in topo:
@@ -888,7 +810,6 @@ class ProjectProject(models.Model):
         duration: dict[int, float],
         project_end: float,
     ) -> dict[int, float]:
-        """Latest start per task, successors first (reverse topological order)."""
         lf: dict[int, float] = {}
         ls_map: dict[int, float] = {}
         for tid in reversed(topo):
@@ -915,12 +836,6 @@ class ProjectProject(models.Model):
         ef: dict[int, float],
         ls_map: dict[int, float],
     ) -> None:
-        """Convert the abstract hour axis to calendar dates and store them.
-
-        A project whose company has no working-time calendar still has to
-        produce a schedule: fall back to plain elapsed hours instead of calling
-        plan_hours on an empty recordset (ValueError -> HTTP 500).
-        """
         calendar = self.resource_calendar_id
         now = fields.Datetime.now()
 
@@ -931,8 +846,6 @@ class ProjectProject(models.Model):
                 return calendar.plan_hours(hours, now)
             return now + timedelta(hours=hours)
 
-        # Group identical result sets so a project of N tasks issues one UPDATE
-        # per distinct schedule rather than N.
         tasks_by_vals = defaultdict(lambda: self.env["project.task"])
         vals_by_key = {}
         for task in tasks:
@@ -958,16 +871,6 @@ class ProjectProject(models.Model):
     def _levelling_day_capacity(
         self, calendar: Any, date_start: Any, date_end: Any
     ) -> dict:
-        """Working hours per calendar day, for the whole levelling window.
-
-        Fetched once per calendar and bucketed by date. A day with no working
-        time simply has no entry, which is what makes weekends and leaves fall
-        out of the arithmetic for free.
-
-        With no calendar at all, fall back to eight hours on every elapsed day —
-        the same assumption the rest of the module makes of a company that has
-        not configured working time.
-        """
         per_day: dict = defaultdict(float)
         if calendar:
             intervals = calendar._work_intervals_batch(
@@ -984,15 +887,6 @@ class ProjectProject(models.Model):
 
     @staticmethod
     def _levelling_spread(slot: tuple, day_capacity: dict) -> dict:
-        """Spread one task's effort across the working days its window covers.
-
-        A task's hours are not spent at an instant — they are spread over the
-        window CPM gave it, in proportion to the working time each day offers.
-        Levelling has to compare like with like: an eight-hour task overlapping
-        a fifteen-minute one does not put eight hours into those fifteen
-        minutes, and treating it as if it did makes *every* overlap look like an
-        overload, which is the failure this method exists to avoid.
-        """
         start, stop, hours, _task_id = slot
         days = {
             day: capacity
@@ -1005,38 +899,7 @@ class ProjectProject(models.Model):
         return {day: hours * capacity / total for day, capacity in days.items()}
 
     def action_level_resources(self) -> None:
-        """Shift non-critical tasks off an assignee who is genuinely over capacity.
-
-        Algorithm:
-        1. Run CPM first to establish planned dates.
-        2. Build per-user timeline from cpm_date_start/end.
-        3. For each non-critical task (most float first): if an assignee's
-           committed hours in the task's window exceed what their working
-           calendar offers over that window, shift cpm_date_start forward to the
-           next available slot, but only within the task's float so the project
-           end date is preserved.
-
-        The comparison in step 3 is the point of the exercise, and it used to be
-        missing: the test was ``concurrent > 0``, i.e. *any* overlapping task at
-        all, with the capacity never computed despite a comment claiming
-        "> 8h/day". Measured on three same-window tasks held by one person, the
-        shift applied was identical (4.00 working hours) at 0.75 h/day of load
-        and at 24 h/day — so levelling moved work that was not overloaded, spent
-        the task's whole float doing it, and left a genuine threefold overload
-        exactly as overloaded as it found it.
-
-        Load is per assignee and per PMBOK effort: ``allocated_hours`` when
-        reservations exist, else the ``planned_hours`` estimate, divided across
-        the assignees who share the task. Reading only ``allocated_hours`` meant
-        levelling did nothing at all until reservations existed, which for most
-        projects is never.
-
-        This is a heuristic, not an optimisation solver. Because shifts stay
-        within each task's float, successor dates remain valid without an
-        explicit re-propagation pass.
-        """
         self.ensure_one()
-        # Step 1: compute CPM to establish baseline dates
         self.action_compute_critical_path()
 
         calendar = self.resource_calendar_id
@@ -1052,7 +915,6 @@ class ProjectProject(models.Model):
         if not tasks:
             return
 
-        # Sort: process tasks with most float first (most flexible)
         leveling_order = sorted(
             tasks.filtered(lambda t: not t.is_critical_path),
             key=lambda t: -(t.total_float or 0.0),
@@ -1062,7 +924,6 @@ class ProjectProject(models.Model):
             hours = task.allocated_hours or task.planned_hours or 0.0
             return hours / max(len(task.user_ids), 1)
 
-        # Build per-user allocation map: user_id -> list of (start, end, hours, id)
         user_slots: dict[int, list[tuple]] = defaultdict(list)
         for task in tasks:
             share = load_per_assignee(task)
@@ -1076,8 +937,6 @@ class ProjectProject(models.Model):
                     )
                 )
 
-        # One calendar fetch per distinct calendar, covering everything the
-        # levelling pass will look at.
         window_start = min(tasks.mapped("cpm_date_start"))
         window_end = max(tasks.mapped("cpm_date_end"))
         day_capacity_per_calendar: dict = {}
@@ -1107,13 +966,6 @@ class ProjectProject(models.Model):
                 ]
                 if not overlapping:
                     continue
-                # Genuine overload only, measured the way a person experiences
-                # one: per working day. Spread every commitment this assignee
-                # holds across the days it runs over, then ask whether any day
-                # the candidate touches is asked for more hours than it has.
-                # Comparing raw totals against a window instead made any overlap
-                # an overload, because two tasks sharing an instant always
-                # exceed that instant's capacity.
                 capacity_by_day = day_capacity(user)
                 load_by_day: dict = defaultdict(float)
                 for slot in [
@@ -1139,30 +991,15 @@ class ProjectProject(models.Model):
                     for day in candidate_days
                 ):
                     continue
-                # Find latest end among overlapping tasks
                 latest_end = max(
                     (s[1] for s in overlapping), default=task.cpm_date_start
                 )
-                # Shift task to *start* at the end of the overlap (snapped to the
-                # next working moment), respecting float. NB: plan_hours(h, t)
-                # returns the datetime after scheduling h hours of work from t —
-                # so the new *start* is plan_hours(0, latest_end), not
-                # plan_hours(allocated_hours, ...) which would overshoot the start
-                # by a full task duration and leave a spurious gap.
                 max_shift_hours = task.total_float or 0.0
                 if not latest_end:
                     continue
                 new_start = (
                     calendar.plan_hours(0.0, latest_end) if calendar else latest_end
                 )
-                # Measure the shift on the same axis as the float it is checked
-                # against. ``total_float`` comes off the CPM abstract-hour axis,
-                # which is WORKING time; elapsed wall-clock between two dates is
-                # always >= that, so comparing the two rejected shifts that fit
-                # comfortably. Measured on a three-task project: 15h of float,
-                # a move needing ~8 working hours, refused because those 8 hours
-                # spanned 50h of wall clock. Levelling did nothing at all
-                # whenever a shift crossed a night or a weekend, i.e. always.
                 shift_hours = (
                     calendar.get_work_duration_data(
                         task.cpm_date_start, new_start, compute_leaves=True
@@ -1171,16 +1008,11 @@ class ProjectProject(models.Model):
                     else (new_start - task.cpm_date_start).total_seconds() / 3600
                 )
                 if 0 < shift_hours <= max_shift_hours:
-                    # Shifting preserves the activity's DURATION, not its
-                    # effort: plan_hours must advance by the same working span
-                    # CPM used, otherwise a two-person task lands twice as long
-                    # as it is (see _get_cpm_duration_hours).
                     new_end = (
                         calendar.plan_hours(task._get_cpm_duration_hours(), new_start)
                         if calendar
                         else new_start + (task.cpm_date_end - task.cpm_date_start)
                     )
-                    # Update slot tracking
                     user_slots[user.id] = [s for s in slots if s[3] != task.id] + [
                         (new_start, new_end, task_share, task.id)
                     ]
@@ -1193,7 +1025,6 @@ class ProjectProject(models.Model):
 
     @api.depends("retrospective_ids")
     def _compute_retrospective_count(self) -> None:
-        """Count retrospectives per project."""
         retro_data = self.env["project.retrospective"]._read_group(
             [("project_id", "in", self.ids)],
             ["project_id"],
@@ -1204,46 +1035,14 @@ class ProjectProject(models.Model):
             project.retrospective_count = counts.get(project.id, 0)
 
     def _compute_health_indicators(self) -> None:
-        """Compute a composite health score from objective project data.
-
-        Components (each 0-100, weighted equally):
-        - Schedule: % of open tasks not past their deadline
-        - Milestones: % of milestones on track (reached or deadline in future)
-        - Risk: inverse of normalized risk exposure
-        - Staleness: % of open tasks that are not rotting
-
-        Intentionally has NO @api.depends: this aggregates across every task,
-        milestone and risk of the project, so a reactive recompute would fire a
-        full re-aggregation on any task edit. Do not add depends.
-
-        It IS stored, though — a dated snapshot rather than a per-read one.
-        Unstored, the score could not be filtered, grouped or sorted
-        (``ValueError: Cannot convert project.project.health_status to SQL
-        because it is not stored``), which is most of what a health indicator is
-        for: "show me every project that is off track" is a search. It also
-        blocked the trend and staleness work in doc/pm_excellence_investigation.md
-        §14 Gap 5, which needs a value that persists between reads.
-
-        Being stored without depends means it is computed once, at creation, and
-        then only when something asks — ``_cron_refresh_metrics`` nightly, or
-        ``action_refresh_metrics`` on demand. One re-aggregation a day instead of
-        one per page load.
-        """
         if not self.ids:
             self.health_score = 100
             self.health_status = "healthy"
             return
 
-        # Compare against a naive-UTC "now"/"today" bound in Python. The task
-        # timestamp columns store naive UTC; a bare SQL NOW()/CURRENT_DATE is a
-        # timestamptz evaluated in the connection's session timezone (not UTC
-        # here), which skews every "overdue"/"stale" comparison by the offset.
         now = self.env.cr.now()
         today = now.date()
 
-        # These computes read via hand-written SQL and have no @api.depends, so
-        # the ORM will not auto-flush pending task/milestone/risk writes first.
-        # Flush explicitly, else the metrics read stale pre-write rows.
         self.env["project.task"].flush_model(
             [
                 "project_id",
@@ -1306,7 +1105,6 @@ class ProjectProject(models.Model):
         )
         task_scores = {row[0]: (row[1], row[2]) for row in self.env.cr.fetchall()}
 
-        # Milestone scores
         milestone_scores: dict[int, float] = {}
         if self.ids:
             self.env.cr.execute(
@@ -1332,7 +1130,6 @@ class ProjectProject(models.Model):
             )
             milestone_scores = {row[0]: row[1] for row in self.env.cr.fetchall()}
 
-        # Risk scores (from already-computed risk_count)
         risk_data: dict[int, int] = {}
         if self.ids:
             self.env.cr.execute(
@@ -1341,10 +1138,11 @@ class ProjectProject(models.Model):
                 SELECT project_id, COALESCE(SUM(risk_score), 0)
                 FROM project_risk
                 WHERE project_id IN %(project_ids)s AND active = TRUE
-                  AND state != 'resolved'
+                  AND state != %(excluded_state)s
                 GROUP BY project_id
                 """,
                     project_ids=tuple(self.ids),
+                    excluded_state=self._LIVE_RISK_STATE_EXCLUDED,
                 )
             )
             risk_data = dict(self.env.cr.fetchall())
@@ -1352,9 +1150,7 @@ class ProjectProject(models.Model):
         for project in self:
             schedule, staleness = task_scores.get(project.id, (100.0, 100.0))
             milestone = milestone_scores.get(project.id, 100.0)
-            # Risk: convert total risk score to 0-100 where 0 risk = 100 health
             total_risk = risk_data.get(project.id, 0)
-            # Normalize: 50+ total risk score = 0 health from risk component
             risk_health = max(0.0, 100.0 - total_risk * 2)
 
             score = int((schedule + staleness + milestone + risk_health) / 4)
@@ -1368,14 +1164,10 @@ class ProjectProject(models.Model):
             else:
                 project.health_status = "critical"
 
+    _LIVE_RISK_STATE_EXCLUDED = "resolved"
+
     @api.depends("risk_ids", "risk_ids.risk_level", "risk_ids.active", "risk_ids.state")
     def _compute_risk_count(self) -> None:
-        """Count open risks and high/critical risks per project.
-
-        Resolved risks are excluded — they are no longer live exposure. (An
-        'accepted' risk still counts: accepting a response does not remove the
-        underlying exposure.)
-        """
         if not self.ids:
             self.risk_count = 0
             self.high_risk_count = 0
@@ -1384,7 +1176,7 @@ class ProjectProject(models.Model):
             [
                 ("project_id", "in", self.ids),
                 ("active", "=", True),
-                ("state", "!=", "resolved"),
+                ("state", "!=", self._LIVE_RISK_STATE_EXCLUDED),
             ],
             ["project_id", "risk_level"],
             ["__count"],
@@ -1402,15 +1194,6 @@ class ProjectProject(models.Model):
             project.high_risk_count = high
 
     def _compute_flow_metrics(self) -> None:
-        """Compute project-level flow metrics from task data.
-
-        Uses direct SQL for performance — these are read-heavy analytics fields
-        that aggregate across potentially thousands of tasks.
-
-        Intentionally has NO @api.depends (see _compute_health_indicators), but
-        stored, so the metrics can be filtered and grouped and are refreshed by
-        ``_cron_refresh_metrics`` rather than on every read. Do not add depends.
-        """
         if not self.ids:
             self.wip_count = 0
             self.avg_lead_time = 0.0
@@ -1419,11 +1202,8 @@ class ProjectProject(models.Model):
             self.deadline_compliance_pct = 0.0
             return
 
-        # Naive-UTC "now" bound in Python — see _compute_health_indicators: a
-        # bare SQL NOW() is timezone-skewed against the naive-UTC columns.
         now = self.env.cr.now()
 
-        # No @api.depends here, so flush pending task writes before the raw SQL.
         self.env["project.task"].flush_model(
             [
                 "project_id",
@@ -1520,23 +1300,15 @@ class ProjectProject(models.Model):
     )
 
     def _refresh_metrics(self) -> None:
-        """Recompute the stored analytics snapshot for these projects.
-
-        The metric fields are stored computes with no ``@api.depends`` on
-        purpose (see ``_compute_health_indicators``), so nothing invalidates
-        them: this is the only thing that does.
-        """
         for fname in self._SNAPSHOT_METRIC_FIELDS:
             self.env.add_to_compute(self._fields[fname], self)
         self.env.flush_all()
 
     @api.model
     def _cron_refresh_metrics(self) -> None:
-        """Nightly refresh of every project's analytics snapshot."""
         self.search([])._refresh_metrics()
 
     def action_refresh_metrics(self) -> bool:
-        """Refresh this project's analytics snapshot now, without waiting for the cron."""
         self._refresh_metrics()
         return True
 
@@ -1548,7 +1320,6 @@ class ProjectProject(models.Model):
     @api.depends("account_id.company_id", "partner_id.company_id")
     def _compute_company_id(self) -> None:
         for project in self:
-            # if a new restriction is put on the account or the customer, the restriction on the project is updated.
             if project.account_id.company_id:
                 project.company_id = project.account_id.company_id
             if not project.company_id and project.partner_id.company_id:
@@ -1564,9 +1335,6 @@ class ProjectProject(models.Model):
             )
 
     def _inverse_company_id(self) -> None:
-        """Ensures that the new company of the project is valid for the account. If not set back the previous company, and raise a user Error.
-        Ensures that the new company of the project is valid for the partner
-        """
         for project in self:
             account = project.account_id
             if (
@@ -1582,7 +1350,6 @@ class ProjectProject(models.Model):
                 )
             if not account or not account.company_id:
                 continue
-            # if the account of the project has more than one company linked to it, or if it has aal, do not update the account, and set back the old company on the project.
             if (
                 account.project_count > 1 or account.line_ids
             ) and project.company_id != account.company_id:
@@ -1763,9 +1530,6 @@ class ProjectProject(models.Model):
             project.show_ratings = project in projects_with_rating_active
 
     def _inverse_allow_dependencies(self) -> None:
-        """Reset state for waiting tasks in the project if the feature is disabled
-        or recompute the tasks with dependencies if the project has the feature enabled again
-        """
         project_with_task_dependencies_feature = self.filtered("allow_dependencies")
         projects_without_task_dependencies_feature = (
             self - project_with_task_dependencies_feature
@@ -1801,7 +1565,6 @@ class ProjectProject(models.Model):
         res = self._check_project_group_with_field(
             "allow_dependencies", "project.group_project_task_dependencies"
         )
-        # Hide/Show task waiting subtype when task dependencies feature is disabled/enabled
         if res or res is False:
             self.env.ref("project.mt_task_waiting").sudo().hidden = not res
             self.env.ref("project.mt_project_task_waiting").sudo().hidden = not res
@@ -1818,9 +1581,6 @@ class ProjectProject(models.Model):
 
     @api.model
     def _map_tasks_default_values(self, project: Self) -> dict:
-        """Get the default value for the copied task on project duplication.
-        The phase_id, name field will be set for each task in the overwritten copy_data function in project.task
-        """
         return {
             "state": "in_progress",
             "company_id": project.company_id.id,
@@ -1828,9 +1588,7 @@ class ProjectProject(models.Model):
         }
 
     def map_tasks(self, new_project_id: int) -> bool:
-        """Copy and map tasks from old to new project"""
         project = self.browse(new_project_id)
-        # We want to copy archived task, but do not propagate an active_test context key
         tasks = (
             self.env["project.task"]
             .with_context(active_test=False)
@@ -1838,7 +1596,6 @@ class ProjectProject(models.Model):
         )
         if self.allow_dependencies and "task_mapping" not in self.env.context:
             self = self.with_context(task_mapping={})
-        # preserve task name and stage, normally altered during copy
         defaults = self._map_tasks_default_values(project)
         new_tasks = tasks.with_context(copy_project=True).copy(defaults)
         all_subtasks = new_tasks._get_all_subtasks()
@@ -1876,9 +1633,6 @@ class ProjectProject(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)
@@ -1886,7 +1640,6 @@ class ProjectProject(models.Model):
 
     def copy(self, default: ValuesType | None = None) -> Self:
         default = dict(default or {})
-        # Since we dont want to copy the milestones if the original project has the feature disabled, we set the milestones to False by default.
         default["milestone_ids"] = False
         copy_context = dict(
             self.env.context,
@@ -1907,11 +1660,10 @@ class ProjectProject(models.Model):
                 )
             if old_project.allow_milestones:
                 new_project.milestone_ids = old_project.milestone_ids.copy().ids
-            if "tasks" not in default:
+            if "task_ids" not in default:
                 old_project.map_tasks(new_project.id)
             if not old_project.active:
-                new_project.with_context(active_test=False).tasks.active = True
-        # Copy the shared embedded actions and config in the new projects
+                new_project.with_context(active_test=False).task_ids.active = True
         shared_embedded_actions_mapping = self._copy_shared_embedded_actions(
             new_projects
         )
@@ -1936,7 +1688,6 @@ class ProjectProject(models.Model):
         )
         shared_embedded_actions_mapping = {}
         for project, new_project in zip(self, new_projects, strict=True):
-            # Copy the shared embedded actions in the new record
             shared_embedded_actions = shared_embedded_actions_per_record.get(project.id)
             if shared_embedded_actions:
                 copy_shared_embedded_actions = shared_embedded_actions.copy(
@@ -1983,7 +1734,6 @@ class ProjectProject(models.Model):
             )
             config_vals_list = configs.copy_data({"res_id": new_project.id})
             for config_vals in config_vals_list:
-                # Apply the mapping of shared embedded actions and filter the visibility and order by excluding the user-specific actions
                 if config_vals["embedded_actions_visibility"]:
                     embedded_actions_visibility = [
                         shared_embedded_actions_mapping.get(action_id, action_id)
@@ -2013,51 +1763,21 @@ class ProjectProject(models.Model):
                         for action_id in embedded_actions_order
                     )
                 new_embedded_actions_config_vals_list.append(config_vals)
-        # sudo is needed to update the user settings for all users using the projects to duplicate
         self.env["res.users.settings.embedded.action"].sudo().create(
             new_embedded_actions_config_vals_list
         )
 
     @api.model
     def _check_date_pair(self, date_start: Any, date_end: Any) -> None:
-        """A project has both scheduling dates or neither.
-
-        The timeline/Gantt range needs both ends, so rather than silently
-        wiping the counterpart or dropping the user's input, reject the
-        half-set combination and say what to do about it.
-
-        Enforced on ``create`` as well as ``write``. It used to guard ``write``
-        alone, which produced the worst of both: a one-sided project was
-        creatable but then unrepairable field-by-field, and ``project.date = x``
-        — the obvious API call, and the one the ``date_end`` alias funnels into
-        — raised on any project that had no start date yet.
-        """
         if bool(date_start) != bool(date_end):
             raise UserError(
                 self.env._(
-                    "A project's start date and expiration date must be set "
+                    "A project's start date and end date must be set "
                     "together: define both or clear both."
                 )
             )
 
     def _seed_default_workflow_step(self) -> None:
-        """Give every project that has no board column a first one.
-
-        A project with no ``project.workflow.step`` has no Kanban column, and
-        every task created in it lands on ``step_id = False``. Adding a column
-        later does NOT adopt those tasks — they stay off the board until each
-        one is moved by hand — so the empty state is not recoverable by using
-        the product normally.
-
-        This used to live in ``name_create``, i.e. only the quick-create you
-        get by typing a project name into a Many2one dropdown. Form Save,
-        imports, scripts and ``action_create_from_template`` all go through
-        ``create`` and got nothing.
-
-        Seeded only where a project ended up with no step at all, so copies and
-        template instantiations (which bring the source's columns with them)
-        are left alone.
-        """
         stepless = self.filtered(lambda project: not project.workflow_step_ids)
         if not stepless:
             return
@@ -2070,7 +1790,6 @@ class ProjectProject(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        # Prevent double project creation
         self = self.with_context(mail_create_nosubscribe=True)
         if any("label_tasks" in vals and not vals["label_tasks"] for vals in vals_list):
             task_label = _("Tasks")
@@ -2082,7 +1801,6 @@ class ProjectProject(models.Model):
                 stage = self.env["project.phase"].browse(
                     self.env.context["default_phase_id"]
                 )
-                # The project's company_id must be the same as the stage's company_id
                 if stage.company_id:
                     for vals in vals_list:
                         if vals.get("phase_id"):
@@ -2098,7 +1816,6 @@ class ProjectProject(models.Model):
                 for vals in vals_list:
                     if vals.get("phase_id"):
                         continue
-                    # Pick the stage with the lowest sequence with no company or project's company
                     stage_domain = (
                         [False]
                         if "company_id" not in vals
@@ -2112,24 +1829,21 @@ class ProjectProject(models.Model):
         for vals in vals_list:
             if vals.pop("is_favorite", False):
                 vals["favorite_user_ids"] = [self.env.uid]
-            self._check_date_pair(vals.get("date_start"), vals.get("date"))
+            self._check_date_pair(
+                vals.get("date_start"),
+                vals.get("date_end", vals.get("date")),
+            )
         projects = super().create(vals_list)
         projects._seed_default_workflow_step()
-        # The metric fields are stored computes with no @api.depends, and the
-        # ORM only schedules a compute for fields that declare dependencies — so
-        # without this a new project carries NULL health and NULL flow metrics
-        # until the nightly cron first runs, and shows a health score of 0.
         projects._refresh_metrics()
         return projects
 
     def write(self, vals: dict[str, Any]) -> bool:
         if vals.get("access_token"):
-            self.ensure_one()  # We are not supposed to add a single access token to multiple project
+            self.ensure_one()
             if self.privacy_visibility not in ["invited_users", "portal"]:
                 vals["access_token"] = ""
 
-        # Here we modify the project's stage according to the selected company (selecting the first
-        # stage in sequence that is linked to the company).
         company_id = vals.get("company_id")
         if self.env.user.has_group("project.group_project_stages") and company_id:
             projects_already_with_company = self.filtered(
@@ -2151,14 +1865,11 @@ class ProjectProject(models.Model):
                     limit=1,
                 ).id
 
-        # directly compute is_favorite to dodge allow write access right
         if "is_favorite" in vals:
             self._set_favorite_user_ids(vals.pop("is_favorite"))
 
         if "last_update_status" in vals and vals["last_update_status"] != "to_define":
             for project in self:
-                # This does not benefit from multi create, this is to allow the default description from being built.
-                # This does seem ok since last_update_status should only be updated on one record at once.
                 self.env["project.update"].with_context(
                     default_project_id=project.id
                 ).create(
@@ -2176,11 +1887,11 @@ class ProjectProject(models.Model):
         if vals.get("privacy_visibility"):
             self._change_privacy_visibility(vals["privacy_visibility"])
 
-        if "date_start" in vals or "date" in vals:
+        if {"date_start", "date_end", "date"} & vals.keys():
             for project in self:
                 self._check_date_pair(
                     vals.get("date_start", project.date_start),
-                    vals.get("date", project.date),
+                    vals.get("date_end", vals.get("date", project.date_end)),
                 )
 
         res = super().write(vals) if vals else True
@@ -2199,8 +1910,7 @@ class ProjectProject(models.Model):
             ).write({"recurring_task": False})
 
         if "active" in vals:
-            # archiving/unarchiving a project does it on its tasks, too
-            self.with_context(active_test=False).mapped("tasks").write(
+            self.with_context(active_test=False).task_ids.write(
                 {"active": vals["active"]}
             )
         if "name" in vals and self.account_id:
@@ -2212,21 +1922,13 @@ class ProjectProject(models.Model):
             analytic_account_to_update = self.env["account.analytic.account"].browse(
                 [analytic_account.id for [analytic_account] in projects_read_group]
             )
-            # Use the written value, not self.name: on a multi-record write
-            # (e.g. mass rename) self.name raises "Expected singleton".
             analytic_account_to_update.write({"name": vals["name"]})
         return res
 
     def unlink(self) -> bool:
-        # Delete the embedded action configs related to the deleted projects
         self.env["res.users.settings.embedded.action"].sudo().search(
             domain=[("res_id", "in", self.ids), ("res_model", "=", self._name)],
         ).unlink()
-        # Delete the empty related analytic account, but only when it has no
-        # analytic lines AND no *other* project still references it. Analytic
-        # accounts can be shared across projects (see _inverse_company_id); with
-        # ondelete="set null" on account_id, deleting a shared account here would
-        # silently strip it from the surviving sibling projects.
         deleted_per_account = defaultdict(int)
         for project in self:
             if project.account_id:
@@ -2235,7 +1937,7 @@ class ProjectProject(models.Model):
         for account, deleted_count in deleted_per_account.items():
             if not account.line_ids and account.project_count <= deleted_count:
                 analytic_accounts_to_delete |= account
-        self.with_context(active_test=False).tasks.unlink()
+        self.with_context(active_test=False).task_ids.unlink()
         result = super().unlink()
         analytic_accounts_to_delete.unlink()
         return result
@@ -2275,10 +1977,6 @@ class ProjectProject(models.Model):
         partner_ids: list[int] | None = None,
         subtype_ids: list[int] | None = None,
     ) -> bool:
-        """Subscribe to newly created task but not all existing active task when subscribing to a project.
-        User update notification preference of project its propagated to all the tasks that the user is
-        currently following.
-        """
         res = super().message_subscribe(
             partner_ids=partner_ids, subtype_ids=subtype_ids
         )
@@ -2289,13 +1987,9 @@ class ProjectProject(models.Model):
                 | project_subtypes.filtered(lambda sub: sub.internal or sub.default)
             ).ids
             if task_subtypes:
-                # Propagate the preference change to every task the partner
-                # already follows, including CLOSED ones (self.tasks, not the
-                # open-only task_ids). Batch the subscribe per distinct partner
-                # set instead of one write per task (N+1).
                 partner_set = set(partner_ids)
                 tasks_by_partners = defaultdict(lambda: self.env["project.task"])
-                for task in self.tasks:
+                for task in self.task_ids:
                     partners = frozenset(task.message_partner_ids.ids) & partner_set
                     if partners:
                         tasks_by_partners[partners] |= task
@@ -2310,10 +2004,7 @@ class ProjectProject(models.Model):
         return res
 
     def message_unsubscribe(self, partner_ids: list[int] | None = None) -> None:
-        # Remove the follower from ALL tasks, including closed ones — otherwise a
-        # partner removed from the project keeps following (and, via the portal,
-        # keeps access to) every closed task. Mirrors the privacy-downgrade path.
-        self.tasks.message_unsubscribe(partner_ids=partner_ids)
+        self.task_ids.message_unsubscribe(partner_ids=partner_ids)
         super().message_unsubscribe(partner_ids=partner_ids)
         if partner_ids:
             self.env["project.collaborator"].search(
@@ -2368,11 +2059,6 @@ class ProjectProject(models.Model):
     def _check_project_group_with_field(
         self, field_name: str, group_name: str
     ) -> bool | None:
-        """Check if the user has the group 'group_name' and if there is a project with the field 'field_name' set to True.
-        If not, remove the group 'group_name' from the user base group.
-        Otherwise, add the group 'group_name' to the user base group.
-        Returns True if the group was added, False if it was removed, None if no change was made.
-        """
         has_user_group = bool(self.env.user.has_group(group_name))
         group = self.env.ref(group_name)
         base_group_user = self.env.ref("base.group_user")
@@ -2384,11 +2070,9 @@ class ProjectProject(models.Model):
         res = None
 
         if not has_user_group and has_project_field_set:
-            # add the group to the base user group if there is at least one project with field_name=True
             base_group_user.sudo().write({"implied_ids": [Command.link(group.id)]})
             res = True
         elif has_user_group and not has_project_field_set:
-            # remove the group from the base user group if there is no project with field_name=True
             base_group_user.sudo().write({"implied_ids": [Command.unlink(group.id)]})
             group.sudo().write({"user_ids": [Command.clear()]})
             res = False
@@ -2418,10 +2102,6 @@ class ProjectProject(models.Model):
             for field_name, group in self._get_project_features_mapping().items()
         }
 
-    # ---------------------------------------------------
-    # Mail gateway
-    # ---------------------------------------------------
-
     def _track_template(self, changes: dict[str, Any]) -> dict:
         res = super()._track_template(changes)
         project = self[0]
@@ -2429,6 +2109,7 @@ class ProjectProject(models.Model):
             self.env.user.has_group("project.group_project_stages")
             and "phase_id" in changes
             and project.phase_id.mail_template_id
+            and project.phase_id.mail_template_id.model == self._name
         ):
             res["phase_id"] = (
                 project.phase_id.mail_template_id,
@@ -2462,7 +2143,6 @@ class ProjectProject(models.Model):
         model_description: str,
         msg_vals: dict | bool = False,
     ) -> list:
-        """Give access to the portal user/customer if the project visibility is portal."""
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals
         )
@@ -2475,10 +2155,6 @@ class ProjectProject(models.Model):
             if group_name in ["portal", "portal_customer"] and not portal_privacy:
                 group_data["has_button_access"] = False
         return groups
-
-    # ---------------------------------------------------
-    #  Actions
-    # ---------------------------------------------------
 
     def action_project_task_burndown_chart_report(self) -> dict:
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
@@ -2499,7 +2175,6 @@ class ProjectProject(models.Model):
         return action
 
     def action_open_scatter_plot(self) -> dict:
-        """Open cycle time scatter plot filtered to this project's tasks."""
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_scatter"
         )
@@ -2507,16 +2182,11 @@ class ProjectProject(models.Model):
         return action
 
     def action_find_similar_projects(self) -> dict:
-        """Open project history filtered to similar projects.
-
-        Matches by overlapping tag_ids and similar team_size (±2).
-        """
         self.ensure_one()
         domain = []
         if self.tag_ids:
             domain.append(("tag_ids", "in", self.tag_ids.ids))
         if self.task_count:
-            # Use assignee count as proxy for team size
             team_size = len(
                 self.env["project.task"]
                 .search(
@@ -2571,7 +2241,6 @@ class ProjectProject(models.Model):
             else:
                 not_fav_projects |= project
 
-        # Project User has no write access for project.
         not_fav_projects.write({"favorite_user_ids": [Command.link(self.env.uid)]})
         favorite_projects.write({"favorite_user_ids": [(3, self.env.uid)]})
 
@@ -2606,7 +2275,6 @@ class ProjectProject(models.Model):
         return action
 
     def action_view_all_rating(self) -> dict:
-        """Return the action to see all the rating of the project and activate default filters"""
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.rating_rating_action_view_project_rating"
         )
@@ -2641,7 +2309,6 @@ class ProjectProject(models.Model):
         return dict(action, context=action_context)
 
     def action_view_tasks_analysis(self) -> dict:
-        """Return the action to see the tasks analysis report of the project"""
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_user_tree"
         )
@@ -2655,11 +2322,7 @@ class ProjectProject(models.Model):
         return dict(action, context=action_context)
 
     def action_view_assigned_resources(self) -> dict:
-        """Open the resource.reservation calendar restricted to this project's tasks."""
         self.ensure_one()
-        # Materialize task ids: resource.reservation links to tasks via the
-        # generic (res_model, res_id) reference pair, so the domain cannot
-        # push the project filter down through an ORM join.
         task_ids = self.env["project.task"].search([("project_id", "=", self.id)]).ids
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_assigned_resources"
@@ -2686,10 +2349,6 @@ class ProjectProject(models.Model):
         action["domain"] = [("milestone_id", "in", self.milestone_ids.ids)]
         return action
 
-    # ---------------------------------------------
-    #  PROJECT UPDATES
-    # ---------------------------------------------
-
     def action_profitability_items(
         self,
         section_name: str,
@@ -2712,11 +2371,6 @@ class ProjectProject(models.Model):
         self.ensure_one()
         if not self.env.user.has_group("project.group_project_user"):
             return {}
-        # The metrics are a stored snapshot dated by _cron_refresh_metrics, which
-        # keeps them searchable across the portfolio without re-aggregating on
-        # every read. Opening one project's dashboard is the one moment a user
-        # is entitled to a live number, and it costs the single aggregation the
-        # old per-read compute charged for every project in a list.
         self._refresh_metrics()
         show_profitability = self._show_profitability()
         panel_data = {
@@ -2738,7 +2392,7 @@ class ProjectProject(models.Model):
                 and profitability_items
                 and "revenues" in profitability_items
                 and "costs" in profitability_items
-            ):  # sort the data values
+            ):
                 profitability_items["revenues"]["data"] = sorted(
                     profitability_items["revenues"]["data"],
                     key=lambda k: k["sequence"],
@@ -2763,8 +2417,6 @@ class ProjectProject(models.Model):
         return {}
 
     def _get_already_included_profitability_invoice_line_ids(self) -> list:
-        # To be extended to avoid account.move.line overlap between
-        # profitability reports.
         return []
 
     def _get_user_values(self) -> dict:
@@ -2878,7 +2530,7 @@ class ProjectProject(models.Model):
             profitability_items
             and "revenues" in profitability_items
             and "costs" in profitability_items
-        ):  # sort the data values
+        ):
             profitability_items["revenues"]["data"] = sorted(
                 profitability_items["revenues"]["data"],
                 key=lambda k: k["sequence"],
@@ -2956,10 +2608,6 @@ class ProjectProject(models.Model):
         )
         return profitability_values_dict, show_profitability
 
-    # ---------------------------------------------------
-    #  Business Methods
-    # ---------------------------------------------------
-
     def _get_hide_partner(self) -> bool:
         return False
 
@@ -2995,7 +2643,6 @@ class ProjectProject(models.Model):
 
     @api.constrains(lambda self: self._get_plan_fnames())
     def _check_account_id(self) -> None:
-        # Overriden from 'mixin.analytic.plan.fields'
         pass
 
     def _get_plan_domain(self, plan: Any) -> list:
@@ -3016,15 +2663,7 @@ class ProjectProject(models.Model):
             "default_company_id": unquote("company_id"),
         }
 
-    # ---------------------------------------------------
-    # Privacy
-    # ---------------------------------------------------
-
     def _change_privacy_visibility(self, new_visibility: str) -> None:
-        """Unsubscribe non-internal users from the project and tasks if the project privacy visibility
-        goes from 'portal' to a different value.
-        If the privacy visibility is set to 'portal', subscribe back project and tasks partners.
-        """
         for project in self:
             if project.privacy_visibility == new_visibility:
                 continue
@@ -3035,14 +2674,10 @@ class ProjectProject(models.Model):
             elif project.privacy_visibility in ["invited_users", "portal"]:
                 portal_users = project.message_partner_ids.user_ids.filtered("share")
                 project.message_unsubscribe(partner_ids=portal_users.partner_id.ids)
-                project.tasks._unsubscribe_portal_users()
-                # revoke access_token since the project and its tasks are no longer accessible for portal/public users
-                project.tasks.access_token = ""
+                project.task_ids._unsubscribe_portal_users()
+                project.task_ids.access_token = ""
                 project.access_token = ""
 
-    # ---------------------------------------------------
-    # Project sharing
-    # ---------------------------------------------------
     def _check_project_sharing_access(self) -> bool:
         self.ensure_one()
         if self.privacy_visibility not in ["invited_users", "portal"]:
@@ -3060,7 +2695,6 @@ class ProjectProject(models.Model):
         self.ensure_one()
         new_collaborators = self._get_new_collaborators(partners)
         if not new_collaborators:
-            # Then we have nothing to do
             return
         self.write(
             {
@@ -3091,9 +2725,7 @@ class ProjectProject(models.Model):
 
         dict_tasks_per_partner = {}
         dict_partner_ids_to_subscribe_per_partner = {}
-        # Include closed tasks: a customer added to the project should follow all
-        # of their tasks, not only the still-open ones.
-        for task in self.tasks:
+        for task in self.task_ids:
             if task.partner_id in dict_tasks_per_partner:
                 dict_tasks_per_partner[task.partner_id] |= task
             else:
@@ -3136,10 +2768,6 @@ class ProjectProject(models.Model):
             task.task_completion_percentage = (
                 task.task_count and 1 - task.open_task_count / task.task_count
             )
-
-    # ---------------------------------------------------
-    #  Project Template Methods
-    # ---------------------------------------------------
 
     def _get_template_to_project_warnings(self) -> list:
         self.ensure_one()
@@ -3259,14 +2887,12 @@ class ProjectProject(models.Model):
 
     @api.model
     def _get_template_default_context_whitelist(self) -> list[str]:
-        """Whitelist of fields that can be set through the `default_` context keys when creating a project from a template."""
         return [
             "allow_milestones",
         ]
 
     @api.model
     def _get_template_field_blacklist(self) -> list[str]:
-        """Blacklist of fields to not copy when creating a project from a template."""
         return [
             "partner_id",
         ]
@@ -3297,7 +2923,6 @@ class ProjectProject(models.Model):
             body=self.env._("Project created from template %(name)s.", name=self.name)
         )
 
-        # Tasks dispatching using project roles
         if role_to_users_mapping and (
             mapping := role_to_users_mapping.filtered(lambda entry: entry.user_ids)
         ):

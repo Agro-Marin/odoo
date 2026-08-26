@@ -1,10 +1,3 @@
-"""Cross-project resource utilization report (SQL view).
-
-Evidence basis: queuing theory (at 90% utilization, wait times are 9x
-baseline), Flyvbjerg (92% of megaprojects over budget — overcommitment
-is the norm). This report makes invisible overallocation visible.
-"""
-
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 
@@ -12,8 +5,6 @@ from odoo.addons.project.models.project_task import CLOSED_STATES
 
 
 class ProjectResourceReport(models.Model):
-    """Per-user resource allocation across all active projects."""
-
     _name = "project.resource.report"
     _description = "Resource Utilization"
     _auto = False
@@ -49,15 +40,6 @@ class ProjectResourceReport(models.Model):
     )
 
     def init(self) -> None:
-        """Create the SQL view for resource utilization.
-
-        Sources ``allocated_hours`` from ``resource_reservation`` (per-resource
-        ledger) — NOT from ``project_task.allocated_hours``, which sums
-        across all assignees and would double-count multi-user tasks
-        when joined through ``project_task_user_rel``.  See PMI hours
-        model: this report measures actual resource commitment, so the
-        per-resource reservation row is canonical.
-        """
         drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             f"""

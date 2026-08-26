@@ -36,9 +36,6 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
         Task = cls.env["project.task"]
         readable_fields, writeable_fields = Task._portal_accessible_fields()
 
-        # `mixin.html.field.history` drops html_field_history from create/write
-        # vals for every user, so writing it never raises -- it is protected by
-        # being ignored, not by an AccessError. Exclude it from all four groups.
         field_exception = {"html_field_history"}
 
         cls.read_protected_fields_task = OrderedDict(
@@ -93,7 +90,6 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
             data["res.partner"][1]["mention_token"],
             self.user_portal.partner_id._get_mention_token(),
         )
-        # remove portal user from the project collaborators
         self.project_portal.collaborator_ids.filtered(
             lambda rec: rec.partner_id == self.user_portal.partner_id
         ).unlink()
@@ -106,7 +102,6 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
         )
 
     def test_readonly_fields(self) -> None:
-        """The fields are not writeable should not be editable by the portal user."""
         view_infos = self.task_portal.get_view(
             self.env.ref(self.project_sharing_form_view_xml_id).id
         )
@@ -144,16 +139,6 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
                 task.read([field])
 
     def test_portal_user_cannot_forge_html_field_history(self) -> None:
-        """The exception carved out of the field groups, pinned explicitly.
-
-        Two independent layers stop a portal collaborator forging another
-        user's revision history: `mixin.html.field.history` drops the key from
-        vals, and behind it the field ACL raises. Because the first layer runs
-        first, the write raises nothing -- which is why the field cannot sit in
-        `other_fields_task` with the AccessError-expecting fields. Assert the
-        invariant instead of either mechanism, so this still holds if the outer
-        layer is removed.
-        """
         task = self.task_portal.with_user(self.user_portal)
         before = self.task_portal.sudo().html_field_history
 
@@ -200,12 +185,6 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
                 value = dummy_value(field_name)
                 task.write({field_name: value})
                 actual_value = task[field_name]
-                # `dummy_value` hands x2many a *list*, which `write` accepts and
-                # `convert_to_record` does not: it assigns the value straight to
-                # `_ids`, which must be a tuple. The mismatch was invisible until
-                # a comodel gained an `active` field -- that is what makes
-                # `_make_corecords` filter the recordset it just built, and the
-                # filter is where a list stops being tolerated.
                 expected_value = field.convert_to_record(
                     tuple(value) if isinstance(value, list) else value, task
                 )

@@ -172,7 +172,7 @@ class ProjectProject(models.Model):
         )
         return self.env["project.project"].browse(id_ for (id_,) in result)
 
-    @api.depends("sale_order_id.invoice_state", "tasks.sale_order_id.invoice_state")
+    @api.depends("sale_order_id.invoice_state", "task_ids.sale_order_id.invoice_state")
     def _compute_has_any_so_to_invoice(self):
         """Has any Sale Order whose invoice_state is 'to do' or 'partial'"""
         if not self.ids:
@@ -432,7 +432,7 @@ class ProjectProject(models.Model):
 
         return super().action_profitability_items(section_name, domain, res_id)
 
-    @api.depends("sale_order_id.invoice_state", "tasks.sale_order_id.invoice_state")
+    @api.depends("sale_order_id.invoice_state", "task_ids.sale_order_id.invoice_state")
     def _compute_has_any_so_with_nothing_to_invoice(self):
         """Has any Sale Order whose invoice_state is set as No"""
         if not self.ids:

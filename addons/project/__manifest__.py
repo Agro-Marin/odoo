@@ -1,6 +1,6 @@
 {
     "name": "Project",
-    "version": "1.15",
+    "version": "1.17",
     "website": "https://www.odoo.com/app/project",
     "category": "Services/Project",
     "sequence": 45,
@@ -39,6 +39,7 @@
         "views/project_project_views.xml",
         "views/project_task_views.xml",
         "views/project_tags_views.xml",
+        "views/project_task_lost_reason_views.xml",
         "views/project_milestone_views.xml",
         "views/res_partner_views.xml",
         "views/res_config_settings_views.xml",
@@ -111,8 +112,6 @@
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
             "web/static/lib/odoo_ui_icons/*",
-            # Project sharing serves web's component CSS, which reads the
-            # palette as `--o-*`; nothing else here publishes it.
             "web/static/src/scss/tokens.scss",
             "web/static/src/webclient/navbar/navbar.scss",
             "web/static/src/scss/animation.scss",
@@ -125,19 +124,13 @@
             "web/static/src/libs/bootstrap.js",
             "base/static/src/css/modules.css",
             "web/static/src/core/**/*",
-            # The fork split web/static/src/core into components/ and ui/:
-            # without them the bundle misses their modules and templates
-            # (e.g. web.Dialog, web.DropdownItem, web.TagsList) and the sharing
-            # client dies at template setup.
             "web/static/src/components/**/*",
             "web/static/src/ui/**/*",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
-            "web/static/src/webclient/icons.scss",  # variables required in list_controller.scss
+            "web/static/src/webclient/icons.scss",
             "web/static/src/views/**/*.js",
             "web/static/src/views/*.xml",
-            # Parent templates of the web_enterprise settings_form_view files
-            # that project_enterprise appends to this bundle.
             "web/static/src/views/settings/**/*",
             "web/static/src/views/*.scss",
             "web/static/src/fields/**/*",
@@ -152,18 +145,15 @@
             (
                 "remove",
                 "web/static/src/webclient/clickbot/clickbot.js",
-            ),  # lazy loaded
+            ),
             ("remove", "web/static/src/views/form/button_box/*.scss"),
-            # remove the report code and whitelist only what's needed
             ("remove", "web/static/src/webclient/actions/reports/**/*"),
             "web/static/src/webclient/actions/reports/*.js",
             "web/static/src/webclient/actions/reports/*.xml",
             "web/static/src/env.js",
             "base/static/src/scss/res_partner.scss",
-            # Form style should be computed before
             "web/static/src/views/form/button_box/*.scss",
             "bus/static/src/**/*.js",
-            # To be able to launch tour js in project sharing
             "web_tour/static/src/js/**/*",
             "web_tour/static/src/tour_utils.js",
             "web/static/lib/hoot-dom/**/*",
@@ -188,10 +178,6 @@
             "project/static/src/views/project_task_relational_model.js",
             "project/static/src/views/project_model_mixin.js",
             "project/static/src/views/project_relational_model.js",
-            # Project sharing is a light bundle, and the globs above reach
-            # every dark sibling in web, the theme and web_gantt. Each would
-            # compile with the light palette and override the light file it
-            # answers -- the file viewer's toolbar was the visible one.
             ("remove", "web/static/src/**/*.dark.scss"),
             ("include", "portal.assets_chatter_helpers"),
             "portal/static/src/chatter/core/**/*",
@@ -205,10 +191,6 @@
         "bundles": [
             "project.webclient",
         ],
-        # The project-sharing page renders web.assets_tests after this app
-        # bundle in test mode; declare it a secondary so the served import map
-        # carries the singleton-preserving bridges (browser/registry/…) the test
-        # bundle externalises. See web.assets_tests / the 2026-07 split note.
         "secondary_import_map_includes": {
             "project.webclient": ["web.assets_tests"],
         },

@@ -1,5 +1,3 @@
-"""Burn-up: the closure history the chart reconstructs."""
-
 from datetime import datetime
 
 from odoo import Command
@@ -11,9 +9,6 @@ from .test_project_base import TestProjectCommon
 @tagged("post_install", "-at_install")
 class TestBurnupClosureHistory(TestProjectCommon):
     def test_burnup_flips_at_the_closure_not_at_the_last_step_move(self) -> None:
-        """is_closed was derived from the step field's tracking label compared
-        against state literals, so it could never be true for a historical
-        bucket: the chart only flipped at the last step change."""
         year = datetime.now().year - 1
         project = self.env["project.project"].create({"name": "Burnup"})
         alpha, beta = self.env["project.workflow.step"].create(
