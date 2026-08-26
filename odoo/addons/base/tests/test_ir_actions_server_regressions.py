@@ -2,11 +2,13 @@ import inspect
 from unittest.mock import patch
 
 import requests
+from lxml import etree
 
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.base.models.ir_actions_server import _get_webhook_blocked_reason
 
@@ -453,6 +455,55 @@ class TestWebhookPayloadHasOneShape(ServerActionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestNeedingARecordIsAskedOfTheAction(ServerActionCase):
+    """`object_create` and `object_copy` are in the state set and still do not
+    always mind: they reach for the target record only to hang the new one off
+    `link_field_id`. Asked of the state alone, a scheduled Create Record was
+    skipped with a warning for a record it never wanted."""
+
+    def _create_action(self, **vals):
+        return self._action(state="object_create", value="spawned", **vals)
+
+    def test_a_create_with_no_link_field_runs_without_a_target(self):
+        action = self._create_action()
+        self.assertIn("object_create", action._get_states_needing_a_live_record())
+        self.assertFalse(action._needs_a_live_record())
+
+        before = self.env["res.partner"].search([]).ids
+        action.run()
+        self.env.flush_all()
+        made = self.env["res.partner"].search([("id", "not in", before)])
+        self.assertEqual(made.mapped("name"), ["spawned"])
+
+    @mute_logger(_MODULE)
+    def test_a_create_that_links_is_skipped_without_a_target(self):
+        link = self.env["ir.model.fields"]._get("res.partner", "child_ids")
+        action = self._create_action(link_field_id=link.id)
+        self.assertTrue(action._needs_a_live_record())
+
+        before = self.env["res.partner"].search([]).ids
+        action.run()
+        self.env.flush_all()
+        self.assertFalse(
+            self.env["res.partner"].search([("id", "not in", before)]),
+            "there is nothing to link the new record to, so nothing is made",
+        )
+
+    def test_a_write_always_needs_its_target(self):
+        action = self._action(
+            state="object_write", update_path="ref", evaluation_type="value", value="V"
+        )
+        self.assertTrue(action._needs_a_live_record())
+
+    def test_the_cron_warning_follows_the_same_question(self):
+        link = self.env["ir.model.fields"]._get("res.partner", "child_ids")
+        plain = self._create_action(usage="ir_cron")
+        linked = self._create_action(usage="ir_cron", link_field_id=link.id)
+        self.assertFalse(plain.warning, "it makes its record on a schedule, fine")
+        self.assertIn("would do nothing", linked.warning)
+
+
+@tagged("post_install", "-at_install")
 class TestOneRecordResolution(ServerActionCase):
     """`_get_target_records` trusted `active_ids` with no `active_model` while
     `_get_eval_context` refused them. One of the two had to be wrong."""
@@ -475,6 +526,111 @@ class TestOneRecordResolution(ServerActionCase):
         self.assertEqual(eval_context["records"], scoped.sudo()._get_target_records())
         self.assertEqual(eval_context["record"], partners[:1])
         self.assertEqual(scoped.run(), {"n": 3, "r": partners[0].id})
+
+
+@tagged("post_install", "-at_install")
+class TestTheFormOffersExactlyOneValueInput(ServerActionCase):
+    """`_compute_value_field_to_show` did not account for `evaluation_type`, so
+    it answered `resource_ref` for a relational field even under Compute -- where
+    the user needs the expression editor. The view compensated by ANDing an
+    `evaluation_type` clause onto five separate `invisible` expressions. Folding
+    it into the compute removed four of them, and nothing else checks that the
+    two halves still agree: the arch is evaluated here the way the client does,
+    ancestors included, and the invariant is that an Update Record action offers
+    exactly one place to type its value.
+    """
+
+    VALUE_FIELDS = (
+        "value",
+        "html_value",
+        "sequence_id",
+        "resource_ref",
+        "selection_value",
+        "update_boolean_value",
+    )
+
+    def _arch(self):
+        view = self.env.ref("base.view_server_action_form")
+        arch = view.arch_db if isinstance(view.arch_db, str) else view.arch
+        return etree.fromstring(arch)
+
+    def _eval_context(self, action):
+        context = {"context": {}}
+        for name, field in action._fields.items():
+            value = action[name]
+            if field.type in ("many2one", "reference"):
+                context[name] = value.id if value else False
+            elif field.type in ("one2many", "many2many"):
+                context[name] = value.ids
+            else:
+                context[name] = value
+        return context
+
+    def _visible_value_inputs(self, action):
+        arch = self._arch()
+        parents = {child: parent for parent in arch.iter() for child in parent}
+        context = self._eval_context(action)
+
+        def hidden(node):
+            while node is not None:
+                expression = node.get("invisible")
+                if expression and safe_eval(expression, dict(context)):
+                    return True
+                node = parents.get(node)
+            return False
+
+        return [
+            node.get("name")
+            for node in arch.iter("field")
+            if node.get("name") in self.VALUE_FIELDS and not hidden(node)
+        ]
+
+    def test_every_update_record_shape_offers_one_and_only_one(self):
+        selection_field = self.env["ir.model.fields"]._get("res.partner", "type")
+        shapes = [
+            ("a static value on a char", "ref", "value"),
+            ("an expression on a char", "ref", "equation"),
+            ("a static value on a m2o", "parent_id", "value"),
+            ("an expression on a m2o", "parent_id", "equation"),
+            ("a static value on html", "comment", "value"),
+            ("a static value on a boolean", "active", "value"),
+            ("a static value on a selection", "type", "value"),
+            ("a sequence", "ref", "sequence"),
+        ]
+        for label, path, evaluation in shapes:
+            with self.subTest(shape=label):
+                action = self._action(
+                    state="object_write",
+                    update_path=path,
+                    evaluation_type=evaluation,
+                )
+                visible = self._visible_value_inputs(action)
+                self.assertEqual(
+                    len(visible),
+                    1,
+                    f"{label}: the form offers {visible}, not one input",
+                )
+        self.assertTrue(selection_field, "precondition: res.partner.type exists")
+
+    def test_an_expression_gets_the_editor_even_on_a_relational_field(self):
+        """The case that forced the view to re-ask: `value_field_to_show` used
+        to answer `resource_ref` here, which is a record picker, not a place to
+        type `env.user.partner_id.id`."""
+        action = self._action(
+            state="object_write",
+            update_path="parent_id",
+            evaluation_type="equation",
+            value="env.user.partner_id.id",
+        )
+        self.assertEqual(action.value_field_to_show, "value")
+        self.assertEqual(self._visible_value_inputs(action), ["value"])
+
+    def test_a_record_picker_is_still_offered_for_a_static_relational_value(self):
+        action = self._action(
+            state="object_write", update_path="parent_id", evaluation_type="value"
+        )
+        self.assertEqual(action.value_field_to_show, "resource_ref")
+        self.assertEqual(self._visible_value_inputs(action), ["resource_ref"])
 
 
 @tagged("post_install", "-at_install")

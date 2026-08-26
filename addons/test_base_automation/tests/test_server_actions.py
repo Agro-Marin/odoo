@@ -97,7 +97,21 @@ class TestOnUnlinkWarnsForActionsNeedingTheirRecord(TestServerActionsBase):
     now comes from the actions, so a module contributing a state contributes its
     warning with it -- and this test walks whatever the registry answers rather
     than a second list of its own.
+
+    The state is a necessary condition, not a sufficient one: `object_create`
+    and `object_copy` reach for the record only to hang the new one off a
+    `link_field_id`, so the question is asked of the ACTION through
+    `_needs_a_live_record()`. Each state is configured here so that it does.
     """
+
+    def _configured(self, state, model):
+        """The action for `state`, set up so that it needs its record."""
+        values = {"name": f"Act {state}", "model_id": model.id, "state": state}
+        if state in ("object_create", "object_copy"):
+            values["link_field_id"] = (
+                self.env["ir.model.fields"]._get("mail.test.lead", "message_ids").id
+            )
+        return self.env["ir.actions.server"].create(values)
 
     def test_every_state_that_needs_its_record_warns_on_unlink(self):
         Action = self.env["ir.actions.server"]
@@ -108,9 +122,7 @@ class TestOnUnlinkWarnsForActionsNeedingTheirRecord(TestServerActionsBase):
         model = self.env["ir.model"]._get("mail.test.lead")
         for state in sorted(states):
             with self.subTest(state=state):
-                action = Action.create(
-                    {"name": f"Act {state}", "model_id": model.id, "state": state}
-                )
+                action = self._configured(state, model)
                 rule = self.env["base.automation"].new(
                     {
                         "name": "On delete",
@@ -140,6 +152,52 @@ class TestOnUnlinkWarnsForActionsNeedingTheirRecord(TestServerActionsBase):
             }
         )
         self.assertFalse(rule._onchange_trigger_or_actions())
+
+    def test_a_create_with_nothing_to_link_to_survives_its_record(self):
+        """`object_create` is in the set, and still does not always mind.
+
+        It reads the deleted record only to write the new one onto its
+        `link_field_id`. With no link field there is nothing to read, and the
+        rule creates its record whether or not the trigger deleted one.
+        """
+        model = self.env["ir.model"]._get("mail.test.lead")
+        action = self.env["ir.actions.server"].create(
+            {
+                "name": "Make one",
+                "model_id": model.id,
+                "state": "object_create",
+                "value": "spawned",
+            }
+        )
+        self.assertFalse(action.link_field_id, "precondition: nothing to link to")
+        self.assertIn("object_create", action._get_states_needing_a_live_record())
+        self.assertFalse(action._needs_a_live_record())
+
+        rule = self.env["base.automation"].new(
+            {
+                "name": "On delete",
+                "model_id": model.id,
+                "trigger": "on_unlink",
+                "action_server_ids": [(6, 0, action.ids)],
+            }
+        )
+        self.assertFalse(rule._onchange_trigger_or_actions())
+
+    def test_the_warning_names_the_actions_it_found(self):
+        """It used to say "you cannot send an email" whatever the action was."""
+        model = self.env["ir.model"]._get("mail.test.lead")
+        action = self._configured("object_write", model)
+        rule = self.env["base.automation"].new(
+            {
+                "name": "On delete",
+                "model_id": model.id,
+                "trigger": "on_unlink",
+                "action_server_ids": [(6, 0, action.ids)],
+            }
+        )
+        message = rule._onchange_trigger_or_actions()["warning"]["message"]
+        self.assertIn(action.name, message)
+        self.assertNotIn("send an email", message)
 
 
 @tagged("post_install", "-at_install")

@@ -644,9 +644,7 @@ class IrActionsServer(models.Model):
                 )
             )
 
-        if self.usage == "ir_cron" and self.state in (
-            self._get_states_needing_a_live_record()
-        ):
+        if self.usage == "ir_cron" and self._needs_a_live_record():
             warnings.append(
                 _(
                     "A scheduled action runs on no record, and this one needs "
@@ -930,6 +928,14 @@ class IrActionsServer(models.Model):
     @api.model
     def _get_states_needing_a_live_record(self) -> frozenset[str]:
         return frozenset((*CRUD_STATES, "webhook"))
+
+    def _needs_a_live_record(self) -> bool:
+        self.ensure_one()
+        if self.state not in self._get_states_needing_a_live_record():
+            return False
+        if self.state in ("object_create", "object_copy"):
+            return bool(self.link_field_id)
+        return True
 
     def _get_fields_readable(self) -> frozenset[str]:
         return super()._get_fields_readable() | {
@@ -1229,11 +1235,14 @@ class IrActionsServer(models.Model):
         _logger.warning(
             "Server action %r (type %r) was triggered with no target record "
             "(no active_id/active_ids in context, or they name another model); "
-            "its %s runner requires one and will be skipped. Only 'code' "
-            "actions run without a target record.",
+            "its %s runner needs one and will be skipped.%s",
             self.name,
             self.state,
             runner.__name__,
+            " It is the 'Link Field' that needs one; clear that field and the "
+            "action runs on its own."
+            if self.state in ("object_create", "object_copy")
+            else "",
         )
 
     def _run(self, records: Any, eval_context: dict[str, Any]) -> dict[str, Any] | bool:
@@ -1260,7 +1269,7 @@ class IrActionsServer(models.Model):
         if (
             not records
             and not self.env.context.get("onchange_self")
-            and self.state in self._get_states_needing_a_live_record()
+            and self._needs_a_live_record()
         ):
             self._log_missing_target(runner)
             return False

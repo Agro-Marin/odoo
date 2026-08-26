@@ -857,17 +857,30 @@ class BaseAutomation(models.Model):
                 },
             }
 
-        needs_record = self.action_server_ids._get_states_needing_a_live_record()
-        mail_actions = self.action_server_ids.filtered(
-            lambda a: a.state in needs_record
+        # The set is contributed by whatever modules are installed -- mail, sms
+        # and whatsapp add theirs, base adds its own -- so the message names the
+        # actions it found rather than describing one module's idea of them.
+        doomed = self.action_server_ids.filtered(
+            lambda action: action._needs_a_live_record()
         )
-        if self.trigger == "on_unlink" and mail_actions:
+        if self.trigger == "on_unlink" and doomed:
+            action_states = dict(
+                self.action_server_ids._fields["state"]._description_selection(
+                    self.env,
+                ),
+            )
             return {
                 "warning": {
                     "title": _("Warning"),
                     "message": _(
-                        "You cannot send an email, add followers or create an activity "
-                        "for a deleted record.  It simply does not work.",
+                        "A rule that runs on deletion runs once the record is "
+                        "already gone, and these actions each need it to still "
+                        "be there:\n%(actions)s\n\nThey would do nothing, "
+                        "every time the rule fired.",
+                        actions="\n".join(
+                            f"- {action.name} ({action_states.get(action.state, action.state)})"
+                            for action in doomed
+                        ),
                     ),
                 },
             }
