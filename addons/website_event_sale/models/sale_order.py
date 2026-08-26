@@ -76,8 +76,8 @@ class SaleOrder(models.Model):
             else ticket.seats_available
         )
         if ticket.seats_limited and ticket_seats_available <= 0:
-            # Remove existing line if exists and do not add a new one
-            # if no ticket is available anymore
+            # Keep the existing line's quantity unchanged, and do not create a
+            # new line, if no ticket is available anymore
             new_qty = existing_qty
             warning = _(
                 "Sorry, The %(ticket)s tickets for the %(event)s event are sold out.",
