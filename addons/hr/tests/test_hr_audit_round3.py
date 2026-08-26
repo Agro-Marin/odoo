@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo import fields
 from odoo.exceptions import UserError
@@ -453,6 +454,65 @@ class TestHrAuditRound3(TestHrCommon):
         self.env.flush_all()
 
         self.assertEqual(employee.image_1920, user.image_1920)
+
+    def test_preferences_view_shows_only_self_readable_fields(self):
+        """Every field the preferences form renders must be self-readable.
+
+        ``test_preferences_view_fields`` compares the arch a maximally-privileged
+        user gets against a plain user's, which catches a view-level group strip.
+        It does not check that what the plain user is shown can be READ by them:
+        a field in the arch but absent from ``SELF_READABLE_FIELDS`` is a
+        preferences page that raises.
+
+        MUTATION-TESTED: removing ``private_phone`` from ``HR_WRITABLE_FIELDS``
+        (which feeds both self-access lists) fails this with
+        ``['private_phone'] is not false``. Note it only bites for a field whose
+        access actually depends on the list -- ``res.users.read`` elevates to sudo
+        only when EVERY requested name is self-readable, and an unrestricted field
+        is readable by any internal user without the elevation. ``private_phone``
+        qualifies because it is ``related_sudo=False`` onto an
+        ``hr.group_hr_user``-only field.
+        """
+        owner = self.env["res.users"].create(
+            {
+                "name": "R3 Prefs Reader",
+                "login": "r3_prefs_reader",
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        self.Employee.create({"name": "R3 Prefs Reader Emp", "user_id": owner.id})
+        self.env.flush_all()
+
+        Users = self.env["res.users"].with_user(owner)
+        arch = Users.get_view(self.env.ref("hr.res_users_view_form_preferences").id)[
+            "arch"
+        ]
+        field_names = list(
+            dict.fromkeys(
+                node.get("name")
+                for node in etree.fromstring(arch).xpath(
+                    "//field[not(ancestor::field)]"
+                )
+                if node.get("name")
+            )
+        )
+        self.assertTrue(field_names, "the arch must actually contain fields")
+
+        readable = set(Users.SELF_READABLE_FIELDS)
+        self.assertFalse(
+            [name for name in field_names if name not in readable],
+            "preferences fields missing from SELF_READABLE_FIELDS",
+        )
+        as_owner = Users.browse(owner.id)
+        unreadable = []
+        for name in field_names:
+            try:
+                as_owner.read([name])
+            except Exception as error:
+                unreadable.append((name, type(error).__name__))
+        self.assertFalse(
+            unreadable, "preferences fields a user cannot read: %s" % unreadable
+        )
 
     def test_no_bank_account_relation_is_self_writable(self):
         """No res.users field reaching res.partner.bank may be self-writable.
