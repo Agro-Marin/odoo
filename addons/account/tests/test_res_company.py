@@ -13,6 +13,40 @@ class _FakeAccount:
 
 
 @tagged("post_install", "-at_install")
+class TestFiscalCountryGroupCodes(common.TransactionCase):
+    """A Json field reads an empty list back as False, so this one never is."""
+
+    def test_a_company_without_a_fiscal_country_still_yields_a_list(self):
+        company = self.env["res.company"].create({"name": "No Fiscal Country Co"})
+        self.assertFalse(company.account_fiscal_country_id)
+        codes = company.account_fiscal_country_group_codes
+        self.assertIsInstance(
+            codes,
+            list,
+            "an empty list would read back as False and break every consumer",
+        )
+        self.assertNotIn("EU", codes)
+
+    def test_a_partner_scoped_to_such_a_company_computes_its_group_codes(self):
+        company = self.env["res.company"].create({"name": "No Fiscal Country Co 2"})
+        partner = self.env["res.partner"].create({"name": "Scoped"})
+        scoped = partner.with_context(allowed_company_ids=[company.id])
+        # this is the read that raised "'bool' object is not iterable"
+        self.assertIsInstance(scoped.fiscal_country_group_codes, list)
+
+    def test_a_company_with_a_fiscal_country_reports_its_groups(self):
+        belgium = self.env.ref("base.be")
+        company = self.env["res.company"].create(
+            {"name": "BE Fiscal Co", "account_fiscal_country_id": belgium.id}
+        )
+        self.assertEqual(
+            company.account_fiscal_country_group_codes,
+            belgium.country_group_codes,
+            "a company with a fiscal country still reports that country's groups",
+        )
+
+
+@tagged("post_install", "-at_install")
 class TestResCompanyAccountCode(AccountTestInvoicingCommon):
     def test_get_new_account_code_pure(self):
         new_code = self.env["res.company"].get_new_account_code

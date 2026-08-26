@@ -528,10 +528,14 @@ class ResCompany(models.Model):
     @api.depends("account_fiscal_country_id")
     def _compute_account_fiscal_country_group_codes(self):
         for company in self:
+            # never [] -- a Json field reads an empty list back as False, and
+            # every consumer of this one iterates it or tests membership. This
+            # mirrors res.country.country_group_codes, which carries the same
+            # sentinel for the same reason.
             company.account_fiscal_country_group_codes = (
                 company.account_fiscal_country_id.country_group_codes
                 if company.account_fiscal_country_id
-                else []
+                else [""]
             )
 
     def get_next_batch_payment_communication(self):
