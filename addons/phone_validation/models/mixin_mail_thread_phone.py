@@ -200,8 +200,6 @@ class MixinMailThreadPhone(models.AbstractModel):
         for record in self:
             record.phone_sanitized_blacklisted = record.phone_sanitized in blacklist
             phone_blacklisted = False
-            # This is a bit of a hack. Assume that any "mobile" numbers will have the word 'mobile'
-            # in them due to varying field names and assume all others are just "phone" numbers.
             # Note that the limitation of only having 1 phone_sanitized value means that a phone/mobile number
             # may not be calculated as blacklisted even though it is if both field values exist in a model.
             for number_field in number_fields:
