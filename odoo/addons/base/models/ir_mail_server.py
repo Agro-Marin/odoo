@@ -41,6 +41,14 @@ _test_logger = logging.getLogger("odoo.tests")
 
 SMTP_TIMEOUT = 60
 
+# The three questions anyone asks of `smtp_encryption`, asked in one place each:
+# which transport to open, whether to negotiate STARTTLS on it, and whether the
+# peer has to prove who it is. Spelled inline they drifted apart -- the strict
+# set alone was written out twice, in two functions that must agree.
+IMPLICIT_TLS_ENCRYPTIONS = frozenset({"ssl", "ssl_strict"})
+STARTTLS_ENCRYPTIONS = frozenset({"starttls", "starttls_strict"})
+VERIFIED_ENCRYPTIONS = frozenset({"ssl_strict", "starttls_strict"})
+
 DOMAIN_PATTERN = re.compile(
     r"^(?!-)[^\W_](?:[\w-]*[^\W_])?(?:\.(?!-)[^\W_](?:[\w-]*[^\W_])?)*$",
     re.UNICODE,
@@ -632,18 +640,17 @@ class IrMail_Server(models.Model):
         mail_server = None
         if mail_server_id:
             mail_server = self.sudo().browse(mail_server_id)
-            self._check_forced_mail_server(mail_server, allow_archived, smtp_from)
+            mail_server._check_forced_mail_server(allow_archived, smtp_from)
         elif resolve_server:
             mail_server, smtp_from = self.sudo()._get_mail_server(smtp_from)
         if not mail_server:
             mail_server = self.env["ir.mail_server"]
 
-        transport = self._resolve_smtp_transport(mail_server)
+        transport = mail_server._resolve_smtp_transport()
         return self._open_smtp_connection(transport, smtp_from)
 
     def _resolve_smtp_transport(
         self,
-        mail_server: Self,
         *,
         host: str | None = None,
         port: int | None = None,
@@ -654,25 +661,25 @@ class IrMail_Server(models.Model):
         ssl_private_key: str | None = None,
         smtp_debug: bool = False,
     ) -> _SmtpTransport:
-        if mail_server and mail_server.smtp_authentication != "cli":
-            is_certificate = mail_server.smtp_authentication == "certificate"
-            encryption = mail_server.smtp_encryption
+        if self and self.smtp_authentication != "cli":
+            is_certificate = self.smtp_authentication == "certificate"
+            encryption = self.smtp_encryption
             if is_certificate:
-                ssl_context = mail_server._ssl_context_from_certificate()
+                ssl_context = self._ssl_context_from_certificate()
             elif encryption != "none":
                 ssl_context = self._ssl_context_for_encryption(encryption)
             else:
                 ssl_context = None
             return _SmtpTransport(
-                server=mail_server.smtp_host,
-                port=mail_server.smtp_port,
-                user=None if is_certificate else mail_server.smtp_user,
-                password=None if is_certificate else mail_server.smtp_pass,
+                server=self.smtp_host,
+                port=self.smtp_port,
+                user=None if is_certificate else self.smtp_user,
+                password=None if is_certificate else self.smtp_pass,
                 encryption=encryption,
-                debug=smtp_debug or mail_server.smtp_debug,
-                from_filter=mail_server.from_filter,
+                debug=smtp_debug or self.smtp_debug,
+                from_filter=self.from_filter,
                 ssl_context=ssl_context,
-                login_server=mail_server,
+                login_server=self,
                 timeout=self._get_smtp_timeout(),
             )
 
@@ -709,14 +716,14 @@ class IrMail_Server(models.Model):
             user=user or tools.config.get("smtp_user"),
             password=password or tools.config.get("smtp_password"),
             encryption=encryption,
-            debug=smtp_debug or mail_server.smtp_debug,
+            debug=smtp_debug or self.smtp_debug,
             from_filter=(
-                mail_server.from_filter
-                if mail_server
+                self.from_filter
+                if self
                 else self.env["ir.mail_server"]._get_default_from_filter()
             ),
             ssl_context=ssl_context,
-            login_server=mail_server,
+            login_server=self,
             timeout=self._get_smtp_timeout(),
         )
 
@@ -756,7 +763,7 @@ class IrMail_Server(models.Model):
             )
 
         local_hostname = self._get_smtp_local_hostname()
-        if transport.encryption in ("ssl", "ssl_strict"):
+        if transport.encryption in IMPLICIT_TLS_ENCRYPTIONS:
             connection = smtplib.SMTP_SSL(
                 transport.server,
                 transport.port,
@@ -775,7 +782,7 @@ class IrMail_Server(models.Model):
             if transport.debug:
                 connection._print_debug = _log_smtp_debug
             connection.set_debuglevel(transport.debug)
-            if transport.encryption in ("starttls", "starttls_strict"):
+            if transport.encryption in STARTTLS_ENCRYPTIONS:
                 connection.starttls(context=transport.ssl_context)
 
             if transport.user:
@@ -843,7 +850,7 @@ class IrMail_Server(models.Model):
         encryption: str | None, smtp_server: str | None
     ) -> PyOpenSSLContext:
         ssl_context = PyOpenSSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        if encryption in ("ssl_strict", "starttls_strict"):
+        if encryption in VERIFIED_ENCRYPTIONS:
             ssl_context.set_default_verify_paths()
             ssl_context._ctx.set_verify(
                 VERIFY_PEER | VERIFY_FAIL_IF_NO_PEER_CERT,
@@ -907,7 +914,7 @@ class IrMail_Server(models.Model):
     @staticmethod
     def _ssl_context_for_encryption(encryption: str) -> ssl.SSLContext:
         ssl_context = ssl.create_default_context()
-        if encryption in ("ssl_strict", "starttls_strict"):
+        if encryption in VERIFIED_ENCRYPTIONS:
             ssl_context.check_hostname = True
             ssl_context.verify_mode = ssl.CERT_REQUIRED
         else:
@@ -916,13 +923,13 @@ class IrMail_Server(models.Model):
         return ssl_context
 
     def _check_forced_mail_server(
-        self, mail_server: Self, allow_archived: bool, smtp_from: str | None
+        self, allow_archived: bool, smtp_from: str | None
     ) -> None:
-        if not allow_archived and not mail_server.active:
+        if not allow_archived and not self.active:
             raise UserError(
                 _(
                     'The server "%s" cannot be used because it is archived.',
-                    mail_server.display_name,
+                    self.display_name,
                 )
             )
 
@@ -1374,7 +1381,7 @@ class IrMail_Server(models.Model):
 
     @api.onchange("smtp_encryption")
     def _onchange_smtp_encryption(self) -> None:
-        if self.smtp_encryption in ("ssl", "ssl_strict"):
+        if self.smtp_encryption in IMPLICIT_TLS_ENCRYPTIONS:
             if self.smtp_port == 25:
                 self.smtp_port = 465
         elif self.smtp_port == 465:

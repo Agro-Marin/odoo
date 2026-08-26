@@ -933,9 +933,7 @@ class TestSslContexts(TransactionCase):
             patch("smtplib.SMTP_SSL", _FakeConn),
             patch("smtplib.SMTP", _FakeConn),
         ):
-            transport = IrMailServer._resolve_smtp_transport(
-                IrMailServer, **connect_kwargs
-            )
+            transport = IrMailServer._resolve_smtp_transport(**connect_kwargs)
             IrMailServer._open_smtp_connection(transport, None)
         return captured
 
@@ -980,7 +978,7 @@ class TestResolveTransport(TransactionCase):
                 "from_filter": "record.test",
             }
         )
-        t = IrMailServer._resolve_smtp_transport(server)
+        t = server._resolve_smtp_transport()
         self.assertEqual(t.server, "mail.record.test")
         self.assertEqual(t.port, 2525)
         self.assertEqual(t.user, "u@record.test")
@@ -1002,7 +1000,7 @@ class TestResolveTransport(TransactionCase):
             }
         )
         with config.patch(smtp_server="cli.host", smtp_port=25):
-            t = IrMailServer._resolve_smtp_transport(server)
+            t = server._resolve_smtp_transport()
         self.assertEqual(
             t.server, "cli.host", "record host must be ignored for cli auth"
         )
@@ -1013,8 +1011,8 @@ class TestResolveTransport(TransactionCase):
         IrMailServer = self.env["ir.mail_server"]
         empty = IrMailServer.browse()
         with config.patch(smtp_server="conf.host", smtp_user="conf"):
-            t = IrMailServer._resolve_smtp_transport(
-                empty, host="explicit.host", port=1234, user="explicit"
+            t = empty._resolve_smtp_transport(
+                host="explicit.host", port=1234, user="explicit"
             )
         self.assertEqual(t.server, "explicit.host")
         self.assertEqual(t.port, 1234)

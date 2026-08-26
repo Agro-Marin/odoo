@@ -3,6 +3,7 @@ import contextlib
 import datetime
 import email.policy
 import gc
+import inspect
 import logging
 import re
 import smtplib
@@ -23,6 +24,9 @@ from odoo.tests.common import TransactionCase
 from odoo.tools import config, email_domain_extract, email_normalize, mute_logger
 
 from odoo.addons.base.models.ir_mail_server import (
+    IMPLICIT_TLS_ENCRYPTIONS,
+    STARTTLS_ENCRYPTIONS,
+    VERIFIED_ENCRYPTIONS,
     MailDeliveryError,
     OutgoingEmailError,
     _check_hostname_callback,
@@ -561,7 +565,7 @@ class TestTransportAndSizeLimits(TransactionCase):
                 "from_filter": "example.com",
             }
         )
-        transport = self.IrMailServer._resolve_smtp_transport(server)
+        transport = server._resolve_smtp_transport()
         self.assertTrue(transport.debug)
         self.assertEqual(transport.from_filter, "example.com")
 
@@ -671,13 +675,11 @@ class TestSmtpTimeout(TransactionCase):
             {"name": "timeout", "smtp_host": "smtp_host", "smtp_encryption": "none"}
         )
         with config.patch(smtp_timeout=7):
+            self.assertEqual(server._resolve_smtp_transport().timeout, 7)
             self.assertEqual(
-                self.IrMailServer._resolve_smtp_transport(server).timeout, 7
-            )
-            self.assertEqual(
-                self.IrMailServer._resolve_smtp_transport(
-                    self.IrMailServer.browse(), host="smtp_host"
-                ).timeout,
+                self.IrMailServer.browse()
+                ._resolve_smtp_transport(host="smtp_host")
+                .timeout,
                 7,
             )
 
@@ -1035,7 +1037,7 @@ class TestSmtpDebugGoesThroughTheLogger(TransactionCase):
             patch("smtplib.SMTP", _FakeConn),
         ):
             transport = IrMailServer._resolve_smtp_transport(
-                IrMailServer, host="smtp.example.com", smtp_debug=True
+                host="smtp.example.com", smtp_debug=True
             )
             IrMailServer._open_smtp_connection(transport, None)
 
@@ -1492,9 +1494,9 @@ class TestSmtpHeloName(TransactionCase):
             def ehlo_or_helo_if_needed(self):
                 pass
 
-        transport = self.IrMailServer._resolve_smtp_transport(
-            self.IrMailServer.create({"name": "helo", "smtp_host": "smtp.example.com"})
-        )
+        transport = self.IrMailServer.create(
+            {"name": "helo", "smtp_host": "smtp.example.com"}
+        )._resolve_smtp_transport()
         with (
             config.patch(smtp_helo_name="mail.example.com"),
             patch.object(smtplib, "SMTP", FakeSMTP),
@@ -1684,7 +1686,7 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
     def _fake_cli_session_context_reference(self):
         with self._capture():
             transport = self.IrMailServer._resolve_smtp_transport(
-                self.IrMailServer, host="cli.example.com"
+                host="cli.example.com"
             )
             return self.IrMailServer._open_smtp_connection(
                 transport, "notifications@example.com"
@@ -2137,3 +2139,94 @@ class TestSessionContextRegistry(TransactionCase):
         del session
         gc.collect()
         self.assertIsNone(reference(), "a finished session must be collectable")
+
+
+@tagged("post_install", "-at_install")
+class TestEncryptionPolicyIsOneDecision(TransactionCase):
+    """The strict/lax rule is enforced by two different libraries. They have to
+    agree, and nothing used to make them."""
+
+    EXPECTED = {
+        "none": (False, False, False),
+        "starttls": (False, True, False),
+        "starttls_strict": (False, True, True),
+        "ssl": (True, False, False),
+        "ssl_strict": (True, False, True),
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def test_every_selection_value_is_classified(self):
+        declared = {
+            value
+            for value, _label in self.IrMailServer._fields[
+                "smtp_encryption"
+            ]._description_selection(self.env)
+        }
+        self.assertEqual(
+            declared - set(self.EXPECTED),
+            set(),
+            "a new encryption mode must say which transport it opens and whether "
+            "it verifies the peer",
+        )
+
+    def test_the_matrix(self):
+        for encryption, (implicit, starttls, verified) in self.EXPECTED.items():
+            with self.subTest(encryption=encryption):
+                self.assertIs(encryption in IMPLICIT_TLS_ENCRYPTIONS, implicit)
+                self.assertIs(encryption in STARTTLS_ENCRYPTIONS, starttls)
+                self.assertIs(encryption in VERIFIED_ENCRYPTIONS, verified)
+
+    def test_starttls_and_implicit_tls_never_overlap(self):
+        self.assertEqual(IMPLICIT_TLS_ENCRYPTIONS & STARTTLS_ENCRYPTIONS, frozenset())
+
+    def test_verified_is_a_subset_of_the_encrypted_modes(self):
+        self.assertLessEqual(
+            VERIFIED_ENCRYPTIONS, IMPLICIT_TLS_ENCRYPTIONS | STARTTLS_ENCRYPTIONS
+        )
+
+    def test_both_context_builders_agree_on_every_mode(self):
+        """`_ssl_context_for_encryption` (stdlib) and `_client_ssl_context`
+        (PyOpenSSL, used whenever a client certificate is in play) implement the
+        same policy in two libraries."""
+        for encryption, (_i, _s, verified) in self.EXPECTED.items():
+            with self.subTest(encryption=encryption):
+                stdlib = self.IrMailServer._ssl_context_for_encryption(encryption)
+                pyopenssl = self.IrMailServer._client_ssl_context(
+                    encryption, "smtp.example.com"
+                )
+                self.assertIs(
+                    stdlib.verify_mode != ssl.CERT_NONE,
+                    verified,
+                    "stdlib path disagrees with the policy",
+                )
+                self.assertIs(
+                    pyopenssl.verify_mode != ssl.CERT_NONE,
+                    verified,
+                    "PyOpenSSL path disagrees with the policy",
+                )
+
+    def test_a_lax_mode_never_verifies_on_either_path(self):
+        for encryption in set(self.EXPECTED) - VERIFIED_ENCRYPTIONS:
+            with self.subTest(encryption=encryption):
+                self.assertFalse(
+                    self.IrMailServer._ssl_context_for_encryption(
+                        encryption
+                    ).check_hostname
+                )
+                self.assertEqual(
+                    self.IrMailServer._client_ssl_context(encryption, "h").verify_mode,
+                    ssl.CERT_NONE,
+                )
+
+    def test_the_certificate_path_is_deliberately_san_only(self):
+        """`match_hostname` over `get_subj_alt_name` has no CN fallback, where the
+        stdlib `check_hostname` still allows one when a certificate carries no SAN.
+        That asymmetry is intended -- CN as an identity is deprecated -- and is
+        recorded here so a future reader does not read it as an oversight."""
+        source = inspect.getsource(_check_hostname_callback)
+        self.assertIn("get_subj_alt_name", source)
+        self.assertNotIn("commonName", source)

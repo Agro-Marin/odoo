@@ -541,14 +541,11 @@ class TestPersonalServer(MailCommon):
         self.assertFalse(self.mail_server_1.copy().owner_user_id)
 
     def test_personal_mail_server_from_filter_is_matched_normalized(self):
-        IrMailServer = self.env["ir.mail_server"]
         owner_email = self.user_1.email
         for stored in (owner_email, owner_email.upper(), f"  {owner_email} "):
             with self.subTest(from_filter=stored):
                 self.mail_server_1.from_filter = stored
-                IrMailServer._check_forced_mail_server(
-                    self.mail_server_1, True, owner_email
-                )
+                self.mail_server_1._check_forced_mail_server(True, owner_email)
                 self.user_1.invalidate_recordset(["outgoing_mail_server_id"])
                 self.assertEqual(
                     self.user_1.outgoing_mail_server_id,
@@ -557,7 +554,6 @@ class TestPersonalServer(MailCommon):
                 )
 
     def test_personal_mail_server_still_rejects_other_senders(self):
-        IrMailServer = self.env["ir.mail_server"]
         domain = self.user_1.email.split("@")[1]
         for smtp_from, from_filter in (
             (f"someone.else@{domain}", self.user_1.email),
@@ -566,9 +562,7 @@ class TestPersonalServer(MailCommon):
             with self.subTest(smtp_from=smtp_from, from_filter=from_filter):
                 self.mail_server_1.from_filter = from_filter
                 with self.assertRaises(UserError):
-                    IrMailServer._check_forced_mail_server(
-                        self.mail_server_1, True, smtp_from
-                    )
+                    self.mail_server_1._check_forced_mail_server(True, smtp_from)
 
     @mute_logger("odoo.models.unlink")
     def test_personal_mail_server_limit(self):
