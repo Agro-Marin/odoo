@@ -993,6 +993,13 @@ class Screencaster:
         )
 
     def stop(self) -> None:
+        if self.stopped:
+            # save() has already run and set this. Its two failure paths -- no
+            # ffmpeg on PATH, ffmpeg exiting non-zero -- deliberately keep
+            # frames_dir and log its path for the developer, and
+            # ChromeBrowser.stop() calls us afterwards, so deleting here threw
+            # away the frames the log had just pointed at.
+            return
         self.browser._websocket_send("Page.stopScreencast")
         self.stopped = True
         if self.frames_dir.is_dir():
