@@ -10,7 +10,6 @@ class ExpiryPickingConfirmation(models.TransientModel):
     @api.depends("lot_ids")
     def _compute_descriptive_fields(self):
         if self.production_ids or self.workorder_id:
-            # Shows expired lots only if we are more than one expired lot.
             self.show_lots = len(self.lot_ids) > 1
             if self.show_lots:
                 # For multiple expired lots, they are listed in the wizard view.
