@@ -209,6 +209,39 @@ class ChromeBrowser:
             },
         )
 
+    def _settle_exception(self, exc: BaseException) -> None:
+        """Fail ``self._result``, tolerating a concurrent settle.
+
+        Three sites settle this future from the receiver thread while the main
+        thread can cancel it in ``stop()``; ``done()`` is not atomic with the
+        ``set_*`` that follows it. Two of them carried this handler inline and
+        the third did not, so only that one turned the race into a stray
+        traceback logged by ``Future._invoke_callbacks``.
+        """
+        try:
+            self._result.set_exception(exc)
+        except CancelledError:
+            ...
+        except InvalidStateError:
+            self._logger.warning(
+                "Trying to set result to failed (%s) but found the future settled (%s)",
+                exc,
+                self._result,
+            )
+
+    def _settle_result(self, value: Any) -> None:
+        """Complete ``self._result``, tolerating a concurrent settle."""
+        try:
+            self._result.set_result(value)
+        except CancelledError:
+            ...
+        except InvalidStateError:
+            self._logger.warning(
+                "Trying to set result to %s but found the future settled (%s)",
+                value,
+                self._result,
+            )
+
     def signal_handler(self, sig: int, frame: Any) -> None:
         if sig == signal.SIGXCPU:
             _logger.info("CPU time limit reached, stopping Chrome and shutting down")
@@ -655,16 +688,7 @@ class ChromeBrowser:
                 return
             if not self.error_checker or self.error_checker(message):
                 self.take_screenshot()
-                try:
-                    self._result.set_exception(ChromeBrowserException(message))
-                except CancelledError:
-                    ...
-                except InvalidStateError:
-                    self._logger.warning(
-                        "Trying to set result to failed (%s) but found the future settled (%s)",
-                        message,
-                        self._result,
-                    )
+                self._settle_exception(ChromeBrowserException(message))
         elif message == self.success_signal:
 
             @run
@@ -703,12 +727,14 @@ which leads to stray network requests and inconsistencies."""
                     if self._result.done():
                         _logger.error("%s", msg)
                     else:
-                        self._result.set_exception(ChromeBrowserException(msg))
+                        self._settle_exception(ChromeBrowserException(msg))
                     return
 
                 if not self._result.done():
-                    self._result.set_result(True)
-                elif self._result.exception() is None:
+                    self._settle_result(True)
+                elif not self._result.cancelled() and self._result.exception() is None:
+                    # cancelled() first: .exception() raises CancelledError on a
+                    # cancelled future, and stop() cancels from the main thread.
                     _logger.error("Tried to make the tour successful twice.")
 
     def _handle_exception(self, exceptionDetails: dict, timestamp: float) -> None:
@@ -729,16 +755,7 @@ which leads to stray network requests and inconsistencies."""
             return
 
         self.take_screenshot()
-        try:
-            self._result.set_exception(ChromeBrowserException(message))
-        except CancelledError:
-            ...
-        except InvalidStateError:
-            self._logger.warning(
-                "Trying to set result to failed (%s) but found the future settled (%s)",
-                message,
-                self._result,
-            )
+        self._settle_exception(ChromeBrowserException(message))
 
     def _handle_frame_stopped_loading(self, frameId: str) -> None:
         wait = self._frames.pop(frameId, None)
