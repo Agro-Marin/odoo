@@ -14,8 +14,8 @@ class MixinMailThread(models.AbstractModel):
 
         This lives on the model, not on ``portal.controllers.portal_thread``
         where it used to. The controller-side hook only fed the chatter's own
-        fetch, while ``mail.thread._get_portal_message_fetch_domain`` — the same
-        rule, and the single source of truth the counters read — kept the
+        fetch, while ``mixin.mail.thread._get_portal_message_fetch_domain`` —
+        the same rule, and the single source of truth the counters read — kept the
         stricter default. Anything counting what the chatter displays therefore
         disagreed with it by exactly the body-less ratings:
         ``website_slides.comments_count`` renders a badge next to a comment list
