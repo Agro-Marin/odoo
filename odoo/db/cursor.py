@@ -127,6 +127,16 @@ class BaseCursor:
             pass
 
     def savepoint(self, flush: bool = True) -> Savepoint:
+        """Open a SQL savepoint; `flush=False` skips the ORM flush/restore.
+
+        With `flush=True` (the default), a rollback also restores ORM state
+        (invalidates/re-clears the caches this transaction may have refilled).
+        With `flush=False`, `Savepoint.rollback()` only undoes the SQL: it does
+        NOT restore ORM state. A caller opening a non-flushing savepoint over a
+        live `self.transaction` that may cache/write ORM-visible records must
+        invalidate what it touched itself (e.g. `invalidate_model()`) on the
+        rollback path, or stale ORM state can survive the SQL rollback.
+        """
         if flush:
             cls = self._flushing_savepoint_cls
             if self.transaction is not None and not cls._restores_orm_state:
