@@ -747,6 +747,111 @@ class TestRetrying:
 
         assert calls == 1
 
+    def test_concurrency_error_is_retried(self, mod, mock_env) -> None:
+        """``ConcurrencyError`` is odoo's own, raised by ``insert_or_existing``
+        when a concurrent writer took the row between INSERT and SELECT.
+
+        It reaches the retry loop through the ``except`` tuple but classifies in
+        its own arm — it carries no sqlstate, so ``errors.lookup`` would raise on
+        it, which is why the arm labels it with ``repr(exc)`` instead.  That arm
+        was unreached (measured): every retryable case the suite drove was a
+        psycopg error with an sqlstate.
+        """
+        from odoo.exceptions import ConcurrencyError
+
+        calls = 0
+
+        def func():
+            nonlocal calls
+            calls += 1
+            if calls < 2:
+                raise ConcurrencyError("row taken by a concurrent writer")
+            return "ok"
+
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.backoff") as mock_backoff,
+        ):
+            mock_http.request = None
+            mock_backoff.delay.return_value = 0.0
+            assert mod.retrying(func, mock_env) == "ok"
+        assert calls == 2
+
+    def test_a_stale_cached_plan_is_retried(self, mod, mock_env, tx) -> None:
+        """PostgreSQL discards a cached plan after a concurrent DDL, and the
+        first statement to hit it fails.
+
+        Retrying is the whole remedy — the replan succeeds — so this must NOT
+        fall through to the "not retryable" arm.  It is detected by an attribute
+        the db layer stamps on the exception rather than by an sqlstate, which is
+        why it needs an arm of its own, and why no sqlstate-driven test reached
+        it.
+        """
+        from odoo.db.errors import is_stale_cached_plan
+
+        # PG_STALE_PLAN_EXCEPTIONS is (FeatureNotSupported,) — the class
+        # PostgreSQL actually raises for a discarded plan, and the one the
+        # `except` tuple splats in. A plain OperationalError is NOT caught here.
+        exc = psycopg.errors.FeatureNotSupported(
+            "cached plan must not change result type"
+        )
+        # Stamped by odoo/db, read back through its own predicate rather than
+        # by repeating the attribute name here.
+        from odoo.db.errors import _STALE_PLAN_ATTR
+
+        setattr(exc, _STALE_PLAN_ATTR, True)
+        assert is_stale_cached_plan(exc), (
+            "premise of this test: the db layer marks a stale plan with this "
+            "attribute, and is_stale_cached_plan reads it"
+        )
+        calls = 0
+
+        def func():
+            nonlocal calls
+            calls += 1
+            if calls < 2:
+                raise exc
+            return "ok"
+
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.backoff") as mock_backoff,
+        ):
+            mock_http.request = None
+            mock_backoff.delay.return_value = 0.0
+            assert mod.retrying(func, mock_env) == "ok"
+        assert calls == 2
+
+    def test_an_integrity_error_on_a_cursor_closed_by_the_rollback_reraises(
+        self, mod, mock_env
+    ) -> None:
+        """The SECOND ``env.cr.closed`` check, inside the IntegrityError arm.
+
+        The loop already refuses a cursor that was closed when the error
+        arrived.  This one covers a cursor closed BETWEEN then and here — by the
+        rollback, by ``_reset_env_state``, or by a retry participant's
+        ``on_rollback``.  Without it, ``_integrity_error_to_validation`` runs
+        against a dead cursor: it reads the constraint's message from the
+        database, so it would raise a second, unrelated error and bury the
+        original.
+        """
+        exc = _FakeIntegrityError()
+
+        def close_the_cursor():
+            mock_env.cr.closed = True
+
+        mock_env.cr.rollback = MagicMock(side_effect=close_the_cursor)
+
+        def func():
+            raise exc
+
+        with patch("odoo.http") as mock_http:
+            mock_http.request = None
+            with pytest.raises(psycopg.errors.IntegrityError):
+                mod.retrying(func, mock_env)
+
     def test_rollback_error_suppressed(self, mod, mock_env) -> None:
         """Errors raised by cr.rollback() during retry are swallowed."""
         exc = psycopg.errors.SerializationFailure()
