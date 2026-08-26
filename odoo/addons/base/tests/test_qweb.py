@@ -3949,3 +3949,114 @@ class TestQWebRenderBatch(TransactionCase):
                 {},
                 [{"value": {"missing_attribute": 1}}, {"value": 1}],
             )
+
+
+class TestQWebCachedTemplateError(TransactionCase):
+    """A cached template error must not accumulate a traceback.
+
+    ``_get_cached_template_info`` and ``_preload_views`` both keep the
+    exception instance, so every raise of it appends the raising frames to one
+    shared ``__traceback__`` that nothing trims.  ``_generate_code`` then runs
+    ``traceback.format_exc()`` over the whole of it, which made a repeated
+    lookup quadratic in the number of failed renders in a transaction.  The
+    count, not the clock, is what these assert: a timing threshold is flaky and
+    an absolute frame count pins an implementation detail, while "the tenth
+    raise costs the same as the first" is the property that matters.
+    """
+
+    @staticmethod
+    def _traceback_length(error):
+        length, traceback = 0, error.__traceback__
+        while traceback is not None:
+            length += 1
+            traceback = traceback.tb_next
+        return length
+
+    def _cached_error(self, ref):
+        return self.env["ir.ui.view"]._get_cached_template_info(ref)["error"]
+
+    @mute_logger("odoo.addons.base.models.ir_qweb")
+    def test_render_of_a_missing_template_does_not_grow_its_traceback(self):
+        qweb = self.env["ir.qweb"].with_context(raise_if_not_found=False)
+        self.env.registry.clear_cache("templates")
+
+        qweb._render("base.no_such_template_at_all", {})
+        after_first = self._traceback_length(
+            self._cached_error("base.no_such_template_at_all")
+        )
+        for _ in range(9):
+            qweb._render("base.no_such_template_at_all", {})
+        after_ten = self._traceback_length(
+            self._cached_error("base.no_such_template_at_all")
+        )
+
+        self.assertEqual(
+            after_ten,
+            after_first,
+            "the cached template error grew a traceback across renders: "
+            f"{after_first} frames after one, {after_ten} after ten",
+        )
+
+    @mute_logger("odoo.addons.base.models.ir_qweb")
+    def test_repeated_preloads_share_one_error_that_does_not_grow(self):
+        # The cursor's `_compile_batch_` keeps the instance for the whole
+        # transaction, which is what makes the growth quadratic rather than
+        # per-request.  Assert the sharing first, so the test cannot pass
+        # merely because a fresh object was built each round.
+        View = self.env["ir.ui.view"].sudo()
+        first = View._preload_views(["base.no_such_preloaded_template"])[
+            "base.no_such_preloaded_template"
+        ]["error"]
+        second = View._preload_views(["base.no_such_preloaded_template"])[
+            "base.no_such_preloaded_template"
+        ]["error"]
+        self.assertIs(first, second, "the batch cache stopped sharing the instance")
+
+        qweb = self.env["ir.qweb"].with_context(raise_if_not_found=False)
+        qweb._render("base.no_such_preloaded_template", {})
+        after_first = self._traceback_length(first)
+        for _ in range(9):
+            qweb._render("base.no_such_preloaded_template", {})
+        self.assertEqual(self._traceback_length(first), after_first)
+
+    def test_get_template_view_does_not_raise_the_cached_instance(self):
+        View = self.env["ir.ui.view"]
+        seen = []
+        original = type(View)._raise_cached_template_error
+
+        def spy(records, error):
+            seen.append(error)
+            original(records, error)
+
+        with (
+            patch.object(type(View), "_raise_cached_template_error", spy),
+            self.assertRaises(MissingError),
+        ):
+            View._get_template_view("base.no_such_template_view")
+        self.assertTrue(seen, "_get_template_view raised the cached instance directly")
+
+    def test_raising_a_cached_error_never_mutates_it(self):
+        error = MissingError("Template not found: 'x'")
+        lengths = []
+        for _ in range(5):
+            with self.assertRaises(MissingError) as caught:
+                self.env["ir.ui.view"]._raise_cached_template_error(error)
+            self.assertIsNot(caught.exception, error)
+            lengths.append(self._traceback_length(caught.exception))
+        self.assertEqual(
+            len(set(lengths)), 1, f"each raise cost a frame more: {lengths}"
+        )
+        self.assertIsNone(
+            error.__traceback__, "the shared instance accumulated a traceback"
+        )
+
+    def test_the_error_keeps_the_state_generate_code_reads(self):
+        # `_generate_code` reports `e.context['view'].key` when the failure
+        # carries one, so the copy must keep instance state, not only args.
+        error = UserError("boom")
+        error.context = {"view": self.env["ir.ui.view"]}
+        with self.assertRaises(UserError) as caught:
+            self.env["ir.ui.view"]._raise_cached_template_error(error)
+        self.assertIsNot(caught.exception, error)
+        self.assertEqual(caught.exception.context, error.context)
+        self.assertIsNone(error.__traceback__, "the cached instance was mutated")

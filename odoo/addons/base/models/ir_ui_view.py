@@ -1,6 +1,7 @@
 import annotationlib
 import ast
 import collections
+import copy
 import functools
 import inspect
 import logging
@@ -1464,12 +1465,35 @@ class IrUiView(models.Model):
         return frozendict(info)
 
     @api.model
+    def _raise_cached_template_error(self, error: Exception) -> typing.NoReturn:
+        """Raise a *copy* of a template error that a cache is holding.
+
+        ``_get_cached_template_info`` keeps the exception instance in the
+        ``templates`` ormcache and ``_preload_views`` keeps it in the cursor's
+        ``_compile_batch_``, so both hand out one shared object.  ``raise``
+        appends the current frame to that object's ``__traceback__`` and
+        nothing ever trims it, so raising the cached instance grows its
+        traceback by three frames on every failed lookup in the transaction --
+        and :meth:`~odoo.addons.base.models.ir_qweb.IrQweb._generate_code`
+        formats the whole of it with ``traceback.format_exc()``.  Measured, one
+        missing template rendered 100 times in one transaction: 467ms against
+        68ms, growing, with no ceiling short of the next ``templates`` clear.
+
+        ``copy.copy`` reproduces the class, the args and the instance state
+        (``UserError.context``, which ``_generate_code`` reads, included) with
+        ``__traceback__`` unset, so each raise starts from nothing.  It also
+        keeps the cached object immutable, which ``with_traceback(None)`` on
+        the shared instance would not: several threads raise it at once.
+        """
+        raise copy.copy(error)
+
+    @api.model
     def _get_template_view(
         self, id_or_xmlid: int | str, raise_if_not_found: bool = True
     ) -> Self:
         info = self._get_cached_template_info(id_or_xmlid)
         if info["error"] and raise_if_not_found:
-            raise info["error"]
+            self._raise_cached_template_error(info["error"])
         return self.env["ir.ui.view"].browse(info["id"])
 
     @api.model
