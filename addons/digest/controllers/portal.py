@@ -52,7 +52,7 @@ class DigestController(Controller):
         :param str token: token preventing URL forgery
         :param user_id: id of user to unsubscribe
 
-        :param int one_click: set it to 1 when using the URL in the header of
+        :param str one_click: set it to 1 when using the URL in the header of
           the email to allow mail user agent to propose a one click button to the
           user to unsubscribe as defined in rfc8058. When set to True, only POST
           method is allowed preventing the risk that anti-spam trigger unwanted
