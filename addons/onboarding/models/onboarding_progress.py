@@ -31,7 +31,7 @@ class OnboardingProgress(models.Model):
         "onboarding.progress.step", string="Progress Steps Trackers"
     )
 
-    # not in _sql_constraint because COALESCE is not supported for PostgreSQL constraint
+    # Not a models.Constraint because COALESCE is not supported in a PostgreSQL UNIQUE constraint.
     _onboarding_company_uniq = models.UniqueIndex(
         "(onboarding_id, COALESCE(company_id, 0))"
     )
@@ -55,7 +55,7 @@ class OnboardingProgress(models.Model):
             )
 
     def _recompute_progress_step_ids(self):
-        """Update progress steps when a step (with existing progress) is added to an onboarding."""
+        """Update progress steps when a step (with existing progress) is added to or removed from an onboarding."""
         for progress in self:
             progress.progress_step_ids = (
                 progress.onboarding_id.step_ids.current_progress_step_id
@@ -71,7 +71,8 @@ class OnboardingProgress(models.Model):
     def _get_and_update_onboarding_state(self):
         """Fetch the progress of an onboarding for rendering its panel.
 
-        This method is expected to only be called by the onboarding controller.
+        This method is expected to only be called when rendering an onboarding panel
+        (see :meth:`onboarding.onboarding._prepare_rendering_values`).
         It also has the responsibility of updating the 'just_done' state into
         'done' so that the 'just_done' states are only rendered once.
         """
