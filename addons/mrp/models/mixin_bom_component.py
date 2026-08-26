@@ -65,7 +65,7 @@ class MixinBomComponent(models.AbstractModel):
 
     @api.depends("product_id")
     def _compute_product_uom_id(self):
-        """Stamp the product's own unit, unless the record already names one.
+        """Stamp the product's own unit.
 
         `precompute=True` makes this run before the INSERT, so a row created
         without a unit never touches the database with the wrong one. It
