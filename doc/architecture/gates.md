@@ -6,10 +6,10 @@
 
 ## Running the checks
 
-The fifty-four blocking checkers do **not** share one CLI, and a loop that
+The fifty-five blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on sixteen of them.
 
-**Thirty-five are contract gates.** Each takes bare for a human-readable
+**Thirty-six are contract gates.** Each takes bare for a human-readable
 report, `--check` for CI (exit 1 on a new violation), `--json` for a
 machine-readable one:
 
@@ -31,7 +31,7 @@ to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 drives them as ratchets, so they belong to this group. Run any of the nineteen bare
 and it reports without enforcing.
 
-Thirty-five plus nineteen is fifty-four. All three figures derive from the
+Thirty-six plus nineteen is fifty-five. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) — an
 enumerated list is a gate only when something independently derives the
@@ -57,7 +57,8 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             js_env_config_surface js_arch_info_surface js_field_record_surface \
             js_action_surface js_template_binding \
             xml_reference_coherence js_mixin_coupling edi_vocabulary \
-            sql_placeholder module_depends_installable; do
+            sql_placeholder module_depends_installable \
+            external_dependency_pins; do
     python "tooling/architecture/$gate.py" --check || echo "FAILED: $gate"
 done
 
@@ -108,7 +109,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **fifty-four** blocking checkers, after
+`Architecture Boundaries` workflow runs **fifty-five** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -123,6 +124,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `libs_facade_check.py` | addon code **and every core package** importing `odoo.libs` **areas**, never their leaf modules |
 | `facade_surface_check.py` | every name imported from a façade module against what that module actually exposes — `odoo.tools.misc` forwards names living in `odoo.libs`, so `__all__` states one surface and the module another, and an import of a name in neither fails at *module import time*: at install, in one addon, for whoever installs it next |
 | `mail_hook_keyword_check.py` | the keywords `mail` passes to its own `_notify_*` / `_message_*` / `_track_*` / `_mail_*` hooks, against every override of them — `mail` is a framework whose extension points are implemented in dozens of addons across four repos, so its own **577**-test suite is structurally unable to see a signature it just broke, and `28ed9db3341` broke six overrides and merged green |
+| `external_dependency_pins.py` | every `external_dependencies["python"]` a manifest declares against the requirements file of the repo that owns it — the two halves are written by hand in different files and nothing compared them, so three modules carried one without the other and could not install wherever the package was not dragged in by something else. A sibling may lean on this repo's `requirements.txt`, which every server process imports, but not on `requirements-addons.txt`, which the install command each sibling's own header documents does not read |
 | `py_cycle_check.py` | Python import cycles in the core — the direction gates cannot see them |
 | `subsystem_map_check.py` | the **subsystem map** in the module view against the actual tree |
 | `package_index_check.py` | a package README's module index against the package |
@@ -231,7 +233,7 @@ real-tree test — `test_the_real_tree_holds_the_property_today`,
 `test_the_surface_matches_the_committed_baseline` — so a violation fails the
 self-test step, which is blocking.
 
-`cross_repo_coherence.py` is a fifty-fifth checker and the only one outside CI: it
+`cross_repo_coherence.py` is a fifty-sixth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
@@ -244,7 +246,7 @@ Eleven and not eight, which is what counting only the table above would give:
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
 third.
 
-**Seventy-seven** is how many steps CI runs the fifty-four in, each step invoking
+**Seventy-eight** is how many steps CI runs the fifty-five in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
 `py_function_length` alone accounts for six.
