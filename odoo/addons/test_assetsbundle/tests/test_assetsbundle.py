@@ -418,7 +418,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 1)
 
         rtl_version0 = rtl_bundle0.get_version("css")
-        self._any_ira_for_bundle("min.css", rtl=True)
 
         rtl_bundle1 = self._get_asset(self.cssbundle_name, rtl=True, debug_assets=False)
         rtl_bundle1.css()
