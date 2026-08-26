@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 import tempfile
 import textwrap
@@ -29,6 +30,8 @@ from ..tools import config
 from . import Command
 from .command import refuse_maintenance_db
 from .server import report_configuration
+
+_logger = logging.getLogger(__name__)
 
 eprint = partial(print, file=sys.stderr, flush=True)
 
@@ -455,8 +458,16 @@ class Db(Command):
         self._drop_if_exists(args.target)
         _rename_database(args.source, args.target)
         if args.neutralize:
-            with db_connect(args.target).cursor() as cr:
-                neutralize_database(cr)
+            try:
+                with db_connect(args.target).cursor() as cr:
+                    neutralize_database(cr)
+            except Exception:
+                _logger.critical(
+                    "An error occurred during the neutralization. THE "
+                    "DATABASE IS NOT NEUTRALIZED!",
+                    exc_info=True,
+                )
+                sys.exit(1)
 
     def drop(self, args: argparse.Namespace) -> None:
         self._check_not_protected(args.database)
