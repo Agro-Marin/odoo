@@ -457,7 +457,12 @@ class PaymentTransaction(models.Model):
 
     @api.model
     def _compute_reference(
-        self, provider_code, prefix=None, separator="-", references_in_use=None, **kwargs
+        self,
+        provider_code,
+        prefix=None,
+        separator="-",
+        references_in_use=None,
+        **kwargs,
     ):
         """Compute a unique reference for the transaction.
 

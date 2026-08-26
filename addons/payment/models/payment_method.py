@@ -162,6 +162,7 @@ class PaymentMethod(models.Model):
                         ),
                     }
                 }
+        return None
 
     @api.onchange("provider_ids")
     def _onchange_provider_ids_warn_before_attaching_payment_method(self):
@@ -184,6 +185,7 @@ class PaymentMethod(models.Model):
                     ),
                 }
             }
+        return None
 
     # === CONSTRAINT METHODS === #
 
