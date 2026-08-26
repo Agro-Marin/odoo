@@ -58,11 +58,14 @@ _LOGIN_TIMEOUT = (10, 30)
 _UPLOAD_TIMEOUT = (10, None)
 
 
-def _should_skip(filepath: Path, module_dir: Path) -> bool:
-    """Return True if ``filepath`` should be excluded from the deploy zip."""
-    rel_parts = filepath.relative_to(module_dir).parts
-    if any(p in EXCLUDED_DIR_NAMES for p in rel_parts[:-1]):
-        return True
+def _should_skip(filepath: Path) -> bool:
+    """Return True if ``filepath`` should be excluded from the deploy zip.
+
+    Directory-name exclusion is not this function's job: `zip_module`'s
+    walk already prunes `EXCLUDED_DIR_NAMES` from `dirnames` before
+    descending, so by the time a file reaches here its parent dirs have
+    already passed that check.
+    """
     return filepath.suffix in EXCLUDED_SUFFIXES or filepath.name in EXCLUDED_FILE_NAMES
 
 
@@ -211,7 +214,7 @@ class Deploy(Command):
                             continue
                         if not filepath.is_file():
                             continue
-                        if _should_skip(filepath, module_dir):
+                        if _should_skip(filepath):
                             continue
                         zfile.write(filepath, filepath.relative_to(module_dir.parent))
         except Exception:
