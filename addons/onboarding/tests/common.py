@@ -5,7 +5,7 @@ class TestOnboardingCommon(TransactionCaseOnboarding):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Create two companies including Mitchell
+        # Use the admin's company and add a second one.
         cls.user_admin = cls.env.ref("base.user_admin")
 
         cls.company_1 = cls.user_admin.company_id
@@ -62,7 +62,7 @@ class TestOnboardingCommon(TransactionCaseOnboarding):
                 }
             ]
         )
-        # Create progress records as would happen through the controller
+        # Create progress records as would happen when the panel is first rendered
         (cls.onboarding_1 + cls.onboarding_2).with_company(
             cls.company_1
         )._search_or_create_progress()

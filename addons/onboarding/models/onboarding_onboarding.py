@@ -9,7 +9,7 @@ class OnboardingOnboarding(models.Model):
     _order = "sequence asc, id desc"
 
     name = fields.Char("Name of the onboarding", translate=True)
-    # One word identifier used to define the onboarding panel's route: `/onboarding/{route_name}`.
+    # One word identifier of the onboarding panel, used as its key by the modules that render it.
     route_name = fields.Char("One word name", required=True)
     step_ids = fields.Many2many("onboarding.onboarding.step", string="Onboarding steps")
 
