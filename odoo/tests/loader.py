@@ -4,7 +4,7 @@ import inspect
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from unittest import case
+from unittest import TestCase as _StdTestCase
 
 from .. import tools
 from .result import OdooTestResult
@@ -15,11 +15,18 @@ if TYPE_CHECKING:
     from collections.abc import Generator, Iterator
 
 
-def get_module_test_cases(module: Any) -> Iterator[case.TestCase]:
+def get_module_test_cases(module: Any) -> Iterator[_StdTestCase]:
+    # The *stdlib* base on purpose, not odoo.tests.case.TestCase: a third-party
+    # test that subclasses unittest.TestCase directly must still be discovered,
+    # and the vendored class is a subclass of this one so it matches either way.
+    # Spelled _StdTestCase because every sibling in this package says
+    # `from . import case`, meaning the vendored module -- the bare name `case`
+    # here used to be the stdlib one, so the same identifier meant two
+    # different modules depending on the file.
     for obj in module.__dict__.values():
         if not isinstance(obj, type):
             continue
-        if not issubclass(obj, case.TestCase):
+        if not issubclass(obj, _StdTestCase):
             continue
         if obj.__module__ != module.__name__:
             continue
