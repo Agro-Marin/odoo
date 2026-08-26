@@ -1,5 +1,6 @@
 import base64
 import io
+import logging
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
 
@@ -21,6 +22,8 @@ from odoo.addons.base.models.ir_actions_report import (
     _is_fetch_host_blocked,
     _weasy_state,
 )
+
+_weasy_logger = logging.getLogger("weasyprint")
 
 
 @tagged("post_install", "-at_install")
@@ -1001,4 +1004,30 @@ class TestMergeErrorRecordIds(TransactionCase):
             caught.exception.args[0],
             "False reached the count and the domain, so the message named one "
             "more corrupt file than the action could show",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestHtmlToImageDiagnostics(TransactionCase):
+    def test_a_failed_render_reports_what_the_renderer_said(self):
+        def fail_after_complaining(**kwargs):
+            _weasy_logger.error("Failed to load image at 'audit-probe.png'")
+            raise ValueError("audit-image-boom")
+
+        module = "odoo.addons.base.models.ir_actions_report"
+        with (
+            patch(f"{module}.weasyprint.HTML", side_effect=fail_after_complaining),
+            self.assertLogs(module, level="WARNING") as captured,
+        ):
+            result = (
+                self.env["ir.actions.report"]
+                .with_context(force_report_rendering=True)
+                ._render_html_to_image(["<div>audit</div>"], 10, 10)
+            )
+        self.assertEqual(result, [None])
+        self.assertIn(
+            "audit-probe.png",
+            captured.output[0],
+            "the renderer's own diagnosis is the useful half, and routing "
+            "weasyprint's records to a per-render sink had swallowed it",
         )

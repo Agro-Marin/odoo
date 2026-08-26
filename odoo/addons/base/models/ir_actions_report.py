@@ -354,6 +354,7 @@ class OdooURLFetcher(URLFetcher):
         self._addons_paths = tools.config["addons_path"]
         self._session_cookie = None
         self._temp_session = None
+        self._asset_attachments: dict[str, Any] = {}
         self._setup_session()
 
     def __enter__(self) -> Self:
@@ -437,19 +438,21 @@ class OdooURLFetcher(URLFetcher):
         return self._get_via_http(url, path)
 
     def _get_asset_attachment(self, path: str) -> Any:
-        return (
-            self._env["ir.attachment"]
-            .sudo()
-            .search(
-                [
-                    ("public", "=", True),
-                    ("url", "=", path),
-                    ("res_model", "=", "ir.ui.view"),
-                    ("res_id", "=", 0),
-                ],
-                limit=1,
+        if path not in self._asset_attachments:
+            self._asset_attachments[path] = (
+                self._env["ir.attachment"]
+                .sudo()
+                .search(
+                    [
+                        ("public", "=", True),
+                        ("url", "=", path),
+                        ("res_model", "=", "ir.ui.view"),
+                        ("res_id", "=", 0),
+                    ],
+                    limit=1,
+                )
             )
-        )
+        return self._asset_attachments[path]
 
     @staticmethod
     def _has_asset_blob(attachment: Any) -> bool:
@@ -1547,10 +1550,11 @@ class IrActionsReport(models.Model):
 
         output_images = []
         with (
-            _capture_weasy_warnings(),
+            _capture_weasy_warnings() as sink,
             self._prepare_url_fetcher() as fetcher,
         ):
             for body in bodies:
+                sink.clear()
                 try:
                     pdf_bytes = weasyprint.HTML(
                         string=_add_page_css(body, page_css),
@@ -1572,7 +1576,11 @@ class IrActionsReport(models.Model):
                         img.convert("RGB").save(buf, format="JPEG")
                     output_images.append(buf.getvalue())
                 except Exception as e:
-                    _logger.warning("HTML-to-image rendering failed: %s", e)
+                    _logger.warning(
+                        "HTML-to-image rendering failed: %s%s",
+                        e,
+                        f" Renderer said: {'; '.join(sink)}" if sink else "",
+                    )
                     output_images.append(None)
         return output_images
 

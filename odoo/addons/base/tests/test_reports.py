@@ -14,7 +14,6 @@ from pdfminer.pdfparser import PDFParser
 from PIL import Image
 
 import odoo.tests
-from odoo import modules
 from odoo.tools import mute_logger
 
 _logger = logging.getLogger(__name__)
@@ -961,9 +960,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
         self.assertIn("margin: 25.0mm 100.0mm 75.0mm 50.0mm", css)
 
     def test_render_html_to_image_format(self):
-        Report = self.env["ir.actions.report"]
-
-        self.patch(modules.module, "current_test", False)
+        Report = self.env["ir.actions.report"].with_context(force_report_rendering=True)
 
         jpg_images = Report._render_html_to_image(
             ["<p>x</p>"], width=20, height=10, image_format="jpg"
