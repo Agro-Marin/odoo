@@ -103,7 +103,7 @@ class TremolG03Driver(SerialDriver):
         :param device: path to the device
         :type device: str
         :return: whether the device is supported by the driver
-        :rtype: bool
+        :rtype: bool or None
         """
         protocol = cls._protocol
         try:
