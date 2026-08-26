@@ -4,7 +4,7 @@ import argparse
 import ast
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import NamedTuple
 
@@ -909,9 +909,9 @@ def _match(figure: Figure) -> re.Match[str]:
     return match
 
 
-def check() -> list[str]:
+def check(figures: Sequence[Figure] = FIGURES) -> list[str]:
     problems = []
-    for figure in FIGURES:
+    for figure in figures:
         stated = _match(figure).groups()
         measured = figure.measure()
         if figure.tolerance:
@@ -925,14 +925,14 @@ def check() -> list[str]:
             problems.append(
                 f"{figure.name} in {figure.path.name}: states "
                 f"{', '.join(stated)}, measured "
-                f"{', '.join(str(m) for m in measured)}"
+                f"{', '.join(figure.render(measured))}"
             )
     return problems
 
 
-def update() -> list[str]:
+def update(figures: Sequence[Figure] = FIGURES) -> list[str]:
     changed = []
-    for figure in FIGURES:
+    for figure in figures:
         raw = figure.path.read_text(encoding="utf-8")
         match = _match(figure)
         measured = figure.measure()
