@@ -21,7 +21,7 @@ def get_cloud_storage_azure_user_delegation_key(env):
     The cached UserDelegationKey is refreshed every 6 days. If the account
     information expires, a ClientAuthenticationError will also be cached to
     prevent the server from repeatedly sending requests to the cloud
-    storage provider to get the user delegation key. Note that the cached
+    storage provider to get the user delegation key. The cached
     values are not invalidated when the ORM cache is invalidated. To
     invalidate these cached values, you must update the cloud storage
     configuration or the cloud_storage_azure_user_delegation_key_sequence.
