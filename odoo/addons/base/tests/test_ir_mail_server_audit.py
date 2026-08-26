@@ -2,18 +2,21 @@ import base64
 import contextlib
 import datetime
 import email.policy
+import gc
 import logging
 import re
 import smtplib
 import ssl
 import tempfile
+import weakref
 from email.message import EmailMessage
 from pathlib import Path
 from unittest.mock import patch
 
+import psycopg
 from urllib3.util.ssl_match_hostname import CertificateError
 
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.service.model import call_kw, get_public_method
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
@@ -24,6 +27,7 @@ from odoo.addons.base.models.ir_mail_server import (
     OutgoingEmailError,
     _check_hostname_callback,
     _log_smtp_debug,
+    _SmtpSessionContext,
 )
 
 _IR_MAIL_SERVER_LOGGER = "odoo.addons.base.models.ir_mail_server"
@@ -65,7 +69,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.assertIn("outgoing emails are disabled", str(ctx.exception))
 
     def test_archive_unused_server_succeeds(self):
-        self.assertEqual(self.IrMailServer._active_usages_compute(), {})
+        self.assertEqual(self.IrMailServer._get_active_usages(), {})
         self.server_a.active = True
         self.server_a.write({"active": False})
         self.assertFalse(self.server_a.active)
@@ -75,7 +79,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         usages = {self.server_c.id: ["Charlie usage"]}
         with patch.object(
             type(self.IrMailServer),
-            "_active_usages_compute",
+            "_get_active_usages",
             lambda self: usages,
         ):
             self.server_a.write({"active": False})
@@ -89,7 +93,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         }
         with patch.object(
             type(self.IrMailServer),
-            "_active_usages_compute",
+            "_get_active_usages",
             lambda self: usages,
         ):
             with self.assertRaises(UserError) as ctx:
@@ -103,7 +107,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         usages = {self.server_a.id: ["Some usage"]}
         with patch.object(
             type(self.IrMailServer),
-            "_active_usages_compute",
+            "_get_active_usages",
             lambda self: usages,
         ):
             self.server_a.write({"name": "Alpha Renamed"})
@@ -115,7 +119,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         usages = {self.server_a.id: ["Used by alias catchall"]}
         with patch.object(
             type(self.IrMailServer),
-            "_active_usages_compute",
+            "_get_active_usages",
             lambda self: usages,
         ):
             with self.assertRaises(UserError) as ctx:
@@ -137,7 +141,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         }
         with patch.object(
             type(self.IrMailServer),
-            "_active_usages_compute",
+            "_get_active_usages",
             lambda self: usages,
         ):
             with self.assertRaises(UserError) as ctx:
@@ -470,8 +474,8 @@ class TestFromFilterIndex(TransactionCase):
         index = self.IrMailServer._from_filter_index(
             " Notify@Example.COM , Example.NET ,, "
         )
-        self.assertEqual(index.emails, frozenset({"notify@example.com"}))
-        self.assertEqual(index.domains, frozenset({"example.net"}))
+        self.assertEqual(index.emails, ("notify@example.com",))
+        self.assertEqual(index.domains, ("example.net",))
         self.assertFalse(index.unrestricted)
 
     def test_separator_only_filter_is_unrestricted(self):
@@ -488,9 +492,9 @@ class TestFromFilterIndex(TransactionCase):
 
     def test_unparseable_part_restricts_without_matching(self):
         index = self.IrMailServer._from_filter_index("@@@, example.com")
-        self.assertEqual(index.emails, frozenset())
-        self.assertEqual(index.domains, frozenset({"example.com"}))
-        self.assertEqual(index.unparsed, 1)
+        self.assertEqual(index.emails, ())
+        self.assertEqual(index.domains, ("example.com",))
+        self.assertEqual(index.unparsed, ("@@@",))
 
         junk = self.IrMailServer._from_filter_index("@@@")
         self.assertFalse(junk.unrestricted, "junk must not authorize every sender")
@@ -809,9 +813,7 @@ class TestCertificateChain(TransactionCase):
         with patch.object(
             type(self.IrMailServer), "_client_ssl_context", staticmethod(capturing)
         ):
-            self.IrMailServer._ssl_context_from_certificate(
-                self._server(cert_pem), "smtp.example.com"
-            )
+            self._server(cert_pem)._ssl_context_from_certificate()
         return [cert.subject.rfc4514_string() for cert in loaded]
 
     def test_full_chain_is_presented(self):
@@ -947,7 +949,7 @@ class TestMailServerDeletionGuard(TransactionCase):
     def test_used_server_cannot_be_deleted(self):
         usages = {self.server.id: ["Used by a mail template"]}
         with patch.object(
-            type(self.IrMailServer), "_active_usages_compute", lambda self: usages
+            type(self.IrMailServer), "_get_active_usages", lambda self: usages
         ):
             with self.assertRaises(UserError) as ctx:
                 self.server.unlink()
@@ -970,7 +972,9 @@ class TestConnectionTestErrorClassification(TransactionCase):
 
     def _message_for(self, exc):
         with self.assertNoLogs(_IR_MAIL_SERVER_LOGGER, logging.WARNING):
-            return str(self.IrMailServer._prepare_connection_test_error(exc, self.server))
+            return str(
+                self.IrMailServer._prepare_connection_test_error(exc, self.server)
+            )
 
     def test_connection_refused_is_reported_as_a_reachability_problem(self):
         message = self._message_for(ConnectionRefusedError(111, "Connection refused"))
@@ -1030,7 +1034,10 @@ class TestSmtpDebugGoesThroughTheLogger(TransactionCase):
             patch.object(type(IrMailServer), "_disable_send", lambda _: False),
             patch("smtplib.SMTP", _FakeConn),
         ):
-            IrMailServer._connect__(host="smtp.example.com", smtp_debug=True)
+            transport = IrMailServer._resolve_smtp_transport(
+                IrMailServer, host="smtp.example.com", smtp_debug=True
+            )
+            IrMailServer._open_smtp_connection(transport, None)
 
         self.assertTrue(captured["level"])
         self.assertIs(captured["print_debug"], _log_smtp_debug)
@@ -1113,9 +1120,7 @@ class TestCertificateChainOnTheWire(TransactionCase):
                         "smtp_ssl_private_key": base64.b64encode(self.key_pem),
                     }
                 )
-                context = self.IrMailServer._ssl_context_from_certificate(
-                    server, "localhost"
-                )
+                context = server._ssl_context_from_certificate()
                 context.verify_mode = ssl.CERT_NONE
                 plain = socket.create_connection(listener.getsockname(), timeout=10)
                 with contextlib.suppress(OSError):
@@ -1246,14 +1251,18 @@ class TestConnectionErrorDispatchMatrix(TransactionCase):
             with self.subTest(exception=type(exc).__name__):
                 with self.assertNoLogs(_IR_MAIL_SERVER_LOGGER, logging.WARNING):
                     message = str(
-                        self.IrMailServer._prepare_connection_test_error(exc, self.server)
+                        self.IrMailServer._prepare_connection_test_error(
+                            exc, self.server
+                        )
                     )
                 self.assertIn(expected, message)
 
     @mute_logger(_IR_MAIL_SERVER_LOGGER)
     def test_unclassified_error_still_falls_through_with_a_warning(self):
         message = str(
-            self.IrMailServer._prepare_connection_test_error(ValueError("boom"), self.server)
+            self.IrMailServer._prepare_connection_test_error(
+                ValueError("boom"), self.server
+            )
         )
         self.assertIn("Connection Test Failed", message)
 
@@ -1342,14 +1351,24 @@ class TestTestEmailFromSelection(TransactionCase):
             }
         )
 
-    def test_unparseable_part_is_not_used_as_a_sender(self):
-        self.env.user.email = "admin@example.com"
-        self.assertEqual(
-            self._server("@@@")._get_test_email_from(), "admin@example.com"
-        )
+    def test_an_unparseable_part_can_no_longer_be_stored(self):
+        for from_filter in ("@@@", "@@@, example.com"):
+            with (
+                self.subTest(from_filter=from_filter),
+                self.assertRaises(ValidationError),
+                self.env.cr.savepoint(),
+            ):
+                self._server(from_filter)
 
-    def test_unparseable_part_does_not_shadow_a_usable_domain(self):
-        self._assert_sender_in_domain(self._server("@@@, example.com"), "example.com")
+    def test_the_reader_still_tolerates_junk_it_is_handed(self):
+        self.env.user.email = "admin@example.com"
+        index = self.IrMailServer._from_filter_index("@@@")
+        self.assertEqual(index.sender(), None)
+        self.assertEqual(index.domain(), None)
+        self.assertEqual(
+            self.IrMailServer._from_filter_index("@@@, example.com").domain(),
+            "example.com",
+        )
 
     def test_formatted_filter_entry_yields_a_bare_address(self):
         self.assertEqual(
@@ -1523,7 +1542,7 @@ class TestRemoteCallSurface(TransactionCase):
                 self.env["ir.mail_server"].with_user(self.reader),
                 "send_email",
                 [{"From": "attacker@example.com"}],
-                {"smtp_server": "127.0.0.1", "smtp_port": 9, "smtp_encryption": "none"},
+                {"mail_server_id": self.server.id},
             )
 
     def test_connection_test_requires_write_access(self):
@@ -1664,8 +1683,11 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
 
     def _fake_cli_session_context_reference(self):
         with self._capture():
-            return self.IrMailServer._connect__(
-                host="cli.example.com", smtp_from="notifications@example.com"
+            transport = self.IrMailServer._resolve_smtp_transport(
+                self.IrMailServer, host="cli.example.com"
+            )
+            return self.IrMailServer._open_smtp_connection(
+                transport, "notifications@example.com"
             )
 
     def test_a_forced_server_is_still_validated(self):
@@ -1746,3 +1768,372 @@ class TestVerifyHostnameCallback(TransactionCase):
                 None, certificate, 10, 0, 0, hostname="smtp.example.com"
             )
         )
+
+
+@tagged("post_install", "-at_install")
+class TestMailServerFieldConstraints(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def test_a_login_server_cannot_be_saved_without_a_host(self):
+        with (
+            self.assertRaises(psycopg.errors.IntegrityError),
+            mute_logger("odoo.db.cursor"),
+        ):
+            self.IrMailServer.create({"name": "hostless"})
+
+    def test_an_archived_server_may_keep_an_empty_host(self):
+        server = self.IrMailServer.create({"name": "h", "smtp_host": "h"})
+        server.action_archive()
+        server.smtp_host = False
+        self.assertFalse(server.smtp_host)
+
+    def test_but_it_cannot_be_brought_back_without_one(self):
+        server = self.IrMailServer.create({"name": "h", "smtp_host": "h"})
+        server.action_archive()
+        server.smtp_host = False
+        with (
+            self.assertRaises(psycopg.errors.IntegrityError),
+            mute_logger("odoo.db.cursor"),
+        ):
+            server.action_unarchive()
+
+    def test_a_cli_server_still_needs_no_host(self):
+        server = self.IrMailServer.create({"name": "cli", "smtp_authentication": "cli"})
+        self.assertFalse(server.smtp_host)
+
+    def test_an_out_of_range_port_is_refused(self):
+        for port in (0, -1, 65536, 99999):
+            with (
+                self.subTest(port=port),
+                self.assertRaises(psycopg.errors.IntegrityError),
+                mute_logger("odoo.db.cursor"),
+                self.env.cr.savepoint(),
+            ):
+                self.IrMailServer.create(
+                    {"name": f"p{port}", "smtp_host": "h", "smtp_port": port}
+                )
+
+    def test_a_negative_max_email_size_is_refused(self):
+        with (
+            self.assertRaises(psycopg.errors.IntegrityError),
+            mute_logger("odoo.db.cursor"),
+        ):
+            self.IrMailServer.create(
+                {"name": "neg", "smtp_host": "h", "max_email_size": -0.5}
+            )
+
+    def test_zero_max_email_size_still_means_use_the_default(self):
+        server = self.IrMailServer.create({"name": "z", "smtp_host": "h"})
+        self.assertEqual(server.max_email_size, 0.0)
+        self.assertEqual(server._get_max_email_size(), 10.0)
+
+    def test_a_from_filter_entry_that_is_neither_address_nor_domain_is_refused(self):
+        for from_filter in (
+            "odoo.com;example.com",
+            "not a domain",
+            "@@@",
+            "example.com, bad@@entry",
+            "*.example.com",
+        ):
+            with (
+                self.subTest(from_filter=from_filter),
+                self.assertRaises(ValidationError) as ctx,
+                self.env.cr.savepoint(),
+            ):
+                self.IrMailServer.create(
+                    {"name": "f", "smtp_host": "h", "from_filter": from_filter}
+                )
+            self.assertIn("not a valid entry", str(ctx.exception))
+
+    def test_the_error_names_the_offending_entry(self):
+        with self.assertRaises(ValidationError) as ctx:
+            self.IrMailServer.create(
+                {
+                    "name": "f",
+                    "smtp_host": "h",
+                    "from_filter": "example.com, odoo.com;other.com",
+                }
+            )
+        self.assertIn("'odoo.com;other.com'", str(ctx.exception))
+        self.assertNotIn("'example.com'", str(ctx.exception))
+
+    def test_good_from_filters_are_still_accepted(self):
+        for from_filter in (
+            "",
+            "example.com",
+            "notify@example.com",
+            " Notify@Example.COM , Example.NET ,, ",
+            "sub.domain.example.co.uk",
+            "café.fr",
+        ):
+            with self.subTest(from_filter=from_filter), self.env.cr.savepoint():
+                self.IrMailServer.create(
+                    {"name": "f", "smtp_host": "h", "from_filter": from_filter}
+                )
+
+    def test_a_missing_certificate_is_a_validation_error(self):
+        with self.assertRaises(ValidationError):
+            self.IrMailServer.create(
+                {
+                    "name": "c",
+                    "smtp_host": "h",
+                    "smtp_encryption": "ssl",
+                    "smtp_authentication": "certificate",
+                }
+            )
+
+    def test_unloadable_certificate_material_is_a_validation_error(self):
+        with self.assertRaises(ValidationError):
+            self.IrMailServer.create(
+                {
+                    "name": "c",
+                    "smtp_host": "h",
+                    "smtp_encryption": "ssl",
+                    "smtp_authentication": "certificate",
+                    "smtp_ssl_certificate": base64.b64encode(b"junk"),
+                    "smtp_ssl_private_key": base64.b64encode(b"junk"),
+                }
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestFromFilterIndexIsHonest(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def test_the_index_keeps_declaration_order(self):
+        index = self.IrMailServer._from_filter_index(
+            "b@example.com, a@example.com, zz.example, aa.example"
+        )
+        self.assertEqual(index.emails, ("b@example.com", "a@example.com"))
+        self.assertEqual(index.domains, ("zz.example", "aa.example"))
+        self.assertEqual(index.sender(), "b@example.com")
+        self.assertEqual(index.domain(), "zz.example")
+
+    def test_the_index_deduplicates(self):
+        index = self.IrMailServer._from_filter_index(
+            "A@example.com, a@example.com, Example.NET, example.net"
+        )
+        self.assertEqual(index.emails, ("a@example.com",))
+        self.assertEqual(index.domains, ("example.net",))
+
+    def test_junk_is_recorded_verbatim_so_the_constraint_can_name_it(self):
+        index = self.IrMailServer._from_filter_index("@@@, example.com, not a domain")
+        self.assertEqual(index.emails, ())
+        self.assertEqual(index.domains, ("example.com",))
+        self.assertEqual(index.unparsed, ("@@@", "not a domain"))
+        self.assertFalse(index.unrestricted)
+
+    def test_a_domain_shaped_like_a_domain_is_a_domain(self):
+        for part in ("example.com", "a.b.c.example", "xn--caf-dma.fr", "café.fr"):
+            with self.subTest(part=part):
+                self.assertEqual(
+                    self.IrMailServer._from_filter_index(part).domains, (part.lower(),)
+                )
+
+    def test_matches_normalizes_its_own_argument(self):
+        index = self.IrMailServer._from_filter_index("notify@example.com, other.com")
+        for candidate in (
+            "notify@example.com",
+            "Notify@Example.com",
+            '"N" <notify@example.com>',
+            "someone@OTHER.com",
+        ):
+            with self.subTest(candidate=candidate):
+                self.assertTrue(index.matches(candidate))
+        self.assertFalse(index.matches("someone@example.com"))
+        self.assertFalse(index.matches(False))
+
+    def test_from_filter_readers_agree_with_the_index(self):
+        server = self.IrMailServer.create(
+            {
+                "name": "s",
+                "smtp_host": "h",
+                "from_filter": "notify@example.com, example.net",
+            }
+        )
+        self.assertEqual(server._from_filter_sender(), "notify@example.com")
+        self.assertEqual(server._from_filter_domain(), "example.net")
+
+
+@tagged("post_install", "-at_install")
+class TestSmtpUsernameEncoding(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def test_an_ascii_username_is_passed_through_untouched(self):
+        for user in (
+            "plainuser",
+            "user@example.com",
+            "USER@Example.COM",
+            "a.b-c@sub.example.co.uk",
+            "user@",
+            "user@my_host.local",
+            "user@[192.168.0.1]",
+            "user@a..b",
+        ):
+            with self.subTest(user=user):
+                self.assertEqual(self.IrMailServer._encode_smtp_user(user), user)
+
+    def test_a_non_ascii_domain_is_punycoded(self):
+        self.assertEqual(
+            self.IrMailServer._encode_smtp_user("user@café.fr"),
+            "user@xn--caf-dma.fr",
+        )
+
+    def test_a_non_ascii_domain_that_idna_refuses_falls_back_to_the_literal(self):
+        with mute_logger(_IR_MAIL_SERVER_LOGGER):
+            self.assertEqual(
+                self.IrMailServer._encode_smtp_user("user@café..fr"), "user@café..fr"
+            )
+
+    def test_a_refused_username_is_reported_not_raised(self):
+        with self.assertLogs(_IR_MAIL_SERVER_LOGGER, "WARNING") as logs:
+            self.IrMailServer._encode_smtp_user("user@café..fr")
+        self.assertIn("not a valid IDN", logs.output[0])
+
+
+@tagged("post_install", "-at_install")
+class TestOutgoingEmailErrorCodes(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def test_codes_are_opaque_identifiers(self):
+        for code in (
+            self.IrMailServer.NO_VALID_RECIPIENT,
+            self.IrMailServer.NO_FOUND_FROM,
+            self.IrMailServer.NO_FOUND_SMTP_FROM,
+            self.IrMailServer.NO_VALID_FROM,
+        ):
+            with self.subTest(code=code):
+                self.assertRegex(code, r"^[a-z_]+$")
+
+    def test_every_code_resolves_to_a_message(self):
+        for code in (
+            self.IrMailServer.NO_VALID_RECIPIENT,
+            self.IrMailServer.NO_FOUND_FROM,
+            self.IrMailServer.NO_FOUND_SMTP_FROM,
+            self.IrMailServer.NO_VALID_FROM,
+        ):
+            with self.subTest(code=code):
+                message = self.IrMailServer._outgoing_email_message(code)
+                self.assertNotEqual(message, code)
+                self.assertGreater(len(message), len(code))
+
+    def test_the_message_never_leaks_into_the_code(self):
+        message = self.IrMailServer._outgoing_email_message(
+            self.IrMailServer.NO_VALID_RECIPIENT
+        )
+        error = OutgoingEmailError(message, self.IrMailServer.NO_VALID_RECIPIENT)
+        self.assertEqual(error.code, self.IrMailServer.NO_VALID_RECIPIENT)
+        self.assertEqual(str(error), message)
+        self.assertNotEqual(error.code, str(error))
+
+    def test_a_missing_sender_raises_the_right_code(self):
+        with (
+            config.patch(email_from=False),
+            self.assertRaises(OutgoingEmailError) as ctx,
+        ):
+            self.IrMailServer._prepare_email__(None, "d@example.com", "s", "b")
+        self.assertEqual(ctx.exception.code, self.IrMailServer.NO_FOUND_FROM)
+
+    def test_no_recipient_raises_the_right_code(self):
+        message = self.IrMailServer._prepare_email__("a@example.com", [], "s", "b")
+        with self.assertRaises(OutgoingEmailError) as ctx:
+            self.IrMailServer._prepare_email_message__(message, None)
+        self.assertEqual(ctx.exception.code, self.IrMailServer.NO_VALID_RECIPIENT)
+
+    def test_an_empty_recipient_emits_no_to_header_at_all(self):
+        message = self.IrMailServer._prepare_email__("a@example.com", [], "s", "b")
+        self.assertIsNone(message["To"])
+        self.assertFalse(
+            [
+                line
+                for line in message.as_string().splitlines()
+                if line.startswith("To:")
+            ]
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestEnvelopeSenderExtraction(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def test_a_display_name_holding_an_address_does_not_win(self):
+        self.assertEqual(
+            self.IrMailServer._envelope_sender('"user@gmail.com" <notif@odoo.com>'),
+            "notif@odoo.com",
+        )
+
+    def test_a_multi_mailbox_header_uses_the_first_mailbox(self):
+        self.assertEqual(
+            self.IrMailServer._envelope_sender("a@example.com, c@example.net"),
+            "a@example.com",
+        )
+
+    def test_a_plain_address_is_itself(self):
+        self.assertEqual(
+            self.IrMailServer._envelope_sender("a@example.com"), "a@example.com"
+        )
+
+    def test_nothing_parseable_yields_nothing(self):
+        self.assertIsNone(self.IrMailServer._envelope_sender("not an address"))
+
+    def test_the_envelope_follows_the_first_mailbox_end_to_end(self):
+        message = self.IrMailServer._prepare_email__(
+            "a@example.com, c@example.net", "d@example.com", "s", "b"
+        )
+        smtp_from, _to, _msg = self.IrMailServer._prepare_email_message__(message, None)
+        self.assertEqual(smtp_from, "a@example.com")
+
+
+@tagged("post_install", "-at_install")
+class TestSessionContextRegistry(TransactionCase):
+    class _Foreign:
+        esmtp_features = {"smtputf8": ""}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def test_a_stashed_session_reads_back(self):
+        session = self._Foreign()
+        self.IrMailServer._stash_session_context(
+            session, _SmtpSessionContext(from_filter="example.com", smtp_from="a@b.com")
+        )
+        context = self.IrMailServer._read_session_context(session)
+        self.assertEqual(context.from_filter, "example.com")
+        self.assertEqual(context.smtp_from, "a@b.com")
+
+    def test_no_session_is_not_a_foreign_session(self):
+        with self.assertNoLogs(_IR_MAIL_SERVER_LOGGER, "WARNING"):
+            self.assertEqual(
+                self.IrMailServer._read_session_context(None), _SmtpSessionContext()
+            )
+
+    def test_a_session_this_model_never_opened_is_reported(self):
+        with self.assertLogs(_IR_MAIL_SERVER_LOGGER, "WARNING") as logs:
+            context = self.IrMailServer._read_session_context(self._Foreign())
+        self.assertEqual(context, _SmtpSessionContext())
+        self.assertIn("did not open", logs.output[0])
+
+    def test_the_registry_does_not_pin_sessions_in_memory(self):
+        session = self._Foreign()
+        self.IrMailServer._stash_session_context(session, _SmtpSessionContext())
+        reference = weakref.ref(session)
+        del session
+        gc.collect()
+        self.assertIsNone(reference(), "a finished session must be collectable")

@@ -14,7 +14,7 @@ from odoo.tests.common import TransactionCase
 from odoo.tools import config, mute_logger
 
 from odoo.addons.base.models.ir_mail_server import (
-    MailDeliveryException,
+    MailDeliveryError,
     OutgoingEmailError,
 )
 from odoo.addons.base.tests.common import MockSmtplibCase
@@ -245,7 +245,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         with (
             patch.object(type(IrMailServer), "_disable_send", lambda _: False),
             mute_logger("odoo.addons.base.models.ir_mail_server"),
-            self.assertRaises(MailDeliveryException) as capture,
+            self.assertRaises(MailDeliveryError) as capture,
         ):
             IrMailServer.send_email(message, smtp_session=_RaisingSession())
 
@@ -902,10 +902,9 @@ class TestSslContexts(TransactionCase):
             )
 
     def test_ssl_context_from_certificate_builds_for_all_variants(self):
-        IrMailServer = self.env["ir.mail_server"]
         for encryption in ("starttls", "starttls_strict", "ssl", "ssl_strict"):
             server = self._make_cert_server(encryption)
-            ctx = IrMailServer._ssl_context_from_certificate(server, "smtp.example.com")
+            ctx = server._ssl_context_from_certificate()
             self.assertEqual(type(ctx).__name__, "PyOpenSSLContext", encryption)
 
     def test_ssl_context_from_certificate_key_mismatch_raises_usererror(self):
@@ -934,7 +933,10 @@ class TestSslContexts(TransactionCase):
             patch("smtplib.SMTP_SSL", _FakeConn),
             patch("smtplib.SMTP", _FakeConn),
         ):
-            IrMailServer._connect__(**connect_kwargs)
+            transport = IrMailServer._resolve_smtp_transport(
+                IrMailServer, **connect_kwargs
+            )
+            IrMailServer._open_smtp_connection(transport, None)
         return captured
 
     def test_connect_raw_param_strict_encryption_verifies(self):
@@ -1028,10 +1030,12 @@ class TestResolveTransport(TransactionCase):
             pass
 
         conn = _BareSession()
-        self.assertEqual(
-            IrMailServer._read_session_context(conn),
-            _SmtpSessionContext(from_filter=False, smtp_from=False),
-        )
+        with mute_logger("odoo.addons.base.models.ir_mail_server"):
+            self.assertEqual(
+                IrMailServer._read_session_context(conn),
+                _SmtpSessionContext(from_filter=False, smtp_from=False),
+                "a session this model never opened enforces nothing, loudly",
+            )
         IrMailServer._stash_session_context(
             conn,
             _SmtpSessionContext(from_filter="example.com", smtp_from="a@example.com"),
@@ -1039,5 +1043,7 @@ class TestResolveTransport(TransactionCase):
         ctx = IrMailServer._read_session_context(conn)
         self.assertEqual(ctx.from_filter, "example.com")
         self.assertEqual(ctx.smtp_from, "a@example.com")
-        self.assertEqual(conn.from_filter, "example.com")
-        self.assertEqual(conn.smtp_from, "a@example.com")
+        self.assertFalse(
+            hasattr(conn, "from_filter"),
+            "the session object itself is left untouched",
+        )

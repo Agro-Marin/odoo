@@ -31,12 +31,15 @@ class IrMail_Server(models.Model):
         "owner_user_id must be unique",
     )
 
-    def _active_usages_compute(self) -> list:
-        usages_super = super()._active_usages_compute()
-        for record in self.filtered("mail_template_ids"):
+    def _get_active_usages(self) -> dict[int, list[str]]:
+        usages_super = super()._get_active_usages()
+        servers = self.with_context(active_test=False)
+        for record in servers.filtered("mail_template_ids"):
             usages_super.setdefault(record.id, []).extend(
-                self.env._("%s (Email Template)", t.display_name)
-                for t in record.mail_template_ids
+                self.env._("%s (Email Template)", template.display_name)
+                if template.active
+                else self.env._("%s (archived Email Template)", template.display_name)
+                for template in record.mail_template_ids
             )
         return usages_super
 

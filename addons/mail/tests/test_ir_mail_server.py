@@ -944,3 +944,68 @@ class TestPersonalServer(MailCommon):
             ]
         )
         self.assertEqual(set(mails.mapped("state")), {"sent"})
+
+
+@tagged("mail_server")
+class TestMailServerUsageGuard(MailCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def _server_with_template(self, template_active):
+        server = self.IrMailServer.create({"name": "used", "smtp_host": "h"})
+        template = self.env["mail.template"].create(
+            {
+                "name": "t",
+                "model_id": self.env.ref("base.model_res_partner").id,
+                "mail_server_id": server.id,
+                "active": template_active,
+            }
+        )
+        return server, template
+
+    def test_an_active_template_blocks_archiving(self):
+        server, _template = self._server_with_template(True)
+        with self.assertRaises(UserError) as ctx:
+            server.action_archive()
+        self.assertIn("still used", str(ctx.exception))
+
+    def test_an_archived_template_blocks_archiving_too(self):
+        server, template = self._server_with_template(False)
+        with self.assertRaises(UserError) as ctx:
+            server.action_archive()
+        self.assertIn("archived Email Template", str(ctx.exception))
+        self.assertIn(template.display_name, str(ctx.exception))
+
+    def test_an_archived_template_blocks_deletion_too(self):
+        server, _template = self._server_with_template(False)
+        with self.assertRaises(UserError):
+            server.unlink()
+
+    def test_an_archived_reference_is_labelled_as_archived(self):
+        server = self.IrMailServer.create({"name": "used", "smtp_host": "h"})
+        live = self.env["mail.template"].create(
+            {
+                "name": "live",
+                "model_id": self.env.ref("base.model_res_partner").id,
+                "mail_server_id": server.id,
+            }
+        )
+        dead = self.env["mail.template"].create(
+            {
+                "name": "dead",
+                "model_id": self.env.ref("base.model_res_partner").id,
+                "mail_server_id": server.id,
+                "active": False,
+            }
+        )
+        usages = server._get_active_usages()[server.id]
+        self.assertIn(f"{live.display_name} (Email Template)", usages)
+        self.assertIn(f"{dead.display_name} (archived Email Template)", usages)
+
+    def test_a_server_nothing_references_is_still_free(self):
+        server = self.IrMailServer.create({"name": "unused", "smtp_host": "h"})
+        server.action_archive()
+        self.assertFalse(server.active)
+        server.unlink()

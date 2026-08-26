@@ -9,7 +9,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 
 from odoo.addons.auth_signup.models.res_partner import SignupError
-from odoo.addons.base.models.ir_mail_server import MailDeliveryException
+from odoo.addons.base.models.ir_mail_server import MailDeliveryError
 
 _logger = logging.getLogger(__name__)
 
@@ -165,7 +165,7 @@ class ResUsers(models.Model):
                 return self._action_reset_password(signup_type="signup")
             else:
                 return self._action_reset_password(signup_type="reset")
-        except MailDeliveryException as mde:
+        except MailDeliveryError as mde:
             if len(mde.args) == 2 and isinstance(mde.args[1], ConnectionRefusedError):
                 raise UserError(
                     _(
@@ -375,7 +375,7 @@ class ResUsers(models.Model):
                     users_with_email.with_context(
                         create_user=True
                     )._action_reset_password(signup_type="signup")
-                except MailDeliveryException:
+                except MailDeliveryError:
                     users_with_email.partner_id.with_context(
                         create_user=True
                     ).signup_cancel()

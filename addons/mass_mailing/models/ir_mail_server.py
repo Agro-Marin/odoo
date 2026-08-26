@@ -13,7 +13,7 @@ class IrMail_Server(models.Model):
         domain=[("state", "!=", "done"), ("active", "=", True)],
     )
 
-    def _active_usages_compute(self):
+    def _get_active_usages(self):
         def format_usage(mailing_id):
             base = _('Mass Mailing "%s"', mailing_id.display_name)
             if not mailing_id.schedule_date:
@@ -23,7 +23,7 @@ class IrMail_Server(models.Model):
             )
             return f"{base} {details}"
 
-        usages_super = super()._active_usages_compute()
+        usages_super = super()._get_active_usages()
         default_mail_server_id = self.env[
             "mailing.mailing"
         ]._default_mail_server_id()

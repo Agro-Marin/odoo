@@ -21,7 +21,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.modules.registry import Registry
 
 from odoo.addons.base.models.ir_mail_server import (
-    MailDeliveryException,
+    MailDeliveryError,
     OutgoingEmailError,
 )
 from odoo.addons.mail.tools.failure_type import OUTGOING_FAILURE_TYPES
@@ -1208,7 +1208,7 @@ class MailMail(models.Model):
                 )
             except Exception as exc:
                 if raise_exception:
-                    raise MailDeliveryException(
+                    raise MailDeliveryError(
                         _("Unable to connect to SMTP Server"), exc
                     ) from exc
                 self.browse(batch_ids)._record_connect_failure(
@@ -1447,8 +1447,11 @@ class MailMail(models.Model):
                 self._reraise_send_error(e)
         else:
             if outcome.message_id is None and raise_exception and outcome.failure_type:
-                raise MailDeliveryException(
-                    outcome.failure_reason or IrMailServer.NO_VALID_RECIPIENT
+                raise MailDeliveryError(
+                    outcome.failure_reason
+                    or IrMailServer._outgoing_email_message(
+                        IrMailServer.NO_VALID_RECIPIENT
+                    )
                 )
             if outcome.message_id:
                 try:
@@ -1476,11 +1479,11 @@ class MailMail(models.Model):
     @api.model
     def _reraise_send_error(self, exception: Exception) -> typing.NoReturn:
         if isinstance(exception, UnicodeEncodeError):
-            raise MailDeliveryException(
+            raise MailDeliveryError(
                 f"Invalid text: {exception.object}"
             ) from exception
         if isinstance(exception, AssertionError):
-            raise MailDeliveryException(". ".join(exception.args)) from exception
+            raise MailDeliveryError(". ".join(exception.args)) from exception
         raise exception
 
     def _deliver_all(self, outcome: _SendOutcome, batch: _SendBatch) -> list[dict]:
@@ -1579,7 +1582,9 @@ class MailMail(models.Model):
             "Placeholder recorded before sending. Still present means the send "
             "was interrupted before it could record an outcome; see the server log."
         )
-        no_recipients_reason = self.env["ir.mail_server"].NO_VALID_RECIPIENT
+        no_recipients_reason = self.env["ir.mail_server"]._outgoing_email_message(
+            self.env["ir.mail_server"].NO_VALID_RECIPIENT
+        )
         mark = _SendingMark(had_recipients=not no_recipients)
         if no_recipients:
             mark.failure_type = "mail_email_missing"
@@ -1682,7 +1687,7 @@ class MailMail(models.Model):
             )
         except smtplib.SMTPServerDisconnected:
             raise
-        except MailDeliveryException as error:
+        except MailDeliveryError as error:
             if "OutboundSpamException" in str(error):
                 result.failure_type = "mail_spam"
             else:
@@ -1777,7 +1782,7 @@ class MailMail(models.Model):
                 IrMailServer.NO_FOUND_SMTP_FROM,
             ):
                 failure_type = "mail_from_missing"
-        if isinstance(exception, MailDeliveryException) and (
+        if isinstance(exception, MailDeliveryError) and (
             "OutboundSpamException" in str(exception)
         ):
             failure_type = "mail_spam"

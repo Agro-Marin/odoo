@@ -483,6 +483,7 @@ class MockSmtplibCase:
         self.emails = []
 
         origin = self
+        IrMail_Server = type(self.env["ir.mail_server"])
 
         class TestingSMTPSession:
             def quit(self):
@@ -498,7 +499,9 @@ class MockSmtplibCase:
                         "msg_to": message["To"],
                         "smtp_from": smtp_from,
                         "smtp_to_list": smtp_to_list,
-                        "from_filter": self.from_filter,
+                        "from_filter": IrMail_Server._read_session_context(
+                            self
+                        ).from_filter,
                     }
                 )
 

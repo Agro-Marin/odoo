@@ -18,7 +18,7 @@ from odoo.tests import tagged, users
 from odoo.tools import file_path, formataddr, mute_logger
 
 from odoo.addons.base.models.ir_mail_server import (
-    MailDeliveryException,
+    MailDeliveryError,
     OutgoingEmailError,
 )
 from odoo.addons.mail.tests.common import MailCommon
@@ -866,7 +866,10 @@ class TestMailMail(MailCommon):
                 with self.mock_mail_gateway():
                     mail.send(raise_exception=False)
                 self.assertEqual(
-                    mail.failure_reason, self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    mail.failure_reason,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(
                     mail.failure_type, "mail_email_missing", "Mail: missing email_to"
@@ -883,7 +886,9 @@ class TestMailMail(MailCommon):
                 # different route through the mail server.
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(notification.failure_type, "mail_email_missing")
                 self.assertEqual(notification.notification_status, "exception")
@@ -900,13 +905,18 @@ class TestMailMail(MailCommon):
                 with self.mock_mail_gateway():
                     mail.send(raise_exception=False)
                 self.assertEqual(
-                    mail.failure_reason, self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    mail.failure_reason,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(mail.failure_type, failure_type)
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(
                     notification.failure_type,
@@ -923,7 +933,10 @@ class TestMailMail(MailCommon):
                 with self.mock_mail_gateway():
                     mail.send(raise_exception=False)
                 self.assertEqual(
-                    mail.failure_reason, self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    mail.failure_reason,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(
                     mail.failure_type,
@@ -933,7 +946,9 @@ class TestMailMail(MailCommon):
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(notification.failure_type, "mail_email_invalid")
                 self.assertEqual(notification.notification_status, "exception")
@@ -987,7 +1002,10 @@ class TestMailMail(MailCommon):
                 with self.mock_mail_gateway():
                     mail.send(raise_exception=False)
                 self.assertEqual(
-                    mail.failure_reason, self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    mail.failure_reason,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(
                     mail.failure_type,
@@ -997,7 +1015,9 @@ class TestMailMail(MailCommon):
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(
                     notification.failure_type,
@@ -1015,13 +1035,18 @@ class TestMailMail(MailCommon):
                 with self.mock_mail_gateway():
                     mail.send(raise_exception=False)
                 self.assertEqual(
-                    mail.failure_reason, self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    mail.failure_reason,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(mail.failure_type, "mail_email_invalid")
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(notification.failure_type, "mail_email_invalid")
                 self.assertEqual(notification.notification_status, "exception")
@@ -1035,13 +1060,18 @@ class TestMailMail(MailCommon):
                 with self.mock_mail_gateway():
                     mail.send(raise_exception=False)
                 self.assertEqual(
-                    mail.failure_reason, self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    mail.failure_reason,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(mail.failure_type, "mail_email_invalid")
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(notification.failure_type, "mail_email_invalid")
                 self.assertEqual(notification.notification_status, "exception")
@@ -1103,7 +1133,9 @@ class TestMailMail(MailCommon):
             )
             self.assertEqual(
                 notification.failure_reason,
-                self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+                self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                ),
             )
             self.assertEqual(
                 notification.failure_type,
@@ -1167,7 +1199,9 @@ class TestMailMail(MailCommon):
                 self.assertEqual(notification.notification_status, "sent")
                 self.assertEqual(
                     notification2.failure_reason,
-                    self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+                    self.env["ir.mail_server"]._outgoing_email_message(
+                        self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                    ),
                 )
                 self.assertEqual(
                     notification2.failure_type,
@@ -1314,12 +1348,12 @@ class TestMailMail(MailCommon):
                     "SMTPServerDisconnected/MemoryError during Send raises and lead to a rollback",
                 )
 
-            # MailDeliveryException: should be catched; other issues are sub-catched under
-            # a MailDeliveryException and are catched
+            # MailDeliveryError: should be catched; other issues are sub-catched under
+            # a MailDeliveryError and are catched
             for error, msg, failure_type in [
-                (MailDeliveryException("Some exception"), "Some exception", "unknown"),
+                (MailDeliveryError("Some exception"), "Some exception", "unknown"),
                 (
-                    MailDeliveryException("OutboundSpamException"),
+                    MailDeliveryError("OutboundSpamException"),
                     "OutboundSpamException",
                     "mail_spam",
                 ),
@@ -3205,7 +3239,7 @@ class TestMailMailFailureClassification(MailCommon):
     def test_a_delivery_failure_is_not_an_address_problem(self):
         """An earlier invalid address must not relabel a later SMTP failure.
 
-        `_deliver_one` classified a `MailDeliveryException` as
+        `_deliver_one` classified a `MailDeliveryError` as
         `previous_failure_type or "unknown"`, so once any recipient had produced
         `mail_email_invalid` every later delivery failure inherited it. That is
         the wrong word for the recipient -- their address is fine, the server
@@ -3228,7 +3262,7 @@ class TestMailMailFailureClassification(MailCommon):
 
         def failing_send(mail_server, message, *args, **kwargs):
             if deliverable in (message["To"] or ""):
-                raise MailDeliveryException("Mail Delivery Failed", "greylisted")
+                raise MailDeliveryError("Mail Delivery Failed", "greylisted")
             return original_send(mail_server, message, *args, **kwargs)
 
         original_send = type(self.env["ir.mail_server"]).send_email
@@ -3314,10 +3348,12 @@ class TestMailMailFailureRanking(MailCommon):
 
         def send_email(mail_server, message, *args, **kwargs):
             if self.partner_greylisted.email in (message["To"] or ""):
-                raise MailDeliveryException("Mail Delivery Failed", "greylisted")
+                raise MailDeliveryError("Mail Delivery Failed", "greylisted")
             raise OutgoingEmailError(
+                self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"].NO_VALID_RECIPIENT
+                ),
                 self.env["ir.mail_server"].NO_VALID_RECIPIENT,
-                code=self.env["ir.mail_server"].NO_VALID_RECIPIENT,
             )
 
         with self.mock_mail_gateway(mail_unlink_sent=True):

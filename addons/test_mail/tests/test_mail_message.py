@@ -6,7 +6,7 @@ from odoo.exceptions import UserError
 from odoo.tests.common import HttpCase, tagged, users
 from odoo.tools import formataddr, is_html_empty, mute_logger
 
-from odoo.addons.base.models.ir_mail_server import MailDeliveryException
+from odoo.addons.base.models.ir_mail_server import MailDeliveryError
 from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 from odoo.addons.mail.tools.discuss import Store
 
@@ -50,7 +50,7 @@ class TestMessageHelpersRobustness(MailCommon, HttpCase):
         with mute_logger("odoo.addons.mail.models.mail_mail"), self.mock_mail_gateway():
 
             def _send_email(*args, **kwargs):
-                raise MailDeliveryException("Some exception")
+                raise MailDeliveryError("Some exception")
 
             self.send_email_mocked.side_effect = _send_email
 

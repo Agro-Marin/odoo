@@ -6,7 +6,7 @@ from odoo import http
 from odoo.exceptions import UserError
 from odoo.tests.common import HttpCase
 
-from odoo.addons.mail.models.mail_mail import MailDeliveryException
+from odoo.addons.mail.models.mail_mail import MailDeliveryError
 
 
 class TestResetPassword(HttpCase):
@@ -102,9 +102,9 @@ class TestResetPassword(HttpCase):
 
     @patch("odoo.addons.mail.models.mail_mail.MailMail.send")
     def test_reset_password_mail_server_error(self, mock_send):
-        """action_reset_password() wraps a mail delivery failure in a UserError; _action_reset_password() lets the MailDeliveryException propagate."""
+        """action_reset_password() wraps a mail delivery failure in a UserError; _action_reset_password() lets the MailDeliveryError propagate."""
 
-        mock_send.side_effect = MailDeliveryException(
+        mock_send.side_effect = MailDeliveryError(
             "Unable to connect to SMTP Server",
             ConnectionRefusedError("111, 'Connection refused'"),
         )
@@ -116,7 +116,7 @@ class TestResetPassword(HttpCase):
             "Could not contact the mail server, please check your outgoing email server configuration",
         )
 
-        mock_send.side_effect = MailDeliveryException(
+        mock_send.side_effect = MailDeliveryError(
             "Unable to connect to SMTP Server",
             ValueError("[Errno -2] Name or service not known"),
         )
@@ -128,6 +128,6 @@ class TestResetPassword(HttpCase):
             "There was an error when trying to deliver your Email, please check your configuration",
         )
 
-        # To check private method _action_reset_password() raises MailDeliveryException when there is no valid smtp server
-        with self.assertRaises(MailDeliveryException):
+        # To check private method _action_reset_password() raises MailDeliveryError when there is no valid smtp server
+        with self.assertRaises(MailDeliveryError):
             self.test_user._action_reset_password()

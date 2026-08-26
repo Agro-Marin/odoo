@@ -19,7 +19,7 @@ from odoo.libs.sql import SQL
 from odoo.tools import email_normalize, format_list, html_escape
 from odoo.tools.misc import OrderedSet, hash_sign
 
-from odoo.addons.base.models.ir_mail_server import MailDeliveryException
+from odoo.addons.base.models.ir_mail_server import MailDeliveryError
 from odoo.addons.mail.models.discuss.discuss_channel_member import AVATAR_CARD_FIELDS
 from odoo.addons.mail.tools.channel_avatar import CHANNEL_AVATAR, GROUP_AVATAR
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
@@ -1464,7 +1464,7 @@ class DiscussChannel(models.Model):
             return
         try:
             self.env["mail.mail"].sudo().create(to_create).send(raise_exception=True)
-        except MailDeliveryException as mde:
+        except MailDeliveryError as mde:
             error_msg = self.env._(
                 "There was an error when trying to deliver your Email, please check your configuration."
             )
