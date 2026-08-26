@@ -8456,3 +8456,118 @@ class TestBothPhasesShareOneScope(ViewCase):
             seen[0][1],
             "refine saw the scope already narrowed by the node's own groups",
         )
+
+
+class TestSteeringDoesNotHideASubtreeFromTheSchema(ViewCase):
+    """A subtree pulled out to be validated separately still reaches the RNG.
+
+    `_check_xml` runs `valid_view` over the same tree `_check_view` walked, so
+    a handler that DETACHED its subtree -- to validate it as its own view type
+    -- also took it out of the schema's reach. `search_view.rng` says a
+    searchpanel holds only fields and `list_view.rng` says the same of a
+    groupby, and neither rule was being enforced.
+    """
+
+    def _create(self, model, view_type, arch):
+        return self.View.create(
+            {"name": "steering", "model": model, "type": view_type, "arch": arch}
+        )
+
+    def test_a_searchpanel_body_the_schema_rejects_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._create(
+                "res.partner",
+                "search",
+                '<search><field name="name"/>'
+                "<searchpanel><separator/></searchpanel></search>",
+            )
+
+    def test_a_groupby_body_the_schema_rejects_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._create(
+                "res.partner",
+                "list",
+                '<list><field name="name"/>'
+                '<groupby name="parent_id"><separator/></groupby></list>',
+            )
+
+    def test_a_valid_searchpanel_still_passes(self):
+        self.assertTrue(
+            self._create(
+                "res.partner",
+                "search",
+                '<search><field name="name"/>'
+                '<searchpanel><field name="parent_id" select="one"/></searchpanel>'
+                "</search>",
+            )
+        )
+
+    def test_a_valid_groupby_still_passes(self):
+        self.assertTrue(
+            self._create(
+                "res.partner",
+                "list",
+                '<list><field name="name"/>'
+                '<groupby name="parent_id"><field name="display_name"/></groupby>'
+                "</list>",
+            )
+        )
+
+    def test_the_searchpanel_survives_validation_in_the_tree(self):
+        # It used to be removed outright, which is what hid it from the schema.
+        view = self._create(
+            "res.partner",
+            "search",
+            '<search><field name="name"/>'
+            '<searchpanel><field name="parent_id" select="one"/></searchpanel>'
+            "</search>",
+        )
+        tree = etree.fromstring(view.arch)
+        view._check_view(tree, "res.partner")
+        self.assertIsNotNone(
+            tree.find("searchpanel"),
+            "_check_view must leave the searchpanel where valid_view can see it",
+        )
+
+    def test_a_groupby_keeps_its_children_through_validation(self):
+        view = self._create(
+            "res.partner",
+            "list",
+            '<list><field name="name"/>'
+            '<groupby name="parent_id"><field name="display_name"/></groupby>'
+            "</list>",
+        )
+        tree = etree.fromstring(view.arch)
+        view._check_view(tree, "res.partner")
+        groupby = tree.find("groupby")
+        self.assertEqual(
+            [child.get("name") for child in groupby],
+            ["display_name"],
+            "E.groupby(*node) reparents the children; they must be put back, or "
+            "list_view.rng never sees what the groupby contained",
+        )
+
+    def test_the_searchpanel_is_walked_once_not_twice(self):
+        # Steering replaced removal, so the outer walk has to be told to skip
+        # the searchpanel rather than simply not finding it any more.
+        view = self._create(
+            "res.partner",
+            "search",
+            '<search><field name="name"/>'
+            '<searchpanel><field name="parent_id" select="one"/></searchpanel>'
+            "</search>",
+        )
+        seen = []
+        View = type(self.View)
+        original = View._check_view_tag_searchpanel
+
+        def counted(v, node, name_manager, node_info):
+            seen.append(node)
+            return original(v, node, name_manager, node_info)
+
+        View._check_view_tag_searchpanel = counted
+        try:
+            view._check_view(etree.fromstring(view.arch), "res.partner")
+        finally:
+            View._check_view_tag_searchpanel = original
+        self.assertEqual(len(seen), 1, "the searchpanel was validated twice")

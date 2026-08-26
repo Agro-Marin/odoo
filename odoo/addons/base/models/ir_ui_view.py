@@ -1810,6 +1810,19 @@ class IrUiView(models.Model):
         root: _Element,
         make_node_info: Callable[[_Element, dict[str, Any] | None], dict[str, Any]],
     ) -> typing.Iterator[tuple[_Element, dict[str, Any]]]:
+        # A handler runs while its node is yielded, so it can still decide what
+        # this walk descends into -- and `node_info["children"]` is the way to
+        # say so. Detaching the subtree from the tree instead also works, and
+        # was how two handlers did it, but it is not equivalent: `_check_xml`
+        # runs `valid_view` over the SAME tree afterwards, so a subtree taken
+        # out to be validated separately never reached the RelaxNG schema at
+        # all. A searchpanel holding a `<filter>` and a groupby holding a
+        # `<separator>` were both accepted that way.
+        #
+        # The `getparent()` guard below is the one remaining escape hatch, for
+        # a handler that removes its own node: an addon's `_postprocess_tag_*`
+        # may legitimately delete what it was called for, and there is nothing
+        # left to descend into when it does.
         stack: list[tuple[_Element, dict[str, Any] | None]] = [(root, None)]
         while stack:
             node, parent_info = stack.pop()
@@ -2420,7 +2433,13 @@ class IrUiView(models.Model):
                 self._raise_view_error(
                     _("Search tag can only contain one search panel"), node
                 )
-            node.remove(searchpanels[0])
+            # The searchpanel is validated as its own view type, so this walk
+            # must not descend into it -- but it stays in the tree, because
+            # _check_xml hands that tree to valid_view afterwards and
+            # search_view.rng is what says a searchpanel holds only fields.
+            node_info["children"] = [
+                child for child in node if child.tag != "searchpanel"
+            ]
             self._check_view(
                 searchpanels[0],
                 name_manager.model._name,
@@ -2646,14 +2665,28 @@ class IrUiView(models.Model):
                         node_info,
                     )
 
+            # Same shape as _postprocess_tag_groupby: the comodel pass needs a
+            # root that is not this node -- handed `node` itself it would be
+            # reached as that walk's own root and dispatch this handler again --
+            # and E.groupby(*node) copies no attributes, so the inner root has
+            # no `name` and returns at the guard above.
+            #
+            # The children are put back. E.groupby(*node) REPARENTS them, and
+            # leaving them moved emptied every <groupby> in the tree that
+            # _check_xml then hands to valid_view, so list_view.rng never saw
+            # what a groupby contained.
             groupby_node = E.groupby(*node)
-            self._check_view(
-                groupby_node,
-                field.comodel_name,
-                view_type="groupby",
-                editable=False,
-                node_info=node_info,
-            )
+            node_info["children"] = []
+            try:
+                self._check_view(
+                    groupby_node,
+                    field.comodel_name,
+                    view_type="groupby",
+                    editable=False,
+                    node_info=node_info,
+                )
+            finally:
+                node.extend(groupby_node)
             name_manager.has_field(node, name, node_info)
 
         elif node_info["validate"]:
