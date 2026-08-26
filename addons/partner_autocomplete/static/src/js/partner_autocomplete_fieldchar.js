@@ -54,7 +54,6 @@ export class PartnerAutoCompleteCharField extends CharField {
       entity_type: data.company.entity_type,
       unspsc_codes: data.company.unspsc_codes,
     };
-    // Delete useless fields before updating record
     data.company = this.partnerAutocomplete.removeUselessFields(
       data.company,
       Object.keys(this.props.record.fields),

@@ -13,16 +13,15 @@ from odoo.addons.partner_autocomplete.models.iap_autocomplete_api import (
 class MockIAPPartnerAutocomplete(common.BaseCase):
     """Mock PartnerAutocomplete IAP calls for testing purpose.
 
-    Example of company_data {
-      'website': 'mywebsite.be',
-      'city': 'Brussel',
-      'vat': 'BE0202239951',
+    Example of default_data {
+      'website': 'https://www.heinrich.de',
+      'city': 'Mönchengladbach',
       'email': False,
-      'logo': 'https://logo.clearbit.com/mywebsite.be',
-      'name': 'Proximus',
-      'zip': '1000',
-      'phone': '+32 800 00 800',
-      'street': 'Rue Perdues 27',
+      'logo': 'https://logo.clearbit.com/heinrichsroofing.com',
+      'name': 'Heinrich',
+      'zip': '41179',
+      'phone': '+49 0000 112233',
+      'street': 'Mennrather Str. 123456',
       'country_code': 'de',
       'country_name': 'Germany',
       'state_id': False

@@ -4,7 +4,7 @@ import { AutoComplete } from "@web/components/autocomplete";
 /**
  * AutoComplete variant that can broaden a country-scoped partner search to a
  * worldwide one. The "Search Worldwide" entry is a real, keyboard-navigable
- * option (see PartnerAutoCompleteCore.worldwideOption) rather than a template
+ * option (see `worldwideOption` in partner_autocomplete_core.js) rather than a template
  * add-on, so it participates in navigation, aria state and Enter-to-select.
  */
 export class PartnerAutoComplete extends AutoComplete {
