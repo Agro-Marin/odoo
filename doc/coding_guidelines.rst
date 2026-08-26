@@ -1263,7 +1263,7 @@ assembles is in the wrong family.
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **369** functions in
+**A ``bool`` return does not make a predicate** ``[review]``. **370** functions in
 this repository are annotated ``-> bool`` and are not predicates, against **187**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
