@@ -439,9 +439,7 @@ class TestXmlParsedAsHtmlWarningScope(unittest.TestCase):
 
         if not hasattr(bs4, "XMLParsedAsHTMLWarning"):
             self.skipTest("bs4 does not raise XMLParsedAsHTMLWarning")
-        caught = self._warnings_from(
-            lambda: bs4.BeautifulSoup(self.XML, "html.parser")
-        )
+        caught = self._warnings_from(lambda: bs4.BeautifulSoup(self.XML, "html.parser"))
         self.assertIn("XMLParsedAsHTMLWarning", caught)
 
 
