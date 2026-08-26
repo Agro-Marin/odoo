@@ -1,6 +1,5 @@
+from odoo.libs.filesystem.tests.test_mimetypes_guess import JPG, SVG
 from odoo.tests.common import TransactionCase
-
-from odoo.addons.base.tests.test_mimetypes import JPG, SVG
 
 
 class TestWebSave(TransactionCase):

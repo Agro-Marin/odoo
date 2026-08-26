@@ -16,6 +16,7 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.fields import Domain
+from odoo.libs.filesystem.tests.test_mimetypes_guess import SVG, ZIP
 from odoo.orm.registration import add_to_registry
 from odoo.tests import Form, TransactionCase, tagged, users
 from odoo.tools import float_repr, human_size, mute_logger
@@ -24,7 +25,6 @@ from odoo.tools.image import image_data_uri
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 from odoo.addons.base.tests.test_expression import TransactionExpressionCase
-from odoo.addons.base.tests.test_mimetypes import SVG, ZIP
 
 
 class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
