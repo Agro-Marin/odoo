@@ -544,14 +544,8 @@ class IrModuleModule(models.Model):
 
             update_ids = []
             for dep in module.dependencies_id:
-                if dep.state == "unknown":
-                    raise UserError(
-                        _(
-                            'You try to install module "%(module)s" that depends on module "%(dependency)s".\nBut the latter module is not available in your system.',
-                            module=module.name,
-                            dependency=dep.name,
-                        )
-                    )
+                if dep.state in UNSATISFIABLE_DEPENDENCY_STATES:
+                    raise UserError(self._unsatisfiable_dependency_error(module, dep))
                 if dep.linked_id.state != newstate:
                     update_ids.append(dep.linked_id.id)
             update_mods = self.browse(update_ids)
@@ -561,6 +555,19 @@ class IrModuleModule(models.Model):
             if module.state in states_to_update:
                 self.check_external_dependencies(module.name, newstate)
                 module.write({"state": newstate})
+
+    def _unsatisfiable_dependency_error(self, module: Self, dep: Any) -> str:
+        if dep.state == "unknown":
+            return _(
+                'You try to install module "%(module)s" that depends on module "%(dependency)s".\nBut the latter module is not available in your system.',
+                module=module.name,
+                dependency=dep.name,
+            )
+        return _(
+            'You try to install module "%(module)s" that depends on module "%(dependency)s".\nBut the latter module cannot be installed.',
+            module=module.name,
+            dependency=dep.name,
+        )
 
     def _auto_install_dependencies_satisfiable(self) -> bool:
         self.ensure_one()

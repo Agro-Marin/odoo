@@ -285,6 +285,47 @@ class IrModuleAutoInstallCase(TransactionCase):
         self.assertEqual(victim.state, "uninstalled")
 
     @mute_logger("odoo.addons.base.models.ir_module")
+    def test_direct_install_refuses_an_uninstallable_dependency(self):
+        """The auto-install predicate guards candidates the system chooses. A
+        user selecting the module themselves reaches `_state_update` directly,
+        and it stranded them the same way."""
+        self._make("airm_direct_bad", state="uninstallable")
+        victim = self._make("airm_direct_victim")
+        self._depend(victim, "airm_direct_bad")
+
+        with self.assertRaises(UserError) as caught:
+            victim.button_install()
+
+        self.assertIn("airm_direct_bad", str(caught.exception))
+        self.assertIn("cannot be installed", str(caught.exception))
+        self.assertEqual(victim.state, "uninstalled")
+
+    @mute_logger("odoo.addons.base.models.ir_module")
+    def test_direct_install_refuses_an_unknown_dependency(self):
+        victim = self._make("airm_direct_victim2")
+        self._depend(victim, "airm_no_such_module_at_all")
+
+        with self.assertRaises(UserError) as caught:
+            victim.button_install()
+
+        self.assertIn("not available in your system", str(caught.exception))
+        self.assertEqual(victim.state, "uninstalled")
+
+    @mute_logger("odoo.addons.base.models.ir_module")
+    def test_a_transitively_unsatisfiable_dependency_is_refused_too(self):
+        self._make("airm_chain_bad", state="uninstallable")
+        middle = self._make("airm_chain_middle")
+        self._depend(middle, "airm_chain_bad")
+        top = self._make("airm_chain_top")
+        self._depend(top, "airm_chain_middle")
+
+        with self.assertRaises(UserError):
+            top.button_install()
+
+        self.assertEqual(top.state, "uninstalled")
+        self.assertEqual(middle.state, "uninstalled")
+
+    @mute_logger("odoo.addons.base.models.ir_module")
     def test_satisfiable_auto_install_still_happens(self):
         trigger = self._make("airm_trigger3")
         other = self._make("airm_other3")
