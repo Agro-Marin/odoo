@@ -82,7 +82,16 @@ def _get_upgrade_test_modules(module: str) -> Generator[Any]:
                 if (pymod := sys.modules.get(spec.name)) is None:
                     pymod = importlib.util.module_from_spec(spec)
                     sys.modules[spec.name] = pymod
-                    spec.loader.exec_module(pymod)
+                    try:
+                        spec.loader.exec_module(pymod)
+                    except BaseException:
+                        # Drop the half-initialised module, as importlib's own
+                        # loader does. Leaving it cached made the *second*
+                        # position find it non-None, skip the exec and yield a
+                        # module whose test classes were never defined -- so the
+                        # file's tests silently did not run and nothing failed.
+                        sys.modules.pop(spec.name, None)
+                        raise
                 yield pymod
 
 
