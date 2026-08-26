@@ -165,21 +165,29 @@ class ChromeBrowser:
             "Page.screencastFrame": self.screencaster,
             "ServiceWorker.workerErrorReported": self._handle_service_worker_error,
         }
+        # The retry is for thread-table exhaustion: a large suite can transiently
+        # run the process out of thread handles, and a gc pass plus a short
+        # backoff usually frees some. Five attempts, and the fifth failure is
+        # the caller's problem -- the old `for ... else` made it six and reused
+        # the Thread whose start() had just raised, which only works because
+        # CPython happens to leave _started unset on that path.
         for attempt in range(5):
-            self._receiver = threading.Thread(
+            receiver = threading.Thread(
                 target=self._receive,
                 name="WebSocket events consumer",
                 args=(get_db_name(),),
                 daemon=True,
             )
             try:
-                self._receiver.start()
-                break
+                receiver.start()
             except RuntimeError:
+                if attempt == 4:
+                    raise
                 gc.collect()
                 time.sleep(0.2 * (attempt + 1))
-        else:
-            self._receiver.start()
+            else:
+                self._receiver = receiver
+                break
         self._logger.info("Enable chrome headless console log notification")
         self._websocket_send("Runtime.enable")
         self._websocket_send("ServiceWorker.enable")
