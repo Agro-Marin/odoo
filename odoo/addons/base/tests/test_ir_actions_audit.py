@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from psycopg.errors import IntegrityError
 
 from odoo.exceptions import UserError, ValidationError
@@ -5,7 +7,43 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.safe_eval import safe_eval
 
-from odoo.addons.base.models.ir_actions import _eval_dict_or_default
+from odoo.addons.base.models.ir_actions_actions import _eval_dict_or_default
+
+_ACTIONS_LOGGER = _eval_dict_or_default.__module__
+
+_ABOLISHED_ACTION_METHODS = (
+    "_apply_unenforced_ondelete",
+    "_as_concrete",
+    "_cache_invalidating_fields",
+    "_compute_embedded_actions",
+    "_concrete_model_names",
+    "_empty_list_help",
+    "_for_xml_id",
+    "_get_client_only_keys",
+    "_get_readable_fields",
+    "_inheritance_tree_model_names",
+    "_menu_access_model_field",
+    "_reserve_paths",
+    "_root_model_names",
+    "_tree_model_names_by_table",
+    "_unconditional_clear_fields",
+    "_unenforced_reference_fields",
+    "_unenforced_reference_relations",
+    "_unenforced_reference_selections",
+    "_window_view_types",
+)
+
+
+def raises_without_rolling_back(case, exception, func):
+    # BaseCase.assertRaises wraps the block in cr.savepoint(), so the raised
+    # exception rolls back everything the failing call did. A test that means to
+    # observe what survived a partially-applied failure must not use it.
+    try:
+        func()
+    except exception as exc:
+        return exc
+    case.fail(f"{exception.__name__} was not raised")
+    return None
 
 
 @tagged("post_install", "-at_install")
@@ -467,9 +505,9 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
         todo = self.env["ir.actions.todo"].create({"action_id": self.action.id})
         embedded = self._seeded_embedded_action()
 
-        with self.assertRaises(UserError):
-            self.action.unlink()
+        raises_without_rolling_back(self, UserError, self.action.unlink)
 
+        self.env.invalidate_all()
         self.assertTrue(self.action.exists(), "the action itself survived")
         self.assertTrue(embedded.exists(), "the blocking reference survived")
         self.assertTrue(
@@ -486,12 +524,26 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
                 "action_id": self.action.id,
             }
         )
-        self._seeded_embedded_action()
+        # The set-null phase runs after the cascade phase, so a cascade that
+        # refuses never reaches it. Only a failure raised after the set-null can
+        # put it at risk; the m2m sweep is the first such step.
+        Actions = type(self.env["ir.actions.actions"])
+        with patch.object(
+            Actions,
+            "_get_relations_ondelete_unenforced",
+            side_effect=UserError("audit-atomic-boom"),
+        ):
+            error = raises_without_rolling_back(self, UserError, self.action.unlink)
+        self.assertEqual(str(error), "audit-atomic-boom")
 
-        with self.assertRaises(UserError):
-            self.action.unlink()
-
-        self.assertEqual(user.action_id.id, self.action.id)
+        self.env.invalidate_all()
+        self.assertEqual(
+            user.action_id.id,
+            self.action.id,
+            "a set-null applied earlier in the sweep must be restored when a "
+            "later step of the same sweep aborts",
+        )
+        self.assertTrue(self.action.exists())
 
     def test_restrict_is_resolved_before_anything_is_destroyed(self):
         todo = self.env["ir.actions.todo"].create({"action_id": self.action.id})
@@ -511,8 +563,8 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
                 "action_id": self.action.id,
             }
         )
-        with self.assertRaises(ValidationError):
-            self.action.unlink()
+        raises_without_rolling_back(self, ValidationError, self.action.unlink)
+        self.env.invalidate_all()
         self.assertTrue(todo.exists())
         self.assertTrue(self.action.exists())
 
@@ -714,7 +766,9 @@ class TestIrActionsEmbeddedInvalidation(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestIrActionsViewModeVocabulary(TransactionCase):
     def test_view_mode_is_view_type_minus_the_non_window_ones(self):
-        from odoo.addons.base.models.ir_actions import NON_WINDOW_VIEW_TYPES
+        from odoo.addons.base.models.ir_actions_act_window_view import (
+            NON_WINDOW_VIEW_TYPES,
+        )
 
         view_modes = set(
             self.env["ir.actions.act_window.view"]
@@ -1253,7 +1307,9 @@ class TestIrActionsViewTypeVocabulary(TransactionCase):
         self.assertEqual(allowed, line_modes)
 
     def test_that_vocabulary_is_still_the_view_types_minus_the_unrenderable(self):
-        from odoo.addons.base.models.ir_actions import NON_WINDOW_VIEW_TYPES
+        from odoo.addons.base.models.ir_actions_act_window_view import (
+            NON_WINDOW_VIEW_TYPES,
+        )
 
         allowed = self.env["ir.actions.actions"]._get_view_types_for_window()
         view_types = set(self.env["ir.ui.view"]._fields["type"].get_values(self.env))
@@ -1322,7 +1378,7 @@ class TestIrActionsContextDegradesQuietly(TransactionCase):
                 "context": "{'default_parent_id': active_id}",
             }
         )
-        with self.assertNoLogs("odoo.addons.base.models.ir_actions"):
+        with self.assertNoLogs(_ACTIONS_LOGGER):
             values = action.read(["help", "context"])
         self.assertEqual(values[0]["context"], "{'default_parent_id': active_id}")
 
@@ -1721,3 +1777,290 @@ class TestActionCreateDoesNotEditItsArgument(TransactionCase):
         snapshot = dict(vals)
         menu.write(vals)
         self.assertEqual(vals, snapshot, "ir.ui.menu.write edited its argument")
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsPathIsNotCopied(TransactionCase):
+    def test_duplicating_a_pathed_action_leaves_the_path_behind(self):
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-copy-path",
+                "res_model": "res.partner",
+                "path": "audit-copy-path",
+            }
+        )
+        self.env.flush_all()
+        copy = action.copy()
+        self.env.flush_all()
+        self.assertFalse(copy.path)
+        self.assertEqual(action.path, "audit-copy-path")
+
+    def test_the_copy_holds_no_reservation(self):
+        action = self.env["ir.actions.act_url"].create(
+            {"name": "audit-copy-res", "url": "/a", "path": "audit-copy-res"}
+        )
+        self.env.flush_all()
+        copy = action.copy()
+        self.env.flush_all()
+        Reservation = self.env["ir.actions.path"]
+        self.assertFalse(Reservation.search([("action_id", "=", copy.id)]))
+        self.assertEqual(
+            Reservation.search([("action_id", "=", action.id)]).mapped("path"),
+            ["audit-copy-res"],
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsPathFromADefault(TransactionCase):
+    def test_a_path_arriving_as_a_default_still_reserves(self):
+        action = (
+            self.env["ir.actions.act_window"]
+            .with_context(default_path="audit-default-path")
+            .create({"name": "audit-default-path", "res_model": "res.partner"})
+        )
+        self.env.flush_all()
+        self.assertEqual(action.path, "audit-default-path")
+        self.assertEqual(
+            self.env["ir.actions.path"]
+            .search([("action_id", "=", action.id)])
+            .mapped("path"),
+            ["audit-default-path"],
+        )
+
+    def test_a_defaulted_path_is_not_stealable_by_another_subtype(self):
+        self.env["ir.actions.act_window"].with_context(
+            default_path="audit-default-steal"
+        ).create({"name": "audit-default-steal", "res_model": "res.partner"})
+        self.env.flush_all()
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.env["ir.actions.act_url"].create(
+                    {
+                        "name": "audit-default-steal-2",
+                        "url": "/a",
+                        "path": "audit-default-steal",
+                    }
+                )
+                self.env.flush_all()
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsStoredContextIsData(TransactionCase):
+    def test_a_context_with_non_string_keys_does_not_break_the_loader(self):
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-ctx-int-key",
+                "res_model": "res.partner",
+                "context": "{1: 2}",
+            }
+        )
+        with mute_logger(_ACTIONS_LOGGER):
+            values = action._get_action_dict()
+        self.assertEqual(values["context"], "{1: 2}")
+
+    def test_a_malformed_expression_is_logged(self):
+        with self.assertLogs(_ACTIONS_LOGGER, "WARNING"):
+            self.assertEqual(_eval_dict_or_default("{'a':", {}, {}), {})
+
+    def test_an_expression_that_is_not_a_dict_is_logged(self):
+        with self.assertLogs(_ACTIONS_LOGGER, "WARNING"):
+            self.assertEqual(_eval_dict_or_default("[1, 2]", {}, {}), {})
+
+    def test_a_missing_runtime_name_stays_quiet(self):
+        with self.assertNoLogs(_ACTIONS_LOGGER):
+            self.assertEqual(
+                _eval_dict_or_default("{'default_x': active_id}", {}, {}), {}
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsServerReadableFields(TransactionCase):
+    def test_the_server_subtype_adds_its_own_readable_fields(self):
+        readable = self.env["ir.actions.server"]._get_fields_readable()
+        self.assertLessEqual({"group_ids", "model_name"}, readable)
+
+    def test_no_model_anywhere_spells_an_abolished_name(self):
+        for model_name, model in self.env.registry.items():
+            for abolished in _ABOLISHED_ACTION_METHODS:
+                self.assertFalse(
+                    hasattr(model, abolished),
+                    f"{model_name} still declares the pre-rename {abolished}",
+                )
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsBindingQueryMatchesItsInvalidation(TransactionCase):
+    def test_every_column_the_query_reads_invalidates_the_cache(self):
+        Actions = self.env["ir.actions.actions"]
+        columns = {*Actions._BINDING_SQL_SELECTED, Actions._BINDING_SQL_JOINED}
+        self.assertLessEqual(columns, Actions._get_fields_invalidating_when_cached())
+
+    def test_those_columns_are_real_stored_fields_of_the_root(self):
+        Actions = self.env["ir.actions.actions"]
+        for name in (*Actions._BINDING_SQL_SELECTED, Actions._BINDING_SQL_JOINED):
+            self.assertTrue(Actions._fields[name].store, name)
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsMixedUnlinkIsAtomic(TransactionCase):
+    def _blocked_action(self):
+        blocked = self.env["ir.actions.act_url"].create(
+            {"name": "audit-mixed-blocked", "url": "/audit/mixed"}
+        )
+        parent = self.env["ir.actions.act_window"].create(
+            {"name": "audit-mixed-parent", "res_model": "res.partner"}
+        )
+        embedded = self.env["ir.embedded.actions"].create(
+            {
+                "parent_action_id": parent.id,
+                "parent_res_model": "res.partner",
+                "action_id": blocked.id,
+            }
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "audit_mixed_seeded_embedded",
+                "model": "ir.embedded.actions",
+                "res_id": embedded.id,
+            }
+        )
+        return blocked
+
+    def test_a_blocked_subtype_rolls_back_the_ones_already_deleted(self):
+        free = self.env["ir.actions.act_window"].create(
+            {"name": "audit-mixed-free", "res_model": "res.partner"}
+        )
+        blocked = self._blocked_action()
+        self.env.flush_all()
+        root = self.env["ir.actions.actions"].browse([free.id, blocked.id])
+        self.assertEqual(
+            list(root._get_model_names_concrete().values()),
+            ["ir.actions.act_window", "ir.actions.act_url"],
+            "the free action must be deleted before the blocked one for this to bite",
+        )
+
+        raises_without_rolling_back(self, UserError, root.unlink)
+
+        self.env.invalidate_all()
+        self.assertTrue(
+            free.exists(),
+            "an action deleted earlier in the split must be restored when a later "
+            "subtype refuses, exactly as within one subtype",
+        )
+        self.assertTrue(blocked.exists())
+
+    def test_a_mixed_unlink_that_succeeds_still_deletes_everything(self):
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "audit-mixed-ok-w", "res_model": "res.partner"}
+        )
+        url = self.env["ir.actions.act_url"].create(
+            {"name": "audit-mixed-ok-u", "url": "/audit/mixed-ok"}
+        )
+        self.env.flush_all()
+        self.env["ir.actions.actions"].browse([window.id, url.id]).unlink()
+        self.env.invalidate_all()
+        self.assertFalse(window.exists())
+        self.assertFalse(url.exists())
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsPathHasOneResolver(TransactionCase):
+    def test_the_resolver_returns_the_concrete_subtype(self):
+        action = self.env["ir.actions.act_url"].create(
+            {"name": "audit-resolve", "url": "/a", "path": "audit-resolve"}
+        )
+        self.env.flush_all()
+        found = self.env["ir.actions.actions"]._get_action_by_path("audit-resolve")
+        self.assertEqual(found, action)
+        self.assertEqual(found._name, "ir.actions.act_url")
+
+    def test_an_unknown_path_resolves_to_nothing(self):
+        found = self.env["ir.actions.actions"]._get_action_by_path("audit-no-such")
+        self.assertFalse(found)
+
+    def test_every_caller_agrees_with_the_resolver(self):
+        from odoo.addons.web.controllers.utils import get_action
+
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-resolve-w",
+                "res_model": "res.partner",
+                "path": "audit-resolve-w",
+            }
+        )
+        self.env.flush_all()
+        Actions = self.env["ir.actions.actions"]
+        self.assertEqual(Actions._get_action_by_path("audit-resolve-w"), action)
+        self.assertEqual(get_action(self.env, "audit-resolve-w"), action)
+
+    def test_no_caller_scans_the_inheritance_tree_for_a_path(self):
+        import pathlib
+        import re
+
+        root = pathlib.Path(__file__).parents[4]
+        offenders = []
+        pattern = re.compile(r"""\(\s*['"]path['"]\s*,\s*['"]=['"]""")
+        for path in (root / "addons").rglob("controllers/*.py"):
+            text = path.read_text()
+            for match in pattern.finditer(text):
+                line = text[: match.start()].count("\n") + 1
+                window = text[max(0, match.start() - 300) : match.start()]
+                if "ir.actions.path" in window or "Reservation" in window:
+                    continue
+                offenders.append(f"{path.relative_to(root)}:{line}")
+        self.assertFalse(
+            offenders,
+            "a path must be resolved through ir.actions.path (see "
+            "ir.actions.actions._get_action_by_path), not by searching the "
+            "inheritance tree: " + ", ".join(offenders),
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsPathReservationIsTotal(TransactionCase):
+    def test_the_reservation_table_holds_the_only_path_index(self):
+        self.env.cr.execute(
+            """
+            SELECT c.relname FROM pg_index x
+              JOIN pg_class c ON c.oid = x.indrelid
+              JOIN pg_class i ON i.oid = x.indexrelid
+             WHERE x.indisunique AND pg_get_indexdef(i.oid) LIKE '%(path)'
+            """
+        )
+        tables = {row[0] for row in self.env.cr.fetchall()}
+        self.assertEqual(tables, {self.env["ir.actions.path"]._table})
+
+    def test_two_actions_of_one_subtype_still_cannot_share_a_path(self):
+        self.env["ir.actions.act_window"].create(
+            {"name": "audit-same-a", "res_model": "res.partner", "path": "audit-same"}
+        )
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.env["ir.actions.act_window"].create(
+                    {
+                        "name": "audit-same-b",
+                        "res_model": "res.partner",
+                        "path": "audit-same",
+                    }
+                )
+                self.env.flush_all()
+
+    def test_one_create_call_cannot_smuggle_a_duplicate_through(self):
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.env["ir.actions.act_window"].create(
+                    [
+                        {
+                            "name": "audit-batch-a",
+                            "res_model": "res.partner",
+                            "path": "audit-batch",
+                        },
+                        {
+                            "name": "audit-batch-b",
+                            "res_model": "res.partner",
+                            "path": "audit-batch",
+                        },
+                    ]
+                )
+                self.env.flush_all()

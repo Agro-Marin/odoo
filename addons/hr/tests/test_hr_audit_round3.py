@@ -901,7 +901,7 @@ class TestHrAuditRound3(TestHrCommon):
 
         It used to substitute the name into the string and ``ast.literal_eval``
         the result; it now evaluates the expression through
-        ``eval_action_domain``. Either way the action must come back with a
+        ``_eval_action_domain``. Either way the action must come back with a
         usable, searchable domain.
         """
         department = self.env["hr.department"].create({"name": "R3 Plan Dept"})

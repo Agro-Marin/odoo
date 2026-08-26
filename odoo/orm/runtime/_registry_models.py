@@ -43,7 +43,7 @@ class _RegistryModelsMixin(_RegistryStubs):
 
         A table is not owned by exactly one model: `ir.actions.actions` and
         `ir.actions.act_window_close` both declare `_table = "ir_actions"`, and
-        `ir_actions.py` keeps its own table -> tuple-of-names index precisely
+        `ir_actions_actions.py` keeps its own table -> tuple-of-names index precisely
         because the relation is one-to-many.
 
         This index answers with one model, because its consumer wants one -- it

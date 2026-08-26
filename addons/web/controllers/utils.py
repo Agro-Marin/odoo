@@ -144,12 +144,7 @@ def get_action(env: Any, path_part: str) -> Any:
         else:
             action = Actions
     else:
-        action = (
-            env["ir.actions.path"]
-            .sudo()
-            .search([("path", "=", path_part)], limit=1)
-            .action_id
-        )
+        return Actions._get_action_by_path(path_part)
 
     if action and action._name == "ir.actions.actions":
         action = action._get_action_concrete()

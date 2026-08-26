@@ -14,8 +14,6 @@ from odoo.tools import DEFAULT_SERVER_DATE_FORMAT as DF
 from odoo.tools import SQL
 from odoo.tools.misc import get_lang
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 BANK_CASH_TYPES = ("bank", "cash", "credit")
 SALE_PURCHASE_TYPES = ("sale", "purchase")
 
@@ -1100,7 +1098,9 @@ class AccountJournal(models.Model):
         )
 
         if "context" in action and isinstance(action["context"], str):
-            action_context = eval_action_context(action["context"], self.env)
+            action_context = self.env["ir.actions.actions"]._eval_action_context(
+                action["context"]
+            )
         else:
             action_context = action.get("context", {})
         action["context"] = {
@@ -1150,7 +1150,7 @@ class AccountJournal(models.Model):
             action_ref
         )
         action["context"] = dict(
-            eval_action_context(action.get("context"), self.env),
+            self.env["ir.actions.actions"]._eval_action_context(action.get("context")),
             default_journal_id=self.id,
             search_default_journal_id=self.id,
         )

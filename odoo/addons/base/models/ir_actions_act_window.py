@@ -1,0 +1,209 @@
+from typing import Any, Self
+
+from odoo import api, fields, models
+from odoo.api import ValuesType
+from odoo.exceptions import ValidationError
+from odoo.tools import _
+
+
+class IrActionsAct_Window(models.Model):
+    _name = "ir.actions.act_window"
+    _description = "Action Window"
+    _table = "ir_act_window"
+    _inherit = ["ir.actions.actions"]
+    _order = "name, id"
+    _allow_sudo_commands = False
+
+    type = fields.Char(default="ir.actions.act_window")
+    view_id = fields.Many2one("ir.ui.view", string="View Ref.", ondelete="set null")
+    domain = fields.Char(
+        string="Domain Value",
+        help="Optional domain filtering of the destination data, as a Python expression",
+    )
+    context = fields.Char(
+        string="Context Value",
+        default="{}",
+        required=True,
+        help="Context dictionary as Python expression, empty by default (Default: {})",
+    )
+    res_id = fields.Integer(
+        string="Record ID",
+        help="Database ID of record to open in form view, when ``view_mode`` is set to 'form' only",
+    )
+    res_model = fields.Char(
+        string="Destination Model",
+        required=True,
+        help="Model name of the object to open in the view window",
+    )
+    target = fields.Selection(
+        [
+            ("current", "Current Window"),
+            ("new", "New Window"),
+            ("fullscreen", "Full Screen"),
+            ("main", "Main action of Current Window"),
+        ],
+        default="current",
+        string="Target Window",
+    )
+    view_mode = fields.Char(
+        required=True,
+        default="list,form",
+        help="Comma-separated list of allowed view modes, such as 'form', 'list', 'calendar', etc. (Default: list,form)",
+    )
+    mobile_view_mode = fields.Char(
+        default="kanban",
+        help="First view mode in mobile and small screen environments (default='kanban'). If it can't be found among available view modes, the same mode as for wider screens is used)",
+    )
+    usage = fields.Char(
+        string="Action Usage",
+        help="Used to filter menu and home actions from the user form.",
+    )
+    view_ids = fields.One2many(
+        "ir.actions.act_window.view",
+        "act_window_id",
+        string="No of Views",
+    )
+    views = fields.Binary(
+        compute="_compute_views",
+        help="This function field computes the ordered list of views that should be enabled "
+        "when displaying the result of an action, federating view mode, views and "
+        "reference view. The result is returned as an ordered list of pairs (view_id,view_mode).",
+    )
+    limit = fields.Integer(default=80, help="Default limit for the list view")
+    group_ids = fields.Many2many(
+        "res.groups",
+        "ir_act_window_group_rel",
+        "act_id",
+        "gid",
+        string="Groups",
+    )
+    search_view_id = fields.Many2one(
+        "ir.ui.view", string="Search View Ref.", ondelete="set null"
+    )
+    all_embedded_action_ids = fields.One2many(
+        "ir.embedded.actions",
+        "parent_action_id",
+        string="All Embedded Actions",
+    )
+    embedded_action_ids = fields.One2many(
+        "ir.embedded.actions", compute="_compute_embedded_action_ids"
+    )
+    cache = fields.Boolean(
+        string="Data Caching",
+        default=True,
+        help="If enabled, this action will cache the related data used in list, Kanban and form views with the aim to increase the loading speed",
+    )
+
+    @api.constrains("res_model")
+    def _check_model(self) -> None:
+        for action in self:
+            if action.res_model not in self.env:
+                raise ValidationError(
+                    _(
+                        "Invalid model name “%s” in action definition.",
+                        action.res_model,
+                    )
+                )
+
+    @api.constrains("view_mode", "mobile_view_mode")
+    def _check_view_mode(self) -> None:
+        for rec in self:
+            modes = rec.view_mode.split(",")
+            if not all(modes):
+                raise ValidationError(
+                    _("Empty view mode in view_mode: “%s”", rec.view_mode)
+                )
+            if len(modes) != len(set(modes)):
+                raise ValidationError(
+                    _(
+                        "The modes in view_mode must not be duplicated: %s",
+                        modes,
+                    )
+                )
+            if any(" " in mode for mode in modes):
+                raise ValidationError(_("No spaces allowed in view_mode: “%s”", modes))
+        self._check_view_type_vocabulary("view_mode")
+        self._check_view_type_vocabulary("mobile_view_mode")
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        vals_list = [
+            (
+                vals
+                if vals.get("name") or vals.get("res_model") not in self.env
+                else {**vals, "name": self.env[vals["res_model"]]._description}
+            )
+            for vals in vals_list
+        ]
+        return super().create(vals_list)
+
+    @api.depends("all_embedded_action_ids.is_visible")
+    @api.depends_context("active_id", "active_model", "uid")
+    def _compute_embedded_action_ids(self) -> None:
+        for action in self:
+            action.embedded_action_ids = action.all_embedded_action_ids.filtered(
+                "is_visible"
+            )
+
+    @api.depends(
+        "view_ids.view_mode",
+        "view_ids.view_id",
+        "view_ids.sequence",
+        "view_mode",
+        "view_id.type",
+    )
+    def _compute_views(self) -> None:
+        for act in self:
+            lines = act.view_ids.sorted()
+            views = [(view.view_id.id, view.view_mode) for view in lines]
+            got_modes = {view.view_mode for view in lines}
+            missing_modes = [
+                mode for mode in act.view_mode.split(",") if mode not in got_modes
+            ]
+            if act.view_id and act.view_id.type in missing_modes:
+                missing_modes.remove(act.view_id.type)
+                views.append((act.view_id.id, act.view_id.type))
+            views.extend((False, mode) for mode in missing_modes)
+            act.views = views
+
+    def _get_empty_list_help(self, stored_help: str | bool) -> str | bool:
+        self.ensure_one()
+        if self.res_model not in self.env:
+            return stored_help
+        ctx = self.env["ir.actions.actions"]._eval_action_context(self.context)
+        return (
+            self.with_context({**self.env.context, **ctx})
+            .env[self.res_model]
+            .get_empty_list_help(stored_help)
+        )
+
+    def _get_field_target_model(self) -> str:
+        return "res_model"
+
+    def _get_fields_readable(self) -> frozenset[str]:
+        return super()._get_fields_readable() | {
+            "context",
+            "cache",
+            "mobile_view_mode",
+            "domain",
+            "group_ids",
+            "limit",
+            "res_id",
+            "res_model",
+            "search_view_id",
+            "target",
+            "view_id",
+            "view_mode",
+            "views",
+            "embedded_action_ids",
+        }
+
+    def _get_action_dict(self) -> dict[str, Any]:
+        result = super()._get_action_dict()
+        if embedded_action_ids := result["embedded_action_ids"]:
+            embedded = self.env["ir.embedded.actions"].browse(embedded_action_ids)
+            result["embedded_action_ids"] = embedded.read(
+                sorted(embedded._get_fields_readable())
+            )
+        result["help"] = self._get_empty_list_help(result.get("help", ""))
+        return result

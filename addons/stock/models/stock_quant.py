@@ -19,7 +19,6 @@ from ..tools.reservation import (
     distribute_reservation,
     least_packages_search,
 )
-from odoo.addons.base.models.ir_actions import eval_action_context
 
 _logger = logging.getLogger(__name__)
 
@@ -889,7 +888,9 @@ class StockQuant(models.Model):
                 "result_package_id", "=", self.package_id.id
             )
         action["domain"] = domain
-        action["context"] = eval_action_context(action.get("context") or "{}", self.env)
+        action["context"] = self.env["ir.actions.actions"]._eval_action_context(
+            action.get("context") or "{}"
+        )
         action["context"]["search_default_product_id"] = self.product_id.id
         return action
 

@@ -13,7 +13,6 @@ from odoo.libs.barcode import check_barcode_encoding
 from odoo.tools.mail import html2plaintext, is_html_empty
 from odoo.tools.translate import LazyTranslate
 
-from odoo.addons.base.models.ir_actions import eval_action_context
 from odoo.addons.stock.const import (
     PY_OPERATORS,
     QUANTITY_FIELDS,
@@ -644,7 +643,7 @@ class ProductProduct(models.Model):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.action_orderpoint")
         context = action.get("context") or {}
         action["context"] = (
-            eval_action_context(context, self.env)
+            self.env["ir.actions.actions"]._eval_action_context(context)
             if isinstance(context, str)
             else dict(context)
         )

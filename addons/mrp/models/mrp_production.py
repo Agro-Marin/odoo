@@ -19,7 +19,6 @@ from odoo.tools.misc import (
     groupby as tools_groupby,
 )
 
-from odoo.addons.base.models.ir_actions import eval_action_context
 from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 from odoo.addons.web.controllers.utils import clean_action
 
@@ -3753,7 +3752,7 @@ class MrpProduction(models.Model):
             "mrp.mrp_unbuild"
         )
         action["domain"] = [("mo_id", "=", self.id)]
-        context = eval_action_context(action["context"], self.env)
+        context = self.env["ir.actions.actions"]._eval_action_context(action["context"])
         context.update(self.env.context)
         context["default_mo_id"] = self.id
         action["context"] = context

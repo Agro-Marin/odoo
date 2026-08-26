@@ -19,7 +19,7 @@ from odoo.tools.safe_eval import safe_eval, time
 
 if typing.TYPE_CHECKING:
     from .mail_mail import MailMail
-    from odoo.addons.base.models.ir_actions import IrActionsAct_Window
+    from odoo.addons.base.models.ir_actions_act_window import IrActionsAct_Window
     from odoo.addons.base.models.ir_actions_report import IrActionsReport
     from odoo.addons.base.models.ir_mail_server import IrMail_Server
     from odoo.addons.base.models.ir_model import IrModel

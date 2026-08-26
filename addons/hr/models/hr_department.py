@@ -2,11 +2,6 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
-from odoo.addons.base.models.ir_actions import (
-    eval_action_context,
-    eval_action_domain,
-)
-
 
 class HrDepartment(models.Model):
     _name = "hr.department"
@@ -226,7 +221,7 @@ class HrDepartment(models.Model):
             "hr.mail_activity_plan_action"
         )
         action["context"] = dict(
-            eval_action_context(action.get("context"), self.env),
+            self.env["ir.actions.actions"]._eval_action_context(action.get("context")),
             default_department_id=self.id,
         )
         domain = [
@@ -240,13 +235,12 @@ class HrDepartment(models.Model):
             # it and why this used to substitute the name into the string before
             # literal-eval'ing the result -- a substitution that only ever works
             # for the one name the caller thought of.
-            # ``eval_action_domain`` is the twin of the ``eval_action_context``
+            # ``_eval_action_domain`` is the twin of the ``_eval_action_context``
             # this method already uses.
             action["domain"] = Domain.AND(
                 [
-                    eval_action_domain(
+                    self.env["ir.actions.actions"]._eval_action_domain(
                         action["domain"],
-                        self.env,
                         allowed_company_ids=self.env.context.get(
                             "allowed_company_ids", []
                         ),

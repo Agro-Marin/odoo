@@ -5,8 +5,6 @@ from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools.misc import clean_context
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 HR_READABLE_FIELDS = [
     "active",
     "child_ids",
@@ -412,7 +410,7 @@ class ResUsers(models.Model):
                 if group_xml_id
             }
             action_context = (
-                eval_action_context(action["context"], self.env)
+                self.env["ir.actions.actions"]._eval_action_context(action["context"])
                 if action["context"]
                 else {}
             )

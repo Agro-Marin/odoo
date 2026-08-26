@@ -4,7 +4,6 @@ from typing import Any
 from odoo import _, api, models
 
 from . import samples
-from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class SurveySurvey(models.Model):
@@ -87,6 +86,9 @@ class SurveySurvey(models.Model):
         action["views"] = [[self.env.ref("survey.survey_survey_view_form").id, "form"]]
         action["res_id"] = self.id
         action["context"] = dict(
-            eval_action_context(action.get("context", "{}"), self.env), create=False
+            self.env["ir.actions.actions"]._eval_action_context(
+                action.get("context", "{}")
+            ),
+            create=False,
         )
         return action

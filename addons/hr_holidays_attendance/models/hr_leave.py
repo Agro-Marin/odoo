@@ -89,7 +89,7 @@ class HrLeave(models.Model):
     def _update_leaves_overtime(self):
         Attendance = self.env["hr.attendance"]
         dates = [
-            Attendance._attendance_date(leave.date_from, leave.employee_id)
+            Attendance._get_day_start_and_day(leave.employee_id, leave.date_from)[1]
             for leave in self.filtered(lambda leave: leave.state == "confirmed")
         ]
         if dates:
@@ -99,7 +99,7 @@ class HrLeave(models.Model):
                     ("date", "<=", max(dates)),
                     ("employee_id", "in", self.employee_id.ids),
                 ]
-            )._update_overtimes()
+            )._update_overtime()
 
     def _force_cancel(self, *args, **kwargs):
         super()._force_cancel(*args, **kwargs)

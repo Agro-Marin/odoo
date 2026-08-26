@@ -6,7 +6,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
-from odoo.addons.base.models.ir_actions import _eval_dict_or_default
+from odoo.addons.base.models.ir_actions_actions import _eval_dict_or_default
 
 
 class StockPickingType(models.Model):

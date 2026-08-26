@@ -127,12 +127,8 @@ class TestUblCiiCommon(AccountTestInvoicingCommon):
     # -------------------------------------------------------------------------
 
     @classmethod
-    def _import_as_attachment_on(cls, file_path=None, attachment=None, journal=None):
-        assert file_path or attachment
-        assert not file_path or not attachment
+    def _import_as_attachment_on(cls, attachment, journal=None):
         journal = journal or cls.company_data["default_journal_purchase"]
-        if file_path:
-            attachment = cls._import_as_attachment(file_path)
         return journal._create_document_from_attachment(attachment.id)
 
 

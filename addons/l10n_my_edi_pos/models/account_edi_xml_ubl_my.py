@@ -100,7 +100,7 @@ class AccountEdiXmlUBLMyInvoisMY(models.AbstractModel):
         AccountTax = self.env['account.tax']
         consolidated_invoice = vals['consolidated_invoice']
         consolidated_base_lines = []
-        orders_per_line = next(iter(consolidated_invoice._separate_orders_in_lines(consolidated_invoice.pos_order_ids).values()))  # Only one config in a same consolidated invoice
+        orders_per_line = next(iter(consolidated_invoice._split_pos_orders_in_lines(consolidated_invoice.pos_order_ids).values()))  # Only one config in a same consolidated invoice
         tax_data_fields = (
             'raw_base_amount_currency', 'raw_base_amount', 'raw_tax_amount_currency', 'raw_tax_amount',
             'base_amount_currency', 'base_amount', 'tax_amount_currency', 'tax_amount',

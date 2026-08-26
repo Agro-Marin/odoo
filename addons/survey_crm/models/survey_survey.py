@@ -1,8 +1,6 @@
 
 from odoo import api, fields, models
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 
 class SurveySurvey(models.Model):
     _inherit = 'survey.survey'
@@ -45,7 +43,7 @@ class SurveySurvey(models.Model):
         self.ensure_one()
         action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('crm.crm_lead_all_leads')
         action['context'] = dict(
-            eval_action_context(action.get('context', '{}').strip(), self.env),  # ".strip()" prevents a crash of literal_eval which doesn't interpret the "\n" after the dictionary is closed in the string
+            self.env["ir.actions.actions"]._eval_action_context(action.get('context', '{}').strip()),  # ".strip()" prevents a crash of literal_eval which doesn't interpret the "\n" after the dictionary is closed in the string
             create=False,
         )
         action['domain'] = [('origin_survey_id', 'in', self.ids)]

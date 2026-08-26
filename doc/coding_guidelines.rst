@@ -2154,7 +2154,7 @@ so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
 tail -- the tree spells that tail ``_uniq`` **77** times against ``_unique``'s
-**52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
+**51**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**
 ``[review]``. ``_reflect_constraints`` registers each constraint as module data

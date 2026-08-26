@@ -16,7 +16,6 @@ from odoo.fields import Domain
 from odoo.tools import SQL, Query, is_html_empty
 from odoo.tools.misc import clean_context, get_lang
 
-from odoo.addons.base.models.ir_actions import eval_action_context
 from odoo.addons.mail.tools import activity_calendar
 from odoo.addons.mail.tools.access_scan import (
     make_document_access_error,
@@ -923,7 +922,9 @@ class MailActivity(models.Model):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mail.mail_activity_without_access_action"
         )
-        action_context = eval_action_context(action.get("context", "{}"), self.env)
+        action_context = self.env["ir.actions.actions"]._eval_action_context(
+            action.get("context", "{}")
+        )
         if self.env.context.get("active_model") == "mail.activity":
             active_ids = self.env.context.get("active_ids", [])
         else:

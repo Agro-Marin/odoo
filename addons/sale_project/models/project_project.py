@@ -7,8 +7,6 @@ from odoo.tools import SQL, Query
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 
 class ProjectProject(models.Model):
     _name = "project.project"
@@ -357,7 +355,9 @@ class ProjectProject(models.Model):
         )
         action_window["domain"] = self._get_sale_orders_domain(all_sale_orders)
         action_window["context"] = {
-            **eval_action_context(action_window["context"], self.env),
+            **self.env["ir.actions.actions"]._eval_action_context(
+                action_window["context"]
+            ),
             "create": self.env.context.get(
                 "create_for_project_id", embedded_action_context
             ),
@@ -410,7 +410,9 @@ class ProjectProject(models.Model):
             )
             action["domain"] = domain or []
             action["context"] = {
-                **eval_action_context(action["context"], self.env),
+                **self.env["ir.actions.actions"]._eval_action_context(
+                    action["context"]
+                ),
                 "default_partner_id": self.partner_id.id,
                 "project_id": self.id,
             }

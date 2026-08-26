@@ -17,7 +17,14 @@ from . import ir_ui_view_name_manager
 from . import ir_asset_paths
 from . import ir_asset
 
-from . import ir_actions
+from . import ir_actions_actions
+from . import ir_actions_path
+from . import ir_actions_act_window_view
+from . import ir_actions_act_window
+from . import ir_actions_act_window_close
+from . import ir_actions_act_url
+from . import ir_actions_client
+from . import ir_actions_todo
 from . import ir_actions_server
 from . import ir_actions_embedded
 from . import ir_actions_report

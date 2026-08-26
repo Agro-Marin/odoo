@@ -1418,10 +1418,11 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.assertTrue(set(result.keys()).issubset(readable))
 
     def test_get_action_dict_by_xml_id_non_action_raises(self):
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValueError) as caught:
             self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "base.model_res_partner"
             )
+        self.assertIn("ir.model", str(caught.exception))
 
     def test_get_action_dict_act_url_no_invalid_field_warning(self):
         action = self.env["ir.actions.act_url"].create(

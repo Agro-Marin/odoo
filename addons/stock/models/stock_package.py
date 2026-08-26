@@ -10,7 +10,6 @@ from odoo.libs.numbers import float_is_zero, float_round
 from odoo.tools import format_list
 
 from ..const import INVENTORY_REFERENCE_PACKAGE_RELOCATED
-from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class StockPackage(models.Model):
@@ -804,7 +803,9 @@ class StockPackage(models.Model):
                 "stock.action_put_in_pack_wizard"
             )
             action["context"] = {
-                **eval_action_context(action.get("context"), self.env),
+                **self.env["ir.actions.actions"]._eval_action_context(
+                    action.get("context")
+                ),
                 "default_package_ids": self.ids,
                 "default_location_dest_id": self.location_dest_id[:1].id,
             }

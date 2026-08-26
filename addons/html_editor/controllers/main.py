@@ -617,13 +617,11 @@ class HTML_Editor(http.Controller):
             if (action_name.startswith('m-') or '.' in action_name) and model_name in request.env and not request.env[model_name]._abstract:
                 model = request.env[model_name].with_context(context)
             else:
-                action = Actions.sudo().search([('path', '=', action_name)])
-                if not action:
+                action_sudo = Actions._get_action_by_path(action_name).sudo()
+                if not action_sudo:
                     return {'error_msg': _("Action %s not found, link preview is not available, please check your url is correct", action_name)}
-                action_type = action.type
-                if action_type != 'ir.actions.act_window':
+                if action_sudo._name != 'ir.actions.act_window':
                     return {'other_error_msg': _("Action %s is not a window action, link preview is not available", action_name)}
-                action_sudo = request.env[action_type].sudo().browse(action.id)
 
                 model = request.env[action_sudo.res_model].with_context(context)
 

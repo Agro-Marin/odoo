@@ -2,8 +2,6 @@ from typing import Any
 
 from odoo import api, fields, models
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 
 class ProjectPhaseDeleteWizard(models.TransientModel):
     _name = "project.phase.delete.wizard"
@@ -80,7 +78,10 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
 
         context = action.get("context", "{}")
         context = context.replace("uid", str(self.env.uid))
-        context = dict(eval_action_context(context, self.env), active_test=True)
+        context = dict(
+            self.env["ir.actions.actions"]._eval_action_context(context),
+            active_test=True,
+        )
         action["context"] = context
         action["target"] = "main"
         return action

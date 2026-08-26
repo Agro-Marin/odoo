@@ -6,7 +6,6 @@ from odoo.fields import Command, Domain
 from odoo.tools import OrderedSet, groupby
 
 from ..const import INVENTORY_REFERENCE_REVERTED
-from odoo.addons.base.models.ir_actions import eval_action_context
 from odoo.addons.web.controllers.utils import clean_action
 
 LOGGED_RELATIONS = [
@@ -1722,7 +1721,7 @@ class StockMoveLine(models.Model):
                 "stock.action_put_in_pack_wizard"
             )
             action["context"] = {
-                **eval_action_context(action.get("context"), self.env),
+                **self.env["ir.actions.actions"]._eval_action_context(action.get("context")),
                 "all_move_line_ids": move_lines.ids,
                 "default_move_line_ids": self.ids,
                 "default_location_dest_id": self.location_dest_id.id,

@@ -31,7 +31,7 @@ class Action(Controller):
                         msg = "Not an action"
                         raise ValueError(msg)
                 else:
-                    action = Actions.sudo().search([("path", "=", action_id)], limit=1)
+                    action = Actions._get_action_by_path(action_id)
                     if not action:
                         msg = "Action not found"
                         raise ValueError(msg)

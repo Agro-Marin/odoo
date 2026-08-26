@@ -1,8 +1,6 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 
 class SurveySurvey(models.Model):
     _inherit = "survey.survey"
@@ -77,9 +75,7 @@ class SurveySurvey(models.Model):
                 }
             )
         action["context"] = dict(
-            eval_action_context(
-                action.get("context") or "{}", self.env
-            ),  # sufficient in most cases
+            self.env["ir.actions.actions"]._eval_action_context(action.get("context") or "{}"),  # sufficient in most cases
             create=False,
         )
         return action

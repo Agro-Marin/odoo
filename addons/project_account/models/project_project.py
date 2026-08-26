@@ -4,8 +4,6 @@ from collections import defaultdict
 from odoo import models
 from odoo.fields import Domain
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 
 class ProjectProject(models.Model):
     _name = "project.project"
@@ -263,7 +261,7 @@ class ProjectProject(models.Model):
             "analytic.account_analytic_line_action_entries"
         )
         action["domain"] = [("account_id", "=", self.account_id.id)]
-        context = eval_action_context(action["context"], self.env)
+        context = self.env["ir.actions.actions"]._eval_action_context(action["context"])
         action["context"] = {
             **context,
             "create": self.env.context.get("from_embedded_action", False),

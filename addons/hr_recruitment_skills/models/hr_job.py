@@ -2,8 +2,6 @@ from markupsafe import Markup
 
 from odoo import api, fields, models
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 
 class HrJob(models.Model):
     _inherit = "hr.job"
@@ -57,7 +55,7 @@ class HrJob(models.Model):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr_recruitment.crm_case_categ0_act_job"
         )
-        context = eval_action_context(action["context"], self.env)
+        context = self.env["ir.actions.actions"]._eval_action_context(action["context"])
         context["matching_job_id"] = self.id
         action.update(
             {

@@ -6,8 +6,6 @@ from odoo.fields import Domain
 from odoo.tools import SQL
 from odoo.tools.translate import _
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 
 class ProjectProject(models.Model):
     _name = "project.project"
@@ -382,7 +380,7 @@ class ProjectProject(models.Model):
         if not self.allow_billable:
             context = action["context"].replace("active_id", str(self.id))
             action["context"] = {
-                **eval_action_context(context, self.env),
+                **self.env["ir.actions.actions"]._eval_action_context(context),
                 "hide_so_line": True,
             }
         return action

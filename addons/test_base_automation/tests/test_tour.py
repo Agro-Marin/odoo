@@ -3,8 +3,6 @@ from urllib.parse import urlencode
 from odoo import Command
 from odoo.tests import HttpCase, tagged
 
-from odoo.addons.base.models.ir_actions import eval_action_context
-
 
 def _urlencode_kwargs(**kwargs):
     return urlencode(kwargs)
@@ -17,8 +15,8 @@ class BaseAutomationTestUi(HttpCase):
             {"active": False}
         )
         if neutralize_action:
-            context = eval_action_context(
-                self.env.ref("base_automation.base_automation_act").context, self.env
+            context = self.env["ir.actions.actions"]._eval_action_context(
+                self.env.ref("base_automation.base_automation_act").context
             )
             del context["search_default_inactive"]
             self.env.ref("base_automation.base_automation_act").context = str(context)
