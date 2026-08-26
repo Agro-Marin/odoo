@@ -26,6 +26,7 @@ from . import test_ir_actions
 from . import test_ir_actions_audit
 from . import test_ir_actions_report_audit
 from . import test_ir_actions_server_audit
+from . import test_ir_actions_server_regressions
 from . import test_ir_actions_server_ssrf
 from . import test_ir_asset
 from . import test_ir_asset_audit

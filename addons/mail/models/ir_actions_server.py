@@ -625,8 +625,7 @@ class IrActionsServer(models.Model):
             for user_id, batch in by_user_id.items()
         ]
 
-    @api.model
-    def _get_eval_context(self, action: Self | None = None) -> dict:
+    def _get_eval_context(self, action: Self) -> dict:
         return super(
             IrActionsServer, self.with_context(mail_notify_force_send=False)
         )._get_eval_context(action=action)

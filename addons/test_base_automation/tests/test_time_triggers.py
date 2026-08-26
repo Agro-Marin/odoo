@@ -397,9 +397,15 @@ class TestTimeBasedTriggers(common.TransactionCase):
         # Verify action executed
         self.assertEqual(lead.name, "Cron executed")
 
-        # Verify last_run updated
+        # Verify last_run updated. `_process_time_based_actions` stamps it with
+        # `cr.now()`, which is the TRANSACTION's timestamp -- Postgres `now()`,
+        # cached on the cursor until the next commit. `fields.Datetime.now()` is
+        # the wall clock read later, with its microseconds truncated. Comparing
+        # the two made the assertion fail whenever setup crossed a second
+        # boundary, which is a property of how long the test transaction had
+        # been open and of nothing the rule did.
         self.assertTrue(automation.last_run)
-        self.assertGreaterEqual(automation.last_run, now)
+        self.assertGreaterEqual(automation.last_run, self.env.cr.now())
 
     def test_cron_processes_multiple_automations(self):
         """Test cron processes all active time-based automations."""

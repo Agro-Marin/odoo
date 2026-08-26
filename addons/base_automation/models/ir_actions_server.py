@@ -191,7 +191,7 @@ class IrActionsServer(models.Model):
         """Prevent automation actions from being used as multi-action children."""
         return super()._get_domain_children() & Domain("base_automation_id", "=", False)
 
-    def _get_eval_context(self, action=None):
+    def _get_eval_context(self, action):
         """Add the webhook payload to the eval context for code actions.
 
         The payload is taken from ``env.context['webhook_payload']``, which
@@ -205,7 +205,7 @@ class IrActionsServer(models.Model):
         code action would fail with ``NameError: name 'payload' is not defined``.
         """
         eval_context = super()._get_eval_context(action)
-        if action and action.state == "code":
+        if action.state == "code":
             eval_context["json"] = json_scriptsafe
             payload = self.env.context.get("webhook_payload")
             if payload is None:

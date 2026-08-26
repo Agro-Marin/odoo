@@ -157,8 +157,14 @@ class TestAutomationBatchesWhatItCan(TransactionCase):
         next_activity        36 ->  21
         followers           139 ->  29
 
-    What must *not* batch is the rest: base's runners read `active_id` and mean
-    one record by it, and so does the `record` a user writes in a `code` action.
+    An `object_write` action setting a *static* value batches for the same
+    reason: one `write` over the whole set is the same write. It is
+    `evaluation_type` that decides -- a `sequence` owes each record its own
+    number and an `equation` is evaluated against each `record`, so both stay
+    per-record, and `_is_batchable` says so.
+
+    What must *not* batch is the `record` a user writes in a `code` action:
+    batching it would run the block once and silently skip the rest of the set.
     `post_install` because the rule only takes effect once the registry has
     re-registered its hooks.
     """

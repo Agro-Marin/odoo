@@ -1,6 +1,7 @@
 from .fast_clone import fast_clone
 from .stringify_keys import stringify_keys
 from .orjson_wrapper import (
+    OPT_INDENT_2,
     OPT_SORT_KEYS,
     dumps,
     dumps_bytes,
@@ -15,6 +16,7 @@ from .scriptsafe import (
 
 __all__ = [
     "JSON_SCRIPTSAFE_MAPPER",
+    "OPT_INDENT_2",
     "OPT_SORT_KEYS",
     "ScriptSafe",
     "ScriptSafeJSON",

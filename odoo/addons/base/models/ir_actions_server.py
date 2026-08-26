@@ -1,11 +1,9 @@
 import contextlib
 import ipaddress
-import json
 import logging
 import socket
 from collections.abc import Callable
-from functools import partial, reduce
-from operator import getitem
+from functools import partial
 from typing import Any, Literal, Self
 from urllib.parse import urlparse
 
@@ -16,11 +14,13 @@ from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.datetime import utc
-from odoo.libs.json import OPT_SORT_KEYS, stringify_keys
+from odoo.libs.json import OPT_INDENT_2, OPT_SORT_KEYS
 from odoo.libs.json import dumps as json_dumps
 from odoo.tools import _, get_lang
 from odoo.tools.misc import unquote
 from odoo.tools.safe_eval import safe_eval, test_python_expr
+
+IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 _logger = logging.getLogger(__name__)
 _server_action_logger = logging.getLogger(
@@ -39,7 +39,7 @@ def _get_webhook_blocked_reason(url: str) -> str | None:
     if not hostname:
         return "missing host"
 
-    candidates: list[ipaddress._BaseAddress] = []
+    candidates: list[IPAddress] = []
     try:
         candidates.append(ipaddress.ip_address(hostname.strip("[]")))
     except ValueError:
@@ -51,18 +51,12 @@ def _get_webhook_blocked_reason(url: str) -> str | None:
                 )
             )
         except OSError, ValueError:
-            return None
+            return f"host {hostname!r} could not be resolved"
 
+    if not candidates:
+        return f"host {hostname!r} resolved to no address"
     for ip in candidates:
-        if (
-            not ip.is_global
-            or ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-            or ip.is_unspecified
-        ):
+        if not ip.is_global or ip.is_reserved or ip.is_multicast:
             return f"blocked address {ip} (not a globally routable range)"
     return None
 
@@ -204,6 +198,12 @@ class IrActionsServer(models.Model):
         compute="_compute_names",
         store=True,
     )
+    name_is_custom = fields.Boolean(
+        default=False,
+        copy=True,
+        help="Set once the name has been typed rather than derived from the "
+        "action's type, so that changing the type stops renaming it.",
+    )
     type = fields.Char(default="ir.actions.server")
     usage = fields.Selection(
         [
@@ -301,7 +301,7 @@ class IrActionsServer(models.Model):
         inverse="_inverse_crud_model_id",
         readonly=False,
         store=True,
-        help="Specify which kind of record should be created. Set this field only to specify a different model than the base model.",
+        help="Kind of record to create or duplicate. Defaults to the action's own model; a value set here is kept.",
     )
     crud_model_name = fields.Char(
         related="crud_model_id.model",
@@ -362,12 +362,13 @@ class IrActionsServer(models.Model):
     )
 
     value = fields.Text(
-        help="For Python expressions, this field may hold a Python expression "
-        "that can use the same values as for the code field on the server action,"
-        "e.g. `env.user.name` to set the current user's name as the value "
-        "or `record.id` to set the ID of the record on which the action is run.\n\n"
-        "For Static values, the value will be used directly without evaluation, e.g."
-        "`42` or `My custom name` or the selected record."
+        help="What to write, read according to 'Value Type'.\n\n"
+        "Update: the value is used as typed, without evaluation -- `42`, "
+        "`My custom name`, or the id of the selected record.\n\n"
+        "Compute: a Python expression evaluated with the same names the "
+        "'Execute Code' action gets, e.g. `env.user.name` or `record.id`.\n\n"
+        "'Create Record' does not read 'Value Type': this field is the name of "
+        "the record to create, taken literally."
     )
     evaluation_type = fields.Selection(
         [
@@ -441,9 +442,10 @@ class IrActionsServer(models.Model):
         "server_id",
         "field_id",
         string="Webhook Fields",
-        help="Fields to send in the POST request. "
-        "The id and model of the record are always sent as '_id' and '_model'. "
-        "The name of the action that triggered the webhook is always sent as '_action'.",
+        help="Fields to send in the POST request.\n\n"
+        "Four keys are always present, whatever is selected here: the record's "
+        "id as both 'id' and '_id', its model as '_model', and the name of the "
+        "action that triggered the webhook as '_action'.",
     )
     webhook_sample_payload = fields.Text(
         string="Sample Payload",
@@ -452,7 +454,7 @@ class IrActionsServer(models.Model):
 
     _WEBHOOK_TIMEOUT_CEILING = 60
 
-    @api.constrains("webhook_timeout")
+    @api.constrains("webhook_timeout", "state")
     def _check_webhook_timeout(self) -> None:
         for action in self:
             if action.state != "webhook":
@@ -513,6 +515,12 @@ class IrActionsServer(models.Model):
             }
 
         vals_list = [with_inherited(vals) for vals in vals_list]
+        for vals in vals_list:
+            if vals.get("name"):
+                vals.setdefault("name_is_custom", True)
+            else:
+                vals["name"] = self.new(vals)._prepare_automated_name()
+                vals["name_is_custom"] = False
         actions = super().create(vals_list)
 
         history_vals = []
@@ -525,6 +533,8 @@ class IrActionsServer(models.Model):
         return actions
 
     def write(self, vals: dict[str, Any]) -> bool:
+        if "name" in vals and "name_is_custom" not in vals:
+            vals = {**vals, "name_is_custom": bool(vals["name"])}
         if "code" in vals:
             new_code = vals.get("code")
             history_vals = [
@@ -543,7 +553,7 @@ class IrActionsServer(models.Model):
         if not code_actions:
             return
 
-        History = self.env["ir.actions.server.history"]
+        History = self.env["ir.actions.server.history"].sudo()
         all_history = History.search_fetch(
             [("action_id", "in", code_actions.ids)],
             ["action_id", "code"],
@@ -621,9 +631,12 @@ class IrActionsServer(models.Model):
         self.ensure_one()
         warnings = self._get_child_warnings()
 
-        if (relation_chain := self._get_relation_chain("update_path")) and isinstance(
-            relation_chain[-1], fields.Json
-        ):
+        relation_chain = (
+            self._get_relation_chain("update_path")
+            if self.state == "object_write"
+            else []
+        )
+        if relation_chain and isinstance(relation_chain[-1], fields.Json):
             warnings.append(
                 _(
                     "JSON fields (such as '%s') are not supported.",
@@ -697,14 +710,14 @@ class IrActionsServer(models.Model):
         if self.state == "object_write":
             return _("Update %(model_name)s", model_name=self.crud_model_id.name)
         if self.state == "object_copy":
-            if not self.crud_model_id or not self.resource_ref:
+            if not self.resource_ref:
                 return _("Duplicate ...")
-            record = self.env[self.crud_model_id.model].browse(self.resource_ref.id)
-            return _("Duplicate %(record)s", record=record.display_name)
+            return _("Duplicate %(record)s", record=self.resource_ref.display_name)
         return dict(self._fields["state"]._description_selection(self.env)).get(
             self.state, ""
         )
 
+    @api.model
     def _get_fields_name_depends(self) -> list[str]:
         return [
             "state",
@@ -712,22 +725,34 @@ class IrActionsServer(models.Model):
             "resource_ref",
         ]
 
+    def _prefetch_automated_name_sources(self) -> None:
+        by_model = {}
+        for action in self:
+            reference = action.resource_ref if action.state == "object_copy" else None
+            if reference:
+                by_model.setdefault(reference._name, []).append(reference.id)
+        for model_name, ids in by_model.items():
+            self.env[model_name].browse(ids).mapped("display_name")
+
     @api.depends(lambda self: self._get_fields_name_depends())
     def _compute_names(self) -> None:
+        self._prefetch_automated_name_sources()
         for action in self:
-            was_automated = action.name == action.automated_name
             action.automated_name = action._prepare_automated_name()
-            if was_automated:
+            if not action.name_is_custom:
                 action.name = action.automated_name
 
     @api.onchange("name")
     def _onchange_name(self) -> None:
+        self.name_is_custom = bool(self.name)
         if not self.name:
             self.automated_name = self._prepare_automated_name()
             self.name = self.automated_name
 
     @api.depends_context("uid")
     def _compute_available_model_ids(self) -> None:
+        if not self:
+            return
         allowed_models = self.env["ir.model"].search(
             [
                 (
@@ -743,31 +768,24 @@ class IrActionsServer(models.Model):
     def _compute_crud_relations(self) -> None:
         for action in self:
             action.update_related_model_id = False
-            if action.model_id and action.state in CRUD_STATES:
-                if action.state in ("object_create", "object_copy"):
-                    action.crud_model_id = action.model_id
-                    action.update_field_id = False
-                    action.update_path = False
-                elif action.state == "object_write":
-                    if action.update_path:
-                        model, field = action._get_update_path_target()
-                        action.crud_model_id = model
-                        action.update_field_id = field
-                        if (
-                            action.evaluation_type == "value"
-                            and field
-                            and field.relation
-                        ):
-                            action.update_related_model_id = action.env[
-                                "ir.model"
-                            ]._get_id(field.relation)
-                    else:
-                        action.crud_model_id = action.model_id
-                        action.update_field_id = False
-            else:
+            if not (action.model_id and action.state in CRUD_STATES):
                 action.crud_model_id = False
                 action.update_field_id = False
-                action.update_path = False
+            elif action.state in ("object_create", "object_copy"):
+                if not action.crud_model_id:
+                    action.crud_model_id = action.model_id
+                action.update_field_id = False
+            elif action.update_path:
+                model, field = action._get_update_path_target()
+                action.crud_model_id = model
+                action.update_field_id = field
+                if action.evaluation_type == "value" and field and field.relation:
+                    action.update_related_model_id = action.env["ir.model"]._get_id(
+                        field.relation
+                    )
+            else:
+                action.crud_model_id = action.model_id
+                action.update_field_id = False
 
     def _get_update_path_target(
         self,
@@ -842,40 +860,54 @@ class IrActionsServer(models.Model):
     def _get_relation_chain_label(self, chain: list[fields.Field]) -> str:
         return " > ".join(field.get_description(self.env)["string"] for field in chain)
 
+    def _get_webhook_payload(self, record: models.Model) -> dict[str, Any]:
+        self.ensure_one()
+        payload = {
+            "_model": self.model_id.model,
+            "_id": record.id,
+            "_action": f"{self.name}(#{self.id})",
+        }
+        if self.webhook_field_ids and record:
+            payload.update(
+                record.read(self.webhook_field_ids.mapped("name"), load=None)[0]
+            )
+        payload["id"] = record.id
+        return payload
+
+    def _dump_webhook_payload(
+        self, payload: dict[str, Any], indent: bool = False
+    ) -> str:
+        option = OPT_SORT_KEYS | (OPT_INDENT_2 if indent else 0)
+        return json_dumps(payload, default=str, option=option)
+
     @api.depends("state", "model_id.model", "webhook_field_ids", "name")
     def _compute_webhook_sample_payload(self) -> None:
-        for action in self:
-            if action.state != "webhook":
-                action.webhook_sample_payload = False
-                continue
-            payload = {
-                "_id": 1,
-                "_model": action.model_id.model,
-                "_action": f"{action.name}(#{action.id})",
-            }
-            if action.model_id:
-                sample_record = (
-                    self.env[action.model_id.model]
-                    .with_context(active_test=False)
-                    .search([], limit=1)
-                )
-                if sample_record:
-                    payload["_id"] = sample_record.id
-                    payload.update(
-                        sample_record.read(
-                            action.webhook_field_ids.mapped("name"), load=None
-                        )[0]
-                    )
-                else:
-                    for field in action.webhook_field_ids:
-                        payload[field.name] = (
-                            WEBHOOK_SAMPLE_VALUES[field.ttype]
-                            if field.ttype in WEBHOOK_SAMPLE_VALUES
-                            else WEBHOOK_SAMPLE_VALUES[None]
-                        )
-            action.webhook_sample_payload = json.dumps(
-                stringify_keys(payload), indent=4, sort_keys=True, default=str
+        self.webhook_sample_payload = False
+        webhooks = self.filtered(lambda action: action.state == "webhook")
+        samples = {}
+        for model_name in set(webhooks.model_id.mapped("model")):
+            samples[model_name] = (
+                self.env[model_name].with_context(active_test=False).search([], limit=1)
             )
+        for model_name, actions in webhooks.grouped("model_name").items():
+            sample = samples.get(model_name, self.env["ir.model"].browse())
+            if sample:
+                sample.read(
+                    list(set(actions.webhook_field_ids.mapped("name"))), load=None
+                )
+            for action in actions:
+                if sample:
+                    payload = action._get_webhook_payload(sample)
+                else:
+                    payload = action._get_webhook_payload(self.env[model_name])
+                    payload["_id"] = payload["id"] = 1
+                    for field in action.webhook_field_ids:
+                        payload[field.name] = WEBHOOK_SAMPLE_VALUES.get(
+                            field.ttype, WEBHOOK_SAMPLE_VALUES[None]
+                        )
+                action.webhook_sample_payload = action._dump_webhook_payload(
+                    payload, indent=True
+                )
 
     @api.model
     @tools.ormcache(cache="stable")
@@ -888,27 +920,35 @@ class IrActionsServer(models.Model):
     def _is_batchable(self) -> bool:
         self.ensure_one()
         if self.state == "multi":
-            return all(child._is_batchable() for child in self.child_ids)
+            return bool(self.child_ids) and all(
+                child._is_batchable() for child in self.child_ids
+            )
+        if self.state == "object_write":
+            return self.evaluation_type == "value"
         return False
 
     @api.model
     def _get_states_needing_a_live_record(self) -> frozenset[str]:
-        return frozenset()
+        return frozenset((*CRUD_STATES, "webhook"))
 
-    def _get_readable_fields(self) -> frozenset[str]:
-        return super()._get_readable_fields() | {
+    def _get_fields_readable(self) -> frozenset[str]:
+        return super()._get_fields_readable() | {
             "group_ids",
             "model_name",
         }
 
     def _resolve_runner(self) -> tuple[Callable | None, bool]:
-        multi = True
         model_class = self.env.registry[self._name]
         fn = getattr(model_class, f"_run_action_{self.state}_multi", None)
-        if not fn:
-            multi = False
-            fn = getattr(model_class, f"_run_action_{self.state}", None)
-        return fn, multi
+        if fn and self._is_batch_safe():
+            return fn, True
+        return getattr(model_class, f"_run_action_{self.state}", None), False
+
+    def _is_batch_safe(self) -> bool:
+        self.ensure_one()
+        if self.state in ("multi", "object_write"):
+            return self._is_batchable()
+        return True
 
     def create_action(self) -> bool:
         self.check_access("write")
@@ -938,30 +978,32 @@ class IrActionsServer(models.Model):
         safe_eval(self.code.strip(), eval_context, mode="exec", filename=str(self))
         return eval_context.get("action")
 
+    def _run_action_multi_multi(
+        self, eval_context: dict[str, Any] | None = None
+    ) -> Any:
+        return self._run_action_multi(eval_context)
+
     def _run_action_multi(self, eval_context: dict[str, Any] | None = None) -> Any:
         res = False
         for act in self.child_ids.sorted():
             res = act.run() or res
         return res
 
+    def _run_action_object_write_multi(
+        self, eval_context: dict[str, Any] | None = None
+    ) -> None:
+        self._run_action_object_write(eval_context)
+
     def _run_action_object_write(
         self, eval_context: dict[str, Any] | None = None
     ) -> None:
-        vals = self._eval_value(eval_context=eval_context)
-        res = {action.update_field_id.name: vals[action.id] for action in self}
+        self._write_update_path(
+            self._get_target_records(), self._eval_value(eval_context=eval_context)
+        )
 
-        if self.env.context.get("onchange_self"):
-            record_cached = self.env.context["onchange_self"]
-            for field, new_value in res.items():
-                record_cached[field] = new_value
-        elif self.update_path:
-            starting_record = self.env[self.model_id.model].browse(
-                self.env.context.get("active_id")
-            )
-            path = self.update_path.split(".")
-            target_records = reduce(getitem, path[:-1], starting_record)
-            target_records.write(res)
-        else:
+    def _write_update_path(self, records: Any, vals: dict[int, Any]) -> None:
+        self.ensure_one()
+        if not self.update_path:
             raise UserError(
                 _(
                     "The 'Update Record' action '%(name)s' has no field to update. "
@@ -969,9 +1011,29 @@ class IrActionsServer(models.Model):
                     name=self.name,
                 )
             )
+        path = self.update_path.split(".")
+        value = {self.update_field_id.name: vals[self.id]}
+
+        if record_cached := self.env.context.get("onchange_self"):
+            if len(path) > 1:
+                raise UserError(
+                    _(
+                        "The 'Update Record' action '%(name)s' updates "
+                        "'%(path)s', which lives on another record. An "
+                        "on-change action may only touch the record being "
+                        "edited.",
+                        name=self.name,
+                        path=self.update_path,
+                    )
+                )
+            record_cached.update(value)
+            return
+
+        targets = records.mapped(".".join(path[:-1])) if len(path) > 1 else records
+        targets.write(value)
 
     def _run_action_webhook(self, eval_context: dict[str, Any] | None = None) -> None:
-        record = self.env[self.model_id.model].browse(self.env.context.get("active_id"))
+        record = self._get_target_records()[:1]
         url = self.webhook_url
         if not record:
             return
@@ -992,19 +1054,11 @@ class IrActionsServer(models.Model):
                     reason=blocked,
                 )
             )
-        vals = {
-            "_model": self.model_id.model,
-            "_id": record.id,
-            "_action": f"{self.name}(#{self.id})",
-        }
-        if self.webhook_field_ids:
-            vals.update(
-                record.read(self.webhook_field_ids.mapped("name"), load=None)[0]
-            )
-        json_values = json_dumps(vals, default=str, option=OPT_SORT_KEYS)
+        payload = self._get_webhook_payload(record)
+        json_values = self._dump_webhook_payload(payload)
 
-        action_label = vals["_action"]
-        timeout = self.webhook_timeout or 1
+        action_label = payload["_action"]
+        timeout = self.webhook_timeout
         target = _get_webhook_log_target(url)
 
         _logger.info("Webhook %s to %s", action_label, target)
@@ -1039,12 +1093,23 @@ class IrActionsServer(models.Model):
         _logger.debug("Webhook %s to %s - start", action_label, target)
         import requests
 
+        if blocked := _get_webhook_blocked_reason(url):
+            _logger.error(
+                "Webhook %s to %s was NOT sent: %s. The address was allowed when "
+                "the action ran and is not any more -- the name resolved "
+                "differently between the check and the send.",
+                action_label,
+                target,
+                blocked,
+            )
+            return
         try:
             response = requests.post(
                 url,
                 data=json_values,
                 headers={"Content-Type": "application/json"},
                 timeout=timeout,
+                allow_redirects=False,
             )
             response.raise_for_status()
             _logger.info("Webhook %s to %s - succeeded", action_label, target)
@@ -1069,7 +1134,9 @@ class IrActionsServer(models.Model):
     def _link_to_active_record(self, new_id: int) -> None:
         if not self.link_field_id:
             return
-        record = self.env[self.model_id.model].browse(self.env.context.get("active_id"))
+        record = self._get_target_records()[:1]
+        if not record:
+            return
         if self.link_field_id.ttype in ("one2many", "many2many"):
             record.write({self.link_field_id.name: [Command.link(new_id)]})
         else:
@@ -1080,7 +1147,7 @@ class IrActionsServer(models.Model):
     ) -> None:
         if not self.resource_ref:
             raise UserError(_("No record selected to duplicate."))
-        dupe = self.env[self.crud_model_id.model].browse(self.resource_ref.id).copy()
+        dupe = self.resource_ref.copy()
         self._link_to_active_record(dupe.id)
 
     def _run_action_object_create(
@@ -1114,15 +1181,11 @@ class IrActionsServer(models.Model):
         eval_context = super()._get_eval_context(action=action)
         model_name = action.model_id.sudo().model
         model = self.env[model_name]
-        record = None
-        records = None
-        if self.env.context.get("active_model") == model_name:
-            if self.env.context.get("active_id"):
-                record = model.browse(self.env.context["active_id"])
-            if self.env.context.get("active_ids"):
-                records = model.browse(self.env.context["active_ids"])
-        if self.env.context.get("onchange_self"):
-            record = self.env.context["onchange_self"]
+        targets = action._get_target_records()
+        records = targets or None
+        record = targets[:1] or None
+        if onchange_self := self.env.context.get("onchange_self"):
+            record = onchange_self
         eval_context.update(
             {
                 "env": self.env,
@@ -1138,10 +1201,12 @@ class IrActionsServer(models.Model):
 
     def _get_target_records(self, action: Self | None = None) -> Any:
         action = action or self
-        model = self.env[action.sudo().model_name]
-        context = self.env.context
-        active_model = context.get("active_model")
-        if active_model and active_model != model._name:
+        model = action.env[action.sudo().model_name]
+        context = action.env.context
+        if context.get("active_model") != model._name:
+            if onchange_self := context.get("onchange_self"):
+                if onchange_self._name == model._name:
+                    return model.browse(onchange_self._origin.id or ())
             return model
         if active_ids := context.get("active_ids"):
             return model.browse(active_ids)
@@ -1182,23 +1247,7 @@ class IrActionsServer(models.Model):
             )
 
         runner, multi = self._resolve_runner()
-        res = False
-        if runner and multi:
-            if not records and self.state in self._get_states_needing_a_live_record():
-                self._log_missing_target(runner)
-            run_self = self.with_context(eval_context["env"].context)
-            res = runner(run_self, eval_context=eval_context)
-        elif runner:
-            if not records:
-                if self.env.context.get("onchange_self"):
-                    return runner(self, eval_context=eval_context) or False
-                self._log_missing_target(runner)
-            for record in records:
-                run_self = self.with_context(active_ids=record.ids, active_id=record.id)
-                eval_context["env"] = eval_context["env"](context=run_self.env.context)
-                eval_context["records"] = eval_context["record"] = record
-                res = runner(run_self, eval_context=eval_context)
-        else:
+        if not runner:
             _logger.warning(
                 "Found no way to execute server action %r of type %r, ignoring it. "
                 "Verify that the type is correct or add a method called "
@@ -1206,6 +1255,29 @@ class IrActionsServer(models.Model):
                 self.name,
                 self.state,
             )
+            return False
+
+        if (
+            not records
+            and not self.env.context.get("onchange_self")
+            and self.state in self._get_states_needing_a_live_record()
+        ):
+            self._log_missing_target(runner)
+            return False
+
+        if multi:
+            run_self = self.with_context(eval_context["env"].context)
+            return runner(run_self, eval_context=eval_context) or False
+
+        if not records:
+            return runner(self, eval_context=eval_context) or False
+
+        res = False
+        for record in records:
+            run_self = self.with_context(active_ids=record.ids, active_id=record.id)
+            eval_context["env"] = eval_context["env"](context=run_self.env.context)
+            eval_context["records"] = eval_context["record"] = record
+            res = runner(run_self, eval_context=eval_context)
         return res or False
 
     def _check_access_to_run(self, records: Any) -> None:
@@ -1249,6 +1321,8 @@ class IrActionsServer(models.Model):
         for action in self:
             if action.evaluation_type == "sequence":
                 action.value_field_to_show = "sequence_id"
+            elif action.evaluation_type == "equation":
+                action.value_field_to_show = "value"
             elif action.update_field_id.ttype in (
                 "one2many",
                 "many2one",
@@ -1361,7 +1435,7 @@ class IrActionsServer(models.Model):
             elif action.update_field_id.ttype == "float":
                 expr = 0.0 if not action.value else action._coerce_number(float)
             elif action.update_field_id.ttype == "html":
-                expr = action.html_value
+                expr = action.html_value or action.value
             result[action.id] = expr
         return result
 

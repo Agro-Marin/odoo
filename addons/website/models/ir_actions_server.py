@@ -51,7 +51,7 @@ class IrActionsServer(models.Model):
                 action.website_url = False
 
     @api.model
-    def _get_eval_context(self, action=None):
+    def _get_eval_context(self, action):
         eval_context = super()._get_eval_context(action)
         if action and action.state == "code":
             eval_context["request"] = request

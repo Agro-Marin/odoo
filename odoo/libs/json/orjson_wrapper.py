@@ -4,12 +4,14 @@ from typing import Any
 import orjson as _orjson
 
 __all__ = [
+    "OPT_INDENT_2",
     "OPT_SORT_KEYS",
     "dumps",
     "dumps_bytes",
     "loads",
 ]
 
+OPT_INDENT_2: int = _orjson.OPT_INDENT_2
 OPT_SORT_KEYS: int = _orjson.OPT_SORT_KEYS
 
 _DEFAULT_OPT = _orjson.OPT_NON_STR_KEYS | _orjson.OPT_PASSTHROUGH_DATETIME
