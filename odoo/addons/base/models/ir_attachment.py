@@ -1457,12 +1457,20 @@ class IrAttachment(models.Model):
             ICP.set_param(param, ",".join(map(str, sorted(current))))
 
     @api.autovacuum
-    def _gc_file_store(self) -> bool | None:
-        skipped = False
+    def _gc_file_store(self) -> tuple[int, int]:
+        collected = 0
         for backend_cls in tuple(STORAGE_BACKENDS.values()):
-            if backend_cls(self.env).autovacuum() is False:
-                skipped = True
-        return False if skipped else None
+            swept = backend_cls(self.env).autovacuum()
+            if swept is False:
+                _logger.warning(
+                    "filestore gc: %s could not take its lock and swept nothing "
+                    "this run; unreferenced content stays on disk until the next "
+                    "one",
+                    backend_cls.__name__,
+                )
+            elif swept:
+                collected += swept
+        return collected, 0
 
     @api.model
     def _get_domain_legacy_keys(self) -> Domain:
@@ -1521,13 +1529,17 @@ class IrAttachment(models.Model):
         return rekeyed, remaining
 
     @api.autovacuum
-    def _gc_stale_filestore_temps(self) -> None:
+    def _gc_stale_filestore_temps(self) -> tuple[int, int]:
         tmp_dir = self._get_filestore_dir("tmp")
         if not tmp_dir.is_dir():
-            return
+            return 0, 0
         cutoff = time.time() - self._FILESTORE_TMP_MAX_AGE
         removed = 0
+        remaining = 0
         for entry in tmp_dir.iterdir():
+            if removed >= self._GC_MAX_ENTRIES:
+                remaining = 1
+                break
             try:
                 if entry.is_file() and entry.stat().st_mtime < cutoff:
                     entry.unlink(missing_ok=True)
@@ -1536,6 +1548,7 @@ class IrAttachment(models.Model):
                 _logger.info("temp gc could not remove %s", entry, exc_info=True)
         if removed:
             _logger.info("filestore temp gc: removed %d stale temp file(s)", removed)
+        return removed, remaining
 
     def _get_gc_checklist(
         self, limit: int | None = None, grace: float | None = None
@@ -1575,7 +1588,7 @@ class IrAttachment(models.Model):
 
     def _gc_file_store_unsafe(
         self, checklist: dict[str, Path] | None = None, grace: float | None = None
-    ) -> None:
+    ) -> int:
         if checklist is None:
             checklist = self._get_gc_checklist()
         if grace is None:
@@ -1633,6 +1646,7 @@ class IrAttachment(models.Model):
                     Path(filepath).unlink()
 
         _logger.info("filestore gc %d checked, %d removed", len(checklist), removed)
+        return removed
 
     def _mark_for_gc(self, fname: str) -> None:
         self._mark_for_gc_multi((fname,))

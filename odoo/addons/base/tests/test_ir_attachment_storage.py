@@ -1,5 +1,6 @@
 import base64
 import contextlib
+import inspect
 import io
 from unittest.mock import patch
 
@@ -162,7 +163,7 @@ class TestIrAttachmentStorage(TransactionCase):
                     self.assertEqual(fragment["store_fname"], model_vals["store_fname"])
                     self.assertEqual(fragment["db_datas"], model_vals["db_datas"])
 
-    def test_gc_lock_not_available_returns_false(self):
+    def test_gc_lock_not_available_is_reported_and_sweeps_nothing(self):
         real_execute = self.env.cr.execute
 
         def fake_execute(query, *args, **kwargs):
@@ -181,8 +182,43 @@ class TestIrAttachmentStorage(TransactionCase):
             patch.object(self.env.cr, "commit", lambda: None),
             patch.object(self.env.cr, "rollback", lambda: None),
             patch.object(self.env.cr, "execute", side_effect=fake_execute),
+            self.assertLogs(
+                "odoo.addons.base.models.ir_attachment", level="WARNING"
+            ) as logs,
         ):
-            self.assertIs(self.Attachment._gc_file_store(), False)
+            result = self.Attachment._gc_file_store()
+        self.assertTrue(
+            any("could not take its lock" in msg for msg in logs.output),
+            f"a silently skipped sweep is invisible to operators: {logs.output!r}",
+        )
+        self.assertEqual(
+            result,
+            (0, 0),
+            "ir.autovacuum only reads a 2-tuple, and a lock skip makes no "
+            "progress, so it must not ask to be requeued",
+        )
+
+    def test_no_attachment_autovacuum_answers_in_a_dialect_the_runner_drops(self):
+        from odoo.addons.base.models.ir_autovacuum import is_autovacuum
+
+        model_cls = self.env["ir.attachment"].__class__
+        vacuums = dict(inspect.getmembers(model_cls, is_autovacuum))
+        self.assertIn("_gc_file_store", vacuums, "precondition: the sweep is one")
+        for attr, func in sorted(vacuums.items()):
+            with self.subTest(method=attr):
+                annotation = str(func.__annotations__.get("return", "None"))
+                self.assertNotIn(
+                    "bool",
+                    annotation,
+                    f"{attr} is annotated -> {annotation}; ir.autovacuum reads a "
+                    "2-tuple and silently drops everything else, so a bool "
+                    "signal never reaches it",
+                )
+                self.assertTrue(
+                    annotation == "None" or annotation.startswith("tuple"),
+                    f"{attr} is annotated -> {annotation}; an autovacuum either "
+                    "reports (done, remaining) or returns None",
+                )
 
     def test_migration_domain_delegation(self):
         cases = (

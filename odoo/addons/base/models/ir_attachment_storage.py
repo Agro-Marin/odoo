@@ -91,7 +91,7 @@ class AttachmentStorage:
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         raise NotImplementedError
 
-    def autovacuum(self) -> bool | None:
+    def autovacuum(self) -> int | bool | None:
         pass
 
 
@@ -145,7 +145,7 @@ class FileStorage(AttachmentStorage):
     def delete(self, key: str) -> None:
         self._model()._mark_for_gc(key)
 
-    def autovacuum(self) -> bool | None:
+    def autovacuum(self) -> int | bool | None:
         model = self._model()
         cr = self.env.cr
         cr.commit()
@@ -165,10 +165,10 @@ class FileStorage(AttachmentStorage):
             cr.rollback()
             return False
 
-        model._gc_file_store_unsafe(checklist)
+        removed = model._gc_file_store_unsafe(checklist)
 
         cr.commit()
-        return None
+        return removed
 
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         stream.type = "path"
