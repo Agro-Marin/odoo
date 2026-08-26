@@ -236,8 +236,7 @@ class LoyaltyProgram(models.Model):
 
         `sale_loyalty` and `pos_loyalty` each add their own count to it. Both do so
         with a `_read_group`, which is a search and so has no `@api.depends` to
-        declare -- the same shape as `res.partner.loyalty_card_count`, and stale for
-        the same reason within a transaction that also places an order.
+        declare: the count is stale within a transaction that also places an order.
         """
         self.total_order_count = 0
 
@@ -867,7 +866,6 @@ class LoyaltyProgram(models.Model):
         else:
             res = super().write(vals)
 
-        # Propagate active state to children
         if "active" in vals:
             for program in self.with_context(active_test=False):
                 program.rule_ids.active = program.active
