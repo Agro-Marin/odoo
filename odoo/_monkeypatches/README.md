@@ -55,7 +55,7 @@ it is deferred, waiting for its target's import — not failed.
 | File | Purpose | Type |
 |------|---------|------|
 | `ast.py` | Bound `ast.literal_eval()`'s input (default 100KiB, `ODOO_LIMIT_LITEVAL_BUFFER`). Resolved once at patch time, not per call | SECURITY |
-| `codecs.py` | Charset labels CPython will not resolve: `874`/`windows_874` to cp874 in `encodings.aliases`, and a search function for the separator-less ISO-8859-8-E/I spellings | COMPAT |
+| `codecs.py` | Charset labels CPython will not resolve: a search function for the separator-less ISO-8859-8-E/I spellings | COMPAT |
 | `csv.py` | Raise the field size limit from 128KiB to 500MiB, so an inlined base64 image is one readable field | PERF |
 | `email.py` | Replace `email.policy.SMTP` so identification headers (`Message-Id`, `References`, `Resent-Message-ID`, ...) are never folded and user headers fold only at the RFC 5322 limit of 998 chars | COMPAT |
 | `locale.py` | Add missing `D_FMT`, `T_FMT` constants and `nl_langinfo()` for Windows. Inert on POSIX | COMPAT |
@@ -143,7 +143,7 @@ Patches should be removed when:
 | `bs4.py` | ofxparse fixes XML parsing issue (#170) |
 | `mimetypes.py` | No supported host can override CPython's table for these six |
 | `babel.py` | Babel ships an `nb` entry in `LOCALE_ALIASES` |
-| `codecs.py` | CPython resolves `iso88598i`/`iso88598e` and the cp874 MIME labels |
+| `codecs.py` | CPython resolves `iso88598i`/`iso88598e` (the cp874 half was met by the 3.14 floor and removed 2026-08) |
 
 ## Recently Removed
 
