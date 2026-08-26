@@ -2717,8 +2717,10 @@ class AccountTax(models.Model):
         default_float_fields = set()
         for prefix in ("", "raw_", "target_"):
             for suffix in ("_currency", ""):
-                for field in ("base_amount", "tax_amount", "total_excluded"):
-                    default_float_fields.add(f"{prefix}{field}{suffix}")
+                default_float_fields.update(
+                    f"{prefix}{field}{suffix}"
+                    for field in ("base_amount", "tax_amount", "total_excluded")
+                )
 
         values_per_grouping_key = defaultdict(
             lambda: {
