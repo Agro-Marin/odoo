@@ -1,10 +1,10 @@
 import base64
 
 from odoo.exceptions import AccessError
+from odoo.libs.filesystem.tests.test_mimetypes_guess import PNG
 from odoo.tests import HttpCase, tagged
 from odoo.tools import mute_logger
 
-from odoo.addons.base.tests.test_mimetypes import PNG
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.website_slides.tests import common
 
