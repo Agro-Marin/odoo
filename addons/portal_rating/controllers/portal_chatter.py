@@ -13,6 +13,6 @@ class PortalChatter(portal_thread.PortalChatter):
 
     def _setup_portal_message_fetch_extra_domain(self, data):
         domain = super()._setup_portal_message_fetch_extra_domain(data)
-        if data.get('rating_value', False) is not False:
-            domain &= Domain('rating_value', '=', float(data['rating_value']))
+        if data.get("rating_value", False) is not False:
+            domain &= Domain("rating_value", "=", float(data["rating_value"]))
         return domain
