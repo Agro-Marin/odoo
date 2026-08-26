@@ -141,6 +141,18 @@ class TestAstLiteralEvalLimit(unittest.TestCase):
 
         self.assertEqual(ast.literal_eval("{'a': [1, 2]}"), {"a": [1, 2]})
 
+    def test_the_patch_keeps_the_stdlib_one_argument_signature(self):
+        import ast
+        import inspect
+
+        self.assertEqual(list(inspect.signature(ast.literal_eval).parameters), ["expr"])
+
+    def test_the_limit_cannot_be_overridden_by_a_caller(self):
+        import ast
+
+        with self.assertRaises(TypeError):
+            ast.literal_eval("'" + "x" * 200_000 + "'", 10**9)
+
     def test_an_ast_node_is_not_length_checked(self):
         import ast
 

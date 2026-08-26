@@ -36,8 +36,8 @@ def buffer_size_from_env() -> int:
 
 
 def make_literal_eval(buffer_size: int) -> Callable[[str | bytes | ast.AST], object]:
-    def literal_eval(expr: str | bytes | ast.AST, _limit: int = buffer_size) -> object:
-        if isinstance(expr, str | bytes) and len(expr) > _limit:
+    def literal_eval(expr: str | bytes | ast.AST) -> object:
+        if isinstance(expr, str | bytes) and len(expr) > buffer_size:
             msg = "expression can't exceed buffer limit"
             raise ValueError(msg)
         return orig_literal_eval(expr)
