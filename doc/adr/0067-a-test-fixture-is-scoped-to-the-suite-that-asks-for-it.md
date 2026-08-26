@@ -1,4 +1,4 @@
-# ADR-0065: A test fixture is scoped to the suite that asks for it
+# ADR-0067: A test fixture is scoped to the suite that asks for it
 
 - **Status:** Accepted
 - **Date:** 2026-08-26

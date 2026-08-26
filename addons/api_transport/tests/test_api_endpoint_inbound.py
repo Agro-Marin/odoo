@@ -342,7 +342,7 @@ class TestRateLimitStrictPosture(TransactionCase):
 
 
 class TestPayloadLogLimit(TransactionCase):
-    """A body an endpoint declines to store in full (ADR-0064).
+    """A body an endpoint declines to store in full (ADR-0066).
 
     `api.endpoint.inbound` is abstract -- it has no table, and the concrete
     endpoints that inherit it live in other modules -- so these exercise the
@@ -383,7 +383,7 @@ class TestPayloadLogLimit(TransactionCase):
 class TestPayloadHashOverride(APITransportTestCase):
     """Duplicate detection compares a hash the caller computed from the request
     against a column derived from the stored body. When the two are not the same
-    text, the override is what keeps them the same value (ADR-0064)."""
+    text, the override is what keeps them the same value (ADR-0066)."""
 
     def _log(self, **vals):
         base = {

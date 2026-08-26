@@ -141,7 +141,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `js_function_length.py` | the web addon's JS function-length budget |
 | `js_duplication.py` | the web addon's duplicated JS, as byte-exact runs of 9+ significant lines — the one property the other JS gates cannot see, because a copied block is structurally identical to a block that belongs where it is (ADR-0045) |
 | `js_vacuous_assertions.py` | a zero-count HOOT assertion naming a class no non-test file declares — the one assertion shape a wrong selector cannot be told from a passing test |
-| `js_eager_mock_fixture.py` | a mock fixture mutating another addon's model at module scope — hoot imports every test file during collection and model definitions are job-scoped per test, so such a statement runs for every suite in the bundle EXCEPT the one that wrote it (ADR-0065). Fifty of these cost 37 scoped failures across twelve POS addons; floored at zero |
+| `js_eager_mock_fixture.py` | a mock fixture mutating another addon's model at module scope — hoot imports every test file during collection and model definitions are job-scoped per test, so such a statement runs for every suite in the bundle EXCEPT the one that wrote it (ADR-0067). Fifty of these cost 37 scoped failures across twelve POS addons; floored at zero |
 | `py_function_length.py` | the core's Python function-length budget — ratchets *excess lines* over 80, not the offender count, because splitting one long function raises the count while lowering the excess |
 | `py_x2many_count.py` | a counter that counts by hand — `len(record.x_ids)` in a `_compute*`, or `search_count` inside a loop over `self` — which ADR-0052 replaced with `fields.Count`. Ratchets the offender count, not excess lines as `py_function_length` beside it does: there is nothing to split, each site is one declaration that was not written |
 | `sql_in_placeholder.py` | an `IN %s` psycopg3 cannot execute — a query handed straight to `cr.execute`, where nothing expands the placeholder, or an `SQL()` given a list where the builder's tuple branch is what makes `IN` work at all (ADR-0055). Floored at zero on all four scopes; a query assembled into a variable and executed elsewhere is out of its reach and is held by tests instead |
@@ -167,7 +167,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `translation_catalog.py` | every `_()` literal against the msgids its module's `.pot` actually carries — a reflowed string still renders, in English, for every reader who asked for another language, and nothing else in the tree can see it |
 | `compute_context_deps.py` | computes resolving the acting user (`env.user`, `env.uid`, `_get_guest_from_context`) without declaring the context key that keys their cache — the ORM cannot see that a method read `env`, and a test transaction has one uid, so six `mail`/`sms` fields shipped it and `discuss.channel._broadcast` sent every member the first member's unread count |
 | `xml_reference_coherence.py` | view-arch strings (`widget=`, `js_class=`, `t-call`) against the JS registries and templates |
-| `module_depends_installable.py` | an installable module naming, in `depends`, a module marked `installable: False` — disabling a module is how a replacement holds against the next module update, and it strands every dependent silently: the graph drops them with one WARNING, leaves them in state `to install`, and `odoo-bin` exits 0, so no suite runs and no lane reddens (ADR-0062). Indian GST reporting sat unreachable that way until a manifest was read by hand |
+| `module_depends_installable.py` | an installable module naming, in `depends`, a module marked `installable: False` — disabling a module is how a replacement holds against the next module update, and it strands every dependent silently: the graph drops them with one WARNING, leaves them in state `to install`, and `odoo-bin` exits 0, so no suite runs and no lane reddens (ADR-0064). Indian GST reporting sat unreachable that way until a manifest was read by hand |
 
 ### The four surface gates
 
@@ -247,7 +247,7 @@ fiftieth.
 **Seventy-seven** is how many steps CI runs the fifty-four in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
-`py_x2many_count` alone accounts for six.
+`py_function_length` alone accounts for six.
 
 `model_member_surface_check.py` is the companion to `env_model_surface_check.py`:
 *which members* the core calls on addon-owned models, against the `Protocol`s in

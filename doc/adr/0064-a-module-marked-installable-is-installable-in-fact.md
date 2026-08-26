@@ -1,4 +1,4 @@
-# ADR-0062: A module marked installable is installable in fact
+# ADR-0064: A module marked installable is installable in fact
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

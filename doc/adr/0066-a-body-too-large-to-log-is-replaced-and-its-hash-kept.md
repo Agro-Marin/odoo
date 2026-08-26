@@ -1,4 +1,4 @@
-# ADR-0064: A body too large to log is replaced, and its hash is kept
+# ADR-0066: A body too large to log is replaced, and its hash is kept
 
 - **Status:** Accepted
 - **Date:** 2026-08-25

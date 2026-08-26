@@ -1,4 +1,4 @@
-# ADR-0063: Field-level write access is declared on the field
+# ADR-0065: Field-level write access is declared on the field
 
 - **Status:** Accepted
 - **Date:** 2026-08-25

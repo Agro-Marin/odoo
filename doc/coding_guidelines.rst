@@ -950,7 +950,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,441 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,490 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1110,7 +1110,7 @@ and **read the result**:
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
 **199** definitions under **98** names in this repository spell it head-first and
 **18** spell it the other way. **The rule is general; the conversion reached one
-family** -- across **19** of them this repository spells **63** definitions
+family** -- across **19** of them this repository spells **65** definitions
 head-first against **187** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
@@ -1189,12 +1189,12 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,417 definitions it is 22.2 % of every method
+**``_get_`` is not a default.** At 5,427 definitions it is 22.2 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
 computing. The split that matters is against ``_prepare_``: 684 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 712 already spelled ``_prepare_*``.
+spelled ``get_*``, against 715 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1255,7 +1255,7 @@ ratchet flags **4**. Two things hide in that gap -- the suffix list is short
 and *object construction takes ``_prepare_`` too*, since a factory has a consumer
 like anything else.
 
-Backlog: **33** of this repository's **712** ``_prepare_*`` definitions call
+Backlog: **33** of this repository's **715** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1264,7 +1264,7 @@ assembles is in the wrong family.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **A ``bool`` return does not make a predicate** ``[review]``. **369** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **182**
+this repository are annotated ``-> bool`` and are not predicates, against **187**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1272,7 +1272,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,021 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,032 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (29) plus ``_verify_``,
 ``_ensure_`` and ``_control_`` (50 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
@@ -1358,7 +1358,7 @@ grounds in ascending weight:
   happens, while ``self._raise_x_error()`` looks like every other call and the
   lines after it are unreachable in a way a reader has to deduce;
 * nothing types it. A function that never returns is ``NoReturn``; **0** of this
-  repository's **22** ``_raise_*`` model methods say so, and six claim
+  repository's **23** ``_raise_*`` model methods say so, and six claim
   ``-> None``, which is false.
 
 The cost is accepted -- the call site says the verb twice, and ``B904`` fires the
@@ -1370,7 +1370,7 @@ moment the raise moves into the caller's own ``except``.
   which 9 spell ``_prepare_*_error`` -- a floor, since the complete test is a body
   whose every ``return`` is an exception constructor.
 * **A method that raises only sometimes is a different family** ``[review]``. The
-  rule above reaches the unconditional raiser, **14** of those **22**; the rest
+  rule above reaches the unconditional raiser, **15** of those **23**; the rest
   spell ``_raise_if_*`` or ``_raise_for_*``, have nothing to return when the
   condition does not hold, and are the Validation row: ``_check_*``.
 
@@ -1453,7 +1453,7 @@ classes carry the decorator and agree on nothing.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (144 definitions) and ``_update_*`` (258) are
+and is wired to nothing. ``_set_*`` (143 definitions) and ``_update_*`` (259) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
@@ -1471,8 +1471,8 @@ the duplicate report this section exists to produce.
 ``[gate doc_restated_counts]``. Making one table **agree with** another takes a
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
-for it this section had never named: **58** definitions spell it ``_sync_*`` and
-**13** spell it ``_synchronize_*``, against ``_update_*``'s **258**. It is not
+for it this section had never named: **59** definitions spell it ``_sync_*`` and
+**13** spell it ``_synchronize_*``, against ``_update_*``'s **259**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.
@@ -1502,9 +1502,9 @@ may not borrow that vocabulary, whether or not it is indented under a class.
 **It governs the module's own helpers too, and no gate sees them** ``[review]``.
 ``naming_vocabulary.py`` implements the scope as a *class-membership* test, so two
 populations in the same files are counted by nothing: a function declared at
-**module level** -- **306** of them under ``models/`` and ``wizard/`` -- and a
-method on a **plain class** declared in the same file, of which there are **355**
-across **138** classes. Counted over the addon trees only, since a directory test
+**module level** -- **309** of them under ``models/`` and ``wizard/`` -- and a
+method on a **plain class** declared in the same file, of which there are **361**
+across **140** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
 
 **A file can be sixteen names wrong and green.** Three sweeps
@@ -1636,7 +1636,7 @@ to a field name and a registry string.
 
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
-call sites ever see. **79** parameters annotated ``field_name`` are ``str`` and
+call sites ever see. **81** parameters annotated ``field_name`` are ``str`` and
 **0** are a ``Field``, against ``field``'s **93** ``Field`` and **16** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s
@@ -3832,7 +3832,7 @@ Every new model ships explicit access rules ``[review]``. A model with no
   ``fields_get`` report the field readonly, so no arch change is needed. **Delete
   the node's ``readonly`` attribute when converting one** -- an explicit
   ``readonly`` in the arch replaces the server's verdict instead of combining with
-  it. ADR-0063.
+  it. ADR-0065.
 * **Gate a decision, not a structural attribute** ``[review]``. ``write_groups``
   refuses ``create`` as well as ``write``, and ``create`` checks ``default_*``
   context keys too, so a field every creator must supply -- a price, a category,
@@ -4422,7 +4422,7 @@ One row per change, saying what moved. The argument lives in the section it move
        ``write_groups`` takes a group spec or a callable over the records being
        written, raises on ``write`` and ``create``, and reaches the client
        through the ``readonly`` that ``fields_get`` already derives from
-       ``_has_field_access(field, "write")``. ADR-0063.
+       ``_has_field_access(field, "write")``. ADR-0065.
    * - 6.4
      - 2026-08-25
      - **A fourth Tier-2 path, ``tests/framework``.** The facade ``__all__`` gate

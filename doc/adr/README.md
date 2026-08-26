@@ -234,10 +234,10 @@ enforce them.
 | [0061](0061-a-merge-repoints-references-and-absorbing-values-is-a-choice.md) | A merge re-points references always, and absorbs values by choice | 2026-08-23 | Accepted |
 | [0062](0062-a-class-body-defines-each-member-once.md) | A class body defines each member once | 2026-08-25 | Accepted |
 | [0063](0063-the-qweb-compile-context-separates-two-namespaces.md) | The qweb compile context separates the compiler's state from the caller's | 2026-08-26 | Accepted |
-| [0062](0062-a-module-marked-installable-is-installable-in-fact.md) | A module marked installable is installable in fact | 2026-08-24 | Accepted |
-| [0063](0063-field-level-write-access-is-declared-on-the-field.md) | Field-level write access is declared on the field | 2026-08-25 | Accepted |
-| [0064](0064-a-body-too-large-to-log-is-replaced-and-its-hash-kept.md) | A body too large to log is replaced, and its hash is kept | 2026-08-25 | Accepted |
-| [0065](0065-a-test-fixture-is-scoped-to-the-suite-that-asks-for-it.md) | A test fixture is scoped to the suite that asks for it | 2026-08-26 | Accepted |
+| [0064](0064-a-module-marked-installable-is-installable-in-fact.md) | A module marked installable is installable in fact | 2026-08-24 | Accepted |
+| [0065](0065-field-level-write-access-is-declared-on-the-field.md) | Field-level write access is declared on the field | 2026-08-25 | Accepted |
+| [0066](0066-a-body-too-large-to-log-is-replaced-and-its-hash-kept.md) | A body too large to log is replaced, and its hash is kept | 2026-08-25 | Accepted |
+| [0067](0067-a-test-fixture-is-scoped-to-the-suite-that-asks-for-it.md) | A test fixture is scoped to the suite that asks for it | 2026-08-26 | Accepted |
 
 ## Template
 

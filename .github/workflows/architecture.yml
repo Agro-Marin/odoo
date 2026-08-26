@@ -413,7 +413,7 @@ jobs:
 
       - name: Run installable-dependency check
         id: module_depends_installable
-        # ADR-0062. Marking a module `installable: False` is how a replacement
+        # ADR-0064. Marking a module `installable: False` is how a replacement
         # holds against the next module update, and it silently strands every
         # module that depends on it: the graph drops the dependent with one
         # WARNING, leaves it in state `to install`, and odoo-bin exits 0. No
@@ -1128,7 +1128,7 @@ jobs:
 
       - name: Run eager mock-fixture gate
         id: js_eager_fixture
-        # ADR-0065. Hoot imports every test file in the bundle during
+        # ADR-0067. Hoot imports every test file in the bundle during
         # collection and model definitions are job-scoped per test, so a
         # fixture written at module scope runs for every suite EXCEPT the one
         # that wrote it. Fifty of these cost 37 scoped failures across twelve
