@@ -400,7 +400,6 @@ class ResPartner(models.Model):
         tin2 = self._check_tin2_ro_natural_persons.match(vat)
         if tin2:
             return True
-        # Check the vat number
         return stdnum.util.get_cc_module("ro", "vat").is_valid(vat)
 
     def check_vat_gr(self, vat):
@@ -450,7 +449,6 @@ class ResPartner(models.Model):
         european = self._check_tin_hu_european_re.match(vat)
         if european:
             return True
-        # Check the vat number
         return stdnum.util.get_cc_module("hu", "vat").is_valid(vat)
 
     _check_vat_ch_re = re.compile(
