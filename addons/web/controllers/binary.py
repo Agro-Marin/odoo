@@ -9,7 +9,7 @@ from typing import Any
 from werkzeug.utils import send_file
 
 import odoo
-from odoo import SUPERUSER_ID, _, api, http
+from odoo import _, api, http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import Response, request
 from odoo.libs.filesystem import guess_mimetype
@@ -160,15 +160,10 @@ class Binary(http.Controller):
             )
             if "%" in url:
                 raise request.not_found()
-            domain = [
-                ("public", "=", True),
-                ("url", "!=", False),
-                ("url", "=like", url),
-                ("res_model", "=", "ir.ui.view"),
-                ("res_id", "=", 0),
-                ("create_uid", "=", SUPERUSER_ID),
-            ]
-            attachment = env["ir.attachment"].sudo().search(domain, limit=1)
+            IrAttachment = env["ir.attachment"].sudo()
+            attachment = IrAttachment.search(
+                IrAttachment._generated_asset_domain(url_pattern=url), limit=1
+            )
             if attachment:
                 stream = env["ir.binary"]._get_stream_from_record(
                     attachment, "raw", filename
@@ -248,20 +243,11 @@ class Binary(http.Controller):
         readonly=True,
     )
     def content_esm_assets(self, unique: str, filename: str) -> Response:
-        attachment = (
-            request.env["ir.attachment"]
-            .sudo()
-            .search(
-                [
-                    ("public", "=", True),
-                    ("url", "=", f"/web/assets/esm/{unique}/{filename}"),
-                    ("res_model", "=", "ir.ui.view"),
-                    ("res_id", "=", 0),
-                    ("create_uid", "=", SUPERUSER_ID),
-                ],
-                limit=1,
-                order="id desc",
-            )
+        IrAttachment = request.env["ir.attachment"].sudo()
+        attachment = IrAttachment.search(
+            IrAttachment._generated_asset_domain(f"/web/assets/esm/{unique}/{filename}"),
+            limit=1,
+            order="id desc",
         )
         if not attachment:
             raise request.not_found()

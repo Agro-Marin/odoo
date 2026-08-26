@@ -1,6 +1,7 @@
 import contextlib
 import json as json_mod
 import logging
+import threading
 import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -15,11 +16,6 @@ from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
-from odoo.tools.assets.constants import (
-    SCRIPT_EXTENSIONS,
-    STYLE_EXTENSIONS,
-    TEMPLATE_EXTENSIONS,
-)
 from odoo.tools.assets.esbuild import (
     EXTERNAL_LIB_ALIASES,
     EsbuildCompiler,
@@ -32,13 +28,28 @@ from odoo.tools.assets.esm_graph import (
     resolve_specifier_url,
 )
 from odoo.tools.assets.esm_registry import esm_registry, external_libs
+from odoo.tools.assets.nodes import (
+    LOADER_SHIM_MARKER,
+    AssetNode,
+    bridge_external_specifiers,
+    combine_bundle_with_templates,
+    count_import_map_urls,
+    has_esm_test_satellites,
+    import_map_specs,
+    inline_module_node,
+    is_debug_assets,
+    is_hoot_test_specifier,
+    is_import_map_node,
+    is_loader_shim_node,
+    link_to_node,
+    prepare_register_native_modules_js,
+)
 from odoo.tools.misc import file_path, str2bool
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle, BundleFileSpec
 
 _logger = logging.getLogger(__name__)
 
-AssetNode = tuple[str, dict[str, Any]]
 EsmNodePair = tuple[list[AssetNode], list[AssetNode]]
 
 _esm_log = get_asset_logger("esm")
@@ -49,22 +60,27 @@ _lock_log = get_asset_logger("lock")
 _pregen_log = get_asset_logger("pregen")
 
 
-class _EsmFallbackError(Exception):
-    pass
+class _BuildDeclined(Exception):
+    """A build declined, so the ormcache must not store the degraded result.
+
+    Raising rather than returning is the whole mechanism: `tools.ormcache`
+    stores a return value and lets an exception through, so a decline that
+    returns `None` or `("", ...)` would be remembered as the answer until the
+    `assets` cache is next cleared.
+    """
 
 
-class _StandaloneBundleDeclined(Exception):
-    """Signal that a standalone-bundle build declined, so the ormcache never
-    stores the degraded (None) result -- same pattern as ``_EsmFallbackError``
-    in the native-ESM render path."""
+class _EsmFallbackError(_BuildDeclined):
+    """The native-ESM render path declined; the caller re-renders per file."""
+
+
+class _StandaloneBundleDeclined(_BuildDeclined):
+    """A standalone-bundle build declined; the caller degrades on its own
+    terms, because what a receiving context can still use is specific to it."""
 
 
 class EsbuildBundleError(RuntimeError):
     pass
-
-
-def _inline_module_node(marker: str, bundle: str, code: str) -> AssetNode:
-    return ("script", {"type": "module", marker: bundle, "text": code})
 
 
 class IrQweb(models.AbstractModel):
@@ -121,9 +137,7 @@ class IrQweb(models.AbstractModel):
 
         return nodes
 
-    @staticmethod
-    def _is_debug_assets(debug) -> bool:
-        return isinstance(debug, str) and "assets" in debug
+    _is_debug_assets = staticmethod(is_debug_assets)
 
     def _get_asset_links(
         self,
@@ -259,52 +273,16 @@ class IrQweb(models.AbstractModel):
             nodes.append(node)
         return nodes
 
+    @staticmethod
     def _link_to_node(
-        self,
         path: str,
         defer_load: bool = False,
         lazy_load: bool = False,
         media: str | None = None,
     ) -> AssetNode | None:
-        ext = path.rsplit(".", maxsplit=1)[-1] if path else "js"
-        is_js = ext in SCRIPT_EXTENSIONS
-        is_xml = ext in TEMPLATE_EXTENSIONS
-        is_css = ext in STYLE_EXTENSIONS
-
-        if is_js:
-            attributes = {
-                "type": "text/javascript",
-            }
-
-            if defer_load:
-                attributes["defer"] = "defer"
-            if path:
-                if lazy_load:
-                    attributes["data-src"] = path
-                else:
-                    attributes["src"] = path
-
-            return ("script", attributes)
-
-        if is_css:
-            attributes = {
-                "type": "text/css",
-                "rel": "stylesheet",
-                "href": path,
-                "media": media,
-            }
-            return ("link", attributes)
-
-        if is_xml:
-            attributes = {
-                "type": "text/xml",
-                "async": "async",
-                "rel": "prefetch",
-                "data-src": path,
-            }
-            return ("script", attributes)
-
-        return None
+        return link_to_node(
+            path, defer_load=defer_load, lazy_load=lazy_load, media=media
+        )
 
     def _get_asset_links_uncached(
         self,
@@ -327,7 +305,6 @@ class IrQweb(models.AbstractModel):
         )
         return asset_bundle.get_links()
 
-    _OWL_ESM_URL = "/web/static/lib/owl/owl.es.js"
     _external_libs = staticmethod(external_libs)
 
     _specifier_to_static_url = staticmethod(addon_specifier_to_url)
@@ -337,31 +314,9 @@ class IrQweb(models.AbstractModel):
             spec, self._external_libs(), EsbuildCompiler._LIB_CANDIDATES
         )
 
-    @staticmethod
-    def _get_import_map_url_counts(import_map: dict[str, str]) -> tuple[int, int, int]:
-        n_bridges = sum(
-            1 for v in import_map.values() if v.startswith("/web/assets/esm/bridges/")
-        )
-        n_data = sum(1 for v in import_map.values() if v.startswith("data:"))
-        n_real = len(import_map) - n_bridges - n_data
-        return n_real, n_bridges, n_data
+    _get_import_map_url_counts = staticmethod(count_import_map_urls)
 
-    @staticmethod
-    def _combine_bundle_with_templates(esbuild_code: str, esm_tpl: str) -> str:
-        if not esm_tpl:
-            return esbuild_code
-        esb_base = esbuild_code
-        sm_directive = ""
-        tail_idx = esbuild_code.rfind("//# sourceMappingURL=")
-        if tail_idx != -1 and "\n" not in esbuild_code[tail_idx:].rstrip("\n"):
-            sm_directive = esbuild_code[tail_idx:].rstrip("\n")
-            esb_base = esbuild_code[:tail_idx].rstrip("\n") + "\n"
-        return (
-            esb_base
-            + "/* ── Inlined templates registration ── */\n"
-            + esm_tpl
-            + ("\n" + sm_directive + "\n" if sm_directive else "")
-        )
+    _combine_bundle_with_templates = staticmethod(combine_bundle_with_templates)
 
     @tools.conditional(
         "xml" not in tools.config["dev_mode"],
@@ -559,64 +514,36 @@ class IrQweb(models.AbstractModel):
 
     _loader_shim_cache: tuple[float, str] | None = None
 
+    # Guarded because `_open_esbuild_circuit` reads the failure count, adds
+    # one and writes it back: unsynchronised, two workers failing at once lose
+    # a count, and that count is what chooses between a 60 s and a 600 s
+    # cooldown.  This fork gates free-threading, so the GIL is not the answer.
     _esbuild_cooldowns: dict[tuple[str, str], tuple[float, str, int]] = {}
+    _esbuild_cooldowns_lock = threading.Lock()
     _ESBUILD_COOLDOWN_S: float = 60.0
     _ESBUILD_EXTENDED_COOLDOWN_S: float = 600.0
 
-    _ESBUILD_SETTING_KEYS: frozenset = frozenset(
-        {
-            "cooldown_s",
-            "extended_cooldown_s",
-            "lock_retries",
-            "lock_retry_sleep_s",
-            "timeout_s",
-            "target",
-            "source_maps",
-            "fail_closed",
-        }
-    )
+    def _get_esbuild_config(self):
+        """The typed parameter readers, which already do what this model used
+        to re-derive: read, cast, warn on a bad value, fall back to a default.
 
-    def _get_esbuild_setting(self, name: str, default, cast=None):
-        if name not in self._ESBUILD_SETTING_KEYS:
-            raise ValueError(
-                f"Unknown esbuild setting {name!r}; "
-                f"expected one of {sorted(self._ESBUILD_SETTING_KEYS)}",
-            )
-        raw = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param(
-                f"web.esbuild.{name}",
-            )
-        )
-        if not raw:
-            return default
-        if cast is None:
-            return raw
-        try:
-            return cast(raw)
-        except (TypeError, ValueError) as exc:
-            log_event(
-                _fallback_log,
-                logging.DEBUG,
-                "setting_cast_failed",
-                name=name,
-                raw=str(raw)[:50],
-                err=type(exc).__name__,
-            )
-            return default
+        The re-derivation is what let ``fail_closed`` drift -- it spelled the
+        falsy set ``("0", "false", "")`` while every other boolean parameter in
+        the codebase reads ``ir.config_parameter._FALSY_PARAM_VALUES``, so
+        ``web.esbuild.fail_closed = no`` *enabled* fail-closed and turned an
+        esbuild error into a 500 for the operator who tried to disable it.
+        """
+        return self.env["ir.config_parameter"].sudo()
 
     def _is_esbuild_fail_closed(self) -> bool:
-        override = self._get_esbuild_setting("fail_closed", default=None)
-        if override is not None:
-            return str(override).strip().lower() not in ("0", "false", "")
-        return bool(tools.config["test_enable"] or "assets" in tools.config["dev_mode"])
+        return self._get_esbuild_config().get_param_bool(
+            "web.esbuild.fail_closed",
+            bool(tools.config["test_enable"] or "assets" in tools.config["dev_mode"]),
+        )
 
     def _get_esbuild_bundles_forced_fallback(self) -> set[str]:
-        forced_raw = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("web.esbuild.force_fallback_bundles", "")
+        forced_raw = self._get_esbuild_config().get_param(
+            "web.esbuild.force_fallback_bundles", ""
         )
         return {s.strip() for s in forced_raw.split(",") if s.strip()}
 
@@ -625,36 +552,37 @@ class IrQweb(models.AbstractModel):
 
     def _get_esbuild_circuit_state(self, bundle: str) -> tuple[bool, str]:
         key = self._get_esbuild_cooldown_key(bundle)
-        entry = type(self)._esbuild_cooldowns.get(key)
+        entry = IrQweb._esbuild_cooldowns.get(key)
         if not entry:
             return True, ""
         expiry, reason, _fails = entry
         if time.monotonic() < expiry:
             return False, reason
-        type(self)._esbuild_cooldowns[key] = (0.0, reason, _fails)
+        # Half-open: the entry stays so the failure count survives, but the
+        # expiry is not rewritten -- it was, on every call, for as long as the
+        # entry lived, which is a dict write per render for no effect.
         return True, ""
 
     def _open_esbuild_circuit(self, bundle: str, reason: str) -> None:
         key = self._get_esbuild_cooldown_key(bundle)
-        prev = type(self)._esbuild_cooldowns.get(key)
-        fails = (prev[2] + 1) if prev else 1
+        config = self._get_esbuild_config()
+        with IrQweb._esbuild_cooldowns_lock:
+            prev = IrQweb._esbuild_cooldowns.get(key)
+            fails = (prev[2] + 1) if prev else 1
         if fails >= 2:
-            cooldown = self._get_esbuild_setting(
-                "extended_cooldown_s",
-                default=self._ESBUILD_EXTENDED_COOLDOWN_S,
-                cast=float,
+            cooldown = config.get_param_float(
+                "web.esbuild.extended_cooldown_s", self._ESBUILD_EXTENDED_COOLDOWN_S
             )
         else:
-            cooldown = self._get_esbuild_setting(
-                "cooldown_s",
-                default=self._ESBUILD_COOLDOWN_S,
-                cast=float,
+            cooldown = config.get_param_float(
+                "web.esbuild.cooldown_s", self._ESBUILD_COOLDOWN_S
             )
-        type(self)._esbuild_cooldowns[key] = (
-            time.monotonic() + cooldown,
-            reason,
-            fails,
-        )
+        with IrQweb._esbuild_cooldowns_lock:
+            IrQweb._esbuild_cooldowns[key] = (
+                time.monotonic() + cooldown,
+                reason,
+                fails,
+            )
         log_event(
             _fallback_log,
             logging.WARNING,
@@ -666,10 +594,10 @@ class IrQweb(models.AbstractModel):
         )
 
     def _close_esbuild_circuit(self, bundle: str) -> None:
-        cooldowns = type(self)._esbuild_cooldowns
         key = self._get_esbuild_cooldown_key(bundle)
-        if key in cooldowns:
-            cooldowns.pop(key, None)
+        with IrQweb._esbuild_cooldowns_lock:
+            existed = IrQweb._esbuild_cooldowns.pop(key, None) is not None
+        if existed:
             log_event(
                 _fallback_log,
                 logging.INFO,
@@ -682,10 +610,26 @@ class IrQweb(models.AbstractModel):
 
     @contextlib.contextmanager
     def _get_esbuild_lock_cursor(self, bundle: str):
-        if not self.env.cr.readonly:
-            yield self.env.cr
-            return
-        if _module.current_test:
+        """Always a dedicated cursor, so the lock lives exactly as long as the
+        compile.
+
+        This used to hand back ``self.env.cr`` whenever it was writable.
+        ``pg_try_advisory_xact_lock`` releases at *transaction* end, so on a
+        read-write request the lock outlived the compile by the whole rest of
+        the request -- verified in ``pg_stat_activity``, where a second backend
+        sat on ``wait_event=advisory`` while the holder was already
+        ``idle in transaction``.
+
+        Every worker that wanted the same bundle in that window lost the lock
+        and fell into the per-file branch, which is not merely slower but a
+        different page: measured on ``web.assets_web``, 3 nodes became ~570 and
+        the import map's HOOT surface went from 7 specifiers to 13.  That is
+        the production-page fallback ``_bridge_external_specifiers`` documents.
+
+        A read-only cursor under test still declines outright: a test that
+        cannot persist has nothing to gain from paying for the compile.
+        """
+        if self.env.cr.readonly and _module.current_test:
             yield None
             return
         try:
@@ -708,15 +652,12 @@ class IrQweb(models.AbstractModel):
     def _acquire_esbuild_lock(self, bundle: str, cr=None) -> bool:
         if cr is None:
             cr = self.env.cr
-        retries = self._get_esbuild_setting(
-            "lock_retries",
-            default=self._ESBUILD_LOCK_RETRIES,
-            cast=int,
+        config = self._get_esbuild_config()
+        retries = config.get_param_int(
+            "web.esbuild.lock_retries", self._ESBUILD_LOCK_RETRIES
         )
-        sleep_s = self._get_esbuild_setting(
-            "lock_retry_sleep_s",
-            default=self._ESBUILD_LOCK_RETRY_SLEEP_S,
-            cast=float,
+        sleep_s = config.get_param_float(
+            "web.esbuild.lock_retry_sleep_s", self._ESBUILD_LOCK_RETRY_SLEEP_S
         )
         key = f"esbuild:{bundle}"
         for attempt in range(retries + 1):
@@ -745,13 +686,7 @@ class IrQweb(models.AbstractModel):
         )
         return False
 
-    @staticmethod
-    def _is_hoot_test_specifier(specifier: str, *, by_directory: bool = True) -> bool:
-        if "/tours/" in specifier:
-            return False
-        if ".test" in specifier or ".hoot" in specifier:
-            return True
-        return by_directory and ("/../tests/" in specifier or "/tests/" in specifier)
+    _is_hoot_test_specifier = staticmethod(is_hoot_test_specifier)
 
     @classmethod
     def _get_hoot_specifiers(cls, bundle: str, specifiers: Iterable[str]) -> list[str]:
@@ -792,9 +727,21 @@ class IrQweb(models.AbstractModel):
         )
         return minified
 
+    @classmethod
+    def _prepare_loader_shim_node(cls, bundle: str) -> AssetNode:
+        # Marked so `_dedup_request_page_scripts` can recognise it after the
+        # ormcache has handed the node back; the attribute is also what tells
+        # the two shim copies apart when reading a page's source.
+        return (
+            "script",
+            {LOADER_SHIM_MARKER: bundle, "text": cls._prepare_loader_shim_js()},
+        )
+
     @staticmethod
     def _has_esm_test_satellites(debug: str | bool | None) -> bool:
-        return "tests" in (debug or "") or bool(tools.config["test_enable"])
+        return has_esm_test_satellites(
+            debug, test_enable=bool(tools.config["test_enable"])
+        )
 
     @tools.conditional(
         "xml" not in tools.config["dev_mode"],
@@ -803,6 +750,7 @@ class IrQweb(models.AbstractModel):
             "tuple(sorted(assets_params.items()))",
             "with_test_satellites",
             "page_scope",
+            "esbuild_ok",
             cache="assets",
         ),
     )
@@ -812,7 +760,22 @@ class IrQweb(models.AbstractModel):
         assets_params: dict[str, Any] | None = None,
         with_test_satellites: bool = False,
         page_scope: tuple[str, ...] = (),
+        esbuild_ok: bool = True,
     ) -> EsmNodePair:
+        """``esbuild_ok`` is a cache key, which is what makes the degraded
+        render cacheable at all.
+
+        Without it, a bundle whose circuit is open (or that an operator put on
+        ``web.esbuild.force_fallback_bundles``) declined here on every request,
+        the decline raised so nothing was stored, and the caller then rebuilt
+        the whole per-file answer from scratch -- measured at 0.053 s and 19
+        `AssetsBundle` constructions per request against 0.000 s and 0 for a
+        cache hit, for as long as the cooldown lasts (600 s after a second
+        failure).  Keying on the decision instead gives the fallback its own
+        entry, and closing the circuit switches back to the other key rather
+        than needing an invalidation -- so an open circuit still never evicts a
+        healthy prod artifact.
+        """
         return self._get_native_module_nodes_uncached(
             bundle,
             debug=False,
@@ -820,6 +783,7 @@ class IrQweb(models.AbstractModel):
             _raise_on_decline=True,
             with_test_satellites=with_test_satellites,
             page_scope=page_scope,
+            esbuild_ok=esbuild_ok,
         )
 
     def _get_native_module_nodes(
@@ -833,24 +797,32 @@ class IrQweb(models.AbstractModel):
             assets_params = self.env["ir.asset"]._prepare_assets_params()
         satellites = self._has_esm_test_satellites(debug)
         page_scope = self._get_esm_page_scope(bundle)
-        if (
-            not debug_assets
-            and bundle not in self._get_esbuild_bundles_forced_fallback()
-        ):
+        # One reading of the esbuild decision per render, and it is a cache key
+        # rather than a reason to bypass the cache.  It also subsumes the
+        # forced-fallback list this used to re-read separately here and again
+        # inside `_can_compile_with_esbuild`.
+        esbuild_ok = not debug_assets and self._can_compile_with_esbuild(bundle)
+        if not debug_assets:
             try:
                 pre, post = self._get_native_module_nodes_cached(
                     bundle,
                     assets_params=assets_params,
                     with_test_satellites=satellites,
                     page_scope=page_scope,
+                    esbuild_ok=esbuild_ok,
                 )
             except _EsmFallbackError:
+                # esbuild was available and declined anyway -- lock contention,
+                # a compile error, a read-only cursor.  Transient by nature, so
+                # it stays uncached; `esbuild_ok=False` is the durable case and
+                # never reaches here.
                 pre, post = self._get_native_module_nodes_uncached(
                     bundle,
                     debug=debug,
                     assets_params=assets_params,
                     with_test_satellites=satellites,
                     page_scope=page_scope,
+                    esbuild_ok=False,
                 )
         else:
             pre, post = self._get_native_module_nodes_uncached(
@@ -859,34 +831,72 @@ class IrQweb(models.AbstractModel):
                 assets_params=assets_params,
                 with_test_satellites=satellites,
                 page_scope=page_scope,
+                esbuild_ok=False,
             )
         self._record_esm_page_bundle(bundle)
-        return self._dedup_request_import_map(bundle, pre), post
+        return self._dedup_request_page_scripts(bundle, pre), post
 
-    def _dedup_request_import_map(
+    _is_import_map_node = staticmethod(is_import_map_node)
+    _is_loader_shim_node = staticmethod(is_loader_shim_node)
+    _get_import_map_specs = staticmethod(import_map_specs)
+
+    def _dedup_request_page_scripts(
         self,
         bundle: str,
         pre_nodes: list[AssetNode],
     ) -> list[AssetNode]:
+        """Drop the page-level singletons a later bundle would repeat.
+
+        Two of them: the import map and the ``odoo.loader`` shim.  Both are
+        page-scoped rather than bundle-scoped, and both were handled in only
+        one of the two rendering branches -- `_get_esm_nodes_debug` consulted
+        `request._esm_import_map_rendered` for the map, the shim AND the
+        registration block, while `_get_esm_nodes_prod` consulted nothing and
+        relied on this method, which covered the map alone.  So a page with two
+        prod bundles carried two copies of the shim (verified on `/web/login`:
+        5,554 bytes each; the second is inert, `module_loader.js` returns early
+        when a loader exists).  Doing it here rather than in the branches is
+        deliberate: the branch results are ormcached and the page state is not.
+        """
         if not request:
             return pre_nodes
-
-        def _is_import_map(node: AssetNode) -> bool:
-            return node[0] == "script" and node[1].get("type") == "importmap"
-
-        if not any(_is_import_map(node) for node in pre_nodes):
-            return pre_nodes
-        if not getattr(request, "_esm_import_map_rendered", False):
+        first = not getattr(request, "_esm_import_map_rendered", False)
+        if first:
+            if not any(self._is_import_map_node(node) for node in pre_nodes):
+                return pre_nodes
             request._esm_import_map_rendered = True
+            request._esm_import_map_specs = self._get_import_map_specs(pre_nodes)
             return pre_nodes
+        self._warn_on_dropped_import_map_specs(bundle, pre_nodes)
+        return [
+            node
+            for node in pre_nodes
+            if not (self._is_import_map_node(node) or self._is_loader_shim_node(node))
+        ]
+
+    def _warn_on_dropped_import_map_specs(
+        self, bundle: str, pre_nodes: list[AssetNode]
+    ) -> None:
+        """Name the specifiers this dedup costs the page.
+
+        Dropping a later bundle's whole import map is only sound if the map
+        already rendered resolves everything this one needs, and nothing states
+        or checks that.  It is not academic: on `web.unit_tests_suite` the
+        child's map carries one specifier the parent's lacks.  It survives
+        because esbuild inlines that import, but the next one might not, and
+        `event=importmap_skipped` named none of it.
+        """
+        rendered = getattr(request, "_esm_import_map_specs", frozenset())
+        dropped = sorted(self._get_import_map_specs(pre_nodes) - rendered)
         log_event(
             _esm_log,
-            logging.DEBUG,
+            logging.WARNING if dropped else logging.DEBUG,
             "importmap_skipped",
             bundle=bundle,
             reason="already_rendered",
+            unresolvable=len(dropped),
+            specs=",".join(dropped[:5]),
         )
-        return [node for node in pre_nodes if not _is_import_map(node)]
 
     def _get_native_module_nodes_uncached(
         self,
@@ -896,25 +906,27 @@ class IrQweb(models.AbstractModel):
         _raise_on_decline: bool = False,
         with_test_satellites: bool = False,
         page_scope: tuple[str, ...] = (),
+        esbuild_ok: bool = True,
     ) -> EsmNodePair:
         debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
             assets_params = self.env["ir.asset"]._prepare_assets_params()
 
-        if debug_assets:
-            asset_bundle = self._get_asset_bundle(
+        asset_bundle = self._get_asset_bundle(
+            bundle,
+            js=True,
+            css=False,
+            debug_assets=debug_assets,
+            assets_params=assets_params,
+        )
+        native_data = (
+            asset_bundle.get_native_module_data()
+            if debug_assets
+            else self._get_native_module_data_cached(
                 bundle,
-                js=True,
-                css=False,
-                debug_assets=True,
                 assets_params=assets_params,
             )
-            native_data = asset_bundle.get_native_module_data()
-        else:
-            native_data = self._get_native_module_data_cached(
-                bundle,
-                assets_params=assets_params,
-            )
+        )
 
         if not native_data["import_map"]:
             log_event(
@@ -925,14 +937,12 @@ class IrQweb(models.AbstractModel):
             )
             return [], []
 
-        if not debug_assets:
-            asset_bundle = self._get_asset_bundle(
-                bundle,
-                js=True,
-                css=False,
-                debug_assets=False,
-                assets_params=assets_params,
-            )
+        # Only attempt the compile when esbuild is believed available.  When it
+        # is not, the per-file answer IS the answer for this cache key, so it
+        # must not raise -- and skipping the attempt also spares the lock
+        # cursor and the child-bundle walk that `_compile_with_esbuild_locked`
+        # would do purely to be turned away.
+        if not debug_assets and esbuild_ok:
             esbuild_result, child_bundles = self._compile_with_esbuild_locked(
                 bundle, asset_bundle, assets_params, page_scope
             )
@@ -1009,17 +1019,16 @@ class IrQweb(models.AbstractModel):
         dynamic_child_specs: frozenset[str] | None,
         secondary_stubs: dict[str, str],
     ) -> EsbuildResult:
+        config = self._get_esbuild_config()
         try:
             result = asset_bundle.esbuild_native_bundle(
-                timeout_s=self._get_esbuild_setting(
-                    "timeout_s", default=EsbuildCompiler._ESBUILD_TIMEOUT_S, cast=int
+                timeout_s=config.get_param_int(
+                    "web.esbuild.timeout_s", EsbuildCompiler._ESBUILD_TIMEOUT_S
                 ),
-                target=self._get_esbuild_setting(
-                    "target", default=EsbuildCompiler._ESBUILD_TARGET
-                ),
-                source_maps=self._get_esbuild_setting(
-                    "source_maps", default=EsbuildCompiler._ESBUILD_SOURCE_MAPS
-                ),
+                target=config.get_param("web.esbuild.target")
+                or EsbuildCompiler._ESBUILD_TARGET,
+                source_maps=config.get_param("web.esbuild.source_maps")
+                or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
                 dynamic_child_specs=dynamic_child_specs,
                 secondary_parent_stubs=secondary_stubs or None,
             )
@@ -1082,8 +1091,11 @@ class IrQweb(models.AbstractModel):
         contributors = dict.fromkeys((bundle,))
         for asset in self.env["ir.asset"]._get_asset_paths(
             bundle=bundle,
-            assets_params=assets_params
-            or self.env["ir.asset"]._prepare_assets_params(),
+            assets_params=(
+                self.env["ir.asset"]._prepare_assets_params()
+                if assets_params is None
+                else assets_params
+            ),
         ):
             contributors.setdefault(asset.bundle)
         return tuple(contributors)
@@ -1096,6 +1108,12 @@ class IrQweb(models.AbstractModel):
         debug_assets: bool,
     ) -> list[AssetsBundle]:
         registry = esm_registry()
+        # Deliberately NOT scoped to installed modules: an absent module's
+        # child is built and comes back empty, which keeps the child set a
+        # function of the declarations rather than of the database.
+        # `test_absent_modules_contribute_empty_children_not_wrong_ones` and
+        # `test_dynamic_children_follow_bundle_includes` both pin that, and an
+        # empty bundle costs ~0.03 ms to construct.
         child_names = dict.fromkeys(
             child_name
             for parent_name in self._get_dynamic_parent_bundles(bundle, assets_params)
@@ -1218,19 +1236,30 @@ class IrQweb(models.AbstractModel):
         them carry can be externalised safely.
         """
         providers = page_scope or esm_registry().secondary_parents.get(bundle) or ()
+        # A provider drops out only when it is BOTH empty and absent from this
+        # database.  Emptiness alone used to be the test, and it conflated two
+        # opposite cases: an uninstalled parent is no constraint on this
+        # artifact, while an *installed* parent carrying nothing is the
+        # strongest constraint there is -- it means a page exists on which
+        # these specifiers have no provider at all, and externalising them
+        # there leaves the stub's exports `undefined` until something registers
+        # them (`build_shim_sources` reads `odoo.loader.modules`, so this fails
+        # silently and late rather than at load).  Keeping the installed-but-
+        # empty provider in `spec_sets` lets the intersection below collapse to
+        # nothing, which is the honest answer.
+        installed = self.env["ir.asset"]._get_addons_installed()
         spec_sets = []
         for provider in providers:
-            provider_ab = self._get_asset_bundle(
-                provider,
-                js=True,
-                css=False,
-                debug_assets=False,
-                assets_params=assets_params,
-            )
             specs = set(
-                provider_ab.get_native_module_data(with_bridges=False)["import_map"]
+                self._get_asset_bundle(
+                    provider,
+                    js=True,
+                    css=False,
+                    debug_assets=False,
+                    assets_params=assets_params,
+                ).get_native_module_data(with_bridges=False)["import_map"]
             )
-            if specs:
+            if specs or provider.partition(".")[0] in installed:
                 spec_sets.append(specs)
         if not spec_sets:
             return set()
@@ -1241,19 +1270,21 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         assets_params: dict[str, Any] | None,
         page_scope: tuple[str, ...] = (),
+        sec_ab: AssetsBundle | None = None,
     ) -> frozenset[str]:
         if not esm_registry().secondary_parents.get(bundle):
             return frozenset()
         shared = self._get_secondary_provider_specs(bundle, assets_params, page_scope)
         if not shared:
             return frozenset()
-        sec_ab = self._get_asset_bundle(
-            bundle,
-            js=True,
-            css=False,
-            debug_assets=False,
-            assets_params=assets_params,
-        )
+        if sec_ab is None:
+            sec_ab = self._get_asset_bundle(
+                bundle,
+                js=True,
+                css=False,
+                debug_assets=False,
+                assets_params=assets_params,
+            )
         own_specs = set(sec_ab.get_native_module_data(with_bridges=False)["import_map"])
         discovered, _ext = sec_ab._bridges._discover_bridge_specifiers(
             own_specs,
@@ -1303,9 +1334,10 @@ class IrQweb(models.AbstractModel):
         assets_params: dict[str, Any] | None,
         page_scope: tuple[str, ...] = (),
     ) -> dict[str, str]:
-        shared = self._get_secondary_shared_specs(bundle, assets_params, page_scope)
-        if not shared:
-            return {}
+        # One construction, shared with `_get_secondary_shared_specs`.  These
+        # two built the same `AssetsBundle` on consecutive lines of caller and
+        # callee; at 11.4 ms each for `web.assets_tests` that was ~11 ms of the
+        # ~46 ms the four constructions per render cost.
         sec_ab = self._get_asset_bundle(
             bundle,
             js=True,
@@ -1313,6 +1345,11 @@ class IrQweb(models.AbstractModel):
             debug_assets=False,
             assets_params=assets_params,
         )
+        shared = self._get_secondary_shared_specs(
+            bundle, assets_params, page_scope, sec_ab=sec_ab
+        )
+        if not shared:
+            return {}
         return sec_ab._bridges.build_shim_sources(set(shared))
 
     def _merge_secondary_import_maps(
@@ -1386,7 +1423,15 @@ class IrQweb(models.AbstractModel):
             url = self._save_esm_attachment(
                 name, code, metafile=metafile, sourcemap=sourcemap
             )
-        except ReadOnlySqlTransaction:
+        except Exception as exc:
+            # The same degradation contract `_get_standalone_bundle_cached`
+            # states: a persistence failure must not break the caller.  This
+            # caught `ReadOnlySqlTransaction` alone, while
+            # `_save_esm_attachment_rows`' last-resort `create` runs on the
+            # request cursor outside its own `try` and can raise anything --
+            # so a filestore or integrity error took down the whole page
+            # render, for a bundle whose code is in hand and inlineable, which
+            # is exactly what the read-only branch already did.
             log_event(
                 _attach_log,
                 logging.WARNING,
@@ -1394,7 +1439,14 @@ class IrQweb(models.AbstractModel):
                 bundle=name,
                 readonly=bool(self.env.cr.readonly),
                 declined=raise_on_decline,
+                err=type(exc).__name__,
             )
+            if not isinstance(exc, ReadOnlySqlTransaction):
+                _logger.warning(
+                    "Could not persist the ESM bundle %s; serving it inline",
+                    name,
+                    exc_info=True,
+                )
             if raise_on_decline:
                 raise _EsmFallbackError from None
         node: dict[str, str] = {"type": "module"}
@@ -1523,8 +1575,7 @@ class IrQweb(models.AbstractModel):
                 },
             )
         )
-        shim_js = self._prepare_loader_shim_js()
-        pre.append(("script", {"text": shim_js}))
+        pre.append(self._prepare_loader_shim_node(bundle))
         esm_tpl = asset_bundle.generate_esm_template_bundle(
             use_import=False,
         )
@@ -1622,22 +1673,9 @@ class IrQweb(models.AbstractModel):
         )
         return import_map, resolved_bridges
 
-    @staticmethod
-    def _prepare_register_native_modules_js(
-        entries: list[tuple[str, str]], var_prefix: str
-    ) -> str:
-        import_lines = []
-        register_entries = []
-        for index, (specifier, source) in enumerate(entries):
-            var = f"{var_prefix}{index}"
-            import_lines.append(f"import * as {var} from {json_mod.dumps(source)};")
-            register_entries.append(f"  {json_mod.dumps(specifier)}: {var}")
-        return (
-            "\n".join(import_lines)
-            + "\nodoo.loader.registerNativeModules({\n"
-            + ",\n".join(register_entries)
-            + "\n});\n"
-        )
+    _prepare_register_native_modules_js = staticmethod(
+        prepare_register_native_modules_js
+    )
 
     @staticmethod
     def _resolve_esm_satellite_kind(bundle: str) -> str | None:
@@ -1717,31 +1755,9 @@ class IrQweb(models.AbstractModel):
 
     @staticmethod
     def _bridge_external_specifiers(native_data: dict[str, Any]) -> set[str]:
-        """External-lib specifiers the per-file bridge may eagerly import.
-
-        ``_prepare_esm_bridge_js`` turns every specifier it is handed into a
-        static ``import * as __mN from "<spec>"``, so this set decides what the
-        page *evaluates*, not merely what it can resolve -- resolution is
-        already covered, ``_get_esm_import_map_debug`` seeds the import map with
-        the full ``_external_libs()`` table.
-
-        The rule is the one the esbuild entry follows (``_esbuild_entry_lines``):
-        ``@odoo/owl`` unconditionally, and an alias only when the bundle carries
-        the file it aliases.  Handing over the whole external table instead --
-        which is what this did until the ``web_tour`` sanity tours caught it --
-        evaluates the entire HOOT test framework, plus pdfjs, chart.js and
-        fullcalendar, on any page rendered through this branch.  That branch is
-        not just ``debug=assets``: an esbuild lock held by another worker falls
-        back to it (``odoo.assets.fallback: event=lock_unavailable``), so a
-        production frontend page picked up ``@odoo/hoot-dom`` at random, and
-        ``odoo.loader.modules`` held entries the esbuild path never puts there.
-        """
-        own_specifiers = set(native_data["import_map"])
-        return {"@odoo/owl"} | {
-            alias
-            for alias, aliased in EXTERNAL_LIB_ALIASES.items()
-            if aliased in own_specifiers
-        }
+        return bridge_external_specifiers(
+            native_data["import_map"], EXTERNAL_LIB_ALIASES
+        )
 
     def _get_esm_nodes_debug(
         self,
@@ -1791,8 +1807,7 @@ class IrQweb(models.AbstractModel):
             | self._bridge_external_specifiers(native_data)
         )
         if bridge_specifiers and not _already_has_esm:
-            shim_js = self._prepare_loader_shim_js()
-            pre_nodes.append(("script", {"text": shim_js}))
+            pre_nodes.append(self._prepare_loader_shim_node(bundle))
 
         if bridge_specifiers:
             bridge_code = self._prepare_esm_bridge_js(
@@ -1803,12 +1818,12 @@ class IrQweb(models.AbstractModel):
             )
             if bridge_code.strip():
                 post_nodes.append(
-                    _inline_module_node("data-bridge", bundle, bridge_code)
+                    inline_module_node("data-bridge", bundle, bridge_code)
                 )
 
         esm_tpl = asset_bundle.generate_esm_template_bundle(use_import=True)
         if esm_tpl:
-            post_nodes.append(_inline_module_node("data-templates", bundle, esm_tpl))
+            post_nodes.append(inline_module_node("data-templates", bundle, esm_tpl))
 
         self._log_esm_render(
             bundle,
@@ -1833,8 +1848,12 @@ class IrQweb(models.AbstractModel):
         content_hash = cache_hash(content_bytes)[:16]
         url = f"/web/assets/esm/{content_hash}/{bundle}.esm.js"
 
+        # The reuse predicate has to be the one the controller serves with, not
+        # a weaker "url + public": a row matching only the weak form makes this
+        # return a URL that answers 404, and caches it.  See
+        # `ir.attachment._generated_asset_domain`.
         existing = IrAttachment.sudo().search(
-            [("url", "=", url), ("public", "=", True)],
+            IrAttachment._generated_asset_domain(url),
             limit=1,
         )
         if existing:
@@ -1881,6 +1900,17 @@ class IrQweb(models.AbstractModel):
         return url
 
     def _log_esm_artifacts_superseded(self, bundle: str, keep_url: str) -> None:
+        # The level check comes FIRST.  This query is a sequential scan -- six
+        # `=like` patterns with a leading literal are not an index range, and
+        # at 50k asset rows PostgreSQL reads the table (measured: 17 ms, 50,067
+        # rows removed by filter) -- and it ran unconditionally, before
+        # `log_event` decided the line was disabled.  `_log_pregeneration_coverage`
+        # already opens this way.
+        if not _attach_log.isEnabledFor(logging.INFO):
+            return
+        # Three of the six patterns used to be spelled twice: `%` matches `/`,
+        # so `/web/assets/%/x.esm.js` already subsumes `/web/assets/esm/%/x.esm.js`,
+        # and likewise for the `.map` and `.meta.json` pair.
         stale_count = (
             self.env["ir.attachment"]
             .sudo()
@@ -1888,13 +1918,7 @@ class IrQweb(models.AbstractModel):
                 [
                     "|",
                     "|",
-                    "|",
-                    "|",
-                    "|",
-                    ("url", "=like", f"/web/assets/esm/%/{bundle}.esm.js"),
                     ("url", "=like", f"/web/assets/%/{bundle}.esm.js"),
-                    ("url", "=like", f"/web/assets/esm/%/{bundle}.esm.js.map"),
-                    ("url", "=like", f"/web/assets/esm/%/{bundle}.meta.json"),
                     ("url", "=like", f"/web/assets/%/{bundle}.esm.js.map"),
                     ("url", "=like", f"/web/assets/%/{bundle}.meta.json"),
                     ("url", "!=", keep_url),
@@ -1942,10 +1966,7 @@ class IrQweb(models.AbstractModel):
     ) -> None:
         IrAttachment = self.env["ir.attachment"]
         existing = IrAttachment.sudo().search(
-            [
-                ("url", "=", url),
-                ("public", "=", True),
-            ],
+            IrAttachment._generated_asset_domain(url),
             limit=1,
         )
         if existing:
@@ -1986,6 +2007,26 @@ class IrQweb(models.AbstractModel):
             bytes=len(content),
         )
 
+    @staticmethod
+    def _drop_rows_already_present(cr, vals_list: list[dict]) -> list[dict]:
+        """Re-check the URLs on the cursor that is about to write them.
+
+        Every cursor here runs at ``repeatable read`` and the rows are
+        committed out of band (below), so the caller's reuse search -- which
+        ran on the *request* cursor -- cannot see a row another transaction
+        committed after its snapshot was taken.  Deciding to write from that
+        read is a check-then-act across two snapshots, and it has produced
+        duplicate rows in practice.  Re-reading on the writing cursor closes
+        the window down to that cursor's own transaction, which is as far as
+        this can go without a unique index over the generated-asset URLs.
+        """
+        urls = [vals["url"] for vals in vals_list if vals.get("url")]
+        if not urls:
+            return vals_list
+        cr.execute("SELECT url FROM ir_attachment WHERE url = ANY(%s)", (urls,))
+        present = {row[0] for row in cr.fetchall()}
+        return [vals for vals in vals_list if vals.get("url") not in present]
+
     def _save_esm_attachment_rows(
         self,
         vals_list: list[dict],
@@ -2012,8 +2053,10 @@ class IrQweb(models.AbstractModel):
         try:
             with self.env.registry.cursor(readonly=False) as rw_cr:
                 if vals_list:
-                    rw_env = api.Environment(rw_cr, SUPERUSER_ID, {})
-                    rw_env["ir.attachment"].create(vals_list)
+                    fresh = self._drop_rows_already_present(rw_cr, vals_list)
+                    if fresh:
+                        rw_env = api.Environment(rw_cr, SUPERUSER_ID, {})
+                        rw_env["ir.attachment"].create(fresh)
                 if touch_ids:
                     rw_cr.execute(
                         "UPDATE ir_attachment SET write_date = now() at time zone 'UTC'"
@@ -2101,12 +2144,7 @@ class IrQweb(models.AbstractModel):
         # "declared anywhere", not "reachable in this database". Split it, or the
         # figure reads as a bigger gap than it is: a bundle whose module is not
         # installed contributes nothing to load here.
-        installed = set(
-            self.env["ir.module.module"]
-            .sudo()
-            .search([("state", "=", "installed")])
-            .mapped("name")
-        )
+        installed = self.env["ir.asset"]._get_addons_installed()
         uncovered = dynamic - js_bundles
         uncovered_here = {b for b in uncovered if b.split(".", 1)[0] in installed}
         log_event(
