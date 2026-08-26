@@ -32,7 +32,6 @@
             <field name="invoice_vendor_bill_id" position="attributes">
                 <attribute name="groups">!purchase.group_purchase_user</attribute>
             </field>
-            <!-- Add link to purchase_line_id to account.move.line -->
             <xpath expr="//field[@name='invoice_line_ids']/list/field[@name='company_id']"
                 position="after">
                 <field name="purchase_line_ids" groups="purchase.group_purchase_user"
