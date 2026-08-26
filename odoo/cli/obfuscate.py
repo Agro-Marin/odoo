@@ -129,6 +129,30 @@ class Obfuscate(DatabaseCommand):
     @_ensure_cr
     def _ensure_pgcrypto(self) -> None:
         self.cr.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+        # A plain `starts_with(value, 'odoo_cyph_')` treats any plaintext that
+        # happens to already carry the marker literal as "already obfuscated"
+        # and silently leaves it untouched (and, symmetrically, un-decryptable
+        # by uncypher_string). This session-local function replaces the
+        # prefix sniff with a structural check: it only reports a value as
+        # marked when the bytes after the prefix actually decrypt under the
+        # password in use, so a same-looking plaintext value obfuscates like
+        # any other.
+        self.cr.execute(
+            """
+            CREATE OR REPLACE FUNCTION pg_temp.odoo_cyph_marked(value text, pwd text)
+            RETURNS boolean LANGUAGE plpgsql AS $$
+            BEGIN
+                IF value IS NULL OR NOT starts_with(value, 'odoo_cyph_') THEN
+                    RETURN false;
+                END IF;
+                PERFORM pgp_sym_decrypt(decode(substring(value from 11), 'base64'), pwd);
+                RETURN true;
+            EXCEPTION WHEN OTHERS THEN
+                RETURN false;
+            END;
+            $$
+            """
+        )
 
     @_ensure_cr
     def commit(self) -> None:
@@ -172,14 +196,14 @@ class Obfuscate(DatabaseCommand):
 
     def cypher_string(self, sql_field: SQL, password: str) -> SQL:
         return SQL(
-            """CASE WHEN starts_with(%(field_name)s, 'odoo_cyph_') THEN %(field_name)s ELSE 'odoo_cyph_'||encode(pgp_sym_encrypt(%(field_name)s, %(pwd)s), 'base64') END""",
+            """CASE WHEN pg_temp.odoo_cyph_marked(%(field_name)s, %(pwd)s) THEN %(field_name)s ELSE 'odoo_cyph_'||encode(pgp_sym_encrypt(%(field_name)s, %(pwd)s), 'base64') END""",
             field_name=sql_field,
             pwd=password,
         )
 
     def uncypher_string(self, sql_field: SQL, password: str) -> SQL:
         return SQL(
-            """CASE WHEN starts_with(%(field_name)s, 'odoo_cyph_') THEN pgp_sym_decrypt(decode(substring(%(field_name)s, 11)::text, 'base64'), %(pwd)s) ELSE %(field_name)s END""",
+            """CASE WHEN pg_temp.odoo_cyph_marked(%(field_name)s, %(pwd)s) THEN pgp_sym_decrypt(decode(substring(%(field_name)s, 11)::text, 'base64'), %(pwd)s) ELSE %(field_name)s END""",
             field_name=sql_field,
             pwd=password,
         )
@@ -324,13 +348,16 @@ class Obfuscate(DatabaseCommand):
                 cypher_query = cyph_fct(sql_field, pwd)
                 cypherings.append(SQL("%s=%s", SQL.identifier(field), cypher_query))
                 if unobfuscate:
-                    conditions.append(SQL("starts_with(%s, 'odoo_cyph_')", sql_field))
+                    conditions.append(
+                        SQL("pg_temp.odoo_cyph_marked(%s, %s)", sql_field, pwd)
+                    )
                 else:
                     conditions.append(
                         SQL(
-                            "(%s IS NOT NULL AND NOT starts_with(%s, 'odoo_cyph_'))",
+                            "(%s IS NOT NULL AND NOT pg_temp.odoo_cyph_marked(%s, %s))",
                             sql_field,
                             sql_field,
+                            pwd,
                         )
                     )
             elif field_type == "json":

@@ -875,8 +875,8 @@ class TestCommand(BaseCase):
         from odoo.cli.obfuscate import Obfuscate
 
         for unobfuscate, marker in (
-            (False, "IS NOT NULL AND NOT starts_with"),
-            (True, "WHERE starts_with"),
+            (False, "IS NOT NULL AND NOT pg_temp.odoo_cyph_marked"),
+            (True, "WHERE pg_temp.odoo_cyph_marked"),
         ):
             with self.subTest(unobfuscate=unobfuscate):
                 ob = Obfuscate()
