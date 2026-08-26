@@ -245,6 +245,32 @@ class TestExcelSheetNames(unittest.TestCase):
         self.assertNotEqual(first.lower(), second.lower())
         self.assertLessEqual(len(second), 31)
 
+    def test_truncation_does_not_expose_a_trailing_apostrophe(self):
+        # The cut is what manufactures it: the apostrophe sits at index 30, so
+        # nothing before truncation sees it at an edge.
+        self.assertFalse(self._sanitize("A" * 30 + "'" + "BBBB").endswith("'"))
+
+    def test_no_cut_position_leaves_a_trailing_apostrophe(self):
+        for offset in range(60):
+            name = "A" * offset + "'" + "B" * 10
+            with self.subTest(offset=offset):
+                self.assertFalse(self._sanitize(name).endswith("'"))
+
+    def test_the_workbook_accepts_a_name_cut_onto_an_apostrophe(self):
+        import xlsxwriter
+
+        workbook = xlsxwriter.Workbook(io.BytesIO(), {"in_memory": True})
+        workbook.add_worksheet(self._sanitize("A" * 30 + "'" + "BBBB"))
+
+    def test_both_sheet_kinds_survive_a_name_cut_onto_an_apostrophe(self):
+        from odoo._monkeypatches.xlsxwriter import PatchedXlsxWorkbook
+
+        raw = "A" * 30 + "'" + "BBBB"
+        for adder in ("add_worksheet", "add_chartsheet"):
+            with self.subTest(adder=adder):
+                workbook = PatchedXlsxWorkbook(io.BytesIO(), {"in_memory": True})
+                getattr(workbook, adder)(raw)
+
     def test_duplicate_detection_ignores_case_as_excel_does(self):
         self.assertNotEqual(self._sanitize("Sales", ["SALES"]).lower(), "sales")
 
