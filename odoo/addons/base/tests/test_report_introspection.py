@@ -1,16 +1,3 @@
-"""The two introspection reports `base` ships: Technical guide and Model Overview.
-
-Both are bound to a Print menu, so a defect in either is a 500 rather than a
-degraded page. What is pinned here is what actually broke:
-
-* `fields_get()` is evaluated per model, so one model that raises used to abort
-  the whole document;
-* field attribution used to be a LIKE over external-ID *spellings*, and `_` is a
-  single-character wildcard in SQL;
-* the Model Overview laid itself out wider than the page it prints on, and
-  WeasyPrint drops what does not fit rather than failing.
-"""
-
 import io
 from unittest.mock import patch
 
@@ -27,8 +14,6 @@ from odoo.tests.common import TransactionCase
 
 @tagged("post_install", "-at_install")
 class TestModuleReferenceValues(TransactionCase):
-    """`report.base.report_irmodulereference` builds its data, not callbacks."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -36,11 +21,6 @@ class TestModuleReferenceValues(TransactionCase):
         cls.base_module = cls.env["ir.module.module"].search([("name", "=", "base")])
 
     def test_attribution_follows_the_record_not_the_external_id(self):
-        """An external ID whose *name* implies another model must not move a field.
-
-        The LIKE pattern this replaces read the spelling, so a name shaped like
-        `field_res_partner_<something>__x` was reported under `res.partner`.
-        """
         partner_field = self.env["ir.model.fields"].search(
             [("model", "=", "res.partner.bank"), ("name", "=", "id")], limit=1
         )
@@ -68,7 +48,6 @@ class TestModuleReferenceValues(TransactionCase):
         )
 
     def test_every_reported_field_is_declared_by_that_module_on_that_model(self):
-        """The invariant the report exists to state, over whatever is installed."""
         modules = self.env["ir.module.module"].search(
             [("state", "=", "installed")], limit=12
         )
@@ -87,7 +66,6 @@ class TestModuleReferenceValues(TransactionCase):
                 )
 
     def test_objects_are_keyed_per_module(self):
-        """Each module's page lists its own models and no other module's."""
         modules = self.env["ir.module.module"].search(
             [("name", "in", ("base", "web")), ("state", "=", "installed")]
         )
@@ -108,24 +86,16 @@ class TestModuleReferenceValues(TransactionCase):
             self.assertEqual(listed, declared)
 
     def test_a_model_with_no_declared_field_describes_nothing(self):
-        """`fields_get(())` means *every* field; an empty list must mean none."""
         self.assertEqual(
             self.report_model._get_field_descriptions("res.partner", []), []
         )
 
     def test_a_model_absent_from_the_registry_is_skipped(self):
-        """An ir.model row outlives its class when a module leaves the addons path."""
         self.assertEqual(
             self.report_model._get_field_descriptions("no.such.model", ["name"]), []
         )
 
     def test_a_model_whose_fields_get_raises_does_not_abort_the_document(self):
-        """One unusable model must cost its own field list, not the whole report.
-
-        Field descriptions are evaluated lazily, so an abstract mixin whose
-        `domain=` callable reaches a hook only a concrete host implements raises
-        here. Two of `base_order`'s do.
-        """
         boom = NotImplementedError("mixin must implement _get_order_type()")
         real_fields_get = type(self.env["res.partner"]).fields_get
 
@@ -157,8 +127,6 @@ class TestModuleReferenceValues(TransactionCase):
 
 
 class PdfGeometryCase(TransactionCase):
-    """Read back where a rendered report actually put its text."""
-
     def _render_pdf(self, report_ref, res_ids):
         pdf, extension = (
             self.env["ir.actions.report"]
@@ -169,7 +137,6 @@ class PdfGeometryCase(TransactionCase):
         return pdf
 
     def _text_boxes(self, pdf):
-        """Yield ``(page_width, box, text)`` for every text box in the document."""
         parser = PDFParser(io.BytesIO(pdf))
         pages = list(PDFPage.create_pages(PDFDocument(parser)))
         manager = PDFResourceManager()
@@ -186,11 +153,6 @@ class PdfGeometryCase(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestIntrospectionReportGeometry(PdfGeometryCase):
     def test_model_overview_stays_inside_the_page(self):
-        """The overview used to run 920 pt past an A4 edge, losing six columns.
-
-        WeasyPrint drops what does not fit instead of failing, so nothing but
-        geometry catches this. `res.partner` is the widest model `base` ships.
-        """
         model = self.env["ir.model"].search([("model", "=", "res.partner")])
         pdf = self._render_pdf("base.report_ir_model_overview", model.ids)
 
@@ -205,12 +167,6 @@ class TestIntrospectionReportGeometry(PdfGeometryCase):
         )
 
     def test_model_overview_prints_every_column_it_declares(self):
-        """Every column header reaches the text layer.
-
-        Weaker than the geometry check above and not a regression test for it --
-        clipping loses whichever columns fall off, which is data-dependent. This
-        pins that the template's own columns all render.
-        """
         model = self.env["ir.model"].search([("model", "=", "res.partner")])
         pdf = self._render_pdf("base.report_ir_model_overview", model.ids)
         rendered = "\n".join(text for _width, _obj, text in self._text_boxes(pdf))

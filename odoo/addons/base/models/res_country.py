@@ -142,17 +142,6 @@ class ResCountry(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _id_by_code(self) -> frozendict[str, int]:
-        """Map every country code to its id, to resolve codes in bulk.
-
-        A caller holding a batch of codes would otherwise search once per
-        batch; the whole table is ~250 rows, so one read serves all of them.
-        Invalidated by `create`, `unlink` and any `write` touching `code`.
-
-        Frozen because the cache hands out the *same* object on every call: a
-        caller that wrote to a plain dict would poison the map for the whole
-        process, and a bad id here reaches the database as a foreign key.
-        `code` is unique, so nothing is lost by keying on it.
-        """
         return frozendict(
             (country.code, country.id)
             for country in self.sudo().search_fetch([], ["code"])

@@ -150,12 +150,6 @@ class TestBasePerfRegression(TransactionCase):
             ir_models.mapped("count")
 
     def test_create_partners_does_not_fetch_per_record(self):
-        """Through `capturedQueries`, not a hand-rolled cursor spy.
-
-        This used to assign over `type(self.env.cr).execute` and restore it in a
-        `finally`. The framework helper patches every statement recorder rather
-        than `execute` alone, and cannot leave the cursor class patched.
-        """
         Partner = self.env["res.partner"]
         self.env.invalidate_all()
         with self.capturedQueries() as queries:
@@ -191,11 +185,6 @@ class TestBasePerfRegression(TransactionCase):
                 seen.append(" <- ".join(reversed(caller[-4:])))
             return original_execute(cr_self, query, params, **kwargs)
 
-        # Still a bespoke spy: this one reads `params` and the call stack, and
-        # `capturedQueries` records statement text only -- the caller chain is
-        # the diagnostic that makes a failure here actionable. Installed with
-        # `self.patch` rather than by assignment, so the cursor class cannot
-        # stay patched if the block escapes.
         self.env.invalidate_all()
         self.patch(cursor_cls, "execute", spy)
         Partner.create([{"name": f"PerfImg_{i}"} for i in range(20)])

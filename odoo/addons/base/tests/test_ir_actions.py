@@ -391,13 +391,6 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(partners[1].city, str(partners[1].id))
 
     def test_object_write_ignores_ids_of_another_model(self):
-        """`active_ids` are ids in `active_model`; read as ours they name strangers.
-
-        Every runner but `code` used to browse them in the action's own model
-        whatever the caller had been looking at, so a server action reached from
-        one model's list could write to whichever records of its own model
-        happened to carry the same ids.
-        """
         self.action.write(
             {
                 "state": "object_write",

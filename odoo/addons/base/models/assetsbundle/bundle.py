@@ -99,15 +99,6 @@ class AssetsBundle:
             )
         missing_files = []
         for spec, url in import_map.items():
-            # No _addon_is_present guard here, and that asymmetry with the
-            # _LIB_CANDIDATES loop below is the point. This map is built from
-            # the manifests that were actually read, and every declared URL is
-            # served by its own declaring addon -- which is a separate gate,
-            # test_every_declared_lib_is_served_by_its_own_addon. So the addon
-            # is present by construction, and a URL naming one that is not is a
-            # typo. Skipping it is how a mistyped addon reached production and
-            # 404'd every page that loaded the bundle; it is reported as the
-            # missing file it is.
             if not cls._addon_relative_path_exists(url.lstrip("/")):
                 missing_files.append(f"{spec} -> {url}")
         if missing_files:
@@ -119,12 +110,6 @@ class AssetsBundle:
         missing_aliases = []
         for alias, parts in lib_candidates.items():
             rel = "/".join(parts)
-            # Here the guard is load-bearing. _LIB_CANDIDATES is a static table
-            # naming addons a given deployment may simply not carry, and
-            # _get_esbuild_addon_flags already skips a candidate whose file is
-            # absent, so nothing imports the alias. An absent addon is therefore
-            # legitimate; a present addon whose file moved is the defect this
-            # loop exists to catch.
             if cls._addon_is_present(rel) and not cls._addon_relative_path_exists(rel):
                 missing_aliases.append(f"{alias} -> {rel}")
         if missing_aliases:

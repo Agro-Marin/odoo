@@ -110,10 +110,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
-        # All three of these are process-global and used to outlive the class:
-        # the warning filter stayed on the stack, the log filter was never
-        # removed, and mail.log kept the raised level for every test that ran
-        # after this file.
         cls.enterClassContext(warnings.catch_warnings())
         warnings.filterwarnings(
             "ignore",

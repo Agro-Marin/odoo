@@ -577,12 +577,6 @@ class IrActionsServer(models.Model):
         ]
 
     def _get_child_warnings(self) -> list[str]:
-        """What a `multi` action has to say about the actions it runs.
-
-        Split out of `_get_warning_messages`, which is a chain of independent
-        checks and was over the function-length budget: these three are the ones
-        about somebody else's record rather than this one's own configuration.
-        """
         self.ensure_one()
         warnings = []
         children_wrong_model = self.env["ir.actions.server"]
@@ -892,30 +886,13 @@ class IrActionsServer(models.Model):
         return "model_name"
 
     def _is_batchable(self) -> bool:
-        """Whether the runner acts on the whole ``active_ids`` set at once.
-
-        False for everything base contributes: those runners read ``active_id``
-        and mean one record by it, and the ``record`` a user writes in a ``code``
-        action means the same. A state whose runner takes ``active_ids`` as a set
-        says so here, and a caller holding many records -- an automation rule is
-        the one in the tree -- may then run it once instead of once per record.
-        """
         self.ensure_one()
         if self.state == "multi":
-            # a multi action does nothing itself: it hands its context to each
-            # child, so it can take the batch exactly when all of them can
             return all(child._is_batchable() for child in self.child_ids)
         return False
 
     @api.model
     def _get_states_needing_a_live_record(self) -> frozenset[str]:
-        """States whose action is meaningless once its record is gone.
-
-        A caller that fires actions on records it is about to delete -- an
-        `on_unlink` automation is the one in the tree -- asks this rather than
-        keeping its own list of the states that mind, which is a copy that goes
-        stale the moment a module contributes another one.
-        """
         return frozenset()
 
     def _get_readable_fields(self) -> frozenset[str]:
@@ -1160,20 +1137,6 @@ class IrActionsServer(models.Model):
         return eval_context
 
     def _get_target_records(self, action: Self | None = None) -> Any:
-        """Return the records ``action`` is to run on, browsed in ``self``'s env.
-
-        ``active_ids`` are ids *in the model the caller was looking at*, which
-        ``active_model`` names. When that is a different model than the action's,
-        those ids mean nothing here -- reading them as our own would act on
-        whichever records happen to carry the same ids. The eval context has
-        always guarded ``record``/``records`` that way; every runner that dug the
-        raw ids out of the context instead did not, and this is what they call so
-        that one rule holds for all of them.
-
-        An absent ``active_model`` is trusted: cron jobs, ``run()`` from code and
-        the tests pass ``active_ids`` alone, and refusing those would break every
-        such caller for a guard that has nothing to compare against.
-        """
         action = action or self
         model = self.env[action.sudo().model_name]
         context = self.env.context
@@ -1185,7 +1148,6 @@ class IrActionsServer(models.Model):
         if active_id := context.get("active_id"):
             return model.browse(active_id)
         if onchange_self := context.get("onchange_self"):
-            # the record being edited is not necessarily in the database yet
             return model.browse(onchange_self._origin.id or ())
         return model
 
@@ -1223,18 +1185,12 @@ class IrActionsServer(models.Model):
         res = False
         if runner and multi:
             if not records and self.state in self._get_states_needing_a_live_record():
-                # a `multi` runner takes the whole set and returns quietly on an
-                # empty one, so nothing said that a cron -- which passes no
-                # `active_ids` at all -- had scheduled an action that can only
-                # ever do nothing. The states that mind are the ones that mind
-                # about their record being deleted: the same question.
                 self._log_missing_target(runner)
             run_self = self.with_context(eval_context["env"].context)
             res = runner(run_self, eval_context=eval_context)
         elif runner:
             if not records:
                 if self.env.context.get("onchange_self"):
-                    # a record still being composed: run once, on no record
                     return runner(self, eval_context=eval_context) or False
                 self._log_missing_target(runner)
             for record in records:

@@ -540,8 +540,6 @@ class TestPartnerStoredNameLanguage(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.env["res.lang"]._activate_lang("fr_FR")
-        # translate one address-type label so the two languages are
-        # distinguishable without depending on the shipped .po files
         cls.env["ir.model.fields.selection"].search(
             [
                 ("field_id.model", "=", "res.partner"),
@@ -558,9 +556,6 @@ class TestPartnerStoredNameLanguage(TransactionCase):
         )
         self.assertEqual(address.complete_name, "Acme, Delivery")
 
-        # complete_name is one untranslated, indexed column shared by every user
-        # and served to _order and _rec_names_search, so the language that
-        # happens to drive the recompute must not end up in it.
         address_fr = address.with_context(lang="fr_FR")
         address_fr.write({"type": "invoice"})
         self.assertEqual(
@@ -665,8 +660,6 @@ class TestPartnerWriteContract(TransactionCase):
 
 @tagged("res_partner")
 class TestPartnerValuePropagationRules(TransactionCase):
-    """The two propagation rules, pinned as rules rather than as accidents."""
-
     def test_an_address_propagates_whole_or_not_at_all(self):
         Partner = self.env["res.partner"]
         company = Partner.create(
@@ -677,15 +670,12 @@ class TestPartnerValuePropagationRules(TransactionCase):
         )
         self.assertEqual((contact.street, contact.city), ("S", "C"))
 
-        # the contact still states an address, so its whole address is the
-        # truth and the cleared part travels with it
         contact.write({"street": False})
         self.assertFalse(
             company.street, "a cleared part of a stated address propagates"
         )
         self.assertEqual(company.city, "C")
 
-        # now the contact states no address at all, so it overwrites nothing
         contact.write({"city": False})
         self.assertEqual(
             company.city, "C", "a record with no address at all states nothing"
@@ -704,7 +694,6 @@ class TestPartnerValuePropagationRules(TransactionCase):
         contact = Partner.create({"name": "PerField C", "parent_id": company.id})
         self.assertEqual((contact.vat, contact.company_registry), ("V", "R"))
 
-        # an unset commercial field on the entity leaves the child's own alone
         company.write({"vat": False})
         self.assertEqual(
             contact.company_registry, "R", "the set field still governs its own value"
@@ -732,8 +721,6 @@ class TestPartnerNameConstraint(TransactionCase):
         with self.assertRaises(Exception):
             with self.cr.savepoint():
                 Partner.create({"type": "contact"})
-        # a NULL type used to make both arms of the CHECK NULL, which PostgreSQL
-        # treats as satisfied -- the constraint has to survive that too
         with self.assertRaises(Exception):
             with self.cr.savepoint():
                 Partner.create({"type": False})
@@ -850,8 +837,6 @@ class TestPartnerDuplicateIdentifiers(TransactionCase):
         Partner.create({"name": "Dup Two", "is_company": True, "vat": "BE0477472701"})
         self.assertTrue(first.same_vat_partner_id)
 
-        # the compute only reports duplicates for parent-less partners, so
-        # attaching a parent has to clear the warning
         parent = Partner.create({"name": "Dup Parent", "is_company": True})
         first.parent_id = parent
         self.assertFalse(

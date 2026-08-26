@@ -32,16 +32,6 @@ _CONFIG_LAYERS = (
 
 @contextlib.contextmanager
 def isolated_config():
-    """Snapshot and restore the process-global configuration.
-
-    A command's ``run()`` parses the configuration, and parsing *replaces*
-    every layer of the singleton — config file, ``db_name``, ``db_template``,
-    ``addons_path``. In a test process that singleton is the test runner's own
-    configuration, so an in-process ``run()`` leaves every later test reading
-    ``~/.odoorc`` instead. Measured: a bare ``config._parse_config([])`` takes
-    ``db_template`` from ``tpl_x`` to ``template0`` and ``addons_path`` from
-    five entries to none.
-    """
     saved = {name: copy.deepcopy(getattr(config, name)) for name in _CONFIG_LAYERS}
     try:
         yield
@@ -1034,13 +1024,6 @@ class TestCommand(BaseCase):
         duplicate_mock.assert_not_called()
 
     def test_db_dump_allows_the_template(self):
-        """Dumping is read-only, so it must not inherit the destructive rule.
-
-        `_check_not_protected` also refuses `config["db_template"]`, which is
-        right for drop/rename/init and wrong here: backing up the configured
-        creation template is ordinary. This test exists because that unification
-        was attempted and had to be undone.
-        """
         from odoo.cli import db as dbmod
 
         if config["db_template"] in SYSTEM_DBS:
@@ -1083,29 +1066,11 @@ class TestCommand(BaseCase):
         )
 
     def test_start_hands_protected_names_to_the_servers_guard(self):
-        """`start` no longer creates the database or vets its name.
-
-        It used to do both *before* parsing the configuration, which made the
-        template check compare against `template0` whatever `db_template`
-        said, and made the creation ignore `db_host`/`db_port`/`db_user` from
-        `-c`. `server.main` already does all of it after the parse, so what
-        `start` owes is the name on argv — `test_server_refuses_system_database`
-        pins the refusal itself.
-        """
         for db_name in (*SYSTEM_DBS, config["db_template"]):
             with self.subTest(db_name=db_name):
                 self._assert_start_hands_db_name_to_the_server(db_name)
 
     def test_start_marks_base_for_install_via_the_server(self):
-        """A `start` that creates a database must leave it usable.
-
-        `Start.run` used to set `config["init"]["base"] = True` itself, and
-        `main`'s own `parse_config` threw it away — `_postprocess_options`
-        rebuilds `_runtime_options["init"]` from the CLI/file/env layers — so
-        every database `start` created was then served uninitialized. The
-        creation now happens inside `main`, after the parse, where the same
-        assignment survives.
-        """
         from odoo.cli import server as server_mod
 
         with (
@@ -1128,11 +1093,6 @@ class TestCommand(BaseCase):
             )
 
     def test_start_rejects_a_path_that_is_not_a_directory(self):
-        """`-p` is `--path` here and `--http-port` everywhere else.
-
-        `start -p 8070` used to resolve `8070` as a project directory, invent a
-        database of that name, create it, and serve on the default port.
-        """
         from odoo.cli import start as startmod
 
         with (
@@ -1145,7 +1105,6 @@ class TestCommand(BaseCase):
         self.assertEqual(ctx.exception.code, 2)
 
     def test_start_prefers_the_configured_db_name_over_the_directory(self):
-        """A `db_name` in `-c`'s file used to lose to the project directory."""
         from odoo.cli import start as startmod
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1389,13 +1348,6 @@ class TestCommand(BaseCase):
         self.assertEqual(stderr.getvalue(), "", msg="must be silent off-tty")
 
     def test_module_subcommands_exit_nonzero_when_nothing_resolved(self):
-        """`module install typo && restart` must not redeploy after a typo.
-
-        The three subcommands used to log a warning and return, which every
-        caller chaining on `&&` reads as success. Measured before the fix:
-        `install`, `uninstall` and `upgrade` of a name that exists nowhere all
-        exited 0.
-        """
         from odoo.cli.module import Module
 
         cmd = Module()
@@ -1421,13 +1373,6 @@ class TestCommand(BaseCase):
                 self.assertNotEqual(ctx.exception.code, 0)
 
     def test_database_commands_forward_server_options(self):
-        """A database command must accept the server options its work needs.
-
-        `module`/`i18n`/`populate`/`neutralize`/`obfuscate` used to reject
-        everything but `-c`/`-d`/`-D`, so `module -d db install base
-        --log-level=warn` died with `unrecognized arguments`. A typo is still
-        caught, one layer down, by the config parser.
-        """
         from odoo.cli.module import Module
 
         parsed, unknown = Module().parse_args(
@@ -1437,12 +1382,6 @@ class TestCommand(BaseCase):
         self.assertEqual(unknown, ["--log-level=warn"])
 
     def test_bootstrap_swallows_addons_path_before_any_command_sees_it(self):
-        """Nothing may declare `--addons-path` and expect it to arrive.
-
-        `main()`'s bootstrap parser consumes it wherever it appears in argv, so
-        a per-command declaration is unreachable — `db` carried one on its
-        parent parser and all seven subparsers.
-        """
         from odoo.cli.db import Db
 
         parser = build_bootstrap_parser()
@@ -1462,17 +1401,6 @@ class TestCommand(BaseCase):
         )
 
     def test_obfuscate_probes_capacity_rather_than_the_declared_width(self):
-        """A declared width is not by itself a reason to skip a column.
-
-        `pgp_sym_encrypt` output, base64-encoded and prefixed, is 99 characters
-        for the empty string and grows with the input's *byte* length —
-        measured on PostgreSQL 18.4: 226 for any 100-ASCII-character value, the
-        same for a longer password, 364 for 100 multi-byte characters. So a
-        `varchar(400)` holding short values fits and a `varchar(150)` holding
-        the same values does not, and only a probe can tell them apart. An
-        earlier revision of this check skipped every length-limited column,
-        which would have quietly left PII in place in the first case.
-        """
         from odoo.cli.obfuscate import Obfuscate
 
         ob = Obfuscate()
@@ -1508,12 +1436,6 @@ class TestCommand(BaseCase):
         )
 
     def test_obfuscate_refuses_a_field_the_user_named_and_cannot_encrypt(self):
-        """Skipping a column somebody asked to obfuscate ships readable PII.
-
-        A `DEFAULT_FIELDS` entry that is narrow in this schema is skipped with
-        a warning; a `--fields`/`--file` entry stops the run before anything is
-        written.
-        """
         from odoo.cli.obfuscate import Obfuscate
 
         ob = Obfuscate()
@@ -1533,9 +1455,6 @@ class TestCommand(BaseCase):
             )
 
     def test_obfuscate_reports_user_named_fields_apart_from_the_defaults(self):
-        """A default-list field absent because its module is not installed is
-        the normal case (17 of 28 on a base-only database) and used to be
-        logged at ERROR, alongside the user's actual typo."""
         from odoo.cli.obfuscate import Obfuscate
 
         opt = mock.Mock(fields="typo.column", file=None)
@@ -1544,13 +1463,6 @@ class TestCommand(BaseCase):
         self.assertEqual(Obfuscate._explicitly_requested(opt), set())
 
     def test_commands_declare_their_arguments_on_construction(self):
-        """Every command's parser must be complete without running it.
-
-        Half of them built the parser inside `run()`, so the option set could
-        not be read (by a test, a docs generator, a completion script) without
-        executing the command, and a second `run()` on one instance raised
-        `argparse.ArgumentError` on the re-registration.
-        """
         load_internal_commands()
         expected = {
             "cloc": "--path",
@@ -1576,7 +1488,6 @@ class TestCommand(BaseCase):
                 self.assertIn(flag, strings)
 
     def test_help_renders_one_commands_own_help(self):
-        """`odoo-bin help <command>` answered with the index of all of them."""
         proc = self.run_command("help", "db", check=False)
         self.assertIn("usage:", proc.stdout)
         self.assertIn("duplicate", proc.stdout)
@@ -1586,8 +1497,6 @@ class TestCommand(BaseCase):
         self.assertIn("Unknown command", proc.stderr)
 
     def test_maintenance_db_rule_has_one_spelling(self):
-        """`start`, `server`, `db` and `get_single_database` phrased the same
-        refusal four ways, and `db` kept its own copy of the protected set."""
         from odoo.cli.command import (
             MAINTENANCE_DB_MESSAGE,
             refuse_maintenance_db,
@@ -1602,8 +1511,6 @@ class TestCommand(BaseCase):
         refuse_maintenance_db("a_perfectly_ordinary_database")
 
     def test_shell_tolerates_a_stdin_without_a_fileno(self):
-        """`os.isatty(sys.stdin.fileno())` raises under capture and when stdin
-        is detached; neither is a terminal and neither is a traceback."""
         from odoo.cli.shell import Shell
 
         class NoFileno:
@@ -1615,14 +1522,6 @@ class TestCommand(BaseCase):
                 self.assertFalse(Shell._stdin_is_a_tty())
 
     def test_obfuscate_json_transform_only_touches_string_values(self):
-        """`->>` reads text and `to_jsonb(text)` writes a JSON string, so the
-        transform is faithful for a string and lossy for anything else.
-
-        Measured against PostgreSQL 18.4 before the guard: a nested object came
-        back from the round trip as the string `'{"deep": "nested"}'` and an
-        integer as `"42"`. Odoo's translated columns are `{lang: text}`, which
-        is why it survived; `--fields` on any other jsonb column does not.
-        """
         from odoo.cli.obfuscate import Obfuscate
 
         ob = Obfuscate()
@@ -1648,9 +1547,6 @@ class TestCommand(BaseCase):
         self.assertIn("jsonb_typeof(\"val\") = 'object'", update)
 
     def test_obfuscate_json_key_probe_skips_non_object_rows(self):
-        """`jsonb_object_keys` raises `cannot call jsonb_object_keys on an
-        array` for one offending row and took the whole run with it — mid-way
-        through under `--pertablecommit`."""
         from odoo.cli.obfuscate import Obfuscate
 
         ob = Obfuscate()
@@ -1688,18 +1584,6 @@ class TestCommand(BaseCase):
         self.assertIn("bad name!", str(ctx.exception.code))
 
     def test_every_builtin_template_scaffolds_a_loadable_module(self):
-        """A rendered template must be a module Odoo can actually load.
-
-        `-t theme` produced one that could not: `views/options.xml`,
-        `views/snippets.xml` and `demo/pages.xml` were 0-byte files listed in the
-        manifest's `data`/`demo`, so installing it took the registry down with
-        `lxml.etree.XMLSyntaxError: Start tag expected, '<' not found, line 2,
-        column 1`. Nothing rendered any template but `default`, so nobody saw it.
-
-        Installing all three here would cost minutes; this asserts what the
-        install would have found — the manifest parses, every file it declares
-        exists and is well formed, and every generated `.py` compiles.
-        """
         import ast
         import csv as csv_mod
 
@@ -1710,7 +1594,6 @@ class TestCommand(BaseCase):
         names = sorted(d.name for d in _builtins_dir().iterdir() if d.is_dir())
         self.assertTrue(names, msg="no built-in templates found")
 
-        # `l10n_payroll` takes `<country>-<code>`; the rest take a plain name.
         argument = {"l10n_payroll": "mexico-mx"}
         for name in names:
             with self.subTest(template=name), tempfile.TemporaryDirectory() as tmp:
@@ -1763,13 +1646,6 @@ class TestCommand(BaseCase):
                         )
 
     def test_scaffold_naming_conventions_agree(self):
-        """What `parse` puts in the params is what `modname` reads back out.
-
-        The two halves used to be `if self.id == ...` branches in two separate
-        methods, kept in step by a docstring asking the next person to. Each
-        convention is one object now, and this asserts the round trip for every
-        one of them rather than for the one that happened to be remembered.
-        """
         from odoo.cli.scaffold import (
             DEFAULT_NAMING,
             NAMING_CONVENTIONS,
@@ -1795,7 +1671,6 @@ class TestCommand(BaseCase):
             DEFAULT_NAMING.modname("MyThing", {"name": "MyThing"}), "my_thing"
         )
 
-        # Every built-in template resolves to a convention, default or its own.
         for directory in _builtins_dir().iterdir():
             if directory.is_dir():
                 with self.subTest(template=directory.name):
@@ -1806,8 +1681,6 @@ class TestCommand(BaseCase):
                     self.assertTrue(template.modname_for(given, params))
 
     def test_db_dump_refuses_an_unwritable_destination_before_dumping(self):
-        """A missing directory used to surface as a raw FileNotFoundError, and
-        for `--format dump` only after pg_dump had already run."""
         from odoo.cli import db as dbmod
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1827,8 +1700,6 @@ class TestCommand(BaseCase):
             self.assertIn("is not a directory", str(ctx.exception.code))
 
     def test_i18n_export_does_not_mutate_the_parsed_namespace(self):
-        """`_export` removed the "pot" pseudo-language from `parsed_args`
-        itself, so the namespace answered differently the second time."""
         from odoo.cli.i18n import I18n
 
         cmd = I18n()

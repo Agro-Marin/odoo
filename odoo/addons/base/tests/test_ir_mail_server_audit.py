@@ -174,12 +174,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.assertEqual(message["To"], "keep@example.com, extra@example.com")
 
     def test_alter_message_x_msg_to_add_dedupes_within_the_header(self):
-        """The header is a set of correspondents, not a transport log.
-
-        `_notify_get_recipients` returns one entry per notification transport, so
-        a partner who is both a channel member and a mentioned recipient appears
-        twice, and every share-flagged entry is copied into this header.
-        """
         message = self._make_message()
         message["To"] = "keep@example.com"
         message["X-Msg-To-Add"] = (
@@ -1688,17 +1682,8 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestVerifyHostnameCallback(TransactionCase):
-    """Strict TLS matches the hostname against the SAN and nothing else.
-
-    Nothing pinned this, which is how a `subject` entry built from the
-    deprecated `X509.get_subject()` survived in the peer-cert dict: it looked
-    load-bearing while `match_hostname` never read it, because the reading is
-    gated behind `hostname_checks_common_name` and that stays off.
-    """
-
     @staticmethod
     def _certificate(common_name, san_dns_names=()):
-        """A self-signed cert, as pyOpenSSL hands one to the verify callback."""
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.asymmetric import ec
@@ -1742,7 +1727,6 @@ class TestVerifyHostnameCallback(TransactionCase):
             self._verify(certificate, "smtp.example.com")
 
     def test_common_name_alone_is_not_a_match(self):
-        """The rule the removed `subject` entry could never have enforced."""
         certificate = self._certificate("smtp.example.com")
         with self.assertRaises(CertificateError):
             self._verify(certificate, "smtp.example.com")
@@ -1752,7 +1736,6 @@ class TestVerifyHostnameCallback(TransactionCase):
         self.assertTrue(self._verify(certificate, "smtp.example.com"))
 
     def test_only_the_leaf_is_matched(self):
-        """Intermediates reach the callback at depth > 0 and are not hostnames."""
         certificate = self._certificate("Some CA", ["ca.example.com"])
         self.assertTrue(self._verify(certificate, "smtp.example.com", err_depth=1))
 

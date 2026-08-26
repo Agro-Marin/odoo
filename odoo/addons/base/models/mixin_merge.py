@@ -353,12 +353,6 @@ class MixinMerge(models.AbstractModel):
         )
 
         self.env.flush_all()
-        # Both statements above reach their columns with raw SQL, so nothing
-        # told the caches. `ir.default`'s reads are ormcached, and the merge
-        # wizard unlinks `src_records` right after this: a default left saying
-        # the source id hands the next record created in this process a
-        # many2one pointing at a row that no longer exists. `flush_all` pushes
-        # writes out, it does not drop what was already read.
         self.env["ir.default"]._invalidate_defaults_cache()
 
     @api.model

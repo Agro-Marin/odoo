@@ -49,13 +49,6 @@ _logger = logging.getLogger(__name__)
 
 @contextmanager
 def _nested_suite_run():
-    """Run a suite inside a test without stranding the runner's global state.
-
-    ``TestSuite.run`` assigns ``odoo.modules.module.current_test`` per test, so
-    a nested run leaves it pointing at the inner probe. Every later
-    ``TestCursor`` then fails ``assertCanOpenTestCursor``, which is a 20s stall
-    and a 500 for the next HttpCase -- caused by this file, blamed on that one.
-    """
     import odoo.modules.module as module_state
 
     outer = module_state.current_test
@@ -871,15 +864,6 @@ class TestBaseCaseDefaults(BaseCase):
 
 
 class TestSuiteReleasesFinishedTests(BaseCase):
-    """`TestSuite.run` must drop its reference to each finished test.
-
-    The fork's override of `BaseTestSuite.run` used to omit
-    `_removeTestAtIndex`, so every instance in a suite -- and everything a test
-    hangs off `self`: env, registry, the Opener and its connection pool, the
-    three ServerProxies -- stayed reachable until the whole suite was dropped.
-    Suites are per module, and test_mail builds one of 1387.
-    """
-
     def test_finished_tests_are_released(self):
         holder = []
 
@@ -906,19 +890,6 @@ class TestSuiteReleasesFinishedTests(BaseCase):
 
 
 class TestStrandedTestCursorReleasesItsLock(TransactionCase):
-    """A TestCursor left in the stack must give its lock acquisition back.
-
-    The class cleanup used to mark the cursor closed and drop the stack without
-    releasing. `release_test_lock()` releases exactly one acquisition, so the
-    count then never reached zero and every later HttpCase request blocked for
-    `test_cursor_lock_timeout` and failed with "Unable to acquire lock for test
-    cursor after 20s" -- attributed to whichever test ran next.
-
-    Driven directly rather than through a nested suite: a nested
-    TransactionCase opens its own connection, which then blocks on a relation
-    lock the outer transaction is holding.
-    """
-
     def test_stranded_cursor_does_not_leak_an_acquisition(self):
         before = _registry_test_lock.count
 
@@ -928,7 +899,6 @@ class TestStrandedTestCursorReleasesItsLock(TransactionCase):
         self.assertEqual(
             _registry_test_lock.count, before + 1, "opening one takes the lock"
         )
-        # deliberately not closed -- this is the defect under test
         self.assertIn(cursor, TestCursor._cursors_stack)
 
         with mute_logger("odoo.tests.common"):
@@ -945,7 +915,6 @@ class TestStrandedTestCursorReleasesItsLock(TransactionCase):
         )
 
     def test_handover_to_another_thread_still_works(self):
-        """The accounting above is only meaningful if handover then works."""
         acquired = []
 
         def worker():
@@ -970,12 +939,6 @@ class TestStrandedTestCursorReleasesItsLock(TransactionCase):
 
 
 class TestSetUpIsRerunPerAttempt(BaseCase):
-    """setUp runs once per *attempt*, not once per test.
-
-    So a setUp that derives an instance attribute from itself compounds under
-    ODOO_TEST_FAILURE_RETRIES. HttpCase.setUp did exactly that with its logger.
-    """
-
     def test_http_case_logger_is_derived_from_the_class(self):
         source = inspect.getsource(HttpCase.setUp)
         self.assertIn(
@@ -993,7 +956,6 @@ class TestSetUpIsRerunPerAttempt(BaseCase):
             _logger = logging.getLogger("probe.Class")
 
             def setUp(self):
-                # only the line under test, not the full HttpCase setUp
                 self._logger = type(self)._logger.getChild(self._testMethodName)
                 names.append(self._logger.name)
 
@@ -1012,8 +974,6 @@ class TestSetUpIsRerunPerAttempt(BaseCase):
 
 
 class TestOpenerCleanupIsLateBound(BaseCase):
-    """authenticate() replaces self.opener; the cleanup must follow it."""
-
     def test_cleanup_closes_the_current_opener(self):
         closed = []
 
@@ -1026,9 +986,8 @@ class TestOpenerCleanupIsLateBound(BaseCase):
 
         holder = type("H", (), {})()
         holder.opener = FakeOpener("first")
-        # the shape HttpCase.setUp now registers
         cleanup = partial(HttpCase._close_opener, holder)
-        holder.opener = FakeOpener("second")  # what authenticate() does
+        holder.opener = FakeOpener("second")
         cleanup()
 
         self.assertEqual(
@@ -1054,14 +1013,6 @@ class TestResultStatsAreSummed(BaseCase):
 
 
 class TestEveryStatementApiIsWrapped(BaseCase):
-    """TestCursor must wrap every statement entry point that is recorded.
-
-    Anything it does not wrap reaches the server through __getattr__ without
-    _check_savepoint, i.e. outside the savepoint the test cursor is built on.
-    _STATEMENT_RECORDERS is gated by TestPatchExecuteStatementApi; this is the
-    other half, so the two lists cannot drift apart silently.
-    """
-
     def test_testcursor_wraps_every_recorded_statement(self):
         recorded = set(_STATEMENT_RECORDERS) | set(_DELEGATING_STATEMENTS)
         wrapped = {name for name in recorded if name in vars(TestCursor)}
@@ -1140,13 +1091,6 @@ class TestAddonRelativePath(BaseCase):
 
 
 class TestInfrastructureUnavailable(BaseCase):
-    """A missing environment must not read as a clean pass.
-
-    Chrome absent, devtools unreachable, websocket-client not installed: all of
-    these used to raise plain SkipTest, so a host with a broken browser ran zero
-    tour assertions and the process still exited 0.
-    """
-
     def test_it_is_still_a_skip_by_default(self):
         self.assertTrue(issubclass(InfrastructureUnavailable, SkipTest))
 

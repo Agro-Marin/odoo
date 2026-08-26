@@ -9,22 +9,6 @@ _CODE_SEPARATORS = re.compile(r"[^A-Z0-9]+")
 
 
 class MixinTagNested(models.AbstractModel):
-    """A tag that nests: parent, children, and a path for a display name.
-
-    Everything :class:`mixin.tag` gives, plus the hierarchy — so a model opts
-    into a tree by asking for one, rather than by inheriting the word "tag".
-
-    The inheriting model declares its own ``parent_id`` and ``child_ids``,
-    because a self-reference cannot name its comodel from here.
-
-    Name uniqueness is re-scoped to the parent: two branches may each hold a
-    "North", which is the point of a tree, and the flat rule would refuse the
-    second. The derived declaration replaces the inherited one under the same
-    attribute name — see :class:`mixin.catalog` for why that is the supported
-    way to change it. ``code`` stays globally unique regardless: identity is
-    not a per-branch question.
-    """
-
     _name = "mixin.tag.nested"
     _inherit = ["mixin.tag"]
     _description = "Nested Tag (tag with a parent/child hierarchy)"

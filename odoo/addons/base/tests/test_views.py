@@ -7925,13 +7925,6 @@ class TestSelfHandledArchMigration(ViewCase):
 
 
 class TestShadowedMigrationBehaviour(ViewCase):
-    """`_migrate_self_handled_arch` was defined twice, and the wrong one won.
-
-    Four tests already covered the respellings, and they passed against both
-    implementations -- which is why three weeks of the intended one being dead
-    went unnoticed. These cover the differences the two disagreed on.
-    """
-
     def _view_with_an_unsaved_edit(self):
         view = self.View.create(
             {
@@ -7988,10 +7981,6 @@ class TestShadowedMigrationBehaviour(ViewCase):
         self.assertNotIn('name="model"', view.arch)
 
     def test_an_alert_dismiss_moves_to_the_service_that_reads_it(self):
-        # web/static/src/ui/alert/dismiss_alert_service.js listens on
-        # [data-dismiss-alert]; Bootstrap's own enableDismissTrigger(Alert)
-        # listens on [data-bs-dismiss="alert"]. Both work, so this pins which
-        # spelling the fork writes rather than claiming the other is broken.
         view = self.View.create(
             {
                 "name": "alert",
@@ -8008,11 +7997,6 @@ class TestShadowedMigrationBehaviour(ViewCase):
 
 class TestGroupbyPostprocessTermination(ViewCase):
     def test_a_self_referencing_groupby_does_not_recurse(self):
-        # <groupby name="parent_id"> on res.partner: the comodel is res.partner
-        # and it declares parent_id too, so handing the node itself to
-        # _postprocess_view made it that walk's own root, dispatched the same
-        # handler, and get_view() died of a RecursionError on a view that had
-        # created and validated cleanly. 250 many2one fields close this cycle.
         view = self.View.create(
             {
                 "name": "self-referencing groupby",
@@ -8070,10 +8054,6 @@ class TestFilterDefaultPeriodChildren(ViewCase):
         )
 
     def test_a_comment_child_does_not_raise_a_bare_keyerror(self):
-        # child.attrib['name'] was a raw subscript over every child, comments
-        # included. KeyError is a LookupError, so it matched none of
-        # _check_xml's handlers and escaped validation with no view, file or
-        # line attached to it.
         self.assertTrue(self._search_view("<!-- a note -->"))
 
     def test_an_unnamed_element_child_does_not_raise_a_bare_keyerror(self):
@@ -8108,9 +8088,6 @@ class TestCopyRegeneratesTheKey(ViewCase):
         )
 
     def test_a_plain_copy_gets_its_own_key(self):
-        # record_lifecycle.js calls copy() with no default at all, so the
-        # product's duplicate button took exactly the branch that re-used the
-        # key. A shared key makes the copy a COW-specific view of its original.
         original = self._qweb()
         self.assertNotEqual(original.copy().key, original.key)
 
@@ -8132,17 +8109,6 @@ class TestCopyRegeneratesTheKey(ViewCase):
 
 @tagged("post_install", "-at_install")
 class TestCombineIsBatched(ViewCase):
-    """Batching is declined while `pool._init`, so these must run after it.
-
-    At install, `_get_combined_archs()` over a whole recordset makes
-    `check_view_ids` the union of every chain in it, and `_filter_loaded_views`
-    then admits an ancestor that resolving one view alone had excluded -- a
-    different arch, not just a cheaper one. Run `-at_install` these measured 22
-    queries for 20 views and a root whose extension the batch applied and the
-    loop filtered out. That is the guard working, and it is pinned below by
-    TestCombineBatchingIsDeclinedAtInstall.
-    """
-
     def _forms(self, count):
         views = self.View.create(
             [
@@ -8166,11 +8132,6 @@ class TestCombineIsBatched(ViewCase):
         return self.env.cr.sql_log_count - before
 
     def test_validating_many_views_costs_one_combine_not_one_each(self):
-        # _get_combined_arch() is ensure_one() over _get_combined_archs(), so
-        # the loop paid one recursive CTE per view: 40 of _check_xml's 42
-        # queries at N=40. An absolute assertQueryCount at N=1 cannot see this
-        # class of defect at all -- so this asserts the MARGINAL cost, over two
-        # sizes, which is the only shape that catches an N+1 in a batch path.
         small = self._queries_to_validate(2)
         large = self._queries_to_validate(20)
         self.assertLessEqual(
@@ -8223,10 +8184,6 @@ class TestCombineIsBatched(ViewCase):
 
 class TestCombineBatchingIsDeclinedAtInstall(ViewCase):
     def test_the_batch_is_declined_while_the_registry_is_loading(self):
-        # This class is at_install by default, which is the point: while
-        # pool._init is set, batching would widen check_view_ids to the union
-        # of every chain in the recordset and change the resulting arch.
-        # Declining is not a missed optimisation, it is the correctness guard.
         self.assertTrue(self.env.registry._init, "this must run at install")
         views = self.View.create(
             [
@@ -8244,9 +8201,6 @@ class TestCombineBatchingIsDeclinedAtInstall(ViewCase):
 
 class TestResetArchRejectsAnUnknownMode(ViewCase):
     def test_an_unknown_mode_raises_rather_than_reporting_nothing_to_do(self):
-        # website/controllers/main.py passes a mode straight off an HTTP
-        # request. `continue` made a wrong value indistinguishable from a view
-        # that simply had nothing to reset.
         view = self.View.create(
             {
                 "name": "reset mode",
@@ -8261,7 +8215,6 @@ class TestResetArchRejectsAnUnknownMode(ViewCase):
 
 class TestPreloadViewsIgnoresFalsyRefs(ViewCase):
     def test_a_none_ref_is_skipped_rather_than_crashing(self):
-        # `ref.isdigit()` ran in the comprehension above the `if ref` filter.
         self.assertIsInstance(self.View._preload_views([None]), dict)
 
     def test_an_empty_ref_is_skipped(self):
@@ -8269,17 +8222,6 @@ class TestPreloadViewsIgnoresFalsyRefs(ViewCase):
 
 
 class TestBothPhasesShareOneScope(ViewCase):
-    """`_postprocess_view` and `_check_view` thread the same scope.
-
-    They walk the same tree and narrow the same two things down it --
-    `view_groups` by each node's `groups`, `editable` by `_editable_node`.
-    That was written twice, and while it was, their `groupby` handlers
-    disagreed about whether to recurse into their own node: one terminated
-    only because the comodel happened to lack a same-named field, and
-    `get_view()` died of a `RecursionError` on a view that had validated
-    cleanly. These pin the shared contract so the next divergence is a diff.
-    """
-
     ARCH = """<form>
         <field name="name"/>
         <group groups="base.group_system">
@@ -8292,7 +8234,6 @@ class TestBothPhasesShareOneScope(ViewCase):
     </form>"""
 
     def _scopes(self, phase):
-        """Every node_info the phase builds, keyed by tag path."""
         seen = []
         View = type(self.View)
         original = View._iter_arch_nodes
@@ -8357,10 +8298,6 @@ class TestBothPhasesShareOneScope(ViewCase):
         )
 
     def test_children_appears_only_where_a_handler_steers_the_walk(self):
-        # `node_info["children"]` is how a handler tells _iter_arch_nodes what
-        # to descend into. It is absent until one sets it, which is why the key
-        # sets above are otherwise equal -- and it is the protocol the two
-        # handlers that steer by mutating the tree instead should be using.
         plain = {k for _tag, info in self._scopes("post") for k in info}
         self.assertNotIn("children", plain)
 
@@ -8436,10 +8373,6 @@ class TestBothPhasesShareOneScope(ViewCase):
                 )
 
     def test_refine_runs_before_the_groups_narrowing(self):
-        # The check phase's refine reads the `groups` attribute to report an
-        # unknown group. Running it after the narrowing would still see the
-        # attribute, but the ordering is what lets a phase act on the raw value
-        # before it is folded in -- so it is pinned rather than incidental.
         seen = []
 
         def refine(node, info):
@@ -8459,15 +8392,6 @@ class TestBothPhasesShareOneScope(ViewCase):
 
 
 class TestSteeringDoesNotHideASubtreeFromTheSchema(ViewCase):
-    """A subtree pulled out to be validated separately still reaches the RNG.
-
-    `_check_xml` runs `valid_view` over the same tree `_check_view` walked, so
-    a handler that DETACHED its subtree -- to validate it as its own view type
-    -- also took it out of the schema's reach. `search_view.rng` says a
-    searchpanel holds only fields and `list_view.rng` says the same of a
-    groupby, and neither rule was being enforced.
-    """
-
     def _create(self, model, view_type, arch):
         return self.View.create(
             {"name": "steering", "model": model, "type": view_type, "arch": arch}
@@ -8514,7 +8438,6 @@ class TestSteeringDoesNotHideASubtreeFromTheSchema(ViewCase):
         )
 
     def test_the_searchpanel_survives_validation_in_the_tree(self):
-        # It used to be removed outright, which is what hid it from the schema.
         view = self._create(
             "res.partner",
             "search",
@@ -8548,8 +8471,6 @@ class TestSteeringDoesNotHideASubtreeFromTheSchema(ViewCase):
         )
 
     def test_the_searchpanel_is_walked_once_not_twice(self):
-        # Steering replaced removal, so the outer walk has to be told to skip
-        # the searchpanel rather than simply not finding it any more.
         view = self._create(
             "res.partner",
             "search",

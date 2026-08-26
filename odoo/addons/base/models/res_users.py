@@ -561,16 +561,6 @@ class ResUsers(models.Model):
         self._invalidate_session_tokens()
 
     def _invalidate_session_tokens(self) -> None:
-        """Drop the caches keyed on the fields a session token hashes.
-
-        `password` is one of `_get_fields_invalidation`, so `write` already
-        does this -- but both setters above reach the column with raw SQL, and
-        a stale `_compute_session_token` keeps every session issued under the
-        *old* password valid. `_check_credentials` used to repair that by hand
-        at its own call site, which left every other caller exposed:
-        `auth_ldap.change_password` empties the local password and returns
-        without ever going through `write`.
-        """
         self.env.registry.clear_cache()
 
     def _rpc_api_keys_only(self) -> bool:

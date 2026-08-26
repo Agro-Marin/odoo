@@ -354,26 +354,6 @@ class TestFloatPrecision(TransactionCase):
 
 
 class TestNumericColumnPrecision(TransactionCase):
-    """A `Float` with digits is a `numeric` column, and what reaches it must not
-    depend on which write path the ORM chose.
-
-    `convert_to_column` returned a plain `float`. psycopg dumps a float as
-    `float8`, and PostgreSQL's `float8 -> numeric` cast keeps only DBL_DIG (15)
-    significant digits, so a large amount lost its cents on the way in:
-
-        12345678901234.56  ->  12345678901234.6
-        99999999999999.98  ->  100000000000000
-
-    `copy_from` never had the problem -- it sends `Decimal(str(value))` -- so
-    the two paths disagreed, and the ORM picks between them purely on batch
-    size (`COPY_THRESHOLD`, 10). Measured end to end before the fix: creating
-    four records stored `12345678901234.6` and creating them again over the
-    threshold stored `12345678901234.56`.
-
-    Sending a `Decimal` is also not a tax -- 500 records x 2 numeric fields
-    measured 181 ms against 191 ms -- because it skips the cast entirely.
-    """
-
     LOSSY = (
         12345678901234.56,
         99999999999999.98,
@@ -406,15 +386,6 @@ class TestNumericColumnPrecision(TransactionCase):
         )
 
     def test_a_float8_column_is_still_given_a_float(self):
-        """Swept over the registry, not over `res.partner`.
-
-        This used to loop `res.partner._fields` and `break` on the first float8
-        column. There is none -- `partner_latitude` and `partner_longitude` are
-        both `numeric` -- so the loop matched nothing, fell out, and the test
-        reported success having asserted precisely nothing. The guard is what
-        makes that visible; sweeping the registry is what gives it something to
-        check (13 fields, `report.paperformat` among them).
-        """
         float8_fields = self.assertSweep(
             (
                 (name, fname, field)
@@ -439,11 +410,6 @@ class TestNumericColumnPrecision(TransactionCase):
                 )
 
     def test_what_the_field_decided_is_what_is_stored(self):
-        """The field is entitled to round to its own digits -- `partner_latitude`
-        is (10, 7), so 0.1 + 0.2 legitimately becomes 0.3. What it is not
-        entitled to do is lose digits it kept: whatever `convert_to_column`
-        returns must arrive intact.
-        """
         model, field = self._numeric_field()
         self.env.cr.execute("DROP TABLE IF EXISTS _test_numeric_precision")
         self.env.cr.execute(
@@ -466,7 +432,6 @@ class TestNumericColumnPrecision(TransactionCase):
                 )
 
     def test_a_large_amount_keeps_its_cents(self):
-        """The concrete symptom, on a field that does not round them away."""
         model = self.env["res.currency"]
         field = model._fields["rounding"]
         self.assertEqual(field.column_type[0], "numeric")
@@ -496,7 +461,6 @@ class TestNumericColumnPrecision(TransactionCase):
         model, field = self._numeric_field()
         value = 12345678901234.56
         insert_side = field.convert_to_column(value, model, {})
-        # what copy_from does to a float bound for a numeric column
         copy_side = Decimal(str(value))
         self.assertEqual(
             insert_side,

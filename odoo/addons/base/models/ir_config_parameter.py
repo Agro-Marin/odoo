@@ -39,8 +39,6 @@ class IrConfig_Parameter(models.Model):
     @mute_logger("odoo.addons.base.models.ir_config_parameter")
     def init(self, force: bool = False) -> None:
         self = self.with_context(prefetch_fields=False).sudo()
-        # One read for the whole set; searching per key cost a query each,
-        # every time the registry initialises this model.
         present = set(
             self.search([("key", "in", list(_default_parameters))]).mapped("key")
         )

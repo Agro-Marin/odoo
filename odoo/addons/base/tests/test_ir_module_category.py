@@ -40,16 +40,6 @@ class TestModuleCategory(TransactionCase):
 
 
 class TestUpdateCategoryIdentity(TransactionCase):
-    """`_update_category` must settle, whatever the resolved category is *named*.
-
-    `create_categories` keys a category by an xml_id derived from the manifest
-    path, and base data is free to name that record anything: the manifest path
-    `Accounting/Accounting` is stored under the name `Invoicing`. Comparing the
-    path against the stored display names therefore never matched for such a
-    category, so every `update_list()` re-resolved it and rewrote `category_id`
-    to the value it already held -- for 630 of this workspace's 1556 modules.
-    """
-
     def _module(self, suffix=""):
         return self.env["ir.module.module"].create(
             {"name": f"test_update_category_module{suffix}", "state": "uninstalled"}

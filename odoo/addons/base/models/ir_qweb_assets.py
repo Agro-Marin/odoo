@@ -59,31 +59,15 @@ _loader_log = get_asset_logger("loader")
 _lock_log = get_asset_logger("lock")
 _pregen_log = get_asset_logger("pregen")
 
-#: Process-wide, keyed `(database, bundle)`.  The transition rules and the
-#: synchronisation live in `odoo/tools/assets/esbuild_policy.py`, where they
-#: are unit-testable; this module only supplies the clock and the cooldowns.
 _esbuild_circuit = EsbuildCircuit()
 
 
 class _BuildDeclined(Exception):
-    """A build declined, so the ormcache must not store the degraded result.
-
-    Raising rather than returning is the whole mechanism: `tools.ormcache`
-    stores a return value and lets an exception through, so a decline that
-    returns `None` or `("", ...)` would be remembered as the answer until the
-    `assets` cache is next cleared.
-    """
-
-
+    pass
 class _EsmFallbackError(_BuildDeclined):
-    """The native-ESM render path declined; the caller re-renders per file."""
-
-
+    pass
 class _StandaloneBundleDeclined(_BuildDeclined):
-    """A standalone-bundle build declined; the caller degrades on its own
-    terms, because what a receiving context can still use is specific to it."""
-
-
+    pass
 class EsbuildBundleError(RuntimeError):
     pass
 
@@ -152,11 +136,6 @@ class IrQweb(models.AbstractModel):
         debug: str | None = None,
         autoprefix: bool = False,
     ) -> list[str]:
-        # `rtl` and `autoprefix` reach only the stylesheet pipeline
-        # (`AssetsBundle._collect_files` hands them to the stylesheet type and
-        # to nothing else), so for a JS-only call they are not merely unused --
-        # they are cache-key noise, splitting one answer across two entries per
-        # text direction.  Pinning them off also spares the language lookup.
         rtl = css and self._is_rtl_language()
         autoprefix = css and autoprefix
         assets_params = self.env["ir.asset"]._prepare_assets_params()
@@ -353,27 +332,6 @@ class IrQweb(models.AbstractModel):
         return asset_bundle.get_native_module_data()
 
     def _get_standalone_bundle(self, bundle: str) -> tuple[str, str] | None:
-        """Build (or reuse) a self-contained ESM bundle, as an ``(url, code)`` pair.
-
-        A standalone bundle is one delivered to a context Odoo does not render
-        a layout for -- a worker booted from a ``blob:`` URL, a third-party
-        page that carries the livechat embed -- so it gets no import map and no
-        ``odoo.loader``.  ``esm.standalone_bundles`` is what tells esbuild to
-        inline every external instead of leaving a bare specifier behind, and
-        this is the one way to obtain the result: a single file, persisted as a
-        content-addressed ``/web/assets/esm/<hash>/...`` attachment.
-
-        :return: ``(url, code)``, or ``None`` when the build declined (circuit
-            breaker open, lock contention, esbuild failure, ...).  Callers
-            degrade on their own terms -- there is no generic fallback,
-            because what a receiving context can still use is specific to it.
-
-        The code is returned alongside the URL on purpose: the attachment row
-        is committed out of band on a dedicated cursor
-        (``_save_esm_attachment_rows``), so the current request's
-        repeatable-read transaction cannot see it yet -- a serving controller
-        must not need a row lookup.
-        """
         assets_params = self.env["ir.asset"]._prepare_assets_params()
         try:
             return self._get_standalone_bundle_cached(bundle, assets_params)
@@ -381,14 +339,6 @@ class IrQweb(models.AbstractModel):
             return None
 
     @tools.conditional(
-        # Mirror the native-ESM node caches: hold until an ir.asset write or a
-        # module update clears the "assets" cache.  A new build saves a new
-        # content-addressed attachment and clears it too.
-        #
-        # `assets_params` is part of the key, as it is for
-        # `_get_esm_bundle_payload_cached`: `website` puts `website_id` in it and
-        # an `ir.asset` row can be website-scoped, so keying on the bundle name
-        # alone would serve one website's build to another.
         "xml" not in tools.config["dev_mode"],
         tools.ormcache(
             "bundle",
@@ -407,35 +357,19 @@ class IrQweb(models.AbstractModel):
         )
         if not esbuild_result.code:
             raise _StandaloneBundleDeclined
-        # Templates ride inside the one file, the way `_get_esm_nodes_prod`
-        # combines them into the module script: a page renders them from a
-        # second <script>, and there is no page here.
         code = self._combine_bundle_with_templates(
             esbuild_result.code,
             asset_bundle.generate_esm_template_bundle(use_import=False),
         )
-        # Same reason for `odoo.loader`, which a page gets from its own shim
-        # <script>.  The shim is written against `globalThis` with optional
-        # chaining throughout and returns early when a loader already exists,
-        # so it is inert in a worker and idempotent everywhere else.  It goes
-        # first: the registration the esbuild entry emits runs at the end of
-        # the module body and needs `odoo.loader` to exist by then.
         code = self._prepare_loader_shim_js() + "\n" + code
         try:
             url = self._save_esm_attachment(
                 bundle,
                 code,
                 metafile=esbuild_result.metafile,
-                # No sourcemap: the shim and the templates shift esbuild's
-                # line numbers, and a map that points 34 lines off is worse
-                # than none -- it misreports silently.  The metafile is
-                # line-independent and still useful.
                 sourcemap=None,
             )
         except Exception as exc:
-            # Same degradation contract as the render path: a persistence
-            # failure (a read-only cursor with the primary unreachable, ...)
-            # must not break the endpoint.
             _logger.warning(
                 "Could not persist the standalone bundle %s", bundle, exc_info=True
             )
@@ -483,15 +417,6 @@ class IrQweb(models.AbstractModel):
         )
         self._check_lazy_bundle_relative_imports(asset_bundle)
         native_data = asset_bundle.get_native_module_data()
-        # Seed the external-lib table first, the way
-        # `_get_esm_import_map_debug` does.  A rendered page gets these from
-        # its layout's import map, but this payload is also loaded onto pages
-        # that have no layout import map at all -- the livechat embed on a
-        # third-party site is one -- and there the bundle's own entries alone
-        # leave `@odoo/hoot-dom-helpers-dom` and friends unresolvable.  The
-        # bundle's own entries still win, and `loadESMBundle` drops any
-        # specifier the document already claims for the same URL, so a normal
-        # page is unaffected.
         import_map = dict(self._external_libs())
         import_map.update(native_data["import_map"])
         import_map.update(native_data.get("bridge_import_map", {}))
@@ -526,22 +451,11 @@ class IrQweb(models.AbstractModel):
 
     _loader_shim_cache: tuple[float, str] | None = None
 
-    #: The module-level `_esbuild_circuit` above, bound here so a test or an
-    #: addon can reach the breaker through the model rather than the module.
     _esbuild_circuit = _esbuild_circuit
     _ESBUILD_COOLDOWN_S: float = 60.0
     _ESBUILD_EXTENDED_COOLDOWN_S: float = 600.0
 
     def _get_esbuild_config(self):
-        """The typed parameter readers, which already do what this model used
-        to re-derive: read, cast, warn on a bad value, fall back to a default.
-
-        The re-derivation is what let ``fail_closed`` drift -- it spelled the
-        falsy set ``("0", "false", "")`` while every other boolean parameter in
-        the codebase reads ``ir.config_parameter._FALSY_PARAM_VALUES``, so
-        ``web.esbuild.fail_closed = no`` *enabled* fail-closed and turned an
-        esbuild error into a 500 for the operator who tried to disable it.
-        """
         return self.env["ir.config_parameter"].sudo()
 
     def _is_esbuild_fail_closed(self) -> bool:
@@ -565,13 +479,6 @@ class IrQweb(models.AbstractModel):
         )
 
     def _open_esbuild_circuit(self, bundle: str, reason: str) -> None:
-        # BOTH cooldowns are read before the circuit is touched.  Choosing
-        # between them depends on the failure count, and the count is only
-        # knowable inside the critical section -- so reading the parameters
-        # there would mean holding a lock across a database round trip, and
-        # reading them in two passes (which is what this did) means two workers
-        # failing together both see "first failure" and the extended cooldown
-        # is never reached.
         config = self._get_esbuild_config()
         now = time.monotonic()
         entry = _esbuild_circuit.record_failure(
@@ -609,25 +516,6 @@ class IrQweb(models.AbstractModel):
 
     @contextlib.contextmanager
     def _get_esbuild_lock_cursor(self, bundle: str):
-        """Always a dedicated cursor, so the lock lives exactly as long as the
-        compile.
-
-        This used to hand back ``self.env.cr`` whenever it was writable.
-        ``pg_try_advisory_xact_lock`` releases at *transaction* end, so on a
-        read-write request the lock outlived the compile by the whole rest of
-        the request -- verified in ``pg_stat_activity``, where a second backend
-        sat on ``wait_event=advisory`` while the holder was already
-        ``idle in transaction``.
-
-        Every worker that wanted the same bundle in that window lost the lock
-        and fell into the per-file branch, which is not merely slower but a
-        different page: measured on ``web.assets_web``, 3 nodes became ~570 and
-        the import map's HOOT surface went from 7 specifiers to 13.  That is
-        the production-page fallback ``_bridge_external_specifiers`` documents.
-
-        A read-only cursor under test still declines outright: a test that
-        cannot persist has nothing to gain from paying for the compile.
-        """
         if self.env.cr.readonly and _module.current_test:
             yield None
             return
@@ -691,14 +579,6 @@ class IrQweb(models.AbstractModel):
     def _get_hoot_specifiers(cls, bundle: str, specifiers: Iterable[str]) -> list[str]:
         registry = esm_registry()
         if bundle in registry.import_map_includes:
-            # A parent of an import-map pair owns no tests: its job is to
-            # PROVIDE, the child's is to run.  Hoot specifiers are withheld from
-            # `registerNativeModules` and handed to `loadAndStart` instead, so
-            # classifying any of a parent's modules as hoot does two wrong
-            # things at once -- it starts a runner from the setup bundle, and it
-            # withholds exactly the modules (`start.hoot`, the `_framework`
-            # helpers) the child has to bridge onto, leaving the child with
-            # `loadAndStart is not a function`.
             return []
         by_directory = bundle in registry.import_map_included_bundles
         return [
@@ -728,9 +608,6 @@ class IrQweb(models.AbstractModel):
 
     @classmethod
     def _prepare_loader_shim_node(cls, bundle: str) -> AssetNode:
-        # Marked so `_dedup_request_page_scripts` can recognise it after the
-        # ormcache has handed the node back; the attribute is also what tells
-        # the two shim copies apart when reading a page's source.
         return (
             "script",
             {LOADER_SHIM_MARKER: bundle, "text": cls._prepare_loader_shim_js()},
@@ -761,20 +638,6 @@ class IrQweb(models.AbstractModel):
         page_scope: tuple[str, ...] = (),
         esbuild_ok: bool = True,
     ) -> EsmNodePair:
-        """``esbuild_ok`` is a cache key, which is what makes the degraded
-        render cacheable at all.
-
-        Without it, a bundle whose circuit is open (or that an operator put on
-        ``web.esbuild.force_fallback_bundles``) declined here on every request,
-        the decline raised so nothing was stored, and the caller then rebuilt
-        the whole per-file answer from scratch -- measured at 0.053 s and 19
-        `AssetsBundle` constructions per request against 0.000 s and 0 for a
-        cache hit, for as long as the cooldown lasts (600 s after a second
-        failure).  Keying on the decision instead gives the fallback its own
-        entry, and closing the circuit switches back to the other key rather
-        than needing an invalidation -- so an open circuit still never evicts a
-        healthy prod artifact.
-        """
         return self._get_native_module_nodes_uncached(
             bundle,
             debug=False,
@@ -796,10 +659,6 @@ class IrQweb(models.AbstractModel):
             assets_params = self.env["ir.asset"]._prepare_assets_params()
         satellites = self._has_esm_test_satellites(debug)
         page_scope = self._get_esm_page_scope(bundle)
-        # One reading of the esbuild decision per render, and it is a cache key
-        # rather than a reason to bypass the cache.  It also subsumes the
-        # forced-fallback list this used to re-read separately here and again
-        # inside `_can_compile_with_esbuild`.
         esbuild_ok = not debug_assets and self._can_compile_with_esbuild(bundle)
         if not debug_assets:
             try:
@@ -811,10 +670,6 @@ class IrQweb(models.AbstractModel):
                     esbuild_ok=esbuild_ok,
                 )
             except _EsmFallbackError:
-                # esbuild was available and declined anyway -- lock contention,
-                # a compile error, a read-only cursor.  Transient by nature, so
-                # it stays uncached; `esbuild_ok=False` is the durable case and
-                # never reaches here.
                 pre, post = self._get_native_module_nodes_uncached(
                     bundle,
                     debug=debug,
@@ -844,19 +699,6 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         pre_nodes: list[AssetNode],
     ) -> list[AssetNode]:
-        """Drop the page-level singletons a later bundle would repeat.
-
-        Two of them: the import map and the ``odoo.loader`` shim.  Both are
-        page-scoped rather than bundle-scoped, and both were handled in only
-        one of the two rendering branches -- `_get_esm_nodes_debug` consulted
-        `request._esm_import_map_rendered` for the map, the shim AND the
-        registration block, while `_get_esm_nodes_prod` consulted nothing and
-        relied on this method, which covered the map alone.  So a page with two
-        prod bundles carried two copies of the shim (verified on `/web/login`:
-        5,554 bytes each; the second is inert, `module_loader.js` returns early
-        when a loader exists).  Doing it here rather than in the branches is
-        deliberate: the branch results are ormcached and the page state is not.
-        """
         if not request:
             return pre_nodes
         first = not getattr(request, "_esm_import_map_rendered", False)
@@ -876,15 +718,6 @@ class IrQweb(models.AbstractModel):
     def _warn_on_dropped_import_map_specs(
         self, bundle: str, pre_nodes: list[AssetNode]
     ) -> None:
-        """Name the specifiers this dedup costs the page.
-
-        Dropping a later bundle's whole import map is only sound if the map
-        already rendered resolves everything this one needs, and nothing states
-        or checks that.  It is not academic: on `web.unit_tests_suite` the
-        child's map carries one specifier the parent's lacks.  It survives
-        because esbuild inlines that import, but the next one might not, and
-        `event=importmap_skipped` named none of it.
-        """
         rendered = getattr(request, "_esm_import_map_specs", frozenset())
         dropped = sorted(self._get_import_map_specs(pre_nodes) - rendered)
         log_event(
@@ -936,11 +769,6 @@ class IrQweb(models.AbstractModel):
             )
             return [], []
 
-        # Only attempt the compile when esbuild is believed available.  When it
-        # is not, the per-file answer IS the answer for this cache key, so it
-        # must not raise -- and skipping the attempt also spares the lock
-        # cursor and the child-bundle walk that `_compile_with_esbuild_locked`
-        # would do purely to be turned away.
         if not debug_assets and esbuild_ok:
             esbuild_result, child_bundles = self._compile_with_esbuild_locked(
                 bundle, asset_bundle, assets_params, page_scope
@@ -1107,12 +935,6 @@ class IrQweb(models.AbstractModel):
         debug_assets: bool,
     ) -> list[AssetsBundle]:
         registry = esm_registry()
-        # Deliberately NOT scoped to installed modules: an absent module's
-        # child is built and comes back empty, which keeps the child set a
-        # function of the declarations rather than of the database.
-        # `test_absent_modules_contribute_empty_children_not_wrong_ones` and
-        # `test_dynamic_children_follow_bundle_includes` both pin that, and an
-        # empty bundle costs ~0.03 ms to construct.
         child_names = dict.fromkeys(
             child_name
             for parent_name in self._get_dynamic_parent_bundles(bundle, assets_params)
@@ -1191,22 +1013,6 @@ class IrQweb(models.AbstractModel):
         return include_names
 
     def _get_esm_page_scope(self, bundle: str) -> tuple[str, ...]:
-        """The JS bundles this page has already rendered, for a secondary bundle.
-
-        A secondary bundle is layered onto a page other bundles have already
-        filled, and every layout renders it last: ``web.assets_web`` then
-        ``web.assets_tests`` on the backend, ``web.assets_frontend_lazy`` +
-        ``web.assets_frontend_minimal`` then the tests on the frontend, and the
-        same shape in ``point_of_sale``, ``documents``, ``project``,
-        ``hr_attendance``, ``sign`` and ``knowledge``.  That order is not a
-        convention but a requirement -- a module script cannot import from one
-        that has not run -- and ``pos_assets_index.xml`` records what breaks when
-        it is violated.
-
-        Empty for every other bundle, and empty outside a request: an asset
-        prebuild, a cron or a test renders a bundle with no page around it, and
-        ``_get_secondary_shared_specs`` falls back to the declared parents there.
-        """
         if not request or bundle not in esm_registry().secondary_bundle_names:
             return ()
         return tuple(getattr(request, "_esm_page_bundles", ()))
@@ -1225,27 +1031,7 @@ class IrQweb(models.AbstractModel):
         assets_params: dict[str, Any] | None,
         page_scope: tuple[str, ...],
     ) -> set[str]:
-        """What a page carrying ``bundle`` is guaranteed to have registered.
-
-        Two regimes, and the difference is knowledge rather than caution.  With
-        a ``page_scope`` the providers are the bundles this very page rendered,
-        all of them present, so their **union** is what the page provides.
-        Without one the providers are the declared parents -- a set of *different*
-        pages this one artifact may be layered onto -- and only what **all** of
-        them carry can be externalised safely.
-        """
         providers = page_scope or esm_registry().secondary_parents.get(bundle) or ()
-        # A provider drops out only when it is BOTH empty and absent from this
-        # database.  Emptiness alone used to be the test, and it conflated two
-        # opposite cases: an uninstalled parent is no constraint on this
-        # artifact, while an *installed* parent carrying nothing is the
-        # strongest constraint there is -- it means a page exists on which
-        # these specifiers have no provider at all, and externalising them
-        # there leaves the stub's exports `undefined` until something registers
-        # them (`build_shim_sources` reads `odoo.loader.modules`, so this fails
-        # silently and late rather than at load).  Keeping the installed-but-
-        # empty provider in `spec_sets` lets the intersection below collapse to
-        # nothing, which is the honest answer.
         installed = self.env["ir.asset"]._get_addons_installed()
         spec_sets = []
         for provider in providers:
@@ -1303,16 +1089,6 @@ class IrQweb(models.AbstractModel):
         discovered: Iterable[str],
         stubbed: frozenset[str],
     ) -> None:
-        """Report a layout that renders a secondary bundle before its providers.
-
-        The page-scoped set should be a superset of the declaration-scoped one:
-        a page carries at least what every candidate page carries.  When it is
-        not, a bundle this artifact depends on renders *after* it, so those
-        specifiers cannot be externalised and esbuild inlines a second copy --
-        the singleton split ``pos_assets_index.xml`` describes.  Nothing else
-        notices, hence the warning: the page still boots, it just holds two of
-        each affected module.
-        """
         declared = self._get_secondary_provider_specs(bundle, assets_params, ())
         late = sorted((set(discovered) & declared) - stubbed)
         if not late:
@@ -1333,10 +1109,6 @@ class IrQweb(models.AbstractModel):
         assets_params: dict[str, Any] | None,
         page_scope: tuple[str, ...] = (),
     ) -> dict[str, str]:
-        # One construction, shared with `_get_secondary_shared_specs`.  These
-        # two built the same `AssetsBundle` on consecutive lines of caller and
-        # callee; at 11.4 ms each for `web.assets_tests` that was ~11 ms of the
-        # ~46 ms the four constructions per render cost.
         sec_ab = self._get_asset_bundle(
             bundle,
             js=True,
@@ -1423,14 +1195,6 @@ class IrQweb(models.AbstractModel):
                 name, code, metafile=metafile, sourcemap=sourcemap
             )
         except Exception as exc:
-            # The same degradation contract `_get_standalone_bundle_cached`
-            # states: a persistence failure must not break the caller.  This
-            # caught `ReadOnlySqlTransaction` alone, while
-            # `_save_esm_attachment_rows`' last-resort `create` runs on the
-            # request cursor outside its own `try` and can raise anything --
-            # so a filestore or integrity error took down the whole page
-            # render, for a bundle whose code is in hand and inlineable, which
-            # is exactly what the read-only branch already did.
             log_event(
                 _attach_log,
                 logging.WARNING,
@@ -1727,22 +1491,6 @@ class IrQweb(models.AbstractModel):
 
         start_hoot = [s for s in hoot_specs if s.endswith("/start.hoot")]
         other_tests = [s for s in hoot_specs if s not in start_hoot]
-        # Start the runner only for a bundle that carries a real test file.
-        # `other_tests` is every hoot specifier that is not `start.hoot`, and
-        # that includes the framework's own `*.hoot` side-effect modules -- so a
-        # bundle carrying `_framework/**` and no test at all still looked like a
-        # test bundle here.  `im_livechat`'s embed *setup* bundle is exactly
-        # that: it globs `_framework/**` for import-map coverage, so it started
-        # the runner with nine framework modules and nothing to run, and the
-        # page then sat idle until the 1800s timeout while the real tests
-        # bundle's own `loadAndStart` arrived to an already-started runner.
-        # The framework modules still get evaluated -- the tests bundle hands
-        # them to `loadAndStart` alongside its tests.
-        #
-        # The test is `.test` rather than "not `.hoot`" on purpose: under
-        # `by_directory` -- which an import-map parent gets -- every file under
-        # a `tests/` tree is a hoot specifier, helpers included, and a setup
-        # bundle is made of helpers.
         if start_hoot and any(".test" in spec for spec in other_tests):
             specifier_list = ",\n".join(f"  {json_mod.dumps(s)}" for s in other_tests)
             bridge_code += (
@@ -1847,10 +1595,6 @@ class IrQweb(models.AbstractModel):
         content_hash = cache_hash(content_bytes)[:16]
         url = f"/web/assets/esm/{content_hash}/{bundle}.esm.js"
 
-        # The reuse predicate has to be the one the controller serves with, not
-        # a weaker "url + public": a row matching only the weak form makes this
-        # return a URL that answers 404, and caches it.  See
-        # `ir.attachment._generated_asset_domain`.
         existing = IrAttachment.sudo().search(
             IrAttachment._generated_asset_domain(url),
             limit=1,
@@ -1899,17 +1643,8 @@ class IrQweb(models.AbstractModel):
         return url
 
     def _log_esm_artifacts_superseded(self, bundle: str, keep_url: str) -> None:
-        # The level check comes FIRST.  This query is a sequential scan -- six
-        # `=like` patterns with a leading literal are not an index range, and
-        # at 50k asset rows PostgreSQL reads the table (measured: 17 ms, 50,067
-        # rows removed by filter) -- and it ran unconditionally, before
-        # `log_event` decided the line was disabled.  `_log_pregeneration_coverage`
-        # already opens this way.
         if not _attach_log.isEnabledFor(logging.INFO):
             return
-        # Three of the six patterns used to be spelled twice: `%` matches `/`,
-        # so `/web/assets/%/x.esm.js` already subsumes `/web/assets/esm/%/x.esm.js`,
-        # and likewise for the `.map` and `.meta.json` pair.
         stale_count = (
             self.env["ir.attachment"]
             .sudo()
@@ -2008,17 +1743,6 @@ class IrQweb(models.AbstractModel):
 
     @staticmethod
     def _drop_rows_already_present(cr, vals_list: list[dict]) -> list[dict]:
-        """Re-check the URLs on the cursor that is about to write them.
-
-        Every cursor here runs at ``repeatable read`` and the rows are
-        committed out of band (below), so the caller's reuse search -- which
-        ran on the *request* cursor -- cannot see a row another transaction
-        committed after its snapshot was taken.  Deciding to write from that
-        read is a check-then-act across two snapshots, and it has produced
-        duplicate rows in practice.  Re-reading on the writing cursor closes
-        the window down to that cursor's own transaction, which is as far as
-        this can go without a unique index over the generated-asset URLs.
-        """
         urls = [vals["url"] for vals in vals_list if vals.get("url")]
         if not urls:
             return vals_list
@@ -2108,28 +1832,6 @@ class IrQweb(models.AbstractModel):
         return links
 
     def _log_pregeneration_coverage(self, js_bundles: set[str]) -> None:
-        """Report which runtime-loaded bundles pregeneration cannot see.
-
-        `_get_bundles_to_pregenerate` discovers bundles by scanning qweb views
-        for `t-call-assets`. A bundle fetched at runtime through `loadBundle()`
-        is never `t-call-assets`-ed, so it is invisible to that scan -- and
-        those are exactly the bundles the manifests already declare, as
-        `esm.dynamic_children`.
-
-        This matters most where `_pregenerate_assets_bundles` is called from:
-        `service/lifecycle.py` runs it immediately before a `post_install`
-        suite that has HTTP cases, precisely so browser tests do not pay bundle
-        generation. A dynamic child skips that warm-up, so the first test to
-        request it generates it inside the request -- and because `/web/bundle`
-        is a readonly route, persisting the attachment forces the readonly->rw
-        promotion in `http/_serve.py` and the handler runs twice.
-
-        Logged rather than fixed: adding these to the pregenerated set changes
-        boot for every module's HTTP suite, and `_pregenerate_assets_bundles`
-        builds each bundle inline with no error guard, so one that cannot build
-        in a given database would take the boot down. That wants a decision
-        recorded in `doc/adr/`, not a drive-by.
-        """
         if not _pregen_log.isEnabledFor(logging.DEBUG):
             return
         registry = esm_registry()
@@ -2138,11 +1840,6 @@ class IrQweb(models.AbstractModel):
             for children in registry.dynamic_children.values()
             for child in children
         }
-        # `esm_registry()` is built from `Manifest.all_addon_manifests()` -- every
-        # addon on the addons_path, installed or not -- so the raw count answers
-        # "declared anywhere", not "reachable in this database". Split it, or the
-        # figure reads as a bigger gap than it is: a bundle whose module is not
-        # installed contributes nothing to load here.
         installed = self.env["ir.asset"]._get_addons_installed()
         uncovered = dynamic - js_bundles
         uncovered_here = {b for b in uncovered if b.split(".", 1)[0] in installed}

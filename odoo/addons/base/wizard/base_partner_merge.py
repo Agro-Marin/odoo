@@ -228,8 +228,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         src_partners.sudo().unlink()
 
-        # Only now: a value under a uniqueness constraint cannot be adopted
-        # while the record it came from still holds it.
         if deferred_values:
             dst_partner.write(deferred_values)
 

@@ -640,13 +640,6 @@ class TestIrSequencePatternToRegex(common.TransactionCase):
 
 
 class TestIrSequenceNoGapBatchConcurrency(BaseCase):
-    """no_gap exists to guarantee a contiguous run under concurrency.
-
-    Batching takes the same `FOR UPDATE NOWAIT` lock once instead of `count`
-    times, so a competing draw must still be refused rather than silently
-    interleaved -- which would put a gap in the run no_gap promises.
-    """
-
     SEQ_CODE = "test_sequence_no_gap_batch_race"
 
     def setUp(self):
@@ -671,8 +664,6 @@ class TestIrSequenceNoGapBatchConcurrency(BaseCase):
             drawn = env_a["ir.sequence"].browse(self.seq_id)._next_batch(5)
             self.assertEqual(drawn, ["N-000%d" % n for n in range(1, 6)])
 
-            # `_next` on a contended no_gap row raises the same thing; the
-            # batch must not soften it into a silent gap.
             with self.assertRaises(Exception) as batched:
                 env_b["ir.sequence"].browse(self.seq_id)._next_batch(5)
             cr_b.rollback()
@@ -699,12 +690,6 @@ class TestIrSequenceNoGapBatchConcurrency(BaseCase):
 
 
 class TestIrSequenceNextBatch(common.TransactionCase):
-    """`_next_batch` must hand back exactly what a loop of `_next` would.
-
-    Only the number of statements differs, so every test here compares the
-    two against each other rather than against a literal.
-    """
-
     def _sequence(self, **extra):
         return self.env["ir.sequence"].create({
             "code": "test_next_batch",
@@ -745,7 +730,6 @@ class TestIrSequenceNextBatch(common.TransactionCase):
                 )
 
     def test_no_gap_leaves_no_gap(self):
-        """The whole point of the implementation: the reserved run is contiguous."""
         sequence = self._sequence(implementation="no_gap", number_increment=1)
         drawn = sequence._next_batch(6)
         numbers = [int(value.removeprefix("B-")) for value in drawn]
@@ -796,7 +780,6 @@ class TestIrSequenceNextBatch(common.TransactionCase):
                 )
 
     def test_next_by_code_batch_finds_the_same_sequence(self):
-        """Two identical sequences, so the loop is not continuing the batch."""
         Sequence = self.env["ir.sequence"]
         self._sequence(code="test_by_code_batched", implementation="standard")
         self._sequence(code="test_by_code_looped", implementation="standard")
@@ -806,7 +789,6 @@ class TestIrSequenceNextBatch(common.TransactionCase):
         )
 
     def test_next_by_code_batch_picks_the_company_sequence_first(self):
-        """`next_by_code` orders on `company_id, id`; so must its batch."""
         Sequence = self.env["ir.sequence"]
         self._sequence(code="test_by_code_scoped", company_id=False, prefix="SHARED-")
         self._sequence(code="test_by_code_scoped", company_id=self.env.company.id,
@@ -821,11 +803,10 @@ class TestIrSequenceNextBatch(common.TransactionCase):
         self.assertFalse(Sequence.next_by_code_batch("no_such_sequence_code", 3))
 
     def test_the_batch_costs_one_statement(self):
-        """The reason the method exists."""
         for implementation in ("standard", "no_gap"):
             with self.subTest(implementation=implementation):
                 sequence = self._sequence(implementation=implementation)
-                sequence._next()          # settle any lazy setup
+                sequence._next()
                 self.env.flush_all()
                 before = self.env.cr.sql_log_count
                 sequence._next_batch(20)

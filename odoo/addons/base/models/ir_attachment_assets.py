@@ -33,24 +33,6 @@ class IrAttachment(models.Model):
     def _generated_asset_domain(
         self, url: str | None = None, url_pattern: str | None = None
     ) -> Domain:
-        """The one description of "a row this framework generated and serves".
-
-        Four places used to spell this out separately -- the writer, the reuse
-        check in ``ir.qweb._save_esm_attachment``, the autovacuum below, and
-        ``/web/assets/esm/<unique>/<filename>`` in ``web/controllers/binary.py``
-        -- and the reuse check spelled it *weakest*, matching on ``url`` and
-        ``public`` alone.  A row differing only in ``create_uid`` (a
-        ``group_system`` user duplicating the attachment, a restore, a
-        migration) therefore satisfied reuse and not serving: the build was
-        skipped, no row was written, and the ``<script src>`` the page emitted
-        answered 404 -- cached in the ``assets`` ormcache, and invisible to the
-        GC below, which filters on ``create_uid`` too.
-
-        Pass ``url`` for the single-row form; the exact match replaces the
-        prefix ``=like``, so it is the indexable one.  Pass ``url_pattern`` for
-        the ``=like`` form when the caller already knows a narrower pattern
-        than the bare prefix.
-        """
         if url:
             url_leaf = ("url", "=", url)
         elif url_pattern:

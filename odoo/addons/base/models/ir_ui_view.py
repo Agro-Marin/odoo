@@ -157,10 +157,6 @@ def _extract_view_arch(
     _seen: frozenset[str] = frozenset(),
 ) -> str | None:
     if xmlid in _seen:
-        # A `view_id` ref chain that comes back to something already resolved
-        # has no arch at the end of it, and following it again never
-        # terminates. `None` is this function's "not found", so the caller
-        # already handles it.
         _logger.warning(
             "Cyclic view_id reference in file '%s': %s revisits '%s'",
             filepath,
@@ -607,18 +603,6 @@ class IrUiView(models.Model):
                         self._raise_view_error(message, node)
 
     def _get_combined_archs_by_id(self) -> dict[int, _Element]:
-        # _get_combined_archs() resolves a whole recordset in ONE recursive
-        # CTE. _get_combined_arch() is ensure_one() over it, so asking for the
-        # views one at a time paid one CTE per view -- 40 of _check_xml's 42
-        # queries at N=40, on every create, on every write that touches
-        # active/arch_db/inherit_id, and over every view a module ships.
-        #
-        # Two cases still want the loop, and an empty dict is how this says so.
-        # Under pool._init the batch is strictly more permissive: check_view_ids
-        # becomes the union of every chain in the recordset, so
-        # _filter_loaded_views would admit an ancestor that resolving this view
-        # alone had excluded. And when the batch raises, only the loop can say
-        # which view was responsible.
         if len(self) < 2 or self.pool._init:
             return {}
         try:
@@ -1004,10 +988,6 @@ class IrUiView(models.Model):
         )
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
-        # `default` absent and `default` empty are the same request -- a copy
-        # that was told nothing about the key. Both must re-key: the product's
-        # duplicate button calls copy() with no default at all, and a shared
-        # key makes the copy a COW-specific view of its original.
         default = dict(default or {})
         has_default_without_key = "key" not in default
         vals_list = super().copy_data(default=default)
@@ -1040,12 +1020,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_filter_xmlid_query(self) -> str:
-        # ``= ANY`` over a list rather than ``IN`` over a tuple. Both work here
-        # -- ``SQL()`` expands a tuple into ``IN (%s, %s, ...)`` -- but that
-        # expansion produces a different statement for every cardinality, so a
-        # hot path prepares a new plan per length instead of reusing one. It
-        # also keeps the clause valid if it is ever executed as a plain string,
-        # which is how the same shape broke Chilean invoicing.
         return """SELECT res_id FROM ir_model_data
                   WHERE res_id = ANY(%(res_ids)s) AND model = 'ir.ui.view' AND module = ANY(%(modules)s)
                """
@@ -1134,8 +1108,6 @@ class IrUiView(models.Model):
         if install_module:
             loaded_modules.append(install_module)
         query = self._get_filter_xmlid_query()
-        # lists, not tuples: ``= ANY`` adapts a tuple to a composite rather than
-        # an array, and fails with "malformed array literal"
         sql = SQL(query, res_ids=list(ids_to_check), modules=loaded_modules)
         valid_view_ids = {id_ for (id_,) in self.env.execute_query(sql)} | set(
             check_view_ids
@@ -1173,9 +1145,6 @@ class IrUiView(models.Model):
         return f"{self.name} ({self.xml_id})" if self.xml_id else self.name
 
     def _view_error_context(self, node: _Element | None) -> dict[str, Any]:
-        # `self` is a single view on every raising path, but this also runs
-        # from _log_view_warning; a multi-record `self.name` raises ValueError,
-        # which the getattr this replaces did not catch either.
         return {
             "view": self,
             "name": self.name if len(self) == 1 else None,
@@ -1313,20 +1282,9 @@ class IrUiView(models.Model):
         return self._get_combined_archs()[0]
 
     def _prefetch_ancestry(self) -> None:
-        # The walk in _get_combined_archs() reads inherit_id one level at a
-        # time, and every level is a fresh single-record recordset, so the ORM
-        # prefetches per level: one SELECT per level of inheritance on every
-        # combine. One recursive CTE upward seeds the whole chain, and the walk
-        # then runs from cache. _get_inheriting_views() already resolves the
-        # downward half the same way; this is the missing symmetry.
         if not self.ids:
             return
 
-        # Only when it can pay. A view whose whole chain is already cached --
-        # the common case by far: 772 of 1355 views in a base+website install
-        # are roots -- costs nothing to walk, and issuing the CTE anyway makes
-        # the cheap case one query worse. base's own query-count pins caught
-        # exactly that.
         field = self._fields["inherit_id"]
         pending = self
         while pending:
@@ -1466,25 +1424,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _raise_cached_template_error(self, error: Exception) -> typing.NoReturn:
-        """Raise a *copy* of a template error that a cache is holding.
-
-        ``_get_cached_template_info`` keeps the exception instance in the
-        ``templates`` ormcache and ``_preload_views`` keeps it in the cursor's
-        ``_compile_batch_``, so both hand out one shared object.  ``raise``
-        appends the current frame to that object's ``__traceback__`` and
-        nothing ever trims it, so raising the cached instance grows its
-        traceback by three frames on every failed lookup in the transaction --
-        and :meth:`~odoo.addons.base.models.ir_qweb.IrQweb._generate_code`
-        formats the whole of it with ``traceback.format_exc()``.  Measured, one
-        missing template rendered 100 times in one transaction: 467ms against
-        68ms, growing, with no ceiling short of the next ``templates`` clear.
-
-        ``copy.copy`` reproduces the class, the args and the instance state
-        (``UserError.context``, which ``_generate_code`` reads, included) with
-        ``__traceback__`` unset, so each raise starts from nothing.  It also
-        keeps the cached object immutable, which ``with_traceback(None)`` on
-        the shared instance would not: several threads raise it at once.
-        """
         raise copy.copy(error)
 
     @api.model
@@ -1794,8 +1733,6 @@ class IrUiView(models.Model):
         name_manager = NameManager(
             model, parent=parent_name_manager, model_groups=model_groups
         )
-        # view_groups is not returned: it comes straight back out of node_info
-        # unchanged, and both callers already hold node_info.
         return name_manager, group_definitions, model_groups
 
     def _narrow_model_groups(self, node_info: dict[str, Any], field: Any) -> None:
@@ -1810,19 +1747,6 @@ class IrUiView(models.Model):
         root: _Element,
         make_node_info: Callable[[_Element, dict[str, Any] | None], dict[str, Any]],
     ) -> typing.Iterator[tuple[_Element, dict[str, Any]]]:
-        # A handler runs while its node is yielded, so it can still decide what
-        # this walk descends into -- and `node_info["children"]` is the way to
-        # say so. Detaching the subtree from the tree instead also works, and
-        # was how two handlers did it, but it is not equivalent: `_check_xml`
-        # runs `valid_view` over the SAME tree afterwards, so a subtree taken
-        # out to be validated separately never reached the RelaxNG schema at
-        # all. A searchpanel holding a `<filter>` and a groupby holding a
-        # `<separator>` were both accepted that way.
-        #
-        # The `getparent()` guard below is the one remaining escape hatch, for
-        # a handler that removes its own node: an addon's `_postprocess_tag_*`
-        # may legitimately delete what it was called for, and there is nothing
-        # left to descend into when it does.
         stack: list[tuple[_Element, dict[str, Any] | None]] = [(root, None)]
         while stack:
             node, parent_info = stack.pop()
@@ -1850,21 +1774,6 @@ class IrUiView(models.Model):
     ) -> tuple[
         NameManager, Callable[[_Element, dict[str, Any] | None], dict[str, Any]]
     ]:
-        # The name manager and the per-node closure that _postprocess_view and
-        # _check_view both need. They walk the same tree, thread the same two
-        # scopes down it -- `view_groups`, narrowed by each node's `groups`, and
-        # `editable`, narrowed by _editable_node -- and dispatch on the same
-        # tags. Only what they DO at each node differs, and that stays in each.
-        #
-        # Keeping the threading in one place is what makes the difference
-        # between the two phases a diff rather than a discovery: their groupby
-        # handlers disagreed for months about whether to recurse into their own
-        # node, one of them terminating only by accident, and nothing showed it.
-        #
-        #   root_extra  constant for the whole walk (postprocess: `mobile`)
-        #   scoped      inherited from the parent (check: `validate`)
-        #   refine      the phase's own per-node adjustment, run before the
-        #               `groups` narrowing so it can still read the attribute
         name_manager, group_definitions, model_groups = self._init_view_processing(
             root, model_name, node_info, translate=translate
         )
@@ -2034,12 +1943,6 @@ class IrUiView(models.Model):
         self, field: Any, field_node: _Element, node_info: dict[str, Any]
     ) -> list[_Element]:
         current_view_types = [el.tag for el in _xpath_descendant_field(field_node)]
-        # `mode` is read once. The two defaults are preserved exactly as they
-        # were, disagreement and all: absent, the presence test asks about
-        # both kanban and list, while the type actually added is list (kanban
-        # on mobile). Collapsing them would be a behaviour change, and which
-        # of the two is right is a question for the x2many rendering, not for
-        # a refactor of how the attribute is read.
         declared_mode = field_node.get("mode")
         wanted = declared_mode.split(",") if declared_mode else ["kanban", "list"]
         if any(view_type in current_view_types for view_type in wanted):
@@ -2200,14 +2103,6 @@ class IrUiView(models.Model):
         if not field or not field.comodel_name:
             return
         node_info["children"] = []
-        # The comodel pass runs over a detached scope, not over `node` itself.
-        # Handing `node` to _postprocess_view makes it that walk's own root, so
-        # this handler is dispatched on it again; the recursion then stops only
-        # if the comodel happens to lack a relational field of the same name.
-        # res.partner.parent_id does not, and get_view() died of a
-        # RecursionError on a view that had created and validated cleanly.
-        # E.groupby(*node) reparents the children and copies no attributes, so
-        # the inner root has no `name` and returns at the guard above.
         scope = E.groupby(*node)
         self._postprocess_view(
             scope, field.comodel_name, editable=False, node_info=node_info
@@ -2333,12 +2228,7 @@ class IrUiView(models.Model):
             )
 
         def refine(elem: _Element, info: dict[str, Any]) -> None:
-            # `__validate__` turns validation on for a subtree and never off,
-            # so it is an inherited flag a node may only raise.
             info["validate"] = info["validate"] or elem.get("__validate__")
-            # `groups="a,,b"` still reaches must_exist_group with the empty
-            # name, exactly as before -- an empty group is not a group, and
-            # this is the check phase's job to say so.
             if groups := elem.get("groups"):
                 for group_name in groups.replace("!", "").split(","):
                     name_manager.must_exist_group(group_name, elem)
@@ -2433,10 +2323,6 @@ class IrUiView(models.Model):
                 self._raise_view_error(
                     _("Search tag can only contain one search panel"), node
                 )
-            # The searchpanel is validated as its own view type, so this walk
-            # must not descend into it -- but it stays in the tree, because
-            # _check_xml hands that tree to valid_view afterwards and
-            # search_view.rng is what says a searchpanel holds only fields.
             node_info["children"] = [
                 child for child in node if child.tag != "searchpanel"
             ]
@@ -2665,16 +2551,6 @@ class IrUiView(models.Model):
                         node_info,
                     )
 
-            # Same shape as _postprocess_tag_groupby: the comodel pass needs a
-            # root that is not this node -- handed `node` itself it would be
-            # reached as that walk's own root and dispatch this handler again --
-            # and E.groupby(*node) copies no attributes, so the inner root has
-            # no `name` and returns at the guard above.
-            #
-            # The children are put back. E.groupby(*node) REPARENTS them, and
-            # leaving them moved emptied every <groupby> in the tree that
-            # _check_xml then hands to valid_view, so list_view.rng never saw
-            # what a groupby contained.
             groupby_node = E.groupby(*node)
             node_info["children"] = []
             try:
@@ -2819,9 +2695,6 @@ class IrUiView(models.Model):
 
     @staticmethod
     def _prefix_attribute_checker(attr: str) -> str | None:
-        # Order matters here and did in the ladder this replaces:
-        # `t-att-data-tooltip` matches both the tooltip pattern and the `t-`
-        # prefix, and the tooltip rule is the one that raises.
         if attr.startswith("decoration-"):
             return "_check_attr_decoration"
         if _TOOLTIP_ATTR_RE.match(attr):
@@ -3317,10 +3190,6 @@ class IrUiView(models.Model):
                 continue
             if not self._rewrite_self_handled(arch):
                 continue
-            # no_save_prev: a mechanical respelling is not an edit anyone wants
-            # to undo, and arch_prev is a single slot -- writing it here spends
-            # the reset wizard's default "soft" mode on this instead of on
-            # whatever the user last changed.
             view.with_context(no_save_prev=True).write(
                 {"arch_db": etree.tostring(arch, encoding="unicode")}
             )

@@ -2563,36 +2563,6 @@ class TestConcurrentDdlDuringBinaryCopy(BaseCase):
 
 
 class TestBorrowHonoursItsTimeout(BaseCase):
-    """Local sockets, not `203.0.113.1`.
-
-    Both paths have to reach something that never answers, and each wants a
-    different flavour of it -- measured, because the two are not
-    interchangeable:
-
-    ==================  ============  =========  ===========  =======
-    host                path          borrow     close_all    total
-    ==================  ============  =========  ===========  =======
-    203.0.113.1         pooled        3.00s      **5.00s**    8.00s
-    refused port        pooled        3.00s      0.00s        3.01s
-    203.0.113.1         maintenance   2.03s      0.00s        2.03s
-    refused port        maintenance   **0.00s**  0.00s        0.00s
-    tarpit              maintenance   2.00s      0.00s        2.00s
-    ==================  ============  =========  ===========  =======
-
-    The pooled path exercises its budget against a refused port, because the
-    pool retries until the budget expires; against an unreachable host it also
-    leaves a connect in flight, and `close_all()` then blocks for psycopg's
-    full 5s grace period logging `couldn't stop thread 'pool-1-worker-1'
-    within 5.0 seconds`.
-
-    The maintenance path connects once, directly, so a refusal returns
-    instantly and the test asserts nothing -- it needs a socket that *hangs*.
-    A listening socket that never accepts is exactly that: the handshake
-    completes in the kernel backlog and no PostgreSQL greeting ever arrives.
-
-    10.05s to 5.01s for the class, and no packet leaves the machine.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -2617,8 +2587,6 @@ class TestBorrowHonoursItsTimeout(BaseCase):
         }
 
     def _refused(self, **overrides):
-        """The bind is released in setUpClass, so the port may be taken since.
-        That would have the test dial a stranger, so it is re-checked here."""
         with socket.socket() as probe:
             probe.settimeout(0.5)
             if probe.connect_ex(("127.0.0.1", self.refused_port)) == 0:
@@ -2647,9 +2615,6 @@ class TestBorrowHonoursItsTimeout(BaseCase):
 
     def test_maintenance_db_path_stays_inside_the_budget(self):
         budget = 3.0
-        # The tarpit, not the refused port: this path connects once and
-        # directly, so a refusal returns in 0.00s and the assertion below would
-        # hold without the budget existing at all.
         info = self._info(self.tarpit_port, dbname="postgres")
         pool = ConnectionPool(maxconn=4, borrow_timeout=budget)
         try:
@@ -3957,21 +3922,6 @@ class TestDdlInvalidatesPreparedPlan(BaseCase):
 
 
 class TestEvaluatedCodeKeepsItsDatabaseErrorClass(common.TransactionCase):
-    """The framework's error policies all key on the exception class, and
-    `safe_eval` used to destroy it for most database errors.
-
-    Measured before the fix, raised inside evaluated code: `SerializationFailure`,
-    `DeadlockDetected` and `LockNotAvailable` survived (they happen to be
-    `OperationalError`, the one entry in `_BUBBLEUP_EXCEPTIONS`), while
-    `UniqueViolation`, `ForeignKeyViolation`, `ReadOnlySqlTransaction` and
-    `FeatureNotSupported` did not.
-
-    The visible consequence: a server action that violated a constraint reached
-    the user as `ValueError: UniqueViolation(...) while evaluating ...` instead
-    of the `ValidationError` `retrying()` translates it into. This is that
-    translation, end to end.
-    """
-
     def _duplicate_xmlid_action(self):
         model = self.env["ir.model"].search([("model", "=", "res.partner")], limit=1)
         return self.env["ir.actions.server"].create(
@@ -4032,23 +3982,7 @@ class TestEvaluatedCodeKeepsItsDatabaseErrorClass(common.TransactionCase):
 
 
 class TestCronsRecoverLikeRequests(BaseCase):
-    """A cron's work runs outside `retrying()`, so every recoverable database
-    error was charged to the job as a FAILURE -- and
-    `MIN_FAILURE_COUNT_BEFORE_DEACTIVATION` of those DEACTIVATE the cron and
-    notify an admin.
-
-    Measured with a cron whose action reads a column another connection keeps
-    altering: **19 of 25 callbacks failed** at HEAD, every one a recoverable
-    stale cached plan; 0 of 25 through `retrying()`.  Nothing about that is the
-    job's fault, and replaying is exactly what a request does.
-    """
-
     def test_the_callback_goes_through_retrying(self):
-        """Asserted on the AST, not on the text.
-
-        A substring check passes on the docstring alone -- verified: stripping
-        the `retrying(...)` call while leaving the prose left this green.
-        """
         import ast
         import textwrap
 
@@ -4065,9 +3999,6 @@ class TestCronsRecoverLikeRequests(BaseCase):
             "without it a deadlock, a serialization failure or a stale cached "
             "plan counts against the cron's deactivation budget",
         )
-        # The chain is _run_job -> _run_job_within_budget -> _run_callback, and
-        # _callees only sees one level: asserting _run_callback on _run_job read
-        # green for exactly as long as the name was missing from both.
         self.assertIn(
             "_run_job_within_budget",
             _callees(cls._run_job.__func__),
@@ -4081,13 +4012,6 @@ class TestCronsRecoverLikeRequests(BaseCase):
         )
 
     def _drive_callback(self, callback):
-        """Run one cron callback through the real `_run_callback`.
-
-        On a real cursor rather than a TransactionCase, because `retrying()`
-        commits and `TestCursor` forbids that from inside a test. Nothing is
-        actually written -- `_run_server_action` is replaced -- so the commit is
-        empty.
-        """
         reg = registry()
         with contextlib.closing(reg.cursor()) as cr:
             env = api.Environment(cr, odoo.SUPERUSER_ID, {})
@@ -4102,18 +4026,6 @@ class TestCronsRecoverLikeRequests(BaseCase):
                 )
 
     def test_a_recoverable_failure_is_replayed_not_charged(self):
-        """The behaviour, not just the wiring.
-
-        Driven through the real `_process_jobs` runner against a cron whose
-        action fails twice with a `SerializationFailure` and then succeeds:
-
-            before (1abfba05fa3)  failure_count 1, action invoked 1x
-            after                 failure_count 0, action invoked 3x
-
-        and a permanently failing action still reaches failure_count 1, so
-        deactivation stays available for a cron that is genuinely broken. This
-        is that first half at callback level, which needs no cron table churn.
-        """
         calls = {"n": 0}
 
         def flaky(*args, **kwargs):
@@ -4155,19 +4067,6 @@ class TestCronsRecoverLikeRequests(BaseCase):
 
 
 class TestCopyEncodingsAgree(BaseCase):
-    """`copy_from`'s central promise is that `binary=True` is only a hint: both
-    encodings write identical rows, so a caller never has to know its column
-    types. That was false for `json`/`jsonb`.
-
-    A plain `str` is a JSON *document* to text COPY, which lets PostgreSQL parse
-    it, and a JSON *string value* to binary COPY, which serialises it again.
-    Found by a differential test over 400 random rows across eleven column
-    types: `jsonb` was the only column that differed, and it differed in 312 of
-    them. Which encoding a call gets is decided by the *numeric* fraction of the
-    row, so whether a JSON column round-tripped depended on how many unrelated
-    numeric columns sat beside it.
-    """
-
     COLUMNS = (
         ("i", "int4"),
         ("f", "float8"),
@@ -4290,8 +4189,6 @@ class TestCopyEncodingsAgree(BaseCase):
             cr.close()
 
     def test_binary_is_still_chosen_for_a_json_column(self):
-        """The first fix degraded the whole COPY to text, measured at +31%.
-        The wrap keeps binary; this pins that it was not quietly given up."""
         cr = db_connect(common.get_db_name()).cursor()
         try:
             cr.execute("DROP TABLE IF EXISTS _t_json3")
@@ -4307,23 +4204,6 @@ class TestCopyEncodingsAgree(BaseCase):
 
 
 class TestFailedStatementsAreCounted(BaseCase):
-    """A statement that raised still cost a round trip.
-
-    `_record_metrics` ran after the try/except, so every server-side failure
-    counted as zero queries -- in `sql_log_count`, in the process-wide
-    `sql_counter`, and therefore in `assertQueryCount`, which reads the former.
-    Any test wrapping a constraint violation in `assertRaises` was under-
-    reporting its real cost.
-
-    Client-side rejections stay uncounted: psycopg raises before anything
-    reaches the wire, and SQLSTATE is what tells the two apart.
-
-    Blast radius was measured before landing this: `/base` gained no
-    query-count failure (its 13 `Query count` lines are all "less than
-    expected" INFO), and the mail suite -- the one carrying this fork's
-    query-count debt -- still reads 17 failed, exactly as documented.
-    """
-
     def _cr(self):
         cr = db_connect(common.get_db_name()).cursor()
         cr.execute("DROP TABLE IF EXISTS _test_count CASCADE")
@@ -4421,21 +4301,6 @@ class TestFailedStatementsAreCounted(BaseCase):
 
 
 class TestStaleCachedPlanIsRecoverable(BaseCase):
-    """`cached plan must not change result type` is recoverable, and used to
-    reach the user as a 500.
-
-    Three measurements shape the design.  (1) The failing statement has no side
-    effect -- the plan check runs before execution -- so replaying is safe.
-    (2) The transaction is left INERROR, so it cannot be retried in place; a
-    savepoint per statement would cost two round trips on every query in core.
-    (3) `FeatureNotSupported` is not an `OperationalError`, so `retrying()`
-    never even saw it.
-
-    So the cursor marks and the request layer replays.  End to end, six reader
-    threads against a writer altering a column they read: HEAD failed **6832**
-    requests, this passes **0**.
-    """
-
     def _stale_plan(self, cr_a, cr_b, tbl):
         cr_a.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
         cr_a.execute(f"CREATE TABLE {tbl} (id serial primary key, a int)")
@@ -4528,16 +4393,6 @@ class TestStaleCachedPlanIsRecoverable(BaseCase):
 
 
 class TestDropDependingViewsQuoting(BaseCase):
-    """`drop_depending_views` was the one function in schema.py that quoted an
-    identifier by hand and passed the result as raw SQL text.  A view name
-    containing `%` then reached the parameter layer as a format marker:
-    `TypeError: not enough arguments for format string`, from a path reached
-    during an upgrade (`_convert_column`'s NotSupportedError fallback).
-    `SQL.identifier` -- used by every other function here -- refuses such a
-    name instead, naming it.  Both reject the pathological view; only one
-    says why.
-    """
-
     def test_it_drops_a_normally_named_dependent_view(self):
         cr = db_connect(common.get_db_name()).cursor()
         try:
@@ -4580,20 +4435,6 @@ class TestDropDependingViewsQuoting(BaseCase):
 
 
 class TestPartitionedTablesAreVisible(BaseCase):
-    """A partitioned table exists. `existing_tables` used to say it did not.
-
-    `pg_class.relkind` is 'p' for a partitioned table, and the filter admitted
-    only ('r','v','m').  `orm/models/mixins/schema.py` decides
-    `must_create_table = not sql.table_exists(...)`, so partitioning an Odoo
-    table — a standard move for `mail_message`, `stock_move_line`,
-    `account_move_line` — made the next upgrade issue `CREATE TABLE` over a
-    relation that already exists.  Measured end to end: the registry did not
-    just log, it failed to load —
-    `psycopg.errors.DuplicateTable: relation "..." already exists`, database
-    unusable.  With 'p' admitted, the same upgrade loads, and `ADD COLUMN` /
-    `ALTER COLUMN … TYPE` both propagate to the partitions normally.
-    """
-
     def _partition(self, cr, tbl):
         cr.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
         cr.execute(f"DROP TABLE IF EXISTS {tbl}_p0 CASCADE")
@@ -4666,22 +4507,6 @@ class TestPartitionedTablesAreVisible(BaseCase):
 
 
 class TestDdlDrainsSiblingConnections(BaseCase):
-    """A schema change poisons the prepared plans of OTHER pooled connections.
-
-    ``discard_cached_plans`` only heals the connection that ran the DDL.  A
-    sibling connection in the same process that had auto-prepared a statement
-    against the old schema keeps that plan, and PostgreSQL refuses to execute
-    it: ``FeatureNotSupported: cached plan must not change result type``.  It
-    is intermittent — it bites only when the next borrow happens to draw the
-    poisoned backend — which is exactly what makes it expensive to diagnose in
-    production.
-
-    The drain is taken at COMMIT, not per statement: an uncommitted schema
-    change is invisible to every other connection, so there is nothing to heal
-    until it lands, and draining per statement would close-and-reopen every
-    idle connection ~1000 times during a module install.
-    """
-
     def _prepare_sibling(self, cr, tbl):
         for _ in range(5):
             cr.execute(f"SELECT id, a FROM {tbl}")
@@ -4703,7 +4528,7 @@ class TestDdlDrainsSiblingConnections(BaseCase):
             writer.commit()
 
             self._prepare_sibling(reader, tbl)
-            reader.close()  # back to the pool, idle, holding a warm plan
+            reader.close()
 
             writer.execute(f"ALTER TABLE {tbl} ALTER COLUMN a TYPE bigint")
             writer.commit()
@@ -4788,24 +4613,6 @@ class TestDdlDrainsSiblingConnections(BaseCase):
 
 
 class TestMaintenanceConnectionOptions(BaseCase):
-    """Maintenance connections are exempt from db_session_gucs, deliberately.
-
-    The two borrow paths used to assemble their libpq ``options`` string
-    independently, and the direct/maintenance copy never gained
-    ``_session_gucs``.  That looked like drift, and applying the GUCs there
-    "for consistency" is a REGRESSION, measured: with
-    ``db_session_gucs = statement_timeout=50ms`` a ``CREATE DATABASE …
-    TEMPLATE`` is killed by ``QueryCanceled``, and with
-    ``default_transaction_read_only=on`` a ``DROP DATABASE`` raises
-    ``ReadOnlySqlTransaction`` — both work at HEAD.  ``statement_timeout`` is
-    one of the commonest PostgreSQL hardening settings, and a template copy
-    legitimately runs for minutes.
-
-    So the exemption stays; what changed is that it is now *stated*
-    (``session_gucs=False``) instead of being an accident of a duplicated
-    string, and both paths share one assembler so nothing else can drift.
-    """
-
     def test_both_borrow_paths_share_one_options_assembler(self):
         for path in ("_get_or_create_pool", "_borrow_direct"):
             src = inspect.getsource(getattr(ConnectionPool, path))
@@ -5068,21 +4875,6 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
         )
 
     def test_every_wire_level_write_is_marked(self):
-        """The reverse direction, which nothing checked.
-
-        `test_every_marked_entry_point_is_forwarded_by_the_wrapper` starts from
-        the methods that DO call `_before_statement()` and proves `TestCursor`
-        forwards each. A new method that puts a statement on the wire and simply
-        forgets the marker is invisible to it -- and that is the original bug:
-        the bulk APIs reached the real cursor through `__getattr__`, so their
-        writes landed outside the test's rollback savepoint and survived it.
-
-        `self._obj` is the line that matters: it is the cursor, i.e. the
-        transactional statement channel. `self._cnx` is the connection --
-        commit, rollback, DEALLOCATE -- which is not what a savepoint scopes.
-        The scan follows the `obj = self._obj` alias the hot methods use, or it
-        would see only `copy`.
-        """
         import ast
         import textwrap
 
@@ -5139,7 +4931,6 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
         )
 
     def test_the_wire_scan_would_catch_an_unmarked_method(self):
-        """The scan above is only worth having if it can fail."""
         import ast
         import textwrap
 
@@ -5477,16 +5268,6 @@ class TestCloseRunsHooksOnALiveCursor(BaseCase):
 
 
 class TestSavepointRollbackDropsRefilledRegistryCaches(BaseCase):
-    """End to end for `_OrmFlushingSavepoint._reclear_invalidated_caches`.
-
-    `ir.config_parameter._get_param` is `@ormcache(cache="stable")` and `set_param`
-    clears that group inline, which makes it the shortest real path to the defect:
-    write inside a savepoint, read the parameter back, roll the savepoint away, and
-    the registry-wide LRU is left holding a value the database never kept. Nothing
-    re-clears it afterwards -- `signal_changes` only bumps `orm_signaling_stable` for
-    other processes -- so it survived for the life of the worker.
-    """
-
     KEY = "base.test_savepoint_cache_reclear"
 
     def _icp(self, cr):
@@ -5507,7 +5288,6 @@ class TestSavepointRollbackDropsRefilledRegistryCaches(BaseCase):
             with cr.savepoint(flush=True):
                 icp.set_param(self.KEY, "discarded")
                 cr.flush()
-                # the read that refills the registry LRU from uncommitted rows
                 self.assertEqual(icp.get_param(self.KEY), "discarded")
                 raise _Abort
         except _Abort:
@@ -5532,12 +5312,6 @@ class TestSavepointRollbackDropsRefilledRegistryCaches(BaseCase):
         cleared = []
         original = reg.clear_cache
 
-        # Through self.patch, not a setattr pair: restoring by assignment leaves
-        # `clear_cache` in the registry INSTANCE dict, where it shadows the class
-        # attribute for the rest of the process. Every later test that counts
-        # cache clears with patch.object(type(registry), "clear_cache") then
-        # observes nothing -- three failed outright and three more passed
-        # vacuously on their negative assertions.
         self.patch(
             reg, "clear_cache", lambda *names: cleared.append(names) or original(*names)
         )
@@ -5555,4 +5329,4 @@ class TestSavepointRollbackDropsRefilledRegistryCaches(BaseCase):
 
 
 class _Abort(Exception):
-    """Rolls a savepoint back without the test failing on it."""
+    pass

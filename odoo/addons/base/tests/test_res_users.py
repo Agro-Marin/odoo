@@ -1462,17 +1462,6 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
 
 
 class TestSessionTokenInvalidation(TransactionCase):
-    """A password change must not leave old sessions valid.
-
-    `_compute_session_token` is an ormcache keyed on the user and the session
-    id, over fields that include `password`. `write` clears that cache, but
-    both raw-SQL setters reach the column directly, and a stale token keeps
-    every session issued under the *old* password working.
-    `_check_credentials` repaired this by hand at its own call site, which left
-    every other caller exposed -- `auth_ldap.change_password` empties the local
-    password and returns without ever going through `write`.
-    """
-
     SID = "session-id-under-test-0123456789"
 
     def _user(self, login):

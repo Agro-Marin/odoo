@@ -1798,13 +1798,6 @@ class TestIrModelConstraintReflection(TransactionCase):
         self.assertFalse(remaining, "constraint must actually be dropped")
 
     def test_process_end_keeps_a_constraint_the_registry_still_declares(self):
-        """A table object declared on an abstract mixin is reflected under the
-        module of the class that declared it, while the row it creates names a
-        concrete table that module never loads. init_models() reflects only the
-        modules being upgraded, so a partial upgrade leaves that xmlid out of
-        loaded_xmlids with the constraint still perfectly well declared. Read as
-        obsolescence, that absence dropped 39 live indexes off one `-u base`.
-        """
         rows = self.env.execute_query(
             SQL(
                 """SELECT c.id, c.name, im.model, d.module || '.' || d.name
@@ -1829,8 +1822,6 @@ class TestIrModelConstraintReflection(TransactionCase):
             self.skipTest("no constraint reflected under base is still declared")
         cons_id, _name, _model_name, xmlid = target
 
-        # Reproduce exactly what a partial upgrade leaves behind: every other
-        # xmlid of the module counts as loaded, this one does not.
         others = {
             row[0]
             for row in self.env.execute_query(

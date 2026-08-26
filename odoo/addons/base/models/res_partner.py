@@ -379,9 +379,6 @@ class ResPartner(models.Model):
             p.application_statistics = result.get(p.id, [])
 
     def _compute_application_statistics_hook(self) -> defaultdict[int, list]:
-        # a defaultdict is the contract, not an accident: overrides down the
-        # chain append into data_list[partner.id] without creating the key
-        # first (see base_order's _add_order_statistics).
         return defaultdict(list)
 
     def _get_street_split(self) -> dict[str, str]:
@@ -479,10 +476,6 @@ class ResPartner(models.Model):
                 partner.lang = default_lang or self.env.lang
 
     def _compute_active_lang_count(self) -> None:
-        # Every partner gets the same number, and it moves when a *language*
-        # is installed, never when a partner's own `lang` changes. Depending
-        # on `lang` recomputed on the one event that cannot change the value
-        # and stayed put on the one that can.
         lang_count = len(self.env["res.lang"].get_installed())
         self.active_lang_count = lang_count
 
@@ -841,16 +834,11 @@ class ResPartner(models.Model):
     def _prepare_vals_whole_when_any_set(
         self, field_names: list[str]
     ) -> dict[str, Any]:
-        # an address is one value: if the record states any part of it, its whole
-        # address is the truth and is copied verbatim, cleared parts included.
-        # A record with no part set states nothing, and overwrites nothing.
         if any(self[fname] for fname in field_names):
             return self._convert_fields_to_values(field_names)
         return {}
 
     def _prepare_vals_only_when_set(self, field_names: list[str]) -> dict[str, Any]:
-        # commercial fields are independent: each one that is set is propagated,
-        # and an unset one leaves the other record's value alone.
         set_fields = [fname for fname in field_names if self[fname]]
         return self._convert_fields_to_values(set_fields) if set_fields else {}
 
@@ -897,12 +885,6 @@ class ResPartner(models.Model):
             self._company_dependent_commercial_sync()
 
     def _stored_company_ids(self, field_names: list[str]) -> set[int]:
-        # A company-dependent field keeps one jsonb column keyed by company, and
-        # falls back to a value that depends on the field and the company but not
-        # on the record. So for a company absent from the column of both records
-        # being compared, both resolve to that same fallback and can never be
-        # stale -- which makes the keys actually present an exact bound on the
-        # companies worth visiting, instead of every company in the database.
         record_ids = list({*self.ids, *self.commercial_partner_id.ids})
         if not record_ids:
             return set()
@@ -1481,8 +1463,6 @@ class ResPartner(models.Model):
         try:
             return address_format % args
         except KeyError, ValueError:
-            # keyed by database too: this process may serve several, and a bad
-            # format in one must not silence the warning for the others
             memo_key = (self.env.cr.dbname, address_format)
             if memo_key not in _FAILED_ADDRESS_FORMATS:
                 _FAILED_ADDRESS_FORMATS.add(memo_key)

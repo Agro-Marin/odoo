@@ -13,25 +13,11 @@ _logger = logging.getLogger(__name__)
 
 
 class ReportBaseReport_Irmodulereference(models.AbstractModel):
-    """Values for the per-module technical guide (models and fields a module adds)."""
-
     _name = "report.base.report_irmodulereference"
     _description = "Module Reference Report (base)"
 
-    # ------------------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------------------
 
     def _get_models_by_module(self, modules: IrModuleModule) -> dict[str, IrModel]:
-        """Map each module name to the ``ir.model`` records it declares.
-
-        One search for the whole recordset rather than one per module, and
-        ``exists()`` because ``res_id`` carries no foreign key.
-
-        :param recordset modules: ``ir.module.module`` records to report on
-        :return: ``{module name: ir.model recordset ordered by model name}``
-        :rtype: dict
-        """
         data = (
             self.env["ir.model.data"]
             .sudo()
@@ -54,22 +40,6 @@ class ReportBaseReport_Irmodulereference(models.AbstractModel):
     def _get_field_names_by_model(
         self, modules: IrModuleModule
     ) -> dict[str, dict[str, set[str]]]:
-        """Map each module to the field names it declares, grouped by model.
-
-        Attribution follows the ``ir.model.fields`` **record** each external ID
-        points at, never the external ID's own spelling. Matching the spelling is
-        what the LIKE pattern this replaces did, and ``_`` is a single-character
-        wildcard in SQL, so ``field_res_users_%`` also matched
-        ``field_res_users_settings_embedded_action__action_id`` and reported
-        ``action_id`` as a field the module adds to ``res.users``.
-
-        A field record may carry an external ID in more than one module, so the
-        pairing is read off ``ir.model.data`` rows and not off the field records.
-
-        :param recordset modules: ``ir.module.module`` records to report on
-        :return: ``{module name: {model name: {field names}}}``
-        :rtype: dict
-        """
         data = (
             self.env["ir.model.data"]
             .sudo()
@@ -93,25 +63,7 @@ class ReportBaseReport_Irmodulereference(models.AbstractModel):
     def _get_field_descriptions(
         self, model_name: str, field_names: Collection[str]
     ) -> list[dict[str, Any]]:
-        """Describe ``field_names`` of ``model_name``, or return an empty list.
-
-        Empty for the two cases that otherwise abort the whole document:
-
-        * the model has an ``ir.model`` row but no class in the registry, which is
-          what a module installed in the database and then dropped from the addons
-          path leaves behind;
-        * ``fields_get`` raises. Field descriptions are evaluated lazily, so a
-          mixin whose ``domain=`` callable reaches a hook only a concrete host
-          implements raises here: ``mixin.order.line.fields`` and
-          ``mixin.sql.report`` both do.
-
-        :param str model_name: model to describe
-        :param field_names: field names to keep; empty means describe nothing
-        :return: one flat dict per field, ordered by field name
-        :rtype: list
-        """
         if not field_names:
-            # fields_get() treats a falsy `allfields` as "every field".
             return []
         model = self.env.get(model_name)
         if model is None:

@@ -158,18 +158,6 @@ class BaseCommon(TransactionCase):
 
 
 class _SeededUserCase:
-    """The demo/portal user setup the five classes below used to each carry.
-
-    `1306a4d80ac` introduced three copies of the demo block with
-    `# YTI TODO: This could be factorized between the different classes` sitting
-    inside them; `c2ebe70ed4e [IMP] *: Remove todos we won't do` removed the
-    marker rather than the duplication. Upstream declined; this fork is not
-    bound by that (`doc/coding_guidelines.rst`, *Scope and precedence*).
-
-    The copies had already drifted twice, which is the cost the comment
-    predicted -- see `_seed_partner_values` and `_rename_admin_partner`.
-    """
-
     _seed_login = ""
     _seed_groups = ()
 
@@ -179,9 +167,6 @@ class _SeededUserCase:
 
     @classmethod
     def _rename_admin_partner(cls):
-        """`SavepointCaseWithUserDemo` has never done this, and the other two
-        demo classes always have. Asymmetric since introduction with no recorded
-        reason, so it stays a hook rather than becoming a behaviour change."""
         return False
 
     @classmethod
@@ -189,12 +174,6 @@ class _SeededUserCase:
         if cls._rename_admin_partner():
             cls.env.ref("base.partner_admin").write({"name": "Mitchell Admin"})
 
-        # sudo to search -- the portal copy always did, the demo copies did not,
-        # and a lookup by login has no reason to depend on the caller's rules.
-        # `with_env` puts the result back in the test environment: returning the
-        # sudo recordset would silently hand every consumer a privileged
-        # `cls.user_demo`, and access-rule assertions written against it would
-        # stop testing anything.
         user = cls.env["res.users"].sudo().search([("login", "=", cls._seed_login)])
         user = user.with_env(cls.env)
         partner = user.partner_id
@@ -222,10 +201,6 @@ class _SeededUserCase:
 
     @classmethod
     def _seed_create_context(cls):
-        """The portal copies passed `no_reset_password=True` and the demo copies
-        did not. Kept per-class rather than unified: this branch only runs on a
-        database without demo data, and silently stopping a password-reset mail
-        is a behaviour change, not a refactor."""
         return {}
 
 
@@ -274,10 +249,6 @@ class HttpCaseWithUserDemo(_UserDemoCase, HttpCase):
 
     @classmethod
     def _seed_partner_values(cls):
-        """`093c22c1b27 [FIX] auth_totp{,_mail}: remove demo dependency` added
-        the timezone for a runbot failure: `hr` makes `tz` required in a view,
-        which blocks the 2FA setup dialog. Browser-path only, which is why it is
-        on this class and not the transaction ones."""
         return {**super()._seed_partner_values(), "tz": "UTC"}
 
     @classmethod
@@ -289,9 +260,6 @@ class HttpCaseWithUserDemo(_UserDemoCase, HttpCase):
 
 
 class SavepointCaseWithUserDemo(_UserDemoCase, TransactionCase):
-    """`SavepointCase` has not existed since it merged into `TransactionCase`;
-    the name survives because 10 files import it."""
-
     @classmethod
     def _load_partners_set(cls):
         cls.partner_category = cls.env["res.partner.category"].create(

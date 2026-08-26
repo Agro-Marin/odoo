@@ -1074,25 +1074,8 @@ class IrModuleModule(models.Model):
         needed: set,
         cast: SQL,
     ) -> bool:
-        """Bring `table`'s rows for this module in line with `needed`.
-
-        The three manifest-fed link tables differ only in what they key on, so
-        they share this. One statement per direction rather than one per row:
-        a first `update_list` over this workspace inserts ~3.5k dependency
-        rows, which was ~3.5k round trips.
-
-        Returns whether any row moved, so a caller can skip an invalidation
-        that has nothing to invalidate.
-        """
-        # These statements name `self.id`; an empty recordset would spell it
-        # `False` and insert rows under a NULL `module_id`, which the column
-        # accepts and nothing ever collects.
         self.ensure_one()
         cr = self.env.cr
-        # Sorted, so the rows land in a reproducible order. Inserting one row
-        # per set element left it at the mercy of per-process string hashing:
-        # the same manifest produced a different `dependencies_id` order in
-        # every process, and the model declares no `_order`, so `id` decides.
         if to_add := sorted(needed - existing):
             cr.execute(
                 SQL(
@@ -1164,8 +1147,6 @@ class IrModuleModule(models.Model):
             "module_country", "country_id", existing, needed, SQL("integer[]")
         ):
             self.invalidate_recordset(["country_ids"])
-            # Model-wide, so it was flushing every company's cache once per
-            # module scanned -- 1556 times for the 239 that carry a country.
             self.env["res.company"].invalidate_model(["uninstalled_l10n_module_ids"])
 
     def _update_exclusions(self, excludes: list[str] | None = None) -> None:
@@ -1196,13 +1177,6 @@ class IrModuleModule(models.Model):
                 )
             current_category = current_category.parent_id
 
-        # Compare the resolved category, not the manifest path against the
-        # stored display names: `create_categories` keys a category by an xml_id
-        # derived from the path, and base data is free to give that record any
-        # name it likes -- `Accounting/Accounting` is stored as `Invoicing`. A
-        # name comparison therefore never matches for such a category, and
-        # rewrote `category_id` to the value it already held on every call. It
-        # was language-dependent too, `name` being translated.
         cat_id = modules.db.create_categories(
             self.env.cr, category.split("/"), category_cache
         )

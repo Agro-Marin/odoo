@@ -1820,9 +1820,6 @@ class TestQWebBasic(TransactionCase):
             "text": """a
         b <b>c</b>"""
         }
-        # What this test is about is the escaping and the newline-to-`<br>`:
-        # the branding attributes it used to assert were incidental, and
-        # `_get_widget` no longer emits them outside edit mode.
         html = self.env["ir.qweb"]._render(view1.id, dict(values))
         self.assertEqual(
             html,
@@ -3329,11 +3326,6 @@ class TestQWebCompileIsolation(TransactionCase):
 class TestQWebHelpers(TransactionCase):
     @staticmethod
     def _context(**fields):
-        """A minimal CompileContext for testing one helper in isolation.
-
-        The helpers under test read one field each; the dataclass is what lets
-        a test say which, where a hand-built dict said only "some mapping".
-        """
         defaults = {
             "context": {},
             "ref": None,
@@ -3930,17 +3922,6 @@ class TestQWebStaticAttributes(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestQWebRenderBatch(TransactionCase):
-    """`_render_batch` is `_render` N times, minus the preparation done N times.
-
-    The two share `_render_prepare` and `_render_prepared` precisely so they
-    cannot drift, and these assert that they have not: same template, same
-    values, same string. What the batch hoists — the option context, the five
-    `__qweb_*` slots, the `minimal_qcontext` defaults and `check_values` over the
-    shared half — is what a per-record loop was paying for every record, and it
-    dominated: a template carrying no directive at all cost 83% of what the real
-    one did.
-    """
-
     def _tree(self, arch):
         return etree.fromstring(arch)
 
@@ -3962,7 +3943,6 @@ class TestQWebRenderBatch(TransactionCase):
         self.assertTrue(all(isinstance(v, markupsafe.Markup) for v in batched))
 
     def test_batch_does_not_leak_values_between_entries(self):
-        """Each entry starts from the shared half, not from its predecessor."""
         arch = "<t><p t-out=\"only_first or 'none'\"/></t>"
         out = self.env["ir.qweb"]._render_batch(
             self._tree(arch), {"only_first": False}, [{"only_first": "x"}, {}]
@@ -3970,7 +3950,6 @@ class TestQWebRenderBatch(TransactionCase):
         self.assertEqual([str(v) for v in out], ["<p>x</p>", "<p>none</p>"])
 
     def test_batch_checks_the_varying_half_too(self):
-        """A module cannot ride into the evaluation context on the varying half."""
         with self.assertRaises(TypeError):
             self.env["ir.qweb"]._render_batch(
                 self._tree("<t><p>x</p></t>"), {}, [{"leak": ast}]
@@ -3982,7 +3961,6 @@ class TestQWebRenderBatch(TransactionCase):
         )
 
     def test_batch_reports_the_failing_entry_not_the_first(self):
-        """The error path one render writes must not be read as the next one's."""
         arch = '<t><p t-out="value.missing_attribute"/></t>'
         with self.assertRaises(QWebError):
             self.env["ir.qweb"]._render_batch(
@@ -3993,18 +3971,6 @@ class TestQWebRenderBatch(TransactionCase):
 
 
 class TestQWebCachedTemplateError(TransactionCase):
-    """A cached template error must not accumulate a traceback.
-
-    ``_get_cached_template_info`` and ``_preload_views`` both keep the
-    exception instance, so every raise of it appends the raising frames to one
-    shared ``__traceback__`` that nothing trims.  ``_generate_code`` then runs
-    ``traceback.format_exc()`` over the whole of it, which made a repeated
-    lookup quadratic in the number of failed renders in a transaction.  The
-    count, not the clock, is what these assert: a timing threshold is flaky and
-    an absolute frame count pins an implementation detail, while "the tenth
-    raise costs the same as the first" is the property that matters.
-    """
-
     @staticmethod
     def _traceback_length(error):
         length, traceback = 0, error.__traceback__
@@ -4040,10 +4006,6 @@ class TestQWebCachedTemplateError(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_qweb")
     def test_repeated_preloads_share_one_error_that_does_not_grow(self):
-        # The cursor's `_compile_batch_` keeps the instance for the whole
-        # transaction, which is what makes the growth quadratic rather than
-        # per-request.  Assert the sharing first, so the test cannot pass
-        # merely because a fresh object was built each round.
         View = self.env["ir.ui.view"].sudo()
         first = View._preload_views(["base.no_such_preloaded_template"])[
             "base.no_such_preloaded_template"
@@ -4092,8 +4054,6 @@ class TestQWebCachedTemplateError(TransactionCase):
         )
 
     def test_the_error_keeps_the_state_generate_code_reads(self):
-        # `_generate_code` reports `e.context['view'].key` when the failure
-        # carries one, so the copy must keep instance state, not only args.
         error = UserError("boom")
         error.context = {"view": self.env["ir.ui.view"]}
         with self.assertRaises(UserError) as caught:
@@ -4104,14 +4064,6 @@ class TestQWebCachedTemplateError(TransactionCase):
 
 
 class TestQWebDirectiveAliasesCompose(TransactionCase):
-    """Two spellings of one directive must not silently cancel each other.
-
-    `pop(a, pop(b, None))` evaluates the inner pop first, whatever `a` holds,
-    so the second attribute was always removed and its value discarded -- and
-    removed early enough that the unused-attribute warning at the end of
-    `_compile_directives` never reported it either.
-    """
-
     def _view(self, key, arch):
         return self.env["ir.ui.view"].create(
             {"name": key, "type": "qweb", "key": f"base.{key}", "arch_db": arch}
@@ -4129,8 +4081,6 @@ class TestQWebDirectiveAliasesCompose(TransactionCase):
         )
 
     def test_groups_and_t_groups_on_one_node_both_apply(self):
-        # The user passes `t-groups` and fails `groups`.  Honouring only the
-        # first renders a Settings-only node for every internal user.
         view = self._view(
             "groups_both",
             '<t><div t-groups="base.group_user" groups="base.group_system">'
@@ -4165,12 +4115,6 @@ class TestQWebDirectiveAliasesCompose(TransactionCase):
             )
 
     def test_t_if_and_t_elif_on_one_node_is_rejected(self):
-        # The node must follow a `t-if` sibling, or `_compile_directive_elif`
-        # rejects it before `_compile_directive_if` is ever reached and the
-        # test pins the wrong thing.  Here the chain is valid, `t-else-valid`
-        # is set, and the eager default silently dropped `t-elif="True"` in
-        # favour of `t-if="False"` -- the branch that should have rendered `B`
-        # rendered nothing.
         view = self._view(
             "if_elif_both",
             '<t><div t-if="False">A</div><div t-elif="True" t-if="False">B</div></t>',
@@ -4189,16 +4133,6 @@ class TestQWebDirectiveAliasesCompose(TransactionCase):
 
 
 class TestQWebOneOutputDirectivePerNode(TransactionCase):
-    """`t-out`, `t-field`, `t-esc` and `t-raw` are four spellings of one slot.
-
-    `_directives_eval_order` dispatches esc, raw and field before out, while
-    `_compile_out_target` popped `t-out` first.  A node carrying two of them
-    therefore emitted both values, the second after tag-close had already been
-    consumed, so it landed outside its own element -- silently, because the
-    leftover reached the unknown-attribute loop, which compiles rather than
-    warns when the attribute has a directive handler.
-    """
-
     def _view(self, key, arch):
         return self.env["ir.ui.view"].create(
             {"name": key, "type": "qweb", "key": f"base.{key}", "arch_db": arch}
@@ -4221,21 +4155,6 @@ class TestQWebOneOutputDirectivePerNode(TransactionCase):
 
 
 class TestQWebTwoSignaturesInOneRender(TransactionCase):
-    """One template compiled twice in one render must not blur into one.
-
-    Every generated function name is `template_{key}_{id}_...`: derived from the
-    ref, carrying nothing of `_template_cache_signature()`.  Compiling the same
-    template under two signatures in one render therefore wrote both function
-    sets under the same names, and `__qweb_loaded_functions` -- consulted before
-    the per-compile `template_functions` and winning over it -- handed the later
-    compile's body to a frame belonging to the earlier one.
-
-    Two signatures share one render whenever a `t-call` carries `t-options` or
-    `t-lang` touching a `_get_template_cache_keys()` member.  `preserve_comments`
-    is the cheapest of those to drive; with `lang` the same mechanism serves the
-    wrong translation.
-    """
-
     def _view(self, key, arch):
         return self.env["ir.ui.view"].create(
             {"name": key, "type": "qweb", "key": f"base.{key}", "arch_db": arch}
@@ -4262,9 +4181,6 @@ class TestQWebTwoSignaturesInOneRender(TransactionCase):
         )
 
     def test_the_outer_frame_keeps_the_body_it_was_compiled_with(self):
-        # The inner call compiles the same ref under preserve_comments=True and
-        # its `t_set` function overwrote the outer one's entry, so the outer
-        # span rendered a comment its own compile had stripped.
         self.assertEqual(
             self._render(),
             "<span><!--C-->X</span> <span>X</span>",
@@ -4287,17 +4203,6 @@ class TestQWebTwoSignaturesInOneRender(TransactionCase):
 
 
 class TestQWebContentComparison(TransactionCase):
-    """A `t-set` body must compare as the text it renders.
-
-    `QwebContent` forwards attribute access through `__getattr__`, which Python
-    does not consult for an implicit dunder lookup, so the class had no `__eq__`
-    and no `__hash__` and a body value was equal to nothing but itself.  Nothing
-    in the four repositories compares one today -- of 443 `t-set`-body variables
-    declared, none is compared -- so this closes a trap rather than a live wrong
-    render.  `t-value` is the control: it produces a plain string and always
-    compared correctly, which is what made the asymmetry invisible.
-    """
-
     def _render(self, arch, values=None):
         return str(self.env["ir.qweb"]._render(etree.fromstring(arch), values or {}))
 
@@ -4359,7 +4264,6 @@ class TestQWebContentComparison(TransactionCase):
         )
 
     def test_comparison_does_not_cost_laziness(self):
-        # The value the template never looks at must still never be rendered.
         rendered = []
         original = QwebContent.__str__
 
@@ -4377,16 +4281,6 @@ class TestQWebContentComparison(TransactionCase):
 
 
 class TestQWebWidgetBranding(TransactionCase):
-    """`t-out` with a widget must not publish the template's own expression.
-
-    `ir.qweb.field.attributes`, which `_get_field` reaches for `t-field`,
-    returns `{}` unless `inherit_branding` or `translate` is set. `_get_widget`
-    set `data-oe-type` and `data-oe-expression` unconditionally, so every
-    `t-out` carrying `t-options` shipped its source expression to whoever loaded
-    the page -- and `safe_attrs` in `libs/text/html.py` lists both as attributes
-    the sanitiser preserves, so nothing downstream removed them.
-    """
-
     def _render(self, arch, **context):
         return str(
             self.env["ir.qweb"]
@@ -4408,9 +4302,6 @@ class TestQWebWidgetBranding(TransactionCase):
         self.assertIn('data-oe-expression="1234.5"', rendered)
 
     def test_a_widget_without_branding_still_reports_force_display(self):
-        # `_get_widget` returns `inherit_branding` as `force_display`, which
-        # decides whether an empty value still emits its tag.  Gating the
-        # attributes must not change that.
         for branding in (True, False):
             attributes, _content, force_display = (
                 self.env["ir.qweb"]

@@ -494,15 +494,6 @@ class TestMergePartnerGroupSize(TransactionCase):
 
 
 class TestMergePartnerDefaultsCache(TransactionCase):
-    """The merge repoints `ir.default` rows with raw SQL, so it must say so.
-
-    `ir.default`'s reads are ormcached and `flush_all` only pushes pending
-    writes out -- it does not drop what was already read. The wizard unlinks
-    the source right after repointing, so a default left holding the source id
-    hands the next record created in this process a many2one pointing at a row
-    that no longer exists.
-    """
-
     def _company_dependent_m2o(self):
         model = self.env["ir.model"].sudo().search([("model", "=", "res.partner")])
         self.env["ir.model.fields"].sudo().create(

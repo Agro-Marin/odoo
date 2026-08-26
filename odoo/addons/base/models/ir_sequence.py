@@ -72,10 +72,6 @@ def _select_nextval(cr: Any, seq_name: str) -> int:
 
 
 def _select_nextvals(cr: Any, seq_name: str, count: int) -> list[int]:
-    """`count` values from a Postgres sequence in one round trip.
-
-    `nextval` is volatile, so it is evaluated once per row of the series.
-    """
     cr.execute(
         "SELECT nextval(%s) FROM generate_series(1, %s)", [seq_name, count]
     )
@@ -106,12 +102,6 @@ def _update_nogap(self: Any, number_increment: int) -> int:
 
 
 def _update_nogap_batch(self: Any, number_increment: int, count: int) -> list[int]:
-    """Reserve `count` numbers under a single lock, and return them.
-
-    The same statement as `_update_nogap` with the increment multiplied: the
-    numbers stay contiguous, so the no-gap guarantee is unchanged, and the row
-    is locked once instead of `count` times.
-    """
     first = _update_nogap(self, number_increment * count)
     return [first + index * number_increment for index in range(count)]
 
@@ -464,23 +454,6 @@ class IrSequence(models.Model):
 
     @api.model
     def _get_interpolation_mapping(self, date=None, range_date=None) -> dict[str, str]:
-        """Mapping that resolves every placeholder `_get_pattern_placeholders` names.
-
-        `_get_interpolation_formats` is the bare table only -- `year`, `month`,
-        ... -- while the vocabulary `_pattern_to_regex` parses against carries the
-        `range_` and `current_` families too, because `_get_prefix_suffix` resolves
-        those through `_InterpolationDict`. A caller that interpolates a pattern
-        itself from the formats alone therefore rejects patterns this model's own
-        parser accepts, and does it with a `KeyError`. Interpolate against this
-        instead and the two directions share one vocabulary.
-
-        Resolution is lazy, so the mapping costs nothing for placeholders the
-        pattern does not name, and a caller may add its own keys to it.
-
-        :param date: the effective date, defaulting to now
-        :param range_date: the date-range date, defaulting to now
-        :return: a mapping usable as the right operand of ``%``
-        """
         now = datetime.now(self.env.tz)
         return _InterpolationDict(date or now, range_date or now, now)
 
@@ -601,14 +574,6 @@ class IrSequence(models.Model):
         )._next()
 
     def _next_batch(self, count: int, sequence_date: Any = None) -> list[str]:
-        """The next `count` values, drawn in one round trip instead of `count`.
-
-        `_next` draws one, so a `@api.model_create_multi` that names its
-        records from a sequence pays a query per record -- and creating many
-        at once is what that decorator is for.  The values are the ones
-        `_next` would have produced, in the same order; this only changes how
-        many statements it takes to get them.
-        """
         self.ensure_one()
         if count <= 0:
             return []
@@ -697,11 +662,6 @@ class IrSequence(models.Model):
     def next_by_code_batch(
         self, sequence_code: str, count: int, sequence_date: Any = None
     ) -> list[str] | Literal[False]:
-        """`next_by_code`, for `count` values and one search.
-
-        Returns `False` when no sequence carries the code, exactly as
-        `next_by_code` does, so a caller can keep the same fallback.
-        """
         self.browse().check_access("read")
         if count <= 0:
             return []

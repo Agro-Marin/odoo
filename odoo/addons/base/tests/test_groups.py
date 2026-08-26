@@ -1543,19 +1543,6 @@ class TestPrivilegeGroupSorting(common.TransactionCase):
 
 @common.tagged("at_install", "groups")
 class TestAllUserIdsBatchCost(common.TransactionCase):
-    """Reading `all_user_ids` must not cost a query per group.
-
-    `_compute_all_user_ids` read `group.all_implied_by_ids.user_ids` inside its
-    loop. Each group's implied set is its own recordset, so the relation was
-    prefetched for that group alone and the read cost one query per group in
-    `self` -- 147 queries for 213 groups, against 3 once the relation is read
-    for every implied group at once.
-
-    Asserted as a marginal cost rather than an absolute count: a single-record
-    measurement cannot see this class of defect at all, and comparing a small
-    batch against a large one keeps cache warmth from making it vacuous.
-    """
-
     def _make_groups(self, count, prefix):
         base_group = self.env.ref("base.group_user")
         groups = self.env["res.groups"].create(
@@ -1624,14 +1611,6 @@ class TestAllUserIdsBatchCost(common.TransactionCase):
         self.assertIn(user, implying.all_user_ids)
 
     def test_archived_users_follow_the_reading_environment(self):
-        """`active_test` is decided by the env reading the field, not the compute.
-
-        `_compute_all_user_ids` reads its own recordset under
-        `active_test=False`, but the field is recomputed per environment, so a
-        default env still filters archived users out and only an env that
-        disables `active_test` sees them. Pinned because batching the relation
-        read must not quietly move where that filter applies.
-        """
         groups = self._make_groups(1, "batch archived")
         user = groups.all_user_ids.filtered(lambda u: u.login == "batcharchived0")
         self.assertTrue(user, "the fixture user must be there to archive")

@@ -16,9 +16,6 @@ class TestIrActionsExists(TransactionCase):
         self.assertEqual(action.exists(), action)
 
     def test_get_bindings_still_resolves(self):
-        """`assertIsInstance(dict(bindings), dict)` stood here and asserted
-        nothing -- `dict(x)` is a dict by construction, so the only way to fail
-        was to raise. This pins the shape callers actually rely on."""
         Actions = self.env["ir.actions.actions"]
         action = self.env["ir.actions.act_window"].create(
             {
@@ -36,9 +33,6 @@ class TestIrActionsExists(TransactionCase):
         for binding_type, bucket in bindings.items():
             with self.subTest(binding_type=binding_type):
                 self.assertIn(binding_type, vocabulary)
-                # A tuple, not a list: frozendict freezes the buckets too, and
-                # callers iterate them out of an ormcache shared between
-                # transactions.
                 self.assertIsInstance(bucket, tuple)
                 for entry in bucket:
                     self.assertIn("id", entry)
@@ -807,13 +801,6 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
         self.assertEqual(set(Actions._get_relations_ondelete_unenforced()), declared)
 
     def test_no_foreign_key_backs_either_end_of_such_a_relation(self):
-        # No `assertSweep` here, unlike the other sweeps in this file: with only
-        # `base` installed no many2many points at the action root table, so an
-        # empty result is the correct answer rather than a discovery that
-        # silently stopped discovering. The anti-vacuity guarantee comes from
-        # `test_many2many_relations_to_the_root_are_swept_on_unlink` above,
-        # which pins the helper against an independently computed set -- an
-        # emptied helper fails there, and a populated one gives this loop work.
         Actions = self.env["ir.actions.actions"]
         for relation, column in Actions._get_relations_ondelete_unenforced():
             with self.subTest(relation=relation, column=column):

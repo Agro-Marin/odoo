@@ -3,10 +3,6 @@ from odoo.tests.common import BaseCase
 from odoo.addons.base.models.ir_actions_server import _get_webhook_blocked_reason
 
 
-# No `post_install`: that phase exists for tests that need the FINAL registry,
-# and every assertion below is a pure function over IP literals. Tagging it
-# `post_install` only delayed it to the slowest phase and made its result depend
-# on what else happened to be installed.
 class TestWebhookSsrfGuard(BaseCase):
     def test_non_global_literals_are_blocked(self):
         for host in (

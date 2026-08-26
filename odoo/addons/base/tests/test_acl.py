@@ -796,16 +796,6 @@ class TestResGroupsCacheInvalidation(TransactionCaseWithUserDemo):
 
 
 class TestFieldDescriptionCachePerGroupSet(TransactionCaseWithUserDemo):
-    """`sortable` and `groupable` are cached, and the key must carry the groups.
-
-    Deciding either for a related or delegated field composes a JOIN, and a
-    search view asks for every field on the model, so the answers are cached.
-    They are not user-invariant: a portal user cannot group by `category_id`
-    where an internal user can, because the traversal hits a field their groups
-    do not reach. A key that forgot the groups would serve one user's answer to
-    another.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

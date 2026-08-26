@@ -492,19 +492,6 @@ class IrCron(models.Model):
 
     @staticmethod
     def _run_callback(cron: Self, job: dict[str, Any], env: api.Environment) -> None:
-        """Run one pass of the job's action, with a request's recovery.
-
-        Through ``retrying()`` so that a deadlock, a serialization failure or a
-        stale cached plan -- none of them the job's fault, all of them
-        recoverable by replaying -- is replayed rather than charged to the job
-        as a FAILURE. It matters because ``MIN_FAILURE_COUNT_BEFORE_DEACTIVATION``
-        failures DEACTIVATE the cron and notify an admin: measured against a
-        writer altering a column the action reads, 19 of 25 callbacks failed
-        without this and 0 of 25 with it.
-
-        Replaying is clean: the progress row is committed before this runs, and
-        the action's own updates to it roll back with everything else.
-        """
         retrying(
             partial(
                 cron._run_server_action, job["cron_name"], job["ir_actions_server_id"]

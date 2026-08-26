@@ -1,11 +1,3 @@
-"""`ir.actions.server` with `state="webhook"`.
-
-Merged from `test_ir_actions_webhook_timeout.py` and
-`test_ir_actions_webhook_logging.py`, which tested the same model through a
-byte-identical `setUpClass`, `_action` and `_run` -- three copies of a fixture
-for one subject.
-"""
-
 from unittest.mock import patch
 
 import requests
@@ -25,8 +17,6 @@ _URL = f"https://hooks.slack.com/services/{_SECRET}"
 
 
 class WebhookCase(TransactionCase):
-    """The fixture both halves used to carry a copy of."""
-
     webhook_url = "https://example.com/hook"
 
     @classmethod
