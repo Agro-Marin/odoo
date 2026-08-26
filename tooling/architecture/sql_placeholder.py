@@ -1,3 +1,49 @@
+"""Placeholders in raw SQL that psycopg 3 cannot bind.
+
+Two shapes, one cause. `SQL("x IN %s", (1, 2))` rewrites the placeholder into
+`x IN (%s, %s)` before the driver sees it, and psycopg 2 interpolated parameters
+client-side, so both of these looked correct for as long as either was true.
+psycopg 3 binds server-side and this fork uses `SQL()` or nothing:
+
+*`IN %s` in a query string.* The statement leaves as `x IN $1`, which is not
+valid SQL. Postgres answers `syntax error at or near "$1"` every single time it
+runs -- there is no input that makes it work.
+
+*A tuple passed as a parameter.* `= ANY(%s)` binds an array; psycopg 3 adapts a
+tuple to a composite instead, so the value arrives as `(2,3,4)` and Postgres
+answers `malformed array literal`. The query text is blameless here, which is
+why the two halves are one gate: a rule that reads only the SQL sees half the
+class, and the half it misses is the half that took mailing lists down.
+
+The fix is `= ANY(%s)` over a **list**. Operator and parameter change together.
+
+**A contract, not a ratchet.** The tree measures zero and there is no reading of
+a non-zero value that is acceptable: each one is a statement that cannot execute,
+found by whoever runs that code path rather than by anyone reading it.
+
+**Cross-repo.** Both defects this gate was written from lived outside the
+community tree -- a cash-basis report in `enterprise` and a comparison wizard in
+`agromarin`, the second with thirteen occurrences in one method. Community CI
+checks out this repo alone; the siblings pass ``--roots`` to cover their own, the
+way ``naming_vocabulary`` and ``mail_hook_keyword_check`` already do.
+
+**What it cannot see.** A query assembled across methods, or parameters built in
+one method and executed in another. `l10n_cl`'s clause was appended to a string
+that another module executed, and `agromarin`'s parameters were appended to a
+list two calls away from the cursor. Following either needs cross-file dataflow;
+the literal and the call site are what a single file offers, and between them
+they reach every occurrence that is written in one place. Keeping a statement
+and its execution together is the practice that makes the rest reachable.
+
+Usage::
+
+  python tooling/architecture/sql_placeholder.py             # report
+  python tooling/architecture/sql_placeholder.py --check     # CI
+  python tooling/architecture/sql_placeholder.py --count
+  python tooling/architecture/sql_placeholder.py --json
+  python tooling/architecture/sql_placeholder.py --roots ../enterprise
+"""
+
 import argparse
 import ast
 import json

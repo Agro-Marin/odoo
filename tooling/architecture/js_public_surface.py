@@ -1,3 +1,34 @@
+"""What each consumer checkout reaches inside `@web`, pinned per scope (ADR-0020).
+
+`web` publishes no API. Everything under `static/src` is importable as
+`@web/<path>`, so "the public surface" is not something the addon declares -- it
+is whatever the other checkouts happen to import, and it only ever grows unless
+something records it.
+
+The pin records, per specifier, WHICH consumer scopes reach it::
+
+    @web/core/registry            odoo enterprise agromarin
+    @web/core/translation         odoo enterprise agromarin design-themes
+
+SHRINK-ONLY, AND PER SCOPE, WHICH IS THE WHOLE DESIGN. A run judges only the
+scopes it can see, so this repo's own CI -- which checks it out alone -- validates
+the `odoo` scope and leaves the rest of the pin untouched. A sibling's lane
+re-runs the gate with this checkout beside it and judges its own scope. Growth in
+a scope fails there; SHRINKING the pin needs the full workspace, which is why
+``--update`` refuses anything less.
+
+THE FAILURE MODE IS A SCOPE NOTHING RUNS. Until 2026-08-25 this printed "absent,
+validated in their own CI" over every absent scope unconditionally, which was
+false for `design-themes` -- it had no CI at all -- and its rows had drifted by
+five entries that could not fail anywhere. :mod:`_consumer_scopes` holds the
+per-gate table of which lane actually covers which scope, and the line now says
+either which workflow, or that none does.
+
+`--addon mail` pins the same shape for `@mail`, floored separately: a surface is
+per provider, and one number over both would let growth in one hide a shrink in
+the other.
+"""
+
 import argparse
 import json
 import sys

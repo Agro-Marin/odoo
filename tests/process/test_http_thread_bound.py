@@ -1,3 +1,18 @@
+"""Half-open connections must not exhaust the bounded HTTP thread pool.
+
+``wsgi.http_socket_timeout`` documents a MEASURED denial of service: on the
+threaded server, "six connections sending nine bytes each (``GET /slow``, no
+CRLF) drained the pool to 0/4 and every subsequent request timed out — an
+unauthenticated denial of service costing the attacker almost nothing."
+
+The fix (a per-operation socket timeout on every connection, not only under
+``--test-enable``) is unit-tested in ``tests/service``, but only as "``setup``
+assigns ``self.timeout``".  That assertion would still pass if the timeout were
+never armed on the socket, if werkzeug stopped honouring it, or if the semaphore
+were released on the wrong path — the attack is a property of real sockets
+against a real accept loop, so it is reproduced here as one.
+"""
+
 import contextlib
 import socket
 import time

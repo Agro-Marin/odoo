@@ -930,11 +930,11 @@ the localisation namespace with the verb behind it
 token carrying no rule anywhere: ``_constrains_``, ``_constraint_``,
 ``_limit_available_currency_ids``, and twice the misspelling ``_contrains_``.
 
-**The field-hook rule must not be extended to it** ``[review]``. **299** bind
-exactly one field and only **130** are ``_check_<field>`` -- that gap is the rule
+**The field-hook rule must not be extended to it** ``[review]``. **296** bind
+exactly one field and only **127** are ``_check_<field>`` -- that gap is the rule
 working. A ``compute=`` names a subject; a ``@api.constrains`` argument names a
 **trigger**, and a constraint is named for the **condition it enforces**
-(``_check_at_least_one_administrator``). **46** multi-field constraints are named
+(``_check_at_least_one_administrator``). **49** multi-field constraints are named
 for exactly one of their triggers and every one is right. Ask what **raises**.
 
 **A hook may hold two bindings, and then one prefix has to lose** ``[review]``.
@@ -950,7 +950,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 102 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,328 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,334 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1110,7 +1110,7 @@ and **read the result**:
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
 **198** definitions under **98** names in this repository spell it head-first and
 **18** spell it the other way. **The rule is general; the conversion reached one
-family** -- across **19** of them this repository spells **63** definitions
+family** -- across **19** of them this repository spells **65** definitions
 head-first against **186** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
@@ -1189,7 +1189,7 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,374 definitions it is 22.1 % of every method
+**``_get_`` is not a default.** At 5,380 definitions it is 22.1 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
 computing. The split that matters is against ``_prepare_``: 686 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
@@ -1453,7 +1453,7 @@ classes carry the decorator and agree on nothing.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (143 definitions) and ``_update_*`` (253) are
+and is wired to nothing. ``_set_*`` (142 definitions) and ``_update_*`` (253) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
@@ -1471,7 +1471,7 @@ the duplicate report this section exists to produce.
 ``[gate doc_restated_counts]``. Making one table **agree with** another takes a
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
-for it this section had never named: **58** definitions spell it ``_sync_*`` and
+for it this section had never named: **59** definitions spell it ``_sync_*`` and
 **13** spell it ``_synchronize_*``, against ``_update_*``'s **253**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
@@ -1636,7 +1636,7 @@ to a field name and a registry string.
 
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
-call sites ever see. **79** parameters annotated ``field_name`` are ``str`` and
+call sites ever see. **81** parameters annotated ``field_name`` are ``str`` and
 **0** are a ``Field``, against ``field``'s **91** ``Field`` and **15** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s

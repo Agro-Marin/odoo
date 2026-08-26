@@ -1,3 +1,35 @@
+"""Every ``import { x }`` finds an ``x`` in the module it names (ADR-0031).
+
+A named import that resolves to nothing is not a runtime error you find in the
+failing feature. The bundle is one concatenated program, so an unsatisfied
+binding is a **link-time SyntaxError that kills the whole asset bundle** -- every
+module in it, not the one with the typo. That is why this runs over the tree
+rather than waiting for a page to load it.
+
+IT IS THE CHEAPEST GATE HERE AND IT CATCHES REAL THINGS. Measured 2026-08-25, one
+finding on a clean checkout::
+
+    addons/stock/static/tests/generate_serial.test.js:
+      imports 'parseNumberInput' from '@stock/widgets/generate_serial'
+      which does not export it
+
+The module had been reverted a revision while its template and its test stayed on
+the newer one, and the consequence was larger than a red gate: the whole test
+file could not link, so all six of its tests had been silently not running.
+
+CROSS-REPO, AND IT HAS TO BE. A sibling checkout imports `@web` and `@mail`
+specifiers it does not contain, so a repo-alone run cannot resolve them. The gate
+yields **no verdict** for a specifier whose provider tree is absent rather than
+guessing one -- an absent module is not a missing export -- which is why
+`enterprise/` and `agromarin/` each re-run it from their own lane with this
+checkout beside them, and why `design-themes` gained a lane in 2026-08-25 that
+does the same.
+
+Re-export forms are followed: `export { x } from …`, `export * from …`, and
+declaration exports. A star re-export is why the resolver is a graph walk and not
+a per-file lookup.
+"""
+
 from __future__ import annotations
 
 import argparse

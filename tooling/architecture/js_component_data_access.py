@@ -1,3 +1,43 @@
+"""Data acquisition inside ``components/``, pinned and shrink-only.
+
+``js_layer_check``'s ``components-below-entity`` contract argues that
+"presentational components take their data as props", and enforces that by
+forbidding one import prefix, ``@web/model``. No component in this tree reaches
+the server that way. Eleven reach it through ``useService("orm" | "field" |
+"name")`` or a direct ``rpc`` call, and every one of them passes.
+
+So the rationale described a boundary nothing checked. This gate checks it.
+
+WHAT IS COUNTED
+---------------
+
+A *site* is one call, identified by file, line and what it acquires. The pin
+below lists sites rather than a total, for the reason ``js_extension_surface``
+pins points rather than a count: a number tells the next reader that eleven
+exist, a list tells them which, and removing one becomes a task rather than an
+investigation.
+
+Shrink-only in both directions. A new site fails the build. A site that goes
+away must leave the pin in the same commit, so the debt cannot be paid once and
+re-spent.
+
+WHY THESE FOUR NAMES
+--------------------
+
+``orm``, ``field`` and ``name`` are the services that answer with server data.
+``rpc`` is the same thing without a service. Everything else a component may
+take — ``dialog``, ``notification``, ``ui``, ``overlay`` — acts on the client
+and is not what the rationale is about: a component that opens a dialog still
+renders anywhere, and a component that fetches does not.
+
+USAGE
+-----
+
+  python js_component_data_access.py            # report
+  python js_component_data_access.py --check    # gate
+  python js_component_data_access.py --json
+"""
+
 from __future__ import annotations
 
 import argparse

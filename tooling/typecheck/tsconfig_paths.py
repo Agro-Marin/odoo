@@ -1,4 +1,31 @@
 #!/usr/bin/env python3
+"""Derive ``compilerOptions.paths``'s addon-alias block from the addon layout.
+
+Every addon ``X`` that ships ``static/src/`` publishes ``@X/*``. That was always
+the rule -- ``tsconfig.json`` says so in prose -- but the block was maintained by
+hand, so it drifted: 599 addons on disk ship ``static/src`` against 238 entries,
+and the gate only notices the gap when some JS actually imports one of the missing
+aliases. It went red on ``@website_mail`` and ``@website_profile`` that way. A list
+that is derived by definition and edited by hand will keep rotting; this derives it.
+
+**Scope tolerance is the whole design.** CI checks ``odoo`` out alone, a developer
+has ``enterprise/``, ``agromarin/`` and ``design-themes/`` beside it, and the same
+file has to be correct in both. So, on the same principle the sibling
+``architecture.yml`` lanes use, this tool *grows* what it can see and refuses to
+shrink what it cannot:
+
+* an addon on disk with no entry                              -> added
+* an entry whose checkout is absent here                      -> kept, untouched
+* an entry whose checkout IS present but whose addon is gone  -> removed
+* an entry that is not an addon alias (``@odoo/hoot`` -> a file) -> outside the
+  markers entirely, so never seen
+
+Run from the repo root::
+
+    python tooling/typecheck/tsconfig_paths.py --check     # what CI asks
+    python tooling/typecheck/tsconfig_paths.py --update    # rewrite the block
+"""
+
 from __future__ import annotations
 
 import argparse

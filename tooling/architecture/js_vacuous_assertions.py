@@ -1,3 +1,38 @@
+"""Zero-count HOOT assertions naming a CSS class no markup declares.
+
+`expect(".o_thing").toHaveCount(0)` is only a test while `.o_thing` is
+something the tree can render. Once the class is renamed or removed, the
+selector matches nothing for a reason that has nothing to do with the
+behaviour under test, and the assertion passes forever -- including when the
+behaviour it guarded regresses.
+
+This is not hypothetical, and it is not one incident:
+
+* `marketing_automation`'s "Remove activity" test sat broken behind a stale
+  `.fa-trash` selector left by the FontAwesome 4->7 upgrade (83cf923c4d7), which
+  rewrote the markup to `fa-trash-can` and not the selector strings. That is
+  what `enterprise/.github/workflows/integration_tests.yml` was written for.
+* `industry_fsm_sale`'s catalog test broke the same way in the *other*
+  direction -- `4af1869b2c3` renamed the icon in `product`'s template, five
+  months before anyone ran the suite that asserted on it.
+* `timesheet_grid` asserted `.btn_timer_line.fa-stop-danger` is absent. No
+  markup has ever carried `fa-stop-danger`; the button renders `fa-stop` and
+  `btn-danger` separately, so the assertion could not fail.
+
+The first two are a *rename* reaching a selector; only running the suite finds
+those. The third is a class that never existed anywhere, which is decidable
+statically -- and that is what this gate decides.
+
+A class is "declared" if it appears as a word anywhere outside a test: a
+template, a component, a stylesheet, a view record. That is deliberately
+generous. The point is not to prove a selector matches at runtime -- a static
+scan cannot -- but to catch the assertion whose class the tree has no idea
+about, which is the shape all three incidents above share.
+
+Composed classes (`o_field_${type}`, `o_kanban_color_${n}`) are exempted by
+their declared prefix, so a class the tree builds at runtime is not reported.
+"""
+
 import argparse
 import json
 import re

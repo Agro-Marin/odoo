@@ -1,3 +1,44 @@
+"""A field hook does one job.
+
+ADR-0049 and ADR-0050 fix what a hook is *called*. This gate asks a different
+question: whether the method is a hook at all, or a general helper a field
+declaration happens to point at.
+
+The difference is not cosmetic. ``compute=`` is a declaration — the ORM decides
+when the method runs, from the dependency graph — so a compute that production
+code also calls by hand is a compute whose graph is not doing its job, and the
+callers are compensating for it. ``_compute_quantity`` is defined four times and
+called one hundred and ninety-nine. A ``default=`` pointing at a shared utility
+is the same shape more mildly: ``get_base_url`` has over a hundred callers and
+supplies one field's default, so no naming rule can reach it — renaming it after
+that field would be absurd, and the naming gate has to exempt it by hand.
+
+The fix is a split, not a rename: the hook keeps the hook's name and delegates
+to a helper the other callers use. That is why this is a separate record from
+the naming rule — the finding survives any renaming.
+
+Calls from test files do not count. A test poking a compute is exercising it,
+not depending on it, and hooks would otherwise be reported for having tests.
+
+Two shapes are not two jobs, and both were learned by reading the findings:
+
+* ``default=lambda self: self._helper()`` -- the hook is the *lambda*, and the
+  method it forwards to is a helper. That is the very split this record asks
+  for, so charging the helper for having other callers punishes the remedy.
+* one method serving both a field's ``default=`` and its ``compute=``. That is
+  a single value provider for a single field, reached twice by the framework.
+
+**A call counts only when it is ``self.<hook>()`` inside the model that declares
+the hook.** Counting by method name alone is not a weaker version of this, it is
+a different and wrong measurement: ``uom.uom._compute_quantity(qty, to_unit)``
+is a unit-conversion utility called 198 times, and three unrelated models happen
+to spell a compute the same way. By name they look like the worst offenders in
+the tree; by receiver they are called on ``self`` zero times. The price is that
+a hook invoked as ``other_record._compute_x()`` is missed, which is accepted:
+the receiver's model is not knowable from the AST, and a count that guesses is
+worth less than one that under-reports.
+"""
+
 from __future__ import annotations
 
 import argparse

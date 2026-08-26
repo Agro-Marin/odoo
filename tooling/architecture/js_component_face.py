@@ -1,3 +1,44 @@
+"""A component directory imported from outside ``web`` has a face.
+
+``js_face_boundary`` refuses an import that reaches *past* a face — a ``foo.js``
+beside ``foo/`` re-exporting what the directory offers. It says nothing about
+which directories should have one, because a face is discovered rather than
+declared: the gate globs for the pairing and enforces entry wherever it finds
+it. This gate answers the prior question for ``components/``.
+
+THE SPLIT IS CLOSED
+-------------------
+
+It used to be a split, and it was never a rule. Some directories carried a face
+and some did not, while being imported from outside ``web`` the same way, and
+every one of them — faced or not — was reached through **exactly one** module
+from outside. ``color_picker`` was reached through two and had no face, which is
+the combination a "more than one consumer module" rule would predict least.
+History, then, not design, and a new component's author had no rule to apply.
+See ADR-0047.
+
+Every faceless directory has since been migrated, so ``PINNED_FACELESS`` is
+empty and the rule below is now the whole rule: reached from outside, therefore
+faced. The pin stays because the gate is shrink-only in both directions, and an
+empty frozenset is what "no debt" looks like — not something to delete, or the
+next regression has nothing to fail against.
+
+WHAT IS COUNTED
+---------------
+
+A directory directly under ``components/`` is *required* to have a face once any
+module outside ``addons/web/static`` imports something under it. A directory only
+``web`` itself imports is not: the reason for a face is the boundary, and there
+is no outside entry to constrain.
+
+USAGE
+-----
+
+  python js_component_face.py            # report
+  python js_component_face.py --check    # gate
+  python js_component_face.py --json
+"""
+
 from __future__ import annotations
 
 import argparse

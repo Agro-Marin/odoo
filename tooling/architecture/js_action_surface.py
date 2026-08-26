@@ -1,4 +1,61 @@
 #!/usr/bin/env python3
+"""Declared-shape gate for the action service — the widest instance in the client.
+
+``env.services.action`` is an ``ActionManager`` instance. Consumers do not
+import it; they are handed it, by name, off an ambient object — the same kind of
+coupling ADR-0022 records for ``archInfo``, ``env.config`` and the field record,
+and blind to every gate built on imports or inheritance for the same reason.
+This is a fourth instance of that category, not a new decision.
+
+``action_service_contract.js`` declares the surface. Until this gate existed
+nothing checked it against reality, and it had drifted in the direction that
+costs something: **the contract under-declared**. Four members were classified
+as internal — free to rename — while consumers reached them at 45 non-test call
+sites:
+
+  currentController                  25   loadState                          3
+  loadAction                         16   uninstallActionCacheInvalidation   1
+
+``uninstallActionCacheInvalidation`` exists solely so ``web_studio`` can call
+it, and was on the "nobody reaches this" side of the list.
+
+WHAT IS CHECKED
+---------------
+
+Hard zero: every member any present scope reaches on the action service is
+named in ``ACTION_MANAGER_SURFACE``. The half that matters in CI is ``web``'s
+own reaches, which are checked with no sibling checkout present.
+
+The complementary direction — every declared name exists on the class — is
+``sibling_contract.test.js``, which runs the real constructor and so can see
+per-instance state that no static scan can.
+
+READING SITES
+-------------
+
+Only receivers that are *provably* the action service are counted:
+
+* ``env.services.action.x`` / ``this.env.services.action.x`` / ``services.action.x``
+* an identifier bound in the same file by ``useService("action")`` or
+  ``env.services.action`` — ``this.actionService = useService("action")`` then
+  ``this.actionService.x``, and the bare-``const`` form
+* ``am`` / ``this.am`` inside ``webclient/actions/**``, that subtree's parameter
+  convention for the manager
+
+``this.action`` is deliberately NOT a reading site even though it is a common
+binding for the service, because it is a far more common binding for an action
+*record* (``this.action.res_model``, ``this.action.context``). Counting it makes
+the gate invent members. That blind spot is the price of not inventing; the
+aliasing pass above recovers the real service bindings, which is how the four
+missing members were found.
+
+USAGE
+-----
+
+  python js_action_surface.py            # gate
+  python js_action_surface.py --json
+"""
+
 from __future__ import annotations
 
 import argparse

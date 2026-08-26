@@ -1,4 +1,61 @@
 #!/usr/bin/env python3
+"""``IN %s`` bound to a value, which psycopg3 cannot execute (ADR-0055).
+
+psycopg2 adapted a Python tuple into the literal ``(1, 2, 3)`` before the
+statement left the client, so ``WHERE id IN %s`` had a parenthesised list to
+read by the time the server saw it. psycopg3 -- the only driver this fork uses
+-- binds server-side: the placeholder reaches PostgreSQL as ``$N``, and
+``IN $N`` is not valid SQL for ANY value type. Measured on this fork's cursor:
+
+    cr.execute("... id IN %(x)s", {"x": (1, 2)})   SyntaxError near "$1"
+    cr.execute("... id IN %(x)s", {"x": [1, 2]})   SyntaxError near "$1"
+    execute_query(SQL("... id IN %(x)s", x=(1, 2)))            runs
+    execute_query(SQL("... id IN %(x)s", x=[1, 2]))            SyntaxError
+
+THE SPELLING IS NOT WRONG, THE CALLER IS. ``odoo.libs.sql.builder.SQL`` gives a
+tuple argument its own branch: it expands into ``(%s, %s, ...)`` with one bound
+parameter per element, and ``(NULL)`` when empty. So ``IN %s`` through ``SQL()``
+with a tuple is CORRECT, and over a hundred sites in this tree depend on it. The
+same text handed to ``cr.execute`` has no builder in front of it and is broken.
+That is why this gate reads the call, not the string: a grep for ``IN %s``
+answers with correct code roughly two times in three.
+
+WHAT IT COUNTS. Two shapes, both decidable at the call site:
+
+* A query literal passed DIRECTLY to ``cr.execute`` and friends. Nothing
+  expands the placeholder there, so every ``IN %s`` in it is broken.
+* An ``SQL(...)`` whose matching argument is provably NOT a tuple: a list
+  display, a comprehension, ``list()``, ``sorted()``, ``.mapped()`` or a
+  ``.ids`` attribute, each of which reaches the builder's generic branch and
+  becomes one array parameter.
+
+WHAT IT CANNOT SEE, stated plainly because the limit is real. A query assembled
+into a VARIABLE and executed elsewhere is invisible to it, and that is the shape
+of both bugs that prompted this gate: ``l10n_ec`` appended ``AND <col> in %(x)s``
+to a where-string that ``account``'s sequence mixin executed two files away, and
+``marin``'s year-over-year wizard built its conditions in a list before handing
+the join to ``cr.execute``. Deciding those needs real dataflow. Flagging every
+literal that is not inside an ``SQL()`` instead was tried and is WRONG: core's
+own ``ir_ui_view._get_filter_xmlid_query`` returns the query text from one method
+and builds it with ``SQL(query, res_ids=tuple(...))`` in another, which is
+correct and would be reported. A gate whose findings include correct code is
+read as broken and ignored, so this one reports less and means it. Those two
+shapes are held by their tests instead.
+
+WHAT IT DOES NOT COUNT, and must not. An ``SQL(...)`` argument it cannot resolve
+-- a bare name, a parameter, an attribute -- is left alone. All forty-nine such
+sites were read by hand when this gate was written and every one was a tuple.
+Nor a literal that Python's own ``%`` operator formats before it is ever a
+query: ``calendar_recurrence``'s CHECK constraint interpolates two tuples into
+``weekday IN %s AND byday IN %s`` at class-definition time, producing SQL
+literals, not placeholders.
+
+Nor ``= ANY(%s)``, which is the other correct spelling and wants a LIST -- the
+exact inverse container. Nor ``IN (SELECT ...)`` or ``IN %s`` filled with a
+composed ``SQL`` object such as ``query.subselect()``: those are SQL text
+spliced before the statement is sent, not bound values.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -32,7 +89,9 @@ SQL_KEYWORD = re.compile(
     r"|GROUP BY|ORDER BY|AND|OR|ON|EXTRACT|COALESCE|DISTINCT|LIMIT|UNION|USING)\b"
 )
 
-IN_PLACEHOLDER = re.compile(r"\b(?:NOT\s+IN|IN)\s+%(?:\((\w+)\))?s", re.IGNORECASE | re.DOTALL)
+IN_PLACEHOLDER = re.compile(
+    r"\b(?:NOT\s+IN|IN)\s+%(?:\((\w+)\))?s", re.IGNORECASE | re.DOTALL
+)
 
 RAW_EXECUTORS = frozenset(
     {"execute", "executemany", "execute_query", "execute_query_dict"}
@@ -135,7 +194,11 @@ def measure(
         builder_literals: set[int] = set()
         for call in (n for n in ast.walk(tree) if isinstance(n, ast.Call)):
             func = call.func
-            callee = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            callee = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else getattr(func, "id", "")
+            )
             if callee != BUILDER or not call.args:
                 continue
             text = _string_of(call.args[0])
@@ -156,7 +219,11 @@ def measure(
 
         for call in (n for n in ast.walk(tree) if isinstance(n, ast.Call)):
             func = call.func
-            callee = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            callee = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else getattr(func, "id", "")
+            )
             if callee not in RAW_EXECUTORS or not call.args:
                 continue
             arg = call.args[0]

@@ -1,3 +1,84 @@
+"""Gate the *keywords* the mail framework passes to hooks its addons override.
+
+``mail`` is not an application, it is a framework: ``mixin.mail.thread`` and
+``mixin.mail.activity`` are injected into business models across every repo, and
+their ``_notify_*`` / ``_message_*`` / ``_track_*`` / ``_mail_*`` methods are
+extension points that dozens of addons override. Adding a parameter to one of
+those signatures is therefore a cross-repo change, and the compiler that would
+have caught it does not exist in Python.
+
+**The gap it closes.** On 2026-08-17 ``28ed9db3341`` added a ``tracking_values``
+keyword to ``mixin.mail.thread._notify_by_email_prepare_rendering_context`` and
+passed it from ``_notify_by_email_prepare``. Six modules override that hook --
+``project``, ``crm``, ``account``, ``account_peppol``, ``base_order`` and
+``enterprise/hr_appraisal`` -- and none of their signatures moved, so every
+notified create in them raised::
+
+    TypeError: ProjectTask._notify_by_email_prepare_rendering_context()
+               got an unexpected keyword argument 'tracking_values'
+
+One run of the dependent ring measured ``1 failed, 129 errors of 1654`` before the
+fix and ``57 failed, 0 errors of 2085`` after (``e4bb93b8ee4``) -- 431 more tests
+merely *reached*, because the TypeErrors were aborting whole classes. And it
+merged green: ``/mail,/test_mail`` cannot see it, because neither module overrides
+the hook -- ``mail`` declares it once and calls it once, and ``test_mail`` only
+calls it from tests. That is the whole point -- **a framework's own suite cannot
+reach the implementations of its extension points.** Run against that commit this
+gate names all five community overrides; against the fixed tree it reports zero.
+
+**What is checked.** For every hook ``mail`` defines under ``addons/mail/models``
+and calls *by keyword* from its own code, every declaration of that hook must be
+able to accept those keywords -- the 131 overrides outside ``mail`` and the
+redeclarations inside it alike, since ``discuss.channel`` overrides the mixin from
+within the framework directory and a stale signature there raises exactly the same
+TypeError. A declaration that spells ``**kwargs`` absorbs anything and is not a
+finding.
+
+**What is deliberately not checked, and what is simply not covered.**
+
+*Positional parameters, at all.* This is the deliberate one. ``_track_subtype``'s
+base spells its parameter ``initial_values`` and all 29 overrides across the four
+repos spell it ``init_values`` -- every call site passes it positionally, so the
+name is private to the override and the divergence is harmless. A rule that
+compared parameter *names* would report 37 findings in the community tree alone,
+every one of them noise, which is how a gate gets switched off. Only keywords the
+framework actually passes are counted.
+
+The cost of that choice is real and is not covered: **a base that gains a
+*required positional* parameter breaks every override, and this gate is blind to
+it.** Nothing here would have caught that variant of ``28ed9db3341``.
+
+*The reverse direction.* An override that forwards a keyword to ``super()`` which
+the base has since dropped raises the same TypeError from the other side. Also
+uncovered; it needs the call-site analysis this gate does not do.
+
+*Same-named methods on unrelated models.* The base must be defined in
+``addons/mail/models`` and the keyword must be one ``mail`` itself passes. A
+``_message_foo`` invented by two addons that never talk to each other is not a
+contract and is not measured.
+
+*Tests.* An override in a ``tests/`` directory is a fixture, free to take whatever
+shape its test needs.
+
+**A contract, not a ratchet.** The tree measures zero and there is no reading of
+this number under which a non-zero value is acceptable: a keyword an override
+cannot accept is a ``TypeError`` waiting for the right record to be saved. It has
+no baseline for the same reason ``layer_check``'s contracts have none.
+
+**Cross-repo.** Overrides live in ``enterprise/`` and ``agromarin/`` too --
+``hr_appraisal`` was the sixth. Community CI checks out this repo alone and so
+measures the community overrides; the siblings pass ``--roots`` to cover their
+own, the way ``naming_vocabulary`` and ``js_public_surface`` already do.
+
+Usage::
+
+  python tooling/architecture/mail_hook_keyword_check.py             # report
+  python tooling/architecture/mail_hook_keyword_check.py --check     # CI
+  python tooling/architecture/mail_hook_keyword_check.py --count
+  python tooling/architecture/mail_hook_keyword_check.py --json
+  python tooling/architecture/mail_hook_keyword_check.py --roots ../enterprise
+"""
+
 import argparse
 import ast
 import json

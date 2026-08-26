@@ -1,4 +1,34 @@
 #!/usr/bin/env python3
+"""Expected-failure baselines for odoo-bin integration suites.
+
+Answers, without a control run, the question that costs this workspace the most
+test time: *is this red mine, or was it already red?*
+
+The alternative in use until now was prose — the "Known defects" table in the
+workspace `CLAUDE.md`. Three of its properties were measured on 2026-08-22 and
+each one is a design constraint here, not a preference:
+
+1. It rots within the hour. Its `/base` row claimed 11 red of 3284; a run of its
+   own repro at `ca4ee2ddd79` reported 3 of 3284, because `d669e70361c` had
+   fixed five of them one hour after the row was written. That table lives at
+   the workspace root, which is not a git repository, so no commit can retire an
+   entry atomically — the rot is mechanical, not a discipline failure.
+2. Counting failures by grepping for ERROR invents them. PostgreSQL error text
+   is embedded verbatim in log records of *passing* tests, so a bad-COPY test
+   that passes contributes a line reading `ERROR: descriptor 'toordinal' ...`.
+   On one `/base` log, `ERROR` matched 14 lines and the truth was 3. Hence
+   `RECORD` below anchors on the full structured prefix, and `evaluate` refuses
+   to return a verdict when its own tally disagrees with the server's.
+3. Comparing counts hides swaps. `quality_control` was "2 failed of 38" when the
+   prose was written and is "2 failed of 41" today — but one name left the set
+   and a different one joined it. A count comparison reads "both known" and
+   ships the regression, which is worse than having no record at all.
+
+Scope: this reads a log an operator already produced. It does not run tests, own
+a workflow, or gate CI — a red suite is still red. What it removes is the second
+run whose only purpose was to find out whether the first one's red was new.
+"""
+
 from __future__ import annotations
 
 import argparse

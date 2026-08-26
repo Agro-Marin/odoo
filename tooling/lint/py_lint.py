@@ -1,4 +1,36 @@
 #!/usr/bin/env python3
+"""Run test_lint's Python AST checkers over any roots, without odoo-bin.
+
+WHY THIS EXISTS. The checkers live in an odoo *addon*, so the only way to run
+them was to install `test_lint` into a database, and `lint_case.is_core_path`
+scopes every gate to the checkout the framework is running from. The sibling
+repositories are therefore checked by nothing at all. Measured 2026-08-25 with
+this script, under exactly the corpus rules the gate applies:
+
+    agromarin        1760 files    156 findings   (81 n-plus-one, 22 sql-injection, ...)
+    enterprise       7786 files    731 findings   (423 n-plus-one, 275 noqa-rationale, ...)
+    design-themes     129 files      2 findings
+    ---------------------------------------------
+                                    889, against 557 in the repository that is gated
+
+Each sibling repository runs `--check` from its own "Architecture Boundaries
+(cross-repo)" workflow, which already checks this fork out beside itself. The
+floors live here, in `tooling/ratchet/baselines/lint_<rule>_<scope>.json`,
+because that is where the gate and every other floor live -- scoped by
+provenance, so a run judges only its own repository's count.
+
+    python tooling/lint/py_lint.py ../agromarin --count
+    python tooling/lint/py_lint.py ../agromarin --rule sql-injection
+    python tooling/lint/py_lint.py ../agromarin --count --rule sql-injection   # bare integer
+    python tooling/lint/py_lint.py agromarin --check --scope agromarin
+
+`--check` defaults to `--mode no-increase` for the same reason the other
+cross-repo ratchets do: an exact floor across a repository boundary would make
+every fix in a sibling red until a matching commit landed here to bank it.
+Growth still fails. Lowering a sibling floor is done by hand from a workspace
+that holds all four checkouts, which is what `naming` already asks for.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -198,9 +230,7 @@ def _scoped_gates(ratchet, scope: str) -> set[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="py_lint.py", description=__doc__
-    )
+    parser = argparse.ArgumentParser(prog="py_lint.py", description=__doc__)
     parser.add_argument("roots", nargs="+", help="directories to scan")
     parser.add_argument("--rule", help="only this rule")
     parser.add_argument(

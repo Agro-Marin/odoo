@@ -1,4 +1,34 @@
 #!/usr/bin/env python3
+"""Every name imported from a façade module must exist in it.
+
+``odoo/tools`` re-exports on purpose: ``odoo.tools.misc`` is imported by
+hundreds of files and forwards names that live in ``odoo.libs``. That makes it a
+contract with no enforcement -- ``__all__`` states one surface, the module
+exposes another, and an addon importing a name that is in neither fails at
+*module import time*, which means at install, in one addon, on whoever installs
+it next.
+
+That is not hypothetical. An AST sweep of the four repositories found exactly
+one such import, and nothing in CI could see it:
+
+    enterprise/l10n_au_hr_payroll_api/models/l10n_au_superstream.py
+        from odoo.tools.misc import groupby, itemgetter   # misc has no itemgetter
+
+This gate resolves every ``from <facade> import name`` statically -- no import
+of the addon, so an addon with unrelated breakage elsewhere is still checked --
+and reports two things:
+
+* **missing** -- the name is imported and does not exist. This fails the gate.
+* **undeclared** -- the name exists and is absent from ``__all__``. Reported,
+  never failed: the façades deliberately forward more than they declare, and
+  turning that into an error would be a large mechanical change dressed up as a
+  bug report. The count is printed so the drift stays visible.
+
+Run over sibling repositories with ``--roots``, the way
+``naming_vocabulary.py`` does, since a sibling's CI checks out this repo beside
+itself (``.github/workflows/architecture.yml``, "Architecture Boundaries").
+"""
+
 from __future__ import annotations
 
 import argparse

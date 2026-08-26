@@ -1,4 +1,52 @@
 #!/usr/bin/env python3
+"""Counters that count by hand, which ADR-0052 replaced with ``fields.Count``.
+
+Two shapes, both of which the record argues should stop being written:
+
+* ``record.<counter> = len(record.<x2many>)`` inside a ``_compute*`` method --
+  the WHOLE assignment, not a ``len()`` anywhere in one.
+  It reads as the batched form and is the slowest of the three at list-view
+  scale -- ``One2many.read`` does not count, it instantiates every line of every
+  record in the prefetch set and groups them in Python -- while on a warm cache
+  it is the fastest. ``fields.Count`` takes that branch per call.
+* ``search_count()`` inside a ``for`` loop over ``self`` in a ``_compute*``
+  method. One query per record, which ``test_lint E8507`` already counts as a
+  query inside a loop; it is here too because the fix is usually the same
+  declaration rather than a hand-written ``_read_group``.
+
+THE ``_ids`` SUFFIX IS DOING REAL WORK HERE, and that is deliberate rather than
+sloppy: ``coding_guidelines.rst``'s naming table fixes ``_ids`` for relational
+fields, so a name ending that way is a relation by the fork's own rule. Resolving
+the field properly would mean following ``_inherit`` across files to find where
+it was declared, and a ratchet wants a definition that is stable and cheap to
+re-derive over one that is complete. A counter over a field named otherwise is
+missed, and that is the trade.
+
+NOR A ``len()`` THAT IS NOT A COUNTER. ADR-0052 replaced a counter FIELD, and
+`fields.Count` can express nothing else, so the `len()` has to be the entire
+right-hand side of an assignment to a field on the record being looped over.
+`len(move.suitable_journal_ids) > 1` is a boolean, `i == len(self.line_ids) - 1`
+is an index bound, and `done = len(enrollment.completion_ids)` is a ratio
+numerator bound to a local -- all legitimate, none convertible. Counting them
+inflated the floor with code that has no fix, which is the same defect as the
+guard below and was found the same way: by reading the sites instead of the
+number.
+
+NOR A ``len()`` UNDER A ``NewId`` GUARD. ``fields.Count`` itself falls back to
+``len()`` for an unsaved record, because its lines are in cache and in no table;
+a compute that already does the same thing by hand -- ``if not any(self._ids):``
+and then ``len()``, ``_read_group`` otherwise -- is the correct shape, not the
+one this gate exists to remove. Counting it would put correct code in the floor,
+and a gate whose findings include correct code is read as broken and ignored.
+Three sites in ``addons/project/models/project_task.py`` are exactly this.
+
+WHAT IT DOES NOT COUNT. A ``len()`` over a multi-hop path
+(``len(record.parent_id.line_ids)``) is not a field on the record, so
+``fields.Count`` cannot express it and it is out of scope. Nor is a compute that
+already uses ``_read_group``: those are correct as written and this gate must not
+push anyone off them.
+"""
+
 from __future__ import annotations
 
 import argparse

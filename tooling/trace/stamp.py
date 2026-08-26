@@ -1,4 +1,32 @@
 #!/usr/bin/env python3
+"""Stamp (and un-stamp) per-component render probes across a JS tree.
+
+The campaign's choke-point probes in ``@web/core/utils/asset_log`` observe every
+module without touching it: module load, registry adds, service waves, RPC,
+actions, model operations, view loads and field resolution all funnel through a
+handful of files. What they cannot see is *which component re-rendered*, because
+that fact only exists inside each component's own ``setup()``.
+
+This tool writes that one probe into every component class in a scope, and takes
+it back out again. Both directions are exact: every line it inserts carries the
+``SENTINEL`` trailing comment, and ``--revert`` removes lines carrying that
+comment and nothing else, so a stamped tree returns byte-identical to its
+pre-stamp state.
+
+The probe itself is ``useRenderCounter`` from
+``@web/core/utils/render_instrumentation``, which is gated behind
+``globalThis.__renderTrace`` and costs one dead ``if`` while that is false.
+
+    python tooling/trace/stamp.py --check
+    python tooling/trace/stamp.py --apply
+    python tooling/trace/stamp.py --revert
+
+GATE IMPACT IS REPORTED, NOT ABSORBED. A stamp adds one statement line to every
+``setup()`` it touches, and ``jsfunclen`` is an exact floor over functions longer
+than 80 lines. ``--check`` names every function the stamp would push over that
+budget so the scope can be narrowed before the floor moves.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -292,7 +320,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{verb} {units} probe line(s) across {touched} file(s)")
     if args.apply:
         if over_all:
-            imports_over = [o for o in over_all if o.endswith("cols)") and "import" in o]
+            imports_over = [
+                o for o in over_all if o.endswith("cols)") and "import" in o
+            ]
             sites_over = [o for o in over_all if o not in imports_over]
             print(
                 f"\nWARNING: {len(sites_over) + bool(imports_over)} kind(s) of line "

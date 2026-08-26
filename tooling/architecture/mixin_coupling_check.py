@@ -1,4 +1,178 @@
 #!/usr/bin/env python3
+"""mixin_coupling_check.py — drift-zero gate on the ORM's mixin compositions.
+
+``layer_check.py`` reasons about **import** edges, which is the right model for
+every boundary in ``doc/architecture/ARCHITECTURE.md`` except one. ``BaseModel`` is composed
+from 26 ``__slots__ = ()`` mixins by multiple inheritance; they collaborate
+through ``self``, and a ``self._fields`` or ``self._search(...)`` produces **no
+import edge at all**. So the most intricate coupling surface in the framework is
+invisible to the checker that guards everything around it: a mixin can grow a
+dependency on any other mixin, and no gate moves.
+
+This reconstructs that graph from the AST and ratchets it.
+
+FIVE COMPOSITIONS
+-----------------
+
+``BaseModel`` is not the only class built this way. Four others use the same
+construction — a root class over ``*Mixin`` bases — and **four of the five were
+tangled the first time anything measured them**:
+
+* ``Field(_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)`` over
+  ``_FieldStubs``, unmeasured until 2026-08-08, 1401 lines against 628 in its
+  three mixins (the inverse of the ratio ``models/`` reached).
+* ``Registry(_RegistryFieldsMixin, _RegistrySchemaMixin, ...)`` over
+  ``_RegistryStubs``, unmeasured until 2026-08-09, 1018 lines against 461 in its
+  two mixins — a worse ratio than ``Field``'s. A **3-cycle**.
+* ``Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor)`` in ``db/``, unmeasured
+  until 2026-08-09 and recorded as out-of-scope earlier the same day. A
+  **2-cycle** (see :data:`CURSOR_BASELINE`). Its mixins declare no base at all,
+  which is why the bases-only filter could not see them.
+* ``Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin)`` over
+  ``RequestState`` in ``http/`` — the only one that was already a DAG.
+
+:class:`Composition` describes one; :data:`COMPOSITIONS` lists all five, each
+with its own floors, and a drift in any of them fails.
+
+**Both generalisations paid immediately, and the second paid more.** The first
+run of the ``Field`` graph found a 2-cycle, ``_field_convert`` <-> ``base.py``
+(see :data:`FIELD_BASELINE`). The first run of the ``Registry`` graph found a
+**3-cycle over 4 edges — every unit in one component**, the only one of the three
+compositions that was not a DAG (see :data:`REGISTRY_BASELINE`). Both tangles had
+been there for as long as their splits existed, and nothing could see either.
+Both are fixed the same way — moving the cluster the mixins reach for off the
+composition root onto a leaf — and all three compositions are now DAGs.
+
+That is the argument for looking. **Four for five**, every one found by a person
+noticing the construction rather than by a gate — which is why
+``test_mixin_coupling_check`` now discovers composition roots from the tree and
+fails on one that is absent from :data:`COMPOSITIONS`. A composition nothing
+measures is not a composition that happens to be clean.
+
+WHAT ``cyclic_edges 0`` DOES NOT MEAN
+-------------------------------------
+
+An edge is recorded only when the reached member is **bound in some unit's class
+body**. State assigned in a constructor and declared only in the typing stub is
+read by everyone and owned by nobody, so it produces no edge — and the stub is
+excluded from being a unit precisely so that it cannot absorb them.
+
+Two consequences, both demonstrated on 2026-08-09 and both now counted by
+:func:`unowned_shared_state`:
+
+* **It hides coupling.** ``Registry`` had eight ``init``-assigned members
+  (``_constraint_queue``, ``has_unaccent``, ``model_graph``, …) read by its
+  mixins and invisible here. Attributed to the unit that *assigns* them, the
+  composition was **still a 3-unit SCC** after the leaf extraction that took
+  ``cyclic_edges`` to 0. It is 0 for ``Registry`` now because each of the eight
+  was given a real owner, not because the measurement was re-tuned.
+* **It can be silenced.** Deleting the single line
+  ``models: dict[str, type[BaseModel]]`` from ``Registry``'s class body — no
+  behaviour change at all — took ``cyclic_edges`` from 4 to 2 on the pre-split
+  tree. **A declaration could switch this gate off**, and the two numbers now
+  move in opposite directions so that it cannot.
+
+So read ``cyclic_edges`` as *declared* ownership is acyclic, and read
+``unowned_shared_state`` beside it as how much ownership was never declared.
+The honest summary of a composition is the pair, never the first alone —
+``BaseModel`` still carries 4 and ``Field`` 1.
+
+For ``Field`` the units are the mixin composition only. Concrete field types
+(``BaseString(Field[...])``, ``Many2many(_RelationalMulti)``) are *subclasses*;
+they override base methods freely — ``BaseString`` overrides six of ``Field``'s
+twelve cache methods — but that is the override surface, a different graph, and
+folding it in here would conflate the two.
+
+HOW THE GRAPH IS BUILT
+----------------------
+
+For each unit (one mixin module, the ``read_group`` subpackage, or ``base.py``):
+
+* **defines** — names bound in the body of a class that participates in the
+  composition (``BaseModel`` itself, or a class inheriting ``_ModelStubs`` /
+  ``*Mixin``). Restricting to those classes matters: ``traversal.py`` defines a
+  local ``ReversibleComparator`` and ``cache.py`` a ``RecordCache``, both with
+  ``__eq__`` / ``__getitem__`` / ``__len__``. Counting those would report
+  phantom MRO collisions against ``IterationMixin``.
+* **uses** — every ``self.X`` / ``cls.X`` read inside such a class.
+* **recordset_uses** — ``uses`` plus every name reached through another
+  recordset *of the same model*: ``records = self.browse(ids)`` followed by
+  ``records._validate_fields(...)``. A mixin is a fragment of one class, so that
+  is the same coupling as ``self._validate_fields(...)`` — but spelled in a way
+  the ``self``-only collector cannot see. Measuring only ``self.`` reported the
+  composition as a DAG while it was not one (see ``BASELINE``'s 2026-08c note).
+* An edge ``A -> B`` exists when A uses a name that B defines. Both views are
+  built, and both are ratcheted.
+
+``_model_stubs`` is excluded: it is the typing-only *declaration* of the shared
+surface, not an implementation, so counting it would collapse every edge onto it
+and hide the real graph.
+
+WHAT IS RATCHETED
+-----------------
+
+Six numbers, each a one-way contract against ``BASELINE``: the three below,
+measured twice — once on the ``self``-only graph and once on the
+recordset-aware one (``recordset_`` prefix). The second set is the one that
+describes the composition; the first is kept because its movements are the
+recorded history of this decomposition.
+
+* ``max_scc`` — the largest strongly-connected component. Cycles are what make a
+  decomposition cosmetic; this must never grow.
+* ``cyclic_edges`` — edges whose endpoints share a cycle. The volume of
+  tangling, as opposed to ``max_scc``'s worst single knot: breaking one back-edge
+  of a 9-cycle leaves ``max_scc`` at 9 but shows up here immediately.
+* ``scc_without_base`` — the largest SCC once ``base.py`` is removed. It used to
+  be the interesting number: ``base.py`` was the *articulation point* of a
+  nine-unit cycle, holding model metadata that every mixin read, and this
+  metric reported the 2 that would remain if that were fixed. That split
+  happened — the metadata lives on ``_metadata`` / ``_properties`` /
+  ``_magic_fields`` leaves — and ``max_scc`` and this metric have converged, at
+  **1**. It is kept as the regression guard for that split: if they diverge
+  again, behaviour has moved back into the root.
+
+  Two claims here had drifted from the graph they describe, in the checker whose
+  job is to stop exactly that. They said the pair had converged at *2* (the
+  value before ``_query.py`` broke ``read`` ⇄ ``search``; see ``BASELINE``'s
+  2026-08b note) and that ``base.py`` was "now purely the composition root",
+  which at the time it was not: it had out-edges to ``create``, ``_metadata``,
+  ``traversal`` and ``_magic_fields``, and in-edges from ``lifecycle`` and
+  ``unlink`` for the ``_onchange_methods`` / ``_ondelete_methods`` registries.
+  A composition root two units depend on is a participant. It **is** one now --
+  ``_HooksMixin``, ``_DisplayNameMixin`` and ``_FieldComputeMixin`` took the last
+  six members off it, and ``base.py`` measures in-degree 0 and out-degree 0 in
+  both views. So ``scc_without_base`` is now structurally pinned to ``max_scc``
+  rather than merely equal to it, and its job has narrowed to catching the
+  regression: if behaviour moves back into the root, the two diverge.
+
+``units`` and ``edges`` are **reported but deliberately not ratcheted**. An
+earlier version ratcheted the raw edge count as a god-object guard, and the very
+first refactor done with this tool disproved it: extracting
+``_read_group_empty_value`` onto a leaf deleted a 3-cycle outright, and the edge
+count went *up* 85 -> 87, because a new unit brings its own edges. A metric that
+fires on a decomposition it should reward is worse than no metric. Tangling is
+what matters, so tangling is what is ratcheted.
+
+Like ``layer_check``, the gate is drift-zero: any increase fails. A *decrease*
+is reported and the baseline should be lowered in the same commit, so a cleanup
+is locked in and cannot silently regress (the ``exact`` posture of
+``tooling/ratchet/``).
+
+USAGE
+-----
+
+  python tooling/architecture/mixin_coupling_check.py            # report
+  python tooling/architecture/mixin_coupling_check.py --check    # CI: exit 1 on drift
+  python tooling/architecture/mixin_coupling_check.py --json
+  python tooling/architecture/mixin_coupling_check.py --explain read search
+  python tooling/architecture/mixin_coupling_check.py --composition Field \\
+      --explain _field_convert base.py
+
+exit 0 — within baseline
+exit 1 — coupling grew (or shrank without updating BASELINE)
+exit 2 — usage error
+"""
+
 from __future__ import annotations
 
 import argparse
