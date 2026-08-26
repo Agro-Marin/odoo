@@ -2800,9 +2800,18 @@ class IrQweb(models.AbstractModel):
         converter = self.env[model] if model in self.env else self.env["ir.qweb.field"]
 
         content = converter.value_to_html(value, field_options)
+        # Branding, and gated like branding.  `ir.qweb.field.attributes`, which
+        # `_get_field` reaches for `t-field`, returns `{}` unless
+        # `inherit_branding` or `translate` is set; this set the same two
+        # attributes unconditionally, so every `t-out` carrying a widget
+        # published its own source expression -- 737 such nodes across the four
+        # repositories, portal and invoice templates among them, shipping
+        # strings like `o.line_ids.sorted(lambda l: l.date)[0].date` to whoever
+        # loads the page.
         attributes = {}
-        attributes["data-oe-type"] = field_options["type"]
-        attributes["data-oe-expression"] = field_options["expression"]
+        if inherit_branding:
+            attributes["data-oe-type"] = field_options["type"]
+            attributes["data-oe-expression"] = field_options["expression"]
 
         return (attributes, content, inherit_branding)
 

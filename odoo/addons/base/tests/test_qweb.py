@@ -1815,15 +1815,26 @@ class TestQWebBasic(TransactionCase):
             """,
             }
         )
-        html = self.env["ir.qweb"]._render(
-            view1.id,
-            {
-                "text": """a
+        values = {
+            "text": """a
         b <b>c</b>"""
-            },
-        )
+        }
+        # What this test is about is the escaping and the newline-to-`<br>`:
+        # the branding attributes it used to assert were incidental, and
+        # `_get_widget` no longer emits them outside edit mode.
+        html = self.env["ir.qweb"]._render(view1.id, dict(values))
         self.assertEqual(
             html,
+            """<root><span>a<br>
+        b &lt;b&gt;c&lt;/b&gt;</span></root>""",
+        )
+        branded = (
+            self.env["ir.qweb"]
+            .with_context(inherit_branding=True)
+            ._render(view1.id, dict(values))
+        )
+        self.assertEqual(
+            branded,
             """<root><span data-oe-type="text" data-oe-expression="text">a<br>
         b &lt;b&gt;c&lt;/b&gt;</span></root>""",
         )
@@ -4333,3 +4344,48 @@ class TestQWebContentComparison(TransactionCase):
             )
         self.assertEqual(out, "<span>only this</span>")
         self.assertFalse(rendered, "an unreferenced t-set body was rendered")
+
+
+class TestQWebWidgetBranding(TransactionCase):
+    """`t-out` with a widget must not publish the template's own expression.
+
+    `ir.qweb.field.attributes`, which `_get_field` reaches for `t-field`,
+    returns `{}` unless `inherit_branding` or `translate` is set. `_get_widget`
+    set `data-oe-type` and `data-oe-expression` unconditionally, so every
+    `t-out` carrying `t-options` shipped its source expression to whoever loaded
+    the page -- and `safe_attrs` in `libs/text/html.py` lists both as attributes
+    the sanitiser preserves, so nothing downstream removed them.
+    """
+
+    def _render(self, arch, **context):
+        return str(
+            self.env["ir.qweb"]
+            .with_context(**context)
+            ._render(etree.fromstring(arch), {})
+        )
+
+    ARCH = "<t><span t-out='1234.5' t-options-widget=\"'float'\"/></t>"
+
+    def test_a_plain_render_publishes_no_branding(self):
+        rendered = self._render(self.ARCH)
+        self.assertNotIn("data-oe-expression", rendered)
+        self.assertNotIn("data-oe-type", rendered)
+        self.assertIn("1,234.5", rendered, "the widget stopped formatting")
+
+    def test_the_editor_still_gets_its_branding(self):
+        rendered = self._render(self.ARCH, inherit_branding=True)
+        self.assertIn('data-oe-type="float"', rendered)
+        self.assertIn('data-oe-expression="1234.5"', rendered)
+
+    def test_a_widget_without_branding_still_reports_force_display(self):
+        # `_get_widget` returns `inherit_branding` as `force_display`, which
+        # decides whether an empty value still emits its tag.  Gating the
+        # attributes must not change that.
+        for branding in (True, False):
+            attributes, _content, force_display = (
+                self.env["ir.qweb"]
+                .with_context(inherit_branding=branding)
+                ._get_widget(1234.5, "1234.5", "span", {"widget": "float"}, {})
+            )
+            self.assertEqual(bool(force_display), branding)
+            self.assertEqual(bool(attributes), branding)
