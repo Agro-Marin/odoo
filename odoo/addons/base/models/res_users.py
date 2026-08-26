@@ -854,7 +854,7 @@ class ResUsers(models.Model):
             and field.name in self._self_accessible_fields()[0]
         )
 
-    def _ensure_settings_records(self) -> None:
+    def _add_missing_settings_records(self) -> None:
         missing = self.sudo().filtered(lambda user: not user.res_users_settings_ids)
         if missing:
             self.env["res.users.settings"].sudo().create(
@@ -891,7 +891,7 @@ class ResUsers(models.Model):
         (users - inactive).partner_id.active = True
         inactive.partner_id.active = False
         users._generate_missing_avatars()
-        users.filtered(lambda user: user._is_internal())._ensure_settings_records()
+        users.filtered(lambda user: user._is_internal())._add_missing_settings_records()
         for user, settings in zip(users, deferred, strict=True):
             if settings:
                 user.write(settings)
@@ -934,7 +934,7 @@ class ResUsers(models.Model):
             self.partner_id.action_unarchive()
 
         if not self._settings_backed_fields().isdisjoint(vals):
-            self._ensure_settings_records()
+            self._add_missing_settings_records()
 
         if self == self.env.user and vals:
             writeable = self._self_accessible_fields()[1]

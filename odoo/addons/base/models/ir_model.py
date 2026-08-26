@@ -386,6 +386,19 @@ class IrModel(models.Model):
             "fold_name": model._fold_name,
         }
 
+    @api.model
+    def _prewarm_names(self, model_names: list[str]) -> None:
+        if not model_names:
+            return
+        add_value = self._get_id.__cache__.add_value
+        model_ids = []
+        for name, id_ in self.env.execute_query(
+            SQL("SELECT model, id FROM ir_model WHERE model = ANY(%s)", model_names)
+        ):
+            add_value(self, name, cache_value=id_)
+            model_ids.append(id_)
+        self.sudo().browse(model_ids).fetch(["name"])
+
     def _reflect_models(self, model_names: list[str]) -> None:
         if not model_names:
             return

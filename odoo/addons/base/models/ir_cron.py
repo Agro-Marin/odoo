@@ -241,11 +241,11 @@ class IrCron(models.Model):
         return super().create(vals_list)
 
     @api.model
-    def default_get(self, fields_list: list[str]) -> dict[str, Any]:
+    def default_get(self, fields: list[str]) -> ValuesType:
         model = self
         if not model.env.context.get("default_state"):
             model = model.with_context(default_state="code")
-        return super(IrCron, model).default_get(fields_list)
+        return super(IrCron, model).default_get(fields)
 
     def method_direct_trigger(self) -> dict[str, Any] | bool:
         self.ensure_one()

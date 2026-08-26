@@ -709,7 +709,7 @@ class TestIrModelFields(TransactionCase):
         model = self.env["ir.model"].create(
             {"model": "x_imf_transl", "name": "IMF translate test"}
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValidationError):
             self.env["ir.model.fields"].create(
                 {
                     "name": "x_transl",
@@ -720,7 +720,7 @@ class TestIrModelFields(TransactionCase):
                 }
             )
         _Model, field = self._make_manual_field("translw")
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValidationError):
             field.write({"translate": True})
 
     def test_check_depends_raises_validation_error(self):
@@ -1073,10 +1073,343 @@ class TestIrModelFields(TransactionCase):
         self.env.invalidate_all()
         pop_field(self.env.registry["x_imf_m2mdrop"], "x_rel")
 
-        field._drop_column()
+        field._drop_columns()
 
         self.env.cr.execute("SELECT to_regclass(%s)", (table,))
         self.assertIsNone(self.env.cr.fetchone()[0], "m2m table must not leak")
+
+    def test_selection_of_a_new_record_does_not_hit_the_database(self):
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_newsel", "name": "IMF new selection"}
+        )
+        record = self.env["ir.model.fields"].new(
+            {
+                "name": "x_sel",
+                "field_description": "Sel",
+                "model_id": model.id,
+                "ttype": "selection",
+                "selection_ids": [
+                    Command.create({"value": "a", "name": "A", "sequence": 1}),
+                    Command.create({"value": "b", "name": "B", "sequence": 2}),
+                ],
+            }
+        )
+        self.assertEqual(record.selection, str([("a", "A"), ("b", "B")]))
+
+    def test_selection_is_computed_without_one_query_per_field(self):
+        fields_ = self.env["ir.model.fields"].search(
+            [("ttype", "in", ("selection", "reference"))], limit=20
+        )
+        self.assertGreater(len(fields_), 4)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        count = [0]
+        original = self.env.cr.execute
+
+        def spy(query, params=None, **kwargs):
+            count[0] += 1
+            return original(query, params, **kwargs)
+
+        self.env.cr.execute = spy
+        try:
+            fields_.mapped("selection")
+        finally:
+            self.env.cr.execute = original
+        self.assertLess(
+            count[0],
+            len(fields_),
+            "the selection compute must batch, not query once per field",
+        )
+
+    def test_relational_field_without_comodel_is_rejected(self):
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_norel", "name": "IMF no relation"}
+        )
+        for ttype in ("many2one", "one2many", "many2many"):
+            with self.subTest(ttype=ttype), self.assertRaises(ValidationError):
+                self.env["ir.model.fields"].create(
+                    {
+                        "name": f"x_{ttype}",
+                        "field_description": ttype,
+                        "model_id": model.id,
+                        "ttype": ttype,
+                    }
+                )
+
+    def test_stored_one2many_without_inverse_is_rejected(self):
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_noinv", "name": "IMF no inverse"}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["ir.model.fields"].create(
+                {
+                    "name": "x_children",
+                    "field_description": "Children",
+                    "model_id": model.id,
+                    "ttype": "one2many",
+                    "relation": "res.partner",
+                }
+            )
+
+    def test_stored_related_one2many_is_rejected_and_unstored_is_not(self):
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_relo2m", "name": "IMF related o2m"}
+        )
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_partner_id",
+                "field_description": "Partner",
+                "model_id": model.id,
+                "ttype": "many2one",
+                "relation": "res.partner",
+            }
+        )
+        vals = {
+            "name": "x_child_ids",
+            "field_description": "Children",
+            "model_id": model.id,
+            "ttype": "one2many",
+            "relation": "res.partner",
+            "related": "x_partner_id.child_ids",
+        }
+        with self.assertRaises(ValidationError):
+            self.env["ir.model.fields"].create(dict(vals))
+        field = self.env["ir.model.fields"].create(dict(vals, store=False))
+        self.assertIn(field.name, self.env[model.model]._fields)
+
+    def test_check_depends_on_a_model_outside_the_registry(self):
+        _Model, field = self._make_manual_field("depsmodel")
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_model_fields SET model = %s, depends = %s WHERE id = %s",
+            ("no.such.model", "name", field.id),
+        )
+        self.env.invalidate_all()
+        with self.assertRaises(ValidationError):
+            field._check_depends()
+
+    def test_write_rejects_an_unknown_field_name(self):
+        _Model, field = self._make_manual_field("badkey")
+        with self.assertRaises(ValueError):
+            field.write({"no_such_field": 1})
+
+    def test_write_rejects_a_model_change_spelled_as_model(self):
+        _Model, field = self._make_manual_field("modelkey")
+        with self.assertRaises(UserError):
+            field.write({"model": "res.partner"})
+
+    def test_drop_columns_groups_one_alter_per_table(self):
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_dropmany", "name": "IMF drop many"}
+        )
+        fields_ = self.env["ir.model.fields"].create(
+            [
+                {
+                    "name": f"x_col{i}",
+                    "field_description": f"Col {i}",
+                    "model_id": model.id,
+                    "ttype": "char",
+                }
+                for i in range(5)
+            ]
+        )
+        self.env.flush_all()
+        table = self.env[model.model]._table
+        statements = []
+        original = self.env.cr.execute
+
+        def spy(query, params=None, **kwargs):
+            statements.append(str(query))
+            return original(query, params, **kwargs)
+
+        self.env.cr.execute = spy
+        try:
+            fields_._drop_columns()
+        finally:
+            self.env.cr.execute = original
+
+        alters = [q for q in statements if "DROP COLUMN" in q]
+        self.assertEqual(len(alters), 1, "one ALTER TABLE for one table")
+        self.assertEqual(alters[0].count("DROP COLUMN"), 5)
+        self.env.cr.execute(
+            "SELECT column_name FROM information_schema.columns"
+            " WHERE table_name = %s AND column_name LIKE 'x\\_col%%'",
+            (table,),
+        )
+        self.assertFalse(self.env.cr.fetchall())
+
+    def test_prepare_update_does_not_rebuild_the_whole_registry(self):
+        _Model, field = self._make_manual_field("scoped")
+        self.env.flush_all()
+        scopes = []
+        original = type(self.env.registry)._setup_models__
+
+        def spy(registry, cr, model_names=None, **kwargs):
+            scopes.append(model_names)
+            return original(registry, cr, model_names, **kwargs)
+
+        with patch.object(type(self.env.registry), "_setup_models__", spy):
+            field.unlink()
+
+        self.assertTrue(scopes)
+        self.assertNotIn(
+            None, scopes, "a field deletion must not re-set-up every model"
+        )
+
+    def test_group_with_two_xmlids_is_not_reported_as_unreflectable(self):
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_twoxid", "name": "IMF two xmlids"}
+        )
+        group = self.env["res.groups"].create({"name": "IMF twice-named group"})
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": "x_secret",
+                "field_description": "Secret",
+                "model_id": model.id,
+                "ttype": "char",
+                "groups": [Command.set([group.id])],
+            }
+        )
+        self.env.flush_all()
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "imf_alias_for_twice_named_group",
+                "model": "res.groups",
+                "res_id": group.id,
+            }
+        )
+        self.env.flush_all()
+        self.env.registry.clear_cache("stable")
+        data = self.env["ir.model.fields"]._get_manual_field_data(model.model)
+        field_data = data[field.name]
+        self.assertEqual(field_data["group_count"], 1)
+        self.assertEqual(field_data["group_known"], 1)
+        self.assertEqual(field_data["group_xmlids"].count(","), 0)
+
+    def test_rename_carries_the_derived_xml_id_and_leaves_others_alone(self):
+        model = self.env["ir.model"].create({"model": "x_imf_xid", "name": "IMF xmlid"})
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": "x_old",
+                "field_description": "Old",
+                "model_id": model.id,
+                "ttype": "char",
+            }
+        )
+        Data = self.env["ir.model.data"]
+        Data.create(
+            {
+                "module": "base",
+                "name": "field_x_imf_xid__x_old",
+                "model": "ir.model.fields",
+                "res_id": field.id,
+            }
+        )
+        Data.create(
+            {
+                "module": "base",
+                "name": "imf_handwritten_alias",
+                "model": "ir.model.fields",
+                "res_id": field.id,
+            }
+        )
+        self.env.flush_all()
+
+        field.write({"name": "x_new"})
+        self.env.flush_all()
+
+        names = Data.search(
+            [("model", "=", "ir.model.fields"), ("res_id", "=", field.id)]
+        ).mapped("name")
+        self.assertEqual(
+            sorted(names),
+            ["field_x_imf_xid__x_new", "imf_handwritten_alias"],
+            "the derived xml id follows the rename; a hand-written one does not",
+        )
+
+    def test_dependencies_without_a_compute_are_rejected(self):
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_deadep", "name": "IMF dead depends"}
+        )
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_src",
+                "field_description": "Source",
+                "model_id": model.id,
+                "ttype": "char",
+            }
+        )
+        with self.assertRaises(ValidationError):
+            self.env["ir.model.fields"].create(
+                {
+                    "name": "x_dead",
+                    "field_description": "Dead",
+                    "model_id": model.id,
+                    "ttype": "char",
+                    "depends": "x_src",
+                }
+            )
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": "x_live",
+                "field_description": "Live",
+                "model_id": model.id,
+                "ttype": "char",
+                "store": False,
+                "depends": "x_src",
+                "compute": "for record in self: record['x_live'] = record.x_src",
+            }
+        )
+        self.assertIn(field.name, self.env[model.model]._fields)
+
+    def test_field_readiness_is_asked_separately_from_the_attributes(self):
+        IrModelFields = self.env["ir.model.fields"]
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_ready", "name": "IMF ready"}
+        )
+        field = IrModelFields.create(
+            {
+                "name": "x_tags",
+                "field_description": "Tags",
+                "model_id": model.id,
+                "ttype": "many2many",
+                "relation": "res.partner",
+            }
+        )
+        self.env.flush_all()
+        self.env.registry.clear_cache("stable")
+        data = IrModelFields._get_manual_field_data(model.model)[field.name]
+
+        self.assertTrue(IrModelFields._is_field_ready(data))
+        attrs = IrModelFields._prepare_field_attrs(data)
+        self.assertIsInstance(attrs, dict, "attributes no longer carry the sentinel")
+        self.assertEqual(attrs["comodel_name"], "res.partner")
+
+        absent = dict(data, relation="x_not_a_model")
+        with patch.object(self.env.registry, "loaded", False):
+            self.assertFalse(IrModelFields._is_field_ready(absent))
+            self.assertTrue(IrModelFields._is_field_ready(data))
+
+    def test_manual_field_data_rows_are_frozen_and_plain(self):
+        model = self.env["ir.model"].create({"model": "x_imf_rows", "name": "IMF rows"})
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_c",
+                "field_description": "Label",
+                "model_id": model.id,
+                "ttype": "char",
+                "help": "Helptext",
+            }
+        )
+        self.env.flush_all()
+        self.env.registry.clear_cache("stable")
+        row = self.env["ir.model.fields"]._get_manual_field_data(model.model)["x_c"]
+        self.assertEqual(row["field_description"], "Label")
+        self.assertEqual(row["help"], "Helptext")
+        self.assertFalse([key for key in row if key.endswith("_en")])
+        with self.assertRaises(NotImplementedError):
+            row["field_description"] = "mutated"
 
     def test_rename_without_registry_model_raises_user_error(self):
         _Model, field = self._make_manual_field("noreg")

@@ -24,7 +24,7 @@ class IrModelFields(models.Model):
 
     def _prepare_field_attrs(self, field_data: dict) -> dict:
         attrs = super()._prepare_field_attrs(field_data)
-        if attrs and field_data.get("tracking"):
+        if field_data.get("tracking"):
             attrs["tracking"] = field_data["tracking"]
         return attrs
 

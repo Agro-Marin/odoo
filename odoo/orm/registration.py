@@ -524,10 +524,11 @@ def _add_manual_fields(model_cls: type[BaseModel], env: Environment):
     for name, field_data in fields_data.items():
         if name not in model_cls._fields and field_data["state"] == "manual":
             try:
+                if not IrModelFields._is_field_ready(field_data):
+                    continue
                 attrs = IrModelFields._prepare_field_attrs(field_data)
-                if attrs:
-                    field = fields.Field._by_type__[field_data["ttype"]](**attrs)
-                    add_field(model_cls, name, field)
+                field = fields.Field._by_type__[field_data["ttype"]](**attrs)
+                add_field(model_cls, name, field)
             except Exception:
                 _logger.exception(
                     "Failed to load field %s.%s: skipped",

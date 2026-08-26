@@ -44,10 +44,6 @@ class IrModelFieldsSelection(models.Model):
         "Selections values must be unique per field",
     )
 
-    def _get_selection(self, field_id: int) -> list[tuple[str, str]]:
-        self.flush_model(["value", "name", "field_id", "sequence"])
-        return self._get_selection_data(field_id)
-
     def _get_selection_data(self, field_id: int) -> list[tuple[str, str]]:
         self.env.cr.execute(
             """
