@@ -1,5 +1,8 @@
 import re
 from contextlib import contextmanager
+from unittest.mock import patch
+
+from lxml import etree
 
 from odoo.tests.common import TransactionCase, tagged
 
@@ -609,3 +612,54 @@ class TestQwebDataSnippet(TransactionCase):
         self.assertLessEqual(
             len(website_queries), 20, f"Maximum queries: {20}\n{str_queries}"
         )
+
+
+class TestQwebPostProcessingAttNames(TransactionCase):
+    """`website` must answer None, and the html converter must then skip nothing.
+
+    `ir.qweb._get_post_processing_att_names()` lets `ir.qweb.field.html` skip
+    elements whose attributes `_post_processing_att` cannot touch. This
+    module's override acts on the tag name, on `class`, on `style` and on the
+    `data-` twins, so no set of attribute names describes it -- answering one
+    would make the converter skip elements this module still needs to see.
+    """
+
+    def test_website_declines_to_narrow_the_set(self):
+        self.assertIsNone(self.env["ir.qweb"]._get_post_processing_att_names())
+
+    def test_the_converter_still_reaches_every_element(self):
+        seen = []
+        IrQweb = self.registry["ir.qweb"]
+        original = IrQweb._post_processing_att
+
+        def spy(self, tagName, atts, *, is_static=False):
+            seen.append(tagName)
+            return original(self, tagName, atts, is_static=is_static)
+
+        with patch.object(IrQweb, "_post_processing_att", spy):
+            self.env["ir.qweb.field.html"].value_to_html(
+                '<p class="lead">t</p><img src="/a.png"><div style="color:red">d</div>'
+                '<span data-src="/b">s</span>',
+                {},
+            )
+        for tag in ("p", "img", "div", "span"):
+            self.assertIn(tag, seen, f"<{tag}> was skipped by the name filter")
+
+
+class TestQwebHtmlFormSignatureSingleParse(TransactionCase):
+    def test_the_signature_is_injected_without_a_second_parse(self):
+        parses = []
+        real_fromstring = etree.fromstring
+
+        def counting(*args, **kwargs):
+            parses.append(1)
+            return real_fromstring(*args, **kwargs)
+
+        value = (
+            '<form action="/website/form/mail">'
+            '<input type="hidden" name="email_to" value="a@b.c"></form>'
+        )
+        with patch.object(etree, "fromstring", counting):
+            rendered = str(self.env["ir.qweb.field.html"].value_to_html(value, {}))
+        self.assertIn("website_form_signature", rendered)
+        self.assertEqual(len(parses), 1, "the html field was parsed more than once")

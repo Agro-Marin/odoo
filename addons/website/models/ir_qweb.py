@@ -130,6 +130,19 @@ class IrQweb(models.AbstractModel):
 
         return irQweb
 
+    def _get_post_processing_att_names(self):
+        # Not narrowable. `_post_processing_att` below acts on the tag name
+        # (img -> loading="lazy"), on `class` (the cookies-bar container
+        # watchlist), on `style` (background-image rewriting) and on every
+        # `data-` twin of a URL attribute, so any honest set would match very
+        # nearly every element that has an attribute at all.
+        #
+        # A precise set was written and measured, and it made
+        # `ir.qweb.field.html` ~4% SLOWER: the test cost more than the handful
+        # of elements it skipped. Answering None makes that caller drop the
+        # test rather than pay for one that never filters.
+        return None
+
     def _post_processing_att(self, tagName, atts, *, is_static=False):
         if atts.get("data-no-post-process"):
             return super()._post_processing_att(tagName, atts, is_static=is_static)

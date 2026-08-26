@@ -929,3 +929,177 @@ class TestFormatAmountNegativeZero(common.TransactionCase):
         )
         self.assertIn("0.0040", rendered)
         self.assertIn(NEGATIVE_SIGN_JOINER, rendered)
+
+
+class TestQwebFieldHtmlPostProcessing(common.TransactionCase):
+    """The html converter skips elements `_post_processing_att` cannot touch.
+
+    The skip is driven by `ir.qweb._get_post_processing_att_names()`, asked
+    once per document. It is a filter on WHICH ELEMENTS get the call -- never
+    on whether the document is parsed -- so the tidying the parse performs is
+    unaffected.
+    """
+
+    def value_to_html(self, value):
+        return str(self.env["ir.qweb.field.html"].value_to_html(value, {}))
+
+    def test_every_advertised_name_is_actually_scrubbed(self):
+        names = self.env["ir.qweb"]._get_post_processing_att_names()
+        self.assertTrue(names, "the base set must not be empty")
+        for name in names:
+            with self.subTest(name):
+                rendered = self.value_to_html(f'<a {name}="javascript:alert(1)">x</a>')
+                self.assertNotIn("javascript:", rendered)
+
+    def test_an_attribute_outside_the_set_is_left_alone(self):
+        rendered = self.value_to_html('<a title="javascript:alert(1)">x</a>')
+        self.assertIn("javascript:alert(1)", rendered)
+
+    def test_the_set_is_conservative_over_every_plausible_attribute(self):
+        # The contract, brute-forced rather than argued: for EVERY element the
+        # set lets the converter skip, `_post_processing_att` must change
+        # nothing. A false negative here silently stops the scrub, so this is
+        # a security property, not a performance one.
+        irQweb = self.env["ir.qweb"]
+        names = irQweb._get_post_processing_att_names()
+        self.assertIsNotNone(names, "base must narrow; only an override may decline")
+        candidates = [
+            *names,
+            "data-src",
+            "data-href",
+            "data-action",
+            "srcset",
+            "poster",
+            "background",
+            "class",
+            "style",
+            "id",
+            "title",
+            "alt",
+            "rel",
+            "target",
+            "cite",
+            "longdesc",
+            "usemap",
+            "ping",
+            "content",
+        ]
+        values = [
+            "javascript:alert(1)",
+            "JaVaScRiPt:alert(1)",
+            "java\tscript:alert(1)",
+            "\x01javascript:alert(1)",
+            "vbscript:x",
+            "data:text/html;base64,PHN2Zz4=",
+            "https://example.com/",
+        ]
+        tags = ["a", "img", "div", "form", "script", "iframe", "object", "span"]
+        skipped = 0
+        for tag in tags:
+            for attr in candidates:
+                for value in values:
+                    attrib = {attr: value}
+                    if not names.isdisjoint(attrib):
+                        continue
+                    skipped += 1
+                    self.assertEqual(
+                        irQweb._post_processing_att(tag, dict(attrib)),
+                        attrib,
+                        f"<{tag} {attr}={value!r}> would be skipped, but "
+                        f"_post_processing_att changes it",
+                    )
+        self.assertGreater(skipped, 100, "the sweep did not exercise the skip")
+
+    def test_no_advertised_name_is_dead_weight(self):
+        # The converse: an over-wide set costs work for nothing.
+        irQweb = self.env["ir.qweb"]
+        for name in irQweb._get_post_processing_att_names():
+            with self.subTest(name):
+                attrib = {name: "javascript:alert(1)"}
+                self.assertNotEqual(
+                    irQweb._post_processing_att("a", dict(attrib)),
+                    attrib,
+                    f"{name!r} is advertised but nothing acts on it",
+                )
+
+    def test_a_widened_hook_is_honoured_by_the_converter(self):
+        # The trap this guards: an override that widens `_post_processing_att`
+        # without widening the name set would be silently skipped.
+        IrQweb = self.registry["ir.qweb"]
+        original = IrQweb._post_processing_att
+
+        def widened(self, tagName, atts, *, is_static=False):
+            atts = original(self, tagName, atts, is_static=is_static)
+            if "title" in atts:
+                atts["title"] = "scrubbed"
+            return atts
+
+        with patch.object(IrQweb, "_post_processing_att", widened):
+            not_widened = self.value_to_html('<a title="keep">x</a>')
+            widened_names = self.env["ir.qweb"]._get_post_processing_att_names() | {
+                "title"
+            }
+            with patch.object(
+                IrQweb,
+                "_get_post_processing_att_names",
+                lambda self, names=widened_names: names,
+            ):
+                widened_out = self.value_to_html('<a title="keep">x</a>')
+        self.assertIn('title="keep"', not_widened, "the filter did skip it")
+        self.assertIn('title="scrubbed"', widened_out, "widening was honoured")
+
+    def test_the_parse_still_tidies_when_nothing_is_scrubbed(self):
+        # The filter must not become a reason to skip the parse.
+        self.assertEqual(self.value_to_html("<p>unclosed"), "<p>unclosed</p>")
+        self.assertEqual(
+            self.value_to_html("<html><body><p>a</p></body></html>"), "<p>a</p>"
+        )
+
+    def test_untouched_attributes_survive_verbatim(self):
+        rendered = self.value_to_html(
+            '<p class="a b" id="x" data-k="v">t</p><img src="/ok.png" alt="a">'
+        )
+        for fragment in ('class="a b"', 'id="x"', 'data-k="v"', 'src="/ok.png"'):
+            self.assertIn(fragment, rendered)
+
+    def test_the_body_hook_runs_inside_the_single_parse(self):
+        seen = []
+        Html = self.registry["ir.qweb.field.html"]
+
+        def spy(self, body, options):
+            seen.append(body.tag)
+            return body
+
+        with patch.object(Html, "_post_process_html_body", spy):
+            self.value_to_html("<p>x</p>")
+        self.assertEqual(seen, ["body"], "the hook did not receive the parsed body")
+
+
+class TestQwebFieldFallbackRobustness(common.TransactionCase):
+    def test_undecodable_bytes_do_not_take_the_page_down(self):
+        rendered = self.env["ir.qweb.field"].value_to_html(b"\xff\xfe", {})
+        self.assertTrue(
+            rendered, "expected replacement characters, not an empty string"
+        )
+
+    def test_decodable_bytes_are_unchanged(self):
+        self.assertEqual(
+            self.env["ir.qweb.field"].value_to_html("café".encode(), {}), "café"
+        )
+
+    def test_a_non_finite_float_names_itself(self):
+        for value in (float("inf"), float("-inf"), float("nan")):
+            with self.subTest(value), self.assertRaises(ValueError) as caught:
+                self.env["ir.qweb.field.float"].value_to_html(value, {})
+            self.assertIn("finite", str(caught.exception))
+
+    def test_an_unknown_duration_unit_names_itself_and_the_known_ones(self):
+        for option in ("unit", "round"):
+            with self.subTest(option), self.assertRaises(ValueError) as caught:
+                self.env["ir.qweb.field.duration"].value_to_html(
+                    1, {option: "fortnight"}
+                )
+            message = str(caught.exception)
+            self.assertIn("fortnight", message)
+            self.assertIn(option, message)
+            self.assertIn("second", message, "the known units should be listed")

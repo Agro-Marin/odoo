@@ -39,6 +39,11 @@ TIMEDELTA_UNITS = (
 
 TIMEDELTA_SECONDS_BY_UNIT = dict(TIMEDELTA_UNITS)
 
+# The `fields` the contact widget shows when the option is not given.
+# `base.contact` also understands "city" and "country_id"; two shipped
+# templates pass them, so the list a caller may send is wider than this.
+CONTACT_DEFAULT_FIELDS = ("name", "address", "phone", "email")
+
 BARCODE_RENDER_OPTIONS = frozenset(
     ("width", "height", "humanreadable", "quiet", "mask")
 )
@@ -75,7 +80,14 @@ class IrQwebField(models.AbstractModel):
         if value is None or value is False:
             return ""
 
-        return escape(value.decode() if isinstance(value, bytes) else value)
+        if isinstance(value, bytes):
+            # A binary field's bytes are base64 ASCII, but `t-out` reaches here
+            # with whatever the expression evaluated to, and a bare `.decode()`
+            # took the whole page down with UnicodeDecodeError on the first
+            # non-UTF-8 byte. Replace rather than raise: this is the fallback
+            # converter, and a mojibake cell beats a 500.
+            value = value.decode(errors="replace")
+        return escape(value)
 
     @api.model
     def _get_record_context_keys(self) -> list[str]:
@@ -150,6 +162,12 @@ class IrQwebFieldFloat(models.AbstractModel):
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
+        if not math.isfinite(value):
+            # inf/nan reach `int(math.log10(...))` and `float_round` and come
+            # back as OverflowError/ValueError from inside the formatter. No
+            # column produces one, but a computed t-out expression can.
+            msg = f"The value passed to the float field is not finite: {value!r}"
+            raise ValueError(msg)
         min_precision = options.get("min_precision")
         if "decimal_precision" in options:
             precision = self.env["decimal.precision"].get_precision(
@@ -165,7 +183,7 @@ class IrQwebFieldFloat(models.AbstractModel):
 
         fmt = f"%.{precision}f"
         if min_precision and min_precision < precision:
-            _, dec_part = float_utils.float_split_str(value, precision)
+            _int_part, dec_part = float_utils.float_split_str(value, precision)
             digits_count = len(dec_part.rstrip("0"))
             if digits_count < min_precision:
                 fmt = f"%.{min_precision}f"
@@ -335,6 +353,16 @@ class IrQwebFieldHtml(models.AbstractModel):
     _inherit = ["ir.qweb.field"]
 
     @api.model
+    def _post_process_html_body(
+        self, body: etree._Element, options: dict[str, Any]
+    ) -> etree._Element:
+        # Mutate the parsed <body> in place, inside the ONE parse this
+        # converter performs. `website` used to re-parse and re-serialise the
+        # finished string to inject its form signature -- two extra round-trips
+        # for every html field carrying a <form>.
+        return body
+
+    @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> Markup:
         if not value:
             return Markup("")
@@ -342,12 +370,29 @@ class IrQwebFieldHtml(models.AbstractModel):
         body = etree.fromstring(
             f"<body>{value}</body>", etree.HTMLParser(encoding="utf-8")
         )[0]
+        # Asked once per document, not per element: a bound method call per
+        # element cost more than the elements it skipped.
+        att_names = irQweb._get_post_processing_att_names()
         for element in body.iter():
-            if element.attrib:
-                attrib = dict(element.attrib)
-                attrib = irQweb._post_processing_att(element.tag, attrib)
-                element.attrib.clear()
-                element.attrib.update(attrib)
+            attrib = element.attrib
+            # Two skips, both output-neutral and both measured. Rewriting the
+            # attributes of every element that has any was the dominant cost of
+            # this loop, and `_post_processing_att` leaves almost all of them
+            # alone.
+            if not attrib:
+                continue
+            if att_names is not None and att_names.isdisjoint(attrib):
+                continue
+            # `_post_processing_att` mutates the dict it is handed, but that
+            # dict is a copy -- `attrib` itself still holds the original, so it
+            # is the thing to compare against and no second copy is needed.
+            processed = irQweb._post_processing_att(element.tag, dict(attrib))
+            if len(processed) != len(attrib) or any(
+                attrib.get(name) != value for name, value in processed.items()
+            ):
+                attrib.clear()
+                attrib.update(processed)
+        body = self._post_process_html_body(body, options)
         serialized = etree.tostring(body, encoding="unicode", method="html")
         return Markup(serialized.removeprefix("<body>").removesuffix("</body>"))
 
@@ -444,7 +489,8 @@ class IrQwebFieldMonetary(models.AbstractModel):
             raise ValueError(msg)
 
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise TypeError(_("The value send to monetary field is not a number."))
+            msg = f"The value passed to the monetary field is not a number: {value!r}"
+            raise TypeError(msg)
 
         if options.get("from_currency"):
             date = options.get("date") or fields.Date.today()
@@ -539,9 +585,11 @@ class IrQwebFieldTime(models.AbstractModel):
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         if value < 0:
-            raise ValueError(_("The value (%s) passed should be positive", value))
+            msg = f"The value passed to the time field should be positive: {value!r}"
+            raise ValueError(msg)
         if value >= 24:
-            raise ValueError(_("The hour must be between 0 and 23"))
+            msg = f"The hour must be between 0 and 23, got {value!r}"
+            raise ValueError(msg)
         # Round rather than truncate -- truncating rendered 22 of the day's
         # 1440 whole minutes one minute early, because `minutes / 60.0 * 60`
         # lands just below the integer. Clamp instead of raising on the way
@@ -589,12 +637,22 @@ class IrQwebFieldDuration(models.AbstractModel):
                 )
 
     @api.model
-    def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
-        units = TIMEDELTA_SECONDS_BY_UNIT
+    def _timedelta_unit_seconds(self, option: str, name: str) -> int:
+        try:
+            return TIMEDELTA_SECONDS_BY_UNIT[name]
+        except KeyError:
+            known = ", ".join(TIMEDELTA_SECONDS_BY_UNIT)
+            msg = (
+                f"Unknown {option!r} unit {name!r} for the duration widget; "
+                f"expected one of: {known}"
+            )
+            raise ValueError(msg) from None
 
+    @api.model
+    def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         locale = babel_locale_parse(self.user_lang().code)
-        factor = units[options.get("unit", "second")]
-        round_to = units[options.get("round", "second")]
+        factor = self._timedelta_unit_seconds("unit", options.get("unit", "second"))
+        round_to = self._timedelta_unit_seconds("round", options.get("round", "second"))
 
         if options.get("digital") and round_to > 3600:
             round_to = 3600
@@ -718,18 +776,22 @@ class IrQwebFieldContact(models.AbstractModel):
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
+        template_options = options.get("template_options") or {}
         if not value:
             if options.get("null_text"):
-                val = {
-                    "options": options,
-                }
-                template_options = options.get("template_options", {})
+                # `minimal_qcontext` on both branches: `base.no_contact` used
+                # to render without it while `base.contact` rendered with it,
+                # so the empty case silently carried the whole default qcontext
+                # its own template never reads.
                 return self.env["ir.qweb"]._render(
-                    "base.no_contact", val, **template_options
+                    "base.no_contact",
+                    {"options": options},
+                    minimal_qcontext=True,
+                    **template_options,
                 )
             return ""
 
-        opf = options.get("fields") or ["name", "address", "phone", "email"]
+        opf = options.get("fields") or CONTACT_DEFAULT_FIELDS
         sep = options.get("separator")
         if sep:
             opsep = escape(sep)
@@ -759,7 +821,9 @@ class IrQwebFieldContact(models.AbstractModel):
             "object": value,
             "options": options,
         }
-        return self.env["ir.qweb"]._render("base.contact", val, minimal_qcontext=True)
+        return self.env["ir.qweb"]._render(
+            "base.contact", val, minimal_qcontext=True, **template_options
+        )
 
 
 class IrQwebFieldQweb(models.AbstractModel):
