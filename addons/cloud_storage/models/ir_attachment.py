@@ -107,7 +107,7 @@ class IrAttachment(models.Model):
 
         :return: An download_info dictionary containing:
 
-            download_url
+            url
                 cloud storage url with permission to download the file
             time_to_expiry
                 the time in seconds before the download url expires
@@ -121,7 +121,7 @@ class IrAttachment(models.Model):
 
         :return: An upload_info dictionary containing:
 
-            upload_url
+            url
                 cloud storage url with permission to upload the file
             method
                 the request method used to upload the file
