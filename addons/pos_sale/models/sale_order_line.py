@@ -149,7 +149,9 @@ class SaleOrderLine(models.Model):
                 item = sale_line.read(field_names, load=False)[0]
                 if sale_line.product_id.tracking != "none":
                     move_lines = sale_line.move_ids.move_line_ids.filtered(
-                        lambda ml, sale_line=sale_line: ml.product_id.id == sale_line.product_id.id
+                        lambda ml, sale_line=sale_line: (
+                            ml.product_id.id == sale_line.product_id.id
+                        )
                     )
                     item["lot_names"] = move_lines.lot_id.mapped("name")
                     item["lot_qty_by_name"] = {
