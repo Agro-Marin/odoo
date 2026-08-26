@@ -1,8 +1,8 @@
 import io
 import logging
 import threading
-import time
 from base64 import b64decode
+from contextlib import suppress
 from unittest.mock import patch
 
 from pdfminer.converter import PDFPageAggregator
@@ -15,6 +15,7 @@ from PIL import Image
 
 import odoo.tests
 from odoo import modules
+from odoo.tools import mute_logger
 
 _logger = logging.getLogger(__name__)
 
@@ -107,12 +108,12 @@ class TestReports(odoo.tests.TransactionCase):
             Report._render_qweb_html("base.__no_such_report__", None, data=data)
         self.assertEqual(data, {"foo": "bar"}, "caller data dict must be unchanged")
 
-    def test_tolerant_font_patch_serialized_under_concurrency(self):
-        from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2
-
+    def test_tolerant_font_renders_are_not_serialized(self):
         from odoo.addons.base.models import ir_actions_report as mod
 
-        original = table_O_S_2f_2.setUnicodeRanges
+        mod._weasy_state.setup_process()
+        concurrency = 5
+        barrier = threading.Barrier(concurrency)
         state = {"cur": 0, "max": 0}
         counter_lock = threading.Lock()
 
@@ -124,7 +125,8 @@ class TestReports(odoo.tests.TransactionCase):
                 with counter_lock:
                     state["cur"] += 1
                     state["max"] = max(state["max"], state["cur"])
-                time.sleep(0.02)
+                with suppress(threading.BrokenBarrierError):
+                    barrier.wait(timeout=10)
                 with counter_lock:
                     state["cur"] -= 1
                 return b"%PDF-fake"
@@ -139,23 +141,55 @@ class TestReports(odoo.tests.TransactionCase):
                     target=mod._write_pdf_tolerant_fonts,
                     args=("<html/>", None, None),
                 )
-                for _ in range(5)
+                for _ in range(concurrency)
             ]
             for thread in threads:
                 thread.start()
             for thread in threads:
-                thread.join(10)
+                thread.join(20)
 
         self.assertEqual(
             state["max"],
-            1,
-            "tolerant-font patch window must be serialized (mutually exclusive)",
+            concurrency,
+            "the tolerant-font path must not hold a process-global lock across "
+            "write_pdf: that serialized every concurrent report render",
         )
-        self.assertIs(
-            table_O_S_2f_2.setUnicodeRanges,
-            original,
-            "the process-global fontTools patch must be fully restored",
-        )
+
+    def test_tolerant_font_guard_only_sanitizes_the_thread_that_asked(self):
+        from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2
+
+        from odoo.addons.base.models import ir_actions_report as mod
+
+        mod._weasy_state.setup_process()
+        invalid = {5, mod._OS2_MAX_UNICODE_RANGE_BIT + 90}
+
+        table = table_O_S_2f_2()
+        with self.assertRaises(ValueError):
+            table.setUnicodeRanges(invalid)
+
+        captured = []
+
+        class _FakeHTML:
+            def __init__(self, **kwargs):
+                pass
+
+            def write_pdf(self, **kwargs):
+                sanitized = table_O_S_2f_2()
+                sanitized.setUnicodeRanges(invalid)
+                captured.append(sanitized.getUnicodeRanges())
+                return b"%PDF-fake"
+
+        with (
+            patch.object(mod.weasyprint, "HTML", _FakeHTML),
+            patch.object(mod, "FontConfiguration", lambda *a, **k: None),
+            patch.object(mod, "CounterStyle", lambda *a, **k: None),
+            mute_logger("odoo.addons.base.models.ir_actions_report"),
+        ):
+            mod._write_pdf_tolerant_fonts("<html/>", None, None)
+
+        self.assertEqual(captured, [{5}], "out-of-range bits must be dropped, not kept")
+        with self.assertRaises(ValueError):
+            table_O_S_2f_2().setUnicodeRanges(invalid)
 
     def test_reports(self):
         invoice_domain = [

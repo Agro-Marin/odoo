@@ -5,7 +5,6 @@ from odoo.exceptions import UserError
 from odoo.http import root
 from odoo.tools import mute_logger
 
-from odoo.addons.base.models.ir_actions_report import _weasy_image_cache
 from odoo.addons.http_routing.tests.common import MockRequest
 
 
@@ -102,7 +101,6 @@ class TestReports(odoo.tests.HttpCase):
 
         self.logout()
         result.clear()
-        _weasy_image_cache.clear()
         public = self.env.ref("base.public_user")
         public_device_log_count_before = self.env["res.device.log"].search_count(
             [("user_id", "=", public.id)]

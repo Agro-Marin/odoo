@@ -6,7 +6,8 @@ import mimetypes
 import re
 import threading
 from ast import literal_eval
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from time import perf_counter
@@ -42,7 +43,7 @@ from odoo.libs.barcode import (
 )
 from odoo.libs.json import loads as json_loads
 from odoo.service import security
-from odoo.tools import config, is_html_empty
+from odoo.tools import is_html_empty
 from odoo.tools.pdf import PdfFileReader, PdfFileWriter, PdfReadError
 from odoo.tools.safe_eval import safe_eval, time
 
@@ -134,51 +135,34 @@ def _prepare_watermark_css(text: str) -> str:
     )
 
 
-class _ListHandler(logging.Handler):
-    def __init__(self, sink: list[str]) -> None:
-        super().__init__(level=logging.WARNING)
-        self._sink = sink
+_WEASY_WARNING_KEEP = 5
 
-    def emit(self, record: logging.LogRecord) -> None:
-        self._sink.append(record.getMessage())
+_weasy_warning_sink = threading.local()
 
 
-class _WeasyWarningCapture:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._depth = 0
-        self._saved_level = logging.NOTSET
-        self._saved_propagate = True
-
-    @contextmanager
-    def capture(self, sink: list[str]):
-        logger = logging.getLogger("weasyprint")
-        handler = _ListHandler(sink)
-        with self._lock:
-            self._depth += 1
-            if self._depth == 1:
-                self._saved_level = logger.level
-                self._saved_propagate = logger.propagate
-                logger.setLevel(logging.WARNING)
-                logger.propagate = False
-            logger.addHandler(handler)
-        try:
-            yield
-        finally:
-            with self._lock:
-                logger.removeHandler(handler)
-                self._depth -= 1
-                if self._depth == 0:
-                    logger.setLevel(self._saved_level)
-                    logger.propagate = self._saved_propagate
+class _WeasyWarningRouter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        sink = getattr(_weasy_warning_sink, "sink", None)
+        if sink is None:
+            return record.levelno >= logging.ERROR
+        sink.append(record.getMessage())
+        return False
 
 
-_weasy_warning_capture = _WeasyWarningCapture()
+@contextmanager
+def _capture_weasy_warnings() -> Iterator[deque[str]]:
+    sink: deque[str] = deque(maxlen=_WEASY_WARNING_KEEP)
+    previous = getattr(_weasy_warning_sink, "sink", None)
+    _weasy_warning_sink.sink = sink
+    try:
+        yield sink
+    finally:
+        _weasy_warning_sink.sink = previous
 
-
-_WEASY_IMAGE_CACHE_MAX = 256
 
 _WEASY_CSS_CACHE_MAX = 32
+
+_WEASY_DB_STATE_MAX = 8
 
 _IMMUTABLE_ASSET_CSS_RE = re.compile(r"^/web/assets/(?!debug/)[^/]+/")
 
@@ -193,16 +177,22 @@ _PDF_OPTION_KEYS = (
     "jpeg_quality",
 )
 
-_tolerant_font_lock = threading.Lock()
+_OS2_MAX_UNICODE_RANGE_BIT = 122
+
+_tolerant_fonts = threading.local()
+
+
+class _WeasyDatabaseState:
+    def __init__(self) -> None:
+        self.font_config = FontConfiguration()
+        self.css_cache: dict[tuple[str, str], Any] = {}
+        self.css_lock = threading.Lock()
 
 
 class _WeasySharedState:
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._font_config: FontConfiguration | None = None
-        self._image_cache: dict[str, Any] = {}
-        self._css_lock = threading.Lock()
-        self._css_cache: dict[tuple[str, str], Any] = {}
+        self._db_states: dict[str, _WeasyDatabaseState] = {}
         self._process_setup_done = False
 
     def setup_process(self) -> None:
@@ -211,93 +201,99 @@ class _WeasySharedState:
         with self._lock:
             if self._process_setup_done:
                 return
-            logging.getLogger("weasyprint").setLevel(logging.ERROR)
+            weasy_logger = logging.getLogger("weasyprint")
+            weasy_logger.setLevel(logging.WARNING)
+            weasy_logger.addFilter(_WeasyWarningRouter())
             logging.getLogger("fontTools").propagate = False
             ImageFile.LOAD_TRUNCATED_IMAGES = True
             if _cs2_compiler._compile_node is not _compile_node_depth_limited:
                 _cs2_compiler._compile_node = _compile_node_depth_limited
+            _install_tolerant_font_guard()
             self._process_setup_done = True
 
-    def get_font_config(self) -> FontConfiguration:
+    def for_database(self, dbname: str) -> _WeasyDatabaseState:
         with self._lock:
-            if self._font_config is None:
-                self._font_config = FontConfiguration()
-            return self._font_config
+            state = self._db_states.pop(dbname, None)
+            if state is None:
+                state = _WeasyDatabaseState()
+                while len(self._db_states) >= _WEASY_DB_STATE_MAX:
+                    self._db_states.pop(next(iter(self._db_states)))
+            self._db_states[dbname] = state
+            return state
 
-    @property
-    def image_cache(self) -> dict[str, Any]:
-        return self._image_cache
-
-    def evict_image_cache_if_full(self) -> None:
-        with self._lock:
-            if len(self._image_cache) > _WEASY_IMAGE_CACHE_MAX:
-                evict_count = _WEASY_IMAGE_CACHE_MAX // 2
-                for key in list(self._image_cache)[:evict_count]:
-                    del self._image_cache[key]
-
-    def get_parsed_css(self, key: tuple[str, str], parse: Callable[[], Any]) -> Any:
-        with self._css_lock:
-            if key not in self._css_cache:
-                if len(self._css_cache) >= _WEASY_CSS_CACHE_MAX:
-                    evict_count = _WEASY_CSS_CACHE_MAX // 2
-                    for old_key in list(self._css_cache)[:evict_count]:
-                        del self._css_cache[old_key]
-                self._css_cache[key] = parse()
-            return self._css_cache[key]
+    def get_parsed_css(
+        self,
+        state: _WeasyDatabaseState,
+        key: tuple[str, str],
+        parse: Callable[[], Any],
+    ) -> Any:
+        with state.css_lock:
+            if key in state.css_cache:
+                return state.css_cache[key]
+        parsed = parse()
+        with state.css_lock:
+            if key not in state.css_cache:
+                while len(state.css_cache) >= _WEASY_CSS_CACHE_MAX:
+                    state.css_cache.pop(next(iter(state.css_cache)))
+                state.css_cache[key] = parsed
+            return state.css_cache[key]
 
     def clear_for_tests(self) -> None:
         with self._lock:
-            self._font_config = None
-            self._image_cache.clear()
-        with self._css_lock:
-            self._css_cache.clear()
+            self._db_states.clear()
 
 
 _weasy_state = _WeasySharedState()
 
-_weasy_image_cache = _weasy_state.image_cache
 
-
-def _get_weasy_font_config() -> FontConfiguration:
-    return _weasy_state.get_font_config()
-
-
-def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets, pdf_options=None):
+def _install_tolerant_font_guard() -> None:
     from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2
 
-    with _tolerant_font_lock:
-        _orig = table_O_S_2f_2.setUnicodeRanges
+    original = table_O_S_2f_2.setUnicodeRanges
+    if getattr(original, "_odoo_tolerant_guard", False):
+        return
 
-        def _tolerant_setUnicodeRanges(self, bits):
-            max_bit = 122
-            sanitized = {b for b in bits if 0 <= b <= max_bit}
-            dropped = (
-                bits - sanitized if isinstance(bits, set) else set(bits) - sanitized
+    def set_unicode_ranges(self, bits):
+        if not getattr(_tolerant_fonts, "active", False):
+            return original(self, bits)
+        sanitized = {b for b in bits if 0 <= b <= _OS2_MAX_UNICODE_RANGE_BIT}
+        dropped = set(bits) - sanitized
+        if dropped:
+            _logger.warning(
+                "Dropped invalid OS/2 unicode range bits: %s", sorted(dropped)
             )
-            if dropped:
-                _logger.warning(
-                    "Dropped invalid OS/2 unicode range bits: %s",
-                    sorted(dropped),
-                )
-            return _orig(self, sanitized)
+        return original(self, sanitized)
 
-        table_O_S_2f_2.setUnicodeRanges = _tolerant_setUnicodeRanges
-        try:
-            local_font_config = FontConfiguration()
-            return weasyprint.HTML(
-                string=html_string,
-                url_fetcher=url_fetcher,
-            ).write_pdf(
-                font_config=local_font_config,
-                counter_style=CounterStyle(),
-                stylesheets=stylesheets or None,
-                presentational_hints=True,
-                optimize_images=True,
-                cache=_weasy_state.image_cache,
-                **(pdf_options or {}),
-            )
-        finally:
-            table_O_S_2f_2.setUnicodeRanges = _orig
+    set_unicode_ranges._odoo_tolerant_guard = True
+    table_O_S_2f_2.setUnicodeRanges = set_unicode_ranges
+
+
+def _write_pdf_tolerant_fonts(
+    html_string,
+    url_fetcher,
+    stylesheets,
+    pdf_options=None,
+    font_config=None,
+    image_cache=None,
+):
+    _weasy_state.setup_process()
+    was_active = getattr(_tolerant_fonts, "active", False)
+    _tolerant_fonts.active = True
+    try:
+        return weasyprint.HTML(
+            string=html_string,
+            url_fetcher=url_fetcher,
+        ).write_pdf(
+            font_config=font_config if font_config is not None else FontConfiguration(),
+            counter_style=CounterStyle(),
+            stylesheets=stylesheets or None,
+            presentational_hints=True,
+            optimize_images=True,
+            cache={} if image_cache is None else image_cache,
+            **(pdf_options or {}),
+        )
+    finally:
+        _tolerant_fonts.active = was_active
 
 
 _RE_CSS_LINK = re.compile(
@@ -306,12 +302,6 @@ _RE_CSS_LINK = re.compile(
 )
 
 _xpath_main = etree.ETXPath("//main")
-_xpath_header = etree.ETXPath(
-    "//div[contains(concat(' ', normalize-space(@class), ' '), ' header ')]"
-)
-_xpath_footer = etree.ETXPath(
-    "//div[contains(concat(' ', normalize-space(@class), ' '), ' footer ')]"
-)
 _xpath_article = etree.ETXPath(
     "//div[contains(concat(' ', normalize-space(@class), ' '), ' article ')]"
 )
@@ -319,14 +309,19 @@ _xpath_article = etree.ETXPath(
 _logger = logging.getLogger(__name__)
 
 _original_compile_node = _cs2_compiler._compile_node
-_MAX_SELECTOR_DEPTH = 10
+_MAX_SELECTOR_COMBINATORS = 11
 _selector_depth = threading.local()
 
 
 def _compile_node_depth_limited(selector: Any) -> str:
     if isinstance(selector, _cs2_parser.CombinedSelector):
         depth = getattr(_selector_depth, "value", 0)
-        if depth >= _MAX_SELECTOR_DEPTH:
+        if depth >= _MAX_SELECTOR_COMBINATORS:
+            _logger.warning(
+                "Dropped a CSS selector nesting more than %d combinators; it "
+                "will not match. Flatten it in the report stylesheet.",
+                _MAX_SELECTOR_COMBINATORS,
+            )
             return "0"
         _selector_depth.value = depth + 1
         try:
@@ -356,7 +351,7 @@ class OdooURLFetcher(URLFetcher):
         self._env = env
         self._base_url = base_url or env["ir.actions.report"]._get_report_url()
         self._parsed_base = urlparse(self._base_url)
-        self._addons_paths = config["addons_path"]
+        self._addons_paths = tools.config["addons_path"]
         self._session_cookie = None
         self._temp_session = None
         self._setup_session()
@@ -706,10 +701,17 @@ class WeasyPrintEngine:
         fetcher_factory: Callable[[], OdooURLFetcher],
         merge_pdfs: Callable[[list[io.BytesIO]], io.BytesIO],
         native_merge_max: int = _NATIVE_MERGE_MAX,
+        dbname: str = "",
     ) -> None:
         self._fetcher_factory = fetcher_factory
         self._merge_pdfs = merge_pdfs
         self._native_merge_max = native_merge_max
+        self._dbname = dbname
+        self.warnings: deque[str] = deque(maxlen=_WEASY_WARNING_KEEP)
+
+    def _database_state(self) -> _WeasyDatabaseState:
+        _weasy_state.setup_process()
+        return _weasy_state.for_database(self._dbname)
 
     def render(
         self,
@@ -722,22 +724,21 @@ class WeasyPrintEngine:
         if not bodies:
             raise UserError(_("No content to render as PDF."))
 
-        _weasy_state.setup_process()
-        _weasy_state.evict_image_cache_if_full()
+        db_state = self._database_state()
+        image_cache: dict[str, Any] = {}
         wants_pdfa = bool((pdf_options or {}).get("pdf_variant"))
         if wants_pdfa:
             page_css = f"{page_css}\nhtml {{ image-rendering: crisp-edges; }}\n"
 
-        self._captured_warnings: list[str] = []
-
         with (
-            _weasy_warning_capture.capture(self._captured_warnings),
+            _capture_weasy_warnings() as sink,
             self._fetcher_factory() as fetcher,
         ):
+            self.warnings = sink
             parsed_css_by_url: dict[str, Any] = {}
             processed = [
                 self._prepare_body_and_stylesheets(
-                    body, page_css, parsed_css_by_url, fetcher
+                    body, page_css, parsed_css_by_url, fetcher, db_state
                 )
                 for body in bodies
             ]
@@ -745,7 +746,7 @@ class WeasyPrintEngine:
             if split:
                 return [
                     self._render_and_serialize_body(
-                        html_str, fetcher, body_css, pdf_options
+                        html_str, fetcher, body_css, pdf_options, db_state, image_cache
                     )
                     for html_str, body_css in processed
                 ]
@@ -760,14 +761,23 @@ class WeasyPrintEngine:
                 )
                 streams = [
                     io.BytesIO(
-                        self._render_and_serialize_body(html_str, fetcher, body_css)
+                        self._render_and_serialize_body(
+                            html_str,
+                            fetcher,
+                            body_css,
+                            None,
+                            db_state,
+                            image_cache,
+                        )
                     )
                     for html_str, body_css in processed
                 ]
                 return self._merge_pdfs(streams).getvalue()
 
             documents = [
-                self._render_body_document(html_str, fetcher, body_css)
+                self._render_body_document(
+                    html_str, fetcher, body_css, db_state, image_cache
+                )
                 for html_str, body_css in processed
             ]
 
@@ -782,7 +792,11 @@ class WeasyPrintEngine:
                         ve,
                     )
                     return self._serialize_with_tolerant_fonts(
-                        processed, fetcher, pdf_options=pdf_options
+                        processed,
+                        fetcher,
+                        db_state,
+                        image_cache,
+                        pdf_options=pdf_options,
                     )
                 _logger.exception("WeasyPrint PDF serialization failed")
                 raise self._prepare_pdf_render_error(str(ve)) from None
@@ -796,8 +810,12 @@ class WeasyPrintEngine:
         fetcher: OdooURLFetcher,
         body_css: list,
         pdf_options: dict[str, Any] | None = None,
+        db_state: _WeasyDatabaseState | None = None,
+        image_cache: dict[str, Any] | None = None,
     ) -> bytes:
-        document = self._render_body_document(html_str, fetcher, body_css)
+        document = self._render_body_document(
+            html_str, fetcher, body_css, db_state, image_cache
+        )
         buf = io.BytesIO()
         try:
             document.write_pdf(target=buf, **(pdf_options or {}))
@@ -809,7 +827,12 @@ class WeasyPrintEngine:
                     ve,
                 )
                 return _write_pdf_tolerant_fonts(
-                    html_str, fetcher, body_css, pdf_options
+                    html_str,
+                    fetcher,
+                    body_css,
+                    pdf_options,
+                    (db_state or self._database_state()).font_config,
+                    image_cache,
                 )
             _logger.exception("WeasyPrint PDF serialization failed")
             raise self._prepare_pdf_render_error(str(ve)) from None
@@ -821,6 +844,7 @@ class WeasyPrintEngine:
         page_css: str,
         parsed_css_by_url: dict[str, Any],
         fetcher: OdooURLFetcher | None = None,
+        db_state: _WeasyDatabaseState | None = None,
     ) -> tuple[str, list]:
         html_with_css = _add_page_css(body, page_css)
         body_css = []
@@ -829,7 +853,9 @@ class WeasyPrintEngine:
             if css_url not in parsed_css_by_url:
                 if fetcher is None:
                     continue
-                parsed_css_by_url[css_url] = self._parse_stylesheet(css_url, fetcher)
+                parsed_css_by_url[css_url] = self._parse_stylesheet(
+                    css_url, fetcher, db_state or self._database_state()
+                )
             parsed = parsed_css_by_url[css_url]
             if parsed is not None and css_url not in strip_urls:
                 body_css.append(parsed)
@@ -842,36 +868,46 @@ class WeasyPrintEngine:
         return html_with_css, body_css
 
     @staticmethod
-    def _parse_stylesheet(css_url: str, fetcher: OdooURLFetcher) -> Any:
+    def _parse_stylesheet(
+        css_url: str, fetcher: OdooURLFetcher, db_state: _WeasyDatabaseState
+    ) -> Any:
 
         def parse() -> Any:
             return weasyprint.CSS(
                 url=css_url,
                 url_fetcher=fetcher,
-                font_config=_weasy_state.get_font_config(),
+                font_config=db_state.font_config,
             )
 
         try:
             if _IMMUTABLE_ASSET_CSS_RE.match(css_url):
                 checksum = fetcher.get_asset_checksum(css_url)
                 if checksum:
-                    return _weasy_state.get_parsed_css((css_url, checksum), parse)
+                    return _weasy_state.get_parsed_css(
+                        db_state, (css_url, checksum), parse
+                    )
             return parse()
         except Exception:
             _logger.warning("Failed to pre-parse CSS: %s", css_url, exc_info=True)
             return None
 
     def _render_body_document(
-        self, html_str: str, fetcher: OdooURLFetcher, body_css: list
+        self,
+        html_str: str,
+        fetcher: OdooURLFetcher,
+        body_css: list,
+        db_state: _WeasyDatabaseState | None = None,
+        image_cache: dict[str, Any] | None = None,
     ) -> WeasyDocument:
+        state = db_state or self._database_state()
         try:
             return weasyprint.HTML(string=html_str, url_fetcher=fetcher).render(
-                font_config=_weasy_state.get_font_config(),
+                font_config=state.font_config,
                 counter_style=CounterStyle(),
                 stylesheets=body_css or None,
                 presentational_hints=True,
                 optimize_images=True,
-                cache=_weasy_state.image_cache,
+                cache={} if image_cache is None else image_cache,
             )
         except Exception as e:
             _logger.exception("WeasyPrint layout failed")
@@ -898,11 +934,20 @@ class WeasyPrintEngine:
         self,
         processed: list[tuple[str, list]],
         fetcher: OdooURLFetcher,
+        db_state: _WeasyDatabaseState,
+        image_cache: dict[str, Any],
         *,
         pdf_options: dict[str, Any] | None = None,
     ) -> bytes:
         tolerant_pdfs = [
-            _write_pdf_tolerant_fonts(html_str, fetcher, body_css, pdf_options)
+            _write_pdf_tolerant_fonts(
+                html_str,
+                fetcher,
+                body_css,
+                pdf_options,
+                db_state.font_config,
+                image_cache,
+            )
             for html_str, body_css in processed
         ]
         if len(tolerant_pdfs) == 1:
@@ -915,10 +960,10 @@ class WeasyPrintEngine:
             "PDF rendering failed. Please check the report template.\n\nDetails: %s",
             detail,
         )
-        warnings = getattr(self, "_captured_warnings", None)
+        warnings = list(self.warnings)
         if warnings:
-            message += _("\n\nRenderer warnings (last %s):\n", len(warnings[-5:]))
-            message += "\n".join(warnings[-5:])
+            message += _("\n\nRenderer warnings (last %s):\n", len(warnings))
+            message += "\n".join(warnings)
         return UserError(message)
 
 
@@ -1077,13 +1122,13 @@ class IrActionsReport(models.Model):
             for record in records
         }
 
-    def _get_attachments(self, records: Any) -> dict[int, Any]:
+    def _get_attachments(
+        self, records: Any, filenames: dict[int, Any] | None = None
+    ) -> dict[int, Any]:
         self.ensure_one()
-        names_by_id = {
-            res_id: name
-            for res_id, name in self._get_attachment_filenames(records).items()
-            if name
-        }
+        if filenames is None:
+            filenames = self._get_attachment_filenames(records)
+        names_by_id = {res_id: name for res_id, name in filenames.items() if name}
         if not names_by_id:
             return {}
         attachments = self.env["ir.attachment"].search(
@@ -1131,7 +1176,7 @@ class IrActionsReport(models.Model):
     @api.model
     def _prepare_paperformat_css(
         self,
-        paperformat_id: Any,
+        paperformat: Any,
         landscape: bool = False,
         specific_paperformat_args: dict[str, str] | None = None,
     ) -> str:
@@ -1149,24 +1194,24 @@ class IrActionsReport(models.Model):
             landscape = True
         orientation = (
             "landscape"
-            if landscape or paperformat_id.orientation == "Landscape"
+            if landscape or paperformat.orientation == "Landscape"
             else "portrait"
         )
 
-        if paperformat_id.format and paperformat_id.format != "custom":
-            fmt = paperformat_id.format.lower()
+        if paperformat.format and paperformat.format != "custom":
+            fmt = paperformat.format.lower()
             if fmt in self._WEASYPRINT_PAGE_SIZES:
                 size_css = f"{fmt} {orientation}"
             else:
-                ps = PAPER_SIZE_BY_KEY.get(paperformat_id.format)
+                ps = PAPER_SIZE_BY_KEY.get(paperformat.format)
                 if ps:
                     size_css = f"{ps['width']}mm {ps['height']}mm"
                     if orientation == "landscape":
                         size_css = f"{ps['height']}mm {ps['width']}mm"
                 else:
                     size_css = f"A4 {orientation}"
-        elif paperformat_id.page_width and paperformat_id.page_height:
-            w, h = paperformat_id.page_width, paperformat_id.page_height
+        elif paperformat.page_width and paperformat.page_height:
+            w, h = paperformat.page_width, paperformat.page_height
             if orientation == "landscape":
                 w, h = h, w
             size_css = f"{w}mm {h}mm"
@@ -1187,15 +1232,13 @@ class IrActionsReport(models.Model):
                 )
                 return float(fallback)
 
-        margin_top = _margin("data-report-margin-top", paperformat_id.margin_top)
-        margin_bottom = _margin(
-            "data-report-margin-bottom", paperformat_id.margin_bottom
-        )
-        margin_left = _margin("data-report-margin-left", paperformat_id.margin_left)
-        margin_right = _margin("data-report-margin-right", paperformat_id.margin_right)
+        margin_top = _margin("data-report-margin-top", paperformat.margin_top)
+        margin_bottom = _margin("data-report-margin-bottom", paperformat.margin_bottom)
+        margin_left = _margin("data-report-margin-left", paperformat.margin_left)
+        margin_right = _margin("data-report-margin-right", paperformat.margin_right)
 
         header_border = (
-            "border-bottom: 1px solid black;" if paperformat_id.header_line else ""
+            "border-bottom: 1px solid black;" if paperformat.header_line else ""
         )
 
         return (
@@ -1235,6 +1278,7 @@ class IrActionsReport(models.Model):
             fetcher_factory=report_model._prepare_url_fetcher,
             merge_pdfs=report_model._merge_pdfs,
             native_merge_max=report_model._get_native_merge_max(),
+            dbname=self.env.cr.dbname,
         )
 
     def _prepare_weasyprint_html(
@@ -1242,7 +1286,12 @@ class IrActionsReport(models.Model):
     ) -> tuple[list[str], list[int | None], dict[str, str]]:
         layout = self._get_layout()
         if not layout:
-            return [], [], {}
+            raise UserError(
+                _(
+                    "The report layout web.minimal_layout is missing, so no PDF "
+                    "body can be built. Update or reinstall the web module."
+                )
+            )
 
         base_url = self._get_report_url(layout=layout)
         html_root = lxml.html.fromstring(
@@ -1254,8 +1303,6 @@ class IrActionsReport(models.Model):
             if attribute[0].startswith("data-report-"):
                 specific_paperformat_args[attribute[0]] = attribute[1]
 
-        headers = _xpath_header(html_root)
-        footers = _xpath_footer(html_root)
         articles = _xpath_article(html_root)
 
         bodies = []
@@ -1289,9 +1336,8 @@ class IrActionsReport(models.Model):
 
         titles_by_res_id = self._get_document_titles(articles, report_model)
 
-        for i, article_node in enumerate(articles):
-            header_node = headers[i] if i < len(headers) else None
-            footer_node = footers[i] if i < len(footers) else None
+        for article_node in articles:
+            header_node, footer_node = self._get_article_header_footer(article_node)
 
             article_res_id = None
             if article_node.get("data-oe-model") == report_model:
@@ -1327,6 +1373,30 @@ class IrActionsReport(models.Model):
             res_ids.append(article_res_id)
 
         return bodies, res_ids, specific_paperformat_args
+
+    @staticmethod
+    def _has_html_class(node: Any, name: str) -> bool:
+        return name in (node.get("class") or "").split()
+
+    @classmethod
+    def _get_article_header_footer(cls, article_node: Any) -> tuple[Any, Any]:
+        header_node = None
+        for sibling in article_node.itersiblings(preceding=True):
+            if cls._has_html_class(sibling, "article"):
+                break
+            if cls._has_html_class(sibling, "header"):
+                header_node = sibling
+                break
+        footer_node = None
+        for sibling in article_node.itersiblings():
+            if cls._has_html_class(sibling, "article") or cls._has_html_class(
+                sibling, "header"
+            ):
+                break
+            if cls._has_html_class(sibling, "footer"):
+                footer_node = sibling
+                break
+        return header_node, footer_node
 
     def _get_document_titles(
         self, articles: list, report_model: str | bool
@@ -1421,9 +1491,9 @@ class IrActionsReport(models.Model):
             raise UserError(_("No content to render as PDF."))
 
         report = self._get_report(report_ref) if report_ref else None
-        paperformat_id = report.get_paperformat() if report else self.get_paperformat()
+        paperformat = report.get_paperformat() if report else self.get_paperformat()
         page_css = self._prepare_paperformat_css(
-            paperformat_id,
+            paperformat,
             landscape=landscape,
             specific_paperformat_args=specific_paperformat_args,
         )
@@ -1436,12 +1506,12 @@ class IrActionsReport(models.Model):
         start = perf_counter()
         engine = self._prepare_weasyprint_engine()
         result = engine.render(bodies, page_css, split=_split, pdf_options=pdf_options)
-        if engine._captured_warnings:
+        if engine.warnings:
             _logger.debug(
-                "WeasyPrint emitted %d warning(s) rendering %s; first: %s",
-                len(engine._captured_warnings),
+                "WeasyPrint emitted %d warning(s) rendering %s; last: %s",
+                len(engine.warnings),
                 report.report_name if report else "(no report ref)",
-                engine._captured_warnings[0],
+                engine.warnings[-1],
             )
         size = sum(len(pdf) for pdf in result) if _split else len(result)
         _logger.info(
@@ -1460,9 +1530,7 @@ class IrActionsReport(models.Model):
         height: int,
         image_format: str = "jpg",
     ) -> list[bytes | None]:
-        if modules.module.current_test and not self.env.context.get(
-            "force_report_rendering"
-        ):
+        if not self._renders_pdf():
             return [None] * len(bodies)
 
         page_css = f"@page {{ size: {width}px {height}px; margin: 0; }}"
@@ -1474,18 +1542,22 @@ class IrActionsReport(models.Model):
             return [None] * len(bodies)
 
         _weasy_state.setup_process()
-        _weasy_state.evict_image_cache_if_full()
+        db_state = _weasy_state.for_database(self.env.cr.dbname)
+        image_cache: dict[str, Any] = {}
 
         output_images = []
-        with self._prepare_url_fetcher() as fetcher:
+        with (
+            _capture_weasy_warnings(),
+            self._prepare_url_fetcher() as fetcher,
+        ):
             for body in bodies:
                 try:
                     pdf_bytes = weasyprint.HTML(
                         string=_add_page_css(body, page_css),
                         url_fetcher=fetcher,
                     ).write_pdf(
-                        font_config=_weasy_state.get_font_config(),
-                        cache=_weasy_state.image_cache,
+                        font_config=db_state.font_config,
+                        cache=image_cache,
                     )
                     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
                         png_bytes = doc[0].get_pixmap(dpi=96, alpha=True).tobytes("png")
@@ -1673,6 +1745,8 @@ class IrActionsReport(models.Model):
         error: Exception | None = None,
         error_stream: io.BytesIO | None = None,
     ) -> UserError:
+        if error is not None:
+            _logger.warning("Unmergeable PDF stream: %s", error, exc_info=error)
         return UserError(_("Odoo is unable to merge the generated PDFs."))
 
     @api.model
@@ -1717,6 +1791,54 @@ class IrActionsReport(models.Model):
             res_ids = [res_ids]
         return res_ids, data
 
+    @staticmethod
+    def _prepare_attachment_stream(attachment: Any) -> io.BytesIO:
+        stream = io.BytesIO(attachment.raw)
+        if not (attachment.mimetype or "").startswith("image"):
+            return stream
+        converted = io.BytesIO()
+        with Image.open(stream) as img:
+            img.convert("RGB").save(converted, format="pdf")
+        stream.close()
+        return converted
+
+    def _collect_saved_attachment_streams(
+        self,
+        report: Self,
+        res_ids: list[int] | None,
+        has_duplicated_ids: bool,
+    ) -> dict[int | bool, dict[str, Any]]:
+        if not res_ids:
+            return {}
+        records = self.env[report.model].browse(res_ids)
+        wants_attachment = (
+            not has_duplicated_ids
+            and report.attachment
+            and not self.env.context.get("report_pdf_no_attachment")
+        )
+        attachment_names = {}
+        attachments_by_id = {}
+        if wants_attachment:
+            attachment_names = report._get_attachment_filenames(records)
+            attachments_by_id = report._get_attachments(records, attachment_names)
+        collected: dict[int | bool, dict[str, Any]] = {}
+        for record in records:
+            res_id = record.id
+            if res_id in collected:
+                continue
+            attachment = attachments_by_id.get(res_id) or None
+            stream = None
+            if attachment and report.attachment_use:
+                stream = self._prepare_attachment_stream(attachment)
+            collected[res_id] = {
+                "stream": stream,
+                "attachment": attachment,
+                "attachment_name": attachment_names.get(res_id, "")
+                if wants_attachment
+                else None,
+            }
+        return collected
+
     def _render_qweb_pdf_prepare_streams(
         self,
         report_ref: int | str | Any,
@@ -1734,45 +1856,9 @@ class IrActionsReport(models.Model):
         report_sudo = self._get_report(report_ref)
         has_duplicated_ids = self._has_duplicated_ids(res_ids)
 
-        collected_streams = {}
-
-        if res_ids:
-            records = self.env[report_sudo.model].browse(res_ids)
-            wants_attachment = (
-                not has_duplicated_ids
-                and report_sudo.attachment
-                and not self.env.context.get("report_pdf_no_attachment")
-            )
-            attachment_names = {}
-            attachments_by_id = {}
-            if wants_attachment:
-                attachment_names = report_sudo._get_attachment_filenames(records)
-                attachments_by_id = report_sudo._get_attachments(records)
-            for record in records:
-                res_id = record.id
-                if res_id in collected_streams:
-                    continue
-
-                stream = None
-                attachment = attachments_by_id.get(res_id) or None
-
-                if attachment and report_sudo.attachment_use:
-                    stream = io.BytesIO(attachment.raw)
-
-                    if (attachment.mimetype or "").startswith("image"):
-                        new_stream = io.BytesIO()
-                        with Image.open(stream) as img:
-                            img.convert("RGB").save(new_stream, format="pdf")
-                        stream.close()
-                        stream = new_stream
-
-                collected_streams[res_id] = {
-                    "stream": stream,
-                    "attachment": attachment,
-                    "attachment_name": attachment_names.get(res_id, "")
-                    if wants_attachment
-                    else None,
-                }
+        collected_streams = self._collect_saved_attachment_streams(
+            report_sudo, res_ids, has_duplicated_ids
+        )
 
         res_ids_wo_stream = [
             res_id
@@ -1822,13 +1908,14 @@ class IrActionsReport(models.Model):
                 not has_duplicated_ids
                 and res_ids
                 and html_ids_valid
+                and len(html_ids_valid) == len(set(html_ids_valid))
                 and set(html_ids_valid) == set(res_ids_wo_stream)
             )
 
             if can_split:
                 render_bodies = []
                 render_res_ids = []
-                for body, res_id in zip(bodies, html_ids, strict=False):
+                for body, res_id in zip(bodies, html_ids, strict=True):
                     if res_id is not None and res_id in res_ids_wo_stream:
                         render_bodies.append(body)
                         render_res_ids.append(res_id)
@@ -1842,7 +1929,7 @@ class IrActionsReport(models.Model):
                         **render_pdf_kwargs,
                     )
                     for pdf_content, res_id in zip(
-                        pdf_contents, render_res_ids, strict=False
+                        pdf_contents, render_res_ids, strict=True
                     ):
                         collected_streams[res_id]["stream"] = io.BytesIO(pdf_content)
             else:
@@ -1944,6 +2031,55 @@ class IrActionsReport(models.Model):
             "pdf",
         )
 
+    def _save_pdf_report_attachments(
+        self, report: Self, streams: dict[int | bool, dict[str, Any]]
+    ) -> None:
+        attachment_vals_list = self._prepare_pdf_report_attachment_vals_list(
+            report, streams
+        )
+        if not attachment_vals_list:
+            return
+        attachment_names = ", ".join(x["name"] for x in attachment_vals_list)
+        try:
+            self.env["ir.attachment"].create(attachment_vals_list)
+        except AccessError:
+            _logger.info(
+                "Cannot save PDF report %r attachments for user %r",
+                attachment_names,
+                self.env.user.display_name,
+            )
+        else:
+            _logger.info(
+                "The PDF documents %r are now saved in the database",
+                attachment_names,
+            )
+
+    def _prepare_corrupt_records_error(
+        self, report: Self, error_record_ids: list[int]
+    ) -> UserError:
+        record_ids = [res_id for res_id in error_record_ids if res_id]
+        if not record_ids:
+            return self._prepare_merge_pdfs_error()
+        action = {
+            "type": "ir.actions.act_window",
+            "name": _("Problematic record(s)"),
+            "res_model": report.model,
+            "domain": [("id", "in", record_ids)],
+            "views": [(False, "list"), (False, "form")],
+        }
+        num_errors = len(record_ids)
+        if num_errors == 1:
+            action.update({"views": [(False, "form")], "res_id": record_ids[0]})
+        return RedirectWarning(
+            message=_(
+                "Odoo is unable to merge the generated PDFs because of "
+                "%(num_errors)s corrupted file(s)",
+                num_errors=num_errors,
+            ),
+            action=action,
+            button_text=_("View Problematic Record(s)"),
+        )
+
     def _render_qweb_pdf(
         self,
         report_ref: int | str | Any,
@@ -1960,31 +2096,12 @@ class IrActionsReport(models.Model):
         if report_type != "pdf":
             return collected_streams, report_type
 
-        has_duplicated_ids = self._has_duplicated_ids(res_ids)
-
         if (
-            not has_duplicated_ids
+            not self._has_duplicated_ids(res_ids)
             and report_sudo.attachment
             and not self.env.context.get("report_pdf_no_attachment")
         ):
-            attachment_vals_list = self._prepare_pdf_report_attachment_vals_list(
-                report_sudo, collected_streams
-            )
-            if attachment_vals_list:
-                attachment_names = ", ".join(x["name"] for x in attachment_vals_list)
-                try:
-                    self.env["ir.attachment"].create(attachment_vals_list)
-                except AccessError:
-                    _logger.info(
-                        "Cannot save PDF report %r attachments for user %r",
-                        attachment_names,
-                        self.env.user.display_name,
-                    )
-                else:
-                    _logger.info(
-                        "The PDF documents %r are now saved in the database",
-                        attachment_names,
-                    )
+            self._save_pdf_report_attachments(report_sudo, collected_streams)
 
         def add_merge_pdfs_error(error: Exception, error_stream: io.BytesIO) -> None:
             error_record_ids.append(stream_to_ids[error_stream])
@@ -1993,42 +2110,23 @@ class IrActionsReport(models.Model):
             v["stream"]: k for k, v in collected_streams.items() if v["stream"]
         }
         streams_to_merge = list(stream_to_ids.keys())
-        error_record_ids = []
+        error_record_ids: list[int] = []
 
-        if len(streams_to_merge) == 1:
-            pdf_content = streams_to_merge[0].getvalue()
-        else:
-            with self._merge_pdfs(
-                streams_to_merge, add_merge_pdfs_error
-            ) as pdf_merged_stream:
-                pdf_content = pdf_merged_stream.getvalue()
+        try:
+            if len(streams_to_merge) == 1:
+                pdf_content = streams_to_merge[0].getvalue()
+            else:
+                with self._merge_pdfs(
+                    streams_to_merge, add_merge_pdfs_error
+                ) as pdf_merged_stream:
+                    pdf_content = pdf_merged_stream.getvalue()
+        finally:
+            if error_record_ids:
+                for stream in streams_to_merge:
+                    stream.close()
 
         if error_record_ids:
-            if not any(error_record_ids):
-                raise self._prepare_merge_pdfs_error()
-            action = {
-                "type": "ir.actions.act_window",
-                "name": _("Problematic record(s)"),
-                "res_model": report_sudo.model,
-                "domain": [("id", "in", error_record_ids)],
-                "views": [(False, "list"), (False, "form")],
-            }
-            num_errors = len(error_record_ids)
-            if num_errors == 1:
-                action.update(
-                    {
-                        "views": [(False, "form")],
-                        "res_id": error_record_ids[0],
-                    }
-                )
-            raise RedirectWarning(
-                message=_(
-                    "Odoo is unable to merge the generated PDFs because of %(num_errors)s corrupted file(s)",
-                    num_errors=num_errors,
-                ),
-                action=action,
-                button_text=_("View Problematic Record(s)"),
-            )
+            raise self._prepare_corrupt_records_error(report_sudo, error_record_ids)
 
         for stream in streams_to_merge:
             stream.close()

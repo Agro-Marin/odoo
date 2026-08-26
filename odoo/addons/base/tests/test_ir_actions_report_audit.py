@@ -1,20 +1,25 @@
+import base64
 import io
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
 
+import pymupdf
 import requests
+from PIL import Image
 from weasyprint.urls import URLFetcher
 
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, RedirectWarning, UserError
 from odoo.libs.json import loads as json_loads
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.base.models.ir_actions_report import (
     PDF_OPTIONS_DATA_KEY,
     OdooURLFetcher,
     _is_fetch_host_blocked,
+    _weasy_state,
 )
 
 
@@ -700,7 +705,6 @@ class TestReportFetcherOrigin(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMergePdfsErrorPolicy(TransactionCase):
-
     def setUp(self):
         super().setUp()
         self.report = self.env["ir.actions.report"]
@@ -743,7 +747,6 @@ class TestMergePdfsErrorPolicy(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestLayoutConfiguratorAction(TransactionCase):
-
     def setUp(self):
         super().setUp()
         self.report = self.env["ir.actions.report"].search([], limit=1)
@@ -768,3 +771,234 @@ class TestLayoutConfiguratorAction(TransactionCase):
         action = self.report.with_context(discard_logo_check=True).report_action([])
         self.assertEqual(action["type"], "ir.actions.report")
         self.assertEqual(action["report_name"], self.report.report_name)
+
+
+BROKEN_IMAGE = "data:image/png;base64,QUFBQUFB"
+
+
+def _png_data_uri(color):
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), color).save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _first_pixel(pdf):
+    with pymupdf.open(stream=pdf, filetype="pdf") as document:
+        for xref, *_rest in document.get_page_images(0):
+            raw = document.extract_image(xref)["image"]
+            with Image.open(io.BytesIO(raw)) as image:
+                return image.convert("RGB").getpixel((4, 4))
+    return None
+
+
+@tagged("post_install", "-at_install")
+class TestImageCacheLifetime(TransactionCase):
+    def _render(self, *sources):
+        body = (
+            "<html><head></head><body><main>"
+            + "".join(f'<img src="{src}">' for src in sources)
+            + "</main></body></html>"
+        )
+        return (
+            self.env["ir.actions.report"]
+            .with_context(force_report_rendering=True)
+            ._render_html_to_pdf([body])
+        )
+
+    def test_a_url_is_not_reused_across_renders(self):
+        red, green = _png_data_uri((255, 0, 0)), _png_data_uri((0, 255, 0))
+        self.assertNotEqual(
+            _first_pixel(self._render(red)),
+            _first_pixel(self._render(green)),
+            "a process-wide cache keyed on the URL alone served one render's "
+            "image to the next, across users and databases",
+        )
+
+    @mute_logger("weasyprint")
+    def test_an_unloadable_image_does_not_poison_later_renders(self):
+        sources = [_png_data_uri((i, 40, 80)) for i in range(60)]
+        self._render(BROKEN_IMAGE, *sources)
+        for source in sources[:4]:
+            with self.subTest(source=source[:40]):
+                self.assertTrue(
+                    self._render(source).startswith(b"%PDF"),
+                    "an image that failed to load inserts one unpaired cache "
+                    "entry; evicting across that boundary used to orphan a "
+                    "payload and fail every later render of the survivor",
+                )
+
+    def test_database_state_is_scoped_and_evicted_as_one_unit(self):
+        self.addCleanup(_weasy_state.clear_for_tests)
+        _weasy_state.setup_process()
+        first = _weasy_state.for_database("audit_db_a")
+        second = _weasy_state.for_database("audit_db_b")
+        self.assertIsNot(first, second)
+        self.assertIsNot(first.font_config, second.font_config)
+        self.assertIs(first, _weasy_state.for_database("audit_db_a"))
+
+        first.css_cache[("/a.css", "sum")] = object()
+        for index in range(16):
+            _weasy_state.for_database(f"audit_db_filler_{index}")
+        revived = _weasy_state.for_database("audit_db_a")
+        self.assertNotIn(
+            ("/a.css", "sum"),
+            revived.css_cache,
+            "a stylesheet outliving the font configuration it was parsed "
+            "against would render with its @font-face rules missing",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestArticleHeaderFooterPairing(TransactionCase):
+    ARCH = """<t t-name="base.audit_pairing"><html><head></head><body><main>
+        <div class="header">ALPHA</div>
+        <div class="article" data-oe-model="res.partner" data-oe-id="1">
+            <div class="header">STRAY</div><span>ONE</span>
+        </div>
+        <div class="header">BETA</div>
+        <div class="article" data-oe-model="res.partner" data-oe-id="2">
+            <span>TWO</span>
+        </div>
+        <div class="footer">OMEGA</div>
+    </main></body></html></t>"""
+
+    def _bodies(self):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "audit pairing",
+                "type": "qweb",
+                "key": "base.audit_pairing",
+                "arch_db": self.ARCH,
+            }
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "audit_pairing",
+                "model": "ir.ui.view",
+                "res_id": view.id,
+            }
+        )
+        report = self.env["ir.actions.report"].create(
+            {
+                "name": "Audit pairing",
+                "model": "res.partner",
+                "report_name": "base.audit_pairing",
+                "report_type": "qweb-pdf",
+            }
+        )
+        self.env.flush_all()
+        html = self.env["ir.actions.report"]._render_qweb_html(report, [1, 2])[0]
+        bodies, res_ids, _args = report._prepare_weasyprint_html(
+            html, report_model="res.partner"
+        )
+        return [str(body) for body in bodies], res_ids
+
+    def test_a_header_inside_an_article_does_not_shift_the_next_record(self):
+        bodies, res_ids = self._bodies()
+        self.assertEqual(res_ids, [1, 2])
+        self.assertIn("ALPHA", bodies[0])
+        self.assertIn(
+            "BETA",
+            bodies[1],
+            "pairing headers to articles by document-order index let a header "
+            "nested inside one record's content consume the next record's",
+        )
+        self.assertNotIn(
+            "STRAY",
+            bodies[1],
+            "one record's content must never reach another record's page",
+        )
+        self.assertIn("OMEGA", bodies[1])
+        self.assertNotIn("OMEGA", bodies[0])
+
+
+@tagged("post_install", "-at_install")
+class TestAttachmentNamesEvaluatedOnce(TransactionCase):
+    def test_precomputed_names_are_not_recomputed(self):
+        report = self.env["ir.actions.report"].create(
+            {
+                "name": "Audit attachment",
+                "model": "res.partner",
+                "report_name": "base.audit_attachment",
+                "report_type": "qweb-pdf",
+                "attachment": "'audit-%s.pdf' % object.id",
+            }
+        )
+        records = self.env["res.partner"].search([], limit=3)
+        module = "odoo.addons.base.models.ir_actions_report"
+        with patch(f"{module}.safe_eval", wraps=safe_eval) as evaluated:
+            filenames = report._get_attachment_filenames(records)
+            baseline = evaluated.call_count
+            report._get_attachments(records, filenames)
+            self.assertEqual(
+                evaluated.call_count,
+                baseline,
+                "_get_attachments recomputed the names its caller had just "
+                "evaluated, doubling safe_eval over the whole batch",
+            )
+        self.assertEqual(len(filenames), len(records))
+
+
+@tagged("post_install", "-at_install")
+class TestMergeErrorRecordIds(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.report = self.env["ir.actions.report"].create(
+            {
+                "name": "Audit merge",
+                "model": "res.partner",
+                "report_name": "base.audit_merge",
+                "report_type": "qweb-pdf",
+            }
+        )
+        self.valid_pdf = (
+            self.env["ir.actions.report"]
+            .with_context(force_report_rendering=True)
+            ._render_html_to_pdf(["<html><body><main><p>ok</p></main></body></html>"])
+        )
+
+    def _render_with_streams(self, streams):
+        with (
+            patch.object(
+                type(self.env["ir.actions.report"]),
+                "_render_qweb_pdf_prepare_streams",
+                return_value=streams,
+            ),
+            mute_logger("odoo.addons.base.models.ir_actions_report"),
+        ):
+            return (
+                self.env["ir.actions.report"]
+                .with_context(force_report_rendering=True)
+                ._render_qweb_pdf(self.report, [1])
+            )
+
+    def test_only_the_sentinel_corrupt_raises_the_plain_error(self):
+        streams = {
+            False: {"stream": io.BytesIO(b"not a pdf"), "attachment": None},
+            1: {"stream": io.BytesIO(self.valid_pdf), "attachment": None},
+        }
+        with self.assertRaises(UserError) as caught:
+            self._render_with_streams(streams)
+        self.assertNotIsInstance(
+            caught.exception,
+            RedirectWarning,
+            "the merged-body sentinel is not a record, so there is nothing for "
+            "the user to open",
+        )
+
+    def test_the_sentinel_is_not_counted_among_problematic_records(self):
+        streams = {
+            False: {"stream": io.BytesIO(b"not a pdf"), "attachment": None},
+            1: {"stream": io.BytesIO(b"also not a pdf"), "attachment": None},
+        }
+        with self.assertRaises(RedirectWarning) as caught:
+            self._render_with_streams(streams)
+        action = caught.exception.args[1]
+        self.assertEqual(action["res_id"], 1)
+        self.assertNotIn(
+            "2",
+            caught.exception.args[0],
+            "False reached the count and the domain, so the message named one "
+            "more corrupt file than the action could show",
+        )

@@ -1,11 +1,13 @@
 import logging
+import threading
 
 import odoo.tests
 
 from odoo.addons.base.models.ir_actions_report import (
+    _WEASY_WARNING_KEEP,
     PDF_OPTIONS_DATA_KEY,
+    _capture_weasy_warnings,
     _prepare_watermark_css,
-    _weasy_warning_capture,
 )
 
 ARCH = """
@@ -141,46 +143,64 @@ class TestPdfImageOptions(odoo.tests.TransactionCase):
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestWeasyWarningCapture(odoo.tests.TransactionCase):
-    def test_capture_collects_and_restores_level(self):
-        logger = logging.getLogger("weasyprint")
-        level_before = logger.level
-        sink = []
-        with _weasy_warning_capture.capture(sink):
-            self.assertEqual(logger.level, logging.WARNING)
-            logger.warning("Ignored `bogus-property: 1`")
-        self.assertEqual(sink, ["Ignored `bogus-property: 1`"])
-        self.assertEqual(logger.level, level_before)
+    def setUp(self):
+        super().setUp()
+        self.env["ir.actions.report"]._prepare_weasyprint_engine()._database_state()
 
-    def test_capture_does_not_propagate_to_ancestor_handlers(self):
+    def test_capture_collects_this_thread_and_suppresses_propagation(self):
         logger = logging.getLogger("weasyprint")
-        propagate_before = logger.propagate
-        sink = []
         with self.assertNoLogs(level=logging.WARNING):
-            with _weasy_warning_capture.capture(sink):
-                self.assertFalse(logger.propagate)
+            with _capture_weasy_warnings() as sink:
                 logger.warning("Ignored `bogus-property: 1`")
-        self.assertEqual(sink, ["Ignored `bogus-property: 1`"])
-        self.assertIs(logger.propagate, propagate_before)
+        self.assertEqual(list(sink), ["Ignored `bogus-property: 1`"])
 
-    def test_nested_capture_restores_state_once(self):
+    def test_a_concurrent_render_never_writes_into_another_sink(self):
         logger = logging.getLogger("weasyprint")
-        level_before = logger.level
-        propagate_before = logger.propagate
-        outer, inner = [], []
-        with _weasy_warning_capture.capture(outer):
-            with _weasy_warning_capture.capture(inner):
-                logger.warning("inner")
-            self.assertFalse(logger.propagate)
-            self.assertEqual(logger.level, logging.WARNING)
-            logger.warning("outer")
-        self.assertEqual(logger.level, level_before)
-        self.assertIs(logger.propagate, propagate_before)
-        self.assertEqual(inner, ["inner"])
-        self.assertEqual(outer, ["inner", "outer"])
+        entered = threading.Event()
+        logged = threading.Event()
+        other = []
+
+        def concurrent():
+            entered.wait(10)
+            with _capture_weasy_warnings() as their_sink:
+                logger.warning("tenant-b /web/image/res.partner/4711/id_scan")
+                other.extend(their_sink)
+            logged.set()
+
+        thread = threading.Thread(target=concurrent)
+        thread.start()
+        with _capture_weasy_warnings() as sink:
+            entered.set()
+            logged.wait(10)
+            mine = list(sink)
+        thread.join(10)
+
+        self.assertEqual(other, ["tenant-b /web/image/res.partner/4711/id_scan"])
+        self.assertEqual(
+            mine,
+            [],
+            "another render's warnings must not reach this render's sink, which "
+            "_prepare_pdf_render_error shows to the user",
+        )
+
+    def test_the_sink_keeps_only_what_the_error_can_show(self):
+        logger = logging.getLogger("weasyprint")
+        with _capture_weasy_warnings() as sink:
+            for i in range(_WEASY_WARNING_KEEP * 20):
+                logger.warning("image %d failed", i)
+        self.assertEqual(len(sink), _WEASY_WARNING_KEEP)
+        self.assertEqual(sink[-1], f"image {_WEASY_WARNING_KEEP * 20 - 1} failed")
+
+    def test_outside_a_render_warnings_are_dropped_and_errors_are_not(self):
+        logger = logging.getLogger("weasyprint")
+        with self.assertNoLogs(level=logging.WARNING):
+            logger.warning("no render is running")
+        with self.assertLogs("weasyprint", level=logging.ERROR):
+            logger.error("no render is running")
 
     def test_render_error_includes_captured_warnings(self):
         engine = self.env["ir.actions.report"]._prepare_weasyprint_engine()
-        engine._captured_warnings = ["Ignored `flex: 1` at 3:7"]
+        engine.warnings.append("Ignored `flex: 1` at 3:7")
         error = engine._prepare_pdf_render_error("boom")
         self.assertIn("boom", str(error))
         self.assertIn("Ignored `flex: 1` at 3:7", str(error))
