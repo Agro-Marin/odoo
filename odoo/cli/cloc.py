@@ -52,6 +52,6 @@ class Cloc(DatabaseCommand):
                 sys.exit(2)
             counter.count_database(db_name)
         if opt.path:
-            for path in opt.path:
+            for path in dict.fromkeys(opt.path):
                 counter.count_path(path)
         print(counter.report(opt.verbose))
