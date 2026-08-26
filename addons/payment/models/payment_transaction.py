@@ -337,7 +337,7 @@ class PaymentTransaction(models.Model):
         capture the transactions immediately.
 
         :return: The action to open the partial capture wizard, if supported.
-        :rtype: action.act_window|None
+        :rtype: dict
         """
         payment_utils.check_rights_on_recordset(self)
 
@@ -369,7 +369,12 @@ class PaymentTransaction(models.Model):
             return captured_txs_sudo._prepare_action_feedback_notification()
 
     def action_void(self):
-        """Check the state of the transaction and request to have them voided."""
+        """Check the state of the transaction and request to have them voided.
+
+        :return: The client notification.
+        :rtype: dict
+        :raise ValidationError: If a transaction is not authorized.
+        """
         payment_utils.check_rights_on_recordset(self)
 
         if any(tx.state != "authorized" for tx in self):
@@ -396,7 +401,8 @@ class PaymentTransaction(models.Model):
         """Check the state of the transactions and request their refund.
 
         :param float amount_to_refund: The amount to be refunded.
-        :return: None
+        :return: The client notification.
+        :rtype: dict
         """
         payment_utils.check_rights_on_recordset(self)
 
@@ -1072,8 +1078,8 @@ class PaymentTransaction(models.Model):
         """Update the transactions' state to `pending`.
 
         :param str state_message: The reason for setting the transactions in the state `pending`.
-        :param tuple[str] extra_allowed_states: The extra states that should be considered allowed
-                                                target states for the source state 'pending'.
+        :param tuple[str] extra_allowed_states: The extra source states allowed to transition to
+                                                the target state 'pending'.
         :return: The updated transactions.
         :rtype: recordset of `payment.transaction`
         """
@@ -1089,8 +1095,8 @@ class PaymentTransaction(models.Model):
         """Update the transactions' state to `authorized`.
 
         :param str state_message: The reason for setting the transactions in the state `authorized`.
-        :param tuple[str] extra_allowed_states: The extra states that should be considered allowed
-                                                target states for the source state 'authorized'.
+        :param tuple[str] extra_allowed_states: The extra source states allowed to transition to
+                                                the target state 'authorized'.
         :return: The updated transactions.
         :rtype: recordset of `payment.transaction`
         """
@@ -1106,8 +1112,8 @@ class PaymentTransaction(models.Model):
         """Update the transactions' state to `done`.
 
         :param str state_message: The reason for setting the transactions in the state `done`.
-        :param tuple[str] extra_allowed_states: The extra states that should be considered allowed
-                                                target states for the source state 'done'.
+        :param tuple[str] extra_allowed_states: The extra source states allowed to transition to
+                                                the target state 'done'.
         :return: The updated transactions.
         :rtype: recordset of `payment.transaction`
         """
@@ -1124,8 +1130,8 @@ class PaymentTransaction(models.Model):
         """Update the transactions' state to `cancel`.
 
         :param str state_message: The reason for setting the transactions in the state `cancel`.
-        :param tuple[str] extra_allowed_states: The extra states that should be considered allowed
-                                                target states for the source state 'canceled'.
+        :param tuple[str] extra_allowed_states: The extra source states allowed to transition to
+                                                the target state 'canceled'.
         :return: The updated transactions.
         :rtype: recordset of `payment.transaction`
         """
@@ -1142,8 +1148,8 @@ class PaymentTransaction(models.Model):
         """Update the transactions' state to `error`.
 
         :param str state_message: The reason for setting the transactions in the state `error`.
-        :param tuple[str] extra_allowed_states: The extra states that should be considered allowed
-                                                target states for the source state 'error'.
+        :param tuple[str] extra_allowed_states: The extra source states allowed to transition to
+                                                the target state 'error'.
         :return: The updated transactions.
         :rtype: recordset of `payment.transaction`
         """
@@ -1221,8 +1227,8 @@ class PaymentTransaction(models.Model):
         return txs_to_process
 
     def _update_source_transaction_state(self):
-        """Update the state of the source transactions for which all child transactions have
-        reached a final state.
+        """Update the state of the source transactions whose children of the same operation now
+        cover the full amount.
 
         :return: None
         """
@@ -1372,7 +1378,7 @@ class PaymentTransaction(models.Model):
         Note: `self.ensure_one()`
 
         :return: The message to log.
-        :rtype: str
+        :rtype: str|None
         """
         self.ensure_one()
 
@@ -1406,7 +1412,7 @@ class PaymentTransaction(models.Model):
         Note: `self.ensure_one()`
 
         :return: The message to log.
-        :rtype: str
+        :rtype: str|None
         """
         self.ensure_one()
 
@@ -1457,7 +1463,7 @@ class PaymentTransaction(models.Model):
     def _get_last(self):
         """Return the last transaction of the recordset.
 
-        :return: The last transaction of the recordset, sorted by id.
+        :return: The most recent non-draft transaction of the recordset.
         :rtype: recordset of `payment.transaction`
         """
         return self.filtered(lambda t: t.state != "draft").sorted()[:1]
