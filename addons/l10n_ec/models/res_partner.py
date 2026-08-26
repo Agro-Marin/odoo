@@ -59,7 +59,7 @@ class ResPartner(models.Model):
     )
 
     def _run_check_identification(self, validation="error"):
-        """Since we validate more documents than the vat for Argentinean partners (CUIT - VAT AR, CUIL, DNI) we
+        """Since we validate more documents than the vat for Ecuadorian partners (DNI) we
         extend this method in order to process it."""
         l10n_ec_partners = self.filtered(lambda p: p.vat and p.country_code == "EC")
         if l10n_ec_partners and validation == "error":
