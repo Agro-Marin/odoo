@@ -84,7 +84,7 @@ class PaymentProvider(models.Model):
         base_url = self.get_base_url()
         if 'localhost' in base_url:
             raise UserError(
-                "PayPal: " + _("You must have an HTTPS connection to generate a webhook.")
+                _("PayPal: You must have an HTTPS connection to generate a webhook.")
             )
         data = {
             'url': urls.urljoin(base_url, PaypalController._webhook_url),

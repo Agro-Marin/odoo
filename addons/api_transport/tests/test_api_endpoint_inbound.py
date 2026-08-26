@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from odoo.libs.logging import mute_logger
 from odoo.tests.common import TransactionCase
 
+from .common import APITransportTestCase
 from odoo.addons.api_transport.tools import (
     compute_payload_hash,
     sanitize_error_message,
@@ -338,3 +339,101 @@ class TestRateLimitStrictPosture(TransactionCase):
         self.assertFalse(self._consumed_strict(self.outbound))
         self.outbound.rate_limit_strict = True
         self.assertTrue(self._consumed_strict(self.outbound))
+
+
+class TestPayloadLogLimit(TransactionCase):
+    """A body an endpoint declines to store in full (ADR-0064).
+
+    `api.endpoint.inbound` is abstract -- it has no table, and the concrete
+    endpoints that inherit it live in other modules -- so these exercise the
+    policy on an in-memory record. `remote_mobile` covers the same setting on a
+    stored `remote.device` and over a real request.
+    """
+
+    def _endpoint(self, **overrides):
+        vals = {"processing_mode": "sync", "log_request_payload_max_bytes": 64}
+        vals.update(overrides)
+        return self.env["api.endpoint.inbound"].new(vals)
+
+    def test_a_declared_limit_is_reported(self):
+        self.assertEqual(self._endpoint()._payload_log_limit(), 64)
+
+    def test_no_limit_is_the_default(self):
+        self.assertEqual(
+            self.env["api.endpoint.inbound"].default_get(
+                ["log_request_payload_max_bytes"]
+            )["log_request_payload_max_bytes"],
+            0,
+        )
+
+    def test_an_async_endpoint_ignores_the_limit(self):
+        """The stored body is what `_run_queued_event` replays, so shortening it
+        would discard the work rather than shorten a log."""
+        endpoint = self._endpoint(processing_mode="async")
+
+        self.assertEqual(endpoint.log_request_payload_max_bytes, 64)
+        self.assertEqual(endpoint._payload_log_limit(), 0)
+
+    def test_a_nonsensical_negative_limit_reads_as_no_limit(self):
+        self.assertEqual(
+            self._endpoint(log_request_payload_max_bytes=-5)._payload_log_limit(), 0
+        )
+
+
+class TestPayloadHashOverride(APITransportTestCase):
+    """Duplicate detection compares a hash the caller computed from the request
+    against a column derived from the stored body. When the two are not the same
+    text, the override is what keeps them the same value (ADR-0064)."""
+
+    def _log(self, **vals):
+        base = {
+            "direction": "outbound",
+            "state": "pending",
+            "channel_id": f"api.endpoint.outbound,{self.service_stripe.id}",
+        }
+        base.update(vals)
+        return self.env["api.event.log"].create(base)
+
+    def test_the_hash_is_derived_from_the_stored_body_by_default(self):
+        body = '{"b": 2, "a": 1}'
+
+        self.assertEqual(
+            self._log(request_payload=body).request_payload_hash,
+            compute_payload_hash(body),
+        )
+
+    def test_key_order_does_not_change_the_hash(self):
+        first = self._log(request_payload='{"a": 1, "b": 2}')
+        second = self._log(request_payload='{"b": 2, "a": 1}')
+
+        self.assertEqual(first.request_payload_hash, second.request_payload_hash)
+
+    def test_an_override_wins_over_the_stored_body(self):
+        received = '{"audio_b64": "' + "A" * 200 + '"}'
+        placeholder = '{"_omitted": {"bytes": 216}}'
+
+        event = self._log(
+            request_payload=placeholder,
+            request_payload_hash_override=compute_payload_hash(received),
+            request_payload_omitted_bytes=len(received),
+        )
+
+        self.assertEqual(event.request_payload_hash, compute_payload_hash(received))
+        self.assertNotEqual(
+            event.request_payload_hash, compute_payload_hash(placeholder)
+        )
+
+    def test_the_recorded_size_describes_the_request_not_the_placeholder(self):
+        event = self._log(
+            request_payload='{"_omitted": {"bytes": 5000}}',
+            request_payload_omitted_bytes=5000,
+        )
+
+        self.assertEqual(event.request_payload_size, 5000)
+
+    def test_an_unparseable_body_still_hashes(self):
+        event = self._log(request_payload="not json at all")
+
+        self.assertEqual(
+            event.request_payload_hash, compute_payload_hash("not json at all")
+        )

@@ -33,8 +33,8 @@ class PaymentTransaction(models.Model):
         first_name, last_name = payment_utils.split_partner_name(self.partner_name)
         if self.payment_method_code in const.FULL_NAME_METHODS and not (first_name and last_name):
             raise UserError(
-                "Nuvei: " + _(
-                    "%(payment_method)s requires both a first and last name.",
+                _(
+                    "Nuvei: %(payment_method)s requires both a first and last name.",
                     payment_method=self.payment_method_id.name,
                 )
             )

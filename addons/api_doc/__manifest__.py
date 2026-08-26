@@ -42,6 +42,7 @@ the methods over HTTP, with examples in various programming languages.
             "web/static/src/core/module_bridge.js",
             "web/static/src/core/utils/asset_log.js",
             "web/static/src/core/utils/global_singleton.js",
+            "web/static/src/core/utils/bundle_transaction.js",
             "web/static/src/core/assets.js",
             "web/static/src/components/code_editor/**",
             (

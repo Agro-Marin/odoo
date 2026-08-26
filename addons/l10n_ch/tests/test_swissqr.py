@@ -88,6 +88,14 @@ class TestSwissQR(AccountTestInvoicingCommon):
             {
                 'acc_number': number,
                 'partner_id': self.env.user.company_id.partner_id.id,
+                # The account is the company's own, printed on an outbound
+                # invoice for the customer to pay into. account's
+                # `_post_validate_invoices` refuses to post an inbound invoice
+                # carrying one that has not been verified, and
+                # `allow_out_payment` is the flag Odoo overloads for "this
+                # account has been confirmed as ours". Omitting it does not
+                # test the QR builder, it asserts that guard does not exist.
+                'allow_out_payment': True,
             }
         )
 

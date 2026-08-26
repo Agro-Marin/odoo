@@ -455,7 +455,9 @@ class AccountMove(models.Model):
             if 'website_id' in self._fields and self.website_id:
                 self.message_post(body="Error:\n" + "\n".join(errors))
             else:
-                raise UserError("Error:\n" + "\n".join(errors))
+                raise UserError(
+                        self.env._("Error:\n%(errors)s", errors="\n".join(errors))
+                    )
 
     def _l10n_tw_edi_prepare_item_list(self, json_data, is_allowance=False):
         self.ensure_one()

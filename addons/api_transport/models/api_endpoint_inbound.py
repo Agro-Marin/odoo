@@ -15,7 +15,6 @@ class ApiEndpointInbound(models.AbstractModel):
     _description = "Inbound Endpoint"
     _api_event_direction = "inbound"
 
-
     duplicate_detection_enabled = fields.Boolean(
         default=True,
         help="Prevent duplicate event processing using payload hash",
@@ -24,6 +23,38 @@ class ApiEndpointInbound(models.AbstractModel):
         default=60,
         help="Time window for duplicate detection",
     )
+
+    log_request_payload_max_bytes = fields.Integer(
+        default=0,
+        help="Store at most this many bytes of each request body on the "
+        "api.event.log row; 0 keeps the whole body.\n\n"
+        "For an endpoint that accepts a file the body is the file: a phone "
+        "posting a call recording as base64 wrote roughly 48 MB of text into a "
+        "log column, beside the same audio already stored as an attachment. "
+        "Duplicate detection is unaffected -- the hash of the body as received "
+        "is kept either way. Ignored for an asynchronous endpoint, where the "
+        "stored body is the work queue and not merely a record of it.",
+    )
+
+    @api.constrains("log_request_payload_max_bytes")
+    def _check_log_request_payload_max_bytes(self):
+        for record in self:
+            if record.log_request_payload_max_bytes < 0:
+                raise ValidationError(
+                    self.env._("The payload log limit cannot be negative."),
+                )
+
+    def _payload_log_limit(self) -> int:
+        """Bytes of body to store, or 0 for all of it.
+
+        An asynchronous endpoint replays what was stored -- `_run_queued_event`
+        reads the row back through `get_payload_dict` -- so a limit there would
+        not shorten a log, it would discard the work.
+        """
+        self.ensure_one()
+        if self.processing_mode == "async":
+            return 0
+        return max(0, self.log_request_payload_max_bytes)
 
     processing_mode = fields.Selection(
         selection=[

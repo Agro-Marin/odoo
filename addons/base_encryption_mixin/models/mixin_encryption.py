@@ -200,7 +200,9 @@ class MixinEncryption(models.AbstractModel):
         try:
             return base64.b64decode(encrypted_value)
         except Exception as e:
-            raise ValidationError("Invalid encrypted binary data") from e
+            raise ValidationError(
+                    self.env._("Invalid encrypted binary data")
+                ) from e
 
     def _allow_key_fallback(self) -> bool:
         return getattr(self.sudo(), "allow_key_fallback", True)

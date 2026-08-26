@@ -1,4 +1,3 @@
-import hashlib
 import json
 import logging
 from datetime import timedelta
@@ -7,6 +6,8 @@ from urllib.parse import urlparse
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+
+from odoo.addons.api_transport.tools import compute_payload_hash
 
 _logger = logging.getLogger(__name__)
 
@@ -99,6 +100,18 @@ class ApiEventLog(models.Model):
         store=True,
         index=True,
         help="SHA256 hash for duplicate detection",
+    )
+    request_payload_hash_override = fields.Char(
+        help="The hash of the body as received, set when the body itself was "
+        "not stored in full.\n\n"
+        "Duplicate detection compares this column against a hash the caller "
+        "computed from the request. Deriving it from a stored body that was "
+        "truncated would answer a different question and silently stop "
+        "detecting anything.",
+    )
+    request_payload_omitted_bytes = fields.Integer(
+        help="Size of the body that was not stored, so the recorded size still "
+        "describes the request rather than the placeholder standing in for it.",
     )
     request_payload_size = fields.Integer(
         compute="_compute_payload_sizes",
@@ -322,29 +335,31 @@ class ApiEventLog(models.Model):
 
             record.display_name = " | ".join(parts) if parts else f"Event {record.id}"
 
-    @api.depends("request_payload")
+    @api.depends("request_payload", "request_payload_hash_override")
     def _compute_payload_hash(self):
+        """Hash the body as received, which is not always the body as stored.
+
+        The normalisation lives in ``tools.compute_payload_hash``, which is what
+        the inbound controller hashes the incoming request with. This used to
+        restate it, as does ``check_duplicate_before_create``: three copies that
+        had to agree exactly, because duplicate detection compares a hash one of
+        them produced against a column another one filled in, and a divergence
+        would not fail -- it would quietly stop matching.
+        """
         for record in self:
-            if record.request_payload:
-                try:
-                    parsed = json.loads(record.request_payload)
-                    normalized = json.dumps(
-                        parsed, sort_keys=True, separators=(",", ":")
-                    )
-                    record.request_payload_hash = hashlib.sha256(
-                        normalized.encode("utf-8"),
-                    ).hexdigest()
-                except json.JSONDecodeError, ValueError:
-                    record.request_payload_hash = hashlib.sha256(
-                        record.request_payload.encode("utf-8"),
-                    ).hexdigest()
+            if record.request_payload_hash_override:
+                record.request_payload_hash = record.request_payload_hash_override
+            elif record.request_payload:
+                record.request_payload_hash = compute_payload_hash(
+                    record.request_payload
+                )
             else:
                 record.request_payload_hash = False
 
-    @api.depends("request_payload", "response_payload")
+    @api.depends("request_payload", "response_payload", "request_payload_omitted_bytes")
     def _compute_payload_sizes(self):
         for record in self:
-            record.request_payload_size = (
+            record.request_payload_size = record.request_payload_omitted_bytes or (
                 len(record.request_payload.encode("utf-8"))
                 if record.request_payload
                 else 0
@@ -580,6 +595,21 @@ class ApiEventLog(models.Model):
         for event in events_to_retry:
             try:
                 channel = event.channel_id
+                if event.state == "pending" and (
+                    getattr(channel, "processing_mode", None) == "sync"
+                ):
+                    # Not queued work: a synchronous route opened this row and
+                    # never closed it. Replaying it hands the payload to
+                    # _process_queued_event, which is not the handler that route
+                    # used -- so the request is processed twice, by two
+                    # different handlers, a minute apart.
+                    _logger.warning(
+                        "Replaying event %d, which endpoint %s left pending "
+                        "after handling it synchronously; the route should "
+                        "mark_success() or mark_failed() instead",
+                        event.id,
+                        channel.display_name,
+                    )
                 if hasattr(channel, "_run_queued_event"):
                     event.date_next_retry = now + timedelta(seconds=processing_timeout)
                     channel.delayed()._run_queued_event(event.id)
@@ -671,9 +701,7 @@ class ApiEventLog(models.Model):
                 }
 
         try:
-            parsed = json.loads(payload_json)
-            normalized = json.dumps(parsed, sort_keys=True, separators=(",", ":"))
-            payload_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+            payload_hash = compute_payload_hash(payload_json)
 
             cutoff = fields.Datetime.now() - timedelta(hours=dedup_window_hours)
             existing_by_hash = self.search(

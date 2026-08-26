@@ -413,9 +413,9 @@ class MixinMaterializedView(models.AbstractModel):
         if kind not in droppable:
             raise UserError(
                 _(
-                    "Cannot (re)create %(table)r: the name is taken by a "
-                    "relation of kind %(kind)r, which this model does not own "
-                    "(it owns %(owned)r). Drop or rename it manually before "
+                    "Cannot (re)create '%(table)s': the name is taken by a "
+                    "relation of kind '%(kind)s', which this model does not own "
+                    "(it owns '%(owned)s'). Drop or rename it manually before "
                     "upgrading the module.",
                     table=self._table,
                     kind=kind,
