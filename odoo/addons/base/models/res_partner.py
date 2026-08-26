@@ -1,5 +1,4 @@
 import base64
-import collections
 import datetime
 import logging
 import re
@@ -29,7 +28,7 @@ EU_EXTRA_VAT_CODES = {
 
 _logger = logging.getLogger(__name__)
 
-_FAILED_ADDRESS_FORMATS: set[str] = set()
+_FAILED_ADDRESS_FORMATS: set[tuple[str, str]] = set()
 
 
 def _find_duplicate(
@@ -74,7 +73,6 @@ def _is_descendant_of(candidate: Any, ancestor_id: int) -> bool:
     return False
 
 
-@api.model
 def _lang_get(self) -> list[tuple[str, str]]:
     return self.env["res.lang"].get_installed()
 
@@ -140,7 +138,7 @@ class ResPartner(models.Model):
             values["company_id"] = parent.company_id.id
         if "type" in fields and values.get("type"):
             if values["type"] not in self._fields["type"].get_values(self.env):
-                values["type"] = None
+                values["type"] = self._fields["type"].default(self)
         return values
 
     company_id = fields.Many2one(
@@ -171,7 +169,6 @@ class ResPartner(models.Model):
         "parent_id",
         string="Contact",
         domain=[("active", "=", True)],
-        context={"active_test": False},
     )
     user_id: ResUsers = fields.Many2one(
         "res.users",
@@ -364,17 +361,13 @@ class ResPartner(models.Model):
     )
     company_name = fields.Char("Company Name")
 
-    self = fields.Many2one(
-        comodel_name="res.partner",
-        compute="_compute_self",
-    )
     application_statistics = fields.Json(
         string="Stats",
         compute="_compute_application_statistics",
     )
 
     _check_name = models.Constraint(
-        "CHECK( (type='contact' AND name IS NOT NULL) or (type!='contact') )",
+        "CHECK( COALESCE(type, 'contact') != 'contact' OR name IS NOT NULL )",
         "Contacts require a name",
     )
     _complete_name_trgm_index = models.Index(_complete_name_trgm_index_definition)
@@ -386,7 +379,7 @@ class ResPartner(models.Model):
             p.application_statistics = result.get(p.id, [])
 
     def _compute_application_statistics_hook(self) -> dict[int, list]:
-        return defaultdict(list)
+        return {}
 
     def _get_street_split(self) -> dict[str, str]:
         self.ensure_one()
@@ -464,8 +457,10 @@ class ResPartner(models.Model):
         "commercial_company_name",
     )
     def _compute_complete_name(self) -> None:
-        type_description = dict(self._fields["type"]._description_selection(self.env))
         clean_self = self.with_context({}) if self.env.context else self
+        type_description = dict(
+            self._fields["type"]._description_selection(clean_self.env)
+        )
         for partner in clean_self:
             partner.complete_name = partner._get_complete_name(type_description)
 
@@ -569,6 +564,7 @@ class ResPartner(models.Model):
         "vat",
         "company_id",
         "company_registry",
+        "parent_id",
         "country_id.country_group_codes",
         "country_id.code",
     )
@@ -579,7 +575,7 @@ class ResPartner(models.Model):
         all_registries = set()
         vat_variants: dict[int, list[str]] = {}
         for partner in self:
-            if partner.vat and len(partner.vat) != 1 and not partner.parent_id:
+            if partner.vat and partner.vat != "/" and not partner.parent_id:
                 vats = [partner.vat]
                 if (
                     partner.country_id
@@ -608,7 +604,7 @@ class ResPartner(models.Model):
         if all_registries:
             for c in Partner.search_fetch(
                 [("company_registry", "in", list(all_registries))],
-                ["company_registry", "parent_id", "company_id"],
+                ["company_registry", "parent_id", "company_id", "country_id"],
             ):
                 reg_by_value[c.company_registry].append(c)
 
@@ -634,12 +630,13 @@ class ResPartner(models.Model):
                 and not partner.parent_id
                 and partner.company_registry in reg_by_value
             ):
+                country_id = partner.country_id.id if partner.country_id else None
                 company_id = partner.company_id.id if partner.company_id else None
                 partner.same_company_registry_partner_id = _find_duplicate(
                     partner_id,
                     [partner.company_registry],
                     reg_by_value,
-                    None,
+                    country_id,
                     company_id,
                     company_scoped=True,
                 )
@@ -666,10 +663,6 @@ class ResPartner(models.Model):
     def _compute_contact_address(self) -> None:
         for partner in self:
             partner.contact_address = partner._display_address()
-
-    def _compute_self(self) -> None:
-        for partner in self:
-            partner.self = partner.id
 
     @api.depends("is_company", "parent_id.commercial_partner_id")
     def _compute_commercial_partner_id(self) -> None:
@@ -842,11 +835,24 @@ class ResPartner(models.Model):
     def _formatting_address_fields(self) -> list[str]:
         return self._address_fields()
 
-    def _prepare_address_vals(self) -> dict[str, Any]:
-        address_fields = self._address_fields()
-        if any(self[key] for key in address_fields):
-            return self._convert_fields_to_values(address_fields)
+    def _prepare_vals_whole_when_any_set(
+        self, field_names: list[str]
+    ) -> dict[str, Any]:
+        # an address is one value: if the record states any part of it, its whole
+        # address is the truth and is copied verbatim, cleared parts included.
+        # A record with no part set states nothing, and overwrites nothing.
+        if any(self[fname] for fname in field_names):
+            return self._convert_fields_to_values(field_names)
         return {}
+
+    def _prepare_vals_only_when_set(self, field_names: list[str]) -> dict[str, Any]:
+        # commercial fields are independent: each one that is set is propagated,
+        # and an unset one leaves the other record's value alone.
+        set_fields = [fname for fname in field_names if self[fname]]
+        return self._convert_fields_to_values(set_fields) if set_fields else {}
+
+    def _prepare_address_vals(self) -> dict[str, Any]:
+        return self._prepare_vals_whole_when_any_set(self._address_fields())
 
     def _update_address(self, vals: dict[str, Any]) -> None:
         addr_vals = {key: vals[key] for key in self._address_fields() if key in vals}
@@ -864,15 +870,11 @@ class ResPartner(models.Model):
     def _synced_commercial_fields(self) -> list[str]:
         return ["vat"]
 
-    def _prepare_field_vals_present(self, field_names: list[str]) -> dict[str, Any]:
-        set_fields = [fname for fname in field_names if self[fname]]
-        return self._convert_fields_to_values(set_fields) if set_fields else {}
-
     def _prepare_commercial_vals(self) -> dict[str, Any]:
-        return self._prepare_field_vals_present(self._commercial_fields())
+        return self._prepare_vals_only_when_set(self._commercial_fields())
 
     def _prepare_commercial_vals_synced(self) -> dict[str, Any]:
-        return self._prepare_field_vals_present(self._synced_commercial_fields())
+        return self._prepare_vals_only_when_set(self._synced_commercial_fields())
 
     @api.model
     def _company_dependent_commercial_fields(self) -> list[str]:
@@ -891,12 +893,44 @@ class ResPartner(models.Model):
                 self._commercial_sync_to_descendants(list(sync_vals))
             self._company_dependent_commercial_sync()
 
+    def _stored_company_ids(self, field_names: list[str]) -> set[int]:
+        # A company-dependent field keeps one jsonb column keyed by company, and
+        # falls back to a value that depends on the field and the company but not
+        # on the record. So for a company absent from the column of both records
+        # being compared, both resolve to that same fallback and can never be
+        # stale -- which makes the keys actually present an exact bound on the
+        # companies worth visiting, instead of every company in the database.
+        record_ids = list({*self.ids, *self.commercial_partner_id.ids})
+        if not record_ids:
+            return set()
+        self.flush_model(field_names)
+        self.env.cr.execute(
+            tools.SQL(
+                "SELECT %(columns)s FROM res_partner WHERE id = ANY(%(ids)s)",
+                columns=tools.SQL(", ").join(
+                    tools.SQL.identifier(fname) for fname in field_names
+                ),
+                ids=record_ids,
+            )
+        )
+        return {
+            int(company_key)
+            for row in self.env.cr.fetchall()
+            for value in row
+            if value
+            for company_key in value
+        }
+
     def _company_dependent_commercial_sync(self) -> None:
         if not (fields_to_sync := self._company_dependent_commercial_fields()):
             return
 
-        all_companies = self.env["res.company"].sudo().search([])
-        other_companies = all_companies - self.env.company
+        if not (company_ids := self._stored_company_ids(fields_to_sync)):
+            return
+        other_companies = (
+            self.env["res.company"].sudo().search([("id", "in", sorted(company_ids))])
+            - self.env.company
+        )
         for company_sudo in other_companies:
             self_in_company = self.with_company(company_sudo)
             commercial_in_company = self_in_company.commercial_partner_id
@@ -916,6 +950,7 @@ class ResPartner(models.Model):
     def _commercial_sync_to_descendants(
         self, fields_to_sync: list[str] | None = None
     ) -> None:
+        self.ensure_one()
         commercial_partner = self.commercial_partner_id
         if fields_to_sync is None:
             fields_to_sync = self._commercial_fields()
@@ -959,15 +994,17 @@ class ResPartner(models.Model):
             self.type == "contact"
             and ("parent_id" in values or any(f in values for f in address_fields))
             and any(self[f] != self.parent_id[f] for f in address_fields)
+            and (address_vals := self._prepare_address_vals())
         ):
-            self.parent_id.write(self._prepare_address_vals())
+            self.parent_id.write(address_vals)
         synced_fields = self._synced_commercial_fields()
         if (
             self.commercial_partner_id != self
             and ("parent_id" in values or any(f in values for f in synced_fields))
             and any(self[f] != self.parent_id[f] for f in synced_fields)
+            and (synced_vals := self._prepare_commercial_vals_synced())
         ):
-            self.parent_id.write(self._prepare_commercial_vals_synced())
+            self.parent_id.write(synced_vals)
 
     def _children_sync(self, values: dict[str, Any]) -> None:
         if self.commercial_partner_id == self:
@@ -1025,42 +1062,36 @@ class ResPartner(models.Model):
         self, users: ResUsers, operation: str
     ) -> typing.NoReturn:
         names = ", ".join(users.mapped("display_name"))
-        if self.env["res.users"].sudo(False).has_access("write"):
-            if operation == "archive":
-                error_msg = _(
-                    "You cannot archive contacts linked to an active user.\n"
-                    "You first need to archive their associated user.\n\n"
-                    "Linked active users : %(names)s",
-                    names=names,
-                )
-            else:
-                error_msg = _(
-                    "You cannot delete contacts linked to an active user.\n"
-                    "You should rather archive them after archiving their associated user.\n\n"
-                    "Linked active users : %(names)s",
-                    names=names,
-                )
-            raise RedirectWarning(error_msg, users._action_show(), _("Go to users"))
         if operation == "archive":
-            raise ValidationError(
-                _(
-                    "You cannot archive contacts linked to an active user.\n"
-                    "Ask an administrator to archive their associated user first.\n\n"
-                    "Linked active users :\n%(names)s",
-                    names=names,
-                )
+            lead = _("You cannot archive contacts linked to an active user.")
+            remedy_self = _("You first need to archive their associated user.")
+        else:
+            lead = _("You cannot delete contacts linked to an active user.")
+            remedy_self = _(
+                "You should rather archive them after archiving their associated user."
             )
+        if self.env["res.users"].sudo(False).has_access("write"):
+            error_msg = _(
+                "%(lead)s\n%(remedy)s\n\nLinked active users : %(names)s",
+                lead=lead,
+                remedy=remedy_self,
+                names=names,
+            )
+            raise RedirectWarning(error_msg, users._action_show(), _("Go to users"))
         raise ValidationError(
             _(
-                "You cannot delete contacts linked to an active user.\n"
-                "Ask an administrator to archive their associated user first.\n\n"
-                "Linked active users :\n%(names)s",
+                "%(lead)s\n%(remedy)s\n\nLinked active users :\n%(names)s",
+                lead=lead,
+                remedy=_(
+                    "Ask an administrator to archive their associated user first."
+                ),
                 names=names,
             )
         )
 
     def write(self, vals: dict[str, Any]) -> bool:
-        if vals.get("active") is False:
+        vals = dict(vals)
+        if "active" in vals and not vals["active"]:
             self.invalidate_recordset(["user_ids"])
             users = (
                 self.env["res.users"].sudo().search([("partner_id", "in", self.ids)])
@@ -1101,14 +1132,13 @@ class ResPartner(models.Model):
             if children:
                 children.write({"company_id": company_id})
 
-        for partner in self:
-            backing_ids = (
-                partner.sudo()
-                .user_ids.filtered(lambda u: u._is_internal() and u.id != self.env.uid)
-                .ids
-            )
-            if backing_ids:
-                self.env["res.users"].browse(backing_ids).check_access("write")
+        backing_ids = (
+            self.sudo()
+            .user_ids.filtered(lambda u: u._is_internal() and u.id != self.env.uid)
+            .ids
+        )
+        if backing_ids:
+            self.env["res.users"].browse(backing_ids).check_access("write")
         result = True
         if (
             "is_company" in vals
@@ -1136,6 +1166,7 @@ class ResPartner(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        vals_list = [dict(vals) for vals in vals_list]
         if self.env.context.get("import_file"):
             self._check_import_consistency(vals_list)
         for vals in vals_list:
@@ -1174,7 +1205,7 @@ class ResPartner(models.Model):
             ResPartner, self.with_context(_partners_skip_fields_sync=True)
         )._load_records_create(vals_list)
 
-        groups = collections.defaultdict(list)
+        groups = defaultdict(list)
         for partner, vals in zip(partners, vals_list, strict=True):
             cp_id = None
             if vals.get("parent_id") and partner.commercial_partner_id != partner:
@@ -1188,9 +1219,7 @@ class ResPartner(models.Model):
         for (cp_id, add_id), children in groups.items():
             to_write = {}
             if cp_id:
-                to_write = self.browse(cp_id)._convert_fields_to_values(
-                    self._commercial_fields()
-                )
+                to_write = self.sudo().browse(cp_id)._prepare_commercial_vals()
             if add_id:
                 parent = self.browse(add_id)
                 for f in self._address_fields():
@@ -1368,11 +1397,11 @@ class ResPartner(models.Model):
             ]
             if root_ids:
                 nodes = self.with_context(active_test=False).search(
-                    [("id", "child_of", root_ids)]
+                    [("id", "child_of", root_ids), ("active", "=", True)]
                 )
-                nodes.fetch(["parent_id", "type", "is_company", "active"])
+                nodes.fetch(["parent_id", "type", "is_company"])
                 for node in nodes:
-                    if node.parent_id and node.active:
+                    if node.parent_id:
                         children_map[node.parent_id.id].append(node)
 
             visited = set()
@@ -1449,8 +1478,11 @@ class ResPartner(models.Model):
         try:
             return address_format % args
         except KeyError, ValueError:
-            if address_format not in _FAILED_ADDRESS_FORMATS:
-                _FAILED_ADDRESS_FORMATS.add(address_format)
+            # keyed by database too: this process may serve several, and a bad
+            # format in one must not silence the warning for the others
+            memo_key = (self.env.cr.dbname, address_format)
+            if memo_key not in _FAILED_ADDRESS_FORMATS:
+                _FAILED_ADDRESS_FORMATS.add(memo_key)
                 _logger.warning(
                     "Invalid address format %r on country %r; falling back to"
                     " the default field order.",
@@ -1500,7 +1532,7 @@ class ResPartner(models.Model):
                 [("id", "in", list(states_ids))], ["country_id", "code"]
             )
         }
-        mismatch_keys: set[tuple[str, int]] = set()
+        mismatches: list[tuple[ValuesType, tuple[str, int]]] = []
         for vals in vals_list:
             if not vals.get("state_id") or not vals.get("country_id"):
                 continue
@@ -1508,32 +1540,27 @@ class ResPartner(models.Model):
             if state_info is None:
                 continue
             if state_info["country_id"][0] != vals["country_id"]:
-                mismatch_keys.add((state_info["code"], vals["country_id"]))
+                mismatches.append((vals, (state_info["code"], vals["country_id"])))
+        if not mismatches:
+            return
 
+        mismatch_keys = {key for _vals, key in mismatches}
+        all_codes = list({code for code, _country_id in mismatch_keys})
+        all_country_ids = list({country_id for _code, country_id in mismatch_keys})
         state_by_key: dict[tuple[str, int], Any] = {}
-        if mismatch_keys:
-            all_codes = list({code for code, _ in mismatch_keys})
-            all_country_ids = list({cid for _, cid in mismatch_keys})
-            for state in States.search(
-                [
-                    ("code", "in", all_codes),
-                    ("country_id", "in", all_country_ids),
-                ]
-            ):
-                key = (state.code, state.country_id.id)
-                if key in mismatch_keys:
-                    state_by_key.setdefault(key, state)
+        for state in States.search(
+            [
+                ("code", "in", all_codes),
+                ("country_id", "in", all_country_ids),
+            ]
+        ):
+            key = (state.code, state.country_id.id)
+            if key in mismatch_keys:
+                state_by_key.setdefault(key, state)
 
-        for vals in vals_list:
-            if not vals.get("state_id") or not vals.get("country_id"):
-                continue
-            state_info = state_info_by_id.get(vals["state_id"])
-            if state_info is None:
-                continue
-            if state_info["country_id"][0] != vals["country_id"]:
-                key = (state_info["code"], vals["country_id"])
-                matching = state_by_key.get(key)
-                vals["state_id"] = matching.id if matching else False
+        for vals, key in mismatches:
+            matching = state_by_key.get(key)
+            vals["state_id"] = matching.id if matching else False
 
     def _get_country_name(self) -> str:
         return self.country_id.name or ""

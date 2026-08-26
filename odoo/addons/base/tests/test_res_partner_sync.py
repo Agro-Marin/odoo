@@ -201,6 +201,71 @@ class TestPartnerSyncCharacterization(TransactionCase):
             )
             self.assertEqual(child.city, "ParentCity")
 
+    def test_load_import_keeps_a_child_declared_commercial_value(self):
+        fnames = ["id", "name", "is_company", "vat", "parent_id/id"]
+        data = [
+            ["load_keep_co", "Load Keep Co", "1", "", ""],
+            ["load_keep_c1", "Load Keep C1", "0", "BELOADKEEP", "load_keep_co"],
+        ]
+        result = self.Partner.load(fnames, data)
+        self.assertFalse(result["messages"], result["messages"])
+        co, c1 = self.Partner.browse(result["ids"])
+        self.assertEqual(
+            c1.vat,
+            "BELOADKEEP",
+            "a commercial field the data file declares on the child must survive;"
+            " an unset value on the parent is not a value to inherit",
+        )
+        self.assertFalse(co.vat)
+
+    def test_load_import_matches_create_when_the_parent_has_no_commercial_value(self):
+        parent = self.Partner.create({"name": "Parity Co", "is_company": True})
+        created = self.Partner.create(
+            {"name": "Parity C1", "parent_id": parent.id, "vat": "BEPARITY"}
+        )
+        self.assertEqual(created.vat, "BEPARITY")
+
+        fnames = ["id", "name", "is_company", "vat", "parent_id/id"]
+        result = self.Partner.load(
+            fnames,
+            [
+                ["parity_co2", "Parity Co2", "1", "", ""],
+                ["parity_c2", "Parity C2", "0", "BEPARITY2", "parity_co2"],
+            ],
+        )
+        self.assertFalse(result["messages"], result["messages"])
+        _co2, loaded = self.Partner.browse(result["ids"])
+        self.assertEqual(
+            loaded.vat, "BEPARITY2", "loading and create() must agree on the child"
+        )
+
+    def test_syncing_up_never_writes_an_empty_value_set_to_the_parent(self):
+        company = self.Partner.create({"name": "Empty Co", "is_company": True})
+        contact = self.Partner.create(
+            {
+                "name": "Empty Contact",
+                "parent_id": company.id,
+                "type": "contact",
+                "street": "Only Street",
+            }
+        )
+        self.assertEqual(company.street, "Only Street")
+
+        writes = []
+        original = type(self.Partner).write
+
+        def recording_write(records, vals):
+            writes.append((records, dict(vals)))
+            return original(records, vals)
+
+        self.patch(type(self.Partner), "write", recording_write)
+        contact.write({"street": False})
+
+        self.assertFalse(
+            [vals for records, vals in writes if records == company and not vals],
+            "the parent must not be written with an empty value set",
+        )
+
     def test_load_import_first_contact_populates_empty_company(self):
         fnames = ["id", "name", "is_company", "parent_id/id", "type", "street", "city"]
         data = [

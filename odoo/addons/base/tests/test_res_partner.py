@@ -534,6 +534,383 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertEqual(partner.with_user(portal_user).main_user_id, portal_user)
 
 
+@tagged("res_partner")
+class TestPartnerStoredNameLanguage(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["res.lang"]._activate_lang("fr_FR")
+        # translate one address-type label so the two languages are
+        # distinguishable without depending on the shipped .po files
+        cls.env["ir.model.fields.selection"].search(
+            [
+                ("field_id.model", "=", "res.partner"),
+                ("field_id.name", "=", "type"),
+                ("value", "=", "invoice"),
+            ]
+        ).with_context(lang="fr_FR").name = "Facture"
+        cls.env.invalidate_all()
+        cls.parent = cls.env["res.partner"].create({"name": "Acme", "is_company": True})
+
+    def test_complete_name_does_not_store_the_editing_user_language(self):
+        address = self.env["res.partner"].create(
+            {"parent_id": self.parent.id, "type": "delivery"}
+        )
+        self.assertEqual(address.complete_name, "Acme, Delivery")
+
+        # complete_name is one untranslated, indexed column shared by every user
+        # and served to _order and _rec_names_search, so the language that
+        # happens to drive the recompute must not end up in it.
+        address_fr = address.with_context(lang="fr_FR")
+        address_fr.write({"type": "invoice"})
+        self.assertEqual(
+            address_fr.complete_name,
+            "Acme, Invoice",
+            "the stored name stays language-independent, even when a French"
+            " environment triggers the recompute",
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT complete_name FROM res_partner WHERE id = %s", (address.id,)
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "Acme, Invoice")
+
+    def test_display_name_still_follows_the_reader_language(self):
+        address = self.env["res.partner"].create(
+            {"parent_id": self.parent.id, "type": "invoice"}
+        )
+        self.assertEqual(address.display_name, "Acme, Invoice")
+        self.assertEqual(
+            address.with_context(lang="fr_FR").display_name,
+            "Acme, Facture",
+            "display_name is per-reader and must stay translated",
+        )
+
+
+@tagged("res_partner")
+class TestPartnerWriteContract(TransactionCase):
+    def test_write_does_not_mutate_the_values_it_is_given(self):
+        Partner = self.env["res.partner"]
+        manager = new_test_user(
+            self.env,
+            login="write_contract_manager",
+            groups="base.group_user,base.group_partner_manager",
+        )
+        first, second = Partner.with_user(manager).create(
+            [{"name": "Reused A"}, {"name": "Reused B"}]
+        )
+        vals = {"is_company": True, "website": "example.com"}
+        expected = dict(vals)
+
+        first.write(vals)
+        self.assertEqual(vals, expected, "write() must leave the caller's dict alone")
+
+        second.write(vals)
+        self.assertTrue(first.is_company)
+        self.assertTrue(second.is_company, "the second write must not lose is_company")
+        self.assertEqual(first.website, "http://example.com")
+        self.assertEqual(second.website, "http://example.com")
+
+    def test_create_does_not_mutate_the_values_it_is_given(self):
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Mutation Co", "is_company": True})
+        vals = {"name": "Mutated", "parent_id": parent.id, "website": "example.org"}
+        expected = dict(vals)
+        Partner.create([vals])
+        self.assertEqual(vals, expected, "create() must leave the caller's dicts alone")
+
+    def test_archiving_is_blocked_for_any_falsy_active_value(self):
+        user = new_test_user(
+            self.env, login="archive_guard_user", groups="base.group_user"
+        )
+        partner = user.partner_id
+        for value in (False, 0, None):
+            with self.subTest(active=value), self.assertRaises(RedirectWarning):
+                partner.write({"active": value})
+            self.assertTrue(
+                partner.active, f"write(active={value!r}) must not archive the partner"
+            )
+
+    def test_write_checks_the_backing_users_once_for_the_whole_batch(self):
+        Partner = self.env["res.partner"]
+        users = self.env["res.users"].create(
+            [
+                {
+                    "name": f"Backing {index}",
+                    "login": f"backing_user_{index}",
+                    "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+                }
+                for index in range(5)
+            ]
+        )
+        calls = []
+        original = type(self.env["res.users"]).check_access
+
+        def counting_check_access(records, operation):
+            calls.append(len(records))
+            return original(records, operation)
+
+        partners = Partner.browse(users.partner_id.ids)
+        self.env.invalidate_all()
+        with patch.object(
+            type(self.env["res.users"]), "check_access", counting_check_access
+        ):
+            partners.write({"comment": "<p>batched</p>"})
+        self.assertEqual(
+            calls,
+            [len(users)],
+            "one access check covering every backing user, not one per partner",
+        )
+
+
+@tagged("res_partner")
+class TestPartnerValuePropagationRules(TransactionCase):
+    """The two propagation rules, pinned as rules rather than as accidents."""
+
+    def test_an_address_propagates_whole_or_not_at_all(self):
+        Partner = self.env["res.partner"]
+        company = Partner.create(
+            {"name": "Whole Co", "is_company": True, "street": "S", "city": "C"}
+        )
+        contact = Partner.create(
+            {"name": "Whole Contact", "parent_id": company.id, "type": "contact"}
+        )
+        self.assertEqual((contact.street, contact.city), ("S", "C"))
+
+        # the contact still states an address, so its whole address is the
+        # truth and the cleared part travels with it
+        contact.write({"street": False})
+        self.assertFalse(
+            company.street, "a cleared part of a stated address propagates"
+        )
+        self.assertEqual(company.city, "C")
+
+        # now the contact states no address at all, so it overwrites nothing
+        contact.write({"city": False})
+        self.assertEqual(
+            company.city, "C", "a record with no address at all states nothing"
+        )
+
+    def test_commercial_fields_propagate_one_by_one(self):
+        Partner = self.env["res.partner"]
+        company = Partner.create(
+            {
+                "name": "PerField Co",
+                "is_company": True,
+                "vat": "V",
+                "company_registry": "R",
+            }
+        )
+        contact = Partner.create({"name": "PerField C", "parent_id": company.id})
+        self.assertEqual((contact.vat, contact.company_registry), ("V", "R"))
+
+        # an unset commercial field on the entity leaves the child's own alone
+        company.write({"vat": False})
+        self.assertEqual(
+            contact.company_registry, "R", "the set field still governs its own value"
+        )
+
+    def test_the_two_rules_are_reachable_by_name(self):
+        Partner = self.env["res.partner"]
+        partner = Partner.create({"name": "Rules", "street": "S"})
+        whole = partner._prepare_vals_whole_when_any_set(["street", "city"])
+        only = partner._prepare_vals_only_when_set(["street", "city"])
+        self.assertEqual(whole, {"street": "S", "city": False})
+        self.assertEqual(only, {"street": "S"})
+        self.assertEqual(
+            Partner.create({"name": "Empty"})._prepare_vals_whole_when_any_set(
+                ["street", "city"]
+            ),
+            {},
+        )
+
+
+@tagged("res_partner")
+class TestPartnerNameConstraint(TransactionCase):
+    def test_a_contact_without_a_name_is_refused_whatever_the_type_column_holds(self):
+        Partner = self.env["res.partner"]
+        with self.assertRaises(Exception):
+            with self.cr.savepoint():
+                Partner.create({"type": "contact"})
+        # a NULL type used to make both arms of the CHECK NULL, which PostgreSQL
+        # treats as satisfied -- the constraint has to survive that too
+        with self.assertRaises(Exception):
+            with self.cr.savepoint():
+                Partner.create({"type": False})
+        Partner.create({"type": "invoice"})
+
+    def test_an_invalid_default_type_falls_back_to_the_field_default(self):
+        values = (
+            self.env["res.partner"]
+            .with_context(default_type="not-a-type")
+            .default_get(["type"])
+        )
+        self.assertEqual(
+            values["type"],
+            "contact",
+            "an unusable default must not leave the type unset",
+        )
+
+
+@tagged("res_partner")
+class TestPartnerCompanyDependentSync(TransactionCase):
+    def _tree_with_barcode_as_a_commercial_field(self, extra_companies):
+        Partner = self.env["res.partner"]
+        self.env["res.company"].create(
+            [{"name": f"Sweep {extra_companies} {i}"} for i in range(extra_companies)]
+        )
+        company = Partner.create(
+            {"name": f"Sweep Co {extra_companies}", "is_company": True}
+        )
+        contact = Partner.create(
+            {"name": f"Sweep C {extra_companies}", "parent_id": company.id}
+        )
+        self.env.flush_all()
+        return contact
+
+    def test_the_sweep_does_not_grow_with_the_number_of_companies(self):
+        Partner = self.env["res.partner"]
+        commercial_fields = Partner._commercial_fields()
+        with (
+            patch.object(
+                Partner.__class__,
+                "_commercial_fields",
+                lambda self: commercial_fields + ["barcode"],
+            ),
+            patch.object(Partner.__class__, "_validate_fields"),
+        ):
+            self.assertEqual(
+                Partner._company_dependent_commercial_fields(), ["barcode"]
+            )
+            costs = []
+            for extra in (3, 12):
+                contact = self._tree_with_barcode_as_a_commercial_field(extra)
+                self.env.invalidate_all()
+                before = self.cr.sql_log_count
+                contact.sudo()._company_dependent_commercial_sync()
+                self.env.flush_all()
+                costs.append(self.cr.sql_log_count - before)
+            self.assertEqual(
+                costs[0],
+                costs[1],
+                "with nothing stored for any company, the sweep must cost the same"
+                f" whatever the database holds, got {costs}",
+            )
+
+    def test_only_the_companies_holding_a_value_are_visited(self):
+        Partner = self.env["res.partner"]
+        other = self.env["res.company"].create({"name": "Holder Co"})
+        self.env["res.company"].create([{"name": f"Bystander {i}"} for i in range(5)])
+        company = Partner.create({"name": "Holder Parent", "is_company": True})
+        contact = Partner.create({"name": "Holder Child", "parent_id": company.id})
+        self.env.flush_all()
+
+        self.assertFalse(
+            contact._stored_company_ids(["barcode"]),
+            "no company holds a value, so none can be stale",
+        )
+        company.with_company(other).barcode = "HOLD-1"
+        self.env.flush_all()
+        self.assertEqual(
+            contact._stored_company_ids(["barcode"]),
+            {other.id},
+            "only the company with a stored value is worth visiting",
+        )
+
+    def test_bounding_the_sweep_still_propagates_a_real_value(self):
+        Partner = self.env["res.partner"]
+        commercial_fields = Partner._commercial_fields()
+        other = self.env["res.company"].create({"name": "Reach Co"})
+        company = Partner.create({"name": "Reach Parent", "is_company": True})
+        company.with_company(other).barcode = "REACH-1"
+        self.env.flush_all()
+        with (
+            patch.object(
+                Partner.__class__,
+                "_commercial_fields",
+                lambda self: commercial_fields + ["barcode"],
+            ),
+            patch.object(Partner.__class__, "_validate_fields"),
+        ):
+            contact = Partner.create({"name": "Reach Child", "parent_id": company.id})
+            self.assertEqual(
+                contact.with_company(other).barcode,
+                "REACH-1",
+                "bounding the sweep must not stop a real value from propagating",
+            )
+
+
+@tagged("res_partner")
+class TestPartnerDuplicateIdentifiers(TransactionCase):
+    def test_same_vat_partner_is_recomputed_when_the_parent_changes(self):
+        Partner = self.env["res.partner"]
+        first = Partner.create(
+            {"name": "Dup One", "is_company": True, "vat": "BE0477472701"}
+        )
+        Partner.create({"name": "Dup Two", "is_company": True, "vat": "BE0477472701"})
+        self.assertTrue(first.same_vat_partner_id)
+
+        # the compute only reports duplicates for parent-less partners, so
+        # attaching a parent has to clear the warning
+        parent = Partner.create({"name": "Dup Parent", "is_company": True})
+        first.parent_id = parent
+        self.assertFalse(
+            first.same_vat_partner_id,
+            "attaching a parent must retrigger the duplicate compute",
+        )
+
+    def test_only_a_slash_marks_a_partner_as_not_subject_to_tax(self):
+        Partner = self.env["res.partner"]
+        exempt_a = Partner.create({"name": "Exempt A", "is_company": True, "vat": "/"})
+        Partner.create({"name": "Exempt B", "is_company": True, "vat": "/"})
+        self.assertFalse(
+            exempt_a.same_vat_partner_id, "'/' means no tax id, never a duplicate"
+        )
+
+        short_a = Partner.create({"name": "Short A", "is_company": True, "vat": "5"})
+        Partner.create({"name": "Short B", "is_company": True, "vat": "5"})
+        self.assertTrue(
+            short_a.same_vat_partner_id,
+            "a one-character tax id is a tax id like any other",
+        )
+
+    def test_company_registry_duplicates_are_scoped_to_one_country(self):
+        Partner = self.env["res.partner"]
+        belgium = self.env.ref("base.be")
+        france = self.env.ref("base.fr")
+        be_partner = Partner.create(
+            {
+                "name": "Reg BE",
+                "is_company": True,
+                "country_id": belgium.id,
+                "company_registry": "REG123",
+            }
+        )
+        fr_partner = Partner.create(
+            {
+                "name": "Reg FR",
+                "is_company": True,
+                "country_id": france.id,
+                "company_registry": "REG123",
+            }
+        )
+        self.assertFalse(
+            be_partner.same_company_registry_partner_id,
+            "the field help promises uniqueness within one country, not across all",
+        )
+        self.assertFalse(fr_partner.same_company_registry_partner_id)
+
+        be_twin = Partner.create(
+            {
+                "name": "Reg BE twin",
+                "is_company": True,
+                "country_id": belgium.id,
+                "company_registry": "REG123",
+            }
+        )
+        self.assertEqual(be_twin.same_company_registry_partner_id, be_partner)
+
+
 @tagged("res_partner", "res_partner_address")
 class TestPartnerAddressCompany(TransactionCase):
     @classmethod
