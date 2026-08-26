@@ -26,8 +26,6 @@ BLACKLIST = {
 }
 IGNORE = ("hw_", "theme_", "l10n_", "test_")
 
-INSTALL_BLACKLIST: set[str] = set()
-
 
 def install(db_name: str, module_id: int, module_name: str) -> None:
     with Registry(db_name).cursor() as cr:
@@ -164,7 +162,6 @@ def test_cycle(args: argparse.Namespace) -> None:
         def valid(module: Any) -> bool:
             return not (
                 module.name in BLACKLIST
-                or module.name in INSTALL_BLACKLIST
                 or module.name.startswith(IGNORE)
                 or module.state in ("installed", "uninstallable")
             )
@@ -199,7 +196,7 @@ def test_uninstall(args: argparse.Namespace) -> None:
 
         if module_state == "installed":
             uninstall(args.database, module_id, module_name)
-            if args.reinstall and module_name not in INSTALL_BLACKLIST:
+            if args.reinstall:
                 install(args.database, module_id, module_name)
         elif module_state:
             _logger.warning("Module %r is not installed", module_name)
