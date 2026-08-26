@@ -4060,3 +4060,120 @@ class TestQWebCachedTemplateError(TransactionCase):
         self.assertIsNot(caught.exception, error)
         self.assertEqual(caught.exception.context, error.context)
         self.assertIsNone(error.__traceback__, "the cached instance was mutated")
+
+
+class TestQWebDirectiveAliasesCompose(TransactionCase):
+    """Two spellings of one directive must not silently cancel each other.
+
+    `pop(a, pop(b, None))` evaluates the inner pop first, whatever `a` holds,
+    so the second attribute was always removed and its value discarded -- and
+    removed early enough that the unused-attribute warning at the end of
+    `_compile_directives` never reported it either.
+    """
+
+    def _view(self, key, arch):
+        return self.env["ir.ui.view"].create(
+            {"name": key, "type": "qweb", "key": f"base.{key}", "arch_db": arch}
+        )
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.internal = cls.env["res.users"].create(
+            {
+                "login": "qweb_groups_probe",
+                "name": "qweb groups probe",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            }
+        )
+
+    def test_groups_and_t_groups_on_one_node_both_apply(self):
+        # The user passes `t-groups` and fails `groups`.  Honouring only the
+        # first renders a Settings-only node for every internal user.
+        view = self._view(
+            "groups_both",
+            '<t><div t-groups="base.group_user" groups="base.group_system">'
+            "SECRET</div></t>",
+        )
+        self.assertFalse(self.internal.has_group("base.group_system"))
+        self.assertEqual(
+            str(self.env["ir.qweb"].with_user(self.internal)._render(view.id)),
+            "",
+            "the `groups` restriction was dropped in favour of `t-groups`",
+        )
+
+    def test_groups_and_t_groups_on_one_node_render_when_both_pass(self):
+        view = self._view(
+            "groups_both_pass",
+            '<t><div t-groups="base.group_user" groups="base.group_user">OK</div></t>',
+        )
+        self.assertEqual(
+            str(self.env["ir.qweb"].with_user(self.internal)._render(view.id)),
+            "<div>OK</div>",
+        )
+
+    def test_either_spelling_alone_still_works(self):
+        for key, attr in (("groups_plain", "groups"), ("groups_t", "t-groups")):
+            view = self._view(
+                key, f'<t><div {attr}="base.group_system">SECRET</div></t>'
+            )
+            self.assertEqual(
+                str(self.env["ir.qweb"].with_user(self.internal)._render(view.id)),
+                "",
+                f"@{attr} alone stopped restricting",
+            )
+
+    def test_t_if_and_t_elif_on_one_node_is_rejected(self):
+        # The node must follow a `t-if` sibling, or `_compile_directive_elif`
+        # rejects it before `_compile_directive_if` is ever reached and the
+        # test pins the wrong thing.  Here the chain is valid, `t-else-valid`
+        # is set, and the eager default silently dropped `t-elif="True"` in
+        # favour of `t-if="False"` -- the branch that should have rendered `B`
+        # rendered nothing.
+        view = self._view(
+            "if_elif_both",
+            '<t><div t-if="False">A</div><div t-elif="True" t-if="False">B</div></t>',
+        )
+        with self.assertRaises(QWebError) as caught:
+            self.env["ir.qweb"]._render(view.id)
+        self.assertIn("t-elif", str(caught.exception))
+
+    def test_a_valid_if_elif_chain_still_works(self):
+        view = self._view(
+            "if_elif_chain",
+            '<t><div t-if="False">A</div><div t-elif="True">B</div>'
+            '<div t-else="">C</div></t>',
+        )
+        self.assertEqual(str(self.env["ir.qweb"]._render(view.id)), "<div>B</div>")
+
+
+class TestQWebOneOutputDirectivePerNode(TransactionCase):
+    """`t-out`, `t-field`, `t-esc` and `t-raw` are four spellings of one slot.
+
+    `_directives_eval_order` dispatches esc, raw and field before out, while
+    `_compile_out_target` popped `t-out` first.  A node carrying two of them
+    therefore emitted both values, the second after tag-close had already been
+    consumed, so it landed outside its own element -- silently, because the
+    leftover reached the unknown-attribute loop, which compiles rather than
+    warns when the attribute has a directive handler.
+    """
+
+    def _view(self, key, arch):
+        return self.env["ir.ui.view"].create(
+            {"name": key, "type": "qweb", "key": f"base.{key}", "arch_db": arch}
+        )
+
+    def test_two_output_directives_on_one_node_are_rejected(self):
+        for key, attrs in (
+            ("out_esc", "t-out=\"'A'\" t-esc=\"'B'\""),
+            ("out_raw", "t-out=\"'A'\" t-raw=\"'B'\""),
+            ("esc_raw", "t-esc=\"'A'\" t-raw=\"'B'\""),
+        ):
+            view = self._view(key, f"<t><span {attrs}/></t>")
+            with self.assertRaises(QWebError) as caught:
+                self.env["ir.qweb"]._render(view.id)
+            self.assertIn("only one output directive", str(caught.exception))
+
+    def test_one_output_directive_is_unaffected(self):
+        view = self._view("out_alone", "<t><span t-out=\"'A'\"/></t>")
+        self.assertEqual(str(self.env["ir.qweb"]._render(view.id)), "<span>A</span>")

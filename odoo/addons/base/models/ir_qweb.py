@@ -194,6 +194,7 @@ VARNAME_REGEXP = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 ELEMENT_MARKER_REGEXP = re.compile(r"\s*# element: (.*)")
 TO_VARNAME_REGEXP = re.compile(r"[^A-Za-z0-9_]+")
 SPECIAL_DIRECTIVES = {"t-translation", "t-ignore", "t-title"}
+OUTPUT_DIRECTIVES = ("t-out", "t-field", "t-esc", "t-raw")
 T_CALL_SLOT = "0"
 
 GENERATED_CODE_PREAMBLE_LINES = 1
@@ -2015,7 +2016,12 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_if(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        expr = el.attrib.pop("t-if", el.attrib.pop("t-elif", None))
+        # Not `pop("t-if", pop("t-elif", None))`: the default is evaluated
+        # first, so a node carrying both lost its `t-elif` silently instead of
+        # reaching `_compile_directive_elif` and being rejected.
+        expr = el.attrib.pop("t-if", None)
+        if expr is None:
+            expr = el.attrib.pop("t-elif", None)
 
         if not expr or not expr.strip():
             raise ValueError("t-if or t-elif expression should not be empty.")
@@ -2087,11 +2093,27 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_groups(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        groups = el.attrib.pop("t-groups", el.attrib.pop("groups", None))
+        # Both spellings are independent restrictions, so they compose with
+        # `and`.  Popping one as the other's default -- `pop("t-groups",
+        # pop("groups", None))` -- evaluates both eagerly, so the `groups`
+        # restriction was thrown away whenever `t-groups` was present, and the
+        # unused-attribute warning never saw it because the pop had already
+        # removed it.  That fails open.
+        conditions = [
+            groups
+            for groups in (
+                el.attrib.pop("t-groups", None),
+                el.attrib.pop("groups", None),
+            )
+            if groups
+        ]
 
         strip = self._rstrip_text(compile_context)
         code = self._flush_text(compile_context, level)
-        code.append(indent_code(f"if self.env.user.has_groups({groups!r}):", level))
+        test = " and ".join(
+            f"self.env.user.has_groups({groups!r})" for groups in conditions
+        )
+        code.append(indent_code(f"if {test}:", level))
         if strip and el.tag.lower() != "t":
             self._add_text(strip, compile_context)
         code.extend(
@@ -2249,7 +2271,20 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_out_target(self, el: etree._Element) -> tuple[str, str]:
-        for ttype in ("t-out", "t-field", "t-esc"):
+        present = [name for name in OUTPUT_DIRECTIVES if name in el.attrib]
+        if len(present) > 1:
+            # `_directives_eval_order` dispatches esc, raw and field before out,
+            # but this method pops `t-out` first -- so the first dispatch
+            # consumed the wrong attribute, the `out` dispatch then found
+            # nothing, and the leftover was picked up again by the
+            # unknown-attribute loop at the end of `_compile_directives`, after
+            # tag-open and tag-close had been consumed.  The node emitted both
+            # values, the second one outside its own tag, and warned about
+            # nothing.
+            raise SyntaxError(
+                f"A node can carry only one output directive, got {', '.join(present)}"
+            )
+        for ttype in OUTPUT_DIRECTIVES[:-1]:
             expr = el.attrib.pop(ttype, None)
             if expr is not None:
                 return ttype, expr
