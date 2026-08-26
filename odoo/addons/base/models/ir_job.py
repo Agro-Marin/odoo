@@ -687,6 +687,8 @@ class IrJob(models.Model):
         registry = Registry(db_name).check_signaling()
         worker_ident = f"{socket.gethostname()}:{os.getpid()}"
         with registry.cursor() as cr:
+            serialise = IrJob._any_capacity_declared(cr)
+            cr.rollback()
             while True:
                 if deadline is not None and time.monotonic() >= deadline:
                     _logger.info(
@@ -696,7 +698,9 @@ class IrJob(models.Model):
                     IrJob._notify_workers(db_name)
                     return True
                 try:
-                    job = IrJob._claim_next(cr, worker_ident, channels)
+                    job = IrJob._claim_next(
+                        cr, worker_ident, channels, serialise=serialise
+                    )
                 except ClaimContended as exc:
                     cr.rollback()
                     _logger.warning(
@@ -805,14 +809,24 @@ class IrJob(models.Model):
         return [row[0] for row in cr.fetchall()]
 
     @staticmethod
+    def _any_capacity_declared(cr) -> bool:
+        cr.execute("SELECT EXISTS (SELECT 1 FROM ir_job_channel)")
+        return cr.fetchone()[0]
+
+    @staticmethod
     def _claim_next(
-        cr, worker_ident: str, channels: list[str] | None = None
+        cr,
+        worker_ident: str,
+        channels: list[str] | None = None,
+        serialise: bool = True,
     ) -> dict[str, Any] | None:
         for attempt in range(1, CLAIM_MAX_ATTEMPTS + 1):
             try:
-                cr.execute(
-                    "SELECT pg_advisory_xact_lock(hashtextextended('ir_job_claim', 0))"
-                )
+                if serialise:
+                    cr.execute(
+                        "SELECT pg_advisory_xact_lock("
+                        "hashtextextended('ir_job_claim', 0))"
+                    )
                 runnable = IrJob._runnable_channels(cr, channels)
                 if not runnable:
                     return None

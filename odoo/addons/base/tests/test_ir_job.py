@@ -1218,6 +1218,51 @@ class TestIrJobClaimSnapshot(BaseCase):
             self.assertNotEqual(job_b["id"], job_a["id"])
 
     @mute_logger("odoo.db.cursor")
+    def test_capacity_holds_when_every_claimer_starts_from_a_stale_snapshot(self):
+        with self.registry.cursor() as setup:
+            env = odoo.api.Environment(setup, common.ADMIN_USER_ID, {})
+            env["ir.job.channel"].create({"name": "capsnap", "capacity": 2})
+            for _ in range(6):
+                env["ir.job"].delayed(channel="capsnap")._job_ping("x")
+            env.flush_all()
+            setup.commit()
+        self.addCleanup(self._clear_capsnap)
+
+        claimers = [self.registry.cursor() for _ in range(6)]
+        try:
+            for cr in claimers:
+                cr.execute("SELECT count(*) FROM ir_job")
+            claimed = []
+            for cr in claimers:
+                job = IrJob._claim_next(cr, "capsnap:0", channels=["capsnap"])
+                cr.commit()
+                if job is not None:
+                    claimed.append(job["id"])
+            self.assertEqual(
+                len(claimed),
+                2,
+                "every claimer opened its snapshot before any claim committed, so "
+                "each one's capacity count starts stale. The advisory lock does "
+                "NOT refresh it -- the snapshot is taken before the lock is "
+                "granted. What holds the capacity line is that the claim always "
+                "targets the lowest-ordered pending row of the channel, so a "
+                "stale claimer collides with the row already taken, gets a "
+                "serialization failure, and retries against a fresh snapshot. A "
+                "claim that let stale claimers pick different rows would silently "
+                "overshoot: measured 9-12 starts against this capacity of 2.",
+            )
+            self.assertEqual(len(set(claimed)), 2, "and never the same job twice")
+        finally:
+            for cr in claimers:
+                cr.close()
+
+    def _clear_capsnap(self):
+        with self.registry.cursor() as cr:
+            cr.execute("DELETE FROM ir_job WHERE channel = 'capsnap'")
+            cr.execute("DELETE FROM ir_job_channel WHERE name = 'capsnap'")
+            cr.commit()
+
+    @mute_logger("odoo.db.cursor")
     def test_a_contended_claim_raises_instead_of_reporting_an_empty_queue(self):
         with self.registry.cursor() as cr:
             real = type(cr).execute
@@ -1530,13 +1575,10 @@ class TestIrJobDrainLoop(BaseCase):
             (120, -1, -1, 120),
             (120, -1, 0, 0),
         ):
-            with patch.dict(
-                odoo.tools.config.options,
-                {
-                    "limit_time_real": real,
-                    "limit_time_real_cron": cron,
-                    "limit_time_real_job": job,
-                },
+            with odoo.tools.config.patch(
+                limit_time_real=real,
+                limit_time_real_cron=cron,
+                limit_time_real_job=job,
             ):
                 budgets[(real, cron, job)] = job_real_time_budget()
                 deadline = IrJob._drain_deadline()
@@ -1549,6 +1591,74 @@ class TestIrJobDrainLoop(BaseCase):
                 )
             else:
                 self.assertIsNone(deadline, "0 means no limit")
+
+    def test_an_uncapped_drain_does_not_take_the_serialising_lock(self):
+        self._enqueue(2)
+        with self.registry.cursor() as cr:
+            cr.execute("SELECT count(*) FROM ir_job_channel")
+            declared = cr.fetchone()[0]
+        self.assertEqual(declared, 0, "no channel declares a capacity here")
+
+        statements = []
+        real = odoo.db.cursor.Cursor.execute
+
+        def record(self, query, *args, **kwargs):
+            statements.append(str(query))
+            return real(self, query, *args, **kwargs)
+
+        with (
+            patch.object(odoo.db.cursor.Cursor, "execute", record),
+            patch.object(ir_job.IrJob, "_notify_workers"),
+        ):
+            IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+
+        self.assertEqual(self._states(), {"done": 2})
+        self.assertFalse(
+            [q for q in statements if "ir_job_claim" in q],
+            "with no capacity declared anywhere there is nothing to ration, and "
+            "a fleet-global lock only costs throughput. Four alternating sweeps, "
+            "1 -> 12 worker processes: ~1000 -> ~550 claims/s with the lock "
+            "always taken, ~1070 -> ~740 with it skipped -- never slower, and "
+            "the gap widens with the fleet",
+        )
+
+    def test_a_capped_drain_still_takes_the_serialising_lock(self):
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            env["ir.job.channel"].create({"name": self.CHANNEL, "capacity": 4})
+            env.flush_all()
+            cr.commit()
+        self.addCleanup(self._clear_channel)
+        self._enqueue(2)
+
+        statements = []
+        real = odoo.db.cursor.Cursor.execute
+
+        def record(self, query, *args, **kwargs):
+            statements.append(str(query))
+            return real(self, query, *args, **kwargs)
+
+        with (
+            patch.object(odoo.db.cursor.Cursor, "execute", record),
+            patch.object(ir_job.IrJob, "_notify_workers"),
+        ):
+            IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+
+        self.assertTrue(
+            [q for q in statements if "ir_job_claim" in q],
+            "a declared capacity is only enforced because concurrent claimers "
+            "are made to collide on one row; see "
+            "test_capacity_holds_when_every_claimer_starts_from_a_stale_snapshot",
+        )
+
+    def _clear_channel(self):
+        with self.registry.cursor() as cr:
+            cr.execute("DELETE FROM ir_job_channel WHERE name = %s", (self.CHANNEL,))
+            cr.commit()
 
     def test_drain_publishes_cache_invalidations(self):
         job_model = self.registry["ir.job"]
