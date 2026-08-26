@@ -177,6 +177,16 @@ def compute_stats(
     query_counts: list[int],
     db_times_us: list[float],
 ) -> BenchmarkStats:
+    if not times_us:
+        # The other two populations are guarded below ("if clean_db_times",
+        # "if query_counts"); this one was not, so an empty sample set reached
+        # statistics.mean([]) and came out as a bare StatisticsError naming
+        # neither the benchmark nor the reason. run_benchmark appends only
+        # while i >= warmup, so iterations=0 lands here every time.
+        raise ValueError(
+            f"benchmark {name!r} collected no samples: check that iterations > 0"
+        )
+
     indices = _inlier_indices(times_us) or range(len(times_us))
     clean_times = [times_us[i] for i in indices]
     clean_db_times = (
