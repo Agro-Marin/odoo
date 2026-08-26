@@ -548,6 +548,29 @@ class ChromeBrowser:
         except concurrent.futures.TimeoutError:
             raise TimeoutError(f"{method}({params or ''})") from None
 
+    def _websocket_requires_result(
+        self, method: str, *, params: dict | None = None, timeout: float | None = None
+    ) -> Any:
+        """``_websocket_request`` for the callers that subscript the response.
+
+        ``_websocket_request`` answers ``None`` once ``_receive`` has dropped
+        ``self.ws``, which it does together with settling ``self._result``. The
+        two wait loops subscripted that ``None``, so a socket that died between
+        two polls surfaced as ``TypeError: 'NoneType' object is not
+        subscriptable`` -- naming neither the socket nor the real error, which
+        by then is sitting in ``self._result``.
+        """
+        response = self._websocket_request(method, params=params, timeout=timeout)
+        if response is not None:
+            return response
+
+        exc = None
+        if self._result.done() and not self._result.cancelled():
+            exc = self._result.exception()
+        raise exc or ChromeBrowserException(
+            f"the devtools websocket closed before {method} answered"
+        )
+
     def _websocket_send(
         self, method: str, *, params: dict | None = None, with_future: bool = False
     ) -> Future | None:
@@ -789,7 +812,7 @@ which leads to stray network requests and inconsistencies."""
                 break
 
             try:
-                result = self._websocket_request(
+                result = self._websocket_requires_result(
                     "Runtime.evaluate",
                     params={
                         "expression": "try { %s } catch {}" % ready_code,
@@ -836,7 +859,7 @@ which leads to stray network requests and inconsistencies."""
         self._logger.info('Evaluate test code "%s"', code)
         start = time.monotonic()
         try:
-            res = self._websocket_request(
+            res = self._websocket_requires_result(
                 "Runtime.evaluate",
                 params={
                     "expression": code,
