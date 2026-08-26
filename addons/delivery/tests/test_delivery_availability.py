@@ -346,7 +346,7 @@ class TestDeliveryAvailability(DeliveryCommon, SaleCommon):
         self.assertFalse(delivery_wizard["context"]["default_carrier_id"])
 
     def test_set_default_carrier_when_sale_order_delivery_method_is_set(self):
-        """The default carrier is set as delivery_carrier_id is set on sale.order."""
+        """The default carrier is set as carrier_id is set on sale.order."""
         self.sale_order.carrier_id = self.non_restricted_carrier
         delivery_wizard = self.sale_order.with_context(
             carrier_recompute=True
