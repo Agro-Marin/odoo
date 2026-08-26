@@ -46,6 +46,12 @@ class Scaffold(Command):
             nargs="?",
             help="Directory to create the module in (default: %(default)s)",
         )
+        parser.add_argument(
+            "--force",
+            "-f",
+            action="store_true",
+            help="Overwrite an existing module directory instead of refusing",
+        )
 
     def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
@@ -55,11 +61,11 @@ class Scaffold(Command):
             params = args.template.parse_params(args.name)
         except ValueError as err:
             parser.error(str(err))
-        args.template.render_to(
-            args.template.modname_for(args.name, params),
-            directory(args.dest, create=True),
-            params=params,
-        )
+        modname = args.template.modname_for(args.name, params)
+        dest = directory(args.dest, create=True)
+        if not args.force and (dest / modname).exists():
+            parser.error(f"{dest / modname} already exists; pass --force to overwrite it")
+        args.template.render_to(modname, dest, params=params)
 
 
 def _builtins_dir(*parts: str) -> Path:
