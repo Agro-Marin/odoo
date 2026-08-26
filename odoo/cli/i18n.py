@@ -123,10 +123,11 @@ class I18n(DatabaseCommand):
             "-l",
             "--languages",
             dest="languages",
-            nargs="+",
-            default=["pot"],
+            action="append",
+            default=None,
             metavar="LANG",
-            help="list of language codes, 'pot' for template (default)",
+            help="language code, 'pot' for template (default); repeat for "
+            "more than one",
         )
         parser.add_argument(
             "modules",
@@ -245,7 +246,7 @@ class I18n(DatabaseCommand):
         # A local list, not `parsed_args.languages`: the "pot" pseudo-language
         # is removed below, and mutating the parsed namespace makes the method
         # give a different answer the second time it is called with it.
-        requested_languages = list(parsed_args.languages)
+        requested_languages = list(parsed_args.languages or ["pot"])
         export_pot = "pot" in requested_languages
 
         if parsed_args.output:
