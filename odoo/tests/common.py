@@ -838,6 +838,16 @@ class BaseCase(case.TestCase):
         field_names: Iterable[str] | None = None,
     ) -> None:
         if not field_names:
+            if not expected_values:
+                # "assert this recordset is empty" is the natural spelling of
+                # this call, and it used to raise IndexError from
+                # expected_values[0] -- a traceback naming neither the records
+                # nor the intent. Passing field_names= explicitly always worked.
+                self.assertFalse(
+                    records,
+                    f"expected no record, got {len(records)}: {records}",
+                )
+                return
             field_names = expected_values[0].keys()
             for i, v in enumerate(expected_values):
                 self.assertEqual(
