@@ -423,7 +423,8 @@ class DeliveryCarrier(models.Model):
             {'success': boolean,
              'price': a float,
              'error_message': a string containing an error message,
-             'warning_message': a string containing a warning message}
+             'warning_message': a string containing a warning message,
+             'carrier_price': a float, present on the success path only}
         :rtype: dict
         """
         # TODO maybe the currency code?
