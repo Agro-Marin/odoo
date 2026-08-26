@@ -4,7 +4,7 @@ from odoo.addons.phone_validation.tools import phone_validation
 
 
 class Base(models.AbstractModel):
-    _inherit = 'base'
+    _inherit = "base"
 
     # ------------------------------------------------------------
     # FIELDS HELPERS
@@ -12,10 +12,10 @@ class Base(models.AbstractModel):
 
     @api.model
     def _phone_get_number_fields(self):
-        """ This method returns the fields to use to find the number to use to
-        send an SMS on a record. """
+        """This method returns the fields to use to find the number to use to
+        send an SMS on a record."""
         return [
-            number_fname for number_fname in ('mobile', 'phone') if number_fname in self
+            number_fname for number_fname in ("mobile", "phone") if number_fname in self
         ]
 
     def _phone_get_country(self):
@@ -33,7 +33,9 @@ class Base(models.AbstractModel):
         country_by_record = {}
         record_country_fname = self._phone_get_country_field()
         for record in self:
-            if record_country_fname and (record_country := record[record_country_fname]):
+            if record_country_fname and (
+                record_country := record[record_country_fname]
+            ):
                 country_by_record[record.id] = record_country
                 continue
             for partner_field in self.env[self._name]._mail_get_partner_fields():
@@ -44,12 +46,19 @@ class Base(models.AbstractModel):
 
     @api.model
     def _phone_get_country_field(self):
-        if 'country_id' in self:
-            return 'country_id'
+        if "country_id" in self:
+            return "country_id"
         return False
 
-    def _phone_format(self, fname=False, number=False, country=False, force_format='E164', raise_exception=False):
-        """ Format and return number. This number can be found using a field
+    def _phone_format(
+        self,
+        fname=False,
+        number=False,
+        country=False,
+        force_format="E164",
+        raise_exception=False,
+    ):
+        """Format and return number. This number can be found using a field
         (in which case self should be a singleton recordet), or directly given
         if the formatting itself is what matter. Field name can be found
         automatically using :meth:`_phone_get_number_fields`.
@@ -77,7 +86,10 @@ class Base(models.AbstractModel):
             fnames = self._phone_get_number_fields() if not fname else [fname]
             # Keep `fname in self and self[fname]`: `self` is a recordset (field-membership `in`
             # + `self[fname]` access), NOT a dict — RUF019's self.get(fname) rewrite would crash.
-            number = next((self[fname] for fname in fnames if fname in self and self[fname]), False)  # noqa: RUF019
+            number = next(
+                (self[fname] for fname in fnames if fname in self and self[fname]),  # noqa: RUF019
+                False,
+            )
         if not number:
             return False
 
@@ -91,12 +103,15 @@ class Base(models.AbstractModel):
 
         return self._phone_format_number(
             number,
-            country=country, force_format=force_format,
+            country=country,
+            force_format=force_format,
             raise_exception=raise_exception,
         )
 
-    def _phone_format_number(self, number, country, force_format='E164', raise_exception=False):
-        """ Format and return number according to the asked format. This is
+    def _phone_format_number(
+        self, number, country, force_format="E164", raise_exception=False
+    ):
+        """Format and return number according to the asked format. This is
         mainly a small helper around :func:`phone_validation.phone_format`."""
         if not number:
             return False
