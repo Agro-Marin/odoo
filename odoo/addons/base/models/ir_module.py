@@ -37,7 +37,7 @@ from odoo.tools.translate import (
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection
+    from collections.abc import Callable, Collection, Iterator
 
 _logger = logging.getLogger(__name__)
 
@@ -97,6 +97,9 @@ def assert_log_admin_access[T](method: T, /) -> T:
     return check_and_log
 
 
+GROUP_HIERARCHY_FIELDS = frozenset(("name", "privilege_ids"))
+
+
 class IrModuleCategory(models.Model):
     _name = "ir.module.category"
     _description = "Application"
@@ -145,7 +148,8 @@ class IrModuleCategory(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         res = super().write(vals)
-        self.env.registry.clear_cache("groups")
+        if not GROUP_HIERARCHY_FIELDS.isdisjoint(vals):
+            self.env.registry.clear_cache("groups")
         return res
 
     def unlink(self) -> bool:
@@ -1270,26 +1274,10 @@ class IrModuleModule(models.Model):
                 domain, ["display_name"], order="sequence"
             )
 
-            if enable_counters:
-                for record in records:
-                    model_domain = Domain.AND(
-                        [
-                            kwargs.get("search_domain", []),
-                            kwargs.get("category_domain", []),
-                            kwargs.get("filter_domain", []),
-                            [
-                                ("category_id", "child_of", record["id"]),
-                                (
-                                    "category_id",
-                                    "not in",
-                                    excluded_category_ids,
-                                ),
-                            ],
-                        ]
-                    )
-                    record["__count"] = self.env["ir.module.module"].search_count(
-                        model_domain
-                    )
+            if enable_counters and records:
+                self._count_modules_per_root_category(
+                    records, excluded_category_ids, kwargs
+                )
 
             return {
                 "parent_field": "parent_id",
@@ -1297,6 +1285,48 @@ class IrModuleModule(models.Model):
             }
 
         return super().search_panel_select_range(field_name, **kwargs)
+
+    @api.model
+    def _count_modules_per_root_category(
+        self,
+        records: list[dict[str, Any]],
+        excluded_category_ids: list[int],
+        kwargs: dict[str, Any],
+    ) -> None:
+        root_ids = [record["id"] for record in records]
+        Category = self.env["ir.module.category"]
+        parent_by_id = {
+            category.id: category.parent_id.id
+            for category in Category.search([("id", "child_of", root_ids)])
+        }
+        roots = set(root_ids)
+
+        def root_of(category_id: int) -> int | None:
+            node, seen = category_id, set()
+            while node and node not in roots and node not in seen:
+                seen.add(node)
+                node = parent_by_id.get(node)
+            return node if node in roots else None
+
+        domain = Domain.AND(
+            [
+                kwargs.get("search_domain", []),
+                kwargs.get("category_domain", []),
+                kwargs.get("filter_domain", []),
+                [
+                    ("category_id", "child_of", root_ids),
+                    ("category_id", "not in", excluded_category_ids),
+                ],
+            ]
+        )
+        counts: defaultdict[int, int] = defaultdict(int)
+        for category, count in self._read_group(
+            domain, groupby=["category_id"], aggregates=["__count"]
+        ):
+            if root := root_of(category.id):
+                counts[root] += count
+        for record in records:
+            record["__count"] = counts[record["id"]]
 
     @api.model
     def _load_module_terms(
@@ -1332,5 +1362,7 @@ class IrModuleModule(models.Model):
         translation_importer.save(overwrite=overwrite)
 
     @api.model
-    def _extract_resource_attachment_translations(self, module: str, lang: str) -> Any:
+    def _extract_resource_attachment_translations(
+        self, module: str, lang: str
+    ) -> Iterator[Any]:
         yield from ()

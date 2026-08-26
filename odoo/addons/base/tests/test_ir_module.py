@@ -1,14 +1,19 @@
+import inspect
 import io
 import os
 import sys
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
+from odoo.fields import Domain
 from odoo.modules.db import _AUTO_INSTALL_CANDIDATES_QUERY
 from odoo.tests.common import TransactionCase, new_test_user
 from odoo.tools import mute_logger
 
-from odoo.addons.base.models.ir_module import localize_description_images
+from odoo.addons.base.models.ir_module import (
+    GROUP_HIERARCHY_FIELDS,
+    localize_description_images,
+)
 
 
 class IrModuleCase(TransactionCase):
@@ -564,3 +569,137 @@ class IrModuleTranslationDiagnosticCase(TransactionCase):
             second,
             "the module without a translation must be reported either way",
         )
+
+
+class IrModuleSearchPanelCase(TransactionCase):
+    def _naive_counts(self, records, excluded_ids, kwargs):
+        """What the per-record search_count loop used to produce."""
+        Module = self.env["ir.module.module"]
+        out = {}
+        for record in records:
+            out[record["id"]] = Module.search_count(
+                Domain.AND(
+                    [
+                        kwargs.get("search_domain", []),
+                        kwargs.get("category_domain", []),
+                        kwargs.get("filter_domain", []),
+                        [
+                            ("category_id", "child_of", record["id"]),
+                            ("category_id", "not in", excluded_ids),
+                        ],
+                    ]
+                )
+            )
+        return out
+
+    def test_batched_counts_match_the_per_category_counts(self):
+        Module = self.env["ir.module.module"]
+        result = Module.search_panel_select_range("category_id", enable_counters=True)
+        records = result["values"]
+        self.assertTrue(records, "need categories to compare")
+        self.assertTrue(
+            any(record["__count"] for record in records),
+            "the comparison is vacuous if every count is zero",
+        )
+        excluded = [
+            categ.id
+            for xmlid in (
+                "base.module_category_website_theme",
+                "base.module_category_theme",
+                "base.module_category_hidden",
+            )
+            if (categ := self.env.ref(xmlid, False))
+            and not (
+                xmlid.endswith("hidden")
+                and self.env.user.has_group("base.group_no_one")
+            )
+        ]
+        naive = self._naive_counts(records, excluded, {})
+        self.assertEqual({record["id"]: record["__count"] for record in records}, naive)
+
+    def _measure(self):
+        Module = self.env["ir.module.module"]
+        self.env.flush_all()
+        self.env.invalidate_all()
+        start = self.env.cr.sql_log_count
+        result = Module.search_panel_select_range("category_id", enable_counters=True)
+        return self.env.cr.sql_log_count - start, result["values"]
+
+    def test_counting_cost_does_not_grow_with_the_number_of_categories(self):
+        """An absolute query count here would only measure the rest of the
+        method. What matters is the marginal cost of one more category, which
+        the per-record search_count loop paid one query for."""
+        Module = self.env["ir.module.module"]
+        Category = self.env["ir.module.category"]
+
+        self._measure()
+        few_queries, few = self._measure()
+
+        added = 10
+        for index in range(added):
+            parent = Category.create({"name": f"irmod sp root {index}"})
+            child = Category.create(
+                {"name": f"irmod sp child {index}", "parent_id": parent.id}
+            )
+            Module.create(
+                {
+                    "name": f"irmod_sp_probe_{index}",
+                    "state": "uninstalled",
+                    "category_id": child.id,
+                }
+            )
+
+        many_queries, many = self._measure()
+
+        self.assertEqual(len(many) - len(few), added, "the roots must show up")
+        self.assertEqual(
+            {record["id"] for record in many if record["__count"] == 1}
+            & {record["id"] for record in many},
+            {record["id"] for record in many if record["__count"] == 1},
+        )
+        self.assertLess(
+            many_queries - few_queries,
+            added,
+            f"{added} more categories cost {many_queries - few_queries} more "
+            f"queries ({few_queries} -> {many_queries}); the batched counter "
+            f"should be flat",
+        )
+
+
+class IrModuleCategoryCacheCase(TransactionCase):
+    """`_get_view_group_hierarchy` is the only groups-cached reader of this model
+    and it reads `name` and `privilege_ids`. Clearing on every write threw the
+    whole group hierarchy away for a `sequence` bump."""
+
+    def _cleared_by(self, vals):
+        category = self.env["ir.module.category"].create({"name": "irmod cache"})
+        self.env["res.groups"]._get_view_group_hierarchy()
+        cleared = []
+        with patch.object(
+            type(self.env.registry),
+            "clear_cache",
+            lambda registry, *names: cleared.extend(names),
+        ):
+            category.write(vals)
+        return "groups" in cleared
+
+    def test_a_name_change_clears_the_group_hierarchy(self):
+        self.assertTrue(self._cleared_by({"name": "irmod cache renamed"}))
+
+    def test_a_sequence_change_does_not(self):
+        self.assertFalse(self._cleared_by({"sequence": 42}))
+
+    def test_a_visibility_change_does_not(self):
+        self.assertFalse(self._cleared_by({"visible": False}))
+
+    def test_the_guarded_fields_are_the_ones_the_hierarchy_reads(self):
+        source = inspect.getsource(
+            type(self.env["res.groups"])._get_view_group_hierarchy
+        )
+        categories = source.split('"categories"')[1]
+        for field in GROUP_HIERARCHY_FIELDS:
+            self.assertIn(
+                f"category.{field}",
+                categories,
+                f"{field} is guarded but the hierarchy no longer reads it",
+            )
