@@ -19,6 +19,5 @@ class AccountJournal(models.Model):
             invoice_ref = "".join(
                 [a if a.isdigit() else str(ord(a)) for a in order_reference]
             )
-            # id_number = self.company_id.bank_ids.l10n_ch_postal or ''
             return self.env["account.move"]._compute_qrr_number(invoice_ref)
         return super()._process_reference_for_sale_order(order_reference)
