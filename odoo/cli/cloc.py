@@ -33,7 +33,7 @@ class Cloc(DatabaseCommand):
         self.parser.add_argument(
             "--path", "-p", action="append", help="File or directory path"
         )
-        self.parser.add_argument("--verbose", "-v", action="count", default=0)
+        self.parser.add_argument("--verbose", "-v", action="store_true")
 
     def run(self, args: list[str]) -> None:
         opt, unknown = self.parse_args(args)
