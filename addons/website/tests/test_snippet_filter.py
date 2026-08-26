@@ -4,16 +4,10 @@ from odoo.tests.common import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestSnippetFilterSecurity(TransactionCase):
-    """Regression tests for the dynamic-snippet-filter ``_prepare_values``
-    single-record path, which is reachable unauthenticated through
-    ``/website/snippet/filters`` (``get_dynamic_filter``)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.website = cls.env.ref("website.default_website")
-        # A published "Our Team" style filter over res.partner, exactly what a
-        # site builder configures for a dynamic snippet.
         cls.ir_filter = cls.env["ir.filters"].create(
             {
                 "name": "Team",
@@ -49,7 +43,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         )
 
     def _public_filter(self):
-        """The recordset the public controller resolves before rendering."""
         public = self.env.ref("base.public_user")
         penv = self.env(user=public.id, su=False)
         return (
@@ -62,9 +55,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         )
 
     def test_single_record_cannot_read_unpublished(self):
-        """The single-record path (limit=1 + res_model + res_id) must not let a
-        caller read an *unpublished* record by id — that would bypass the
-        filter's publication scoping (IDOR)."""
         result = self._public_filter()._prepare_values(
             limit=1,
             search_domain=[],
@@ -75,7 +65,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         self.assertNotIn("SECRET_UNPUBLISHED", str(result))
 
     def test_single_record_still_returns_published(self):
-        """Legitimate single-record use (a published record) keeps working."""
         result = self.snippet_filter._prepare_values(
             limit=1,
             search_domain=[],
@@ -86,7 +75,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         self.assertEqual(result[0]["name"], "PUBLIC_MEMBER")
 
     def test_public_search_domain_field_is_validated(self):
-        """A client-supplied search domain may only reference real fields."""
         with self.assertRaises(ValueError):
             self.snippet_filter._prepare_values(
                 limit=16,
@@ -95,10 +83,6 @@ class TestSnippetFilterSecurity(TransactionCase):
             )
 
     def test_public_search_domain_rejects_relational_traversal(self):
-        """A client-supplied domain may only reference *direct* fields. Dotted
-        paths (e.g. ``create_uid.login``) passed the old ``split('.')[0]`` check
-        and let a public visitor filter on related — possibly unpublished —
-        records, turning the published result set into a boolean oracle."""
         for dotted in ("create_uid.login", "parent_id.vat", "company_id.name"):
             with self.assertRaises(ValueError, msg=f"{dotted} must be rejected"):
                 self.snippet_filter._prepare_values(
@@ -106,7 +90,6 @@ class TestSnippetFilterSecurity(TransactionCase):
                     search_domain=[(dotted, "ilike", "x")],
                     res_model="res.partner",
                 )
-        # A direct field is still accepted (no false positive on the fix).
         self.snippet_filter._prepare_values(
             limit=16,
             search_domain=[("name", "ilike", "PUBLIC")],
@@ -114,13 +97,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         )
 
     def test_client_res_model_cannot_override_the_filter_model(self):
-        """A saved filter's model is not negotiable by the caller.
-
-        ``res_model`` is client-supplied on the public route. Letting it win ran
-        the designer's domain / sort / context against a model of the visitor's
-        choosing — a filter over ``res.partner`` would happily return
-        ``res.lang`` rows.
-        """
         result = self.snippet_filter._prepare_values(
             limit=16, search_domain=[], res_model="res.lang"
         )
@@ -132,8 +108,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         )
 
     def test_unknown_res_model_does_not_raise(self):
-        """An unknown model name used to reach ``self.env[...]`` as a KeyError,
-        i.e. an unauthenticated traceback on a public route."""
         no_filter = self.env["website.snippet.filter"]
         self.assertEqual(
             no_filter._prepare_values(
@@ -143,12 +117,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         )
 
     def test_filterless_single_record_does_not_crash_on_blank_field_names(self):
-        """The filter-less single-record path has no ``field_names``.
-
-        It falls back to the field's ``""`` default, and a bare ``split(",")``
-        then yields one empty name that reaches ``record[""]`` — an
-        unauthenticated ``KeyError`` on a public route.
-        """
         no_filter = self.env["website.snippet.filter"]
         result = no_filter._prepare_values(
             limit=1,
@@ -168,9 +136,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         self.assertEqual(list(Filter._get_filter_meta_data(Partner)), [])
 
     def test_render_tolerates_a_malformed_public_payload(self):
-        """Every ``_render`` argument comes straight from an unauthenticated
-        JSON-RPC caller, so a missing/garbage one must yield [] rather than a
-        ``TypeError``/``ValueError`` 500."""
         self.assertEqual(self.snippet_filter._render(), [])
         self.assertEqual(self.snippet_filter._render(template_key=None, limit=4), [])
         self.assertEqual(
@@ -179,8 +144,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         )
 
     def test_limit_and_res_id_are_coerced(self):
-        """JSON-RPC delivers whatever the caller typed; non-integers must not
-        blow up inside ``min()`` or a domain leaf."""
         Filter = self.env["website.snippet.filter"]
         self.assertIsNone(Filter._coerce_positive_int("abc"))
         self.assertIsNone(Filter._coerce_positive_int(None))
@@ -190,7 +153,6 @@ class TestSnippetFilterSecurity(TransactionCase):
         self.assertIsNone(Filter._coerce_positive_int(-3))
         self.assertEqual(Filter._coerce_positive_int("7"), 7)
         self.assertEqual(Filter._coerce_positive_int(7.9), 7)
-        # A string limit used to raise TypeError in min(limit, max_limit).
         self.assertTrue(
             self.snippet_filter._prepare_values(limit="2", search_domain=[])
         )

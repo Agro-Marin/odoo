@@ -40,14 +40,6 @@ class MixinWebsiteSeoMetadata(models.AbstractModel):
             )
 
     def _default_website_meta(self):
-        """This method will return default meta information. It return the dict
-        contains meta property as a key and meta content as a value.
-        e.g. 'og:type': 'website'.
-
-        Override this method in case you want to change default value
-        from any model. e.g. change value of og:image to product specific
-        images instead of default images
-        """
         self.ensure_one()
         company = request.website.company_id.sudo()
         title = request.website.name
@@ -60,7 +52,6 @@ class MixinWebsiteSeoMetadata(models.AbstractModel):
             else "logo"
         )
 
-        # Default meta for OpenGraph
         default_opengraph = {
             "og:type": "website",
             "og:title": title,
@@ -71,7 +62,6 @@ class MixinWebsiteSeoMetadata(models.AbstractModel):
             ),
             "og:image": request.website.image_url(request.website, img_field),
         }
-        # Default meta for Twitter
         default_twitter = {
             "twitter:card": "summary_large_image",
             "twitter:title": title,
@@ -90,14 +80,6 @@ class MixinWebsiteSeoMetadata(models.AbstractModel):
         }
 
     def get_website_meta(self):
-        """This method will return final meta information. It will replace
-        default values with user's custom value (if user modified it from
-        the seo popup of frontend)
-
-        This method is not meant for overridden. To customize meta values
-        override `_default_website_meta` method instead of this method. This
-        method only replaces user custom values in defaults.
-        """
         root_url = request.website.domain or request.httprequest.url_root.strip("/")
         default_meta = self._default_website_meta()
         opengraph_meta, twitter_meta = (
@@ -110,7 +92,6 @@ class MixinWebsiteSeoMetadata(models.AbstractModel):
         if self.website_meta_description:
             opengraph_meta["og:description"] = self.website_meta_description
             twitter_meta["twitter:description"] = self.website_meta_description
-        # 19.0: remove domain of absolute URL before odoo/odoo#228253
         og_image = self.website_meta_og_img and urllib.parse.urlunsplit(
             ["", "", *urllib.parse.urlsplit(self.website_meta_og_img)[2:]]
         )

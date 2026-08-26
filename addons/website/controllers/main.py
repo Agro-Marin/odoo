@@ -38,16 +38,11 @@ from odoo.addons.website.tools import get_base_domain
 _lt = LazyTranslate(__name__)
 logger = logging.getLogger(__name__)
 
-# Completely arbitrary limits
 MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT = IMAGE_LIMITS = (1024, 768)
 LOC_PER_SITEMAP = 45000
 SITEMAP_CACHE_TIME = datetime.timedelta(hours=12)
 MAX_FONT_FILE_SIZE = 10 * 1024 * 1024
 SUPPORTED_FONT_EXTENSIONS = ["ttf", "woff", "woff2", "otf"]
-# Upper bound on results returned by the public ``autocomplete`` route. It
-# doubles as the full-search page's page-through limit (``hybrid_list``), so the
-# two cannot drift: the route must never clamp below what the search page asks
-# for, otherwise results are silently truncated.
 MAX_PAGE_SEARCH_RESULTS = 500
 
 
@@ -92,31 +87,14 @@ class QueryURL:
 class Website(Home):
     @http.route("/", auth="public", website=True, sitemap=True)
     def index(self, **kw):
-        """The goal of this controller is to make sure we don't serve a 404 as
-        the website homepage. As this is the website entry point, serving a 404
-        is terrible.
-        There is multiple fallback mechanism to prevent that:
-        - If homepage URL is set (empty by default), serve the website.page
-        matching it
-        - If homepage URL is set (empty by default), serve the controller
-        matching it
-        - If homepage URL is not set, serve the `/` website.page
-        - Serve the first accessible menu as last resort. It should be relevant
-        content, at least better than a 404
-        - Serve 404
-        Most DBs will just have a website.page with '/' as URL and keep the
-        homepage_url setting empty.
-        """
         homepage_url = request.website._get_cached("homepage_url")
         if homepage_url and homepage_url != "/":
             request.reroute(homepage_url)
 
-        # Check for page
         website_page = request.env["ir.http"]._serve_page()
         if website_page:
             return website_page
 
-        # Check for controller
         if homepage_url and homepage_url != "/":
             try:
                 rule, args = request.env["ir.http"]._match(homepage_url)
@@ -124,7 +102,6 @@ class Website(Home):
             except AccessError, NotFound, SessionExpiredException:
                 pass
 
-        # Fallback on first accessible menu
         def is_reachable(menu):
             return (
                 menu.is_visible
@@ -132,7 +109,6 @@ class Website(Home):
                 and not menu.url.startswith(("/?", "/#", " "))
             )
 
-        # prefetch all menus (it will prefetch website.page too)
         top_menu = request.website.menu_id
 
         reachable_menus = top_menu.child_id.filtered(is_reachable)
@@ -151,21 +127,10 @@ class Website(Home):
         readonly=True,
     )
     def website_force(self, website_id, path="/", isredir=False, **kw):
-        """To switch from a website to another, we need to force the website in
-        session, AFTER landing on that website domain (if set) as this will be a
-        different session.
-        """
         if not (
             request.env.user.has_group("website.group_multi_website")
             and request.env.user.has_group("website.group_website_restricted_editor")
         ):
-            # The user might not be logged in on the forced website, so he won't
-            # have rights. We just redirect to the path as the user is already
-            # on the domain (basically a no-op as it won't change domain or
-            # force website).
-            # Website 1 : 127.0.0.1 (admin)
-            # Website 2 : 127.0.0.2 (not logged in)
-            # Click on "Website 2" from Website 1
             return request.redirect(path)
 
         website = request.env["website"].browse(website_id)
@@ -174,15 +139,11 @@ class Website(Home):
             domain_from = request.httprequest.environ.get("HTTP_HOST", "")
             domain_to = get_base_domain(website.domain)
             if domain_from != domain_to:
-                # redirect to correct domain for a correct routing map
                 query_params = urllib.parse.urlencode({"isredir": 1, "path": path})
                 url_to = tools.urls.urljoin(
                     website.domain,
                     f"/website/force/{website.id}?{query_params}",
                 )
-                # ``local`` defaults to True, which strips scheme+netloc and
-                # would collapse this cross-domain hop back onto the current
-                # host — the whole point here is to land on ``website.domain``.
                 return request.redirect(url_to, local=False)
         website._force()
         return request.redirect(path)
@@ -197,11 +158,6 @@ class Website(Home):
         readonly=True,
     )
     def client_action_redirect(self, path="", **kw):
-        """Redirect internal users to the backend preview of the requested path
-        URL (client action iframe).
-        Non internal users will be redirected to the regular frontend version of
-        that URL.
-        """
         path = "/" + path
         mode_edit = bool(kw.pop("enable_editor", False))
         mode_debug = kw.get("debug", 0)
@@ -213,15 +169,7 @@ class Website(Home):
 
         return request.redirect(path)
 
-    # ------------------------------------------------------
-    # Login - overwrite of the web login so that regular users are redirected to the backend
-    # while portal users are redirected to the frontend by default
-    # ------------------------------------------------------
-
     def _login_redirect(self, uid, redirect=None):
-        """Redirect regular users (employees) to the backend) and others to
-        the frontend
-        """
         if not redirect and request.params.get("login_success"):
             if request.env["res.users"].browse(uid)._is_internal():
                 redirect = "/odoo?" + request.httprequest.query_string.decode()
@@ -229,14 +177,9 @@ class Website(Home):
                 redirect = "/my"
         return super()._login_redirect(uid, redirect=redirect)
 
-    # Force website=True + auth='public', required for login form layout
     @http.route(website=True, auth="public", sitemap=False)
     def web_login(self, *args, **kw):
         return super().web_login(*args, **kw)
-
-    # ------------------------------------------------------
-    # Business
-    # ------------------------------------------------------
 
     @http.route(
         "/website/get_languages",
@@ -265,13 +208,10 @@ class Website(Home):
         multilang=False,
     )
     def change_lang(self, lang, r="/", **kwargs):
-        """:param lang: supposed to be value of `url_code` field"""
         if lang == "default":
             lang = request.website.default_lang_id.url_code
             r = "/%s%s" % (lang, r or "/")
         lang_code = request.env["res.lang"]._get_data(url_code=lang).code or lang
-        # replace context with correct lang, to avoid that the url_for of request.redirect remove the
-        # default lang in case we switch from /fr -> /en with /en as default lang.
         request.update_context(lang=lang_code)
         redirect = request.redirect(r or ("/%s" % lang))
         redirect.set_cookie("frontend_lang", lang_code)
@@ -302,9 +242,6 @@ class Website(Home):
         sitemap=False,
     )
     def robots(self, **kwargs):
-        # Don't use `request.website.domain` here, the template is in charge of
-        # detecting if the current URL is the domain one and add a `Disallow: /`
-        # if it's not the case to prevent the crawler to continue.
         return request.render(
             "website.robots",
             {
@@ -328,16 +265,6 @@ class Website(Home):
         View = request.env["ir.ui.view"].sudo()
         mimetype = "application/xml;charset=utf-8"
         content = None
-        # `url_root` must be pinned to a SERVER-controlled canonical root, never
-        # the (client-controlled) Host header. Left deriving from Host, an
-        # unauthenticated client can, by varying Host: (a) mint unbounded
-        # distinct sitemap attachments, (b) bust the 12h cache and force a full
-        # page-walk regeneration on every hit, and (c) poison the emitted
-        # absolute URLs served to crawlers. The website's configured domain is
-        # the canonical root when set; otherwise fall back to the `web.base.url`
-        # system parameter (via get_base_url) — both are server-controlled, so a
-        # crafted Host changes nothing and every request shares one cached
-        # sitemap. Behaviour is unchanged for domain-configured websites.
         canonical = current_website.get_base_url()
         if current_website.domain:
             parsed = urllib.parse.urlparse(
@@ -348,7 +275,6 @@ class Website(Home):
             if parsed.netloc:
                 canonical = f"{parsed.scheme or 'https'}://{parsed.netloc}"
         url_root = (canonical or request.httprequest.url_root).rstrip("/") + "/"
-        # For a same website, each canonical root has its own sitemap (cache)
         hashed_url_root = md5(url_root.encode()).hexdigest()[:8]
         sitemap_base_url = "/sitemap-%d-%s" % (current_website.id, hashed_url_root)
 
@@ -366,18 +292,11 @@ class Website(Home):
         dom = [("url", "=", "%s.xml" % sitemap_base_url), ("type", "=", "binary")]
         sitemap = Attachment.search(dom, limit=1)
         if sitemap:
-            # Check if stored version is still valid
-            create_date = fields.Datetime.from_string(sitemap.create_date)
-            delta = datetime.datetime.now() - create_date
+            delta = fields.Datetime.now() - sitemap.create_date
             if delta < SITEMAP_CACHE_TIME:
-                content = base64.b64decode(sitemap.datas)
+                content = sitemap.raw
 
         if not content:
-            # Purge every stored sitemap for THIS website (any canonical-root
-            # hash), not only the current base: this reclaims stale variants a
-            # previously-unpinned, Host-derived url_root could have accumulated,
-            # and keeps a single sitemap set per website. The trailing "-" after
-            # the id prevents "/sitemap-1-" from matching "/sitemap-12-...".
             dom = [
                 ("type", "=", "binary"),
                 ("url", "=like", "/sitemap-%d-%%" % current_website.id),
@@ -407,7 +326,6 @@ class Website(Home):
             if not pages:
                 return request.not_found()
             elif pages == 1:
-                # rename the -id-page.xml => -id.xml
                 last_sitemap.write(
                     {
                         "url": "%s.xml" % sitemap_base_url,
@@ -415,19 +333,15 @@ class Website(Home):
                     }
                 )
             else:
-                # TODO: in master/saas-15, move current_website_id in template directly
                 pages_with_website = [
                     "%d-%s-%d" % (current_website.id, hashed_url_root, p)
                     for p in range(1, pages + 1)
                 ]
 
-                # Sitemaps must be split in several smaller files with a sitemap index
                 content = View._render_template(
                     "website.sitemap_index_xml",
                     {
                         "pages": pages_with_website,
-                        # URLs inside the sitemap index have to be on the same
-                        # domain as the sitemap index itself
                         "url_root": url_root,
                     },
                 )
@@ -435,8 +349,6 @@ class Website(Home):
 
         return request.make_response(content, [("Content-Type", mimetype)])
 
-    # if not icon provided in DOM, browser tries to access /favicon.ico, eg when
-    # opening an order pdf
     @http.route(
         ["/favicon.ico"],
         type="http",
@@ -460,8 +372,7 @@ class Website(Home):
             website.is_view_active("website.website_info")
             and website.is_view_active("website.show_website_info")
         ):
-            # avoid 404 or blank page in sitemap
-            return False
+            return
 
         if not qs or qs.lower() in "/website/info":
             yield {"loc": "/website/info"}
@@ -603,7 +514,6 @@ class Website(Home):
     )
     def save_session_layout_mode(self, layout_mode, view_id):
         assert layout_mode in ("grid", "list"), "Invalid layout mode"
-        # Coerce to int so a public caller cannot inject arbitrary session keys.
         view_id = int(view_id)
         request.session[f"website_{view_id}_layout_mode"] = layout_mode
 
@@ -705,13 +615,7 @@ class Website(Home):
             "position": request.website.company_id.currency_id.position,
         }
 
-    # --------------------------------------------------------------------------
-    # Search Bar
-    # --------------------------------------------------------------------------
-
     def _get_search_order(self, order):
-        # OrderBy will be parsed in orm and so no direct sql injection
-        # id is added to be sure that order is a unique sort key
         order = order or "name ASC"
         return "is_published desc, %s, id desc" % order
 
@@ -731,36 +635,6 @@ class Website(Home):
         max_nb_chars=999,
         options=None,
     ):
-        """
-        Returns list of results according to the term and options
-
-        :param str search_type: indicates what to search within, 'all' matches all available types
-        :param str term: search term written by the user
-        :param str order:
-        :param int limit: number of results to consider, defaults to 5
-        :param int max_nb_chars: max number of characters for text fields
-        :param dict options: options map containing
-            allowFuzzy: enables the fuzzy matching when truthy
-            fuzzy (boolean): True when called after finding a name through fuzzy matching
-
-        :returns: dict (or False if no result) containing
-            - 'results' (list): results (only their needed field values)
-                    note: the monetary fields will be strings properly formatted and
-                    already containing the currency
-            - 'results_count' (int): the number of results in the database
-                    that matched the search query
-            - 'parts' (dict): presence of fields across all results
-            - 'fuzzy_search': search term used instead of requested search
-        """
-        # Public route: clamp the client-supplied limit so an unbounded value
-        # cannot force an arbitrarily large search + render. The ceiling is the
-        # full-search page's own limit (``hybrid_list`` passes ``MAX_PAGE_SEARCH_RESULTS``)
-        # — that page is itself public, so exposing that many results here is no
-        # new exposure, while ``limit=<huge>`` is still bounded. NB: don't lower
-        # this below what ``hybrid_list`` requests, or the search page silently
-        # truncates; and don't bypass this route from ``hybrid_list`` either, or
-        # sub-classes overriding ``autocomplete`` (e.g. website_sale's
-        # ``display_currency``, website_appointment's result naming) are skipped.
         limit = min(max(int(limit or 0), 0), MAX_PAGE_SEARCH_RESULTS)
         options = options or {}
         try:
@@ -770,9 +644,6 @@ class Website(Home):
                 )
             )
         except ValueError:
-            # ``order`` is client-supplied: an unknown field raises ValueError in
-            # the ORM (no SQL injection, but a public 500). Retry with the
-            # default order rather than propagating the error.
             results_count, search_results, fuzzy_term = (
                 request.website._search_with_fuzzy(
                     search_type, term, limit, self._get_search_order(None), options
@@ -793,9 +664,6 @@ class Website(Home):
             results_data += search_result["results_data"]
             mappings.append(search_result["mapping"])
         if search_type == "all":
-            # Only supported order for 'all' is on name. ``order`` is an optional
-            # client parameter and defaults to None, so guard the membership test
-            # rather than doing ``in None`` (a public unhandled TypeError).
             results_data.sort(
                 key=lambda r: r.get("name", ""),
                 reverse=bool(order) and "name desc" in order,
@@ -872,8 +740,6 @@ class Website(Home):
     def pages_list(self, page=1, search="", **kw):
         options = self._get_page_search_options(**kw)
         step = 50
-        # `page` comes straight from the URL; clamp it so a huge value cannot
-        # blow up limit=page*step into an unbounded search.
         page = min(max(int(page), 1), 100)
         pages_count, details, fuzzy_search_term = request.website._search_with_fuzzy(
             "pages",
@@ -931,9 +797,6 @@ class Website(Home):
             return request.render("website.list_hybrid")
 
         options = self._get_hybrid_search_options(**kw)
-        # Call ``autocomplete`` (not a private worker) so sub-class overrides
-        # still apply on the search page. The route clamps ``limit`` to
-        # ``MAX_PAGE_SEARCH_RESULTS``, which is exactly what we request here.
         data = self.autocomplete(
             search_type=search_type,
             term=search,
@@ -968,10 +831,6 @@ class Website(Home):
         }
         return request.render("website.list_hybrid", values)
 
-    # ------------------------------------------------------
-    # Edit
-    # ------------------------------------------------------
-
     @http.route(
         ["/website/add", "/website/add/<path:path>"],
         type="http",
@@ -982,7 +841,6 @@ class Website(Home):
     def pagenew(
         self, path="", add_menu=False, template=False, redirect=False, **kwargs
     ):
-        # for supported mimetype, get correct default template
         ext = PurePosixPath(path).suffix
         ext_special_case = ext != ".html" and ext in EXTENSION_TO_WEB_MIMETYPES
 
@@ -1004,19 +862,19 @@ class Website(Home):
             **template,
         )
         url = page["url"]
-        # In case the page is created through the 404 "Create Page" button, the
-        # URL may use special characters which are slugified on page creation.
-        # If that URL is also a menu, we update it accordingly.
-        # NB: we don't want to slugify on menu creation as it could redirect
-        # towards files (with spaces, apostrophes, etc.).
         menu = request.env["website.menu"].search(
-            [("url", "=", "/" + path), ("page_id", "=", False)]
+            [
+                ("url", "=", "/" + path),
+                ("page_id", "=", False),
+                ("website_id", "in", (False, request.website.id)),
+            ],
+            limit=1,
         )
         if menu:
             menu.page_id = page["page_id"]
 
         if redirect:
-            if ext_special_case:  # redirect non html pages to backend to edit
+            if ext_special_case:
                 return request.redirect(f"/odoo/ir.ui.view/{page.get('view_id')}")
             return request.redirect(
                 request.env["website"].get_client_action_url(url, True)
@@ -1085,14 +943,7 @@ class Website(Home):
                         )
                     )
                     for section_el in html_tree.xpath("//section[@data-snippet]"):
-                        # data-snippet must be the short general name
                         snippet = section_el.attrib["data-snippet"]
-                        # Because the templates are generated from specific
-                        # t-snippet-calls such as:
-                        # "website.new_page_template_about_0_s_text_block",
-                        # the generated data-snippet looks like:
-                        # "new_page_template_about_0_s_text_block"
-                        # while it should be "s_text_block" only.
                         if "_s_" in snippet:
                             section_el.attrib["data-snippet"] = (
                                 f"s_{snippet.split('_s_')[-1]}"
@@ -1108,7 +959,6 @@ class Website(Home):
                     )
                 except Exception as error:
                     if hasattr(error, "qweb"):
-                        # Do not fail if theme is not compatible.
                         logger.warning(
                             "Theme not compatible with template %r: %s",
                             template.key,
@@ -1122,9 +972,6 @@ class Website(Home):
 
     @http.route("/website/save_xml", type="jsonrpc", auth="user", website=True)
     def save_xml(self, view_id, arch):
-        # Writes arbitrary view arch (a stored-template surface); gate on the
-        # editor group like the other builder-facing routes rather than relying
-        # solely on the ir.ui.view ACL.
         if not request.env.user.has_group("website.group_website_restricted_editor"):
             raise werkzeug.exceptions.Forbidden
         request.env["ir.ui.view"].browse(view_id).with_context(
@@ -1154,20 +1001,9 @@ class Website(Home):
         "/website/reset_template", type="jsonrpc", auth="user", methods=["POST"]
     )
     def reset_template(self, view_id, mode="soft", **kwargs):
-        """This method will try to reset a broken view.
-        Given the mode, the view can either be:
-        - Soft reset: restore to previous architecture.
-        - Hard reset: it will read the original `arch` from the XML file if the
-        view comes from an XML file (arch_fs).
-        """
-        # Resets stored view arch (and, with website_id=None below, the shared
-        # generic arch affecting every website); gate on the editor group like
-        # the other builder-facing routes rather than relying solely on the
-        # ir.ui.view ACL.
         if not request.env.user.has_group("website.group_website_restricted_editor"):
             raise werkzeug.exceptions.Forbidden
         view = request.env["ir.ui.view"].browse(int(view_id))
-        # Deactivate COW to not fix a generic view by creating a specific
         view.with_context(website_id=None).reset_arch(mode)
         return True
 
@@ -1179,40 +1015,9 @@ class Website(Home):
         readonly=True,
     )
     def seo_suggest(self, keywords=None, lang=None):
-        """
-        Suggests search keywords based on a given input using Google's
-        autocomplete API.
-
-        This method takes in a `keywords` string and an optional `lang`
-        parameter that defines the language and geographical region for
-        tailoring search suggestions. It sends a request to Google's
-        autocomplete service and returns the search suggestions in JSON format.
-
-        :param str keywords: the keyword string for which suggestions
-            are needed.
-        :param str lang: a string representing the language and geographical
-            location, formatted as:
-            - `language_territory@modifier`, where:
-                - `language`: 2-letter ISO language code (e.g., "en" for
-                  English).
-                - `territory`: Optional, 2-letter country code (e.g., "US" for
-                  United States).
-                - `modifier`: Optional, generally script variant (e.g.,
-                  "latin").
-            If `lang` is not provided or does not match the expected format, the
-            default language is set to English (`en`) and the territory to the
-            United States (`US`).
-
-        :returns: JSON list of strings
-            A list of suggested keywords returned by Google's autocomplete
-            service. If no suggestions are found or if there's an error (e.g.,
-            connection issues), an empty list is returned.
-        """
         pattern = r"^([a-zA-Z]+)(?:_(\w+))?(?:@(\w+))?$"
         match = re.match(pattern, lang or "")
         language = [match.group(1), match.group(2) or ""] if match else ["en", "US"]
-        # HTTPS so the response cannot be tampered with in transit (it is parsed
-        # as XML below).
         url = "https://www.google.com/complete/search"
         try:
             req = requests.get(
@@ -1231,8 +1036,6 @@ class Website(Home):
             response = req.content
         except OSError:
             return json.dumps([])
-        # defusedxml guards against entity-expansion / XXE attacks in the
-        # (external, therefore untrusted) response body.
         xmlroot = defused_fromstring(response)
         return json.dumps(
             [
@@ -1244,8 +1047,6 @@ class Website(Home):
 
     @http.route(["/website/get_alt_images"], type="jsonrpc", auth="user", website=True)
     def get_alt_images(self, models):
-        # Same gate as the sibling update_alt_images/update_broken_links routes:
-        # only restricted editors may introspect arbitrary model/field content.
         if not request.env.user.has_group("website.group_website_restricted_editor"):
             raise werkzeug.exceptions.Forbidden
         result = []
@@ -1255,8 +1056,6 @@ class Website(Home):
                 continue
             model["field"] = "arch_db" if model["field"] == "arch" else model["field"]
             tree = html.fromstring(str(record[model["field"]]))
-            # Only process static img elements (with src) - skip dynamic
-            # template images (t-att*)
             for index, el in enumerate(tree.xpath("//img[@src]")):
                 role = el.get("role")
                 decorative = role == "presentation"
@@ -1287,10 +1086,6 @@ class Website(Home):
             if not record.has_access("write"):
                 continue
             img["field"] = "arch_db" if img["field"] == "arch" else img["field"]
-            # The field name is client-supplied: only allow rewriting stored
-            # HTML-bearing columns (html/text, e.g. view arch_db), never scalar
-            # or relational fields, to avoid injecting markup where it does not
-            # belong.
             field = record._fields.get(img["field"])
             if not field or field.type not in ("html", "text") or not field.store:
                 continue
@@ -1323,8 +1118,6 @@ class Website(Home):
             if not record.has_access("write"):
                 continue
             link["field"] = "arch_db" if link["field"] == "arch" else link["field"]
-            # See update_alt_images: the field name is client-supplied, restrict
-            # writes to stored HTML-bearing columns only.
             field = record._fields.get(link["field"])
             if not field or field.type not in ("html", "text") or not field.store:
                 continue
@@ -1353,7 +1146,6 @@ class Website(Home):
     )
     def get_seo_data(self, res_id, res_model):
         if not request.env.user.has_group("website.group_website_restricted_editor"):
-            # Still ok if user can access the record anyway.
             try:
                 record = request.env[res_model].browse(res_id)
                 record.check_access("write")
@@ -1382,12 +1174,10 @@ class Website(Home):
         res.update(record.read(fields)[0])
         res["has_social_default_image"] = request.website.has_social_default_image
 
-        if (
-            res_model not in ("website.page", "ir.ui.view") and "seo_name" in record
-        ):  # allow custom slugify
+        if res_model not in ("website.page", "ir.ui.view") and "seo_name" in record:
             res["seo_name_default"] = request.env["ir.http"]._slugify(
                 record.display_name or ""
-            )  # default slug, if seo_name become empty
+            )
             res["seo_name"] = (
                 record.seo_name and request.env["ir.http"]._slugify(record.seo_name)
             ) or ""
@@ -1416,8 +1206,6 @@ class Website(Home):
                 continue
         if first_error:
             raise first_error
-        # No records to check (empty input): nothing is denied. Returning True
-        # here avoids ``raise None`` -> TypeError/500.
         return True
 
     @http.route(
@@ -1441,10 +1229,6 @@ class Website(Home):
         ]
 
         if key != trusted:
-            # Require an exact match. The previous ``startswith`` branch let an
-            # unauthenticated caller rewrite the stored verification token
-            # (``request.website.sudo().google_search_console = ...``) just by
-            # requesting a longer ``/google<token><extra>.html`` path.
             logger.warning("Google Search Console %s not recognize", key)
             raise werkzeug.exceptions.NotFound
 
@@ -1464,15 +1248,10 @@ class Website(Home):
             {"google_maps_api_key": request.website.google_maps_api_key or ""}
         )
 
-    # ------------------------------------------------------
-    # Themes
-    # ------------------------------------------------------
-
     @http.route(
         "/website/google_font_metadata", type="jsonrpc", auth="user", website=True
     )
     def google_font_metadata(self):
-        """Avoid CORS by caching google fonts metadata on server"""
         Attachment = request.env["ir.attachment"]
         metadata = Attachment.search(
             [
@@ -1526,14 +1305,6 @@ class Website(Home):
     def theme_customize_data(
         self, is_view_data, enable=None, disable=None, reset_view_arch=False
     ):
-        """
-        Enables and/or disables views/assets according to list of keys.
-
-        :param is_view_data: True = "ir.ui.view", False = "ir.asset"
-        :param enable: list of views/assets keys to enable
-        :param disable: list of views/assets keys to disable
-        :param reset_view_arch: restore the default template after disabling
-        """
         if disable:
             records = self._get_customize_data(disable, is_view_data).filtered("active")
             if reset_view_arch:
@@ -1552,9 +1323,6 @@ class Website(Home):
         readonly=True,
     )
     def theme_customize_bundle_reload(self):
-        """
-        Reloads asset bundles and returns their unique URLs.
-        """
         return {
             "web.assets_frontend": request.env["ir.qweb"]._get_asset_link_urls(
                 "web.assets_frontend", request.session.debug
@@ -1565,24 +1333,16 @@ class Website(Home):
         ["/website/update_footer_template"], type="jsonrpc", auth="user", website=True
     )
     def update_footer_template(self, template_key, possible_values):
-        """Enables the footer template and its corresponding copyright template
-        on template change. The goal is to ensure that the content width of
-        the copyright aligns with the footer.
-        """
-
-        # Define templates views to enable/disable
         views_enable = [template_key]
         views_disable = self.theme_customize_data_get(
             possible_values, is_view_data=True
         )
 
-        # Define the possible footer classes and corresponding views
         width_views = {
             "container-fluid": "website.footer_copyright_content_width_fluid",
             "o_container_small": "website.footer_copyright_content_width_small",
         }
 
-        # Parse new footer template and get the content width
         new_template = self._get_customize_data([template_key], is_view_data=True)
         if not new_template or not new_template[0].arch:
             return
@@ -1592,7 +1352,6 @@ class Website(Home):
         classes_selector = " or ".join([f"hasclass('{c}')" for c in container_classes])
         res = tree.xpath(f"//div[{classes_selector}]")
 
-        # Define copyright views to enable/disable
         if res:
             classes = res[0].get("class").split()
             width = next((c for c in container_classes if c in classes), False)
@@ -1602,7 +1361,6 @@ class Website(Home):
                     views_enable += [view]
                 views_disable += [v for k, v in width_views.items() if k != width]
 
-        # Activate/Deactivate the computed views
         self.theme_customize_data(
             is_view_data=True,
             enable=views_enable,
@@ -1610,28 +1368,11 @@ class Website(Home):
             reset_view_arch=False,
         )
 
-    # ------------------------------------------------------
-    # Server actions
-    # ------------------------------------------------------
-
     @http.route(
         ["/website/theme_upload_font"], type="jsonrpc", auth="user", website=True
     )
     def theme_upload_font(self, name, data):
-        """
-        Uploads font binary data and returns metadata about accessing individual fonts.
-        :param name: name of the uploaded file
-        :param data: binary content of the uploaded file
-        :return: list of dict describing each contained font with:
-            - name
-            - mimetype
-            - attachment id
-            - attachment URL
-        """
-
         def check_content(filename, data):
-            """Returns True only if data matches the font extension."""
-            # Do not pollute general guess_mimetype with this.
             ext = filename.rsplit(".")[-1].lower()
             if ext == "otf":
                 return data.startswith(b"OTTO")
@@ -1640,7 +1381,6 @@ class Website(Home):
             elif ext == "woff2":
                 return data.startswith(b"wOF2")
             elif ext == "ttf":
-                # Based on https://docs.fileformat.com/font/ttf/#true-type-file-format-specifications
                 TOC_OFFSET = 12
                 TOC_ENTRY_LENGTH = 16
                 table_size = int.from_bytes(data[4:6], "big") * TOC_ENTRY_LENGTH
@@ -1666,8 +1406,6 @@ class Website(Home):
             return False
 
         def create_attachment(font, data):
-            """Creates font attachments right away to avoid keeping
-            several extracted contents in memory."""
             ext = font["name"].rsplit(".")[-1].lower()
             font["mimetype"] = f"font/{ext}"
             attachment = request.env["ir.attachment"].create(
@@ -1741,12 +1479,7 @@ class Website(Home):
         ServerActions = request.env["ir.actions.server"]
         action = action_id = None
 
-        # find the action_id: either an xml_id, the path, or an ID
         if isinstance(path_or_xml_id_or_id, str) and "." in path_or_xml_id_or_id:
-            # ``ref`` returns None (not an empty recordset) for an unknown
-            # xml_id, and may resolve to a record of any model; guard against
-            # both so a public GET of a bogus/foreign xml_id cannot 500 on
-            # ``None.sudo()`` or run ``.run()`` against the wrong model.
             record = request.env.ref(path_or_xml_id_or_id, raise_if_not_found=False)
             action = (
                 record.sudo()
@@ -1768,19 +1501,13 @@ class Website(Home):
             except ValueError:
                 pass
 
-        # run it, return only if we got a Response object
         if action:
             if action.state == "code" and action.website_published:
-                # use main session env for execution
                 action_res = ServerActions.browse(action.id).run()
                 if isinstance(action_res, werkzeug.wrappers.Response):
                     return action_res
 
         return request.redirect("/")
-
-    # ------------------------------------------------------
-    # Assets Resources
-    # ------------------------------------------------------
 
     @http.route(
         "/website/get_assets_editor_resources",
@@ -1798,35 +1525,6 @@ class Website(Home):
         bundles_restriction=None,
         only_user_custom_files=True,
     ):
-        """
-        Transmit the resources the assets editor needs to work.
-
-        Params:
-            key (str): the key of the view the resources are related to
-
-            get_views (bool, default=True):
-                True if the views must be fetched
-
-            get_scss (bool, default=True):
-                True if the style must be fetched
-
-            get_js (bool, default=True):
-                True if the javascript must be fetched
-
-            bundles (bool, default=False):
-                True if the bundles views must be fetched
-
-            bundles_restriction (list, default=[]):
-                Names of the bundles in which to look for scss files
-                (if empty, search in all of them)
-
-            only_user_custom_files (bool, default=True):
-                True if only user custom files must be fetched
-
-        Returns:
-            dict: views, scss, js
-        """
-        # Related views must be fetched if the user wants the views and/or the style
         if bundles_restriction is None:
             bundles_restriction = []
         views = (
@@ -1866,11 +1564,8 @@ class Website(Home):
         if file_type == "scss":
             t_call_assets_attribute = "t-css"
 
-        # Compile regex outside of the loop
-        # This will used to exclude library scss files from the result
         excluded_url_matcher = re.compile(r"^(.+/lib/.+)|(.+import_bootstrap.+\.scss)$")
 
-        # First check the t-call-assets used in the related views
         url_infos = {}
         for v in views:
             for asset_call_node in etree.fromstring(v["arch"]).xpath(
@@ -1881,7 +1576,6 @@ class Website(Home):
                     continue
                 asset_name = asset_call_node.get("t-call-assets")
 
-                # Loop through bundle files to search for file info
                 files_data = []
                 for file_info in request.env["ir.qweb"]._get_asset_content(asset_name)[
                     0
@@ -1890,16 +1584,13 @@ class Website(Home):
                         continue
                     url = file_info["url"]
 
-                    # Exclude library files (see regex above)
                     if excluded_url_matcher.match(url):
                         continue
 
-                    # Check if the file is customized and get bundle/path info
                     file_data = AssetsUtils._get_data_from_url(url)
                     if not file_data:
                         continue
 
-                    # Save info according to the filter (arch will be fetched later)
                     url_infos[url] = file_data
 
                     if (
@@ -1909,21 +1600,13 @@ class Website(Home):
                     ):
                         files_data.append(url)
 
-                # scss data is returned sorted by bundle, with the bundles
-                # names and xmlids
                 if files_data:
                     files_data_by_bundle.append([asset_name, files_data])
 
-        # Filter bundles/files:
-        # - A file which appears in multiple bundles only appears in the
-        #   first one (the first in the DOM)
-        # - Only keep bundles with files which appears in the asked bundles
-        #   and only keep those files
         for i in range(len(files_data_by_bundle)):
             bundle_1 = files_data_by_bundle[i]
             for j in range(len(files_data_by_bundle)):
                 bundle_2 = files_data_by_bundle[j]
-                # In unwanted bundles, keep only the files which are in wanted bundles too (web._helpers)
                 if (
                     bundle_1[0] not in bundles_restriction
                     and bundle_2[0] in bundles_restriction
@@ -1935,13 +1618,10 @@ class Website(Home):
             bundle_1 = files_data_by_bundle[i]
             for j in range(i + 1, len(files_data_by_bundle)):
                 bundle_2 = files_data_by_bundle[j]
-                # In every bundle, keep only the files which were not found
-                # in previous bundles
                 bundle_2[1] = [
                     item_2 for item_2 in bundle_2[1] if item_2 not in bundle_1[1]
                 ]
 
-        # Only keep bundles which still have files and that were requested
         files_data_by_bundle = [
             data
             for data in files_data_by_bundle
@@ -1951,7 +1631,6 @@ class Website(Home):
             )
         ]
 
-        # Fetch the arch of each kept file, in each bundle
         urls = []
         for bundle_data in files_data_by_bundle:
             urls += bundle_data[1]
@@ -1974,10 +1653,6 @@ class Website(Home):
 
         return files_data_by_bundle
 
-    # ------------------------------------------------------
-    # Translations
-    # ------------------------------------------------------
-
     @http.route(
         "/website/field/translation/update", type="jsonrpc", auth="user", website=True
     )
@@ -1999,14 +1674,12 @@ class Website(Home):
 
 
 class WebsiteSession(Session):
-    # Force auth='public', required for logout
     @http.route(auth="public")
     def logout(self, *args, **kw):
         return super().logout(*args, **kw)
 
 
 class WebsiteBinary(Binary):
-    # Backward compatibility routes
     @http.route(
         [
             "/website/image",

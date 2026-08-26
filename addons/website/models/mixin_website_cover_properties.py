@@ -48,19 +48,12 @@ class MixinWebsiteCover_Properties(models.AbstractModel):
         try:
             cover_properties = json_safe.loads(vals["cover_properties"])
         except ValueError, TypeError:
-            # ``cover_properties`` is client-supplied; a malformed value must be
-            # a clean validation error, not an uncaught 500.
             raise ValidationError(_("Invalid cover properties value.")) from None
         resize_classes = cover_properties.get("resize_class", "").split()
         classes = ["o_half_screen_height", "o_full_screen_height", "cover_auto"]
         if not set(resize_classes).isdisjoint(classes):
-            # Updating cover properties and the given 'resize_class' set is
-            # valid, normal write.
             return super().write(vals)
 
-        # If we do not receive a valid resize_class via the cover_properties, we
-        # keep the original one (prevents updates on list displays from
-        # destroying resize_class).
         copy_vals = dict(vals)
         for item in self:
             old_cover_properties = json_safe.loads(item.cover_properties)

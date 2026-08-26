@@ -1,4 +1,3 @@
-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -8,12 +7,7 @@ from odoo.addons.base.models.ir_actions import eval_action_context
 class SurveySurvey(models.Model):
     _inherit = "survey.survey"
 
-    slide_ids = fields.One2many(
-        "slide.slide",
-        "survey_id",
-        string="Certification Slides",
-        help="The slides this survey is linked to through the e-learning application",
-    )
+    # slide_ids is declared in website_slides, beside the many2one it inverts.
     slide_channel_ids = fields.One2many(
         "slide.channel",
         string="Certification Courses",

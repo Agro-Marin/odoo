@@ -10,7 +10,6 @@ class TestUnsplashBeacon(odoo.tests.HttpCase):
 
     def test_01_beacon(self):
         self.env["ir.config_parameter"].sudo().set_param("unsplash.app_id", "123456")
-        # Create page with unsplash image.
         page = self.env["website.page"].search(
             [("url", "=", "/"), ("website_id", "=", 1)]
         )
@@ -38,5 +37,4 @@ class TestUnsplashBeacon(odoo.tests.HttpCase):
             </div>
             </t>
         </t>"""
-        # Access page.
         self.start_tour("/", "test_unsplash_beacon")

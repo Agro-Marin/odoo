@@ -181,13 +181,18 @@ export class DescriptionScreen extends Component {
         onMounted(() => this.onMounted());
 
         // Autofocus the next field once the current one is confirmed.
+        // Guarded: this effect runs on every patch, including ones where the
+        // field it wants to focus is not in the DOM yet. An unguarded
+        // dereference threw out of `onPatched`, which Owl turns into an
+        // OwlError that takes the whole configurator down -- for a hint that
+        // is optional by nature.
         useEffect(
             (selectedType, selectedIndustry) => {
                 if (selectedType && !selectedIndustry) {
-                    this.industrySelection.el.querySelector("input").focus();
+                    this.industrySelection.el?.querySelector("input")?.focus();
                 }
                 if (selectedIndustry) {
-                    this.purposeSelectionRef.el.focus();
+                    this.purposeSelectionRef.el?.focus();
                 }
             },
             () => [this.state.selectedType, this.state.selectedIndustry],

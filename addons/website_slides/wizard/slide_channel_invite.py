@@ -61,16 +61,19 @@ class SlideChannelInvite(models.TransientModel):
         Invited members can be reinvited, or enrolled depending on enroll_mode."""
         self.ensure_one()
 
-        if not self.send_email:
-            return None
-        if not self.env.user.email:
+        if not self.partner_ids:
+            raise UserError(_("Please select at least one recipient."))
+        # `send_email` decides whether to *notify*, never whether to enrol. It
+        # used to be the first thing checked, with a bare `return None`: on a
+        # public course invited without enroll_mode -- where _compute_send_email
+        # is False -- nobody was added, no mail went out, and the dialog stayed
+        # open saying nothing.
+        if self.send_email and not self.env.user.email:
             raise UserError(
                 _(
                     "Unable to post message, please configure the sender's email address."
                 )
             )
-        if not self.partner_ids:
-            raise UserError(_("Please select at least one recipient."))
 
         attendees_to_reinvite = (
             self.env["slide.channel.partner"].search(
@@ -94,11 +97,12 @@ class SlideChannelInvite(models.TransientModel):
                 attendees_to_reinvite | channel_partners
             ).last_invitation_date = fields.Datetime.now()
 
-        mail_values = [
-            self._prepare_mail_values(channel_partner)
-            for channel_partner in attendees_to_reinvite | channel_partners
-        ]
-        self.env["mail.mail"].sudo().create(mail_values)
+        if self.send_email:
+            mail_values = [
+                self._prepare_mail_values(channel_partner)
+                for channel_partner in attendees_to_reinvite | channel_partners
+            ]
+            self.env["mail.mail"].sudo().create(mail_values)
 
         return {"type": "ir.actions.act_window_close"}
 

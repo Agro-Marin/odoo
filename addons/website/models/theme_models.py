@@ -108,7 +108,6 @@ class ThemeIrUiView(models.Model):
                 lambda x: x.website_id == website
             )
             if not inherit:
-                # inherit_id not yet created, add to the queue
                 return False
 
         if inherit and inherit.website_id != website:
@@ -137,9 +136,7 @@ class ThemeIrUiView(models.Model):
             "customize_show": self.customize_show,
         }
 
-        if (
-            self.mode
-        ):  # if not provided, it will be computed automatically (if inherit_id or not)
+        if self.mode:
             new_view["mode"] = self.mode
 
         return new_view
@@ -251,7 +248,6 @@ class ThemeWebsitePage(models.Model):
         self.ensure_one()
         view_id = self.view_id.copy_ids.filtered(lambda x: x.website_id == website)
         if not view_id:
-            # inherit_id not yet created, add to the queue
             return False
 
         return {
@@ -285,7 +281,6 @@ class ThemeUtils(models.AbstractModel):
         "website.template_header_sales_two",
         "website.template_header_sales_three",
         "website.template_header_sales_four",
-        # Default one, keep it last
         "website.template_header_default",
     ]
     _footer_templates = [
@@ -300,12 +295,10 @@ class ThemeUtils(models.AbstractModel):
         "website.template_footer_mega_columns",
         "website.template_footer_mega_links",
         "website.template_footer_mega_cards",
-        # Default one, keep it last
         "website.footer_custom",
     ]
 
     def _post_copy(self, mod):
-        # Call specific theme post copy
         theme_post_copy = "_%s_post_copy" % mod.name
         if hasattr(self, theme_post_copy):
             _logger.info("Executing method %s", theme_post_copy)
@@ -315,7 +308,6 @@ class ThemeUtils(models.AbstractModel):
 
     @api.model
     def _reset_default_config(self):
-        # Reinitialize some css customizations
         self.env["website.assets"].make_scss_customization(
             "/website/static/src/scss/options/user_values.scss",
             {
@@ -332,21 +324,17 @@ class ThemeUtils(models.AbstractModel):
             },
         )
 
-        # Reinitialize effets
         self.disable_asset("website.ripple_effect_scss")
         self.disable_asset("website.ripple_effect_js")
 
-        # Reinitialize header templates
         for view in self._header_templates[:-1]:
             self.disable_view(view)
         self.enable_view(self._header_templates[-1])
 
-        # Reinitialize footer templates
         for view in self._footer_templates[:-1]:
             self.disable_view(view)
         self.enable_view(self._footer_templates[-1])
 
-        # Reinitialize footer scrolltop template
         self.disable_view("website.option_footer_scrolltop")
 
     @api.model
@@ -378,11 +366,6 @@ class ThemeUtils(models.AbstractModel):
             obj = obj.with_context(active_test=False)
             obj = obj.copy_ids.filtered(lambda x: x.website_id == website)
         else:
-            # If a theme post copy wants to enable/disable a view, this is to
-            # enable/disable a given functionality which is disabled/enabled
-            # by default. So if a post copy asks to enable/disable a view which
-            # is already enabled/disabled, we would not consider it otherwise it
-            # would COW the view for nothing.
             View = self.env["ir.ui.view"].with_context(active_test=False)
             has_specific = (
                 obj.key
@@ -426,15 +409,11 @@ class IrUiView(models.Model):
     )
 
     def write(self, vals):
-        # During a theme module update, theme views' copies receiving an arch
-        # update should not be considered as `arch_updated`, as this is not a
-        # user made change.
         test_mode = modules.module.current_test
         if not (test_mode or self.pool._init):
             return super().write(vals)
         no_arch_updated_views = other_views = self.env["ir.ui.view"]
         for record in self:
-            # Do not mark the view as user updated if original view arch is similar
             arch = vals.get("arch", vals.get("arch_base"))
             if record.theme_template_id and record.theme_template_id.arch == arch:
                 no_arch_updated_views += record

@@ -158,16 +158,24 @@ export class WebsiteBuilderClientAction extends Component {
                 this.onEditPage();
             }
             if (!this.ui.isSmall) {
-                // preload builder and snippets so clicking on "edit" is faster
-                loadBundle("website.website_builder_assets").then(() => {
-                    this.env.services["html_builder.snippets"]
-                        .getSnippetModel(this.snippetsTemplate)
-                        .reload({
-                            lang: this.websiteService.currentWebsite?.default_lang_id
-                                .code,
-                            website_id: this.websiteService.currentWebsite?.id,
-                        });
-                });
+                // Preload builder and snippets so clicking on "edit" is faster.
+                // Nothing here is load-bearing: every failure only costs the
+                // first click its warm cache, so none of it may reach the page
+                // as an unhandled rejection -- which is also what made this
+                // preload fail tours it has no part in.
+                loadBundle("website.website_builder_assets")
+                    .then(() =>
+                        this.env.services["html_builder.snippets"]
+                            ?.getSnippetModel(this.snippetsTemplate)
+                            .reload({
+                                lang: this.websiteService.currentWebsite
+                                    ?.default_lang_id.code,
+                                website_id: this.websiteService.currentWebsite?.id,
+                            }),
+                    )
+                    .catch((error) =>
+                        console.warn("[website] snippet preload skipped:", error),
+                    );
             }
         });
         onWillUnmount(() => {

@@ -14,16 +14,6 @@ from odoo.addons.website.tests.common import HttpCaseWithWebsiteUser
 @odoo.tests.tagged("-at_install", "post_install")
 class TestUiCustomizeTheme(odoo.tests.HttpCase):
     def test_01_attachment_website_unlink(self):
-        """Some ir.attachment needs to be unlinked when a website is unlink,
-        otherwise some flows will just crash. That's the case when 2 website
-        have their theme color customized. Removing a website will make its
-        customized attachment generic, thus having 2 attachments with the
-        same URL available for other websites, leading to singleton errors
-        (among other).
-
-        But no all attachment should be deleted, eg we don't want to delete
-        a SO or invoice PDF coming from an ecommerce order.
-        """
         Website = self.env["website"]
         Page = self.env["website.page"]
         Attachment = self.env["ir.attachment"]
@@ -31,7 +21,6 @@ class TestUiCustomizeTheme(odoo.tests.HttpCase):
         website_default = Website.browse(1)
         website_test = Website.create({"name": "Website Test"})
 
-        # simulate attachment state when editing 2 theme through customize
         custom_url = "/_custom/web.assets_frontend/TEST/website/static/src/scss/options/colors/user_theme_color_palette.scss"
         scss_attachment = Attachment.create(
             {
@@ -45,9 +34,6 @@ class TestUiCustomizeTheme(odoo.tests.HttpCase):
         )
         scss_attachment.copy({"website_id": website_test.id})
 
-        # simulate PDF from ecommerce order
-        # Note: it will only have its website_id flag if the website has a domain
-        # equal to the current URL (fallback or get_current_website())
         so_attachment = Attachment.create(
             {
                 "name": "SO036.pdf",
@@ -58,7 +44,6 @@ class TestUiCustomizeTheme(odoo.tests.HttpCase):
             }
         )
 
-        # avoid sql error on page website_id restrict
         Page.search([("website_id", "=", website_test.id)]).unlink()
         website_test.unlink()
         self.assertEqual(
@@ -152,7 +137,6 @@ class TestUiHtmlEditor(HttpCaseWithUserDemo):
         )
 
         generic_page = Website.viewref("test.generic_view")
-        # Use an empty page layout with oe_structure id for this test
         oe_structure_layout = """
             <t name="Generic" t-name="test.generic_view">
                 <t t-call="website.layout">
@@ -252,8 +236,6 @@ class TestUiHtmlEditor(HttpCaseWithUserDemo):
                 ],
             }
 
-        # disable undraw, no third party should be called in tests
-        # Mocked for the previews in the media dialog
         mock_media_library_search.routing_type = "json"
         HTML_Editor.media_library_search = http.route(
             ["/html_editor/media_library_search"],
@@ -285,7 +267,6 @@ class TestUiHtmlEditor(HttpCaseWithUserDemo):
         self.start_tour("/", "website_dynamic_svg_theme_colors", login="admin")
 
     def test_code_editor_usable(self):
-        # TODO: enable debug mode when failing tests have been fixed (props validation)
         url = "/odoo/action-website.website_preview"
         self.start_tour(url, "website_code_editor_usable", login="admin")
 
@@ -401,10 +382,7 @@ class TestUiTranslate(odoo.tests.HttpCase):
         self.env.ref("website.s_cover").update_field_translations(
             "arch_db",
             {
-                parseltongue.code: {
-                    # See contact_us_label
-                    "Contact us": "Contact us in Parseltongue"
-                },
+                parseltongue.code: {"Contact us": "Contact us in Parseltongue"},
                 fake_user_lang.code: {"Contact us": "Contact us in Fake User Lang"},
             },
         )
@@ -751,7 +729,6 @@ class TestUi(HttpCaseWithWebsiteUser):
         )
 
     def test_33_website_menus(self):
-        # Create a website to prevent auto-assignment of the default parent menu.
         self.env["website"].create(
             {
                 "name": "Test Website",
@@ -783,34 +760,11 @@ class TestUi(HttpCaseWithWebsiteUser):
         self.start_tour("/", "text_highlights", login="admin")
 
     def test_website_extra_items_no_dirty_page(self):
-        """
-        Having enough menus to trigger the "+" folded menus has been known to
-        wrongfully mark the page as dirty. There are 3 cases:
-
-        - the menu is not folded outside of edit mode and when entering edit
-          mode, the "+" appears and some menu are folded
-
-        - the menu is folded outside of edit mode and when entering edit mode
-          the resize actually makes it so different menu items are folded
-
-        - the menu is folded outside of edit mode and when entering edit mode it
-          stays the same (known to have been broken because edit mode tweaks the
-          dropdown behavior)
-
-        Those are fixed. This test makes sure the third case stays fixed.
-        At the moment, the first two cases are not marking the page as dirty but
-        the related "+" menu behavior is kinda broken so it would be difficult
-        to test (TODO).
-        """
-        # Remove all menu items but the first one
         website = self.env["website"].get_current_website()
         website.menu_id.child_id[1:].unlink()
-        # Create a new menu item whose text is very long so that we are sure
-        # it is folded into the extra items "+" menu outside of edit mode and
-        # stays the same when entering edit mode.
         self.env["website.menu"].create(
             {
-                "name": "Menu %s" % ("a" * 200),  # Very long text
+                "name": "Menu %s" % ("a" * 200),
                 "website_id": website.id,
                 "parent_id": website.menu_id.id,
             }
@@ -819,9 +773,6 @@ class TestUi(HttpCaseWithWebsiteUser):
         self.start_tour("/", "website_no_action_no_dirty_page", login="admin")
 
     def test_website_no_dirty_page(self):
-        # Previous tests are testing the dirty behavior when the extra items
-        # "+" menu comes in play. For other "no dirty" tests, we just remove
-        # most menu items first to make sure they pass independently.
         website = self.env["website"].get_current_website()
         website.menu_id.child_id[1:].unlink()
 
@@ -889,11 +840,6 @@ class TestUi(HttpCaseWithWebsiteUser):
 
     def test_website_no_dirty_lazy_image(self):
         website = self.env["website"].browse(1)
-        # Enable multiple langs to reduce the chance of the test being silently
-        # broken by ensuring that it receives a lot of extra o_dirty elements.
-        # This is done to account for potential later changes in the number of
-        # o_dirty elements caused by legitimate modifications in the code.
-        # Perfs: `_activate_lang()` does not load .pot so it is perf friendly
         lang_fr = self.env["res.lang"]._activate_lang("fr_FR")
         lang_es = self.env["res.lang"]._activate_lang("es_AR")
         lang_zh = self.env["res.lang"]._activate_lang("zh_HK")
@@ -901,16 +847,13 @@ class TestUi(HttpCaseWithWebsiteUser):
         website.language_ids = (
             self.env.ref("base.lang_en") + lang_fr + lang_es + lang_zh + lang_ar
         )
-        # Select "dropdown with image" language selector template
         for key, active in [
-            # footer
             ("portal.footer_language_selector", True),
             ("website.footer_language_selector_inline", False),
             ("website.footer_language_selector_flag", True),
             ("website.footer_language_selector_no_text", False),
             ("website.footer_language_selector_flag", True),
             ("website.footer_language_selector_no_text", False),
-            # header
             ("website.header_language_selector", True),
             ("website.header_language_selector_inline", False),
             ("website.header_language_selector_flag", True),
@@ -1012,8 +955,6 @@ class TestUi(HttpCaseWithWebsiteUser):
 
     def test_alt_a_not_on_foreign_language_page(self):
         self.add_fr_language_to_website()
-        # It should go in edit mode if we are not on the FR page even if FR is
-        # available
         self.start_tour("/", "alt_a_edit", login="admin")
 
     def test_mega_footer(self):

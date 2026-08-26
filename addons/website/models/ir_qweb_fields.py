@@ -30,9 +30,7 @@ class IrQwebFieldHtml(models.AbstractModel):
     def value_to_html(self, value, options):
         res = super().value_to_html(value, options)
 
-        if res and "<form" in res:  # Efficient check
-            # The usage of `fromstring`, `HTMLParser`, `tostring` and `Markup`
-            # is replicating what is done in the `super()` implementation.
+        if res and "<form" in res:
             body = etree.fromstring("<body>%s</body>" % res, etree.HTMLParser())[0]
             add_form_signature(body, self.sudo().env)
             res = Markup(etree.tostring(body, encoding="unicode", method="html")[6:-7])

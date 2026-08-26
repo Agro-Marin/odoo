@@ -46,6 +46,21 @@ class SlideSlide(models.Model):
     VIMEO_VIDEO_ID_REGEX = (
         r"\/\/(player.)?vimeo.com\/(?:[a-z]*\/)*([0-9]{6,11})\/?([0-9a-z]{6,11})?[?]?.*"
     )
+    GOOGLE_DRIVE_MIME_TYPES = {
+        "application/pdf": "pdf",
+        "application/vnd.ms-excel": "sheet",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "sheet",
+        "application/vnd.oasis.opendocument.spreadsheet": "sheet",
+        "application/vnd.google-apps.spreadsheet": "sheet",
+        "application/msword": "doc",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "doc",
+        "application/vnd.oasis.opendocument.text": "doc",
+        "application/vnd.google-apps.document": "doc",
+        "application/vnd.ms-powerpoint": "slides",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation": "slides",
+        "application/vnd.oasis.opendocument.presentation": "slides",
+        "application/vnd.google-apps.presentation": "slides",
+    }
 
     # description
     name = fields.Char("Title", required=True, translate=True)
@@ -498,10 +513,16 @@ class SlideSlide(models.Model):
 
     @api.depends("embed_ids.slide_id")
     def _compute_embed_count(self):
-        read_group_res = self.env["slide.embed"]._read_group(
-            [("slide_id", "in", self.ids)],
-            ["slide_id"],
-            ["count_views:sum"],
+        # sudo like its sibling _compute_slide_views: this is an aggregate over
+        # the slide's own statistics, and slide.embed is officer-scoped.
+        read_group_res = (
+            self.env["slide.embed"]
+            .sudo()
+            ._read_group(
+                [("slide_id", "in", self.ids)],
+                ["slide_id"],
+                ["count_views:sum"],
+            )
         )
         mapped_data = {
             slide.id: count_views_sum for slide, count_views_sum in read_group_res
@@ -602,7 +623,7 @@ class SlideSlide(models.Model):
         from the slide category.
 
         For external content, the slide type is determined from the metadata and the mime_type.
-        (See #_fetch_google_drive_metadata() for more details)."""
+        (See #_get_google_drive_metadata() for more details)."""
 
         for slide in self:
             if slide.slide_category == "document":
@@ -828,7 +849,7 @@ class SlideSlide(models.Model):
             or self.image_google_url
             or self.video_url
         ):
-            slide_metadata, _error = self._fetch_external_metadata()
+            slide_metadata, _error = self._get_external_metadata()
             if slide_metadata:
                 self.update(
                     {
@@ -888,9 +909,7 @@ class SlideSlide(models.Model):
 
     @api.model
     def _get_can_publish_error_message(self):
-        return _(
-            "Publishing is restricted to the responsible of training courses or members of the publisher group for documentation courses"
-        )
+        return self.env["slide.channel"]._get_can_publish_error_message()
 
     # ---------------------------------------------------------
     # ORM Overrides
@@ -943,7 +962,7 @@ class SlideSlide(models.Model):
                 and not self.env.context.get("install_mode")
                 and not self.env.context.get("website_slides_skip_fetch_metadata")
             ):
-                slide_metadata, _error = slide._fetch_external_metadata()
+                slide_metadata, _error = slide._get_external_metadata()
                 if slide_metadata:
                     # only update keys that are not set in the incoming vals
                     slide.update(
@@ -982,7 +1001,7 @@ class SlideSlide(models.Model):
         if "slide_category" in values:
             if values["slide_category"] == "article":
                 values = {"url": False, **values}
-            elif values["slide_category"] != "article":
+            else:
                 values = {"html_content": False, **values}
 
         # Capture before super(): afterwards every record reads as published and
@@ -1017,13 +1036,13 @@ class SlideSlide(models.Model):
             and not self.env.context.get("install_mode")
             and not self.env.context.get("website_slides_skip_fetch_metadata")
         ):
-            # Per record: _fetch_external_metadata() is ensure_one(), so a
+            # Per record: _get_external_metadata() is ensure_one(), so a
             # multi-record write touching a url field raised "Expected
             # singleton" (reachable from list-view multi-edit). Applying one
             # slide's fetched title/duration to the whole set would be wrong
             # anyway, as would skipping a key because *any* record already has it.
             for slide in self:
-                slide_metadata, _error = slide._fetch_external_metadata()
+                slide_metadata, _error = slide._get_external_metadata()
                 if slide_metadata:
                     # only update keys that are not set in the incoming values and for which we don't have a value yet
                     slide.update(
@@ -1119,23 +1138,31 @@ class SlideSlide(models.Model):
     # Business Methods
     # ---------------------------------------------------------
 
+    EMBED_URL_MAX_LENGTH = 512
+
     def _embed_increment(self, url):
         """Increment the view count of the record we have based on the passed url.
         If the url is empty, which typically happens if the browser does not pass the 'referer'
-        header properly, then we increment the entry that has 'False' as url value."""
+        header properly, then we increment the entry that has 'False' as url value.
+
+        The url is normalised to scheme + host + path and truncated: it comes
+        from a request header, one row exists per distinct value, and nothing
+        else bounds how many rows a caller can create.
+        """
 
         self.ensure_one()
 
-        url_entry = url
-        if not urlsplit(url).netloc:
-            url_entry = False
+        url_entry = self._normalize_embed_url(url)
 
         embed_entry = self.env["slide.embed"].search(
             [("url", "=", url_entry), ("slide_id", "=", self.id)], limit=1
         )
 
         if embed_entry:
-            embed_entry.count_views += 1
+            # Not `count_views += 1`: that is a read-modify-write, and two
+            # concurrent embeds of the same page lose one of the two views.
+            embed_entry._increment_fields_skiplock("count_views")
+            embed_entry.invalidate_recordset(["count_views"])
         else:
             embed_entry = self.env["slide.embed"].create(
                 {
@@ -1145,6 +1172,16 @@ class SlideSlide(models.Model):
             )
 
         return embed_entry
+
+    @api.model
+    def _normalize_embed_url(self, url):
+        """Reduce a Referer header to the identity of the embedding page."""
+        split = urlsplit(url or "")
+        if not split.netloc:
+            return False
+        return f"{split.scheme}://{split.netloc}{split.path}"[
+            : self.EMBED_URL_MAX_LENGTH
+        ]
 
     def _post_publication(self):
         for slide in self.filtered(
@@ -1186,30 +1223,16 @@ class SlideSlide(models.Model):
                     course_names=", ".join(courses_without_templates.mapped("name")),
                 )
             )
-        mail_ids = []
-        for record in self:
-            template = record.channel_id.share_slide_template_id.with_context(
-                user=self.env.user,
-                email=email,
-                base_url=record.get_base_url(),
+        Channel = self.env["slide.channel"]
+        return [
+            Channel._send_share_mail(
+                record.channel_id.share_slide_template_id,
+                record,
+                email,
                 fullscreen=fullscreen,
             )
-            email_values = {"email_to": email}
-            if self.env.user._is_portal():
-                template = template.sudo()
-                email_values["email_from"] = (
-                    self.env.company.catchall_formatted
-                    or self.env.company.email_formatted
-                )
-
-            mail_ids.append(
-                template.send_mail(
-                    record.id,
-                    email_layout_xmlid="mail.mail_notification_light",
-                    email_values=email_values,
-                )
-            )
-        return mail_ids
+            for record in self
+        ]
 
     def action_like(self):
         self.check_access("read")
@@ -1233,31 +1256,30 @@ class SlideSlide(models.Model):
                 ("partner_id", "=", self.env.user.partner_id.id),
             ]
         )
-        slide_id = slide_partners.mapped("slide_id")
-        new_slides = self_sudo - slide_id
+        new_slides = self_sudo - slide_partners.slide_id
 
-        for slide_partner in slide_partners:
-            if upvote:
-                slide_partner.vote = 0 if slide_partner.vote == 1 else 1
-            else:
-                slide_partner.vote = 0 if slide_partner.vote == -1 else -1
+        # Grouped: one write per resulting vote value, not one per membership.
+        target_vote = 1 if upvote else -1
+        toggled_off = slide_partners.filtered(
+            lambda partner: partner.vote == target_vote
+        )
+        toggled_off.vote = 0
+        (slide_partners - toggled_off).vote = target_vote
 
-        for new_slide in new_slides:
-            new_vote = 1 if upvote else -1
-            new_slide.write(
+        # One create for the whole batch, and with channel_id set -- the x2many
+        # command spelling left it to the related field and did one write per
+        # slide. `_action_set_viewed` right below already creates them this way.
+        SlidePartnerSudo.create(
+            [
                 {
-                    "slide_partner_ids": [
-                        (
-                            0,
-                            0,
-                            {
-                                "vote": new_vote,
-                                "partner_id": self.env.user.partner_id.id,
-                            },
-                        )
-                    ]
+                    "slide_id": new_slide.id,
+                    "channel_id": new_slide.channel_id.id,
+                    "partner_id": self.env.user.partner_id.id,
+                    "vote": target_vote,
                 }
-            )
+                for new_slide in new_slides
+            ]
+        )
 
     def action_set_viewed(self, quiz_attempts_inc=False):
         if any(not slide.channel_id.is_member for slide in self):
@@ -1353,6 +1375,38 @@ class SlideSlide(models.Model):
             ]
         ).completed = False
 
+    def _get_quiz_gains(self):
+        """The reward ladder for this slide's quiz, best attempt first.
+
+        The single definition. This list used to be rebuilt at four call sites
+        (_action_set_quiz_done, _compute_quiz_info, slide.channel._get_earned_karma
+        and the controller's _get_channel_progress) and indexed by two different
+        rules, so "what is this attempt worth" had four answers that only
+        happened to agree.
+        """
+        self.ensure_one()
+        return [
+            self.quiz_first_attempt_reward,
+            self.quiz_second_attempt_reward,
+            self.quiz_third_attempt_reward,
+            self.quiz_fourth_attempt_reward,
+        ]
+
+    def _get_quiz_reward(self, attempts_count, done=True):
+        """Karma for a quiz attempt.
+
+        :param attempts_count: how many attempts the attendee has *made*.
+        :param done: True for what a finished attempt earned, False for what the
+          next one would earn. Off by one, which is exactly the distinction the
+          four hand-written copies kept getting differently.
+        """
+        self.ensure_one()
+        if not self.has_questions:
+            return 0
+        gains = self._get_quiz_gains()
+        index = (attempts_count - 1) if done else attempts_count
+        return gains[max(0, min(index, len(gains) - 1))]
+
     def _action_set_quiz_done(self, completed=True):
         """Add or remove karma points related to the quiz.
 
@@ -1384,15 +1438,7 @@ class SlideSlide(models.Model):
             ):
                 continue
 
-            gains = [
-                slide.quiz_first_attempt_reward,
-                slide.quiz_second_attempt_reward,
-                slide.quiz_third_attempt_reward,
-                slide.quiz_fourth_attempt_reward,
-            ]
-            points = gains[
-                min(user_membership_sudo.quiz_attempts_count, len(gains)) - 1
-            ]
+            points = slide._get_quiz_reward(user_membership_sudo.quiz_attempts_count)
             if points:
                 if completed:
                     reason = _("Quiz Completed")
@@ -1412,7 +1458,7 @@ class SlideSlide(models.Model):
         action["context"] = {"search_default_slide_id": self.id}
         return action
 
-    def _ensure_quiz_survey(self):
+    def _check_quiz_survey(self):
         """Create a lightweight survey for quiz slides that don't have one yet.
 
         Quiz surveys are single-page, all-or-nothing (100% pass threshold) with
@@ -1460,70 +1506,145 @@ class SlideSlide(models.Model):
         )
         slide_partners_map = {sp.slide_id.id: sp for sp in slide_partners}
         for slide in self:
-            if not slide.has_questions:
-                gains = [0]
-            else:
-                gains = [
-                    slide.quiz_first_attempt_reward,
-                    slide.quiz_second_attempt_reward,
-                    slide.quiz_third_attempt_reward,
-                    slide.quiz_fourth_attempt_reward,
-                ]
-            result[slide.id] = {
-                "quiz_karma_max": gains[0],
-                "quiz_karma_gain": gains[0],
+            first_attempt_reward = (
+                slide._get_quiz_reward(1) if slide.has_questions else 0
+            )
+            info = {
+                "quiz_karma_max": first_attempt_reward,
+                "quiz_karma_gain": first_attempt_reward,
                 "quiz_karma_won": 0,
                 "quiz_attempts_count": 0,
             }
+            result[slide.id] = info
             slide_partner = slide_partners_map.get(slide.id)
-            if (
-                slide.has_questions
-                and slide_partner
-                and slide_partner.quiz_attempts_count
-            ):
-                result[slide.id]["quiz_karma_gain"] = (
-                    gains[slide_partner.quiz_attempts_count]
-                    if slide_partner.quiz_attempts_count < len(gains)
-                    else gains[-1]
-                )
-                result[slide.id]["quiz_attempts_count"] = (
-                    slide_partner.quiz_attempts_count
-                )
+            attempts = slide_partner.quiz_attempts_count if slide_partner else 0
+            if slide.has_questions and attempts:
+                info["quiz_attempts_count"] = attempts
+                # what the *next* attempt would earn
+                info["quiz_karma_gain"] = slide._get_quiz_reward(attempts, done=False)
                 if quiz_done or slide_partner.completed:
-                    result[slide.id]["quiz_karma_won"] = (
-                        gains[slide_partner.quiz_attempts_count - 1]
-                        if slide_partner.quiz_attempts_count < len(gains)
-                        else gains[-1]
-                    )
+                    # what the attempt just made earned
+                    info["quiz_karma_won"] = slide._get_quiz_reward(attempts)
         return result
 
     # --------------------------------------------------
     # Parsing methods
     # --------------------------------------------------
 
-    def _fetch_external_metadata(self, image_url_only=False):
+    EXTERNAL_FETCH_TIMEOUT = 3
+    THUMBNAIL_MAX_BYTES = 5 * 1024 * 1024
+
+    @api.model
+    def _get_external_json(self, url, params=None, not_found_message=None):
+        """GET ``url`` and return ``(payload, error)``.
+
+        The three metadata fetchers each carried their own copy of this ladder
+        and each caught exactly ``HTTPError`` and ``ConnectionError``. That pair
+        does not cover the failure a 3-second timeout against a third-party API
+        actually produces: ``ReadTimeout`` subclasses ``Timeout``, not
+        ``ConnectionError``, and so escaped -- out of ``create()``, ``write()``
+        and the form's ``_on_change_url``, turning a slow YouTube into a failed
+        save. ``TooManyRedirects`` and ``ChunkedEncodingError`` escaped too.
+
+        Two more traps are closed here. ``headers.get("content-type")`` returns
+        ``None`` when the header is absent, and ``"application/json" in None``
+        is a ``TypeError``; and a 200 that is not JSON used to leave the raw
+        ``Response`` in place of the parsed payload, so the caller then called
+        ``.get()`` on it.
+
+        :param not_found_message: returned as the error on a 404, so the user is
+          told the link is wrong rather than shown a transport error.
+        """
+        try:
+            response = requests.get(
+                url, timeout=self.EXTERNAL_FETCH_TIMEOUT, params=params or {}
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as error:
+            resp = error.response
+            if not_found_message and resp is not None and resp.status_code == 404:
+                return {}, not_found_message
+            return {}, self._log_external_metadata_error(
+                url, resp.text if resp else error
+            )
+        except requests.exceptions.RequestException as error:
+            return {}, self._log_external_metadata_error(url, error)
+
+        if "application/json" not in (response.headers.get("content-type") or ""):
+            return {}, self._log_external_metadata_error(url, "response is not JSON")
+
+        try:
+            payload = response.json()
+        except ValueError as error:
+            return {}, self._log_external_metadata_error(url, error)
+
+        if isinstance(payload, dict) and payload.get("error"):
+            reason = payload["error"].get("errors", [{}])[0].get("reason")
+            return {}, self._log_external_metadata_error(
+                url, reason or payload["error"]
+            )
+        return payload, None
+
+    @api.model
+    def _log_external_metadata_error(self, url, detail):
+        message = str(detail)[:500]
+        _logger.warning("Could not fetch slide metadata from %s: %s", url, message)
+        return message
+
+    @api.model
+    def _get_thumbnail(self, url):
+        """Download a thumbnail, or return False. Never raises.
+
+        The three call sites did ``base64.b64encode(requests.get(url).content)``
+        with no error handling, no ``raise_for_status`` and no size cap, so a
+        transport error propagated out of a slide save and an HTML error page
+        was stored as ``image_1920``.
+        """
+        try:
+            response = requests.get(url, timeout=self.EXTERNAL_FETCH_TIMEOUT)
+            response.raise_for_status()
+        except requests.exceptions.RequestException:
+            _logger.debug("Could not download slide thumbnail %s", url, exc_info=True)
+            return False
+        if not (response.headers.get("content-type") or "").startswith("image/"):
+            return False
+        content = response.content[: self.THUMBNAIL_MAX_BYTES]
+        return base64.b64encode(content) if content else False
+
+    def _set_thumbnail(self, slide_metadata, thumbnail_url, image_url_only):
+        """Put the thumbnail into ``slide_metadata``, as a url or as binary."""
+        if not thumbnail_url:
+            return
+        if image_url_only:
+            slide_metadata["image_url"] = thumbnail_url
+        else:
+            image = self._get_thumbnail(thumbnail_url)
+            if image:
+                slide_metadata["image_1920"] = image
+
+    def _get_external_metadata(self, image_url_only=False):
         self.ensure_one()
 
         slide_metadata = {}
         error = False
         if self.slide_category == "video" and self.video_source_type == "youtube":
-            slide_metadata, error = self._fetch_youtube_metadata(image_url_only)
+            slide_metadata, error = self._get_youtube_metadata(image_url_only)
         elif (
             self.slide_category == "video" and self.video_source_type == "google_drive"
         ):
-            slide_metadata, error = self._fetch_google_drive_metadata(image_url_only)
+            slide_metadata, error = self._get_google_drive_metadata(image_url_only)
         elif self.slide_category == "video" and self.video_source_type == "vimeo":
-            slide_metadata, error = self._fetch_vimeo_metadata(image_url_only)
+            slide_metadata, error = self._get_vimeo_metadata(image_url_only)
         elif (
             self.slide_category in ["document", "infographic"]
             and self.source_type == "external"
         ):
             # external documents & google drive videos share the same method currently
-            slide_metadata, error = self._fetch_google_drive_metadata(image_url_only)
+            slide_metadata, error = self._get_google_drive_metadata(image_url_only)
 
         return slide_metadata, error
 
-    def _fetch_youtube_metadata(self, image_url_only=False):
+    def _get_youtube_metadata(self, image_url_only=False):
         """Fetches video metadata from the YouTube API.
 
         Returns a dict containing video metadata with the following keys (matching slide.slide fields):
@@ -1540,54 +1661,27 @@ class SlideSlide(models.Model):
           (e.g: 'Video could not be found')"""
 
         self.ensure_one()
-        google_app_key = (
-            self.env["website"]
-            .get_current_website()
-            .sudo()
-            .website_slide_google_app_key
+        response, error = self._get_external_json(
+            "https://www.googleapis.com/youtube/v3/videos",
+            params={
+                "fields": "items(id,snippet,contentDetails)",
+                "id": self.youtube_id,
+                "key": self._get_google_app_key(),
+                "part": "snippet,contentDetails",
+            },
+            not_found_message=_(
+                "Your video could not be found on YouTube, please check the link and/or privacy settings"
+            ),
         )
-        error_message = False
-        try:
-            response = requests.get(
-                "https://www.googleapis.com/youtube/v3/videos",
-                timeout=3,
-                params={
-                    "fields": "items(id,snippet,contentDetails)",
-                    "id": self.youtube_id,
-                    "key": google_app_key,
-                    "part": "snippet,contentDetails",
-                },
+        if error:
+            return {}, error
+        if not response.get("items"):
+            return {}, _(
+                "Your video could not be found on YouTube, please check the link and/or privacy settings"
             )
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            error_message = e.response.content
-            if "application/json" in e.response.headers.get("content-type"):
-                json_response = e.response.json()
-                if json_response.get("error", {}).get("code") == 404:
-                    return {}, _(
-                        "Your video could not be found on YouTube, please check the link and/or privacy settings"
-                    )
-        except requests.exceptions.ConnectionError as e:
-            error_message = str(e)
-
-        if not error_message:
-            response = response.json()
-            if response.get("error"):
-                error_message = (
-                    response.get("error", {}).get("errors", [{}])[0].get("reason")
-                )
-
-            if not response.get("items"):
-                error_message = _(
-                    "Your video could not be found on YouTube, please check the link and/or privacy settings"
-                )
-
-        if error_message:
-            _logger.warning("Could not fetch YouTube metadata: %s", error_message)
-            return {}, error_message
 
         slide_metadata = {"slide_type": "youtube_video"}
-        youtube_values = response.get("items")[0]
+        youtube_values = response["items"][0]
         youtube_duration = youtube_values.get("contentDetails", {}).get("duration")
         if youtube_duration:
             parsed_duration = re.search(
@@ -1600,26 +1694,32 @@ class SlideSlide(models.Model):
                     + (round(int(parsed_duration.group(3) or 0) / 60) / 60)
                 )
 
-        if youtube_values.get("snippet"):
-            snippet = youtube_values["snippet"]
+        snippet = youtube_values.get("snippet")
+        if snippet:
             slide_metadata.update(
                 {
                     "name": snippet["title"],
                     "description": snippet["description"],
                 }
             )
-
-            thumbnail_url = snippet["thumbnails"]["high"]["url"]
-            if image_url_only:
-                slide_metadata["image_url"] = thumbnail_url
-            else:
-                slide_metadata["image_1920"] = base64.b64encode(
-                    requests.get(thumbnail_url, timeout=3).content
-                )
+            self._set_thumbnail(
+                slide_metadata,
+                snippet.get("thumbnails", {}).get("high", {}).get("url"),
+                image_url_only,
+            )
 
         return slide_metadata, None
 
-    def _fetch_google_drive_metadata(self, image_url_only=False):
+    @api.model
+    def _get_google_app_key(self):
+        return (
+            self.env["website"]
+            .get_current_website()
+            .sudo()
+            .website_slide_google_app_key
+        )
+
+    def _get_google_drive_metadata(self, image_url_only=False):
         """Fetches document / video metadata from the Google Drive API.
 
         Returns a dict containing metadata with the following keys (matching slide.slide fields):
@@ -1635,116 +1735,45 @@ class SlideSlide(models.Model):
         :return a tuple (values, error) containing the values of the slide and a potential error
           (e.g: 'File could not be found')"""
 
-        params = {
-            "projection": "BASIC",
-            "key": (
-                self.env["website"]
-                .get_current_website()
-                .sudo()
-                .website_slide_google_app_key
+        self.ensure_one()
+        google_drive_values, error = self._get_external_json(
+            "https://www.googleapis.com/drive/v2/files/%s" % self.google_drive_id,
+            params={"projection": "BASIC", "key": self._get_google_app_key()},
+            not_found_message=_(
+                "Your file could not be found on Google Drive, please check the link and/or privacy settings"
             ),
-        }
+        )
+        if error:
+            return {}, error
 
-        error_message = False
-        try:
-            response = requests.get(
-                "https://www.googleapis.com/drive/v2/files/%s" % self.google_drive_id,
-                timeout=3,
-                params=params,
-            )
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            error_message = e.response.content
-            if "application/json" in e.response.headers.get("content-type"):
-                json_response = e.response.json()
-                if json_response.get("error", {}).get("code") == 404:
-                    # in case we don't find the file on GDrive, we want to give some feedback to our user
-                    return {}, _(
-                        "Your file could not be found on Google Drive, please check the link and/or privacy settings"
-                    )
-        except requests.exceptions.ConnectionError as e:
-            error_message = str(e)
-
-        if not error_message:
-            response = response.json()
-            if response.get("error"):
-                error_message = (
-                    response.get("error", {}).get("errors", [{}])[0].get("reason")
-                )
-
-        if error_message:
-            _logger.warning("Could not fetch Google Drive metadata: %s", error_message)
-            return {}, error_message
-
-        google_drive_values = response
         slide_metadata = {"name": google_drive_values.get("title")}
 
-        if google_drive_values.get("thumbnailLink"):
+        thumbnail_link = google_drive_values.get("thumbnailLink")
+        if thumbnail_link:
             # small trick, we remove '=s220' to get a higher definition
-            thumbnail_url = google_drive_values["thumbnailLink"].replace("=s220", "")
-            if image_url_only:
-                slide_metadata["image_url"] = thumbnail_url
-            else:
-                slide_metadata["image_1920"] = base64.b64encode(
-                    requests.get(thumbnail_url, timeout=3).content
-                )
+            self._set_thumbnail(
+                slide_metadata, thumbnail_link.replace("=s220", ""), image_url_only
+            )
 
         if self.slide_category == "document":
-            sheet_mimetypes = [
-                "application/vnd.ms-excel",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "application/vnd.oasis.opendocument.spreadsheet",
-                "application/vnd.google-apps.spreadsheet",
-            ]
-
-            doc_mimetypes = [
-                "application/msword",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "application/vnd.oasis.opendocument.text",
-                "application/vnd.google-apps.document",
-            ]
-
-            slides_mimetypes = [
-                "application/vnd.ms-powerpoint",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                "application/vnd.oasis.opendocument.presentation",
-                "application/vnd.google-apps.presentation",
-            ]
-
             mime_type = google_drive_values.get("mimeType")
-            if mime_type == "application/pdf":
-                slide_metadata["slide_type"] = "pdf"
-                if google_drive_values.get("downloadUrl"):
-                    # attempt to download PDF content to extract a completion_time based on the number of pages
-                    try:
-                        pdf_response = requests.get(
-                            google_drive_values.get("downloadUrl"), timeout=5
-                        )
-                        completion_time = self._get_completion_time_pdf(
-                            pdf_response.content
-                        )
-                        if completion_time:
-                            slide_metadata["completion_time"] = completion_time
-                    except Exception:
-                        # fail silently as this is nice to have
-                        _logger.debug(
-                            "Could not derive completion_time from the Google Drive "
-                            "PDF at %s",
-                            google_drive_values.get("downloadUrl"),
-                            exc_info=True,
-                        )
-            elif mime_type in sheet_mimetypes:
-                slide_metadata["slide_type"] = "sheet"
-            elif mime_type in doc_mimetypes:
-                slide_metadata["slide_type"] = "doc"
-            elif mime_type in slides_mimetypes:
-                slide_metadata["slide_type"] = "slides"
-            elif mime_type and mime_type.startswith("image/"):
-                # image and videos should be input using another "slide_category" but let's be nice and
-                # assign them a matching slide_type
-                slide_metadata["slide_type"] = "image"
-            elif mime_type and mime_type.startswith("video/"):
-                slide_metadata["slide_type"] = "google_drive_video"
+            slide_type = self.GOOGLE_DRIVE_MIME_TYPES.get(mime_type)
+            if not slide_type and mime_type:
+                if mime_type.startswith("image/"):
+                    # image and videos should be input using another
+                    # "slide_category" but let's be nice and assign them a
+                    # matching slide_type
+                    slide_type = "image"
+                elif mime_type.startswith("video/"):
+                    slide_type = "google_drive_video"
+            if slide_type:
+                slide_metadata["slide_type"] = slide_type
+            if slide_type == "pdf" and google_drive_values.get("downloadUrl"):
+                completion_time = self._get_completion_time_google_drive_pdf(
+                    google_drive_values["downloadUrl"]
+                )
+                if completion_time:
+                    slide_metadata["completion_time"] = completion_time
 
         elif self.slide_category == "video":
             completion_time = (
@@ -1763,7 +1792,23 @@ class SlideSlide(models.Model):
 
         return slide_metadata, None
 
-    def _fetch_vimeo_metadata(self, image_url_only=False):
+    def _get_completion_time_google_drive_pdf(self, download_url):
+        """Estimate a PDF's duration from its page count. Nice to have; never raises."""
+        try:
+            pdf_response = requests.get(
+                download_url, timeout=self.EXTERNAL_FETCH_TIMEOUT
+            )
+            pdf_response.raise_for_status()
+        except requests.exceptions.RequestException:
+            _logger.debug(
+                "Could not derive completion_time from the Google Drive PDF at %s",
+                download_url,
+                exc_info=True,
+            )
+            return False
+        return self._get_completion_time_pdf(pdf_response.content)
+
+    def _get_vimeo_metadata(self, image_url_only=False):
         """Fetches video metadata from the Vimeo API.
         See https://developer.vimeo.com/api/oembed/showcases for more information.
 
@@ -1771,71 +1816,39 @@ class SlideSlide(models.Model):
         - 'name' matching the video title
         - 'description' matching the video description
         - 'image_1920' binary data of the video thumbnail
-          OR 'image_url' containing an external link to the thumbnail when 'fetch_image' param is False
+          OR 'image_url' containing an external link to the thumbnail when 'image_url_only' param is True
         - 'completion_time' matching the video duration
 
-        :param image_url_only: if False, will return 'image_url' instead of binary data
+        :param image_url_only: if True, will return 'image_url' instead of binary data
           Typically used when displaying a slide preview to the end user.
         :return a tuple (values, error) containing the values of the slide and a potential error
           (e.g: 'Video could not be found')"""
 
         self.ensure_one()
-        error_message = False
-        try:
-            response = requests.get(
-                "https://vimeo.com/api/oembed.json?%s"
-                % urlencode({"url": self.video_url}),
-                timeout=3,
-            )
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            error_message = e.response.content
-            if e.response.status_code == 404:
-                return {}, _(
-                    "Your video could not be found on Vimeo, please check the link and/or privacy settings"
-                )
-        except requests.exceptions.ConnectionError as e:
-            error_message = str(e)
+        vimeo_values, error = self._get_external_json(
+            "https://vimeo.com/api/oembed.json?%s" % urlencode({"url": self.video_url}),
+            not_found_message=_(
+                "Your video could not be found on Vimeo, please check the link and/or privacy settings"
+            ),
+        )
+        if error:
+            return {}, error
+        if not vimeo_values:
+            return {}, _("Please enter a valid Vimeo video link")
 
-        if not error_message and "application/json" in response.headers.get(
-            "content-type"
-        ):
-            response = response.json()
-            if response.get("error"):
-                error_message = (
-                    response.get("error", {}).get("errors", [{}])[0].get("reason")
-                )
-
-            if not response:
-                error_message = _("Please enter a valid Vimeo video link")
-
-        if error_message:
-            _logger.warning("Could not fetch Vimeo metadata: %s", error_message)
-            return {}, error_message
-
-        vimeo_values = response
         slide_metadata = {"slide_type": "vimeo_video"}
-
         if vimeo_values.get("title"):
-            slide_metadata["name"] = vimeo_values.get("title")
-
+            slide_metadata["name"] = vimeo_values["title"]
         if vimeo_values.get("description"):
-            slide_metadata["description"] = vimeo_values.get("description")
-
+            slide_metadata["description"] = vimeo_values["description"]
         if vimeo_values.get("duration"):
             # seconds to hours conversion
             slide_metadata["completion_time"] = (
-                round(vimeo_values.get("duration") / 60) / 60
+                round(vimeo_values["duration"] / 60) / 60
             )
-
-        thumbnail_url = vimeo_values.get("thumbnail_url")
-        if thumbnail_url:
-            if image_url_only:
-                slide_metadata["image_url"] = thumbnail_url
-            else:
-                slide_metadata["image_1920"] = base64.b64encode(
-                    requests.get(thumbnail_url, timeout=3).content
-                )
+        self._set_thumbnail(
+            slide_metadata, vimeo_values.get("thumbnail_url"), image_url_only
+        )
 
         return slide_metadata, None
 
@@ -1925,22 +1938,26 @@ class SlideSlide(models.Model):
             "search_fields": search_fields,
             "fetch_fields": fetch_fields,
             "mapping": mapping,
-            "icon": "fa-shopping-cart",
+            "icon": "fa-graduation-cap",
             "order": "name desc, id desc"
             if "name desc" in order
             else "name asc, id desc",
         }
 
+    ICON_PER_SLIDE_CATEGORY = {
+        "infographic": "fa-regular fa-file-image",
+        "article": "fa-regular fa-file-lines",
+        "document": "fa-regular fa-file-pdf",
+        "video": "fa-regular fa-circle-play",
+        "quiz": "fa-regular fa-circle-question",
+        "certification": "fa-trophy",
+    }
+
     def _search_render_results(self, fetch_fields, mapping, icon, limit):
-        icon_per_category = {
-            "infographic": "fa-regular fa-file-image",
-            "article": "fa-solid fa-file-lines",
-            "presentation": "fa-regular fa-file-pdf",
-            "document": "fa-regular fa-file-pdf",
-            "video": "fa-regular fa-circle-play",
-            "quiz": "fa-solid fa-circle-question",
-            "link": "fa-regular fa-file-code",
-        }
+        # Keyed on slide_category, and only on values the selection actually
+        # holds: this table used to carry "presentation" and "link", which are
+        # not categories, and to omit "certification", which is.
+        icon_per_category = self.ICON_PER_SLIDE_CATEGORY
         results_data = super()._search_render_results(
             fetch_fields, mapping, icon, limit
         )

@@ -58,7 +58,6 @@ CDN: `cdn_activated`, `cdn_url`, `cdn_filters`. Custom code:
 - `website_domain()` — the multi-website scoping domain.
 - `get_current_website(fallback=True)` / `_get_current_website_id(domain, fallback)` — resolve the active website from request/domain. `_force()` / `_force_website(id)` pin it in session.
 - `_get_cached(field)` / `_get_cached_values()` — ormcached scalar accessors (user_id, company_id, default_lang_id) avoiding per-request reads.
-- `is_menu_cache_disabled()` — ormcached `"templates"`; True if the menu has record-like URLs or group-restricted entries (defeats the full-page cache).
 - **Configurator RPC surface:** `configurator_init`, `configurator_apply`, `configurator_skip`, `configurator_recommended_themes`, `configurator_set_menu_links`, `configurator_get_footer_links`, `get_theme_configurator_snippets`, `create_and_redirect_configurator`, + snippet preconfig helpers.
 - **Page CRUD:** `new_page(...)`, `get_unique_path(url)`, `get_unique_key(...)`, `_bootstrap_homepage`, `copy_menu_hierarchy`, `check_existing_page`, `search_pages`, `search_url_dependencies`.
 - **Frontend fuzzy-search engine:** `_search_get_details`, `_search_with_fuzzy`, `_search_exact`, `_search_render_results`, `_search_find_fuzzy_term`, `_trigram_enumerate_words` (pg_trgm), `_basic_enumerate_words`, `_search_text_from_html`.

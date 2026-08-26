@@ -11,10 +11,6 @@ class WebsiteControllerPage(models.Model):
     ]
     _description = "Model Page"
     _order = "website_id, id DESC"
-    # Scoped per website: the /model/<slug> resolver already disambiguates by
-    # website_domain() and _order puts the website-specific row first, so two
-    # websites (and a generic + a per-website override) may legitimately share a
-    # slug. A global UNIQUE(name_slugified) forbade exactly that.
     _unique_name_slugified = models.Constraint(
         "UNIQUE(name_slugified, website_id)",
         "url should be unique per website",
@@ -44,8 +40,6 @@ class WebsiteControllerPage(models.Model):
         required=True,
         store=True,
     )
-    # Bindings to model/records, to expose the page on the website.
-    # Route: /model/<string:page_name_slugified>
     name_slugified = fields.Char(
         compute="_compute_name_slugified",
         inverse="_inverse_name_slugified",
@@ -118,11 +112,6 @@ class WebsiteControllerPage(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        # Only re-sync the related menus when the page name (hence its slug and
-        # route) actually changed. Doing it on *every* write reset a menu's
-        # custom label back to the page name on any unrelated edit (e.g.
-        # toggling ``is_published``) and issued a redundant write — which itself
-        # flushes the template cache — on each menu row.
         if "name" in vals or "name_slugified" in vals:
             for rec in self:
                 rec.menu_ids.write(
@@ -136,17 +125,12 @@ class WebsiteControllerPage(models.Model):
         return res
 
     def unlink(self):
-        # When a website_controller_page is deleted, the ORM does not delete its
-        # ir_ui_view. So we got to delete it ourself, but only if the
-        # ir_ui_view is not used by another website_page.
         views_to_delete = self.view_id.filtered(
             lambda v: v.controller_page_ids <= self and not v.inherit_children_ids
         )
-        # Rebind self to avoid unlink already deleted records from `ondelete="cascade"`
-        self = self - views_to_delete.controller_page_ids
+        self -= views_to_delete.controller_page_ids
         views_to_delete.unlink()
 
-        # Make sure website.is_menu_cache_disabled() will be recomputed
         if self:
             self.env.registry.clear_cache("templates")
         return super().unlink()

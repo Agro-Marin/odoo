@@ -25,7 +25,6 @@ class ResUsers(models.Model):
 
     @api.constrains("login", "website_id")
     def _check_login(self):
-        """Do not allow two users with the same login without website"""
         self.flush_model(["login", "website_id"])
         self.env.cr.execute(
             """SELECT login
@@ -57,9 +56,6 @@ class ResUsers(models.Model):
     @api.model
     def _signup_create_user(self, values):
         current_website = self.env["website"].get_current_website()
-        # Note that for the moment, portal users can connect to all websites of
-        # all companies as long as the specific_user_account setting is not
-        # activated.
         values["company_id"] = current_website.company_id.id
         values["company_ids"] = [Command.link(current_website.company_id.id)]
         if request and current_website.specific_user_account:
@@ -75,11 +71,6 @@ class ResUsers(models.Model):
         )
 
     def authenticate(self, credential, user_agent_env):
-        """Override to link the logged in user's res.partner to website.visitor.
-        If a visitor already exists for that user, assign it data from the
-        current anonymous visitor (if exists).
-        Purpose is to try to aggregate as much sub-records (tracked pages,
-        leads, ...) as possible."""
         visitor_pre_authenticate_sudo = None
         if request and request.env:
             visitor_pre_authenticate_sudo = request.env[
@@ -95,8 +86,6 @@ class ResUsers(models.Model):
                 .search([("partner_id", "=", user_partner.id)], limit=1)
             )
             if visitor_current_user_sudo:
-                # A visitor exists for the logged in user, link public
-                # visitor records to it.
                 if visitor_pre_authenticate_sudo != visitor_current_user_sudo:
                     visitor_pre_authenticate_sudo._merge_visitor(
                         visitor_current_user_sudo
@@ -116,7 +105,5 @@ class ResUsers(models.Model):
                 _("Remove website on related partner before they become internal user.")
             )
 
-    # The model inherits the publishing fields from res.partner, this implements
-    # the required method.
     def website_publish_button(self):
         return self.partner_id.website_publish_button()

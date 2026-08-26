@@ -1,8 +1,8 @@
 import contextlib
 import functools
 import logging
-
 from zoneinfo import ZoneInfoNotFoundError
+
 import werkzeug
 from lxml import etree
 
@@ -11,25 +11,18 @@ from odoo import SUPERUSER_ID, api, models, tools
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.datetime import timezone
 from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.http_routing.models import ir_http
 from odoo.addons.portal.controllers.portal import _build_url_w_params
-from odoo.libs.datetime import timezone
 
 logger = logging.getLogger(__name__)
 
 
 def sitemap_qs2dom(qs, route, field="name"):
-    """Convert a query_string (can contains a path) to a domain"""
     if qs and qs.lower() not in route:
-        # Drop the segments the route itself already carries, one occurrence
-        # each, keeping only the user-supplied needle(s):
-        # qs='shop/product/x' vs route='/shop/product' -> needles=['x'].
-        # (Historically done via unittest.util.unorderable_list_difference —
-        # a private test-library helper used for its list-mutation side
-        # effect; this is the same one-occurrence-per-segment semantics.)
         needles = qs.strip("/").split("/")
         for segment in route.strip("/").split("/"):
             with contextlib.suppress(ValueError):
@@ -42,20 +35,6 @@ def sitemap_qs2dom(qs, route, field="name"):
 
 
 def get_request_website():
-    """Return the website set on `request` if called in a frontend context
-    (website=True on route).
-    This method can typically be used to check if we are in the frontend.
-
-    This method is easy to mock during python tests to simulate frontend
-    context, rather than mocking every method accessing request.website.
-
-    Don't import directly the method or it won't be mocked during tests, do:
-    ```
-    from odoo.addons.website.models import ir_http
-
-    my_var = ir_http.get_request_website()
-    ```
-    """
     return (request and getattr(request, "website", False)) or False
 
 
@@ -67,12 +46,6 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def _routing_map_key(self):
-        # The routing map is scoped per website (rewrites/pages differ), so
-        # anything cached against it -- e.g. ``url_rewrite`` results -- must
-        # be discriminated the same way. ``getattr``: ``website_routing`` is
-        # only stamped on the request once ``_match`` runs; requests that
-        # never dispatched (e.g. direct model calls in tests) fall back to
-        # the unscoped map, as ``routing_map()`` itself would.
         return getattr(request, "website_routing", None) if request else None
 
     @classmethod
@@ -94,27 +67,12 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _url_for(cls, url_from: str, lang_code: str | None = None) -> str:
-        """Return the url with the rewriting applied.
-        Nothing will be done for absolute URL, invalid URL, or short URL from 1 char.
-
-        :param url_from: The URL to convert.
-        :param lang_code: Must be the lang `code`. It could also be something
-                          else, such as `'[lang]'` (used for url_return).
-        """
-        # RFC 3986 orders the components as path[?query][#fragment]: the
-        # fragment starts at the FIRST "#", and a "?" appearing after it belongs
-        # to the fragment, not to the query. Partitioning on "?" first therefore
-        # left "#frag" glued to the path of a URL like "/x#y?z", so the rewrite
-        # lookup ran against "/x#y", missed every rule, and the URL came back
-        # un-rewritten. Split the fragment off first, then the query, and
-        # reattach both in order.
         head, hash_, fragment = (url_from or "").partition("#")
         path, qmark, query = head.partition("?")
         suffix = qmark + query + hash_ + fragment
 
         if (
             path
-            # don't try to match route if we know that no rewrite has been loaded.
             and request.env["ir.http"]._rewrite_len(request.website_routing)
             and (
                 len(path) > 1
@@ -148,13 +106,6 @@ class IrHttp(models.AbstractModel):
         if not request:
             yield from super()._generate_routing_rules(modules)
             return
-        # Derive the website from :meth:`_routing_map_key`, the SAME source
-        # ``routing_map`` memoizes on. Reading ``request.website_routing``
-        # independently let the cache key and the data it keys disagree: a
-        # request that never dispatched has no ``website_routing``, so
-        # ``_routing_map_key`` answered None (unscoped map) while this method
-        # raised AttributeError -- or, under a ``Mock`` request, silently fed a
-        # Mock into the ``website.rewrite`` domain and blew up in psycopg.
         website_id = self._routing_map_key() or False
         logger.debug("_generate_routing_rules for website: %s", website_id)
         rewrites = self._get_rewrites(website_id)
@@ -168,7 +119,7 @@ class IrHttp(models.AbstractModel):
                 url_to = rewrite.url_to
                 if rewrite.redirect_type == "308":
                     logger.debug("Add rule %s for %s", url_to, website_id)
-                    yield url_to, endpoint  # yield new url
+                    yield url_to, endpoint
 
                     if url != url_to:
                         logger.debug(
@@ -177,7 +128,6 @@ class IrHttp(models.AbstractModel):
                             url_to,
                             website_id,
                         )
-                        # duplicate the endpoint to only register the redirect_to for this specific url
                         redirect_endpoint = functools.partial(endpoint)
                         functools.update_wrapper(redirect_endpoint, endpoint)
                         _slug_matching = functools.partial(
@@ -189,7 +139,7 @@ class IrHttp(models.AbstractModel):
                         yield (
                             url,
                             redirect_endpoint,
-                        )  # yield original redirected to new url
+                        )
                 elif rewrite.redirect_type == "404":
                     logger.debug("Return 404 for %s for website %s", url, website_id)
                     continue
@@ -198,9 +148,6 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _get_converters(cls) -> dict[str, type]:
-        """Get the converters list for custom url pattern werkzeug need to
-        match Rule. This override adds the website ones.
-        """
         return dict(
             super()._get_converters(),
             model=ModelConverter,
@@ -213,22 +160,19 @@ class IrHttp(models.AbstractModel):
             request.env(user=SUPERUSER_ID)["website"]
             .with_context(lang="en_US")
             .get_current_website()
-        )  # sudo
+        )
         if website:
             public_users.append(website._get_cached("user_id"))
         return public_users
 
     @classmethod
     def _auth_method_public(cls):
-        """If no user logged, set the public user of current website, or default
-        public user as request uid.
-        """
         if not request.session.uid:
             website = (
                 request.env(user=SUPERUSER_ID)["website"]
                 .with_context(lang="en_US")
                 .get_current_website()
-            )  # sudo
+            )
             if website:
                 request.update_env(user=website._get_cached("user_id"))
 
@@ -247,7 +191,7 @@ class IrHttp(models.AbstractModel):
         template = False
         if hasattr(response, "_cached_page"):
             website_page, template = response._cached_page, response._cached_view_id
-        elif hasattr(response, "qcontext"):  # classic response
+        elif hasattr(response, "qcontext"):
             main_object = response.qcontext.get("main_object")
             website_page = (
                 getattr(main_object, "_name", False) == "website.page" and main_object
@@ -287,12 +231,6 @@ class IrHttp(models.AbstractModel):
                     if not record.can_access_from_current_website():
                         raise werkzeug.exceptions.NotFound
                 except AccessError:
-                    # record.website_id might not be readable (e.g. an
-                    # unpublished `event.event` under an ir.rule). Return 404,
-                    # matching the not-accessible branch above, so a restricted
-                    # record is indistinguishable from a missing one — a 403
-                    # here would disclose its existence. Still no `sudo()`, so
-                    # the low-level perf argument is preserved.
                     raise werkzeug.exceptions.NotFound from None
 
     @classmethod
@@ -310,19 +248,6 @@ class IrHttp(models.AbstractModel):
         super()._frontend_pre_dispatch()
 
         if not request.env.context.get("tz"):
-            # ``location.time_zone`` is None whenever GeoIP cannot answer -- and
-            # it *never* answers unless a GeoLite2 **City** database is
-            # configured, which is not the default. Feeding that None to
-            # ``timezone()`` raises TypeError from deep inside ``zoneinfo``
-            # (``os.path.isabs(None)``), and TypeError is not
-            # ZoneInfoNotFoundError, so it escaped this suppress() and turned
-            # *every* frontend request into an HTTP 500 for any visitor whose
-            # context carries no tz -- which is every anonymous visitor of a
-            # site whose public user has no timezone set. The pytz call this
-            # replaced raised UnknownTimeZoneError for None and was therefore
-            # covered; the zoneinfo port lost that. Ask only when there is
-            # something to ask about, and keep suppressing the genuine
-            # "GeoIP named a zone this system does not know" case.
             geoip_tz = request.geoip.location.time_zone
             if geoip_tz:
                 with contextlib.suppress(ZoneInfoNotFoundError):
@@ -331,16 +256,11 @@ class IrHttp(models.AbstractModel):
         website = request.env["website"].get_current_website()
         user = request.env.user
 
-        # This is mainly to avoid access errors in website controllers
-        # where there is no context (eg: /shop), and it's not going to
-        # propagate to the global context of the tab. If the company of
-        # the website is not in the allowed companies of the user, set
-        # the main company of the user.
         website_company_id = website._get_cached("company_id")
-        if user.id == website._get_cached("user_id"):
-            # avoid a read on res_company_user_rel in case of public user
-            allowed_company_ids = [website_company_id]
-        elif website_company_id in user._get_company_ids():
+        if (
+            user.id == website._get_cached("user_id")
+            or website_company_id in user._get_company_ids()
+        ):
             allowed_company_ids = [website_company_id]
         else:
             allowed_company_ids = user.company_id.ids
@@ -360,21 +280,8 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def get_nearest_lang(self, lang_code):
-        # get_nearest_lang() is used by @http_routing:IrHttp._match
-        # where is_frontend is not yet set and when no backend endpoint
-        # matched. We have to assume we are going to match a frontend
-        # route, hence the default True. Elsewhere, request.is_frontend
-        # is set.
         website_id = False
-        # ``request`` is None for non-HTTP callers (cron, tests, plain RPC);
-        # the base method is request-independent, so only take the frontend
-        # branch when there actually is a request. ``request.website_routing``
-        # must also be read lazily (``dict.get`` evaluates its default eagerly).
         if request and getattr(request, "is_frontend", True):
-            # ``self.env.get`` resolves a *model name*, so "website_id" would
-            # never be found and the fallback was always used. Read the context
-            # key so an explicit ``website_id`` (e.g. multi-website rendering)
-            # is honored, falling back to the routed website.
             website_id = self.env.context.get("website_id") or getattr(
                 request, "website_routing", False
             )
@@ -384,12 +291,6 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def _get_default_lang(self):
-        # `getattr(request, "is_frontend", True)` is truthy when request is None
-        # (cron/test/RPC); guard on `request` first so we don't dereference
-        # `request.env` and crash instead of delegating to super(). That guard
-        # only became real once super() stopped reaching for `request.env`
-        # itself -- before, the no-request branch it protects raised
-        # "object is not bound" one frame deeper.
         if request and getattr(request, "is_frontend", True):
             website = self.env["website"].sudo().get_current_website()
             return self.env["res.lang"]._get_data(
@@ -403,9 +304,6 @@ class IrHttp(models.AbstractModel):
         installed = request.registry._init_modules.union(
             odoo.tools.config["server_wide_modules"]
         )
-        # Match the website frontend modules by name/prefix, not by an
-        # unanchored "website" substring which also drags in unrelated modules
-        # that merely contain the word, inflating the public translation bundle.
         return mods + [
             mod for mod in installed if mod == "website" or mod.startswith("website_")
         ]
@@ -416,7 +314,6 @@ class IrHttp(models.AbstractModel):
         WebsitePage = request.env["website.page"].sudo()
         page_info = WebsitePage._get_page_info(request)
 
-        # redirect to the right url
         if page_info and page_info["url"] != req_page:
             logger.info(
                 "Page %r not found, redirecting to existing page %r",
@@ -425,9 +322,7 @@ class IrHttp(models.AbstractModel):
             )
             return request.redirect(page_info["url"])
 
-        # redirect without trailing /
         if not page_info and req_page != "/" and req_page.endswith("/"):
-            # mimick `_postprocess_args()` redirect
             path = request.httprequest.path[:-1]
             if request.lang != request.env["ir.http"]._get_default_lang():
                 path = request.env["ir.http"]._lang_url_prefix(
@@ -447,17 +342,11 @@ class IrHttp(models.AbstractModel):
         req_page = request.httprequest.path
         req_page_with_qs = request.httprequest.environ["REQUEST_URI"]
         domain = Domain("redirect_type", "in", ("301", "302")) & Domain(
-            # trailing / could have been removed by server_page
             "url_from",
             "in",
             [req_page_with_qs, req_page.rstrip("/"), req_page + "/"],
         )
         Rewrite = request.env["website.rewrite"].sudo()
-        # Prefer a rewrite specific to the current website over a generic one
-        # (``website_id`` unset). Ordering the combined set only by ``url_from``
-        # let a generic rule with the same ``url_from`` (typically a lower id)
-        # shadow a per-website override, so query the specific rule first and
-        # fall back to the generic one.
         return Rewrite.search(
             domain & Domain("website_id", "=", request.website.id),
             order="url_from DESC",
@@ -470,12 +359,10 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _serve_fallback(cls):
-        # serve attachment before
         parent = super()._serve_fallback()
-        if parent:  # attachment
+        if parent:
             return parent
 
-        # minimal setup to serve frontend pages
         cls._frontend_pre_dispatch()
         cls._handle_debug()
 
@@ -490,19 +377,11 @@ class IrHttp(models.AbstractModel):
                 _build_url_w_params(redirect.url_to, request.params),
                 code=redirect.redirect_type,
                 local=False,
-            )  # safe because only designers can specify redirects
+            )
         return None
 
     @classmethod
     def _is_designer_404(cls, exception):
-        """Whether ``exception`` is a 404 that a website designer should see as
-        the "create this page" screen rather than as the public 404.
-
-        ``request`` is checked first: the mapping is otherwise request-free, and
-        reaching for ``request.env`` unguarded made the whole of
-        ``_get_exception_code_values`` unusable from a cron, a test or any plain
-        model call.
-        """
         return (
             isinstance(exception, werkzeug.exceptions.NotFound)
             and request
@@ -519,15 +398,6 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _get_exception_code_values(cls, exception):
         code, values = super()._get_exception_code_values(exception)
-        # Only ``values`` are enriched here; the code stays the HTTP status.
-        # Swapping it for a template token ("page_404") also switched off
-        # ``_handle_error``'s ``code in (404, 403)`` guard, so a logged-in
-        # designer silently lost the ``_serve_fallback`` attempt -- the
-        # website.page / website.rewrite / attachment retry -- that an anonymous
-        # visitor got. Template selection now lives in _get_error_template.
-        # ``request`` guarded on both: ``values["path"]`` only matters to the
-        # template, which cannot render without a request anyway, while the
-        # status mapping itself must stay answerable from a cron or a test.
         if cls._is_designer_404(exception):
             values["path"] = request.httprequest.path[1:]
         if request and cls._is_password_protected_403(exception):
@@ -554,9 +424,6 @@ class IrHttp(models.AbstractModel):
             if not view or (qweb_error.element and qweb_error.element in view.arch):
                 values["view"] = view
             else:
-                # There might be 2 cases where the exception code can't be found
-                # in the view, either the error is in a child view or the code
-                # contains branding (<div t-att-data="request.browse('ok')"/>).
                 et = view.with_context(inherit_branding=False)._get_combined_arch()
                 node = et.xpath(qweb_error.path) if qweb_error.path else et
                 line = (
@@ -569,7 +436,6 @@ class IrHttp(models.AbstractModel):
                         lambda v: line in v.arch
                     )
                     values["view"] = values["view"] and values["view"][0]
-        # Needed to show reset template on translated pages (`_prepare_environment` will set it for main lang)
         values["editable"] = request.env.uid and request.env.user.has_group(
             "website.group_website_designer"
         )
@@ -607,33 +473,16 @@ class IrHttp(models.AbstractModel):
         result = super()._is_allowed_cookie(cookie_type)
         if result and cookie_type == "optional":
             website = request.env["website"].get_current_website()
-            # ``_get_cached`` rather than a plain ``website.cookies_bar`` read:
-            # this runs on every frontend request (it is part of the
-            # ``website.page`` response cache key), and a plain read prefetches
-            # the whole ``website`` record -- one extra SELECT on every hot page
-            # render. Guard on ``website`` first: ``_get_cached`` calls
-            # ``ensure_one()``, while the previous attribute read simply
-            # evaluated falsy on the empty recordset ``get_current_website()``
-            # returns when the database holds no website at all.
             if not website or not website._get_cached("cookies_bar"):
-                # Cookies bar is disabled on this website
                 return True
             try:
                 accepted_cookie_types = json_scriptsafe.loads(
                     request.cookies.get("website_cookies_bar", "{}")
                 )
             except ValueError:
-                # The cookie is client-side state: it can be truncated by a
-                # proxy, mangled by another app sharing the domain, or simply
-                # forged. A JSONDecodeError here escaped as an HTTP 500 on
-                # *every* frontend page for that visitor, with no way out but
-                # clearing cookies by hand. Treat an unreadable value exactly
-                # like the pre-16.0 one below: drop it and ask again.
                 request.future_response.set_cookie("website_cookies_bar", max_age=0)
                 return False
 
-            # pre-16.0 compatibility, `website_cookies_bar` was `"true"`.
-            # In that case we delete that cookie and let the user choose again.
             if not isinstance(accepted_cookie_types, dict):
                 request.future_response.set_cookie("website_cookies_bar", max_age=0)
                 return False
@@ -642,8 +491,6 @@ class IrHttp(models.AbstractModel):
                 return accepted_cookie_types["optional"]
             return False
 
-        # Pass-through if already forbidden for another reason or a type that
-        # is not restricted by the website module.
         return result
 
 
@@ -653,11 +500,10 @@ class ModelConverter(ir_http.ModelConverter):
             return value.env.context.get("_converter_value", str(value.id))
         return super().to_url(value)
 
-    def generate(self, env, args, dom=None):
+    def generate(self, env, args, dom=None, domain=None):
         Model = env[self.model]
-        # Allow to current_website_id directly in route domain
         args["current_website_id"] = env["website"].get_current_website().id
-        domain = safe_eval(self.domain, args)
+        domain = safe_eval(self.domain if domain is None else domain, args)
         if dom:
             domain += dom
         yield from Model.search(domain)

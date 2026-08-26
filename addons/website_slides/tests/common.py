@@ -142,9 +142,9 @@ class SlidesCase(MailCase):
         # supported path. An eLearning officer holds no direct survey.survey
         # rights (website_slides_survey confines them to certifications), so
         # building the fixture as user_officer raised AccessError and took the
-        # whole suite down at setUpClass. _ensure_quiz_survey is the API the
+        # whole suite down at setUpClass. _check_quiz_survey is the API the
         # controller uses, and it owns the sudo.
-        cls.slide_3._ensure_quiz_survey()
+        cls.slide_3._check_quiz_survey()
         cls.quiz_survey = cls.slide_3.survey_id
         cls.question_1 = (
             cls.env["survey.question"]

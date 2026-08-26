@@ -42,12 +42,6 @@ class IrModel(models.Model):
     website_form_key = fields.Char(help="Used in FormBuilder Registry")
 
     def _get_fields_form_writable(self, property_origins=None):
-        """
-        Restriction of "authorized fields" (fields which can be used in the
-        form builders) to fields which have actually been opted into form
-        builders and are writable. By default no field is writable by the
-        form builder.
-        """
         if self.model == "mail.mail":
             included = {
                 "email_from",
@@ -79,12 +73,6 @@ class IrModel(models.Model):
 
     @api.model
     def get_fields_authorized(self, model_name, property_origins):
-        """Return the fields of the given model name as a mapping like method `fields_get`."""
-        # RPC-reachable and leaks field metadata + SUPERUSER default values for
-        # an arbitrary model, so gate it like its form-builder siblings
-        # (``get_compatible_form_models`` / ``formbuilder_whitelist``). The
-        # internal submission path calls this via ``with_user(SUPERUSER_ID)``,
-        # which satisfies the check.
         if not self.env.user.has_group("website.group_website_restricted_editor"):
             raise AccessError(
                 _("Only website editors can introspect form model fields.")
@@ -95,15 +83,10 @@ class IrModel(models.Model):
         for val in model._inherits.values():
             fields_get.pop(val, None)
 
-        # Unrequire fields with default values
         default_values = model.with_user(SUPERUSER_ID).default_get(list(fields_get))
         for field in [f for f in fields_get if f in default_values]:
             fields_get[field]["required"] = False
 
-        # Remove readonly, JSON, and magic fields
-        # Remove string domains which are supposed to be evaluated
-        # (e.g. "[('product_id', '=', product_id)]")
-        # Expand properties fields
         for field in list(fields_get):
             if "domain" in fields_get[field] and isinstance(
                 fields_get[field]["domain"], str
@@ -119,10 +102,6 @@ class IrModel(models.Model):
                 property_field = fields_get[field]
                 del fields_get[field]
                 if property_origins:
-                    # Add property pseudo-fields
-                    # The properties of a property field are defined in a
-                    # definition record (e.g. properties inside a project.task
-                    # are defined inside its related project.project)
                     definition_record = property_field["definition_record"]
                     if definition_record in property_origins:
                         definition_record_field = property_field[
@@ -131,7 +110,6 @@ class IrModel(models.Model):
                         relation_field = fields_get[definition_record]
                         definition_model = self.env[relation_field["relation"]]
                         if not property_origins[definition_record].isdigit():
-                            # Do not fail on malformed forms.
                             continue
                         definition_record = definition_model.browse(
                             int(property_origins[definition_record])
@@ -156,7 +134,6 @@ class IrModel(models.Model):
                                 )
                                 or (property_definition["type"] == "separator")
                             ):
-                                # Ignore non-fully defined properties
                                 continue
                             property_definition["_property"] = {
                                 "field": field,
@@ -173,10 +150,6 @@ class IrModel(models.Model):
                                         Domain(property_definition["domain"])
                                     )
                                 except Exception:  # noqa: S112
-                                    # Intentionally ignore properties whose
-                                    # domain is not fully defined yet (e.g. one
-                                    # being edited); they are simply skipped from
-                                    # the form's available fields.
                                     continue
                             fields_get[property_definition.get("name")] = (
                                 property_definition
@@ -195,23 +168,15 @@ class IrModel(models.Model):
 
 
 class IrModelFields(models.Model):
-    """fields configuration for form builder"""
-
     _description = "Fields"
     _inherit = "ir.model.fields"
 
     def init(self):
-        # set all existing unset website_form_blacklisted fields to ``true``
-        #  (so that we can use it as a whitelist rather than a blacklist)
         self.env.cr.execute(
             "UPDATE ir_model_fields"
             " SET website_form_blacklisted=true"
             " WHERE website_form_blacklisted IS NULL"
         )
-        # add an SQL-level default value on website_form_blacklisted to that
-        # pure-SQL ir.model.field creations (e.g. in _reflect) generate
-        # the right default value for a whitelist (aka fields should be
-        # blacklisted by default)
         self.env.cr.execute(
             "ALTER TABLE ir_model_fields "
             " ALTER COLUMN website_form_blacklisted SET DEFAULT true"
@@ -219,7 +184,6 @@ class IrModelFields(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _check_if_used_in_website_form(self):
-        """Prevent field deletion if used in a website form."""
         for field in self:
             for model_name, field_name in self.env["website"]._get_fields_html():
                 domain = [(field_name, "ilike", f'data-model_name="{field.model}"')]
@@ -230,12 +194,6 @@ class IrModelFields(models.Model):
                     content = record[field_name]
                     if not content:
                         continue
-                    # Parse with the HTML parser, not ``etree.fromstring``: these
-                    # are HTML fields (blog bodies, snippet html, ...), commonly
-                    # non-well-formed XML — multiple roots, void tags, ``&``. The
-                    # XML parser raised ``XMLSyntaxError`` out of this ondelete
-                    # hook, making an unrelated field deletion fail. Unparseable
-                    # content can't reference the field, so skip it.
                     try:
                         arch_parsed = html.fromstring(content)
                     except etree.ParserError, etree.XMLSyntaxError, ValueError:
@@ -255,16 +213,9 @@ class IrModelFields(models.Model):
 
     @api.model
     def formbuilder_whitelist(self, model, fields):
-        """
-        :param str model: name of the model on which to whitelist fields
-        :param list(str) fields: list of fields to whitelist on the model
-        :return: nothing of import
-        """
-        # postgres does *not* like ``in [EMPTY TUPLE]`` queries
         if not fields:
             return False
 
-        # only allow users who can change the website structure
         if not self.env.user.has_group("website.group_website_designer"):
             return False
 
@@ -277,10 +228,6 @@ class IrModelFields(models.Model):
                 % (unexisting_fields, model)
             )
 
-        # the ORM only allows writing on custom fields and will trigger a
-        # registry reload once that's happened. We want to be able to
-        # whitelist non-custom fields and the registry reload absolutely
-        # isn't desirable, so go with a method and raw SQL
         self.env.cr.execute(
             "UPDATE ir_model_fields"
             " SET website_form_blacklisted=false"

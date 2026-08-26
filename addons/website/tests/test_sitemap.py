@@ -1,4 +1,8 @@
+import ast
 import functools
+import inspect
+import textwrap
+import types
 from unittest.mock import patch
 
 from odoo.tests import HttpCase, TransactionCase, tagged
@@ -53,7 +57,6 @@ class TestWebsiteSitemap(TransactionCase):
     def test_sitemap_dedup_overridden_controllers(self):
         website = self.env["website"].search([], limit=1)
 
-        # Fake router and rule to simulate two sitemap entries with and without trailing slash
         def fake_sitemap_callable(env, rule, qs):
             yield {"loc": "/dupe"}
             yield {"loc": "/dupe/"}
@@ -68,7 +71,6 @@ class TestWebsiteSitemap(TransactionCase):
             def iter_rules(self):
                 return [FakeRule()]
 
-        # Patch routing_map to return our fake router so only our fake rules are considered
         with patch(
             "odoo.addons.website.models.ir_http.IrHttp.routing_map",
             autospec=True,
@@ -77,23 +79,12 @@ class TestWebsiteSitemap(TransactionCase):
             locs = list(website.with_user(website.user_id)._enumerate_pages())
 
         dupes = [l["loc"] for l in locs if l["loc"].startswith("/dupe")]
-        # Only one entry should remain, normalized to '/dupe'
         self.assertEqual(dupes, ["/dupe"])
 
     def test_sitemap_callable_dedup_with_partial_and_bound(self):
-        # Some routes are duplicated at runtime (e.g., when a redirect
-        # is configured). The framework may clone an existing endpoint for the
-        # extra rule, and 3rd-party modules sometimes wrap callables using
-        # `functools.partial` to adapt them.
-        # As a result, the very same sitemap generator can be referenced in two
-        # different ways: once as a classic bound method (self.sitemap) and once
-        # as a `functools.partial(self.sitemap)` wrapper.
-        # If we were deduplicating based on the callable object identity only,
-        # those two references would look different and the sitemap code could
-        # run twice.
         website = self.env["website"].search([], limit=1)
 
-        call_count = {"n": 0}  # mutable object to be used in CallableHolder.
+        call_count = {"n": 0}
 
         class CallableHolder:
             def sitemap(self, env, rule, qs):
@@ -102,14 +93,12 @@ class TestWebsiteSitemap(TransactionCase):
 
         holder = CallableHolder()
 
-        # First rule uses the bound method directly
         class EndpointBound:
             routing = {"sitemap": holder.sitemap}
 
         class RuleBound:
             endpoint = EndpointBound()
 
-        # Second rule uses a partial wrapping the same bound method
         class EndpointPartial:
             routing = {"sitemap": functools.partial(holder.sitemap)}
 
@@ -127,23 +116,59 @@ class TestWebsiteSitemap(TransactionCase):
         ):
             locs = list(website.with_user(website.user_id)._enumerate_pages())
 
-        # The sitemap callable should have been executed only once
         self.assertEqual(call_count["n"], 1)
-        # And the returned loc should be present (normalized already)
         self.assertIn({"loc": "/once"}, locs)
+
+    def test_sitemap_callbacks_ignore_their_rule_argument(self):
+        offenders = []
+        seen = set()
+        for rule in self.env["ir.http"].routing_map().iter_rules():
+            func = rule.endpoint.routing.get("sitemap")
+            if not callable(func):
+                continue
+            if isinstance(func, functools.partial):
+                func = func.func
+            if isinstance(func, types.MethodType):
+                func = func.__func__
+            if func in seen:
+                continue
+            seen.add(func)
+            try:
+                source = inspect.getsource(func)
+            except OSError, TypeError:
+                continue
+            tree = ast.parse(textwrap.dedent(source))
+            defs = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            ]
+            if not defs:
+                continue
+            params = [arg.arg for arg in defs[0].args.args]
+            if "rule" not in params:
+                continue
+            body = ast.Module(body=defs[0].body, type_ignores=[])
+            if any(
+                isinstance(node, ast.Name) and node.id == "rule"
+                for node in ast.walk(body)
+            ):
+                offenders.append(f"  {func.__module__}.{func.__qualname__}")
+
+        self.assertFalse(
+            offenders,
+            "%s sitemap callback(s) read the `rule` they are handed, which the "
+            "dedup in `_enumerate_pages` assumes none of them does -- so only "
+            "the first of the endpoint's URL patterns would ever be "
+            "generated:\n%s" % (len(offenders), "\n".join(offenders)),
+        )
 
 
 @tagged("-at_install", "post_install")
 class TestWebsiteSitemapHost(HttpCase):
     def test_sitemap_ignores_host_header(self):
-        """A varying (client-controlled) Host must neither mint new sitemap
-        attachments (DoS) nor leak into the emitted URLs. With no configured
-        domain the canonical root is pinned to the server-controlled
-        ``web.base.url`` instead of the request Host."""
         website = self.env["website"].search([], limit=1)
-        website.domain = False  # exercise the no-domain (pinned) path
-        # Freeze a known canonical base so the assertions are deterministic and
-        # independent of the test server's host/port.
+        website.domain = False
         ICP = self.env["ir.config_parameter"].sudo()
         ICP.set_param("web.base.url", "http://canonical.example")
         ICP.set_param("web.base.url.freeze", "1")
@@ -162,16 +187,13 @@ class TestWebsiteSitemapHost(HttpCase):
             ("type", "=", "binary"),
             ("url", "=like", "/sitemap-%d-%%" % website.id),
         ]
-        Attachment.search(dom).unlink()  # clean slate
+        Attachment.search(dom).unlink()
 
-        # First crawl with a spoofed Host generates + caches the sitemap.
         r1 = self.url_open("/sitemap.xml", headers={"Host": "evil-a.example"})
         self.assertEqual(r1.status_code, 200)
         n1 = Attachment.search_count(dom)
         self.assertTrue(n1, "a sitemap should have been generated")
 
-        # A crawl with a DIFFERENT spoofed Host must reuse the same cache: no
-        # new attachments, and neither attacker Host present in the body.
         r2 = self.url_open("/sitemap.xml", headers={"Host": "evil-b.example"})
         self.assertEqual(r2.status_code, 200)
         self.assertEqual(
@@ -181,5 +203,4 @@ class TestWebsiteSitemapHost(HttpCase):
         )
         self.assertNotIn(b"evil-a.example", r2.content)
         self.assertNotIn(b"evil-b.example", r2.content)
-        # The emitted absolute URLs use the server-controlled canonical root.
         self.assertIn(b"canonical.example", r2.content)

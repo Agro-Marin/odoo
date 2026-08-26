@@ -4,12 +4,6 @@ from odoo.tests import HttpCase, tagged
 @tagged("-at_install", "post_install")
 class TestHttpEndPoint(HttpCase):
     def test_can_clear_routing_map_during_render(self):
-        """
-        The routing map might be cleared while rendering a qweb view.
-        For example, if an asset bundle is regenerated the old one is unlinked,
-        which causes a cache clearing.
-        This test ensures that the rendering still works, even in this case.
-        """
         homepage_view = self.env["ir.ui.view"].search(
             [
                 ("website_id", "=", self.env.ref("website.default_website").id),
@@ -39,5 +33,4 @@ class TestHttpEndPoint(HttpCase):
         self.assertURLEqual(res.headers.get("Location"), "/test_http/greeting")
 
     def test_404(self):
-        # the main purpose of this test is to cover the http._serve_db handle_error
         self.url_open("/not_found")

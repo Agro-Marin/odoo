@@ -247,7 +247,7 @@
                         'analytics_storage': 'granted',
                     });
                 }
-                <t t-if="website._allConsentsGranted()">
+                <t t-if="website._all_consents_granted()">
                     allConsentsGranted();
                 </t>
                 <t t-else="">

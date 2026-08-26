@@ -7,8 +7,12 @@ from . import test_load_chatter_bundle
 from . import test_mail
 from . import test_security
 from . import test_slide_channel
+from . import test_slide_completion
+from . import test_slide_karma_ladder
 from . import test_slide_orm_overrides
+from . import test_slide_permissions
 from . import test_slide_question
+from . import test_slide_quiz_editing
 from . import test_slide_resource
 from . import test_slide_slide
 from . import test_statistics

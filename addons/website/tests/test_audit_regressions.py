@@ -1,10 +1,3 @@
-"""Regressions found by the website audit.
-
-Every test here fails on the code as it stood before the accompanying fix; each
-one is anchored to the specific defect it guards, so a future refactor that
-reintroduces the defect fails loudly rather than silently.
-"""
-
 from unittest.mock import MagicMock, patch
 
 import psycopg
@@ -12,6 +5,7 @@ import requests
 import werkzeug
 from lxml import html
 
+from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase, TransactionCase, new_test_user
@@ -23,7 +17,6 @@ from odoo.addons.website.controllers.main import Website
 
 
 def _fake_google_response(content, content_type):
-    """A minimal stand-in for a streamed ``requests`` response."""
     resp = MagicMock()
     resp.raise_for_status.return_value = None
     resp.headers = {"content-type": content_type}
@@ -36,24 +29,16 @@ def _fake_google_response(content, content_type):
 @tagged("post_install", "-at_install")
 class TestWebsiteHostHeader(TransactionCase):
     def test_malformed_host_header_does_not_raise(self):
-        """A malformed ``Host`` must not take down every frontend page.
-
-        ``_get_current_website_id`` receives the raw request host. The ``idna``
-        codec raises ``UnicodeError`` on a DNS label over 63 bytes and on an
-        empty label, both trivially settable by an anonymous client, and the
-        exception used to escape as an HTTP 500 on *every* route.
-        """
         website = self.env["website"].sudo()
         for host in (
-            "a" * 64 + ".example.com",  # label too long
-            "a" * 300,  # way too long
-            "a..b",  # empty label
-            "",  # empty host
-            "example.com",  # control: valid
-            "xn--e1afmkfd.xn--p1ai",  # control: already punycode
-            "пример.рф",  # control: unicode
+            "a" * 64 + ".example.com",
+            "a" * 300,
+            "a..b",
+            "",
+            "example.com",
+            "xn--e1afmkfd.xn--p1ai",
+            "пример.рф",
         ):
-            # must resolve to *some* website rather than raising
             self.assertTrue(
                 website._get_current_website_id(host),
                 f"host {host!r} should resolve via fallback, not raise",
@@ -63,34 +48,18 @@ class TestWebsiteHostHeader(TransactionCase):
         website = self.env["website"].create(
             {"name": "Punycode", "domain": "http://" + "a" * 64 + ".example.com"}
         )
-        # must not raise; falls back to the domain unchanged
         self.assertTrue(website.domain_punycode)
 
     def test_domain_punycode_only_rewrites_the_host(self):
-        """Only the netloc is punycoded, not a hostname echoed in the path.
-
-        A blanket ``str.replace`` rewrote every occurrence of the hostname,
-        including one that happened to recur in the path/query.
-        """
         website = self.env["website"].create(
             {"name": "Echo", "domain": "http://ex.com/go?to=ex.com"}
         )
-        # ex.com is ASCII already, so punycode is a no-op: the path copy must be
-        # left intact and the value must round-trip unchanged.
         self.assertEqual(website.domain_punycode, "http://ex.com/go?to=ex.com")
 
 
 @tagged("post_install", "-at_install")
 class TestTemplateCacheInvalidation(TransactionCase):
     def test_blocklist_change_takes_effect(self):
-        """Writing a template-affecting field must flush the compiled templates.
-
-        ``clear_cache()`` with no argument resolves to the "default" group,
-        which does NOT contain "templates". The third-party blocklist and the
-        CDN rewrite of literal URLs are baked into templates at compile time, so
-        without an explicit flush an admin adding a tracker domain sees no
-        effect on any already-compiled page -- a privacy control failing open.
-        """
         website = self.env["website"].browse(1)
         website.write(
             {
@@ -141,18 +110,10 @@ class TestTemplateCacheInvalidation(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestMenuUnlinkFanout(TransactionCase):
     def test_generic_container_unlink_spares_other_websites(self):
-        """Deleting a generic container must not delete unrelated dropdowns.
-
-        ``unlink`` fans out to the per-website copies ``create`` made, matching
-        on ``url``. But ``_compute_url`` collapses every menu with children (and
-        every mega menu) to ``"#"``, so the fan-out used to match every
-        container menu in the database and destroy other websites' menus.
-        """
         Menu = self.env["website.menu"]
         main_menu = self.env.ref("website.main_menu")
         website_2 = self.env["website"].create({"name": "Audit W2"})
 
-        # an unrelated dropdown owned by website 2
         victim = Menu.create(
             {
                 "name": "Victim",
@@ -168,7 +129,6 @@ class TestMenuUnlinkFanout(TransactionCase):
                 "website_id": website_2.id,
             }
         )
-        # a generic container under the main menu
         generic = Menu.create({"name": "GenericDrop", "parent_id": main_menu.id})
         Menu.create({"name": "GenericChild", "parent_id": generic.id, "url": "/gc"})
         Menu.invalidate_model()
@@ -182,7 +142,6 @@ class TestMenuUnlinkFanout(TransactionCase):
         self.assertTrue(victim_child.exists(), "and so must its child")
 
     def test_generic_navigable_unlink_still_removes_copies(self):
-        """The legitimate fan-out must keep working for navigable URLs."""
         Menu = self.env["website.menu"]
         main_menu = self.env.ref("website.main_menu")
         self.env["website"].create({"name": "Audit W2"})
@@ -204,12 +163,6 @@ class TestMenuUnlinkFanout(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestMultiWebsitePageScoping(TransactionCase):
     def test_is_homepage_is_website_scoped(self):
-        """``is_homepage`` must answer for the website being looked at.
-
-        Without ``depends_context("website_id")`` the ORM caches one value per
-        record across contexts, so whichever website is read first wins and the
-        homepage badge lands on the wrong page in the multi-website Pages list.
-        """
         website_1 = self.env["website"].browse(1)
         website_2 = self.env["website"].create({"name": "Audit W2"})
         page = self.env["website.page"].search(
@@ -221,25 +174,17 @@ class TestMultiWebsitePageScoping(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # read website 1 first, then website 2
         self.assertTrue(page.with_context(website_id=website_1.id).is_homepage)
         self.assertFalse(
             page.with_context(website_id=website_2.id).is_homepage,
             "website 1's answer must not leak into website 2's context",
         )
 
-        # and the other order, to prove the cache key works both ways
         self.env.invalidate_all()
         self.assertFalse(page.with_context(website_id=website_2.id).is_homepage)
         self.assertTrue(page.with_context(website_id=website_1.id).is_homepage)
 
     def test_page_rename_does_not_repoint_other_websites(self):
-        """Renaming website 1's page must not move website 2's homepage.
-
-        The homepage was synced by matching the ``homepage_url`` *string* across
-        every website, so a sibling website serving its own page at the same URL
-        had its homepage repointed to a URL it cannot resolve.
-        """
         website_1 = self.env["website"].browse(1)
         website_2 = self.env["website"].create({"name": "Audit W2"})
 
@@ -278,15 +223,6 @@ class TestMultiWebsitePageScoping(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestWebsiteFormIntegrityError(TransactionCase):
     def test_constraint_violation_returns_false_not_500(self):
-        """A DB constraint violation must degrade to ``false``, not a 500.
-
-        ``_handle_website_form`` used to catch IntegrityError itself and return
-        ``json.dumps(False)``. But an IntegrityError aborts the transaction, so
-        returning normally left the caller's ``sp.close(rollback=False)`` to run
-        on a dead cursor and raise InFailedSqlTransaction -- making the graceful
-        path dead code and turning every constraint violation on a public,
-        unauthenticated endpoint into an HTTP 500.
-        """
         self.env.ref("base.model_res_partner").website_form_access = True
         self.env["ir.model.fields"].formbuilder_whitelist("res.partner", ["name"])
         controller = WebsiteForm()
@@ -294,7 +230,6 @@ class TestWebsiteFormIntegrityError(TransactionCase):
 
         def failing_insert_record(*args, **kwargs):
             original_insert_record(*args, **kwargs)
-            # Provoke a genuine constraint violation on the same cursor.
             self.env.cr.execute(
                 "INSERT INTO res_company_users_rel (cid, user_id) VALUES (%s, %s)",
                 (2147483000, 2147483001),
@@ -310,7 +245,6 @@ class TestWebsiteFormIntegrityError(TransactionCase):
                 b"false",
                 "a constraint violation must return the graceful 'false'",
             )
-            # The cursor must be usable again, i.e. the savepoint rolled back.
             self.env.cr.execute("SELECT 1")
             self.assertEqual(self.env.cr.fetchone()[0], 1)
 
@@ -318,11 +252,6 @@ class TestWebsiteFormIntegrityError(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestVisitorPageSearch(TransactionCase):
     def test_search_by_page_id_finds_visitor(self):
-        """``page_ids`` is a m2m of website.page, so it is searched by id.
-
-        Comparing those ids against ``page_id.name`` matched nothing and
-        returned an empty recordset instead of raising -- a silent wrong answer.
-        """
         page = self.env["website.page"].search([], limit=1)
         self.assertTrue(page, "need at least one page")
         visitor = self.env["website.visitor"].create({"access_token": "a" * 32})
@@ -339,15 +268,6 @@ class TestVisitorPageSearch(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestCustomAssetIsolation(TransactionCase):
     def test_custom_scss_does_not_bleed_across_websites(self):
-        """One website's compiled CSS must never be served to another.
-
-        ``_prepare_custom_asset_url`` mints a URL with no website component, so two
-        websites customising the same file produce attachments sharing a URL and
-        (within one transaction) a ``write_date``. The bundle version is hashed
-        over exactly those, so it collided while the content differed, and the
-        store's cross-params fallback then copied one website's compiled bytes
-        under the other's URL.
-        """
         Assets = self.env["website.assets"]
         website_1 = self.env["website"].browse(1)
         website_2 = self.env["website"].create({"name": "Audit W2"})
@@ -395,14 +315,6 @@ class TestCustomAssetIsolation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestControllerPageSlugPerWebsite(TransactionCase):
-    """A model-page slug is unique *per website*, not globally.
-
-    The ``/model/<slug>`` resolver disambiguates by ``website_domain()`` and
-    ``_order`` puts the website-specific row first, so two websites (and a
-    generic + a per-website override) may legitimately serve the same slug. A
-    global ``UNIQUE(name_slugified)`` forbade exactly that.
-    """
-
     def _make_page(self, website, view_key):
         view = self.env["ir.ui.view"].create(
             {
@@ -426,7 +338,6 @@ class TestControllerPageSlugPerWebsite(TransactionCase):
         website_2 = self.env["website"].create({"name": "Audit Slug W2"})
         self._make_page(website_1, "audit_slug_a")
         self._make_page(website_2, "audit_slug_b")
-        # Must NOT raise: same slug, different websites.
         self.env.flush_all()
 
     def test_same_slug_rejected_on_same_website(self):
@@ -440,38 +351,15 @@ class TestControllerPageSlugPerWebsite(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestWebsiteFormTagsUnescape(TransactionCase):
-    """The form ``tags`` filter unescapes ``\\,`` -> ``,`` and ``\\\\`` -> ``\\``.
-
-    The previous ``\\/`` -> ``\\`` rule was a typo: it never restored an escaped
-    backslash and corrupted any value containing ``\\/``.
-    """
-
     def test_tags_unescape(self):
         tags = WebsiteForm().tags
-        # Plain split on unescaped commas.
         self.assertEqual(tags("t", "a,b,c"), ["a", "b", "c"])
-        # An escaped comma stays inside its tag.
         self.assertEqual(tags("t", r"a\,b,c"), ["a,b", "c"])
-        # An escaped backslash collapses to a single one (was corrupted before).
         self.assertEqual(tags("t", r"a\\b"), [r"a\b"])
-
-
-# NB: the cross-domain website_force redirect fix (request.redirect(...,
-# local=False)) is verified end-to-end against a live server rather than here:
-# MockRequest wires request.redirect straight to ir.http._redirect, which does
-# not accept the `local` kwarg the real Request.redirect consumes, so the mock
-# cannot model this path faithfully.
 
 
 @tagged("post_install", "-at_install")
 class TestResetTemplateAuthz(TransactionCase):
-    """``/website/reset_template`` must require the restricted-editor group.
-
-    It resets stored view arch (and, via website_id=None, the shared generic
-    arch affecting every website), so it needs the same gate its sibling
-    builder routes carry rather than relying solely on the ir.ui.view ACL.
-    """
-
     def test_portal_user_forbidden(self):
         portal = new_test_user(
             self.env, login="audit_portal", groups="base.group_portal"
@@ -485,8 +373,6 @@ class TestResetTemplateAuthz(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestPlausibleShareUrlParsing(TransactionCase):
-    """A pasted Plausible *share* URL is split into (auth key, site)."""
-
     def test_share_url_is_split_into_key_and_site(self):
         config = self.env["res.config.settings"].create(
             {"website_id": self.env["website"].browse(1).id}
@@ -501,13 +387,6 @@ class TestPlausibleShareUrlParsing(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestGoogleFontFetchHardening(TransactionCase):
-    """Localising a Google font validates and bounds the remote responses.
-
-    The fetch runs inside the settings-save transaction and stores *public*
-    attachments, so a failed/oversized/mistyped response must degrade the font
-    to online rather than 500 the save or persist arbitrary bytes.
-    """
-
     _CSS = (
         b"@font-face{font-family:'Test';"
         b"src: url(https://fonts.gstatic.com/s/test/v1/abc.woff2) format('woff2');}"
@@ -569,14 +448,6 @@ class TestGoogleFontFetchHardening(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestVisitorUpsertSeam(TransactionCase):
-    """The visitor upsert core is exercisable without a request.
-
-    `_upsert_visitor` takes its attributes as explicit keyword arguments
-    (falling back to `request` in production), so its SQL -- the 8h visit-count
-    window, the timezone back-fill on conflict, and the anonymous-vs-partner
-    token branch -- is now coverable from a plain TransactionCase.
-    """
-
     def setUp(self):
         super().setUp()
         self.Visitor = self.env["website.visitor"]
@@ -639,11 +510,9 @@ class TestVisitorUpsertSeam(TransactionCase):
         vid, _ = self.Visitor._upsert_visitor(token, **kw)
         self.env.invalidate_all()
         self.assertEqual(self.Visitor.browse(vid).visit_count, 1)
-        # A second hit within 8h is the same visit.
         self.Visitor._upsert_visitor(token, **kw)
         self.env.invalidate_all()
         self.assertEqual(self.Visitor.browse(vid).visit_count, 1)
-        # Backdate the last connection beyond 8h -> the next hit is a new visit.
         self.env.cr.execute(
             "UPDATE website_visitor "
             "SET last_connection_datetime = (now() at time zone 'UTC') - INTERVAL '9 hours' "
@@ -674,9 +543,6 @@ class TestVisitorUpsertSeam(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestProtectedPageUnlock(HttpCase):
-    """``visibility = 'password'`` must stay unlocked for the rest of the session,
-    and must never leak through the shared full-page response cache."""
-
     URL = "/test-audit-protected"
     BODY = "AUDITSECRETBODY"
 
@@ -703,14 +569,6 @@ class TestProtectedPageUnlock(HttpCase):
         return self.url_open(self.URL, params=params, allow_redirects=False)
 
     def test_unlock_survives_the_next_request(self):
-        """The whole point of ``session['views_unlock']``.
-
-        ``session.setdefault('views_unlock', []).append(id)`` never reached the
-        session: ``Session.__setitem__`` stores a JSON-coerced *copy* of the
-        list, so the append landed on an orphan; and a later in-place append
-        does not set ``is_dirty`` either, so it is not persisted. The visitor
-        was asked for the password again on every single page load.
-        """
         denied = self._get()
         self.assertEqual(denied.status_code, 403)
         self.assertNotIn(self.BODY, denied.text)
@@ -728,21 +586,12 @@ class TestProtectedPageUnlock(HttpCase):
         self.assertIn(self.BODY, again.text)
 
     def test_a_protected_page_is_marked_uncacheable(self):
-        """Its body depends on the session, so no shared cache may keep it.
-
-        Odoo emits no ``Cache-Control`` on a rendered page, so a proxy or CDN in
-        front of the site is free to treat the 200 as heuristically cacheable
-        and hand one visitor's unlocked copy to the next. The in-process
-        response cache is refused separately (``_allow_to_use_cache``); this is
-        the same statement made to the network.
-        """
         self.assertEqual(self._get(visibility_password="hunter2").status_code, 200)
         opened = self._get()
         self.assertEqual(opened.status_code, 200)
         self.assertEqual(
             opened.headers.get("Cache-Control"), "private, no-store, max-age=0"
         )
-        # An ordinary public page must keep its (absent) caching policy.
         plain = self.url_open("/", allow_redirects=False)
         self.assertEqual(plain.status_code, 200)
         self.assertIsNone(plain.headers.get("Cache-Control"))
@@ -752,20 +601,9 @@ class TestProtectedPageUnlock(HttpCase):
         self.assertEqual(self._get().status_code, 403)
 
     def test_the_unlock_does_not_leak_through_the_page_cache(self):
-        """Remembering the unlock must not weaken the gate for anyone else.
-
-        The full-page response cache is keyed by (website, lang, path, debug,
-        consent) -- ``views_unlock`` is deliberately NOT in that key. So the
-        plain GET that an unlocked visitor makes must not be cacheable, or its
-        body would be handed to every subsequent visitor of the same URL.
-        """
         self.assertEqual(self._get(visibility_password="hunter2").status_code, 200)
-        # The cacheable shape: same session, GET, no query parameters. This is
-        # the request that would populate the shared cache.
         self.assertEqual(self._get().status_code, 200)
 
-        # A different visitor: drop the session cookie (keeping the test-cursor
-        # one, which is harness plumbing, not application state).
         self.opener.cookies.pop("session_id", None)
         denied = self._get()
         self.assertEqual(
@@ -777,15 +615,6 @@ class TestProtectedPageUnlock(HttpCase):
 @tagged("post_install", "-at_install")
 class TestFrontendDispatchGeoip(HttpCase):
     def test_frontend_survives_a_geoip_that_knows_no_timezone(self):
-        """A default install has no GeoLite2 *City* database.
-
-        ``request.geoip.location.time_zone`` is then None, and
-        ``_frontend_pre_dispatch`` fed it straight to ``timezone()``, which
-        raises TypeError from inside ``zoneinfo`` -- not the
-        ZoneInfoNotFoundError the surrounding ``suppress()`` catches. Every
-        anonymous request to a site whose public user has no timezone therefore
-        answered HTTP 500: the whole public website, down out of the box.
-        """
         website = self.env["website"].search([], limit=1)
         website.user_id.sudo().tz = False
         self.env.flush_all()
@@ -812,14 +641,6 @@ class TestCookiesBarCookie(HttpCase):
         self.addCleanup(self.website.write, {"cookies_bar": False})
 
     def test_a_malformed_consent_cookie_does_not_take_the_site_down(self):
-        """``website_cookies_bar`` is client-side state and is parsed as JSON.
-
-        An unparseable value raised JSONDecodeError out of
-        ``ir.http._is_allowed_cookie`` -- which runs on *every* frontend render
-        (it is part of the page cache key) -- so a truncated or forged cookie
-        answered HTTP 500 on every page, with no way out but clearing cookies
-        by hand.
-        """
         for value in ("garbage", '{"optional":', "[1,2"):
             response = self.url_open(
                 "/",
@@ -836,27 +657,17 @@ class TestCookiesBarCookie(HttpCase):
 @tagged("post_install", "-at_install")
 class TestGetCurrentWebsiteCost(TransactionCase):
     def test_a_forced_website_is_not_re_checked_on_every_call(self):
-        """``get_current_website()`` is reached once per URL ``_url_for`` rewrites.
-
-        It validated ``session['force_website_id']`` with ``exists()``, which
-        deliberately bypasses the ORM cache and issues one SQL round trip every
-        time. Measured on the builder's snippet-panel render
-        (``render_public_asset('website.snippets')``): 329 of 344 website
-        queries cold, 28 of 29 hot. An ordinary page request was unaffected
-        (1 either way) -- the cost lands on renders that compile many URLs.
-        """
         website = self.env["website"].search([], limit=1)
         Website = self.env["website"]
         with MockRequest(self.env, website=website) as req:
             req.session["force_website_id"] = website.id
             self.env.registry.clear_cache()
-            Website.get_current_website()  # warms the cache
+            Website.get_current_website()
             with self.assertQueryCount(0):
                 for _i in range(20):
                     self.assertEqual(Website.get_current_website(), website)
 
     def test_a_deleted_forced_website_is_still_dropped_from_the_session(self):
-        """The behaviour the ``exists()`` call was there for must survive."""
         website = self.env["website"].search([], limit=1)
         missing_id = max(self.env["website"].search([]).ids) + 1000
         with MockRequest(self.env, website=website) as req:
@@ -873,13 +684,6 @@ class TestGetCurrentWebsiteCost(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestSnippetAssetPruning(TransactionCase):
     def test_a_snippet_template_without_a_class_does_not_break_the_upgrade(self):
-        """``_is_snippet_used`` did ``re.search(...).group()`` unconditionally.
-
-        A snippet template whose root carries no ``class`` attribute is unusual
-        but legal, and the search then returns None -- raising AttributeError
-        out of ``_disable_unused_snippets_assets``, which runs on every module
-        install/upgrade.
-        """
         self.env["ir.ui.view"].create(
             {
                 "name": "Audit classless snippet",
@@ -889,7 +693,6 @@ class TestSnippetAssetPruning(TransactionCase):
             }
         )
         self.env.registry.clear_cache()
-        # Must answer a boolean rather than raising.
         used = self.env["website"]._is_snippet_used(
             "website",
             "audit_classless_snippet",
@@ -902,9 +705,6 @@ class TestSnippetAssetPruning(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCookieBarrierWithoutRequest(TransactionCase):
-    """The third-party cookie barrier must survive a render with no request,
-    and must fail CLOSED there."""
-
     def setUp(self):
         super().setUp()
         self.website = self.env["website"].browse(1)
@@ -930,32 +730,131 @@ class TestCookieBarrierWithoutRequest(TransactionCase):
         )
 
     def test_a_request_free_render_does_not_raise(self):
-        """``_post_processing_att`` read ``request.env`` unguarded.
-
-        The website can come from the *context* instead of the request (a cron,
-        a server action, a multi-website render), and the unguarded read raised
-        ``RuntimeError: object is not bound`` out of every such render once the
-        site had the cookies bar plus third-party blocking on.
-        """
         self.assertIn("<iframe", self._render_without_request())
 
     def test_a_request_free_render_still_blocks_third_parties(self):
-        """And it must fail CLOSED.
-
-        Falling back to the *rendering* environment's user would be worse than
-        the crash: a cron renders as superuser, who is in every group, so the
-        website-editor bypass would apply and the tracked ``src`` would go out
-        verbatim. With no request there is no visitor and no consent to honour.
-        """
         rendered = self._render_without_request()
-        # The barrier neutralises ``src`` and parks the original in
-        # ``data-nocookie-src`` so the client can restore it after consent, so
-        # the URL legitimately still appears in the markup. Read the ``src``
-        # attribute itself rather than substring-matching, which would also
-        # match inside ``data-nocookie-src``.
         iframe = html.fromstring(rendered).xpath("//iframe")[0]
         self.assertEqual(iframe.get("src"), "about:blank")
         self.assertEqual(
             iframe.get("data-nocookie-src"), "https://www.youtube.com/embed/x"
         )
         self.assertEqual(iframe.get("data-need-cookies-approval"), "true")
+
+
+@tagged("post_install", "-at_install")
+class TestSecondAuditRegressions(TransactionCase):
+    def test_public_snippet_filter_rejects_an_unknown_model(self):
+        empty_filter = self.env["website.snippet.filter"]
+        self.assertEqual(
+            empty_filter._render(
+                template_key="website.dynamic_filter_template_x",
+                limit=1,
+                search_domain=[],
+                with_sample=True,
+                res_model="bogus.model",
+                res_id=1,
+            ),
+            [],
+        )
+
+    def test_new_page_rejects_a_template_that_is_not_module_dot_name(self):
+        for bad in ("nodot", "a.b.c"):
+            with self.subTest(template=bad), self.assertRaises(UserError):
+                self.env["website"].new_page(name="probe", template=bad)
+
+    def test_page_creation_does_not_rebind_another_website_s_menu(self):
+        website_a = self.env["website"].search([], limit=1)
+        website_b = self.env["website"].create({"name": "Audit site B"})
+        foreign_menu = self.env["website.menu"].create(
+            {
+                "name": "Foreign",
+                "url": "/audit-collide",
+                "website_id": website_b.id,
+                "parent_id": website_b.menu_id.id,
+            }
+        )
+
+        controller = Website()
+        with MockRequest(self.env, website=website_a):
+            controller.pagenew(path="audit-collide")
+
+        page = self.env["website.page"].search(
+            [("url", "=", "/audit-collide"), ("website_id", "=", website_a.id)]
+        )
+        self.assertTrue(page, "the page was not created on the current website")
+        foreign_menu.invalidate_recordset()
+        self.assertFalse(
+            foreign_menu.page_id,
+            "a menu of another website was repointed at this website's page",
+        )
+
+    def test_created_website_gets_a_public_user_of_its_own_company(self):
+        other_company = self.env["res.company"].create({"name": "Audit Co"})
+        website = (
+            self.env["website"]
+            .with_company(other_company)
+            .create({"name": "Audit company site"})
+        )
+        self.assertEqual(website.company_id, other_company)
+        self.assertEqual(website.sudo().user_id.company_id, other_company)
+
+    def test_visitor_page_count_ignores_untracked_urls(self):
+        website = self.env["website"].search([], limit=1)
+        visitor = self.env["website.visitor"].create(
+            {"access_token": "a" * 32, "website_id": website.id}
+        )
+        self.env["website.track"].create(
+            [
+                {"visitor_id": visitor.id, "url": "/untracked-a"},
+                {"visitor_id": visitor.id, "url": "/untracked-b"},
+            ]
+        )
+        visitor.invalidate_recordset()
+        self.assertEqual(visitor.page_count, 0)
+        self.assertEqual(visitor.sudo().page_ids.ids, [])
+        self.assertEqual(visitor.visitor_page_count, 2)
+
+    def test_blocked_third_party_domains_reach_the_client_normalised(self):
+        website = self.env["website"].search([], limit=1)
+        website.sudo().custom_blocked_third_party_domains = (
+            "#ignore_default\n  Tracker.Example.COM  \nsecond.test\n"
+        )
+        self.assertEqual(
+            website._get_blocked_third_party_domains_list(),
+            ["tracker.example.com", "second.test"],
+        )
+
+    def test_website_restriction_does_not_mutate_the_shared_converter(self):
+        from odoo.addons.website.models.ir_http import ModelConverter
+
+        converter = ModelConverter.__new__(ModelConverter)
+        converter.model = "website.page"
+        converter.domain = "[]"
+
+        list(
+            converter.generate(
+                self.env,
+                args={},
+                domain="[('website_id', 'in', (False, current_website_id))]",
+            )
+        )
+
+        self.assertEqual(
+            converter.domain,
+            "[]",
+            "the registry-cached routing map's converter was mutated",
+        )
+
+    def test_password_visibility_without_a_password_denies_instead_of_500(self):
+        view = self.env["ir.ui.view"].search([("type", "=", "qweb")], limit=1)
+        protected = view.copy({"key": "website.audit_pwd_probe"})
+        protected.sudo().write({"visibility": "password"})
+        self.assertFalse(protected.sudo().visibility_password)
+
+        website = self.env["website"].search([], limit=1)
+        public_user = self.env.ref("base.public_user")
+        with MockRequest(self.env(user=public_user), website=website) as req:
+            req.params = {"visibility_password": "any guess"}
+            with self.assertRaises(werkzeug.exceptions.Forbidden):
+                protected._handle_visibility()

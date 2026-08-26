@@ -34,47 +34,33 @@ class TestBaseUrl(TestUrlCommon):
         ICP = self.env["ir.config_parameter"]
         icp_base_url = ICP.sudo().get_param("web.base.url")
 
-        # Test URL is correct for the website itself when the domain is set
         self.assertEqual(self.website.get_base_url(), self.domain)
 
-        # Test URL is correct for a model without website_id
         without_website_id = self.env["ir.attachment"].create({"name": "test base url"})
         self.assertEqual(without_website_id.get_base_url(), icp_base_url)
 
-        # Test URL is correct for a model with website_id...
         with_website_id = self.env["res.partner"].create({"name": "test base url"})
 
-        # ...when no website is set on the model
         with_website_id.website_id = False
         self.assertEqual(with_website_id.get_base_url(), icp_base_url)
 
-        # ...when the website is correctly set
         with_website_id.website_id = self.website
         self.assertEqual(with_website_id.get_base_url(), self.domain)
 
-        # ...when the set website doesn't have a domain
         self.website.domain = False
         self.assertEqual(with_website_id.get_base_url(), icp_base_url)
 
-        # Test URL is correct for the website itself when no domain is set
         self.assertEqual(self.website.get_base_url(), icp_base_url)
 
-        # Test URL is correctly auto fixed
         domains = [
-            # trailing /
             ("https://www.monsite.com/", "https://www.monsite.com"),
-            # no scheme
             ("www.monsite.com", "https://www.monsite.com"),
             ("monsite.com", "https://monsite.com"),
-            # respect scheme
             ("https://www.monsite.com", "https://www.monsite.com"),
             ("http://www.monsite.com", "http://www.monsite.com"),
-            # respect port
             ("www.monsite.com:8069", "https://www.monsite.com:8069"),
             ("www.monsite.com:8069/", "https://www.monsite.com:8069"),
-            # no guess wwww
             ("monsite.com", "https://monsite.com"),
-            # mix
             ("www.monsite.com/", "https://www.monsite.com"),
         ]
         for domain, expected in domains:
@@ -82,7 +68,6 @@ class TestBaseUrl(TestUrlCommon):
             self.assertEqual(self.website.get_base_url(), expected)
 
     def test_02_canonical_url(self):
-        # test does not work in local due to port
         self._assertCanonical("/", self.website.get_base_url() + "/")
         self._assertCanonical("/?debug=1", self.website.get_base_url() + "/")
         self._assertCanonical("/a-page", self.website.get_base_url() + "/a-page")
@@ -93,7 +78,6 @@ class TestBaseUrl(TestUrlCommon):
 @odoo.tests.tagged("-at_install", "post_install")
 class TestGetBaseUrl(odoo.tests.TransactionCase):
     def test_01_get_base_url(self):
-        # Setup
         web_base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
         company_1 = self.env["res.company"].create(
             {
@@ -106,7 +90,6 @@ class TestGetBaseUrl(odoo.tests.TransactionCase):
             }
         )
 
-        # Finish setup & Check cache
         self.assertFalse(
             company_1.website_id, "No website yet created for this company."
         )
@@ -124,7 +107,6 @@ class TestGetBaseUrl(odoo.tests.TransactionCase):
             "Company cache for `website_id` should have been invalidated and recomputed.",
         )
 
-        # Check `get_base_url()` through `website_id` & `company_id` properties
         attach = self.env["ir.attachment"].create(
             {"name": "test base url", "website_id": website_1.id}
         )
@@ -146,7 +128,6 @@ class TestGetBaseUrl(odoo.tests.TransactionCase):
             "Domain should be the one from the record.company_id.website_id.",
         )
 
-        # Check advanced cache behavior..
         website_2_domain = "https://my-website-2.net"
         website_2 = self.env["website"].create(
             {
@@ -156,28 +137,24 @@ class TestGetBaseUrl(odoo.tests.TransactionCase):
                 "sequence": website_1.sequence - 1,
             }
         )
-        # .. on create ..
         self.assertEqual(
             attach.get_base_url(),
             website_2_domain,
             "Domain should be the one from the record.company_id.website_id and company_1.website_id should be the one with lowest sequence.",
         )
         website_1.sequence = website_2.sequence - 1
-        # .. on `sequence` write ..
         self.assertEqual(
             attach.get_base_url(),
             website_1_domain,
             "Lowest sequence is now website_2, so record.company_id.website_id should be website_1 as cache should be invalidated.",
         )
         website_1.company_id = company_2.id
-        # .. on `company_id` write..
         self.assertEqual(
             attach.get_base_url(),
             website_2_domain,
             "Cache should be recomputed, only website_1 remains for company_2.",
         )
         website_2.unlink()
-        # .. on unlink ..
         self.assertEqual(
             attach.get_base_url(),
             web_base_url,
@@ -194,7 +171,6 @@ class TestGetBaseUrl(odoo.tests.TransactionCase):
         )
 
         with self.assertRaises(ValueError):
-            # if more than one record, an error we should be raised
             Attachment.search([], limit=2).get_base_url()
 
     def test_03_invalid_website_domain(self):

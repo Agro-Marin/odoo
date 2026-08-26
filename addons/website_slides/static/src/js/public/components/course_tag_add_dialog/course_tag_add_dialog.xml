@@ -16,7 +16,7 @@
             <div class="mb-3" t-att-class="{'form-control is-valid': validation.tagIsValid, 'form-control is-invalid': validation.tagIsValid === false}">
                 <label class="col-form-label">Tag</label>
                 <SelectMenu
-                    togglerClass="'form-control'"
+                    togglerClass="'form-control o_wslides_tag_toggler'"
                     choices="choices.tagIds"
                     onSelect.bind="onTagSelect"
                     required="true"
@@ -37,7 +37,7 @@
             <div t-if="state.showTagGroup" class="mb-3" t-att-class="{'form-control is-valid': validation.tagGroupIsValid, 'form-control is-invalid': validation.tagGroupIsValid === false}">
                 <label class="col-form-label">Tag Group</label>
                 <SelectMenu
-                    togglerClass="'form-control'"
+                    togglerClass="'form-control o_wslides_tag_group_toggler'"
                     choices="choices.tagGroupIds"
                     onSelect.bind="onTagGroupSelect"
                     required="true"

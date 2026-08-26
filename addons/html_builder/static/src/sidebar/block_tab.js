@@ -234,8 +234,15 @@ export class BlockTab extends Component {
                 getScrollingElement(this.document) ||
                 this.editable.querySelector(".o_editable");
             if (!isScrollableY(scrollingElement)) {
+                // `defaultView` is null for a document with no window -- the
+                // preview iframe mid-reload, which is exactly when a drag can
+                // start. `closestScrollableY` already tolerates a nullish
+                // argument, so only this dereference needed guarding; it threw
+                // "reading 'frameElement'" out of onWillStartDrag and took the
+                // whole drag with it.
                 scrollingElement =
-                    closestScrollableY(this.document.defaultView.frameElement) ?? scrollingElement;
+                    closestScrollableY(this.document.defaultView?.frameElement) ??
+                    scrollingElement;
             }
             return scrollingElement;
         };

@@ -36,7 +36,6 @@ class WebsiteVisitor(models.Model):
     _order = "id DESC"
 
     def _get_access_token(self):
-        """Either the user's partner.id or a hash."""
         if not request:
             raise ValueError("Visitors can only be created through the frontend.")
 
@@ -50,8 +49,6 @@ class WebsiteVisitor(models.Model):
                 request.session.sid,
             )
         ).encode("utf-8")
-        # Keep same length (32) as before, it will ease the migration without
-        # any real downside
         return hashlib.sha1(msg).hexdigest()[:32]
 
     name = fields.Char("Name", related="partner_id.name")
@@ -67,7 +64,6 @@ class WebsiteVisitor(models.Model):
     )
     partner_image = fields.Binary(related="partner_id.image_1920")
 
-    # localisation and info
     country_id = fields.Many2one("res.country", "Country", readonly=True)
     country_flag = fields.Char(related="country_id.image_url", string="Country Flag")
     lang_id = fields.Many2one(
@@ -83,7 +79,6 @@ class WebsiteVisitor(models.Model):
         string="Mobile", compute="_compute_email_phone", compute_sudo=True
     )
 
-    # Visit fields
     visit_count = fields.Integer(
         "# Visits",
         default=1,
@@ -116,7 +111,6 @@ class WebsiteVisitor(models.Model):
         compute="_compute_last_visited_page_id",
     )
 
-    # Time fields
     create_date = fields.Datetime("First Connection", readonly=True)
     last_connection_datetime = fields.Datetime(
         "Last Connection",
@@ -143,24 +137,16 @@ class WebsiteVisitor(models.Model):
     @api.depends("partner_id")
     def _compute_display_name(self):
         for record in self:
-            # Accessing name of partner through sudo to avoid infringing
-            # record rule if partner belongs to another company.
             record.display_name = record.partner_id.sudo().name or _(
                 "Website Visitor #%s", record.id
             )
 
     @api.depends("access_token")
     def _compute_partner_id(self):
-        # The browse in the loop is fine, there is no SQL Query on partner here
         for visitor in self:
             if not visitor.id:
                 visitor.partner_id = visitor._origin.partner_id
                 continue
-            # If the access_token is not a 32 length hexa string, it means that
-            # the visitor is linked to a logged in user, in which case its
-            # partner_id is used instead as the token. Guard the int() parse: a
-            # corrupted or unexpected token must not raise ValueError out of this
-            # stored compute, which would break the whole batch (list/kanban/form).
             token = visitor.access_token or ""
             partner_id = int(token) if len(token) != 32 and token.isdigit() else False
             visitor.partner_id = self.env["res.partner"].browse(partner_id)
@@ -199,8 +185,8 @@ class WebsiteVisitor(models.Model):
                 {"page_count": 0, "visitor_page_count": 0, "page_ids": set()},
             )
             visitor_info["visitor_page_count"] += count
-            visitor_info["page_count"] += 1
             if page:
+                visitor_info["page_count"] += 1
                 visitor_info["page_ids"].add(page.id)
             mapped_data[visitor.id] = visitor_info
 
@@ -209,16 +195,11 @@ class WebsiteVisitor(models.Model):
                 visitor.id,
                 {"page_count": 0, "visitor_page_count": 0, "page_ids": set()},
             )
-            # sudo - website.visitor: access to page_ids is restricted to group_website_designer
             visitor.sudo().page_ids = [(6, 0, visitor_info["page_ids"])]
             visitor.visitor_page_count = visitor_info["visitor_page_count"]
             visitor.page_count = visitor_info["page_count"]
 
     def _search_page_ids(self, operator, value):
-        # ``page_ids`` is a m2m of website.page, so the ORM hands this method
-        # page *ids*; comparing those against ``page_id.name`` (a Char) matched
-        # nothing and failed silently -- an empty result set rather than an
-        # error. Search the relation itself.
         return [("website_track_ids.page_id", operator, value)]
 
     @api.depends("website_track_ids.page_id")
@@ -243,9 +224,6 @@ class WebsiteVisitor(models.Model):
             ) < timedelta(minutes=5)
 
     def _check_for_message_composer(self):
-        """Purpose of this method is to actualize visitor model prior to contacting
-        him. Used notably for inheritance purpose, when dealing with leads that
-        could update the visitor model."""
         return bool(self.partner_id and self.partner_id.email)
 
     def _prepare_message_composer_context(self):
@@ -288,35 +266,9 @@ class WebsiteVisitor(models.Model):
         website_id=None,
         timezone=None,
     ):
-        """Based on the given `access_token`, either create or return the
-        related visitor if exists, through a single raw SQL UPSERT Query.
-
-        It will also create a tracking record if requested, in the same query.
-
-        The visitor attributes default to the current ``request`` (the
-        production frontend path). Pass them explicitly to exercise this
-        hot-path core from a plain ``TransactionCase`` with no request bound.
-
-        :param access_token: token to be used to upsert the visitor
-        :param force_track_values: an optional dict to create a track at the
-            same time.
-        :param lang_id: ``res.lang`` id to stamp on a freshly-created visitor;
-            defaults to ``request.lang.id``
-        :param country_code: GEOIP country code (may be unknown to Odoo, in
-            which case ``country_id`` resolves to NULL); defaults to the
-            request GEOIP country code
-        :param website_id: ``website`` id the visitor is first seen on;
-            defaults to ``request.website.id``
-        :param timezone: client timezone (back-filled on conflict); defaults to
-            :meth:`_get_visitor_timezone`
-        :return: a tuple containing the visitor id and a boolean that is True
-            when the row was inserted and False when an existing row was updated.
-        """
         create_values = {
             "access_token": str(access_token),
             "lang_id": request.lang.id if lang_id is None else lang_id,
-            # Note that it's possible for the GEOIP database to return a country
-            # code which is unknown in Odoo
             "country_code": (
                 request.geoip.get("country_code")
                 if country_code is None
@@ -327,19 +279,8 @@ class WebsiteVisitor(models.Model):
             or None,
             "write_uid": self.env.uid,
             "create_uid": self.env.uid,
-            # If the access_token is not a 32 length hexa string, it means that the
-            # visitor is linked to a logged in user, in which case its partner_id is
-            # used instead as the token.
             "partner_id": None if len(str(access_token)) == 32 else access_token,
         }
-        # ``INSERT ... ON CONFLICT`` (not ``MERGE``): the unique index on
-        # ``access_token`` serializes concurrent upserts of the same token, so a
-        # second request that races the first on a not-yet-existing visitor is
-        # funnelled into the ``DO UPDATE`` branch instead of raising a
-        # ``unique_violation``. ``MERGE`` takes no such predicate lock and would
-        # 500 the losing request on this per-page-view hot path.
-        # ``(xmax = 0)`` distinguishes a fresh insert (True) from an update to a
-        # pre-existing row (False).
         query = SQL(
             """
             INSERT INTO website_visitor (
@@ -386,25 +327,15 @@ class WebsiteVisitor(models.Model):
         return result
 
     def _get_visitor_from_request(self, force_create=False, force_track_values=None):
-        """Return the visitor as sudo from the request.
-
-        :param force_create: force a visitor creation if no visitor exists
-        :param force_track_values: an optional dict to create a track at the
-            same time.
-        :return: the website visitor if exists or forced, empty recordset
-            otherwise.
-        """
-
-        # This function can be called in json with mobile app.
-        # In case of mobile app, no uid is set on the jsonRequest env.
-        # In case of multi db, _env is None on request, and request.env unbound.
         if not (request and request.env and request.env.uid):
             return None
 
         access_token = self._get_access_token()
 
         if force_create:
-            visitor_id, _ = self._upsert_visitor(access_token, force_track_values)
+            visitor_id, _created = self._upsert_visitor(
+                access_token, force_track_values
+            )
             return self.env["website.visitor"].sudo().browse(visitor_id)
 
         visitor = (
@@ -426,12 +357,6 @@ class WebsiteVisitor(models.Model):
         return visitor
 
     def _handle_webpage_dispatch(self, website_page):
-        """Create a website.visitor if the http request object is a tracked
-        website.page or a tracked ir.ui.view.
-        Since this method is only called on tracked elements, the
-        last_connection_datetime might not be accurate as the visitor could have
-        been visiting only untracked page during his last visit."""
-
         url = request.httprequest.url
         website_track_values = {"url": url}
         if website_page:
@@ -442,7 +367,6 @@ class WebsiteVisitor(models.Model):
         )
 
     def _add_tracking(self, domain, website_track_values):
-        """Add the track and update the visitor"""
         domain = Domain.AND([domain, Domain("visitor_id", "=", self.id)])
         last_view = self.env["website.track"].sudo().search(domain, limit=1)
         if not last_view or last_view.visit_datetime < datetime.now() - timedelta(
@@ -453,32 +377,12 @@ class WebsiteVisitor(models.Model):
         self._update_visitor_last_visit()
 
     def _merge_visitor(self, target):
-        """Merge an anonymous visitor data to a partner visitor then unlink
-        that anonymous visitor.
-        Purpose is to try to aggregate as much sub-records (tracked pages,
-        leads, ...) as possible.
-        It is especially useful to aggregate data from the same user on
-        different devices.
-
-        This method is meant to be overridden for other modules to merge their
-        own anonymous visitor data to the partner visitor before unlink.
-
-        This method is only called after the user logs in.
-
-        :param target: main visitor, target of link process;
-        """
         if not target.partner_id:
             raise ValueError("The `target` visitor should be linked to a partner.")
         self.website_track_ids.visitor_id = target.id
         self.unlink()
 
     def _cron_unlink_old_visitors(self, batch_size=1000):
-        """Unlink inactive visitors (see '_inactive_visitors_domain' for
-        details).
-
-        Visitors were previously archived but we came to the conclusion that
-        archived visitors have very little value and bloat the database for no
-        reason."""
         domain = self._inactive_visitors_domain()
         visitors = self.env["website.visitor"].sudo().search(domain, limit=batch_size)
         visitors.unlink()
@@ -490,14 +394,6 @@ class WebsiteVisitor(models.Model):
         )
 
     def _inactive_visitors_domain(self):
-        """This method defines the domain of visitors that can be cleaned. By
-        default visitors not linked to any partner and not active for
-        'website.visitor.live.days' days (default being 60) are considered as
-        inactive.
-
-        This method is meant to be overridden by sub-modules to further refine
-        inactivity conditions."""
-
         delay_days = int(
             self.env["ir.config_parameter"]
             .sudo()
@@ -509,7 +405,6 @@ class WebsiteVisitor(models.Model):
         )
 
     def _update_visitor_timezone(self, timezone):
-        """We need to do this part here to avoid concurrent updates error."""
         query = """
             UPDATE website_visitor
             SET timezone = %s
@@ -521,11 +416,6 @@ class WebsiteVisitor(models.Model):
         self.env.cr.execute(query, (timezone, self.id))
 
     def _update_visitor_last_visit(self):
-        # Decide the 8-hour ``visit_count`` bump in SQL from the row's own
-        # ``last_connection_datetime`` rather than a possibly-stale ORM value,
-        # and in UTC — matching the CASE in ``_upsert_visitor`` (the old code
-        # compared against a naive local ``datetime.now()``, which drifts by the
-        # server's timezone offset).
         query = """
             UPDATE website_visitor
                SET visit_count = CASE

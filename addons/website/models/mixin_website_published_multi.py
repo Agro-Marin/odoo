@@ -40,9 +40,6 @@ class MixinWebsitePublishedMulti(MixinWebsitePublished):
 
     def _search_website_published(self, operator, value):
         if operator != "in" or list(value) != [True]:
-            # Only ``website_published in (True,)`` is supported; defer anything
-            # else to the ORM (which raises a clear error) instead of crashing
-            # the request with an AssertionError (HTTP 500).
             return NotImplemented
 
         current_website_id = self.env.context.get("website_id")
@@ -52,7 +49,7 @@ class MixinWebsitePublishedMulti(MixinWebsitePublished):
                 self.env["website"].browse(current_website_id).website_domain()
             )
             return is_published & on_current_website
-        else:  # should be in the backend, return things that are published anywhere
+        else:
             return is_published
 
     def open_website_url(self):

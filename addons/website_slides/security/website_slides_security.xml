@@ -236,6 +236,100 @@
             <field name="perm_create" eval="1"/>
         </record>
 
+        <!-- SLIDE EMBED
+             This model carried ir.model.access rows granting read to public and
+             portal and full CRUD to every employee, and no ir.rule at all - not
+             even a global one, unlike every other model here. A rule-less model
+             is unrestricted, so any signed-in portal user could read every row:
+             the third-party URLs where courses have been embedded, and their
+             view counts; and any employee could forge the statistics.
+             The ACL rows are now officer-only (see ir.model.access.csv); these
+             rules scope officers to the courses they are responsible for, as
+             they are scoped on every other model in this module. The counter
+             itself is written by _embed_increment under sudo, so no visitor
+             needs access. -->
+        <record id="rule_slide_embed_officer" model="ir.rule">
+            <field name="name">Slide Embed: officer: own courses only</field>
+            <field name="model_id" ref="model_slide_embed"/>
+            <field name="domain_force">[('slide_id.channel_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
+            <field name="perm_read" eval="1"/>
+            <field name="perm_write" eval="1"/>
+            <field name="perm_create" eval="1"/>
+            <field name="perm_unlink" eval="1"/>
+        </record>
+
+        <record id="rule_slide_embed_manager" model="ir.rule">
+            <field name="name">Slide Embed: manager: crud all</field>
+            <field name="model_id" ref="model_slide_embed"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]"/>
+            <field name="perm_read" eval="1"/>
+            <field name="perm_write" eval="1"/>
+            <field name="perm_create" eval="1"/>
+            <field name="perm_unlink" eval="1"/>
+        </record>
+
+        <!-- SURVEY (the store behind quizzes and certifications)
+             ir.model.access.csv grants eLearning officers CRUD on survey.survey,
+             survey.question and survey.question.answer so the quiz editor works
+             without also handing them the Survey app. survey's own rules are
+             scoped to group_survey_user / group_survey_manager, which an officer
+             does not hold, so *no* rule applied to them and the grant was
+             model-wide: an officer could rewrite the questions of any survey on
+             the instance, including certifications owned by someone else. The
+             controller's can_publish check closes the web route only.
+             These rules cover writing only. Reading is already handled, when
+             website_slides_survey is installed, by its "slide channel officer
+             on certification: read" rules; those are perm_write=0, so they
+             never constrained writing and the grant stayed model-wide.
+             Measured: with these three rules inactive, an officer rewrites
+             another officer's certification question; with them active, that is
+             an AccessError and their own course is untouched.
+             Writing is scoped to what the officer owns: a survey they are
+             responsible for, or one backing a course they are responsible for.
+             The first clause is not slack - survey's own
+             _check_survey_responsible_access refuses to store a survey its
+             responsible cannot write, so a rule keyed only on the course would
+             refuse the quiz survey at the instant it is created, before the
+             slide that will point at it exists. Someone else's certification
+             satisfies neither clause, which is the gap being closed. -->
+        <record id="rule_survey_survey_slides_officer" model="ir.rule">
+            <field name="name">Survey: eLearning officer: write own courses only</field>
+            <field name="model_id" ref="survey.model_survey_survey"/>
+            <field name="domain_force">[
+                '|', ('user_id', '=', user.id), ('slide_ids.channel_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
+            <field name="perm_read" eval="0"/>
+            <field name="perm_write" eval="1"/>
+            <field name="perm_create" eval="1"/>
+            <field name="perm_unlink" eval="1"/>
+        </record>
+
+        <record id="rule_survey_question_slides_officer" model="ir.rule">
+            <field name="name">Survey question: eLearning officer: write own courses only</field>
+            <field name="model_id" ref="survey.model_survey_question"/>
+            <field name="domain_force">[
+                '|', ('survey_id.user_id', '=', user.id), ('survey_id.slide_ids.channel_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
+            <field name="perm_read" eval="0"/>
+            <field name="perm_write" eval="1"/>
+            <field name="perm_create" eval="1"/>
+            <field name="perm_unlink" eval="1"/>
+        </record>
+
+        <record id="rule_survey_question_answer_slides_officer" model="ir.rule">
+            <field name="name">Survey answer: eLearning officer: write own courses only</field>
+            <field name="model_id" ref="survey.model_survey_question_answer"/>
+            <field name="domain_force">[
+                '|', ('question_id.survey_id.user_id', '=', user.id), ('question_id.survey_id.slide_ids.channel_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
+            <field name="perm_read" eval="0"/>
+            <field name="perm_write" eval="1"/>
+            <field name="perm_create" eval="1"/>
+            <field name="perm_unlink" eval="1"/>
+        </record>
+
         <!--SLIDE RESOURCE-->
         <record id="rule_slide_slide_resource_downloadable" model="ir.rule">
             <field name="name">Resource: read restricted to channel members and channel responsible</field>

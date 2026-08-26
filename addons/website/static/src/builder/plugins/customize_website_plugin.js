@@ -397,12 +397,18 @@ export class CustomizeWebsitePlugin extends Plugin {
     }
     toggleTemplate(action, apply) {
         if (!apply) {
-            // Empty the container and restore the original content.
-            // ``beforePreviewNodes`` is an Array (see below); it MUST be spread —
-            // ``replaceChildren(array)`` would stringify it into a single text
-            // node ("[object HTMLElement],…"), destroying the saved content.
-            action.editingElement.replaceChildren(...this.beforePreviewNodes);
-            this.beforePreviewNodes = null;
+            // Nothing saved means nothing was previewed -- an unapply with no
+            // preview before it, or a second unapply. Spreading null there
+            // threw "beforePreviewNodes is not iterable" out of the option.
+            if (this.beforePreviewNodes) {
+                // Empty the container and restore the original content.
+                // ``beforePreviewNodes`` is an Array (see below); it MUST be
+                // spread — ``replaceChildren(array)`` would stringify it into a
+                // single text node ("[object HTMLElement],…"), destroying the
+                // saved content.
+                action.editingElement.replaceChildren(...this.beforePreviewNodes);
+                this.beforePreviewNodes = null;
+            }
             return;
         }
 

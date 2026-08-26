@@ -1,3 +1,5 @@
+import math
+
 from odoo import _, api, fields, models, tools
 from odoo.fields import Domain
 
@@ -102,6 +104,16 @@ class SlideChannelPartner(models.Model):
                 membership.id, False
             )
 
+    def _is_finished(self):
+        """The single definition of "this attendee finished the course".
+
+        Counted in contents, never in the rounded percentage: the two must not
+        be allowed to drift apart again (see _recompute_completion).
+        """
+        self.ensure_one()
+        total_slides = self.channel_id.total_slides
+        return bool(total_slides) and self.completed_slides_count >= total_slides
+
     def _recompute_completion(self):
         """This method computes the completion and member_status of attendees that are neither
         'invited' nor 'completed'. Indeed, once completed, membership should remain so.
@@ -110,6 +122,19 @@ class SlideChannelPartner(models.Model):
         when enrolling an invited or archived attendee.
         It takes into account the previous completion value to add or remove karma for
         completing the course to the attendee (see _post_completion_update_hook)
+
+        "Finished" is decided **once**, by counting contents. It used to be
+        decided twice from the same data and the two answers disagreed: the
+        karma/mail hook asked `completed_slides_count >= total_slides` while
+        member_status asked `round(completion) == 100`. Rounding reaches 100 at
+        n-1 of n as soon as a course holds 200 contents, so on any such course
+        the attendee was flipped to 'completed' one content early, the hook
+        never fired, and -- because a record already 'completed' is skipped on
+        every later pass -- finishing the last content could not repair it. The
+        karma and the completion mail were lost permanently.
+
+        `completion` is now a display percentage only, floored so it can never
+        read 100 below completion.
         """
         read_group_res = (
             self.env["slide.slide.partner"]
@@ -138,33 +163,29 @@ class SlideChannelPartner(models.Model):
         for record in self:
             if record.member_status in ("completed", "invited"):
                 continue
-            was_finished = record.completion == 100
+            total_slides = record.channel_id.total_slides
+            was_finished = record._is_finished()
             record.completed_slides_count = mapped_data.get(
                 (record.channel_id.id, record.partner_id.id), 0
             )
-            record.completion = round(
-                100.0
-                * record.completed_slides_count
-                / (record.channel_id.total_slides or 1)
+            # floor, not round: at 199 of 200 `round` answers 100.
+            record.completion = (
+                math.floor(100.0 * record.completed_slides_count / total_slides)
+                if total_slides
+                else 0
             )
+            is_finished = record._is_finished()
 
             if not record.channel_id.active:
                 continue
-            if (
-                not was_finished
-                and record.channel_id.total_slides
-                and record.completed_slides_count >= record.channel_id.total_slides
-            ):
+            if not was_finished and is_finished:
                 completed_records += record
-            elif (
-                was_finished
-                and record.completed_slides_count < record.channel_id.total_slides
-            ):
+            elif was_finished and not is_finished:
                 uncompleted_records += record
 
-            if record.completion == 100:
+            if is_finished:
                 record.member_status = "completed"
-            elif record.completion == 0:
+            elif not record.completed_slides_count:
                 record.member_status = "joined"
             else:
                 record.member_status = "ongoing"
@@ -182,11 +203,14 @@ class SlideChannelPartner(models.Model):
         Remove attendee from a channel, then also remove slide.slide.partner related to.
         """
         if self:
-            # find all slide link to the channel and the partner
+            # One clause per (channel, partners) pair rather than per record,
+            # and the channel side expressed as a relation instead of an
+            # inlined list of slide ids: unlinking 1000 members of a 500-slide
+            # course used to build a domain with half a million terms in it.
             removed_slide_partner_domain = Domain.OR(
-                Domain("partner_id", "=", channel_partner.partner_id.id)
-                & Domain("slide_id", "in", channel_partner.channel_id.slide_ids.ids)
-                for channel_partner in self
+                Domain("channel_id", "=", channel.id)
+                & Domain("partner_id", "in", channel_partners.partner_id.ids)
+                for channel, channel_partners in self.grouped("channel_id").items()
             )
             self.env["slide.slide.partner"].search(
                 removed_slide_partner_domain
@@ -259,11 +283,16 @@ class SlideChannelPartner(models.Model):
                 # attachments specific not supported currently, only attachment_ids
                 values.pop("attachments", False)
                 values["body"] = values.get("body_html")  # keep body copy in chatter
-                record_email_values[res_id] = values
+                # Carry the template that produced these values. The second loop
+                # used to reach for `template`, which by then held whatever the
+                # *last* iteration of this loop had left behind -- so two courses
+                # with two different completion templates had one of them render
+                # both layouts.
+                record_email_values[res_id] = (template, values)
 
         mail_mail_values = []
         for record in self:
-            email_values = record_email_values.get(record.id)
+            template, email_values = record_email_values.get(record.id, (None, None))
 
             if not email_values or not email_values.get("partner_ids"):
                 continue
@@ -303,8 +332,6 @@ class SlideChannelPartner(models.Model):
                     ("completion", "=", 0),
                     "|",
                     ("last_invitation_date", "=", False),
-                    "&",
-                    ("last_invitation_date", "!=", False),
                     ("last_invitation_date", "<", limit_dt),
                 ]
             )

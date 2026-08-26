@@ -16,18 +16,10 @@ class IrModelData(models.Model):
         if record.env.context["module"].startswith("theme_"):
             theme_records = self.env["ir.module.module"]._theme_model_names.values()
             if record._name in theme_records:
-                # use active_test to also unlink archived models
-                # and MODULE_UNINSTALL_FLAG to also unlink inherited models.
-                # Pass them as keywords (not a positional dict, which would
-                # replace the whole context) and use the constant's value —
-                # the literal "MODULE_UNINSTALL_FLAG" key had no effect, so
-                # child views were never cascade-unlinked (FK restrict).
                 copy_ids = record.with_context(
                     **{"active_test": False, MODULE_UNINSTALL_FLAG: True}
                 ).copy_ids
                 if request:
-                    # we are in a website context, see `write()` override of
-                    # ir.module.module in website
                     current_website = self.env["website"].get_current_website()
                     copy_ids = copy_ids.filtered(
                         lambda c: c.website_id == current_website

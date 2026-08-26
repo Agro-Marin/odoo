@@ -14,6 +14,7 @@ from urllib.parse import urlencode, urlparse, urlunparse
 import requests
 import werkzeug.routing
 from lxml import etree, html
+from markupsafe import escape
 
 from odoo import api, fields, models, release, tools
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
@@ -40,7 +41,6 @@ DEFAULT_CDN_FILTERS = [
     "^/web/image",
     "^/web/content",
     "^/web/assets",
-    # retrocompatibility
     "^/website/image/",
 ]
 
@@ -48,13 +48,6 @@ DEFAULT_WEBSITE_ENDPOINT = "https://website.api.odoo.com"
 DEFAULT_OLG_ENDPOINT = "https://olg.api.odoo.com"
 
 
-# Website fields that are baked into compiled qweb templates rather than applied
-# at render time. ``ir_qweb._post_processing_att`` runs with ``is_static=True``
-# at *compile* time for literal attributes in a view's arch, so the CDN rewrite
-# and the third-party cookie barrier get frozen into the compiled template.
-# Writing one of these therefore needs an explicit ``clear_cache("templates")``:
-# a bare ``clear_cache()`` resolves to the "default" group, which does **not**
-# contain "templates" (see ``CACHES_BY_KEY`` in odoo/orm/runtime/registry.py).
 TEMPLATE_AFFECTING_FIELDS = frozenset(
     {
         "cdn_activated",
@@ -71,14 +64,6 @@ DEFAULT_BLOCKED_THIRD_PARTY_DOMAINS = "youtu.be\nyoutube.com\nyoutube-nocookie.c
 
 
 def to_punycode(host):
-    """Return the ASCII (punycode) spelling of ``host``, unchanged on failure.
-
-    The ``idna`` codec raises ``UnicodeError`` for hosts it cannot represent --
-    a DNS label over 63 bytes or an empty label (``a..b``) are the easiest
-    examples, and both are trivially reachable from an attacker-controlled
-    ``Host`` header. Never let that escape: a host that is not representable
-    simply matches no website, which the caller already handles.
-    """
     try:
         return host.encode("idna").decode("ascii")
     except UnicodeError:
@@ -86,11 +71,6 @@ def to_punycode(host):
 
 
 def from_punycode(host):
-    """Return the unicode spelling of a punycode ``host``, unchanged on failure.
-
-    See :func:`to_punycode` -- the inverse conversion fails on the same class of
-    malformed input and must be just as forgiving.
-    """
     try:
         return host.encode("ascii").decode("idna")
     except UnicodeError:
@@ -289,15 +269,11 @@ class Website(models.Model):
 
     @api.depends("domain")
     def _compute_domain_punycode(self):
-        """Compute the punycode (ASCII-safe) version of the domain."""
         for website in self:
             website_domain = website.domain or ""
             parsed = urlparse(website_domain)
             hostname = parsed.hostname or ""
             if hostname:
-                # Convert only the host within the netloc; a blanket
-                # str.replace() also rewrote the hostname where it happens to
-                # recur in the path or query string.
                 netloc = parsed.netloc.replace(hostname, to_punycode(hostname), 1)
                 website.domain_punycode = urlunparse(parsed._replace(netloc=netloc))
             else:
@@ -309,7 +285,6 @@ class Website(models.Model):
             website.has_social_default_image = bool(website.social_default_image)
 
     def _compute_menu_id(self):
-        # prefetch all accessible menus at once
         all_menus = self.env["website.menu"].search_fetch(
             Domain("website_id", "in", self.ids)
         )
@@ -319,16 +294,13 @@ class Website(models.Model):
                 lambda m, website=website: m.website_id == website
             )
 
-            # use field parent_id (1 query) to determine field child_id (2 queries by level)"
             children = dict.fromkeys(menus, ())
             for menu in menus:
-                # don't add child menu if parent is forbidden
                 if menu.parent_id and menu.parent_id in menus:
                     children[menu.parent_id] += (menu.id,)
             for menu, child_items in children.items():
                 menu._fields["child_id"]._update_cache(menu, child_items)
 
-            # prefetch every website.page and ir.ui.view at once
             menus.mapped("is_visible")
 
             top_menus = menus.filtered(lambda m: not m.parent_id)
@@ -341,8 +313,6 @@ class Website(models.Model):
 
             full_list = DEFAULT_BLOCKED_THIRD_PARTY_DOMAINS
             if custom_list:
-                # Note: each line of the custom list is already ensured to not
-                # have leading or trailing whitespaces.
                 lines = custom_list.splitlines()
                 custom_domains = "\n".join(
                     line for line in lines if line and line[0] != "#"
@@ -355,7 +325,11 @@ class Website(models.Model):
             website.blocked_third_party_domains = full_list
 
     def _get_blocked_third_party_domains_list(self):
-        return self.blocked_third_party_domains.split("\n")
+        return [
+            domain
+            for line in (self.blocked_third_party_domains or "").split("\n")
+            if (domain := line.strip().lower())
+        ]
 
     def _get_blocked_iframe_containers_classes(self):
         return {
@@ -366,42 +340,18 @@ class Website(models.Model):
             "media_iframe_video",
         }
 
-    # self.env.uid for ir.rule groups on menu
-    @tools.ormcache("self.env.uid", "self.id", cache="templates")
-    def is_menu_cache_disabled(self):
-        """
-        Checks if the website menu contains a record like url.
-        :return: True if the menu contains a record like url
-        """
-        return any(
-            self.env["website.menu"]
-            .search_fetch(Domain("website_id", "=", self.id), ["url"])
-            .filtered(
-                lambda menu: (
-                    re.search(r"[/](([^/=?&]+-)?[0-9]+)([/]|$)", menu.url)
-                    or menu.sudo().group_ids
-                )
-            )
-        )
-
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             self._handle_create_write(vals)
 
             if "user_id" not in vals:
-                company = self.env["res.company"].browse(vals.get("company_id"))
-                vals["user_id"] = (
-                    company._get_public_user().id
-                    if company
-                    else self.env.ref("base.public_user").id
-                )
+                company = self.env["res.company"].browse(
+                    vals.get("company_id")
+                ) or self.env.company
+                vals["user_id"] = company._get_public_user().id
 
         websites = super().create(vals_list)
-        # Mirror ``write``: a new website (its ``domain``, default lang, public
-        # user, …) changes the result of ormcached lookups such as
-        # ``_get_current_website_id`` and ``_get_cached_values``, which are not
-        # invalidated automatically on create.
         self.env.registry.clear_cache()
         websites.company_id._compute_website_id()
         for website in websites:
@@ -442,23 +392,12 @@ class Website(models.Model):
         result = super(Website, self - public_user_to_change_websites).write(values)
 
         if not TEMPLATE_AFFECTING_FIELDS.isdisjoint(values):
-            # The ``clear_cache()`` above resolves to the "default" cache group,
-            # which does NOT include "templates" -- the compiled-template cache
-            # holding the CDN rewrite and the cookie barrier baked at compile
-            # time. Without this explicit flush, enabling the CDN or adding a
-            # domain to the third-party blocklist silently fails to take effect
-            # on every already-compiled page (the blocklist being a privacy
-            # control, it fails in the dangerous direction).
             self.env.registry.clear_cache("templates")
 
-        # invalidate cache for `company.website_id` to be recomputed
         if "sequence" in values or "company_id" in values:
             (original_company | self.company_id)._compute_website_id()
 
         if "cookies_bar" in values:
-            # ``self`` may hold several websites (e.g. bulk settings save), so
-            # iterate rather than read ``self.id`` (which raises on a multi-
-            # record set).
             for website in self:
                 existing_policy_page = self.env["website.page"].search(
                     [
@@ -515,11 +454,6 @@ class Website(models.Model):
             vals["domain"] = self._normalize_domain_url(vals["domain"])
 
     def _normalize_domain_url(self, url):
-        """
-        This method:
-        - Prefixes 'https://' if it has no http(s) scheme
-        - Strips any tailing '/'
-        """
         normalized_url = url
         if not normalized_url.startswith(("http://", "https://")):
             normalized_url = "https://%s" % normalized_url
@@ -577,23 +511,18 @@ class Website(models.Model):
 
         companies = self.company_id
         res = super().unlink()
-        # A deleted website must drop out of ormcached lookups (e.g.
-        # ``_get_current_website_id``), otherwise a stale host mapping keeps
-        # returning a dangling id and ``get_current_website()`` browses a
-        # non-existent record.
         self.env.registry.clear_cache()
         companies._compute_website_id()
         return res
 
     def _remove_attachments_on_website_unlink(self):
-        # Do not delete invoices, delete what's strictly necessary
         attachments_to_unlink = self.env["ir.attachment"].search(
             [
                 ("website_id", "in", self.ids),
                 "|",
                 "|",
-                ("key", "!=", False),  # theme attachment
-                ("url", "=like", "/_custom/%"),  # customized theme attachment
+                ("key", "!=", False),
+                ("url", "=like", "/_custom/%"),
                 ("url", "ilike", ".assets\\_"),
             ]
         )
@@ -608,22 +537,8 @@ class Website(models.Model):
         return get_base_domain(url.lower(), True).encode("idna").decode("ascii")
 
     def _is_indexable_url(self, url):
-        """
-        Returns True if the given url has to be indexed by search engines.
-        It is considered that the website must be indexed if the domain name
-        matches the URL. We check if they are equal while ignoring the www. and
-        http(s). This is to index the site even if the user put the www. in the
-        settings while he has a configuration that redirects the www. to the
-        naked domain for example (same thing for http and https).
-
-        :param url: the url to check
-        :return: True if the url has to be indexed, False otherwise
-        """
         return self._idna_url(url) == self._idna_url(self.domain)
 
-    # ----------------------------------------------------------
-    # Configurator
-    # ----------------------------------------------------------
 
     def _api_rpc(self, route, params, endpoint_param_name, default_endpoint, **kwargs):
         params["version"] = release.version
@@ -634,13 +549,11 @@ class Website(models.Model):
         return iap_tools.iap_jsonrpc(api_endpoint + route, params=params, **kwargs)
 
     def _website_api_rpc(self, route, params):
-        # For industries, theme suggestions, ...
         return self._api_rpc(
             route, params, "website.website_api_endpoint", DEFAULT_WEBSITE_ENDPOINT
         )
 
     def _OLG_api_rpc(self, route, params):
-        # For text content generation
         return self._api_rpc(
             route, params, "website.olg_api_endpoint", DEFAULT_OLG_ENDPOINT, timeout=45
         )
@@ -649,7 +562,6 @@ class Website(models.Model):
         return {"cta_btn_text": False, "cta_btn_href": "/contactus"}
 
     def _get_snippet_defaults(self, snippet):
-        """Retrieve the default configuration for a given dynamic snippet."""
         return {}
 
     def _get_snippet_view_key(self, snippet, page_code):
@@ -659,15 +571,7 @@ class Website(models.Model):
         return f"{module}.configurator_{page_code}_{snippet}"
 
     def _preconfigure_snippet(self, snippet, el, customizations):
-        """Apply default configuration values to a snippet element.
-
-        This ensures that when a dynamic snippet is appended via the
-        configurator, all of its required default classes/attributes
-        are added to the DOM element before it is rendered.
-        """
-
         def modify_class(target_classes, class_name, operation):
-            """Add or remove a single class string from target_classes list."""
             if operation == "remove" and class_name in target_classes:
                 target_classes.remove(class_name)
             elif operation == "add" and class_name not in target_classes:
@@ -675,7 +579,6 @@ class Website(models.Model):
 
         default_settings = self._get_snippet_defaults(snippet)
         if not (customizations or default_settings):
-            # Nothing to preconfigure on the given snippet
             return
 
         snippet_classes = el.get("class", "").split()
@@ -699,12 +602,8 @@ class Website(models.Model):
             if template_class not in snippet_classes:
                 snippet_classes.append(template_class)
 
-        # Add 'o_colored_level' to maintain correct color configuration.
         snippet_classes.append("o_colored_level")
 
-        # Apply class modifications (add/remove) to the snippet or its children.
-        # - If dict is found, apply to the first child matching the selector.
-        # - Otherwise, treated as direct modification on the snippet element.
         class_modifications = [
             (
                 "remove",
@@ -745,7 +644,6 @@ class Website(models.Model):
             style_attr = " ".join(f"{attr}: {value};" for attr, value in style.items())
             el.set("style", style_attr)
 
-        # Apply theme-specific customizations to the dynamic snippets
         if "background" in customizations:
             self._set_background_options(el, customizations["background"])
 
@@ -773,10 +671,6 @@ class Website(models.Model):
 
     @api.model
     def get_theme_configurator_snippets(self, theme_name):
-        """
-        Prepare and return configurator_snippets by fetching theme snippets and
-        inserting addon snippets at their intended positions.
-        """
         configurator_snippets = {
             **get_manifest("website")["configurator_snippets"],
             **get_manifest(theme_name).get("configurator_snippets", {}),
@@ -904,13 +798,11 @@ class Website(models.Model):
 
         website.configurator_done = True
 
-        # Enable tour
         tour_asset_id = self.env.ref("website.configurator_tour")
         tour_asset_id.copy(
             {"key": tour_asset_id.key, "website_id": website.id, "active": True}
         )
 
-        # Set logo from generated attachment or from company's logo
         logo_attachment_id = kwargs.get("logo_attachment_id")
         company = website.company_id
         if logo_attachment_id:
@@ -925,7 +817,6 @@ class Website(models.Model):
         elif not logo_attachment_id and not company.uses_default_logo:
             website.logo = company.logo.decode("utf-8")
 
-        # Configure the color palette
         selected_palette = kwargs.get("selected_palette")
         if selected_palette:
             Assets = self.env["website.assets"]
@@ -945,7 +836,6 @@ class Website(models.Model):
                     },
                 )
 
-        # Update CTA
         cta_data = website.get_cta_data(
             kwargs.get("website_purpose"), kwargs.get("website_type")
         )
@@ -974,24 +864,26 @@ class Website(models.Model):
                         </xpath>
                     </data>
                 """
-                    % (cta_data["cta_btn_href"], cta_data["cta_btn_text"]),
+                    % (
+                        escape(cta_data["cta_btn_href"]),
+                        escape(cta_data["cta_btn_text"]),
+                    ),
                 }
             )
             try:
                 view_id = self.env["website"].viewref("website.header_call_to_action")
-                if view_id:
-                    el = etree.fromstring(view_id.arch_db)
-                    btn_cta_el = el.xpath("//a[hasclass('btn_cta')]")
-                    if btn_cta_el:
-                        btn_cta_el[0].attrib["href"] = cta_data["cta_btn_href"]
-                        btn_cta_el[0].text = cta_data["cta_btn_text"]
-                    view_id.with_context(website_id=website.id).write(
-                        {"arch_db": etree.tostring(el)}
-                    )
-            except ValueError as e:
-                logger.warning(e)
+                el = etree.fromstring(view_id.arch_db)
+            except (MissingError, etree.XMLSyntaxError) as e:
+                logger.warning("Could not update the header call to action: %s", e)
+            else:
+                btn_cta_el = el.xpath("//a[hasclass('btn_cta')]")
+                if btn_cta_el:
+                    btn_cta_el[0].attrib["href"] = cta_data["cta_btn_href"]
+                    btn_cta_el[0].text = cta_data["cta_btn_text"]
+                view_id.with_context(website_id=website.id).write(
+                    {"arch_db": etree.tostring(el)}
+                )
 
-        # Configure the features
         features = self.env["website.configurator.feature"].browse(
             kwargs.get("selected_features")
         )
@@ -1051,18 +943,10 @@ class Website(models.Model):
             menu_company, module_data
         )
 
-        # Extension hook: allows installed modules (e.g. website_sale, website_blog, ...) to perform
-        # additional setup steps on the generated website. This acts as an entry point for modules to
-        # customize the website.
         self.env["website"].configurator_addons_apply(**kwargs)
 
-        # We need to refresh the environment of the website because we installed
-        # some new module and we need the overrides of these new menus e.g. for
-        # the call to `get_cta_data`.
         website = self.env["website"].browse(website.id)
 
-        # Update footers links, needs to be done after "Features" addition to go
-        # through module overrides of `configurator_get_footer_links`.
         footer_links = website.configurator_get_footer_links()
         footer_ids = [
             "website.template_footer_contact",
@@ -1076,14 +960,9 @@ class Website(models.Model):
         for footer_id in footer_ids:
             view_id = self.env["website"].viewref(footer_id)
             if view_id:
-                # Deliberately hardcode dynamic code inside the view arch,
-                # it will be transformed into static nodes after a save/edit
-                # thanks to the t-ignore in parents node.
                 try:
                     arch_string = etree.fromstring(view_id.arch_db)
                 except etree.XMLSyntaxError as e:
-                    # The xml view could have been modified in the backend, we don't
-                    # want the xpath error to break the configurator feature
                     logger.warning(
                         "Failed to update footer links in view %s: %s", footer_id, e
                     )
@@ -1099,7 +978,6 @@ class Website(models.Model):
                         {"arch_db": etree.tostring(arch_string)}
                     )
 
-        # Load suggestion from iap for selected pages
         industry_id = kwargs["industry_id"]
         custom_resources = self._website_api_rpc(
             "/api/website/2/configurator/custom_resources/%s"
@@ -1107,7 +985,6 @@ class Website(models.Model):
             {"theme": theme_name},
         )
 
-        # Generate text for the pages
         requested_pages = set(pages_views.keys()).union({"homepage"})
         configurator_snippets = website.get_theme_configurator_snippets(theme_name)
         industry = kwargs["industry_name"]
@@ -1116,13 +993,10 @@ class Website(models.Model):
             website_id=website.id, lang=website.default_lang_id.code
         )
         text_generation_target_lang = self.get_current_website().default_lang_id.code
-        # If the target language is not English, we need a good translation
-        # coverage. But if the target lang is en_XX it's ok to have en_US text.
         text_must_be_translated_for_openai = not text_generation_target_lang.startswith(
             "en_"
         )
 
-        # Initialize HTML processor with context chaining - similar to website.with_context() pattern
         html_text_processor = self.env[
             "website.html.text.processor"
         ]._with_processing_context(
@@ -1165,17 +1039,10 @@ class Website(models.Model):
                 name_replace_parser = re.compile(r"XXXX", re.MULTILINE)
                 for key in generated_content:
                     if response.get(key):
-                        # A function replacement inserts ``website.name``
-                        # verbatim. Passing the name as a replacement *string*
-                        # (even re.escape'd) is wrong: re.sub interprets
-                        # backslash sequences there, so a name like "Acme Corp"
-                        # leaks "Acme\ Corp" (re.escape escapes spaces) and a
-                        # name with a group-like escape raises re.error.
                         generated_content[key] = name_replace_parser.sub(
                             lambda _m: website.name, response[key]
                         )
             except AccessError:
-                # If IAP is broken continue normally (without generating text)
                 pass
         else:
             logger.info(
@@ -1183,10 +1050,6 @@ class Website(models.Model):
                 translated_ratio * 100,
             )
 
-        # Configure the pages
-        # ``requested_pages`` is a set: iterate it sorted so the ``index`` baked
-        # into the copied view key below is stable across runs instead of
-        # depending on set/hash-randomization order.
         for index, page_code in enumerate(sorted(requested_pages)):
             snippet_list = configurator_snippets.get(page_code, [])
             if page_code == "homepage":
@@ -1197,6 +1060,9 @@ class Website(models.Model):
                 page_view_id = self.env["ir.ui.view"].browse(pages_views[page_code])
             rendered_snippets = []
             nb_snippets = len(snippet_list)
+            theme_customizations = get_manifest(theme_name).get(
+                "theme_customizations", {}
+            )
             for i, snippet in enumerate(snippet_list, start=1):
                 try:
                     snippet_key = website._get_snippet_view_key(snippet, page_code)
@@ -1204,26 +1070,16 @@ class Website(models.Model):
                         generated_content, snippet_key
                     )
 
-                    # Add the data-snippet attribute to identify the snippet
-                    # for compatibility code
                     el.attrib["data-snippet"] = snippet
 
-                    # Theme specific customizations for non-website snippets
-                    theme_customizations = get_manifest(theme_name).get(
-                        "theme_customizations", {}
-                    )
                     customizations = theme_customizations.get(snippet, {})
 
-                    # Configure non-website snippet with defaults and theme-level customizations.
                     website._preconfigure_snippet(snippet, el, customizations)
 
-                    # Remove the previews needed for the snippets dialog
                     dialog_preview_els = el.find_class("s_dialog_preview")
                     for preview_el in dialog_preview_els:
                         preview_el.getparent().remove(preview_el)
 
-                    # Tweak the shape of the first snippet to connect it
-                    # properly with the header color in some themes
                     if i == 1:
                         shape_el = el.xpath("//*[hasclass('o_we_shape')]")
                         if shape_el:
@@ -1231,8 +1087,6 @@ class Website(models.Model):
                                 " o_header_extra_shape_mapping"
                             )
 
-                    # Tweak the shape of the last snippet to connect it
-                    # properly with the footer color in some themes
                     if i == nb_snippets:
                         shape_el = el.xpath("//*[hasclass('o_we_shape')]")
                         if shape_el:
@@ -1247,8 +1101,6 @@ class Website(models.Model):
                 value=f'<div class="oe_structure">{"".join(rendered_snippets)}</div>',
                 xpath="(//div[hasclass('oe_structure')])[last()]",
             )
-            # Copy the configurator pages to preserve the original untouched
-            # pages in the landing page category when creating a new page.
             page_view_id.copy(
                 {
                     "key": f"{index}_{page_view_id.key}_configurator_pages_landing",
@@ -1256,7 +1108,6 @@ class Website(models.Model):
                 }
             )
 
-        # Configure the images
         images = custom_resources.get("images", {})
         names = (
             self.env["ir.model.data"]
@@ -1300,9 +1151,6 @@ class Website(models.Model):
                 )
 
         def fallback_create_missing_industry_image(image_name, fallback_img_name):
-            """If an industry did not specify an image, this method allows that
-            specific image to be using the same image as another fallback one.
-            """
             image_name = f"website.{image_name}"
             if image_name not in images and f"website.{fallback_img_name}" in images:
                 extn_identifier = "configurator_%s_%s" % (
@@ -1332,10 +1180,6 @@ class Website(models.Model):
                         }
                     )
 
-        # Each industry image may fall back to a different one. Attempt them
-        # independently: a single failure (e.g. a missing source attachment)
-        # must not skip the remaining fallbacks, as the previous single
-        # try/except around every call did.
         fallback_industry_images = [
             ("s_intro_pill_default_image", "library_image_10"),
             ("s_intro_pill_default_image_2", "library_image_14"),
@@ -1395,22 +1239,15 @@ class Website(models.Model):
 
         return {"url": redirect_url, "website_id": website.id}
 
-    # Extension hook: allows installed modules (e.g. website_sale, website_blog, ...) to perform
-    # additional setup steps on the generated website. This acts as an entry point for modules to
-    # customize the website.
     def configurator_addons_apply(self, industry_name=None, **kwargs):
         pass
 
-    # ----------------------------------------------------------
-    # Page Management
-    # ----------------------------------------------------------
     def _bootstrap_homepage(self):
         Page = self.env["website.page"]
         standard_homepage = self.env.ref("website.homepage", raise_if_not_found=False)
         if not standard_homepage:
             return
 
-        # keep strange indentation in python file, to get it correctly in database
         new_homepage_view = """<t name="Homepage" t-name="website.homepage">
     <t t-call="website.layout" pageName.f="homepage">
         <div id="wrap" class="oe_structure oe_empty"/>
@@ -1435,10 +1272,8 @@ class Website(models.Model):
                     .id,
                 }
             )
-        # prevent /-1 as homepage URL
         homepage_page.url = "/"
 
-        # Bootstrap default menu hierarchy, create a new minimalist one if no default
         default_menu = self.env.ref("website.main_menu")
         self.copy_menu_hierarchy(default_menu)
         home_menu = self.env["website.menu"].search(
@@ -1480,20 +1315,13 @@ class Website(models.Model):
         sections_arch=None,
         page_title=None,
     ):
-        """Create a new website page, and assign it a xmlid based on the given one
-        :param name: the name of the page
-        :param add_menu: if True, add a menu for that page
-        :param template: potential xml_id of the page to create
-        :param namespace: module part of the xml_id if none, the template module name is used
-        :param page_values: default values for the page to be created
-        :param menu_values: default values for the menu to be created
-        :param sections_arch: HTML content of sections
-        :param page_title: if set, it allows using 'name' for the URL and a different title
-        """
+        template_record = self.env.ref(template, raise_if_not_found=False)
+        if not template_record:
+            raise UserError(_("'%s' is not a valid template reference.", template))
         if namespace:
             template_module = namespace
         else:
-            template_module, _ = template.split(".")
+            template_module = template.partition(".")[0]
         page_url = "/" + self.env["ir.http"]._slugify(name, max_length=1024, path=True)
         page_url = self.get_unique_path(page_url)
         page_key = self.env["ir.http"]._slugify(name)
@@ -1503,7 +1331,6 @@ class Website(models.Model):
             name = "Home"
             page_key = "home"
 
-        template_record = self.env.ref(template)
         arch = template_record.arch
         if sections_arch:
             tree = html.fromstring(arch)
@@ -1530,7 +1357,7 @@ class Website(models.Model):
         if ispage:
             default_page_values = {
                 "url": page_url,
-                "website_id": website.id,  # remove it if only one website or not?
+                "website_id": website.id,
                 "view_id": view.id,
                 "track": True,
             }
@@ -1551,8 +1378,6 @@ class Website(models.Model):
                     "name": name,
                     "url": page_url,
                     "parent_id": website.menu_id.id,
-                    # ``page`` is only bound when ispage=True; a menu can be
-                    # created for a non-page URL, so guard the reference.
                     "page_id": page.id if ispage else False,
                     "website_id": website.id,
                 }
@@ -1563,17 +1388,11 @@ class Website(models.Model):
         return result
 
     def get_unique_path(self, page_url):
-        """Given an url, return that url suffixed by counter if it already exists
-        :param page_url : the url to be checked for uniqueness
-        """
         inc = 0
-        # we only want a unique_path for website specific.
-        # we need to be able to have /url for website=False, and /url for website=1
-        # in case of duplicate, page manager will allow you to manage this case
         website_id = (
             self.env.context.get("website_id", False) or self.get_current_website().id
         )
-        domain_static = [("website_id", "=", website_id)]  # .website_domain()
+        domain_static = [("website_id", "=", website_id)]
         page_temp = page_url
         while (
             self.env["website.page"]
@@ -1609,25 +1428,17 @@ class Website(models.Model):
         ) or ""
 
     def get_unique_key(self, string, template_module=False):
-        """Given a string, return an unique key including module prefix.
-        It will be suffixed by a counter if it already exists to garantee uniqueness.
-        :param string : the key to be checked for uniqueness, you can pass it with 'website.' or not
-        :param template_module : the module to be prefixed on the key, if not set, we will use website
-        """
         if template_module:
             string = template_module + "." + string
         elif not string.startswith("website."):
             string = "website." + string
 
-        # Look for unique key
         key_copy = string
         inc = 0
         website_id = self.env.context.get("website_id", False)
         if website_id:
             domain_static = Domain("website_id", "in", (False, website_id))
         else:
-            # Only resolve the current website (a non-trivial lookup) when it is
-            # actually needed, i.e. when ``website_id`` is not already in context.
             domain_static = self.get_current_website().website_domain()
         while (
             self.env["ir.ui.view"]
@@ -1641,20 +1452,13 @@ class Website(models.Model):
 
     @api.model
     def search_url_dependencies(self, res_model, res_ids):
-        """Search dependencies just for information. It will not catch 100%
-        of dependencies and False positive is more than possible
-        Each module could add dependences in this dict
-
-        :returns: a dictionnary where key is the 'categorie' of object related to the given
-            view, and the value is the list of text and link to the resource using given page
-        """
         dependencies = {}
         current_website = self.get_current_website()
         page_model_name = "Page"
 
         def _handle_views_and_pages(views):
             page_views = views.filtered("page_ids")
-            views = views - page_views
+            views -= page_views
             if page_views:
                 dependencies.setdefault(page_model_name, [])
                 dependencies[page_model_name] += [
@@ -1668,8 +1472,6 @@ class Website(models.Model):
                 ]
             return views
 
-        # Prepare what's needed to later generate the URL search domain for the
-        # given records
         search_criteria = []
         for record in self.env[res_model].browse([int(res_id) for res_id in res_ids]):
             website = ("website_id" in record and record.website_id) or current_website
@@ -1681,7 +1483,6 @@ class Website(models.Model):
             if not Model.has_access("read"):
                 continue
 
-            # Generate the exact domain to search for the URL in this field
             domains = []
             for url, website_domain in search_criteria:
                 domains.append(
@@ -1697,8 +1498,6 @@ class Website(models.Model):
             if model_name == "ir.ui.view":
                 dependency_records = _handle_views_and_pages(dependency_records)
             if dependency_records:
-                # Keep the technical model name for the fallback backend link;
-                # only the user-facing grouping/label uses the display name.
                 model_label = self.env["ir.model"]._display_name_for([model_name])[0][
                     "display_name"
                 ]
@@ -1717,27 +1516,14 @@ class Website(models.Model):
 
         return dependencies
 
-    # ----------------------------------------------------------
-    # Utilities
-    # ----------------------------------------------------------
 
     @api.model
     def get_current_website(self, fallback=True):
-        """The current website is returned in the following order:
-
-        - the website forced in session `force_website_id`
-        - the website set in context
-        - (if frontend or fallback) the website matching the request's "domain"
-        - arbitrary the first website found in the database if `fallback` is set
-          to `True`
-        - empty browse record
-        """
         is_frontend_request = request and getattr(request, "is_frontend", False)
         if request and request.session.get("force_website_id"):
             forced_id = request.session["force_website_id"]
             if self._is_forced_website_live(forced_id):
                 return self.browse(forced_id)
-            # Don't crash is session website got deleted
             request.session.pop("force_website_id")
 
         website_id = self.env.context.get("website_id")
@@ -1745,20 +1531,9 @@ class Website(models.Model):
             return self.browse(website_id)
 
         if not is_frontend_request and not fallback:
-            # It's important than backend requests with no fallback requested
-            # don't go through
             return self.browse(False)
 
-        # Reaching this point means that:
-        # - We didn't find a website in the session or in the context.
-        # - And we are either:
-        #   - in a frontend context
-        #   - in a backend context (or early in the dispatch stack) and a
-        #     fallback website is requested.
-        # We will now try to find a website matching the request host/domain (if
-        # there is one on request) or return a random one.
 
-        # The format of `httprequest.host` is `domain:port`
         domain_name = (
             (request and request.httprequest.host)
             or (
@@ -1772,39 +1547,7 @@ class Website(models.Model):
 
     @api.model
     def _is_forced_website_live(self, website_id):
-        """Whether ``session['force_website_id']`` still designates a live record.
-
-        ``get_current_website()`` has to survive a forced id left in a session by
-        a website that has since gone away, but ``exists()`` deliberately
-        bypasses the ORM cache and issues one SQL round trip *every* time, and
-        ``_url_for`` reaches this once per URL it rewrites.
-
-        Measured on ``render_public_asset("website.snippets")`` with a forced
-        website in session (the render the builder's snippet panel performs):
-        344 website queries cold / 29 hot, of which 329 resp. 28 were this one
-        probe -- 16 / 1 once memoized. Note the cost is bounded to renders that
-        *compile* many URLs: an ordinary page request pays it once either way
-        (measured 1 vs 1, even on a page carrying 300 links), because
-        ``_post_processing_att`` rewrites static attributes at compile time and
-        the compiled template is cached. It is nil for anonymous visitors, whose
-        sessions carry no forced id at all.
-
-        Memoize the answer **on the request**, not in an ormcache. A registry
-        cache would answer across requests and could therefore go stale in the
-        one direction that matters: a website created and then rolled back
-        leaves a cached "yes", after which this returns a dangling recordset and
-        the first field read raises MissingError -- precisely the crash the
-        ``exists()`` call is here to prevent. A request-scoped memo cannot
-        outlive the transaction that created the row, so every new request
-        re-checks against the database exactly as before.
-
-        The cache generation is part of the token so that a *same-request*
-        ``create``/``write``/``unlink`` on ``website`` -- each of which calls
-        ``registry.clear_cache()`` -- also invalidates it.
-        """
         token = (website_id, self.pool.ormcache_lrus["default"].generation)
-        # ``==`` rather than ``is not None``: under a mocked request an unset
-        # attribute autovivifies to a truthy Mock, which must not read as a hit.
         if getattr(request, "_website_forced_token", None) == token:
             return True
         if not self.browse(website_id).exists():
@@ -1815,58 +1558,19 @@ class Website(models.Model):
     @api.model
     @tools.ormcache("domain_name", "fallback")
     def _get_current_website_id(self, domain_name, fallback=True):
-        """Get the current website id.
-
-        First find the website for which the configured `domain` (after
-        ignoring a potential scheme) is equal to the given
-        `domain_name`. If a match is found, return it immediately.
-
-        If there is no website found for the given `domain_name`, either
-        fallback to the first found website (no matter its `domain`) or return
-        False depending on the `fallback` parameter.
-
-        :param domain_name: the domain for which we want the website.
-            In regard to the `url_parse` method, only the `netloc` part should
-            be given here, no `scheme`.
-        :type domain_name: string
-
-        :param fallback: if True and no website is found for the specificed
-            `domain_name`, return the first website (without filtering them)
-        :type fallback: bool
-
-        :return: id of the found website, or False if no website is found and
-            `fallback` is False
-        :rtype: int or False
-
-        :raises: if `fallback` is True but no website at all is found
-        """
-
         def _remove_port(domain_name):
             return (domain_name or "").split(":")[0]
 
         def _filter_domain(website, domain_name, ignore_port=False):
-            """Ignore `scheme` from the `domain`, just match the `netloc` which
-            is host:port in the version of `url_parse` we use."""
             website_domain = get_base_domain(website.domain_punycode)
             if ignore_port:
                 website_domain = _remove_port(website_domain)
                 domain_name = _remove_port(domain_name)
             return website_domain.lower() == (domain_name or "").lower()
 
-        # We need to test two possibilities unicode or punycode (safety guard).
-        # ``domain_name`` is the raw request ``Host`` header: it is
-        # attacker-controlled and may not be representable in either codec, so
-        # both conversions degrade to the input instead of raising (a malformed
-        # host then simply matches no website).
         domain_name = to_punycode(domain_name or "")
         domain_name_idna = from_punycode(domain_name)
 
-        # TODO: in master, store the computed field domain_punycode to avoid
-        #       the need to search on domain_name and domain_name_idna.
-        # ``domain_name`` is the attacker-controlled Host header. Escape the
-        # LIKE metacharacters so a Host of "%"/"_" cannot turn this into a
-        # match-everything scan (and pollute the ormcache with junk keys); the
-        # exact _filter_domain below still does the authoritative check.
         found_websites = self.search(
             [
                 "|",
@@ -1874,12 +1578,7 @@ class Website(models.Model):
                 ("domain", "ilike", escape_psql(_remove_port(domain_name_idna))),
             ]
         )
-        # Filter for the exact domain (to filter out potential subdomains) due
-        # to the use of ilike.
-        # `domain_name` could be an empty string, in that case multiple website
-        # without a domain will be returned
         websites = found_websites.filtered(lambda w: _filter_domain(w, domain_name))
-        # If there is no domain matching for the given port, ignore the port.
         websites = websites or found_websites.filtered(
             lambda w: _filter_domain(w, domain_name, ignore_port=True)
         )
@@ -1906,15 +1605,6 @@ class Website(models.Model):
 
     @api.model
     def viewref(self, view_id, raise_if_not_found=True):
-        """Given an xml_id or a view_id, return the corresponding view record.
-        In case of website context, return the most specific one.
-
-        Look also for archived views, no matter the context.
-
-        :param view_id: either a string xml_id or an integer view_id
-        :param raise_if_not_found: should the method raise an error if no view found
-        :return: The view record or empty recordset
-        """
         if not isinstance(view_id, (int, str)):
             raise ValueError(
                 "Expecting a string or an integer, not a %s." % (type(view_id))
@@ -1929,9 +1619,6 @@ class Website(models.Model):
 
     @api.model
     def is_view_active(self, key):
-        """
-        Return True if active, False if not active, None if not found
-        """
         return (
             self.env["ir.ui.view"]
             .with_context(active_test=False)
@@ -1950,11 +1637,6 @@ class Website(models.Model):
         return pager(url, total, page=page, step=step, scope=scope, url_args=url_args)
 
     def rule_is_enumerable(self, rule):
-        """Checks that it is possible to generate sensible GET queries for
-        a given rule (if the endpoint matches its own requirements)
-        :type rule: werkzeug.routing.Rule
-        :rtype: bool
-        """
         endpoint = rule.endpoint
         methods = endpoint.routing.get("methods") or ["GET"]
 
@@ -1968,15 +1650,13 @@ class Website(models.Model):
         ):
             return False
 
-        # dont't list routes without argument having no default value or converter
         sign = inspect.signature(endpoint.original_endpoint)
-        params = list(sign.parameters.values())[1:]  # skip self
+        params = list(sign.parameters.values())[1:]
         supported_kinds = (
             inspect.Parameter.POSITIONAL_ONLY,
             inspect.Parameter.POSITIONAL_OR_KEYWORD,
         )
 
-        # check that all args have a converter
         return all(
             p.name in rule._converters
             for p in params
@@ -1984,23 +1664,8 @@ class Website(models.Model):
         )
 
     def _enumerate_pages(self, query_string=None, force=False):
-        """Available pages in the website/CMS. This is mostly used for links
-        generation and can be overridden by modules setting up new HTML
-        controllers for dynamic pages (e.g. blog).
-        By default, returns template views marked as pages.
-        :param str query_string: a (user-provided) string, fetches pages
-                                 matching the string
-        :returns: a list of mappings with two keys: ``name`` is the displayable
-                  name of the resource (page), ``url`` is the absolute URL
-                  of the same.
-        :rtype: list({name: str, url: str})
-        """
-        # ==== WEBSITE.PAGES ====
-        # '/' already has a http.route & is in the routing_map so it will already have an entry in the xml
         domain = [("view_id", "!=", False), ("url", "!=", "/")]
         if not force:
-            # Publicly visible, indexed pages only (``visibility`` was listed
-            # twice in the original domain — harmless but redundant).
             domain += [
                 ("website_indexed", "=", True),
                 ("website_published", "=", True),
@@ -2024,22 +1689,17 @@ class Website(models.Model):
                 record["lastmod"] = max(last_dates).date()
             yield record
 
-        # ==== CONTROLLERS ====
         router = self.env["ir.http"].routing_map()
         url_set = set()
 
         sitemap_endpoint_done = set()
 
-        # Helper to normalize URLs while keeping '/' intact
         def _norm(url):
             return "/" if url == "/" else url.rstrip("/")
 
-        # Avoid recomputing identical sitemap callables more than once
         def _unwrap_callable(f):
-            # Unwrap functools.partial and bound methods to a stable function key
             if isinstance(f, functools.partial):
                 f = f.func
-            # Unwrap bound methods (obj.method) to their underlying function
             if isinstance(f, types.MethodType):
                 return f.__func__
             return f
@@ -2069,7 +1729,6 @@ class Website(models.Model):
             if not self.rule_is_enumerable(rule):
                 continue
 
-            # Warn only if the 'sitemap' key is absent from routing (legacy behavior)
             if "sitemap" not in rule.endpoint.routing:
                 logger.warning(
                     "No Sitemap value provided for controller %s (%s)",
@@ -2086,7 +1745,6 @@ class Website(models.Model):
                 continue
 
             values = [{}]
-            # converters with a domain are processed after the other ones
             convitems = sorted(
                 converters.items(),
                 key=lambda x: (
@@ -2096,10 +1754,11 @@ class Website(models.Model):
             )
 
             for i, (name, converter) in enumerate(convitems):
+                website_domain = None
                 if "website_id" in self.env[converter.model]._fields and (
                     not converter.domain or converter.domain == "[]"
                 ):
-                    converter.domain = (
+                    website_domain = (
                         "[('website_id', 'in', (False, current_website_id))]"
                     )
 
@@ -2109,14 +1768,16 @@ class Website(models.Model):
                     if query:
                         r = "".join(
                             [x[1] for x in rule._trace[1:] if not x[0]]
-                        )  # remove model converter from route
+                        )
                         query = sitemap_qs2dom(
                             query, r, self.env[converter.model]._rec_name
                         )
                         if query.is_false():
                             continue
 
-                    for rec in converter.generate(self.env, args=val, dom=query):
+                    for rec in converter.generate(
+                        self.env, args=val, dom=query, domain=website_domain
+                    ):
                         newval.append(val.copy())
                         newval[-1].update(
                             {name: rec.with_context(lang=self.default_lang_id.code)}
@@ -2125,7 +1786,6 @@ class Website(models.Model):
 
             for value in values:
                 _domain_part, url = rule.build(value, append_unknown=False)
-                # Normalize trailing slash but keep '/'
                 url = _norm(url)
                 pattern = query_string and "*%s*" % "*".join(query_string.split("/"))
                 if not query_string or fnmatch.fnmatch(url.lower(), pattern):
@@ -2137,24 +1797,7 @@ class Website(models.Model):
                     yield page
 
     def get_website_page_ids(self):
-        """
-        Returns website page IDs grouped by website.
-
-        If called with an empty or non-existent recordset, returns all pages
-        under the None key.
-        Else, returns a mapping of website IDs to their respective page IDs.
-
-        :returns: Dict mapping website ID (or None) to list of website.page IDs.
-        :rtype: dict[int | None, list[int]]
-        """
         if not self.env.user.has_group("website.group_website_restricted_editor"):
-            # Note that `website.pages` have `0,0,0,0` ACL rights by default for
-            # everyone except for the website designer which receive `1,0,0,0`.
-            # So the "Website/Site/Content/Pages" menu to reach the page manager
-            # is not shown to the restricted users, as the action linked model
-            # (website.page) can't be access. It's how the Odoo framework works.
-            # Still, we let the restricted editor access this resource for
-            # custos granting them read and/or write access on page.
             raise AccessError(_("Access Denied"))
 
         domain = Domain("url", "!=", False)
@@ -2191,11 +1834,6 @@ class Website(models.Model):
         return res
 
     def check_existing_page(self, page):
-        """
-        Returns a boolean, whether the page is considered to exist for the
-        current website. This is a heuristic and is not perfectly reliable.
-        """
-        # The page exists if there is a 'website.page' record with this url
         if (
             len(
                 self._get_website_pages(
@@ -2206,9 +1844,6 @@ class Website(models.Model):
         ):
             return True
 
-        # The page is considered to exist if there is a 'website.rewrite' record
-        # that does a redirect 301 or 302, for simplicity we do not check
-        # further whether the redirection points to an existing url.
         redirects_domain = self.get_current_website().website_domain() & Domain(
             [("url_from", "=", page), ("redirect_type", "in", ("301", "302"))]
         )
@@ -2220,27 +1855,18 @@ class Website(models.Model):
             .routing_map()
             .bind_to_environ(request.httprequest.environ)
         )
-        # If there is no rules matching this page, it does not exists
         if not router.test(path_info=page, method="GET"):
             return False
 
         try:
             rule, args = router.match(page, method="GET", return_rule=True)
         except werkzeug.routing.RequestRedirect:
-            # The page is considered to exist if it redirects (this happens if
-            # there is a 'website.rewrite' 308), for simplicity we do not check
-            # further whether the redirection points to an existing url.
             return True
 
         try:
-            # The rule may have restriction for some records that appear in its
-            # url, these are checked by `rule.build`.
             for arg in args:
                 if isinstance(args[arg], models.BaseModel):
-                    # Models from `router.match` are missing users in their env
                     args[arg] = args[arg].with_user(self.env.uid)
-                    # For record that may be related to a website, we skip them
-                    # if they are for a different website than the current one
                     if (
                         hasattr(args[arg], "website_id")
                         and args[arg].website_id
@@ -2253,10 +1879,6 @@ class Website(models.Model):
         return True
 
     def get_suggested_controllers(self):
-        """
-        Returns a tuple (name, url, icon).
-        Where icon can be a module name, or a path
-        """
         return [
             (_("Homepage"), self.env["ir.http"]._url_for("/"), "website"),
             (
@@ -2268,7 +1890,6 @@ class Website(models.Model):
 
     @api.model
     def image_url(self, record, field, size=None):
-        """Returns a local url that points to the image field of a given browse record."""
         sudo_record = record.sudo()
         sha = hashlib.sha512(str(sudo_record.write_date).encode("utf-8")).hexdigest()[
             :7
@@ -2329,49 +1950,25 @@ class Website(models.Model):
         return self.get_client_action(path)
 
     def _get_canonical_url(self):
-        """Returns the canonical URL of the current request."""
         self.ensure_one()
         return self.env["ir.http"]._url_localized(
             lang_code=request.lang.code, canonical_domain=self.get_base_url()
         )
 
     def _is_canonical_url(self):
-        """Returns whether the current request URL is canonical."""
         self.ensure_one()
-        # Compare URL at the first routing iteration because it's the one with
-        # the language in the path. It is important to also test the domain of
-        # the current URL.
         current_url = (
             request.httprequest.url_root[:-1]
             + request.httprequest.environ["REQUEST_URI"]
         )
         canonical_url = self._get_canonical_url()
-        # A request path with quotable characters (such as ",") is never
-        # canonical because request.httprequest.base_url is always unquoted,
-        # and canonical url is always quoted, so it is never possible to tell
-        # if the current URL is indeed canonical or not.
         return current_url == canonical_url
 
     @tools.ormcache("self.id")
     def _get_cached_values(self):
         self.ensure_one()
-        # ir.http:_match is called by ir.http:_serve_db at a time when the
-        # environment hasn't been completely initialized (i.e. before the method
-        # ir.http:_authenticate is called by ir.http:_serve_ir_http), and its
-        # context language hasn't been checked against activated languages yet.
 
-        # Inside ir.http:_match, the http_routing module is trying to retrieve
-        # the default language via _get_default_lang, which is overridden by the
-        # website module and calls website._get_cached('default_lang_id'), which
-        # eventually calls this method.
 
-        # Here, we manually prefetch the needed fields only to avoid prefetching
-        # any translatable field, such as contact_us_button_url by website_sale,
-        # as translating to an invalid language would result in an error.
-        #
-        # Every field listed here must be non-translatable (see above) and must
-        # be covered by the ``clear_cache()`` in :meth:`write`, which flushes
-        # the "default" cache group this ormcache belongs to.
         self.fetch(
             ["user_id", "company_id", "default_lang_id", "homepage_url", "cookies_bar"]
         )
@@ -2380,11 +1977,6 @@ class Website(models.Model):
             "company_id": self.company_id.id,
             "default_lang_id": self.default_lang_id.id,
             "homepage_url": self.homepage_url,
-            # Read on every frontend request by ``ir.http._is_allowed_cookie``,
-            # itself part of the ``website.page`` response cache key: a plain
-            # field read there costs one full ``website`` SELECT per hot page
-            # render (the record is not otherwise in the ORM cache at that
-            # point), so it belongs in this prefetched set.
             "cookies_bar": self.cookies_bar,
         }
 
@@ -2435,22 +2027,12 @@ class Website(models.Model):
         self, snippet_module, snippet_id, asset_version, asset_type, html_fields
     ):
         snippet_occurences = []
-        # Check snippet template definition to avoid disabling its related assets.
-        # This special case is needed because snippet template definitions do not
-        # have a `data-snippet` attribute (which is added during drag&drop).
         snippet_template_html = self.env["ir.qweb"]._render(
             f"{snippet_module}.{snippet_id}", raise_if_not_found=False
         )
         if snippet_template_html:
             match = re.search(r'<([^>]*class="[^>]*)>', snippet_template_html)
             if match:
-                # A snippet template whose root carries no ``class`` attribute
-                # is unusual but legal, and ``re.search`` then returns None.
-                # Calling ``.group()`` on it raised AttributeError out of
-                # ``_disable_unused_snippets_assets``, which runs on every
-                # module install/upgrade -- taking the whole upgrade down over
-                # one odd template. No match simply means "this definition
-                # proves nothing", which the DB scan below still answers.
                 snippet_occurences.append(match.group())
 
         if self._check_snippet_used(snippet_occurences, asset_type, asset_version):
@@ -2459,7 +2041,6 @@ class Website(models.Model):
         html_fields = [
             (self.env[model_name], field_name) for model_name, field_name in html_fields
         ]
-        # As well as every snippet dropped in html fields
         self.env.cr.execute(
             SQL(" UNION ").join(
                 SQL(
@@ -2485,11 +2066,6 @@ class Website(models.Model):
         return False
 
     def _check_user_can_modify(self, record):
-        """Verify that the current user can modify the given record.
-
-        :param record: record on which to perform the check
-        :raise AccessError: if the operation is forbidden
-        """
         record.check_access("write")
 
     def _disable_unused_snippets_assets(self):
@@ -2503,8 +2079,6 @@ class Website(models.Model):
         snippet_re = re.compile(
             r"(\w*)\/.*\/snippets\/(\w*)\/(\d{3})(?:_\w*)?\.(js|scss)"
         )
-        # regex will match /module/static/[.../]/snippets/snippet_id/XXX[_variable].asset_type
-        # _variable is not kept since only module, snippet_id, asset_version (XXX), asset_type are relevant
         html_fields = self._get_fields_html()
         snippet_used = {}
         for snippet_asset in snippet_assets:
@@ -2518,7 +2092,7 @@ class Website(models.Model):
                 snippet_id,
                 asset_version,
                 asset_type,
-            )  # module is not relevant, we want the first one in the asset id order to filter module extension
+            )
             if key not in snippet_used:
                 snippet_used[key] = self._is_snippet_used(
                     snippet_module, snippet_id, asset_version, asset_type, html_fields
@@ -2526,7 +2100,6 @@ class Website(models.Model):
             is_snippet_used = snippet_used[key]
             if is_snippet_used != snippet_asset.active:
                 snippet_asset.active = is_snippet_used
-                # Handle missing data-snippet attributes
                 if (
                     snippet_id == "s_quotes_carousel"
                     and asset_type == "css"
@@ -2546,15 +2119,6 @@ class Website(models.Model):
         self.env["ir.asset"].flush_model()
 
     def _search_get_details(self, search_type, order, options):
-        """
-        Returns indications on how to perform the searches
-
-        :param search_type: type of search
-        :param order: order in which the results are to be returned
-        :param options: search options
-
-        :return: list of search details obtained from the `mixin.website.searchable`'s `_search_get_detail()`
-        """
         result = []
         if search_type in ["pages", "all"]:
             result.append(
@@ -2563,23 +2127,6 @@ class Website(models.Model):
         return result
 
     def _search_with_fuzzy(self, search_type, search, limit, order, options):
-        """
-        Performs a search with a search text or with a resembling word
-
-        :param search_type: indicates what to search within, 'all' matches all available types
-        :param search: text against which to match results
-        :param limit: maximum number of results per model type involved in the result
-        :param order: order on which to sort results within a model type
-        :param options: search options from the submitted form containing:
-            - allowFuzzy: boolean indicating whether the fuzzy matching must be done
-            - other options used by `_search_get_details()`
-
-        :return: tuple containing:
-            - count: total number of results across all involved models
-            - results: list of results per model (see _search_exact)
-            - fuzzy_term: similar word against which results were obtained, indicates there were
-                no results for the initially requested search
-        """
         fuzzy_term = False
         search_details = self._search_get_details(search_type, order, options)
         if search and options.get("allowFuzzy", True):
@@ -2599,21 +2146,6 @@ class Website(models.Model):
         return count, results, fuzzy_term
 
     def _search_exact(self, search_details, search, limit, order):
-        """
-        Performs a search with a search text
-
-        :param search_details: see :meth:`_search_get_details`
-        :param search: text against which to match results
-        :param limit: maximum number of results per model type involved in the result
-        :param order: order on which to sort results within a model type
-
-        :return: tuple containing:
-            - total number of results across all involved models
-            - list of results per model made of:
-                - initial search_detail for the model
-                - count: number of results for the model
-                - results: model list equivalent to a `model.search()`
-        """
         all_results = []
         total_count = 0
         for search_detail in search_details:
@@ -2626,15 +2158,6 @@ class Website(models.Model):
         return total_count, all_results
 
     def _search_render_results(self, search_details, limit):
-        """
-        Prepares data for the autocomplete and hybrid list rendering
-
-        :param search_details: obtained from `_search_exact()`
-        :param limit: maximum number or rows to render
-
-        :return: the updated `search_details` containing an additional `results_data` field equivalent
-            to the result of a `model.read()`
-        """
         for search_detail in search_details:
             fields = search_detail["fetch_fields"]
             results = search_detail["results"]
@@ -2647,18 +2170,6 @@ class Website(models.Model):
     def _search_find_fuzzy_term(
         self, search_details, search, limit=1000, word_list=None
     ):
-        """
-        Returns the "closest" match of the search parameter within available words.
-
-        :param search_details: obtained from `_search_get_details()`
-        :param search: search term to which words must be matched against
-        :param limit: maximum number of records fetched per model to build the word list
-        :param word_list: if specified, this list of words is used as possible targets instead of
-            the words contained in the match fields of each involved model
-
-        :return: term on which a search can be performed instead of the initial search
-        """
-        # No fuzzy search for less that 4 characters, multi-words nor 80%+ numbers.
         if (
             len(search) < 4
             or " " in search
@@ -2686,15 +2197,6 @@ class Website(models.Model):
         return best_word
 
     def _search_get_indirect_fields(self, fields, model):
-        """
-        Returns the list of indirect fields amongst the requested fields.
-
-        :param fields: list of field names to be searched
-        :param model: model within which to search
-        :return: dict of indirect field details per indirect field name
-        """
-        # Are considered valid indirect fields, fields that belong to the
-        # comodel behind a relational direct field.
         indirect_fields = {}
         for field in fields:
             field_parts = field.split(".")
@@ -2709,8 +2211,7 @@ class Website(models.Model):
                 continue
             comodel_fields = self.env[comodel_name]._fields
             cofield = None
-            if "_description_relation_field" in dir(direct_field):
-                # One2many field's comodel reference to the model's id.
+            if hasattr(direct_field, "_description_relation_field"):
                 cofield = direct_field._description_relation_field
                 if cofield not in comodel_fields:
                     continue
@@ -2724,30 +2225,9 @@ class Website(models.Model):
         return indirect_fields
 
     def _trigram_enumerate_words(self, search_details, search, limit):
-        """
-        Browses through all words that need to be compared to the search term.
-        It extracts all words of every field associated to models in the fields_per_model parameter.
-        The search is restricted to a records having the non-zero pg_trgm.word_similarity() score.
-
-        :param search_details: obtained from `_search_get_details()`
-        :param search: search term to which words must be matched against
-        :param limit: maximum number of records fetched per model to build the word list
-        :return: yields words
-        """
-
         def get_similarity_subquery(
             model, fields, id_column, rel_table="", rel_joinkey=""
         ):
-            """Build a subquery retrieving the greatest word_similarity between search and fields.
-            It adds joins/left joins to the subquery when needed.
-
-            :param model: current model used to retrieve the subquery table
-            :param fields: sequence of fields used in similarity computation
-            :id_column: name of the column used to get the correct ids.
-                E.g. id for model=product_template, product_tmpl_id for model=product_product)
-            :rel_table: name of the rel table when search_fields in search_details contains a Many2many.
-            :rel_joinkey: name of the column used to join model._table with rel_table.
-            """
             subquery = Query(self.env.cr, model._table, model._table_query)
             unaccent = self.env.registry.unaccent
             similarity = SQL(
@@ -2817,7 +2297,6 @@ class Website(models.Model):
             )
 
         match_pattern = r"[\w./-]{%s,}" % min(4, len(search) - 3)
-        # SET the `<%` similarity threshold to 0.3 for the current transaction (cluster default is 0.6)
         self.env.cr.execute("SET LOCAL pg_trgm.word_similarity_threshold to 0.3;")
         for search_detail in search_details:
             model_name, fields = search_detail["model"], search_detail["search_fields"]
@@ -2827,10 +2306,9 @@ class Website(models.Model):
             domain = Domain.AND(search_detail["base_domain"])
             direct_fields = set(fields).intersection(model._fields)
             indirect_fields = self._search_get_indirect_fields(fields, model)
-            # Group indirect_fields by comodel
             indirect_fields_info = defaultdict(
                 dict
-            )  # {comodel: {field_name: field_info}}
+            )
             for name, indirect_field in indirect_fields.items():
                 indirect_fields_info[indirect_field["comodel"]][name] = indirect_field
             subqueries = [get_similarity_subquery(model, direct_fields, "id")]
@@ -2863,10 +2341,11 @@ class Website(models.Model):
                 FROM (%s) sub
                 GROUP BY id
                 ORDER BY _best_similarity DESC
-                LIMIT 1000
+                LIMIT %s
             """,
                 SQL("\nUNION ALL\n").join(subqueries),
-            )  # UNION ALL allows to hit GIST indexes in subplans.
+                limit,
+            )
             self.env.cr.execute(query)
             ids = {row[0] for row in self.env.cr.fetchall()}
             domain = Domain.AND([domain, Domain([("id", "in", list(ids))])])
@@ -2885,15 +2364,6 @@ class Website(models.Model):
                             yield from re.findall(match_pattern, value)
 
     def _basic_enumerate_words(self, search_details, search, limit):
-        """
-        Browses through all words that need to be compared to the search term.
-        It extracts all words of every field associated to models in the fields_per_model parameter.
-
-        :param search_details: obtained from `_search_get_details()`
-        :param search: search term to which words must be matched against
-        :param limit: maximum number of records fetched per model to build the word list
-        :return: yields words
-        """
         match_pattern = r"[\w./-]{%s,}" % min(4, len(search) - 3)
         first = escape_psql(search[0])
         for search_detail in search_details:
@@ -2911,16 +2381,16 @@ class Website(models.Model):
                 for pattern in (
                     "%s%%" % first,
                     "%% %s%%" % first,
-                    "%%>%s%%" % first,  # HTML
+                    "%%>%s%%" % first,
                 )
             )
             domain &= fields_domain
             perf_limit = 1000
             records = model.search_read(domain, direct_fields, limit=perf_limit)
             if len(records) == perf_limit:
-                # Exact match might have been missed because the fetched
-                # results are limited for performance reasons.
-                exact_records, _ = model._search_fetch(search_detail, search, 1, None)
+                exact_records, _count = model._search_fetch(
+                    search_detail, search, 1, None
+                )
                 if exact_records:
                     yield search
             for record in records:
@@ -2940,17 +2410,7 @@ class Website(models.Model):
                             value = value.lower()
                             yield from re.findall(match_pattern, value)
 
-    def _allConsentsGranted(self):
-        """
-        Checks if all (cookies) consents have been granted. Note that in the
-        case no cookies bar has been enabled, this considers that full consent
-        has been immediately given. Indeed, in that case, we suppose that the
-        user implemented his own consent behavior through custom code / app.
-        That custom code / app is able to override this function as desired and
-        xpath the `tracking_code_config` script in `website.layout`.
-
-        :return: True if all consents have been granted, False otherwise
-        """
+    def _all_consents_granted(self):
         self.ensure_one()
         return not self.cookies_bar or self.env["ir.http"]._is_allowed_cookie(
             "optional"

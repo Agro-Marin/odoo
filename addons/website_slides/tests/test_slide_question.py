@@ -9,7 +9,7 @@ class TestSlideQuizSurvey(slides_common.SlidesCase):
 
     @users("user_officer")
     def test_ensure_quiz_survey_creates_survey(self):
-        """Calling _ensure_quiz_survey on a quiz slide without a survey creates one."""
+        """Calling _check_quiz_survey on a quiz slide without a survey creates one."""
         slide = self.env["slide.slide"].create(
             {
                 "name": "Test Quiz Slide",
@@ -19,7 +19,7 @@ class TestSlideQuizSurvey(slides_common.SlidesCase):
             }
         )
         self.assertFalse(slide.survey_id)
-        slide._ensure_quiz_survey()
+        slide._check_quiz_survey()
         self.assertTrue(slide.survey_id)
         self.assertEqual(slide.survey_id.scoring_success_min, 100.0)
         self.assertEqual(slide.survey_id.questions_layout, "one_page")
@@ -36,7 +36,7 @@ class TestSlideQuizSurvey(slides_common.SlidesCase):
                 "is_published": True,
             }
         )
-        slide._ensure_quiz_survey()
+        slide._check_quiz_survey()
         self.assertFalse(slide.has_questions)
 
         self.env["survey.question"].create(

@@ -17,20 +17,8 @@ _logger = logging.getLogger(__name__)
 @odoo.tests.tagged("-at_install", "post_install")
 class TestFuzzy(TransactionCase):
     def test_01_fuzzy_names(self):
-        # Models from other modules commented out on commit: they make the test much longer
-        # Last results observed across modules:
-        # - 698 words in target dictionary
-        # - 21 wrong guesses over 9379 tested typos (0.22%)
-        # - Duration: ~5.7 seconds
         fields_per_model = {
             "website.page": ["name", "arch"],
-            # 'product.public.category': ['name', 'website_description'],
-            # 'product.template': ['name', 'description_sale'],
-            # 'blog.blog': ['name', 'subtitle'],
-            # 'blog.post': ['name', 'subtitle'],
-            # 'slide.channel': ['name', 'description_short'],
-            # 'slide.slide': ['name', 'description'],
-            # 'event.event': ['name', 'subtitle'],
         }
         match_pattern = "\\w{4,}"
         words = set()
@@ -39,7 +27,7 @@ class TestFuzzy(TransactionCase):
                 continue
             model = self.env[model_name]
             if "description" not in fields and "description" in model:
-                fields.append("description")  # larger target dataset
+                fields.append("description")
             records = model.sudo().search_read([], fields, limit=100)
             for record in records:
                 for field, value in record.items():
@@ -47,8 +35,9 @@ class TestFuzzy(TransactionCase):
                         if field == "arch":
                             view_arch = etree.fromstring(value.encode("utf-8"))
                             value = " ".join(view_arch.itertext())
-                        for word in re.findall(match_pattern, value):
-                            words.add(word.lower())
+                        words.update(
+                            word.lower() for word in re.findall(match_pattern, value)
+                        )
         _logger.info("%s words in target dictionary", len(words))
 
         website = self.env.ref("website.default_website")
@@ -61,7 +50,6 @@ class TestFuzzy(TransactionCase):
 
         for search in words:
             for index in range(2, len(search)):
-                # swap letters
                 if search[index] != search[index - 1]:
                     add_typo(
                         search,
@@ -70,14 +58,12 @@ class TestFuzzy(TransactionCase):
                         + search[index - 1]
                         + search[index + 1 :],
                     )
-                # miss letter
                 if len(search) > 4:
                     add_typo(search, search[: index - 1] + search[index:])
-                # wrong letter
                 add_typo(search, search[: index - 1] + "!" + search[index:])
 
         words = list(words)
-        words.sort()  # guarantee results stability
+        words.sort()
         mismatch_count = 0
         for search, expected in typos.items():
             fuzzy_guess = website._search_find_fuzzy_term({}, search, word_list=words)
@@ -114,7 +100,6 @@ class TestFuzzy(TransactionCase):
         self.assertEqual(distance("gravity", "girafe", 3), -1)
         self.assertEqual(distance("warranty", "warantl", 3), 2)
 
-        # non-optimized cases still have to return correct results
         self.assertEqual(distance("warranty", "warranty", 3), 0)
         self.assertEqual(distance("", "warranty", 3), -1)
         self.assertEqual(distance("", "warranty", 10), 8)
@@ -122,7 +107,6 @@ class TestFuzzy(TransactionCase):
         self.assertEqual(distance("", "", 10), 0)
 
     def test_03_similarity_score_empty_operand(self):
-        """An empty operand must report "not similar", not divide by zero."""
         self.assertEqual(similarity_score("", "warranty"), -1)
         self.assertEqual(similarity_score("warranty", ""), -1)
         self.assertEqual(similarity_score("", ""), -1)
@@ -132,12 +116,6 @@ class TestFuzzy(TransactionCase):
 @odoo.tests.tagged("-at_install", "post_install")
 class TestTextFromHtml(TransactionCase):
     def test_keeps_text_following_a_stripped_element(self):
-        """Stripping a node must not take the text that follows it.
-
-        ``lxml``'s ``remove()`` also drops the element's tail, so an inline
-        ``<svg>`` icon (which snippets ship everywhere) used to swallow the rest
-        of the sentence — making that text unfindable by the site search.
-        """
         self.assertEqual(
             text_from_html("<svg><path/></svg>text after svg", True),
             "text after svg",
@@ -159,12 +137,6 @@ class TestTextFromHtml(TransactionCase):
         )
 
     def test_resolves_html_entities(self):
-        """Entities must be decoded, not deleted.
-
-        An XML parser has no HTML entity table and silently drops every
-        ``&eacute;``/``&nbsp;``/``&mdash;`` in recover mode, stripping accents
-        and gluing adjacent words together.
-        """
         self.assertEqual(text_from_html("Caf&eacute; Gourmand", True), "Café Gourmand")
         self.assertEqual(text_from_html("word1&nbsp;word2", True), "word1 word2")
         self.assertEqual(text_from_html("&euro;100 &mdash; sale", True), "€100 — sale")
@@ -174,7 +146,6 @@ class TestTextFromHtml(TransactionCase):
         )
 
     def test_preserved_behaviour(self):
-        """Cases the previous implementation already got right must not move."""
         self.assertEqual(text_from_html("Tom &amp; Jerry", True), "Tom & Jerry")
         self.assertEqual(text_from_html("5 &lt; 6 &gt; 4", True), "5 < 6 > 4")
         self.assertEqual(
@@ -227,7 +198,6 @@ class TestAutoComplete(TransactionCase):
         )
 
     def _autocomplete(self, term):
-        """Calls the autocomplete for a given term and performs general checks"""
         with MockRequest(self.env, website=self.website):
             suggestions = self.WebsiteController.autocomplete(
                 search_type="pages",
@@ -255,14 +225,12 @@ class TestAutoComplete(TransactionCase):
             return suggestions
 
     def _check_highlight(self, term, value):
-        """Verifies if a term is highlighted in a value"""
         self.assertTrue(
             f'<span class="text-primary-emphasis">{term}</span>' in value.lower(),
             "Term must be highlighted",
         )
 
     def test_01_few_results(self):
-        """Tests an autocomplete with exact match and less than the maximum number of results"""
         suggestions = self._autocomplete("few")
         self.assertEqual(
             2, suggestions["results_count"], "Text data contains two pages with 'few'"
@@ -274,7 +242,6 @@ class TestAutoComplete(TransactionCase):
             self._check_highlight("few", result["description"])
 
     def test_02_many_results(self):
-        """Tests an autocomplete with exact match and more than the maximum number of results"""
         suggestions = self._autocomplete("many")
         self.assertEqual(
             6, suggestions["results_count"], "Test data contains six pages with 'many'"
@@ -286,7 +253,6 @@ class TestAutoComplete(TransactionCase):
             self._check_highlight("many", result["description"])
 
     def test_03_no_result(self):
-        """Tests an autocomplete without matching results"""
         suggestions = self._autocomplete("nothing")
         self.assertEqual(
             0, suggestions["results_count"], "Text data contains no page with 'nothing'"
@@ -294,7 +260,6 @@ class TestAutoComplete(TransactionCase):
         self.assertEqual(0, len(suggestions["results"]), "No result must be present")
 
     def test_04_fuzzy_results(self):
-        """Tests an autocomplete with fuzzy matching results"""
         suggestions = self._autocomplete("appoximtly")
         self.assertEqual("approximately", suggestions["fuzzy_search"], "")
         self.assertEqual(
@@ -310,7 +275,6 @@ class TestAutoComplete(TransactionCase):
             self._check_highlight("approximately", result["description"])
 
     def test_05_long_url(self):
-        """Ensures that long URL do not get truncated"""
         url = "/this-url-is-so-long-it-would-be-truncated-without-the-fix"
         self._create_page("Too long", "Way too long URL", url)
         suggestions = self._autocomplete("long url")
@@ -327,9 +291,6 @@ class TestAutoComplete(TransactionCase):
         )
 
     def test_06_case_insensitive_results(self):
-        """Tests an autocomplete with exact match and more than the maximum
-        number of results.
-        """
         suggestions = self._autocomplete("Many")
         self.assertEqual(
             6, suggestions["results_count"], "Test data contains six pages with 'Many'"
@@ -341,7 +302,6 @@ class TestAutoComplete(TransactionCase):
             self._check_highlight("many", result["description"])
 
     def test_07_no_fuzzy_for_mostly_number(self):
-        """Ensures exact match is used when search contains mostly numbers."""
         self._create_page(
             "Product P7935432254U7 page",
             "Product P7935432254U7 kangaroo shoes",
@@ -364,14 +324,13 @@ class TestAutoComplete(TransactionCase):
             1, suggestions["results_count"], "Test data contains one exact match"
         )
         self.assertFalse(suggestions["fuzzy_search"], "Expects an exact match")
-        suggestions = self._autocomplete("kangroo")  # must contain a typo
+        suggestions = self._autocomplete("kangroo")
         self.assertEqual(
             1, suggestions["results_count"], "Test data contains one fuzzy match"
         )
         self.assertTrue(suggestions["fuzzy_search"], "Expects a fuzzy match")
 
     def test_08_fuzzy_classic_numbers(self):
-        """Ensures fuzzy match is used when search contains a few numbers."""
         self._create_page("iPhone 6", "iPhone6", "/iphone6")
         suggestions = self._autocomplete("iphone7")
         self.assertEqual(
@@ -380,7 +339,6 @@ class TestAutoComplete(TransactionCase):
         self.assertTrue(suggestions["fuzzy_search"], "Expects an fuzzy match")
 
     def test_09_hyphen(self):
-        """Ensures that hyphen is considered part of word"""
         suggestions = self._autocomplete("weekend")
         self.assertEqual(
             1,

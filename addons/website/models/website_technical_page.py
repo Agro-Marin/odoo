@@ -5,11 +5,6 @@ from odoo.tools import SQL, ormcache
 
 
 class WebsiteTechnicalPage(models.Model):
-    """
-    This model allows listing technical pages whose route decorator is marked
-    thanks to the `list_as_website_content` option.
-    """
-
     _name = "website.technical.page"
     _description = "Website Technical Page"
     _auto = False
@@ -18,16 +13,10 @@ class WebsiteTechnicalPage(models.Model):
     website_url = fields.Char("Website Page URL")
 
     def open_website_url(self):
-        """
-        Opens the technical page for the given URL and website.
-        """
         return self.env["website"].get_client_action(self.website_url)
 
     @ormcache(cache="routing")
     def get_static_routes(self):
-        """
-        Returns a set of website content static routes.
-        """
         dynamic_route_re = re.compile(r"<[^>]+>")
         routes = set()
         for rule in self.env["ir.http"].routing_map().iter_rules():
@@ -46,8 +35,6 @@ class WebsiteTechnicalPage(models.Model):
     def _table_query(self):
         routes = self.get_static_routes()
         if not routes:
-            # `FROM (VALUES )` is a syntax error; return an empty-shaped result
-            # when no endpoint declares a listable route.
             return SQL(
                 "SELECT NULL::int AS id, NULL::text AS name, "
                 "NULL::text AS website_url WHERE FALSE"

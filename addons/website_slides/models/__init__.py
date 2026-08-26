@@ -14,3 +14,4 @@ from . import res_users
 from . import res_groups
 from . import res_partner
 from . import mail_activity
+from . import survey_survey

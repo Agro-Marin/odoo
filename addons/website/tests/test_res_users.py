@@ -77,7 +77,6 @@ class TestWebsiteResUsers(TransactionCase):
             user_belle.login = "Pou"
 
     def test_same_website_message(self):
-        # Use a test cursor because retrying() does commit.
         with self.enter_registry_test_mode(), self.env.registry.cursor() as cr:
             env = self.env(context={"lang": "en_US"}, cr=cr)
 
@@ -89,18 +88,12 @@ class TestWebsiteResUsers(TransactionCase):
                     groups="base.group_portal",
                 )
 
-            # First user creation works.
             create_user_pou()
 
-            # Second user creation fails with ValidationError instead of
-            # IntegrityError. Do not use self.assertRaises as it would try
-            # to create and rollback to a savepoint that is removed by the
-            # rollback in retrying().
             with TestCase.assertRaises(self, ValidationError), mute_logger("odoo.db"):
                 retrying(create_user_pou, env)
 
     def _create_user_via_website(self, website, login):
-        # We need a fake request to _signup_create_user.
         with MockRequest(self.env, website=website):
             return (
                 self.env["res.users"]
@@ -116,7 +109,6 @@ class TestWebsiteResUsers(TransactionCase):
     def _create_and_check_portal_user(
         self, website_specific, company_1, company_2, website_1, website_2
     ):
-        # Disable/Enable cross-website for portal users.
         website_1.specific_user_account = website_specific
         website_2.specific_user_account = website_specific
 
@@ -141,7 +133,6 @@ class TestWebsiteResUsers(TransactionCase):
         website_2 = self.env["website"].create(
             {"name": "Website 2", "company_id": company_2.id}
         )
-        # Permit uninvited signup.
         website_1.auth_signup_uninvited = "b2c"
         website_2.auth_signup_uninvited = "b2c"
 
@@ -156,19 +147,14 @@ class TestWebsiteResUsers(TransactionCase):
         company = self.env["res.company"].create({"name": "Company"})
         self.env["website"].create({"name": "Website 1", "company_id": company.id})
 
-        # The company cannot be archived because it has a website linked to it
         with self.assertRaises(ValidationError):
             company.action_archive()
 
     def test_user_become_internal(self):
-        # This tests if the website_id is correctly removed when a user becomes
-        # an internal user.
         website = self.env["website"].create({"name": "Awesome Website"})
         website.write(
             {
-                # Permit uninvited signup for portal users.
                 "auth_signup_uninvited": "b2c",
-                # Disable cross-website for portal users.
                 "specific_user_account": True,
             }
         )

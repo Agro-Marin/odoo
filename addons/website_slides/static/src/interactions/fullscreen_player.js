@@ -12,6 +12,7 @@ import { unhideConditionalElements } from "@website/utils/misc";
 import { CoursePage } from "@website_slides/interactions/course_page";
 import {
     findSlide,
+    getDocumentMaxPage,
     parseSlideBoolean,
     parseSlideDataset,
 } from "@website_slides/js/public/slides_course_utils";
@@ -464,12 +465,6 @@ export class FullscreenPlayer extends CoursePage {
         return Promise.resolve();
     }
 
-    getDocumentMaxPage() {
-        const iframe = document.querySelector("iframe.o_wslides_iframe_viewer");
-        const iframeDocument = iframe.contentWindow.document;
-        return parseInt(iframeDocument.querySelector("#page_count").innerText);
-    }
-
     /**
      * Extend the slide data list to add informations about rendering method,
      * and other specific values according to their slide_category.
@@ -577,6 +572,14 @@ export class FullscreenPlayer extends CoursePage {
         try {
             const slide = this._slideValue;
             const content = this.el.querySelector(".o_wslides_fs_content");
+            // Stop before replacing, not only start after: `startInteractions`
+            // refuses to start an interaction already active on an element, and
+            // `.o_wslides_fs_content` matches interactions itself (TextHighlight
+            // does) -- so one started on the empty container at page load stayed
+            // registered and the slide body rendered here never got its turn.
+            // That is why a saved `.o_text_highlight` reached fullscreen with no
+            // SVG. It also drops whatever the previous slide's body had started.
+            this.services["public.interactions"].stopInteractions(content);
             content.replaceChildren();
 
             // display quiz slide, or quiz attached to a slide
@@ -724,14 +727,17 @@ export class FullscreenPlayer extends CoursePage {
         const currentSlide = this._slideValue;
         if (currentSlide.id === slideData.id) {
             currentSlide.completed = completed;
-            this._updateSlideValue(currentSlide);
-
+            // `_updateSlideValue(currentSlide)` used to sit here; it opens with
+            // `if (this._slideValue === slide) return`, and currentSlide *is*
+            // this._slideValue, so it was an unconditional no-op. Removed
+            // rather than repaired: the re-render below is the only thing it
+            // could have wanted, and it already happens.
             if (
                 (currentSlide.hasQuestion || currentSlide.type === "quiz") &&
                 !completed
             ) {
                 // Reload the quiz
-                this._renderSlide();
+                await this._renderSlide();
             }
         }
     }
@@ -755,8 +761,12 @@ export class FullscreenPlayer extends CoursePage {
         const slide = this._slideValue;
         this.services.dialog.add(SlideShareDialog, {
             category: slide.category,
-            documentMaxPage: slide.category === "document" && this.getDocumentMaxPage(),
-            emailSharing: slide.emailSharing === "True",
+            documentMaxPage: slide.category === "document" && getDocumentMaxPage(),
+            // `slide` came from parseSlideDataset, so this is already a real
+            // boolean. Comparing it to the string "True" -- as share.js
+            // correctly does on the *raw* dataset -- was false every time, so
+            // the email-sharing input never rendered in fullscreen.
+            emailSharing: slide.emailSharing,
             embedCode: slide.embedCode || "",
             id: slide.id,
             isFullscreen: true,

@@ -59,7 +59,7 @@ class IrUiView(models.Model):
                     r.visibility_password_display
                     and crypt_context.hash(r.visibility_password_display)
                 ) or ""
-                r.visibility = r.visibility  # double check access
+                r.visibility = r.visibility
 
     def _compute_first_page_id(self):
         for view in self:
@@ -69,23 +69,14 @@ class IrUiView(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """
-        SOC for ir.ui.view creation. If a view is created without a website_id,
-        it should get one if one is present in the context. Also check that
-        an explicit website_id in create values matches the one in the context.
-        """
         website_id = self.env.context.get("website_id", False)
         if not website_id:
             return super().create(vals_list)
 
         for vals in vals_list:
             if "website_id" not in vals:
-                # Automatic addition of website ID during view creation if not
-                # specified but present in the context
                 vals["website_id"] = website_id
             else:
-                # If website ID specified, automatic check that it is the same as
-                # the one in the context. Otherwise raise an error.
                 new_website_id = vals["website_id"]
                 if not new_website_id:
                     raise ValueError(
@@ -116,23 +107,11 @@ class IrUiView(models.Model):
         return None
 
     def write(self, vals):
-        """COW for ir.ui.view. This way editing websites does not impact other
-        websites. Also this way newly created websites will only
-        contain the default views.
-        """
         current_website_id = self.env.context.get("website_id")
         if not current_website_id or self.env.context.get("no_cow"):
             return super().write(vals)
 
-        # We need to consider inactive views when handling multi-website cow
-        # feature (to copy inactive children views, to search for specific
-        # views, ...)
-        # Website-specific views need to be updated first because they might
-        # be relocated to new ids by the cow if they are involved in the
-        # inheritance tree.
         for view in self.with_context(active_test=False).sorted("website_id.id"):
-            # Make sure views which are written in a website context receive
-            # a value for their 'key' field
             if not view.key and not vals.get("key"):
                 view.with_context(no_cow=True).key = (
                     "website.key_%s" % str(uuid.uuid4())[:6]
@@ -140,21 +119,13 @@ class IrUiView(models.Model):
 
             pages = view.page_ids
 
-            # No need of COW if the view is already specific
             if view.website_id:
                 super(IrUiView, view).write(vals)
                 continue
 
-            # Ensure the cache of the pages stay consistent when doing COW.
-            # This is necessary when writing view fields from a page record
-            # because the generic page will put the given values on its cache
-            # but in reality the values were only meant to go on the specific
-            # page. Invalidate all fields and not only those in vals because
-            # other fields could have been changed implicitly too.
             pages.flush_recordset()
             pages.invalidate_recordset()
 
-            # If already a specific view for this generic view, write on it
             website_specific_view = view.search(
                 [("key", "=", view.key), ("website_id", "=", current_website_id)],
                 limit=1,
@@ -163,11 +134,7 @@ class IrUiView(models.Model):
                 super(IrUiView, website_specific_view).write(vals)
                 continue
 
-            # Set key to avoid copy() to generate an unique key as we want the
-            # specific view to have the same key
             copy_vals = {"website_id": current_website_id, "key": view.key}
-            # Copy with the 'inherit_id' field value that will be written to
-            # ensure the copied view's validation works
             if vals.get("inherit_id"):
                 copy_vals["inherit_id"] = vals["inherit_id"]
             website_specific_view = view.copy(copy_vals)
@@ -180,12 +147,6 @@ class IrUiView(models.Model):
                 key=lambda v: (v.priority, v.id)
             ):
                 if inherit_child.website_id.id == current_website_id:
-                    # In the case the child was already specific to the current
-                    # website, we cannot just reattach it to the new specific
-                    # parent: we have to copy it there and remove it from the
-                    # original tree. Indeed, the order of children 'id' fields
-                    # must remain the same so that the inheritance is applied
-                    # in the same order in the copied tree.
                     child = inherit_child.copy(
                         {
                             "inherit_id": website_specific_view.id,
@@ -195,7 +156,6 @@ class IrUiView(models.Model):
                     inherit_child.inherit_children_ids.write({"inherit_id": child.id})
                     inherit_child.unlink()
                 else:
-                    # Trigger COW on inheriting views
                     inherit_child.write({"inherit_id": website_specific_view.id})
 
             super(IrUiView, website_specific_view).write(vals)
@@ -215,16 +175,7 @@ class IrUiView(models.Model):
         cow_view.with_context(no_cow=True).write(values)
 
     def _create_all_specific_views(self, processed_modules):
-        """When creating a generic child view, we should
-        also create that view under specific view trees (COW'd).
-        Top level view (no inherit_id) do not need that behavior as they
-        will be shared between websites since there is no specific yet.
-        """
-        # Only for the modules being processed
         regex = "^(%s)[.]" % "|".join(processed_modules)
-        # Retrieve the views through a SQl query to avoid ORM queries inside of for loop
-        # Retrieves all the views that are missing their specific counterpart with all the
-        # specific view parent id and their website id in one query
         query = """
             SELECT generic.id, ARRAY[array_agg(spec_parent.id), array_agg(spec_parent.website_id)]
               FROM ir_ui_view generic
@@ -254,18 +205,11 @@ class IrUiView(models.Model):
         super()._create_all_specific_views(processed_modules)
 
     def unlink(self):
-        """This implements COU (copy-on-unlink). When deleting a generic page
-        website-specific pages will be created so only the current
-        website is affected.
-        """
         current_website_id = self.env.context.get("website_id")
 
         if current_website_id and not self.env.context.get("no_cow"):
             for view in self.filtered(lambda view: not view.website_id):
                 for w in self.env["website"].search([("id", "!=", current_website_id)]):
-                    # reuse the COW mechanism to create
-                    # website-specific copies, it will take
-                    # care of creating pages and menus.
                     view.with_context(website_id=w.id).write({"name": view.name})
 
         specific_views = self.env["ir.ui.view"]
@@ -279,7 +223,6 @@ class IrUiView(models.Model):
 
     def _create_website_specific_pages_for_view(self, new_view, website):
         for page in self.page_ids:
-            # create new pages for this view
             new_page = page.copy(
                 {
                     "view_id": new_view.id,
@@ -321,13 +264,6 @@ class IrUiView(models.Model):
 
     @api.model
     def get_related_views(self, key, bundles=False):
-        """Make this only return most specific views for website."""
-        # get_related_views can be called through website=False routes
-        # (e.g. /website/get_assets_editor_resources), so website
-        # dispatch_parameters may not be added. Manually set
-        # website_id. (It will then always fallback on a website, this
-        # method should never be called in a generic context, even for
-        # tests)
         current_website = self.env["website"].get_current_website()
         return (
             super(IrUiView, self.with_context(website_id=current_website.id))
@@ -338,12 +274,6 @@ class IrUiView(models.Model):
         )
 
     def filter_duplicate(self):
-        """Filter current recordset only keeping the most suitable view per distinct key.
-        Every non-accessible view will be removed from the set:
-
-          * In non website context, every view with a website will be removed
-          * In a website context, every view from another website
-        """
         current_website_id = self.env.context.get("website_id")
         if not current_website_id:
             return self.filtered(lambda view: not view.website_id)
@@ -353,8 +283,6 @@ class IrUiView(models.Model):
             for view in self
             if view.website_id.id == current_website_id and view.key
         }
-        # specific view: add it if it's for the current website and ignore
-        # it if it's for another website
         most_specific_views = [
             view
             for view in self
@@ -374,8 +302,6 @@ class IrUiView(models.Model):
         domain = super()._get_inheriting_views_domain()
         current_website = self.env["website"].browse(self.env.context.get("website_id"))
         website_views_domain = current_website.website_domain()
-        # when rendering for the website we have to include inactive views
-        # we will prefer inactive website-specific views over active generic ones
         if current_website:
             domain = domain.map_conditions(
                 lambda cond: cond if cond.field_expr != "active" else Domain.TRUE
@@ -390,17 +316,10 @@ class IrUiView(models.Model):
         views = super(
             IrUiView, self.with_context(active_test=False)
         )._get_inheriting_views()
-        # prefer inactive website-specific views over active generic ones
         return views.filter_duplicate().filtered("active")
 
     @api.model
     def _get_filter_xmlid_query(self):
-        """This method add some specific view that do not have XML ID
-
-        ``= ANY`` over a list, matching the base query it overrides: the tuple
-        expansion ``SQL()`` performs for ``IN`` builds a different statement per
-        cardinality, and the clause would be invalid if ever run as plain SQL.
-        """
         if not self.env.context.get("website_id"):
             return super()._get_filter_xmlid_query()
         else:
@@ -438,15 +357,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_template_domain(self, xmlids):
-        """If a website_id is in the context and the given xml_id then try
-        to get the id of the specific view for that website, but fallback
-        to the id of the generic view if there is no specific.
-        If no website_id is in the context, every view with a website will
-        be filtered out.
-
-        Archived views are ignored (unless the active_test context is set, but
-        then the ormcache will not work as expected).
-        """
         domain = super()._get_template_domain(xmlids)
         return domain & Domain(
             "website_id", "in", (False, self.env.context.get("website_id", False))
@@ -477,11 +387,6 @@ class IrUiView(models.Model):
         return info["visibility"]
 
     def _handle_visibility(self, do_raise=True):
-        """Check the visibility set on the main view and raise 403 if you should not have access.
-        Order is: Public, Connected, Has group, Password
-
-        It only check the visibility on the main content, others views called stay available in rpc.
-        """
         error = False
 
         self = self.sudo()
@@ -489,16 +394,6 @@ class IrUiView(models.Model):
         visibility = self._get_cached_visibility()
 
         if visibility:
-            # Whatever the outcome below, the body of a view with a visibility
-            # depends on *who is asking* -- the session's ``views_unlock``, the
-            # user's groups, whether they are signed in. Odoo emits no
-            # ``Cache-Control`` on a rendered page, so a shared proxy or CDN is
-            # free to treat a 200 as heuristically cacheable and hand one
-            # visitor's copy to the next. Say so explicitly. (The in-process
-            # response cache is refused separately, in
-            # ``website.page._allow_to_use_cache``.) Unguarded on purpose:
-            # ``Request.__init__`` always builds a ``future_response``, and this
-            # method already dereferences ``request.env`` below.
             request.future_response.headers["Cache-Control"] = (
                 "private, no-store, max-age=0"
             )
@@ -512,19 +407,12 @@ class IrUiView(models.Model):
                 "views_unlock", []
             ):
                 pwd = request.params.get("visibility_password")
-                if pwd and self.env.user._crypt_context().verify(
-                    pwd, self.visibility_password
+                stored_password = self.visibility_password
+                if (
+                    pwd
+                    and stored_password
+                    and self.env.user._crypt_context().verify(pwd, stored_password)
                 ):
-                    # Rebind the whole list; do NOT mutate it in place.
-                    # ``session.setdefault(key, [])`` returns the list *the
-                    # caller passed*, while ``Session.__setitem__`` stores a
-                    # JSON-coerced **copy** of it, so appending to the returned
-                    # list wrote to an orphan and the unlock was lost the moment
-                    # the request ended. On later requests the in-place append
-                    # did reach the stored list, but only ``__setitem__`` sets
-                    # ``is_dirty``, so the session was never persisted either.
-                    # Either way the visitor was asked for the password again on
-                    # every single page load.
                     request.session["views_unlock"] = [
                         *request.session.get("views_unlock", []),
                         self.id,
@@ -549,7 +437,6 @@ class IrUiView(models.Model):
     @api.readonly
     @api.model
     def render_public_asset(self, template, values=None):
-        # to get the specific asset for access checking
         if request and hasattr(request, "website"):
             return super(
                 IrUiView, self.with_context(website_id=request.website.id)
@@ -557,7 +444,6 @@ class IrUiView(models.Model):
         return super().render_public_asset(template, values=values)
 
     def _render_template(self, template, values=None):
-        """Render the template. If website is enabled on request, then extend rendering context with website values."""
         view = self._get_template_view(template).sudo()
         view._handle_visibility(do_raise=True)
         if values is None:
@@ -582,23 +468,13 @@ class IrUiView(models.Model):
 
     @api.model
     def _set_noupdate(self):
-        """If website is installed, any call to `save` from the frontend will
-        actually write on the specific view (or create it if not exist yet).
-        In that case, we don't want to flag the generic view as noupdate.
-        """
         if not self.env.context.get("website_id"):
             super()._set_noupdate()
 
     def save(self, value, xpath=None):
         self.ensure_one()
         current_website = self.env["website"].get_current_website()
-        # xpath condition is important to be sure we are editing a view and not
-        # a field as in that case `self` might not exist (check commit message)
         if xpath and self.key and current_website:
-            # The first time a generic view is edited, if multiple editable parts
-            # were edited at the same time, multiple call to this method will be
-            # done but the first one may create a website specific view. So if there
-            # already is a website specific view, we need to divert the super to it.
             website_specific_view = self.env["ir.ui.view"].search(
                 [("key", "=", self.key), ("website_id", "=", current_website.id)],
                 limit=1,
@@ -609,8 +485,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_allowed_root_attrs(self):
-        # Related to these options:
-        # background-video, background-shapes, parallax, visibility
         return (
             super()._get_allowed_root_attrs()
             + [
@@ -635,9 +509,6 @@ class IrUiView(models.Model):
             ]
         )
 
-    # --------------------------------------------------------------------------
-    # Snippet saving
-    # --------------------------------------------------------------------------
 
     @api.model
     def _snippet_save_view_values_hook(self):
@@ -657,7 +528,6 @@ class IrUiView(models.Model):
         )
 
     def _get_base_lang(self):
-        """Returns the default language of the website as the base language if the record is bound to it"""
         self.ensure_one()
         website = self.website_id
         if website:

@@ -44,7 +44,7 @@ class WebsiteSnippetFilter(models.Model):
         for snippet_filter in self:
             if snippet_filter.filter_id:
                 snippet_filter.model_name = snippet_filter.filter_id.model_id
-            else:  # self.action_server_id
+            else:
                 snippet_filter.model_name = (
                     snippet_filter.action_server_id.model_id.model
                 )
@@ -59,7 +59,6 @@ class WebsiteSnippetFilter(models.Model):
 
     @api.constrains("limit")
     def _check_limit(self):
-        """Limit must be between 1 and 16."""
         for record in self:
             if not 0 < record.limit <= 16:
                 raise ValidationError(_("The limit must be between 1 and 16."))
@@ -83,27 +82,19 @@ class WebsiteSnippetFilter(models.Model):
         res_id=None,
         **custom_template_data,
     ):
-        """Renders the website dynamic snippet items
-
-        Every argument reaches this method straight from an unauthenticated
-        JSON-RPC caller (``/website/snippet/filters``), so nothing here may
-        assume a well-formed payload: a missing or malformed argument must
-        produce the same empty result as any other guard below, never an
-        exception. ``template_key`` and ``limit`` therefore default to ``None``
-        rather than being required positionals — omitting them used to raise
-        ``TypeError`` and a bad ``template_key`` used to raise ``ValueError``,
-        both of which surfaced as an unauthenticated traceback.
-        """
         self and self.ensure_one()
 
         if not template_key or ".dynamic_filter_template_" not in template_key:
             return []
+        if (
+            not self.env["ir.ui.view"]
+            .sudo()
+            ._get_template_view(template_key, raise_if_not_found=False)
+        ):
+            return []
         if search_domain is None:
             search_domain = []
 
-        # Return [] (not "") on the guard branches: the normal path returns a
-        # list of html strings, and the controller passes this straight to the
-        # JSON-RPC client, which shouldn't have to handle two shapes.
         if (
             self.website_id
             and self.env["website"].get_current_website() != self.website_id
@@ -138,12 +129,6 @@ class WebsiteSnippetFilter(models.Model):
 
     @staticmethod
     def _coerce_positive_int(value):
-        """Return ``value`` as a positive int, or ``None`` if it isn't one.
-
-        JSON-RPC delivers whatever the caller typed, so ``limit``/``res_id`` can
-        arrive as a string, a float, a bool or a list. Feeding those to ``min()``
-        or to a domain leaf raises deep inside the ORM; normalise once instead.
-        """
         if isinstance(value, bool) or not isinstance(value, (int, str, float)):
             return None
         try:
@@ -153,42 +138,21 @@ class WebsiteSnippetFilter(models.Model):
         return value if value > 0 else None
 
     def _prepare_values(self, limit=None, search_domain=None, **options):
-        """Gets the data and returns it the right format for render."""
         self and self.ensure_one()
 
-        # ``res_model`` / ``res_id`` / ``limit`` are client-supplied on the
-        # public route. A saved filter's model is NOT negotiable: letting
-        # ``res_model`` win here ran the designer's domain, sort and context
-        # against a model of the visitor's choosing (a filter bound to
-        # ``res.country`` would happily return ``res.lang`` records), and an
-        # unknown model name reached ``self.env[...]`` as an unauthenticated
-        # ``KeyError``. ``res_model`` only selects the model for the
-        # single-record lookup, which is the flow that has no filter to take it
-        # from.
         model_name = self.filter_id.sudo().model_id or options.get("res_model")
         res_id = self._coerce_positive_int(options.get("res_id"))
-        # The "limit" field is there to prevent loading an arbitrary number of
-        # records asked by the client side. This here makes sure you can always
-        # load at least 16 records as it is what the editor allows.
         max_limit = max(self.limit, 16)
         limit = self._coerce_positive_int(limit)
         limit = (limit and min(limit, max_limit)) or max_limit
         single_record_filter = limit == 1 and model_name and res_id
 
-        # Either a multi-record filter is provided, or a single record is specified.
         if self.filter_id or single_record_filter:
-            # Checked here and not earlier: the ``action_server_id`` branch below
-            # has no model of its own and must stay reachable.
-            if model_name not in self.env:
+            model = self._resolve_model(model_name)
+            if model is None:
                 return []
-            model = self.env[model_name]
             filter_sudo = self.filter_id.sudo()
             if single_record_filter:
-                # A specific record was requested by id (res_model/res_id come
-                # straight from the client). We must NOT trust that id to bypass
-                # publication / website / company scoping and record rules:
-                # restrict the search to that id and apply the exact same scoping
-                # (and caller access rights) as the multi-record path below.
                 domain = Domain("id", "=", res_id)
                 context = {}
                 order = None
@@ -205,17 +169,11 @@ class WebsiteSnippetFilter(models.Model):
                 domain &= Domain("is_published", "=", True)
             if search_domain:
                 search_domain = Domain(search_domain)
-                # ``search_domain`` is client-supplied on the public route.
-                # Only allow leaves that reference a *direct* field of the
-                # target model. A dotted path (e.g. ``create_uid.login``) passed
-                # the old ``split(".")[0]`` check and let a public visitor filter
-                # on fields of related — possibly unpublished — records, turning
-                # the published result set into a boolean oracle over them.
                 for condition in search_domain.iter_conditions():
                     field_expr = condition.field_expr
                     if "." in field_expr or field_expr not in model._fields:
                         raise ValueError(
-                            _("Invalid field %r in search domain") % field_expr
+                            _("Invalid field '%s' in search domain") % field_expr
                         )
                 domain &= search_domain
             try:
@@ -257,17 +215,6 @@ class WebsiteSnippetFilter(models.Model):
         return None
 
     def _get_field_name_and_type(self, model, field_name):
-        """
-        Separates the name and the widget type
-
-        @param model: Model to which the field belongs, without it type is deduced from field_name
-        @param field_name: Name of the field possibly followed by a colon and a forced field type
-
-        @return Tuple containing the field name and the field type
-        """
-        # Not `_` for the separator: that name is the module-level translation
-        # function, and rebinding it here would make any `_()` added to this
-        # method blow up with "str object is not callable".
         field_name, _sep, field_widget = field_name.partition(":")
         if field_widget:
             return field_name, field_widget
@@ -283,22 +230,11 @@ class WebsiteSnippetFilter(models.Model):
         return field_name, field_type
 
     def _get_filter_meta_data(self, model):
-        """
-        Extracts the meta data of each field
-
-        @return OrderedDict containing the widget type for each field name
-        """
         meta_data = OrderedDict({})
         field_names = self.field_names or self.with_context(
             model=model._name
         ).default_get(["field_names"]).get("field_names")
         for field_name in (field_names or "").split(","):
-            # Skip blanks and trim surrounding space. `field_names` defaults to
-            # "" — and `default_get` returns "" on the filter-less single-record
-            # path — so a bare split yields one empty name, which ends up as
-            # `record[""]` and raises KeyError on a public, unauthenticated
-            # route. `_check_field_names` only guards *stored* values, and it
-            # does not strip, so " email" would fail the same way.
             field_name = field_name.strip()
             if not field_name:
                 continue
@@ -307,36 +243,25 @@ class WebsiteSnippetFilter(models.Model):
         return meta_data
 
     def _prepare_sample(self, length=6, **options):
-        """
-        Generates sample data and returns it the right format for render.
-
-        @param length: Number of sample records to generate
-        @param options: Additional options:
-        - res_model (str): The name of the targeted model.
-
-        @return Array of objets with a value associated to each name in field_names
-        """
         if not length:
             return []
         records = self._prepare_sample_records(length, **options)
         options["is_sample"] = True
         return self._filter_records_to_values(records, **options)
 
+    def _resolve_model(self, model_name):
+        if not isinstance(model_name, str) or model_name not in self.env:
+            return None
+        return self.env[model_name]
+
     def _prepare_sample_records(self, length, **options):
-        """
-        Generates sample records.
-
-        @param length: Number of sample records to generate
-        @param options: Additional options:
-        - res_model (str): The name of the targeted model.
-
-        @return List of of sample records
-        """
         if not length:
             return []
 
         sample = []
-        model = self.env[(self.model_name or options.get("res_model"))]
+        model = self._resolve_model(self.model_name or options.get("res_model"))
+        if model is None:
+            return []
         sample_data = self._get_hardcoded_sample(model)
         if sample_data:
             for index in range(length):
@@ -346,12 +271,6 @@ class WebsiteSnippetFilter(models.Model):
         return sample
 
     def _fill_sample(self, model, sample, index):
-        """
-        Fills the missing fields of a sample
-
-        @param sample: Data structure to fill with values for each name in field_names
-        @param index: Index of the sample within the dataset
-        """
         meta_data = self._get_filter_meta_data(model)
         for field_name, field_widget in meta_data.items():
             if field_name not in sample and field_name in model:
@@ -366,28 +285,13 @@ class WebsiteSnippetFilter(models.Model):
         return sample
 
     def _get_hardcoded_sample(self, model):
-        """
-        Returns a hard-coded sample
-
-        @param model: Model of the currently rendered view
-
-        @return Sample data records with field values
-        """
         return [{}]
 
     def _filter_records_to_values(self, records, **options):
-        """
-        Extract the fields from the data source 'records' and put them into a dictionary of values
-
-        @param records: Model records returned by the filter
-        @param options: Additional options:
-        - res_model (str): The name of the targeted model.
-        - is_sample (bool): True if conversion is for sample records.
-
-        @return List of dict associating the field value to each field name
-        """
         self and self.ensure_one()
-        model = self.env[self.model_name or options.get("res_model")]
+        model = self._resolve_model(self.model_name or options.get("res_model"))
+        if model is None:
+            return []
         meta_data = self._get_filter_meta_data(model)
 
         values = []

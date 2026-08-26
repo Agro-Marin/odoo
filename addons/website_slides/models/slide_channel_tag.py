@@ -1,6 +1,6 @@
 from random import randint
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class SlideChannelTagGroup(models.Model):
@@ -50,3 +50,28 @@ class SlideChannelTag(models.Model):
         default=lambda self: randint(1, 11),
         help="Tag color used in both backend and website. No color means no display in kanban or front-end, to distinguish internal tags from public categorization tags",
     )
+
+    @api.model
+    def _search_by_slugs(self, slugs):
+        """Resolve a comma-separated slug list ("hotels-1,adventure-2") to tags.
+
+        The one parser. Both the course search on slide.channel and the
+        controller's tag filter had their own copy, each with its own bare
+        ``except``. Unparseable input yields an empty recordset rather than an
+        error: these arrive from a URL.
+
+        The search is what filters out ids that do not exist, so the caller
+        never has to check.
+        """
+        try:
+            tag_ids = [
+                tag_id
+                for tag_id in (
+                    self.env["ir.http"]._unslug(slug)[1]
+                    for slug in (slugs or "").split(",")
+                )
+                if tag_id
+            ]
+        except Exception:
+            return self.browse()
+        return self.search([("id", "in", tag_ids)]) if tag_ids else self.browse()

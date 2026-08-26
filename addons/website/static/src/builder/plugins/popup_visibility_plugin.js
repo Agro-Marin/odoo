@@ -1,9 +1,8 @@
 /** @odoo-module native */
+import { getBootstrapComponent } from "@html_builder/core/bootstrap_realm";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
-
-import { getBootstrapComponent } from "./bootstrap_realm.js";
 
 /**
  * @typedef { Object } PopupVisibilityShared

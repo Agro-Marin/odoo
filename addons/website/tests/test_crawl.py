@@ -14,13 +14,6 @@ _logger = logging.getLogger(__name__)
 
 @odoo.tests.common.tagged("post_install", "-at_install", "crawl")
 class Crawler(HttpCaseWithUserDemo):
-    """Test suite crawling an Odoo CMS instance and checking that all
-    internal links lead to a 200 response.
-
-    If a username and a password are provided, authenticates the user before
-    starting the crawl
-    """
-
     def setUp(self):
         super().setUp()
         self.env.ref("website.default_website").write(
@@ -37,8 +30,6 @@ class Crawler(HttpCaseWithUserDemo):
         )
 
         if hasattr(self.env["res.partner"], "grade_id"):
-            # Create at least one published parter, so that /partners doesn't
-            # return a 404
             grade = self.env["res.partner.grade"].create(
                 {
                     "name": "A test grade",
@@ -55,14 +46,11 @@ class Crawler(HttpCaseWithUserDemo):
             )
 
     def clean_url(self, url):
-        # convert <slug>
         clean_url = re.sub(r"(?<=/)(([^/=?&]+)?-?[0-9]+)(?=(/|$|\?|#))", r"<slug>", url)
 
-        # remove # part, sort param and clean trailing /?
         base, *qs = clean_url.split("#", 1)[0].split("?", 1)
         qs_sorted = "?" + "&".join(sorted("".join(qs).split("&")))
 
-        # convert ?qs=<param>
         qs_sorted = re.sub(r"([^=?&]+)=[^=?&]+", r"\g<1>=<param>", qs_sorted)
         return base.rstrip("/#") + qs_sorted.rstrip("?#")
 
@@ -79,7 +67,6 @@ class Crawler(HttpCaseWithUserDemo):
         _logger.info("%s %s", msg, url)
         r = self.url_open(url, allow_redirects=False)
         if r.status_code in (301, 302, 303):
-            # check local redirect to avoid fetch externals pages
             new_url = r.headers.get("Location")
             current_url = r.url
             if urlsplit(new_url).netloc != urlsplit(current_url).netloc:
@@ -99,10 +86,8 @@ class Crawler(HttpCaseWithUserDemo):
                 href = link.get("href")
 
                 parts = urlsplit(href)
-                # href with any fragment removed
                 href = urlunsplit(parts._replace(fragment=""))
 
-                # FIXME: handle relative link (not parts.path.startswith /)
                 if (
                     parts.netloc
                     or not parts.path.startswith("/")
@@ -197,8 +182,6 @@ class Crawler(HttpCaseWithUserDemo):
         )
 
     def test_20_crawl_demo(self):
-        # Demo user without sales/crm/helpdesk/... rights won't be able to access to
-        # portals like /my/leads. Grant him those rights if exists.
         groups = self.env["res.groups"]
         group_xmlids = [
             "sales_team.group_sale_salesman",

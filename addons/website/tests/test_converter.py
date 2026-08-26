@@ -19,7 +19,6 @@ class TestSlugUnslug(BaseCase):
             "--1": (None, None),
             "foo---1": (None, None),
             "foo1": (None, None),
-            # qs & anchor & trailing slash
             "foo-1/": ("foo", 1),
             "foo-1/?qs=1": ("foo", 1),
             "foo-1/#anchor": ("foo", 1),
@@ -47,11 +46,6 @@ class TestSlugUnslug(BaseCase):
 
 
 class TestTitleToSlug(BaseCase):
-    """
-    Those tests should pass with or without python-slugify
-    See website/models/website.py slugify method
-    """
-
     def _slugify(self, value):
         _slugify = Registry(threading.current_thread().dbname)["ir.http"]._slugify
         return _slugify(value)

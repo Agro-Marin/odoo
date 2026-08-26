@@ -16,8 +16,6 @@ class WebsiteCustom_Blocked_Third_Party_Domains(models.TransientModel):
     )
 
     def action_save(self):
-        # Can't be a set since we want to keep comment order, this will just
-        # ignore people adding the same domain multiple times.
         domains = []
         if self.content:
             for line in self.content.split("\n"):
@@ -26,14 +24,10 @@ class WebsiteCustom_Blocked_Third_Party_Domains(models.TransientModel):
                     continue
 
                 if domain[0] == "#":
-                    # Allow a line to start with '#' indicating a comment (also
-                    # see #ignore_default).
                     domains.append(domain)
                     continue
 
                 try:
-                    # Remove protocol, path and query + check that domain is
-                    # valid.
                     domain = parse_url(domain).host
                 except LocationParseError:
                     raise ValidationError(

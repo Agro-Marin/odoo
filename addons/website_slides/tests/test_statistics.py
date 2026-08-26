@@ -121,9 +121,12 @@ class TestChannelStatistics(common.SlidesCase):
 
         slides_emp.action_mark_completed()
         channel_emp.invalidate_recordset()
+        # floor, not ceil: the displayed percentage must never round *up* to
+        # 100 while a content is still outstanding. See
+        # test_completion_never_reads_100_before_the_end.
         self.assertEqual(
             channel_emp.completion,
-            math.ceil(
+            math.floor(
                 100.0 * len(slides_emp) / len(channel_publisher.slide_content_ids)
             ),
         )

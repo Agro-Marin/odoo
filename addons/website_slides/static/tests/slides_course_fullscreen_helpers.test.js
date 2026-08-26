@@ -1,6 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import {
     findSlide,
+    getDocumentMaxPage,
     parseQuestionMarkup,
     parseSlideBoolean,
     parseSlideDataset,
@@ -79,4 +80,29 @@ test("parseQuestionMarkup turns server markup into an element, not a text node",
 test("parseQuestionMarkup passes an existing node through untouched", () => {
     const el = document.createElement("div");
     expect(parseQuestionMarkup(el)).toBe(el);
+});
+
+// `emailSharing` is one of the normalised keys, so by the time the fullscreen
+// player builds the share dialog it holds a real boolean. Comparing it to the
+// string "True" -- which is correct in share.js, where the RAW dataset is read --
+// was false every time, and the email-sharing input never rendered in fullscreen.
+test("parseSlideDataset normalises emailSharing, so `=== 'True'` cannot work", () => {
+    const slide = parseSlideDataset({ id: "7", emailSharing: "True" });
+    expect(slide.emailSharing).toBe(true);
+    expect(slide.emailSharing === "True").toBe(false);
+});
+
+// Both copies of this helper dereferenced the iframe and #page_count without
+// guarding either, so it threw whenever the viewer had not loaded yet.
+test("getDocumentMaxPage returns false rather than throwing when the viewer is absent", () => {
+    const doc = document.implementation.createHTMLDocument("empty");
+    expect(getDocumentMaxPage(doc)).toBe(false);
+});
+
+test("getDocumentMaxPage returns false when the iframe carries no page count", () => {
+    const doc = document.implementation.createHTMLDocument("no-count");
+    const iframe = doc.createElement("iframe");
+    iframe.className = "o_wslides_iframe_viewer";
+    doc.body.appendChild(iframe);
+    expect(getDocumentMaxPage(doc)).toBe(false);
 });

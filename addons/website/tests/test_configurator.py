@@ -5,7 +5,6 @@ import odoo.tests
 
 class TestConfiguratorCommon(odoo.tests.HttpCase):
     def _theme_upgrade_upstream(self):
-        # patch to prevent module install/upgrade during tests
         pass
 
     def setUp(self):
@@ -159,7 +158,6 @@ class TestConfiguratorTranslation(TestConfiguratorCommon):
                 "name": "New website",
             }
         )
-        # disable configurator todo to ensure this test goes through
         active_todo = self.env["ir.actions.todo"].search(
             [("state", "=", "open")], limit=1
         )

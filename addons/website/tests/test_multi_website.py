@@ -29,8 +29,6 @@ class TestMultiWebsite(HttpCase):
         self.assertNotEqual(website_id_1, website_id_2)
 
     def test_page_of_other_website_is_not_served(self):
-        """A published page scoped to website 2 must not be served on website 1
-        (multi-website content isolation)."""
         Website = self.env["website"]
         website_1 = Website.browse(1)
         website_2 = Website.create({"name": "Isolation Site"})
@@ -51,7 +49,6 @@ class TestMultiWebsite(HttpCase):
                 "is_published": True,
             }
         )
-        # website_1 is the one served on the default host.
         res = self.url_open(website_1.get_base_url() + "/iso-secret")
         self.assertEqual(
             res.status_code,
@@ -60,11 +57,8 @@ class TestMultiWebsite(HttpCase):
         )
 
     def test_website_force_requires_privileges(self):
-        """/website/force must not switch the session website for a user lacking
-        group_multi_website + group_website_restricted_editor."""
         Website = self.env["website"]
         website_2 = Website.create({"name": "Forced Site"})
-        # Unauthenticated (public) user has neither required group.
         res = self.url_open(
             Website.browse(1).get_base_url() + "/website/force/%s" % website_2.id,
             allow_redirects=True,

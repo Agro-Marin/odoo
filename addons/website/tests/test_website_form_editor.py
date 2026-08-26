@@ -63,8 +63,6 @@ class TestWebsiteFormEditor(HttpCaseWithUserPortal):
         )
 
     def test_contactus_form_email_stay_dynamic(self):
-        # The contactus form should always be sent to the company email except
-        # if the user explicitly changed it in the options.
         self.env.company.email = "before.change@mail.com"
         self.start_tour(
             "/contactus", "website_form_contactus_change_random_option", login="admin"
@@ -134,12 +132,8 @@ class TestWebsiteForm(TransactionCase):
             )
 
     def test_form_non_mail_field_whitelist(self):
-        """A field POSTed to /website/form/<model> that is not opted into the
-        form builder must not reach the created record; it is routed to the
-        custom-data dump. This is the core public-write boundary."""
         partner_model = self.env["ir.model"].search([("model", "=", "res.partner")])
         partner_model.website_form_access = True
-        # Opt only 'name' into the builder; everything else stays blacklisted.
         self.env["ir.model.fields"].formbuilder_whitelist("res.partner", ["name"])
         controller = WebsiteForm()
         website = self.env["website"].browse(1)
@@ -178,7 +172,6 @@ class TestWebsiteForm(TransactionCase):
 
         def dummy_insert_record(*args, **kwargs):
             res = original_insert_record(*args, **kwargs)
-            # delete website_form savepoint by rollbacking to test savepoint
             self.env.cr.execute('ROLLBACK TO SAVEPOINT "%s"' % test_sp.name)
             return res
 
@@ -197,9 +190,6 @@ class TestWebsiteForm(TransactionCase):
         test_sp.close(rollback=True)
 
     def test_cannot_delete_field_used_in_website_form(self):
-        """
-        Test that deleting a field used in a website form raises a ValidationError.
-        """
         self.env["ir.ui.view"].create(
             {
                 "name": "Test Form for Deletion Constraint",
@@ -220,11 +210,6 @@ class TestWebsiteForm(TransactionCase):
         self.assertTrue(self.test_field.exists())
 
     def test_delete_field_scans_malformed_html_without_crashing(self):
-        """The ondelete scan parses HTML fields (e.g. ``mega_menu_content``),
-        which are commonly non-well-formed XML fragments. It must not crash the
-        deletion with an XML parse error (``etree.fromstring`` did), while still
-        blocking deletion when the field is actually referenced."""
-        # Multiple roots + void <br> + bare '&' -> etree.fromstring would raise.
         malformed = (
             "<p>Contact &amp; win</p>"
             f'<form data-model_name="res.partner"><input name="{self.test_field.name}"><br></form>'
@@ -237,8 +222,6 @@ class TestWebsiteForm(TransactionCase):
             }
         )
 
-        # An unrelated field can still be deleted (the malformed HTML must not
-        # crash the scan).
         other = self.env["ir.model.fields"].create(
             {
                 "name": "x_unrelated_field",
@@ -250,18 +233,11 @@ class TestWebsiteForm(TransactionCase):
         other.unlink()
         self.assertFalse(other.exists())
 
-        # The referenced field is still blocked, even from a non-XML field.
         with self.assertRaises(ValidationError):
             self.test_field.unlink()
         self.assertTrue(self.test_field.exists())
 
     def test_mail_form_signature_is_mandatory(self):
-        """A ``mail.mail`` submission must carry a valid ``website_form_signature``
-        bound to ``email_to``. Previously the check was skipped whenever
-        ``email_to`` was absent, letting a public visitor turn the endpoint into
-        an open mail relay by supplying only ``email_cc``/``email_bcc`` (and a
-        missing signature raised a 500 KeyError instead of being rejected).
-        """
         website = self.env["website"].browse(1)
         self.env["ir.model"].search(
             [("model", "=", "mail.mail")]
@@ -270,7 +246,6 @@ class TestWebsiteForm(TransactionCase):
         before = self.env["mail.mail"].search_count([])
 
         with MockRequest(self.env, website=website):
-            # Exploit B: no email_to, arbitrary Cc, junk signature -> rejected.
             with self.assertRaises(AccessDenied):
                 controller._handle_website_form(
                     "mail.mail",
@@ -280,7 +255,6 @@ class TestWebsiteForm(TransactionCase):
                     body="spam",
                     website_form_signature="not-a-valid-signature",
                 )
-            # A missing signature must be an auth failure, not a KeyError/500.
             with self.assertRaises(AccessDenied):
                 controller._handle_website_form(
                     "mail.mail",
@@ -289,7 +263,6 @@ class TestWebsiteForm(TransactionCase):
                     subject="spam",
                     body="spam",
                 )
-            # Tampering with a signed email_to must also be rejected.
             good_to = "company@company.example"
             good_sig = hmac(self.env, "website_form_signature", good_to)
             with self.assertRaises(AccessDenied):
@@ -302,10 +275,8 @@ class TestWebsiteForm(TransactionCase):
                     website_form_signature=good_sig,
                 )
 
-        # No relayed mail must have been created/sent by any rejected attempt.
         self.assertEqual(self.env["mail.mail"].search_count([]), before)
 
-        # Sanity: a correctly signed submission is accepted (no AccessDenied).
         with MockRequest(self.env, website=website):
             controller._handle_website_form(
                 "mail.mail",
@@ -322,26 +293,17 @@ class TestWebsiteForm(TransactionCase):
         )
 
     def test_get_authorized_fields_requires_editor(self):
-        """``ir.model.get_fields_authorized`` is RPC-reachable and leaks field
-        metadata + SUPERUSER defaults, so it must require the website-editor
-        group like its form-builder siblings. The internal submission path
-        (which calls it via SUPERUSER) must still work."""
         IrModel = self.env["ir.model"]
         public = self.env.ref("base.public_user")
         with self.assertRaises(AccessError):
             IrModel.with_user(public).get_fields_authorized("res.partner", {})
 
-        # SUPERUSER (internal submission path) is allowed.
         fields = IrModel.with_user(SUPERUSER_ID).get_fields_authorized(
             "res.partner", {}
         )
         self.assertIn("name", fields)
 
     def test_mail_form_signature_binds_cc_recipients(self):
-        """The signature must bind the Cc/Bcc *values*, not merely their
-        presence. A signature issued for a form without extra recipients cannot
-        be replayed to inject an ``email_cc``, and a signature issued for one Cc
-        value cannot be reused to relay to a different Cc (open-relay via Cc)."""
         from odoo.addons.website.tools import website_form_signature_payload
 
         website = self.env["website"].browse(1)
@@ -353,7 +315,6 @@ class TestWebsiteForm(TransactionCase):
         before = self.env["mail.mail"].search_count([])
 
         with MockRequest(self.env, website=website):
-            # (1) Signature bound to email_to only must NOT authorize a Cc.
             sig_no_cc = hmac(
                 self.env,
                 "website_form_signature",
@@ -368,7 +329,6 @@ class TestWebsiteForm(TransactionCase):
                     body="spam",
                     website_form_signature=sig_no_cc,
                 )
-            # (2) Signature bound to a specific Cc must reject a different Cc.
             sig_copy = hmac(
                 self.env,
                 "website_form_signature",
@@ -392,7 +352,6 @@ class TestWebsiteForm(TransactionCase):
             "No relay mail must be created by a rejected Cc injection.",
         )
 
-        # A correctly signed Cc submission (value matches) is accepted.
         with MockRequest(self.env, website=website):
             sig_copy = hmac(
                 self.env,

@@ -78,7 +78,6 @@ class ResConfigSettings(models.TransientModel):
     auth_signup_uninvited = fields.Selection(
         compute="_compute_auth_signup_uninvited",
         inverse="_inverse_auth_signup_uninvited",
-        # Remove any default value and let the compute handle it
         config_parameter=False,
         default=None,
     )
@@ -125,9 +124,6 @@ class ResConfigSettings(models.TransientModel):
         for config in self:
             value = config.plausible_shared_key
             if value and value.startswith("http"):
-                # A pasted Plausible share URL is parsed into (key, site); only
-                # a malformed URL raises here (urlsplit -> ValueError). Narrow the
-                # catch so genuine bugs aren't silently swallowed.
                 try:
                     url = urlsplit(value)
                     config.plausible_shared_key = parse_qs(url.query).get("auth", [""])[
@@ -144,8 +140,6 @@ class ResConfigSettings(models.TransientModel):
     @api.depends("website_id.auth_signup_uninvited")
     def _compute_auth_signup_uninvited(self):
         for config in self:
-            # Default to `b2b` in case no website is set to avoid not being
-            # able to save.
             config.auth_signup_uninvited = (
                 config.website_id.auth_signup_uninvited or "b2b"
             )
@@ -199,8 +193,6 @@ class ResConfigSettings(models.TransientModel):
 
     @api.onchange("language_ids")
     def _onchange_language_ids(self):
-        # If current default language is removed from language_ids
-        # update the website_default_lang_id
         language_ids = self.language_ids._origin
         if not language_ids:
             self.website_default_lang_id = False

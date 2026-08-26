@@ -8,7 +8,6 @@ class TestCustomSnippet(TransactionCase):
         ResLang = self.env["res.lang"]
         View = self.env["ir.ui.view"]
 
-        # 1. Setup website and languages
         parseltongue = ResLang.create(
             {
                 "name": "Parseltongue",
@@ -22,10 +21,6 @@ class TestCustomSnippet(TransactionCase):
         website.language_ids = [Command.link(parseltongue.id)]
         data_name_attr = "Custom Text Block Test Translations"
         data_name_attr2 = "Custom Title Test Translations"
-        # Note that `s_custom_snippet` is supposed to be added by the JS when
-        # sending a snippet arch to the `save_snippet` python method.
-        # Adding it here to mimick the real flow, but at this point it really is
-        # just a regular snippet.
         snippet_arch = f"""
             <section class="s_text_block s_custom_snippet" data-name="{data_name_attr}">
                 <div class="custom_snippet_website_1">English Text</div>
@@ -37,7 +32,6 @@ class TestCustomSnippet(TransactionCase):
             </section>
         """
 
-        # 2. Create a view containing a snippet and translate it
         view1 = View.create(
             {
                 "name": "Specific View Test Translation 1",
@@ -61,12 +55,9 @@ class TestCustomSnippet(TransactionCase):
         self.assertIn("Titre Francais", view1.with_context(lang=parseltongue.code).arch)
         self.assertIn("Texte Francais", view1.with_context(lang=parseltongue.code).arch)
 
-        # 3. Save the snippet as custom snippet and ensure it is translated
         self.env["ir.ui.view"].with_context(
             website_id=website.id,
             model=view1._name,
-            # `arch` is not the field in DB (it's a compute), this is also
-            # testing that it works in such cases (raw sql query would fail)
             field="arch",
             resId=view1.id,
         ).save_snippet(
@@ -85,8 +76,6 @@ class TestCustomSnippet(TransactionCase):
         self.env["ir.ui.view"].with_context(
             website_id=website.id,
             model=view1._name,
-            # `arch` is not the field in DB (it's a compute), this is also
-            # testing that it works in such cases (raw sql query would fail)
             field="arch",
             resId=view1.id,
         ).save_snippet(
@@ -102,8 +91,6 @@ class TestCustomSnippet(TransactionCase):
             custom_snippet_view.with_context(lang=parseltongue.code).arch,
         )
 
-        # 4. Simulate snippet being dropped in another page/view and ensure
-        #    it is translated
         view2 = View.create(
             {
                 "name": "Specific View Test Translation 2",
@@ -118,8 +105,6 @@ class TestCustomSnippet(TransactionCase):
         self.assertIn("Titre Francais", view2.with_context(lang=parseltongue.code).arch)
         self.assertIn("Texte Francais", view2.with_context(lang=parseltongue.code).arch)
 
-        # 5. Simulate snippet being dropped in another model field and ensure
-        #    it is translated
         mega_menu = self.env["website.menu"].create(
             {
                 "name": "Meaga Menu Test Translation 1",
@@ -138,11 +123,6 @@ class TestCustomSnippet(TransactionCase):
         )
         self.assertIn("English Text", mega_menu.mega_menu_content)
 
-        # Side test: this is testing that saving a custom snippet from a record
-        # which is not an ir.ui.view works fine.
-        # Indeed, it's a more complexe case as it's basically copying
-        # translations from Model1.Field1 to Model2.Field2 -> different model
-        # and different field.
         mega_menu.mega_menu_content = f"<div>{snippet_arch}</div>"
         mega_menu.update_field_translations(
             "mega_menu_content",
@@ -173,9 +153,6 @@ class TestCustomSnippet(TransactionCase):
             custom_snippet_view.with_context(lang=parseltongue.code).arch,
         )
 
-        # Check that a translated page/view with a custom snippet won't copy
-        # the translation from the saved custom view for the terms that are
-        # "already translated".
         view = View.create(
             {
                 "name": "Custom Snippet Test View",

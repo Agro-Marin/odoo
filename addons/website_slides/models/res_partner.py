@@ -5,6 +5,16 @@ from odoo.fields import Domain
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
+    # The real relation behind the three computed fields below. It exists so
+    # they can declare a dependency on it: without one nothing invalidated them,
+    # and enrolling a partner left slide_channel_count reading 0 for the rest of
+    # the transaction.
+    slide_channel_partner_ids = fields.One2many(
+        "slide.channel.partner",
+        "partner_id",
+        string="eLearning Memberships",
+        groups="website_slides.group_website_slides_officer",
+    )
     slide_channel_ids = fields.Many2many(
         "slide.channel",
         string="eLearning Courses",
@@ -30,7 +40,16 @@ class ResPartner(models.Model):
         groups="website_slides.group_website_slides_officer",
     )
 
+    @api.depends(
+        "slide_channel_partner_ids.channel_id",
+        "slide_channel_partner_ids.member_status",
+        "slide_channel_partner_ids.active",
+    )
     def _compute_slide_channel_values(self):
+        # These three non-stored fields carried no @api.depends at all, so
+        # nothing invalidated them: enrolling a partner left
+        # slide_channel_count reading 0 for the rest of the transaction, while
+        # the neighbouring _compute_slide_channel_company_count did declare one.
         data = {
             (partner.id, member_status): channel_ids
             for partner, member_status, channel_ids in self.env["slide.channel.partner"]
@@ -68,10 +87,18 @@ class ResPartner(models.Model):
         return [("id", "in", subquery.subselect("partner_id"))]
 
     def _search_slide_channel_ids(self, operator, value):
-        cp_enrolled = self.env["slide.channel.partner"].search(
-            [("channel_id", operator, value), ("member_status", "!=", "invited")]
+        # Same shape as its sibling above: a subquery, and sudo. This used to
+        # materialise every matching partner id into the domain under the
+        # caller's own rights, so the two searches answered differently for the
+        # same user and the list was unbounded.
+        subquery = (
+            self.env["slide.channel.partner"]
+            .sudo()
+            ._search(
+                [("channel_id", operator, value), ("member_status", "!=", "invited")]
+            )
         )
-        return [("id", "in", cp_enrolled.partner_id.ids)]
+        return [("id", "in", subquery.subselect("partner_id"))]
 
     @api.depends("is_company", "child_ids.slide_channel_count")
     def _compute_slide_channel_company_count(self):

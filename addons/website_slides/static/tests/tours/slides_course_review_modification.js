@@ -75,7 +75,10 @@ registry.category("web_tour.tours").add("course_review_modification", {
             run: "edit Second review",
         },
         {
-            trigger: ".modal.modal_shown .modal-body i.fa.fa-star:eq(2)",
+            // Rate 3 stars -- asserted by the `3 stars on 5` step below. See
+            // the note in slides_course_member.js on why this selects by
+            // position rather than by Font Awesome fill class.
+            trigger: ".modal.modal_shown .modal-body .o-mail-Composer-stars i:eq(2)",
             run: "click",
         },
         {
@@ -108,7 +111,8 @@ registry.category("web_tour.tours").add("course_review_modification", {
             run: "edit Second review is edited in rating composer",
         },
         {
-            trigger: ".modal.modal_shown .modal-body i.fa.fa-star:eq(1)",
+            // Re-rate 2 stars.
+            trigger: ".modal.modal_shown .modal-body .o-mail-Composer-stars i:eq(1)",
             run: "click",
         },
         {
@@ -262,7 +266,16 @@ registry.category("web_tour.tours").add("course_review_modification_by_admin", {
         {
             trigger:
                 "#chatterRoot:shadow .o-mail-Message:contains(Non admin user review) .o_website_rating_static[title='3 stars on 5']",
-            run: "hover && click #chatterRoot:shadow .o-mail-Message [title='Edit']",
+            // Edit and Delete carry sequence 115 and 120 on a message the
+            // reader did not author, so on someone else's review they sit
+            // behind Expand rather than in the hover bar -- which is how the
+            // admin reaches Delete further down this same tour. Measured on
+            // hover here: Add a Reaction, Add Star, Copy Link, Expand.
+            run: "hover && click #chatterRoot:shadow .o-mail-Message [title='Expand']",
+        },
+        {
+            trigger: "#chatterRoot:shadow .o-dropdown-item:has(:text(Edit))",
+            run: "click",
         },
         {
             trigger: "#chatterRoot:shadow .o-mail-Message .o-mail-Composer-input",

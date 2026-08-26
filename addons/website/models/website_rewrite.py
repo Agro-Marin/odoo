@@ -19,7 +19,6 @@ class WebsiteRoute(models.Model):
 
     @api.model
     def _search_display_name(self, operator, value):
-        # in case we don't have results, refresh before returning the domain
         domain = super()._search_display_name(operator, value)
         if not self.search_count(domain, limit=1):
             self._refresh()
@@ -143,8 +142,6 @@ class WebsiteRewrite(models.Model):
                 if any(
                     rule
                     for rule in self.env["ir.http"].routing_map().iter_rules()
-                    # Odoo routes are normally always defined without trailing
-                    # slashes + strict_slashes=False, but there are exceptions.
                     if rule.rule.rstrip("/") == rewrite.url_to.rstrip("/")
                 ):
                     raise ValidationError(
@@ -189,11 +186,6 @@ class WebsiteRewrite(models.Model):
         return res
 
     def _invalidate_routing(self):
-        # Call clear_cache for routing on all workers to reload routing table.
-        # Note that only 404 and 308 redirection alter the routing map:
-        # - 404: remove entry from routing map
-        # - 301/302: served as fallback later if path not found in routing map
-        # - 308: add "alias" (`redirect_to`) in routing map
         self.env.registry.clear_cache("routing")
 
     def refresh_routes(self):

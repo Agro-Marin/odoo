@@ -42,7 +42,6 @@ class TestWebsitePageManager(odoo.tests.HttpCase):
                 "is_published": True,
             }
         )
-        # trigger cow page creation
         generic_page.with_context(
             website_id=website.id
         ).arch_db = "<div>COW content</div>"
@@ -66,7 +65,6 @@ class TestWebsitePageManager(odoo.tests.HttpCase):
             "Specific page should not be shown as not matching the requested URL and generic should not be shown either as it is shadowed by specific",
         )
 
-        # test that generic is still shown on other website
         website_2 = Website.create({"name": "website 2"})
         locs = website_2.with_context(website_id=website_2.id)._enumerate_pages(
             query_string="/test_diverged"

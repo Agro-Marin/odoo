@@ -23,9 +23,9 @@ class IrModuleModule(models.Model):
                 # psycopg3 can't infer the type for jsonb->>$N operators.
                 SQL(
                     "%(lang)s, o_step.%(fname)s->>%(lang)s",
-                    lang=SQL("'%s'" % lang),
+                    lang=SQL("'%s'" % lang),  # noqa: E8501  SQL literal, not a value
                     fname=fname,
-                )  # pylint: disable=E8501
+                )
                 for lang in to_langs
             )
             # PSQL functions take 100 args max, and we're generating 2 per lang

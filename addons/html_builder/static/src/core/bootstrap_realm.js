@@ -14,18 +14,23 @@
  * moves the popup out of the editable and into the backend body. Importing
  * `@web/libs/bootstrap` here would give exactly that wrong class; the one to
  * use is published by the edited document itself, in
- * `core/website_edit_service.js` (`__odooWebsiteEditBootstrap`).
+ * `website/core/website_edit_service.js` (`__odooWebsiteEditBootstrap`).
  *
- * Historically these call sites read `iframeWindow.Modal`, back when Bootstrap
- * was a set of globals. It is now an ES module bundle that exposes nothing on
- * `window`, so those reads silently became `undefined` and their callers threw
- * "Cannot read properties of undefined" — which is what this indirection fixes.
+ * A second reason not to import it: `web/static/src/libs/bootstrap.js` is not
+ * in `web.assets_backend` (it was retired from it), nor in any builder bundle,
+ * so the bare specifier resolves to `undefined` rather than failing to load.
+ * Every such import is a `TypeError` waiting for its first call site.
  *
- * @param {Window} win the edited document's window (a plugin's `this.window`)
+ * Lives in `html_builder` rather than `website` because the plugins that need
+ * it do: `website` depends on `html_builder`, not the reverse. Realms that
+ * publish no bundle (mass_mailing's editor, some editor tests) simply yield
+ * `undefined`, so callers must degrade rather than throw.
+ *
+ * @param {Window} win the edited document's window (a plugin's `this.window`,
+ *      or `el.ownerDocument.defaultView` for a given element)
  * @param {string} name the component name, e.g. "Modal" or "Tab"
  * @returns {Function|undefined} the component class, or undefined when the
- *      edit-mode bundle is not loaded in that realm (some editor tests mount
- *      without it, so callers must degrade rather than throw)
+ *      edit-mode bundle is not loaded in that realm
  */
 export function getBootstrapComponent(win, name) {
     return win?.__odooWebsiteEditBootstrap?.[name];

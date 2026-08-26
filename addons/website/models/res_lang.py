@@ -25,11 +25,7 @@ class ResLang(models.Model):
         'self.env.context.get("web_force_installed_langs")',
     )
     def _get_frontend(self) -> LangDataDict:
-        """Return the available languages for current request
-        :return: LangDataDict({code: LangData})
-        """
         if request and getattr(request, "is_frontend", True):
-            # get languages while ignoring current language as the one in the context may be invalid
             if self.env.context.get("web_force_installed_langs"):
                 langs = sorted(
                     map(dict, self._get_active_by("code").values()),
@@ -51,10 +47,6 @@ class ResLang(models.Model):
             for lang in langs:
                 code = lang["code"]
                 short_code = code.split("_")[0]
-                # Always shorten one language for each group of languages.
-                # Special case for spanish, as es_419 is not a valid hreflang
-                # and es_419 is actually the new "generic" spanish, when it is
-                # in the available languages, it should be the one shortened.
                 if short_code not in already_shortened and not (
                     short_code == "es" and code != "es_419" and es_419_exists
                 ):
@@ -67,10 +59,6 @@ class ResLang(models.Model):
         return super()._get_frontend()
 
     def action_activate_langs(self):
-        """
-        Open wizard to install language(s), so user can select the website(s)
-        to translate in that language.
-        """
         return {
             "type": "ir.actions.act_window",
             "name": _("Add languages"),

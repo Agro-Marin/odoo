@@ -30,13 +30,8 @@ class WebsitePage(models.Model):
     _description = "Page"
     _order = "website_id"
 
-    # for how long a cache entry is considered valid (in seconds)
     _CACHE_DURATION = 3600
 
-    # Fields whose write must NOT invalidate the full-page response cache
-    # (see ``write``): they never reach the rendered HTML. Kept deliberately
-    # small — any field not listed here clears the cache, so a new rendered
-    # field is covered by default.
     _NON_RENDERING_FIELDS = frozenset({"view_write_uid", "view_write_date"})
 
     url = fields.Char("Page URL", required=True)
@@ -62,7 +57,6 @@ class WebsitePage(models.Model):
         help='Add this page to the "+New" page templates. It will be added to the "Custom" category.',
     )
 
-    # don't use mixin website_id but use website_id on ir.ui.view instead
     website_id = fields.Many2one(
         related="view_id.website_id", store=True, readonly=False, ondelete="cascade"
     )
@@ -73,14 +67,6 @@ class WebsitePage(models.Model):
     @api.depends("url", "website_id")
     @api.depends_context("website_id")
     def _compute_is_homepage(self):
-        """Whether this page is the homepage *of the website being looked at*.
-
-        ``depends_context`` is load-bearing: without it the ORM keeps one value
-        per record for every context, so in a multi-website transaction the
-        first reader wins and every later read -- under a different website --
-        gets the first website's answer. ``get_current_website()`` resolves the
-        context's ``website_id`` first, so the cache key and the value agree.
-        """
         website = self.env["website"].get_current_website()
         for page in self:
             page.is_homepage = page.url == (
@@ -98,8 +84,6 @@ class WebsitePage(models.Model):
         for page in self:
             page.is_in_menu = bool(page.menu_ids)
 
-    # This update was added to make sure the mixin calculations are correct
-    # (page.website_url > page.url).
     @api.depends("url")
     def _compute_website_url(self):
         for page in self:
@@ -107,8 +91,6 @@ class WebsitePage(models.Model):
 
     @api.depends_context("uid")
     def _compute_can_publish(self):
-        # Note: this `if`'s purpose it to optimize the way this is computed for
-        # multiple records.
         if self.env.user.has_group("website.group_website_designer"):
             for record in self:
                 record.can_publish = True
@@ -116,7 +98,6 @@ class WebsitePage(models.Model):
             super()._compute_can_publish()
 
     def _get_most_specific_pages(self):
-        """Returns the most specific pages in self."""
         ids = []
         previous_page = None
         page_keys = (
@@ -132,14 +113,9 @@ class WebsitePage(models.Model):
         )
         page_keys_counts = Counter(page_keys)
 
-        # Iterate a single time on the whole list sorted on specific-website first.
         for page in self.sorted(key=lambda p: (p.url, not p.website_id)):
-            if (
-                (not previous_page or page.url != previous_page.url)
-                # If a generic page (niche case) has been COWed and that COWed
-                # page received a URL change, it should not let you access the
-                # generic page anymore, despite having a different URL.
-                and (page.website_id or page_keys_counts[page.key] == 1)
+            if (not previous_page or page.url != previous_page.url) and (
+                page.website_id or page_keys_counts[page.key] == 1
             ):
                 ids.append(page.id)
             previous_page = page
@@ -161,9 +137,6 @@ class WebsitePage(models.Model):
 
     @api.model
     def clone_page(self, page_id, page_name=None, clone_menu=True):
-        """Clone a page, given its identifier
-        :param page_id : website.page identifier
-        """
         page = self.browse(int(page_id))
         copy_param = {
             "name": page_name or page.name,
@@ -176,12 +149,9 @@ class WebsitePage(models.Model):
             copy_param["url"] = self.env["website"].get_unique_path(url)
 
         new_page = page.copy(copy_param)
-        # Should not clone menu if the page was cloned from one website to another
-        # Eg: Cloning a generic page (no website) will create a page with a website, we can't clone menu (not same container)
         if clone_menu and new_page.website_id == page.website_id:
             menu = self.env["website.menu"].search([("page_id", "=", page_id)], limit=1)
             if menu:
-                # If the page being cloned has a menu, clone it too
                 menu.copy(
                     {"url": new_page.url, "name": new_page.name, "page_id": new_page.id}
                 )
@@ -189,17 +159,12 @@ class WebsitePage(models.Model):
         return new_page.url
 
     def unlink(self):
-        # When a website_page is deleted, the ORM does not delete its
-        # ir_ui_view. So we got to delete it ourself, but only if the
-        # ir_ui_view is not used by another website_page.
         views_to_delete = self.view_id.filtered(
             lambda v: v.page_ids <= self and not v.inherit_children_ids
         )
-        # Rebind self to avoid unlink already deleted records from `ondelete="cascade"`
-        self = self - views_to_delete.page_ids
+        self -= views_to_delete.page_ids
         views_to_delete.unlink()
 
-        # Make sure website.is_menu_cache_disabled() will be recomputed
         if self:
             self.env.registry.clear_cache("templates")
         return super().unlink()
@@ -208,18 +173,12 @@ class WebsitePage(models.Model):
         if "visibility" in vals and vals["visibility"] != "restricted_group":
             vals["group_ids"] = False
 
-        # `url` and `key` are slugified and made unique *per record*. Mutating a
-        # single shared `vals` inside the loop and writing it once would give
-        # every record of a multi-record set the last page's url/key (duplicate
-        # URLs and keys). Derive and write them per page instead; keep a single
-        # write for the common case where neither is edited.
         if "url" in vals or "name" in vals:
             shared_vals = {k: v for k, v in vals.items() if k not in ("url", "key")}
             for page in self:
                 page_vals = dict(shared_vals)
                 website_id = vals.get("website_id") or page.website_id.id or False
 
-                # If URL has been edited, slug it
                 if "url" in vals:
                     url = vals["url"] or ""
                     url = "/" + self.env["ir.http"]._slugify(
@@ -232,15 +191,6 @@ class WebsitePage(models.Model):
                             .get_unique_path(url)
                         )
                         page.menu_ids.write({"url": url})
-                        # Sync the homepage URL of every website whose homepage
-                        # actually resolves to *this* page. Using the ambient
-                        # ``get_current_website()`` was wrong (in a multi-website
-                        # DB it is frequently not the website that owns the page,
-                        # and is meaningless for a shared ``website_id=False``
-                        # page), but matching the URL string across all websites
-                        # over-corrected: a sibling website serving its own page
-                        # at the same URL had its homepage repointed to a URL it
-                        # cannot resolve. Scope to real resolution instead.
                         old_url = page.url
                         old_url_normalized = {"homepage_url": old_url}
                         self.env["website"]._handle_homepage_url(old_url_normalized)
@@ -248,24 +198,14 @@ class WebsitePage(models.Model):
                             [("homepage_url", "=", old_url_normalized["homepage_url"])]
                         )
                         if page.website_id:
-                            # A website-specific page can only ever back its own
-                            # website's homepage. Matching on the URL string
-                            # alone would repoint sibling websites that happen
-                            # to serve their *own* page at the same URL, leaving
-                            # their homepage pointing at a URL they cannot
-                            # resolve.
                             websites &= page.website_id
                         else:
-                            # A generic page backs the homepage of every website
-                            # that does not shadow it with a specific page at
-                            # the same URL.
                             websites -= self.search(
                                 [("url", "=", old_url), ("website_id", "!=", False)]
                             ).website_id
                         websites.homepage_url = url
                     page_vals["url"] = url
 
-                # If name has changed, check for key uniqueness
                 if "name" in vals and page.name != vals["name"]:
                     page_vals["key"] = (
                         self.env["website"]
@@ -279,18 +219,6 @@ class WebsitePage(models.Model):
         else:
             res = super().write(vals)
 
-        # The full-page response cache (``templates.cached_values``, keyed by
-        # path/website/lang and only refreshed every ``_CACHE_DURATION`` = 1h)
-        # embeds the rendered page: SEO metadata, publication/indexing state, the
-        # view, ... Any write that changes rendered output must drop it, or the
-        # edit stays invisible for up to an hour. A ``write_date``-based cache key
-        # can't self-invalidate here — ``now()`` is transaction-constant, so two
-        # edits (or an edit + a same-transaction read, as in tests) share a
-        # write_date — so clearing the cache group is the reliable lever.
-        # Invalidate unless the write touches ONLY bookkeeping fields that never
-        # reach the rendered HTML; enumerating those (a short, stable set) rather
-        # than the rendered fields keeps a newly-added rendered field covered by
-        # default, which is precisely how the SEO-metadata staleness slipped in.
         if not vals.keys() <= self._NON_RENDERING_FIELDS:
             self.env.registry.clear_cache("templates")
 
@@ -303,18 +231,15 @@ class WebsitePage(models.Model):
     @api.model
     def _search_get_detail(self, website, order, options):
         with_description = options["displayDescription"]
-        # Read access on website.page requires sudo.
         requires_sudo = True
         domain = [website.website_domain()]
         if not self.env.user.has_group("website.group_website_designer"):
-            # Rule must be reinforced because of sudo.
             domain.append(
                 [
                     ("website_published", "=", True),
                     ("website_indexed", "=", True),
                 ]
             )
-            # Prevent accessing unaccessible pages
             domain.append([("visibility", "!=", "password")])
             if website.is_public_user():
                 domain.append([("visibility", "!=", "connected")])
@@ -355,8 +280,6 @@ class WebsitePage(models.Model):
     @api.model
     def _search_fetch(self, search_detail, search, limit, order):
         with_description = "description" in search_detail["mapping"]
-        # Cannot rely on the super's _search_fetch because the search must be
-        # performed among the most specific pages only.
         fields = search_detail["search_fields"]
         base_domain = Domain.AND(search_detail["base_domain"])
         domain = self._search_build_domain(
@@ -365,12 +288,10 @@ class WebsitePage(models.Model):
         most_specific_pages = self.env["website"]._get_website_pages(
             domain=base_domain, order=order
         )
-        results = most_specific_pages.filtered_domain(domain)  # already sudo
+        results = most_specific_pages.filtered_domain(domain)
         v_arch_db = self.env["ir.ui.view"]._field_to_sql("v", "arch_db")
 
         if with_description and search and most_specific_pages:
-            # Perform search in translations
-            # TODO Remove when domains will support xml_translate fields
             rows = self.env.execute_query(
                 SQL(
                     """
@@ -399,7 +320,6 @@ class WebsitePage(models.Model):
                 )
 
         def filter_page(search, page, all_pages):
-            # Exclude pages that do not pass ACL.
             Rule = page.env["ir.rule"].sudo(False)
             if not page.filtered_domain(Rule._compute_domain("website.page", "read")):
                 return False
@@ -408,8 +328,6 @@ class WebsitePage(models.Model):
             ):
                 return False
             if search and with_description:
-                # Search might have matched words in the xml tags and parameters therefore we make
-                # sure the terms actually appear inside the text.
                 text = "%s %s %s" % (page.name, page.url, text_from_html(page.arch))
                 pattern = "|".join(
                     [re.escape(search_term) for search_term in search.split()]
@@ -433,29 +351,13 @@ class WebsitePage(models.Model):
             "view_id": self.env.ref("website.view_view_form_extend").id,
         }
 
-    # website cache
-
     @api.model
     def _allow_to_use_cache(self, request):
-        """Checks if the generated HTML content is eligible for caching. This
-        is useful for preventing sensitive or dynamic content from being stored.
-        """
         page_info = self._get_page_info(request) or {}
         return (
             request.httprequest.method == "GET"
-            and not request.params  # because the parameters are not part of the cache key
-            and request.env.user._is_public()  # only cache for unlogged user
-            # Do not cache anything whose visibility depends on who is asking.
-            # ``group_ids`` covers the "restricted group" case; ``visibility``
-            # covers "signed in" and, critically, "with password": the unlock is
-            # remembered per *session* (``ir.ui.view._handle_visibility`` ->
-            # ``session["views_unlock"]``) and is NOT part of ``_get_cache_key``,
-            # so caching a page a visitor has unlocked would hand its content to
-            # every other visitor of that URL. Read the visibility from the
-            # template-info ormcache the render is about to consult anyway
-            # rather than fetching the column here: that keeps this guard free
-            # on the hot path (``_get_page_info``'s own SELECT does not carry
-            # ``ir.ui.view`` columns).
+            and not request.params
+            and request.env.user._is_public()
             and not page_info.get("group_ids")
             and not (
                 page_info
@@ -467,19 +369,12 @@ class WebsitePage(models.Model):
 
     @api.model
     def _allow_cache_insertion(self, layout):
-        """Determines whether a page is allowed to be served from the cache
-        based on the current request, URL, or session.
-        """
         return True
 
     @api.model
     def _post_process_response_from_cache(
         self, request: http.Request, response: http.Response
     ) -> None:
-        """A hook called after a response is retrieved from the cache. This
-        method allows for post-processing, such as incrementing counters or
-        modifying HTTP headers, without regenerating the entire page.
-        """
         csrf_token = request.csrf_token(None)
         html = response.response[0]
         html = re.sub(r'csrf_token: "[^"]+"', f"csrf_token: {csrf_token!r}", html)
@@ -490,53 +385,20 @@ class WebsitePage(models.Model):
         )
         response.response = [html]
 
-        # used for _register_website_track
         response._cached_view_id = self._get_page_info(request)["view_id"]
         response._cached_page = self
 
     @api.model
     def _get_cache_key(self, request):
-        """Allows for supplementing the base cache key with custom components
-        (e.g., from the URL or session). This is essential for ensuring that
-        the cache serves the correct version of a page based on specific
-        parameters like user language or currency.
-        """
         return (
             request.website.id,
             request.lang.code,
             request.httprequest.path,
             request.session.debug,
-            # The rendered HTML depends on optional-cookie consent: with the
-            # cookies bar + third-party blocking on, embeds are neutralized to
-            # ``about:blank`` for non-consenting visitors (see
-            # ``ir.qweb._post_processing_att``). Without this in the key, the
-            # first visitor's consent state would be served to everyone —
-            # leaking third-party content past a refusal, or breaking embeds
-            # for a consenter. Constant (``True``) when the bar is disabled, so
-            # it adds no fragmentation there.
             request.env["ir.http"]._is_allowed_cookie("optional"),
         )
 
     def _get_response(self, request):
-        """Returns the response corresponding to the request.
-        The response may or may not come from the cache.
-
-        The management and logic for this cache are placed directly on the
-        `website.page` model, as it is the source of the HTML response for these
-        records. This approach makes it easy to control caching behavior through
-        a few new, overridable methods:
-        -  `_allow_to_use_cache`
-        -  `_allow_cache_insertion`
-        -  `_post_process_response_from_cache`
-        - `_get_cache_key`
-
-        The cache is an ORM cache from `_get_response_cached` with an added
-        mechanism to update its values. After a certain period, the system will
-        fetch the true response from `_get_response_raw` and update the cached
-        value. This approach reduces the need for frequent `clear_caches` for
-        non-critical changes while ensuring that the cached data remains
-        accurate over time.
-        """
         self.ensure_one()
         if self._allow_to_use_cache(request):
             try:
@@ -556,16 +418,8 @@ class WebsitePage(models.Model):
                 self._post_process_response_from_cache(request, resp)
                 return resp
 
-            # The cached response is too old and considered out-of-date. Get it
-            # from scratch and update the cache accordingly.
             response = self._get_response_raw(request)
             if response:
-                # Flatten before storing, exactly like the initial population
-                # path (``_get_response_cached``). A freshly rendered qweb
-                # Response keeps its body in ``.template`` with an empty
-                # ``.response`` until flushed, so a concurrent reader of the
-                # refreshed entry would otherwise raise ``IndexError`` on
-                # ``response.response[0]``.
                 response.flatten()
                 self._get_response_cached.__cache__.add_value(
                     self, request, cache_value=(response, cache_key)
@@ -579,10 +433,6 @@ class WebsitePage(models.Model):
         tools.ormcache("self._get_cache_key(request)", cache="templates.cached_values"),
     )
     def _get_response_cached(self, request) -> tuple[http.Response, int, str]:
-        """Returns the response corresponding to the request.
-        If the response exists and `_allow_cache_insertio` return True, this
-        response is cached.
-        """
         cache_key = self._get_cache_key(request)
         response = self._get_response_raw(request)
         result = response, cache_key
@@ -597,16 +447,8 @@ class WebsitePage(models.Model):
         return result
 
     def _get_response_raw(self, request) -> http.Response | None:
-        """Returns the raw response associated with the current request.
-        This method is called by `_get_response_cached`, which handles caching
-        the result. It is also called directly by `_get_response` if
-        `_allow_to_use_cache` returns False.
-        """
         req_page = request.httprequest.path
 
-        # fetch all prefetchable fields to get all data at once. If we use the
-        # default fetch(), another query is necessary to get the page fields
-        # like 'website_meta'.
         fields_to_fetch = [
             name for name, field in self._fields.items() if field.prefetch
         ]
@@ -620,9 +462,6 @@ class WebsitePage(models.Model):
         if (
             self.env.user.has_group("website.group_website_designer") or self.is_visible
         ) and (
-            # If a generic page (niche case) has been COWed and that COWed
-            # page received a URL change, it should not let you access the
-            # generic page anymore, despite having a different URL.
             self.website_id
             or self.view_id.id
             == self.env["ir.ui.view"]
@@ -653,11 +492,9 @@ class WebsitePage(models.Model):
     def _get_page_info(self, request) -> dict | None:
         req_page = request.httprequest.path
 
-        # specific page first
         page_domain = Domain("url", "=", req_page) & request.website.website_domain()
         page = self.sudo().search_fetch(page_domain, order="website_id asc", limit=1)
 
-        # case insensitive search
         if not page:
             page_domain = (
                 Domain("url", "=ilike", req_page) & request.website.website_domain()

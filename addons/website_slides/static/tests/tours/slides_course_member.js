@@ -159,7 +159,14 @@ registry.category("web_tour.tours").add("course_member", {
             run: "click",
         },
         {
-            trigger: ".modal.modal_shown .modal-body i.fa.fa-star:eq(2)",
+            // Rate 3 stars: the third star of the five, by position.
+            // Was `i.fa.fa-star:eq(2)`, which selected on Font Awesome 4 fill
+            // classes and matched nothing once the fork moved to FA7 -- a full
+            // star is now "fa-solid fa-star" and an empty one "fa-regular
+            // fa-star". Position is also the honest selector: the old one
+            // indexed among *filled* stars, so which star it clicked depended
+            // on the rating already showing.
+            trigger: ".modal.modal_shown .modal-body .o-mail-Composer-stars i:eq(2)",
             run: "click",
         },
         {
@@ -181,7 +188,10 @@ registry.category("web_tour.tours").add("course_member", {
             run: "click",
         },
         {
-            trigger: ".modal.modal_shown .modal-body i.fa.fa-star-o:eq(1)",
+            // Re-rate 5 stars. Was `i.fa.fa-star-o:eq(1)` -- the second *empty*
+            // star of a 3-star rating, i.e. the fifth star. FA7 has no
+            // `fa-star-o` at all.
+            trigger: ".modal.modal_shown .modal-body .o-mail-Composer-stars i:eq(4)",
             run: "click",
         },
         {

@@ -18,9 +18,6 @@ class WebsiteMenu(models.Model):
     _order = "sequence, id"
 
     def _default_sequence(self):
-        # Scope the default to the current website's menus when known: a high
-        # sequence on one website should not inflate the default for a new menu
-        # on another. Falls back to the global max when no website is in context.
         domain = []
         website_id = self.env.context.get("website_id")
         if website_id:
@@ -111,18 +108,9 @@ class WebsiteMenu(models.Model):
 
     @api.constrains("parent_id", "child_id", "is_mega_menu", "mega_menu_content")
     def _validate_parent_menu(self):
-        """
-        Ensure valid menu hierarchy and mega menu constraints.
-
-        Rules enforced:
-        - Menus must not exceed two levels of nesting.
-        - A mega menu must not have a parent or child.
-        - Menus with children cannot be added as a submenu under another menu.
-        """
         for record in self:
             parent_menu = record.parent_id.sudo() if record.parent_id else None
 
-            # Check hierarchy level
             level = 0
             current_menu = parent_menu
             while current_menu:
@@ -134,7 +122,6 @@ class WebsiteMenu(models.Model):
                     )
 
             if parent_menu:
-                # Mega menu constraint
                 if parent_menu.is_mega_menu or (
                     record.is_mega_menu and (parent_menu.parent_id or record.child_id)
                 ):
@@ -142,7 +129,6 @@ class WebsiteMenu(models.Model):
                         _("A mega menu cannot have a parent or child menu.")
                     )
 
-                # Submenu structure constraint
                 if record.child_id and (
                     parent_menu.parent_id or record.child_id.child_id
                 ):
@@ -152,15 +138,7 @@ class WebsiteMenu(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """In case a menu without a website_id is trying to be created, we duplicate
-        it for every website.
-        Note: Particularly useful when installing a module that adds a menu like
-              /shop. So every website has the shop menu.
-              Be careful to return correct record for ir.model.data xml_id in case
-              of default main menus creation.
-        """
         self.env.registry.clear_cache("templates")
-        # Only used when creating website_data.xml default menu
         menus = self.env["website.menu"]
         for vals in vals_list:
             if vals.get("url") == "/default-main-menu":
@@ -173,9 +151,7 @@ class WebsiteMenu(models.Model):
                 vals["website_id"] = self.env.context.get("website_id")
                 menus |= super().create(vals)
                 continue
-            # if creating a default menu, we should also save it as such
             default_menu = self.env.ref("website.main_menu", raise_if_not_found=False)
-            # create for every site
             w_vals = []
             for website in self.env["website"].search([]):
                 parent_id = vals.get("parent_id")
@@ -188,11 +164,10 @@ class WebsiteMenu(models.Model):
                         "parent_id": parent_id,
                     }
                 )
-            new_menu = super().create(w_vals)[-1:]  # take the last record
+            new_menu = super().create(w_vals)[-1:]
             if default_menu and vals.get("parent_id") == default_menu.id:
                 new_menu = super().create(vals)
             menus |= new_menu
-        # Only one record per vals is returned but multiple could have been created
         return menus
 
     def write(self, vals):
@@ -207,25 +182,6 @@ class WebsiteMenu(models.Model):
         return res
 
     def unlink(self):
-        """Delete the per-website copies ``create()`` made from a generic menu.
-
-        The copies are matched by ``url``, which is only a usable identity for a
-        *navigable* menu. ``_compute_url`` collapses every mega menu and every
-        menu with children to the placeholder ``"#"``, so fanning out on that
-        value would match every container menu in the database and delete other
-        websites' unrelated dropdowns. Two guards keep the match honest:
-
-        - only a generic menu (``website_id`` unset) ever has copies, so a
-          website-specific menu must never fan out;
-        - ``"#"`` identifies nothing, so containers are excluded.
-
-        Consequence of the second guard: copies of a generic *container* are
-        left behind as orphans instead of being deleted. That is the safe
-        direction to fail, but it is a workaround -- the real fix is to record
-        provenance explicitly (a ``generic_menu_id`` m2o set in ``create()``,
-        with ``ondelete="cascade"``), which would make this whole search and
-        both guards unnecessary.
-        """
         self.env.registry.clear_cache("templates")
         default_menu = self.env.ref("website.main_menu", raise_if_not_found=False)
         menus_to_remove = self
@@ -280,7 +236,6 @@ class WebsiteMenu(models.Model):
             menu.is_visible = visible
 
     def _clean_url(self):
-        # clean the url with heuristic
         url = self.url
         if url and not self.url.startswith("/"):
             if "@" in self.url:
@@ -291,29 +246,7 @@ class WebsiteMenu(models.Model):
         return url
 
     def _is_active(self):
-        """To be considered active, a menu should either:
-
-        - have its URL matching the request's URL and have no children
-        - or have a children menu URL matching the request's URL
-
-        Matching an URL means, either:
-
-        - be equal, eg ``/contact/on-site`` vs ``/contact/on-site``
-        - be equal after unslug, eg ``/shop/1`` and ``/shop/my-super-product-1``
-
-        Note that saving a menu URL with an anchor or a query string is
-        considered a corner case, and the following applies:
-
-        - anchor/fragment are ignored during the comparison (it would be
-          impossible to compare anyway as the client is not sending the anchor
-          to the server as per RFC)
-        - query string parameters should be the same to be considered equal, as
-          those could drasticaly alter a page result
-        """
         if not request or self.is_mega_menu:
-            # There is no notion of `active` if we don't have a request to
-            # compare the url to.
-            # Also, mega menu are never considered active.
             return False
 
         request_url = urlsplit(request.httprequest.url)
@@ -322,22 +255,14 @@ class WebsiteMenu(models.Model):
             menu_url = urlsplit(self._clean_url())
             unslug_url = self.env["ir.http"]._unslug_url
             if unslug_url(menu_url.path) == unslug_url(request_url.path):
-                # By default we compare the unslug version of the current URL
-                # with the menu URL but if the menu is linked to a page we don't
-                # consider it active if the paths don't match exactly.
                 if self.page_id and menu_url.path != request_url.path:
                     return False
                 if not (
                     set(parse_qsl(menu_url.query, keep_blank_values=True))
                     <= set(parse_qsl(request_url.query, keep_blank_values=True))
                 ):
-                    # correct path but query arguments does not match
                     return False
-                # Correct path and matching query; the menu's netloc (if it
-                # sets one) must also match the request's domain.
                 return not (menu_url.netloc and menu_url.netloc != request_url.netloc)
-        # Child match (dropdown menu), `self` is just a parent/container,
-        # don't check its URL, consider only its children
         elif any(child._is_active() for child in self.child_id):
             return True
 
@@ -368,10 +293,6 @@ class WebsiteMenu(models.Model):
         menu = (menu_id and self.browse(menu_id)) or website.menu_id
         return make_tree(menu)
 
-    # Fields the menu editor legitimately round-trips (see ``get_tree`` and the
-    # ``edit_menu.js`` payload); ``page_id`` is resolved server-side below.
-    # Everything else a client might inject (``website_id``, ``group_ids`` and
-    # other security-sensitive columns) is dropped rather than written blindly.
     _SAVE_ALLOWED_FIELDS = frozenset(
         {
             "name",
@@ -401,24 +322,15 @@ class WebsiteMenu(models.Model):
             self.browse(to_delete).unlink()
         for menu in data["data"]:
             mid = menu["id"]
-            # new menu are prefixed by new-
             if isinstance(mid, str):
                 new_menu = self.create({"name": menu["name"], "website_id": website_id})
                 replace_id(mid, new_menu.id)
         for menu in data["data"]:
             menu_id = self.browse(menu["id"])
-            # Check if the url match a website.page (to set the m2o relation),
-            # except if the menu url contains '#', we then unset the page_id
             if "#" in menu["url"]:
-                # Multiple case possible
-                # 1. `#` => menu container (dropdown, ..)
-                # 2. `#anchor` => anchor on current page
-                # 3. `/url#something` => valid internal URL
-                # 4. https://google.com#smth => valid external URL
                 if menu_id.page_id:
                     menu_id.page_id = None
                 if request and menu["url"].startswith("#") and len(menu["url"]) > 1:
-                    # Working on case 2.: prefix anchor with referer URL
                     referer_url = urlsplit(
                         request.httprequest.headers.get("Referer", "")
                     ).path
@@ -433,11 +345,9 @@ class WebsiteMenu(models.Model):
                     menu["page_id"] = page.id
                     menu["url"] = page.url
                     if isinstance(menu.get("parent_id"), str):
-                        # Avoid failure if parent_id is sent as a string from a customization.
                         menu["parent_id"] = int(menu["parent_id"])
                 elif menu_id.page_id:
                     try:
-                        # a page shouldn't have the same url as a controller
                         self.env["ir.http"]._match(menu["url"])
                         menu_id.page_id = None
                     except werkzeug.exceptions.NotFound:

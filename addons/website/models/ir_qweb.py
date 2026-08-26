@@ -16,8 +16,6 @@ re_background_image = re.compile(
 
 
 class IrQweb(models.AbstractModel):
-    """IrQweb object for rendering stuff in the website context"""
-
     _inherit = "ir.qweb"
 
     URL_ATTRS = {
@@ -34,15 +32,10 @@ class IrQweb(models.AbstractModel):
             add_form_signature(element, self.sudo().env)
         return element, document, ref
 
-    # assume cache will be invalidated by third party on write to ir.ui.view
     def _get_template_cache_keys(self):
-        """Return the list of context keys to use for caching ``_compile``."""
         return super()._get_template_cache_keys() + ["website_id", "cookies_allowed"]
 
     def _prepare_frontend_environment(self, values):
-        """Update the values and context with website specific value
-        (required to render website layout template)
-        """
         irQweb = super()._prepare_frontend_environment(values)
 
         current_website = request.website
@@ -95,8 +88,6 @@ class IrQweb(models.AbstractModel):
                 ]
             )
 
-        # update values
-
         values.update(
             {
                 "website": current_website,
@@ -112,7 +103,6 @@ class IrQweb(models.AbstractModel):
         )
 
         if editable:
-            # form editable object, add the backend configuration link
             if "main_object" in values and has_group_restricted_editor:
                 func = getattr(values["main_object"], "get_backend_menu_id", False)
                 values["backend_menu_id"] = lazy(
@@ -124,23 +114,15 @@ class IrQweb(models.AbstractModel):
                     )
                 )
 
-        # update options
-
         irQweb = irQweb.with_context(website_id=current_website.id)
         if "inherit_branding" not in irQweb.env.context and not self.env.context.get(
             "rendering_bundle"
         ):
             if editable:
-                # in edit mode add branding on ir.ui.view tag nodes
                 irQweb = irQweb.with_context(inherit_branding=True)
             elif has_group_restricted_editor:
-                # will add the branding on fields (into values)
                 irQweb = irQweb.with_context(inherit_branding_auto=True)
 
-        # Avoid cache inconsistencies: if the cookies have been accepted, the
-        # DOM structure should reflect it after a reload and not be stuck in its
-        # previous state (see the part related to cookies in
-        # `_post_processing_att`).
         is_allowed_optional_cookies = request.env["ir.http"]._is_allowed_cookie(
             "optional"
         )
@@ -150,10 +132,6 @@ class IrQweb(models.AbstractModel):
 
     def _post_processing_att(self, tagName, atts, *, is_static=False):
         if atts.get("data-no-post-process"):
-            # Skip the website post-processing (url_for, CDN rewriting,
-            # cookies barrier, lazy loading) but still run the base
-            # post-processing: dynamic attributes must keep the
-            # malicious-scheme scrub.
             return super()._post_processing_att(tagName, atts, is_static=is_static)
 
         atts = super()._post_processing_att(tagName, atts, is_static=is_static)
@@ -162,21 +140,13 @@ class IrQweb(models.AbstractModel):
         if not website and self.env.context.get("website_id"):
             website = self.env["website"].browse(self.env.context["website_id"])
         if website and tagName == "img" and "loading" not in atts:
-            atts["loading"] = "lazy"  # default is auto
+            atts["loading"] = "lazy"
 
         skip_post_processing = (
             self.env.context.get("inherit_branding")
             or self.env.context.get("rendering_bundle")
             or self.env.context.get("edit_translations")
         )
-        # The debug flag is per-request and is NOT part of the compiled-template
-        # cache signature (see ``_template_cache_signature``). Honoring it while
-        # compiling a STATIC node would bake a debug-only variant (no CDN
-        # rewriting, no third-party cookie blocking) into the process-wide
-        # ``templates`` cache and then serve it to every subsequent visitor
-        # sharing the signature — silently defeating the GDPR cookie barrier.
-        # The debug bypass must therefore only affect dynamic, per-render
-        # attributes, never the cached static ones.
         if not is_static:
             skip_post_processing = (
                 skip_post_processing
@@ -193,19 +163,6 @@ class IrQweb(models.AbstractModel):
             website.cookies_bar
             and website.block_third_party_domains
             and not self.env.context.get("cookies_allowed")
-            # ``website`` may come from the *context* rather than from the
-            # request (a cron, a server action, a multi-website render), and
-            # this used to reach for ``request.env`` unguarded -- "object is not
-            # bound" out of any request-free render of a site that has the
-            # cookies bar and third-party blocking on.
-            #
-            # Guard on ``request`` FIRST and fail CLOSED. Falling back to the
-            # rendering environment's own user would be worse than the crash:
-            # a cron renders as superuser, who is in every group, so the editor
-            # bypass would apply and the third-party ``src`` would be emitted
-            # verbatim. This bypass exists so someone *editing* the site sees
-            # real embeds; a render with no request is never that, and with no
-            # visitor there is no consent to honour.
             and not (
                 request
                 and request.env.user.has_group(
@@ -213,21 +170,8 @@ class IrQweb(models.AbstractModel):
                 )
             )
         ):
-            # If the cookie banner is activated, 3rd-party embedded iframes and
-            # scripts should be controlled. As such:
-            # - 'domains' is a watchlist on the iframe/script's src itself,
-            # - 'classes' is a watchlist on container elements in which iframes
-            # are/could be built on the fly client-side for some reason.
             cookies_watchlist = {
-                # Normalize each entry: the admin-managed list comes from a
-                # textarea (CRLF line endings, stray spaces, mixed case) while
-                # ``src_host`` below is lowercased, so an un-stripped/uppercased
-                # entry would silently fail to match and let the embed through.
-                "domains": [
-                    domain.strip().lower()
-                    for domain in website.blocked_third_party_domains.split("\n")
-                    if domain.strip()
-                ],
+                "domains": website._get_blocked_third_party_domains_list(),
                 "classes": website._get_blocked_iframe_containers_classes(),
             }
             remove_src = False
@@ -235,10 +179,7 @@ class IrQweb(models.AbstractModel):
                 src_host = urlsplit((atts.get("src") or "").lower()).hostname
                 if src_host:
                     remove_src = any(
-                        # "www.example.com" and "example.com" should block both.
                         src_host == domain.removeprefix("www.")
-                        # "domain.com" should block "subdomain.domain.com", but
-                        # not "(subdomain.)mydomain.com".
                         or src_host.endswith("." + domain.removeprefix("www."))
                         for domain in cookies_watchlist["domains"]
                     )
@@ -246,10 +187,6 @@ class IrQweb(models.AbstractModel):
                 (atts.get("class") or "").split(" ")
             ):
                 atts["data-need-cookies-approval"] = "true"
-                # Case class in watchlist: we stop here. The element could
-                # contain an iframe created on the fly client-side. It is marked
-                # now so that the iframe can be marked later when created.
-                # Case iframe/script's src in watchlist: we adapt the src.
                 if "src" in atts:
                     atts["data-nocookie-src"] = atts["src"]
                     atts["src"] = "about:blank"
@@ -260,7 +197,6 @@ class IrQweb(models.AbstractModel):
             if value not in (None, False, ()):
                 atts[name] = self.env["ir.http"]._url_for(str(value))
 
-            # Adapt background-image URL in the same way as image src.
             atts = self._adapt_style_background_image(
                 atts, self.env["ir.http"]._url_for
             )

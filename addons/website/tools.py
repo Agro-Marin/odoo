@@ -7,18 +7,7 @@ from odoo.tools.misc import hmac
 
 
 def distance(s1="", s2="", limit=4):
-    """
-    Limited Levenshtein-ish distance (inspired from Apache text common)
-    Note: this does not return quick results for simple cases (empty string, equal strings)
-        those checks should be done outside loops that use this function.
-
-    :param s1: first string
-    :param s2: second string
-    :param limit: maximum distance to take into account, return -1 if exceeded
-
-    :return: number of character changes needed to transform s1 into s2 or -1 if this exceeds the limit
-    """
-    BIG = 100000  # never reached integer
+    BIG = 100000
     if len(s1) > len(s2):
         s1, s2 = s2, s1
     l1 = len(s1)
@@ -45,23 +34,10 @@ def distance(s1="", s2="", limit=4):
 
 
 def similarity_score(s1, s2):
-    """
-    Computes a score that describes how much two strings are matching.
-
-    :param s1: first string
-    :param s2: second string
-
-    :return: float score, the higher the more similar
-        pairs returning non-positive scores should be considered non similar
-    """
     dist = distance(s1, s2)
     if dist == -1:
         return -1
     if not s1 or not s2:
-        # Every ratio below divides by len(s1) / len(set(s1)) / len(s1)+len(s2).
-        # An empty operand has nothing in common with anything anyway, so report
-        # "not similar" with the same sentinel as an over-the-limit distance
-        # instead of raising ZeroDivisionError on the caller.
         return -1
     set1 = set(s1)
     score = len(set1.intersection(s2)) / len(set1)
@@ -70,8 +46,6 @@ def similarity_score(s1, s2):
     return score
 
 
-# Technical nodes whose *content* is markup/asset payload rather than prose, and
-# so must not leak into extracted text.
 _TEXT_EXCLUDED_XPATHS = (
     "//script",
     "//style",
@@ -81,15 +55,6 @@ _TEXT_EXCLUDED_XPATHS = (
 
 
 def _drop_keeping_tail(element):
-    """Remove ``element`` from its tree while preserving its tail text.
-
-    ``lxml``'s ``remove()`` also discards the element's *tail* — the text that
-    follows it in the parent's flow and belongs to the parent, not to the node
-    being dropped. Removing an inline ``<svg>`` icon (which Odoo snippets ship
-    everywhere) would therefore silently take the rest of the sentence with it.
-    Re-attach the tail to the previous sibling, or to the parent's own text when
-    the element is first, before unlinking.
-    """
     parent = element.getparent()
     if parent is None:
         return
@@ -103,23 +68,8 @@ def _drop_keeping_tail(element):
 
 
 def text_from_html(html_fragment, collapse_whitespace=False):
-    """
-    Returns the plain non-tag text from an html
-
-    :param html_fragment: document from which text must be extracted
-
-    :return: text extracted from the html
-    """
-    # Parse as HTML, not as XML: an XML parser has no HTML entity table, so in
-    # recover mode it *deletes* every `&eacute;`/`&nbsp;`/`&mdash;` instead of
-    # resolving it — dropping accents and gluing words together in teasers, SEO
-    # descriptions and search indexing. `html.fromstring` resolves them and is
-    # lenient about unclosed/multi-root fragments. The wrapper element keeps a
-    # single root for fragments that have several.
     tree = html.fromstring("<div>%s</div>" % (html_fragment or ""))
 
-    # Remove scripts or other technical elements that should not be converted
-    # into text.
     for xpath_filter in _TEXT_EXCLUDED_XPATHS:
         for element in tree.xpath(xpath_filter):
             _drop_keeping_tail(element)
@@ -131,15 +81,6 @@ def text_from_html(html_fragment, collapse_whitespace=False):
 
 
 def get_base_domain(url, strip_www=False):
-    """
-    Returns the domain of a given url without the scheme and the www. and the
-    final '/' if any.
-
-    :param url: url from which the domain must be extracted
-    :param strip_www: if True, strip the www. from the domain
-
-    :return: domain of the url
-    """
     if not url:
         return ""
 
@@ -150,31 +91,12 @@ def get_base_domain(url, strip_www=False):
 
 
 def website_form_signature_payload(email_to, extra_recipients):
-    """Build the exact string protected by ``website_form_signature``.
-
-    The signature is what stops a public visitor from turning a ``mail.mail``
-    web form into an open relay. It must bind the *values* of every recipient
-    field the form exposes — not just ``email_to`` and not merely the
-    *presence* of Cc/Bcc — otherwise a replayed signature lets the visitor
-    inject arbitrary ``email_cc``/``email_bcc`` recipients.
-
-    Both the renderer (:func:`add_form_signature`) and the submission handler
-    (``website/controllers/form.py``) must build the payload through this
-    single helper so the two sides can never drift.
-
-    :param str email_to: the builder-set primary recipient.
-    :param dict extra_recipients: mapping of the Cc/Bcc recipient fields present
-        on the form (``email_cc`` / ``email_bcc``) to their values.
-    :return: the string to feed to ``hmac``.
-    """
     parts = [email_to or ""]
     parts.extend(
         "%s=%s" % (name, extra_recipients[name] or "")
         for name in ("email_cc", "email_bcc")
         if name in extra_recipients
     )
-    # NUL separator: it cannot appear in an email header value, so distinct
-    # field sets cannot collide into the same payload.
     return "\x00".join(parts)
 
 
@@ -192,8 +114,6 @@ def add_form_signature(html_fragment, env_sudo):
         form_values = {
             input_node.attrib["name"]: input_node for input_node in input_nodes
         }
-        # if this form does not send an email, ignore. But at this stage,
-        # the value of email_to can still be None in case of default value
         if "email_to" not in form_values:
             continue
 
@@ -202,8 +122,6 @@ def add_form_signature(html_fragment, env_sudo):
             email_to_value == "info@yourcompany.example.com"
             and html_fragment.xpath('//span[@data-for="contactus_form"]')
         ):
-            # This means that the mail will be sent to the value of the dataFor
-            # which is the company email.
             email_to_value = env_sudo.company.email or ""
 
         extra_recipients = {
@@ -226,14 +144,6 @@ def add_form_signature(html_fragment, env_sudo):
 
 
 def create_image_attachment(env, image_path, image_name):
-    """
-    Creates an image attachment.
-
-    :param env: self.env
-    :param image_path: the path to the image (e.g. '/web/image/website.s_banner_default_image')
-    :param image_name: the name to give to the image (e.g. 's_banner_default_image.jpg')
-    :return: the image attachment
-    """
     Attachments = env["ir.attachment"]
     return Attachments.create(
         {

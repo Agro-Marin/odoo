@@ -42,12 +42,12 @@ class TestSnippets(HttpCase):
         )
 
         blacklist = [
-            "s_facebook_page",  # avoid call to external services (facebook.com)
-            "s_map",  # avoid call to maps.google.com
-            "s_instagram_page",  # avoid call to instagram.com
-            "s_image",  # Avoid specific case where the media dialog opens on drop
-            "s_video",  # Avoid specific case where the media dialog opens on drop
-            "s_snippet_group",  # Snippet groups are not snippets
+            "s_facebook_page",
+            "s_map",
+            "s_instagram_page",
+            "s_image",
+            "s_video",
+            "s_snippet_group",
             "s_inline_text",
         ]
         snippets_names = ",".join(
@@ -149,9 +149,6 @@ class TestSnippets(HttpCase):
         )
 
     def test_11_snippet_popup_display_on_click(self):
-        # To make the tour reliable we need to wait a field using data-fill-with
-        # to be patched, the step however relies on the company field being
-        # filled with 'yourcompany', which is not the case without demo data.
         admin = self.env.ref("base.user_admin")
         admin.write(
             {

@@ -41,9 +41,6 @@ class TestControllers(tests.HttpCase):
         self.url_open(
             url=suggested_links_url, json={"params": {"needle": "/", "limit": 10}}
         )
-        # mark as old (bypass the automatic write_date=now of ``write``).
-        # This fork renamed the low-level ``_write`` to ``_write_multi``, which
-        # takes one vals dict per record in ``self``.
         old_pages._write_multi([{"write_date": "2020-01-01"}] * len(old_pages))
 
         res = self.url_open(
@@ -64,10 +61,10 @@ class TestControllers(tests.HttpCase):
 
     def test_02_client_action_iframe_url(self):
         urls = [
-            "/",  # Homepage URL (special case)
-            "/contactus",  # Regular website.page URL
-            "/website/info",  # Controller (!!also testing multi slashes URL!!)
-            "/contactus?name=testing",  # Query string URL
+            "/",
+            "/contactus",
+            "/website/info",
+            "/contactus?name=testing",
         ]
         for url in urls:
             resp = self.url_open(f"/@{url}")
@@ -152,20 +149,6 @@ class TestControllers(tests.HttpCase):
 
     @patch("requests.get")
     def test_05_seo_suggest_language_regex(self, mock_get):
-        """
-        Test the seo_suggest method to verify it properly handles different
-        language inputs, sends correct parameters ('hl' for host language and
-        'gl' for geolocation) to the Google API, and returns the expected
-        suggestions. The test checks a variety of cases including:
-        - Regional language codes (e.g., 'en_US', 'fr_FR')
-        - Basic language codes (e.g., 'es', 'sr')
-        - Language codes with script modifier (e.g., 'sr_RS@latin',
-          'zh_CN@pinyin')
-        - Empty string input to handle default case
-        """
-
-        # Mocking the response from Google API to simulate what would be
-        # returned by the seo_suggest method.
         mock_response = Mock()
         mock_response.content = """<?xml version="1.0"?>
         <toplevel>
@@ -175,45 +158,29 @@ class TestControllers(tests.HttpCase):
         </toplevel>"""
         mock_get.return_value = mock_response
 
-        # Test cases with different language inputs and expected hl and gl
-        # values.
         test_cases = [
-            ("en_US", ["en", "US"]),  # US English
-            ("fr_FR", ["fr", "FR"]),  # French in France
-            ("es", ["es", ""]),  # Spanish without country code
-            ("sr_RS@latin", ["sr", "RS"]),  # Serbian with script in Serbia
-            ("zh_CN@pinyin", ["zh", "CN"]),  # Chinese with pinyin script in China
-            ("sr@latin", ["sr", ""]),  # Serbian with script but no country
-            ("", ["en", "US"]),  # Default case (empty lang. input)
+            ("en_US", ["en", "US"]),
+            ("fr_FR", ["fr", "FR"]),
+            ("es", ["es", ""]),
+            ("sr_RS@latin", ["sr", "RS"]),
+            ("zh_CN@pinyin", ["zh", "CN"]),
+            ("sr@latin", ["sr", ""]),
+            ("", ["en", "US"]),
         ]
 
         for lang_input, expected_output in test_cases:
-            # subTest creates an isolated context for each test case, allowing
-            # failures to be reported separately.
             with self.subTest(lang=lang_input):
                 result = Website.seo_suggest(self, keywords="test", lang=lang_input)
 
-                # Extract the parameters that were passed in the mock
-                # requests.get call.
                 called_params = mock_get.call_args[1]["params"]
 
-                # Verify that the 'hl' parameter (host language) matches the
-                # expected output
                 self.assertEqual(called_params["hl"], expected_output[0])
 
-                # Verify that the 'gl' parameter (geolocation) matches the
-                # expected output
                 self.assertEqual(called_params["gl"], expected_output[1])
 
-                # Verify that the returned result contains the expected
-                # suggestion "test suggestion"
                 self.assertIn("test suggestion", result)
 
     def test_06_website_action(self):
-        """
-        Test the website action controller to ensure it correctly handles
-        different action types and returns the expected results.
-        """
         self.authenticate("admin", "admin")
         self.env["ir.actions.server"].create(
             {
@@ -227,26 +194,19 @@ class TestControllers(tests.HttpCase):
             }
         )
 
-        # Test that the action response is correctly returned when accessed
         res = self.url_open("/website/action/my_test_action")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.text, "{'message': 'Succeeded'}")
 
-        # A dotted-but-unknown xml_id must not 500 (``env.ref(...)`` returns
-        # None -> ``None.sudo()``); it should fall through to a redirect.
         res = self.url_open("/website/action/foo.does_not_exist", allow_redirects=False)
         self.assertNotEqual(res.status_code, 500)
         self.assertIn(res.status_code, (301, 302, 303))
 
-        # A dotted xml_id resolving to a *non* server action must also not 500
-        # and must not be run; it should redirect like any non-match.
         res = self.url_open("/website/action/base.user_root", allow_redirects=False)
         self.assertNotEqual(res.status_code, 500)
         self.assertIn(res.status_code, (301, 302, 303))
 
     def test_08_check_can_modify_any_empty(self):
-        """``check_can_modify_any`` with an empty ``records`` list must not
-        ``raise None`` (TypeError/500); it returns True vacuously."""
         self.authenticate("admin", "admin")
         base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
         res = self.url_open(
@@ -257,8 +217,6 @@ class TestControllers(tests.HttpCase):
         self.assertEqual(res.json()["result"], True)
 
     def test_09_autocomplete_invalid_order_no_error(self):
-        """A public caller supplying an unknown ``order`` field must not raise
-        (the ORM would ValueError); the route falls back to the default order."""
         base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
         res = self.url_open(
             base_url + "/website/snippet/autocomplete",

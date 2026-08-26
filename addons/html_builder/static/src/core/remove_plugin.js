@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { getBootstrapComponent } from "@html_builder/core/bootstrap_realm";
 import { isEditable } from "@html_builder/utils/utils";
 import { unremovableNodePredicates as deletePluginPredicates } from "@html_editor/core/delete_plugin";
 import { isUnremovableQWebElement as qwebPluginPredicate } from "@html_editor/others/qweb_plugin";
@@ -6,7 +7,6 @@ import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/translation";
-import { Tooltip } from "@web/libs/bootstrap";
 
 /** @typedef {import("plugins").CSSSelector} CSSSelector */
 
@@ -145,13 +145,18 @@ export class RemovePlugin extends Plugin {
             parentEl = parentEl.closest("body");
         }
 
-        // Remove tooltips.
-        [toRemoveEl, ...toRemoveEl.querySelectorAll("*")].forEach((el) => {
-            const tooltip = Tooltip.getInstance(el);
-            if (tooltip) {
-                tooltip.dispose();
+        // Remove tooltips. The elements being removed live in the edited document, so the
+        // instances to dispose are registered in *that* realm's Bootstrap, not the backend
+        // one this plugin runs in.
+        const Tooltip = getBootstrapComponent(
+            toRemoveEl.ownerDocument.defaultView,
+            "Tooltip",
+        );
+        if (Tooltip) {
+            for (const el of [toRemoveEl, ...toRemoveEl.querySelectorAll("*")]) {
+                Tooltip.getInstance(el)?.dispose();
             }
-        });
+        }
 
         // Remove the element.
         toRemoveEl.remove();

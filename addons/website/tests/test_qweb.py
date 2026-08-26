@@ -77,9 +77,6 @@ class TestQweb(TransactionCaseWithUserDemo):
         )
 
     def test_render_query_count(self):
-        """
-        see also test_call_query_count test in base/tests/test_queb.py
-        """
         IrUiView = self.env["ir.ui.view"]
         IrUiView.create(
             {
@@ -99,14 +96,14 @@ class TestQweb(TransactionCaseWithUserDemo):
         )
         IrUiView.create(
             [
-                {  # website_id=1
+                {
                     "name": "test",
                     "type": "qweb",
                     "website_id": 1,
                     "key": "base.testing_header_1",
                     "arch_db": """<span>WITH WEBSITE</span>""",
                 },
-                {  # same key but website_id=False
+                {
                     "name": "test",
                     "type": "qweb",
                     "website_id": False,
@@ -135,7 +132,7 @@ class TestQweb(TransactionCaseWithUserDemo):
                     "key": "base.testing_footer_1",
                     "arch_db": """<span>1</span>""",
                 },
-                {  # website_id=False
+                {
                     "name": "test",
                     "type": "qweb",
                     "key": "base.testing_footer",
@@ -145,7 +142,7 @@ class TestQweb(TransactionCaseWithUserDemo):
                 <t t-call="base.testing_footer_1"/>
             </t>""",
                 },
-                {  # website_id=1
+                {
                     "name": "test",
                     "type": "qweb",
                     "website_id": 1,
@@ -209,16 +206,10 @@ class TestQweb(TransactionCaseWithUserDemo):
             },
         )
 
-        # add some website information in cache (default website, lang...)
         env["ir.qweb"]._render("base.testing_unused")
         with MockRequest(env, website=website) as request:
-            # SELECT res_lang
-            # SELECT ir_attachment from res.lang
-            # SELECT website.id from domain
-            # SELECT website.id ORDER BY sequence (without WHERE)
             request.env["ir.qweb"]._render("base.testing_unused")
 
-        # do not count those fetching queries
         env.user.fetch(["name"])
         website.with_env(env).fetch(["name"])
         other_website.with_env(env).fetch(["name"])
@@ -238,13 +229,6 @@ class TestQweb(TransactionCaseWithUserDemo):
             )
 
         def check_website(template, name, queries):
-            # +1: ``MockRequest`` puts the website in the session as
-            # ``force_website_id``, and ``get_current_website()`` validates that
-            # id against the database once per request (see
-            # ``_is_forced_website_live``). Each ``check_website`` opens its own
-            # request, so it pays that check exactly once -- unlike a real page
-            # render, which reaches ``get_current_website()`` once per URL it
-            # rewrites and now pays it once in total.
             queries += 1
             init = env.cr.sql_log_count
             with MockRequest(env, website=website) as request:
@@ -254,42 +238,29 @@ class TestQweb(TransactionCaseWithUserDemo):
                 env.cr.sql_log_count - init, queries, f"Maximum queries: {queries}"
             )
 
-        # SELECT visibility (from _render) + fields from in cache
-        # 'base.testing_content'
-        #     SELECT RECURSIVE arch combine
-        # 'base.testing_layout', 'base.testing_header_0'
-        #     SELECT id + fields from (xmlid + website_id)
-        #     SELECT RECURSIVE arch combine
-        # 'base.testing_header', 'base.testing_footer'
-        #     SELECT id + fields from (xmlid + website_id)
-        #     SELECT RECURSIVE arch combine
-        # 'base.testing_header_1', 'base.testing_footer_0', 'base.testing_footer_1'
-        #     SELECT id + fields from (xmlid + website_id)
-        #     SELECT RECURSIVE arch combine
-
-        FIRST_SEARCH_FETCH = 1  # instead of the first SELECT visibility
-        OTHER_SEARCH_FETCH = 3  # "SELECT id + fields from xmlid"
-        ARCH_COMBINE = 4  # SELECT RECURSIVE arch combine
+        FIRST_SEARCH_FETCH = 1
+        OTHER_SEARCH_FETCH = 3
+        ARCH_COMBINE = 4
 
         invalidate("templates", "view")
         check(
             "base.testing_content",
             "test-cold-0",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
         invalidate("templates", "view")
         check_website(
             "base.testing_content",
             "test-cold-0",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
         check(
             "base.testing_content",
             "test-cold-0",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
         check("base.testing_content", "test-hot-0", 0)
 
@@ -309,36 +280,32 @@ class TestQweb(TransactionCaseWithUserDemo):
 
         check_website(view.id, "test-hot-id", 0)
 
-        # like 'test-cold-0'
         invalidate("templates")
         check(
             view.id,
             "test-cold-id-1",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
         invalidate("templates")
-        check(view.id, "test-cold-id-1", 0 + OTHER_SEARCH_FETCH + ARCH_COMBINE)  # 7
+        check(view.id, "test-cold-id-1", 0 + OTHER_SEARCH_FETCH + ARCH_COMBINE)
 
         invalidate("templates")
-        check_website(
-            view.id, "test-cold-id-1", 0 + OTHER_SEARCH_FETCH + ARCH_COMBINE
-        )  # 7
+        check_website(view.id, "test-cold-id-1", 0 + OTHER_SEARCH_FETCH + ARCH_COMBINE)
 
-        # like 'test-cold-0' the first search query is replaced by a fetching
         invalidate("templates", "view")
         check_website(
             view.id,
             "test-cold-id-2",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
         invalidate("templates", "view")
         check(
             view.id,
             "test-cold-id-2",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
         env = self.env(
             user=self.user_demo,
@@ -349,29 +316,25 @@ class TestQweb(TransactionCaseWithUserDemo):
             },
         )
 
-        # like 'test-cold-0'
         invalidate("templates")
         check(
             "base.testing_content",
             "test-cold-1",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
         invalidate("templates")
         check_website(
             "base.testing_content",
             "test-cold-1",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
-
-        # like 'test-cold-0'
-        invalidate("templates")
-        check_website(
-            view.id, "test-cold-id-3", 0 + OTHER_SEARCH_FETCH + ARCH_COMBINE
-        )  # 7
+        )
 
         invalidate("templates")
-        check(view.id, "test-cold-id-3", 0 + OTHER_SEARCH_FETCH + ARCH_COMBINE)  # 7
+        check_website(view.id, "test-cold-id-3", 0 + OTHER_SEARCH_FETCH + ARCH_COMBINE)
+
+        invalidate("templates")
+        check(view.id, "test-cold-id-3", 0 + OTHER_SEARCH_FETCH + ARCH_COMBINE)
 
 
 class TestQwebProcessAtt(TransactionCase):
@@ -393,25 +356,20 @@ class TestQwebProcessAtt(TransactionCase):
         )
 
     def test_process_att_no_request(self):
-        # no request so no URL rewriting
         self._test_att("/", {"href": "/"})
         self._test_att("/en", {"href": "/en"})
         self._test_att("/fr", {"href": "/fr"})
-        # no URL rewritting for CDN
         self._test_att("/a", {"href": "/a"})
 
     def test_process_att_no_website(self):
         with MockRequest(self.env):
-            # no website so URL rewriting
             self._test_att("/", {"href": "/"})
             self._test_att("/en", {"href": "/en"})
             self._test_att("/fr", {"href": "/fr"})
-            # no URL rewritting for CDN
             self._test_att("/a", {"href": "/a"})
 
     def test_process_att_monolang_route(self):
         with MockRequest(self.env, website=self.website, multilang=False):
-            # lang not changed in URL but CDN enabled
             self._test_att("/a", {"href": "http://test.cdn/a"})
             self._test_att("/en/a", {"href": "http://test.cdn/en/a"})
             self._test_att("/b", {"href": "http://test.cdn/b"})
@@ -421,9 +379,6 @@ class TestQwebProcessAtt(TransactionCase):
         with MockRequest(self.env, website=self.website):
             self._test_att("/", {"href": "/"})
             self._test_att("/en/", {"href": "/"})
-            # "/fr/" and "/fr" are the same page, and the ladder 301s the former
-            # to the latter (see ``_lang_url_prefix``), so link building emits
-            # the form that does not cost the visitor a redirect.
             self._test_att("/fr/", {"href": "/fr"})
             self._test_att("/fr", {"href": "/fr"})
 
@@ -436,7 +391,6 @@ class TestQwebProcessAtt(TransactionCase):
 
     def test_process_att_matching_cdn_and_lang(self):
         with MockRequest(self.env, website=self.website):
-            # lang prefix is added before CDN
             self._test_att("/a", {"href": "http://test.cdn/a"})
             self._test_att("/en/a", {"href": "http://test.cdn/a"})
             self._test_att("/fr/a", {"href": "http://test.cdn/fr/a"})
@@ -448,25 +402,10 @@ class TestQwebProcessAtt(TransactionCase):
         with MockRequest(
             self.env, website=self.website, context={"lang": "fr_FR"}, routing=False
         ):
-            # default on multilang=True if route is not /{module}/static/
             self._test_att("/web/static/hi", {"href": "/web/static/hi"})
             self._test_att("/my-page", {"href": "/fr/my-page"})
 
     def test_process_att_url_crap(self):
-        """Only the *path* reaches the rewrite lookup, and the query/fragment
-        are reattached in RFC 3986 order.
-
-        Per RFC 3986 a URL is ``path[?query][#fragment]``: the fragment starts
-        at the FIRST "#", so in "/x#y?z" the "?z" belongs to the fragment and
-        the path to resolve is "/x", not "/x#y".
-
-        This used to assert on werkzeug's ``match()`` two layers down, which
-        made it depend on ``url_rewrite``'s ormcache *and* on a rewrite
-        existing -- ``website._url_for`` short-circuits on ``_rewrite_len()``
-        when none does, so ``match`` was simply "not called" and the assertion
-        could never hold. Force the precondition and spy on ``url_rewrite``,
-        the contract ``_url_for`` actually depends on.
-        """
         looked_up = []
         IrHttp = self.registry["ir.http"]
         self.patch(IrHttp, "_rewrite_len", lambda self_, website_id: 1)
@@ -480,10 +419,6 @@ class TestQwebProcessAtt(TransactionCase):
             self._test_att("/x?y#z", {"href": "/x?y#z"})
             self._test_att("/x?y", {"href": "/x?y"})
             self._test_att("/x#y", {"href": "/x#y"})
-        # Assert on the *values*, not the call count: how many times
-        # _post_processing_att consults _url_for per attribute is an
-        # implementation detail; that nothing but the bare path is ever looked
-        # up is the contract.
         self.assertTrue(looked_up, "the rewrite lookup must actually run")
         self.assertEqual(set(looked_up), {"/x"})
 
@@ -648,16 +583,11 @@ class TestQwebDataSnippet(TransactionCase):
         re_sql = re.compile(r"\bir_ui_view\b", re.IGNORECASE)
         ir_ui_view_queries = [q for q in actual_queries if re_sql.search(q)]
 
-        # nb_snippets = 156
-        first_search = 1  # for key & website
-        t_call_snippets = (
-            2  # number of nested t-calls (t-call > view > t-call > other views...)
-        )
-        fetch_snippets = (
-            0  # number of fetches (normally performed with the previous search)
-        )
-        get_root_view = 1  # determine the root views
-        combine_views = 3  # Queries performed to execute the read combine
+        first_search = 1
+        t_call_snippets = 2
+        fetch_snippets = 0
+        get_root_view = 1
+        combine_views = 3
 
         all_ir_ui_view_queries = (
             first_search
@@ -665,7 +595,7 @@ class TestQwebDataSnippet(TransactionCase):
             + fetch_snippets
             + get_root_view
             + combine_views
-        )  # 9
+        )
         self.assertEqual(
             len(ir_ui_view_queries),
             all_ir_ui_view_queries,

@@ -127,10 +127,24 @@ assert_grep "sitemap route present" '/sitemap.xml' "$WEB/controllers/main.py"
 assert_grep "model-page route present" '/model/' "$WEB/controllers/model_page.py"
 
 # ------- JS surface -------
-assert_eq "static/src .js files" \
-    "$(find "$WEB/static/src" -name '*.js' -type f | wc -l)" "347"
-assert_eq "static/src directories" \
-    "$(find "$WEB/static/src" -type d | wc -l)" "143"
+# Derived and asserted against every site that states them, never a literal
+# here (ADR-0043): a literal only ever pins the script to itself, and says
+# nothing about whether the documents still agree with the tree. Each citation
+# gets its own anchored pattern, for the reason spelled out below: the check is
+# an EXISTENCE test, so a loose pattern is satisfied by whichever site is still
+# right while the other rots.
+JS_SRC=$(find "$WEB/static/src" -name '*.js' -type f | wc -l)
+JS_SRC_DIRS=$(find "$WEB/static/src" -type d | wc -l)
+assert_doc_cites "DIRECTORY_MAP cites the real static/src JS count" \
+    "$JS_SRC" '\*\*%s `\.js` files\*\*' DIRECTORY_MAP.md
+assert_doc_cites "ARCHITECTURE cites the real static/src JS count (subsystem row)" \
+    "$JS_SRC" '%s JS across' ARCHITECTURE.md
+assert_doc_cites "ARCHITECTURE cites the real static/src JS count (figures table)" \
+    "$JS_SRC" 'JavaScript \(src\) \| %s across' ARCHITECTURE.md
+assert_doc_cites "DIRECTORY_MAP cites the real static/src directory count" \
+    "$JS_SRC_DIRS" '\*\*%s directories\*\*' DIRECTORY_MAP.md
+assert_doc_cites "ARCHITECTURE cites the real static/src directory count" \
+    "$JS_SRC_DIRS" 'across %s directories' ARCHITECTURE.md
 JS_TESTS=$(find "$WEB/static/tests" -name '*.js' -type f | wc -l)
 assert_doc_cites "ARCHITECTURE cites the real static/tests JS count" \
     "$JS_TESTS" '%s `.js` \(HOOT suites' ARCHITECTURE.md

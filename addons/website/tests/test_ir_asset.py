@@ -35,7 +35,6 @@ class TestIrAsset(odoo.tests.HttpCase):
             ]
         )
 
-        # For website 1, modify asset 1 and disable asset 2.
         assets[1].with_context(website_id=website_1.id).write(
             {
                 "path": "/website/test/specific1.css",
@@ -89,14 +88,6 @@ class TestIrAsset(odoo.tests.HttpCase):
 
 @odoo.tests.common.tagged("post_install", "-at_install")
 class TestSpecificAssetScope(odoo.tests.common.TransactionCase):
-    """A website-specific record hides the generic one it was copied from.
-    Records are fetched for a whole include closure in one query, so that
-    arbitration has to stay scoped to the bundle: a COW write that also moves
-    the record to another bundle leaves the pair straddling two bundles of the
-    same closure, and arbitrating across the batch drops the generic one from a
-    bundle it still belongs to.
-    """
-
     def test_a_specific_record_does_not_hide_a_generic_one_in_another_bundle(self):
         IrAsset = self.env["ir.asset"]
         website = self.env["website"].create({"name": "Scope"})
@@ -111,7 +102,6 @@ class TestSpecificAssetScope(odoo.tests.common.TransactionCase):
                 "path": path,
             }
         )
-        # COW: the specific copy keeps the key but lands in the included bundle
         generic.with_context(website_id=website.id).write(
             {"bundle": "scope.inner", "path": other}
         )
@@ -133,8 +123,6 @@ class TestSpecificAssetScope(odoo.tests.common.TransactionCase):
                 IrAsset, "scope.outer", {"website_id": website.id}
             )
 
-        # the include is a manifest command, and a record left at the default
-        # sequence is applied after those, so the included bundle comes first
         self.assertEqual(
             [entry.path for entry in resolved],
             [other, path],

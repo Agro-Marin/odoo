@@ -46,7 +46,7 @@ class TestSlideOrmOverrides(slides_common.SlidesCase):
     def test_write_url_on_multiple_slides(self):
         """A multi-record write touching a url field must not ensure_one().
 
-        ``_fetch_external_metadata`` is singleton-only; calling it on the whole
+        ``_get_external_metadata`` is singleton-only; calling it on the whole
         recordset raised "Expected singleton", which is reachable from list-view
         multi-edit.
         """

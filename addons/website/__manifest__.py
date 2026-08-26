@@ -21,7 +21,6 @@
     },
     "installable": True,
     "data": [
-        # security.xml first, data.xml need the group to exist (checking it)
         "security/website_security.xml",
         "security/ir.model.access.csv",
         "data/image_library.xml",
@@ -204,7 +203,6 @@
         "wizard/base_language_install_views.xml",
         "wizard/blocked_third_party_domains.xml",
         "wizard/website_robots.xml",
-        # Replaces a post_init_hook that should be run on upgrade too.
         "data/update_theme_images.xml",
         "views/website_templates_svg.xml",
     ],
@@ -225,9 +223,7 @@
             "website/static/src/core/**/*",
             "website/static/src/utils/**/*",
             ("remove", "website/static/src/interactions/**/*.edit.js"),
-            # Multi-range is an opt-in feature.
             ("remove", "website/static/src/interactions/multirange_input.js"),
-            # Activated on-demand by website.ripple_effect_js.
             ("remove", "website/static/src/interactions/ripple_effect.js"),
             ("remove", "website/static/src/core/website_edit_service.js"),
             "website/static/src/js/content/website_root_instance.js",
@@ -264,7 +260,6 @@
             "website/static/src/js/content/generate_video_iframe.js",
         ],
         "web.assets_frontend_lazy": [
-            # Remove assets_frontend_minimal
             ("remove", "website/static/src/utils/misc.js"),
             ("remove", "website/static/src/js/content/inject_dom.js"),
             ("remove", "website/static/src/js/content/auto_hide_menu.js"),
@@ -308,8 +303,6 @@
                 "remove",
                 "website/static/src/client_actions/website_preview/website_builder_action_test_mode.js",
             ),
-            # This bundle is light. The glob above reaches a dark sibling, and
-            # a dark sibling in a light bundle is not inert: it compiles with
             "website/static/src/components/fields/*",
             "website/static/src/components/fullscreen_indication/fullscreen_indication.js",
             "website/static/src/components/fullscreen_indication/fullscreen_indication.scss",
@@ -325,11 +318,7 @@
             "website/static/src/scss/website_controller_page_kanban.scss",
             "website/static/src/**/common/**/*",
             "website/static/src/xml/website_form_editor.xml",
-            # TODO Remove the module's form js - this is for testing.
             "website/static/src/js/send_mail_form.js",
-            # TODO when moving options to website: load this from website
-            # directly. This file is loaded in assets_wysiwyg in website, but we
-            # need to load it here for html_builder.
             "website/static/src/xml/website.cookies_bar.xml",
         ],
         "web.assets_web_dark": [
@@ -423,7 +412,6 @@
             "website/static/src/client_actions/*/*.xml",
             "website/static/src/components/website_loader/*.xml",
             "website/static/src/js/backend/**/*",
-            # Don't include dark mode files in light mode
         ],
         "website.website_builder_assets": [
             ("include", "html_builder.assets"),
@@ -607,7 +595,7 @@
                 "s_carousel",
                 "s_product_catalog",
                 "s_call_to_action_menu",
-            ],  # should be s_call_to_action - but let's create that snippet
+            ],
             "4": [
                 "s_text_block_h1",
                 "s_image_text",
@@ -621,7 +609,7 @@
                 "s_product_catalog",
                 "s_three_columns_menu",
                 "s_call_to_action",
-            ],  # was s_call_to_action_menu
+            ],
         },
         "team": {
             "0": ["s_text_block_h1", "s_three_columns"],

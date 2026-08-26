@@ -35,8 +35,6 @@ class WebsitePagePropertiesBase(models.TransientModel):
         target = self.target_model_id
         domain = [("website_id", "=", self.website_id.id)]
         url_to_check = url or self.url
-        # For website pages, rely primarily on page_id as it stays stable
-        # across URL changes. Fall back to URL for non-page targets.
         if target and target._name == "website.page" and target.id:
             domain += ["|", ("page_id", "=", target.id), ("url", "=", url_to_check)]
         else:
@@ -70,8 +68,6 @@ class WebsitePagePropertiesBase(models.TransientModel):
                     }
                 )
         else:
-            # If the page is no longer in menu, remove any relevant menu even
-            # if `menu_ids` is empty due to URL changes in the same save.
             menus = self.menu_ids or self.env["website.menu"].search(
                 self._get_menu_domain()
             )
@@ -83,11 +79,6 @@ class WebsitePagePropertiesBase(models.TransientModel):
         for record in self:
             url = record.url
             current_homepage_url = record.website_id.homepage_url or "/"
-            # If the url field matches the website's homepage_url, we know this
-            # is the homepage.
-            # However, the url field contains the url of the accessed route.
-            # Therefore, being on '/' means we went through the homepage
-            # controller and the request was rerouted.
             record.is_homepage = url in (current_homepage_url, "/")
 
     def _inverse_is_homepage(self):
@@ -97,10 +88,6 @@ class WebsitePagePropertiesBase(models.TransientModel):
             if url and url != "/":
                 self.website_id.homepage_url = url
         elif self.website_id.homepage_url == url:
-            # Only clear the website homepage when *this* page is the one
-            # currently designated. Clearing unconditionally destroyed the
-            # homepage designation of a different page when the properties
-            # dialog wrote ``is_homepage=False`` for a non-homepage page.
             self.website_id.homepage_url = False
 
     @api.depends("target_model_id")
@@ -108,15 +95,10 @@ class WebsitePagePropertiesBase(models.TransientModel):
         for record in self:
             target = record.target_model_id
             if target._name == "ir.ui.view":
-                # Check we are in a non-custom state to avoid messing with
-                # manually set values.
                 record.can_publish = self._is_ir_ui_view_published(
                     target
                 ) or self._is_ir_ui_view_unpublished(target)
 
-                # FIXME disabled for the moment because it does not hide the url
-                # in the sitemap and it is difficult to find a fix that would be
-                # consistent. To revisit later.
                 record.can_publish = False
             elif "can_publish" in target._fields:
                 record.can_publish = target.can_publish
@@ -140,11 +122,9 @@ class WebsitePagePropertiesBase(models.TransientModel):
         if target._name == "ir.ui.view":
             if self.can_publish:
                 if self.is_published:
-                    # Publish
                     target.visibility = ""
                     target.group_ids -= self._get_ir_ui_view_unpublish_group()
                 else:
-                    # Unpublish
                     target.visibility = "restricted_group"
                     target.group_ids += self._get_ir_ui_view_unpublish_group()
                 self.env.registry.clear_cache("templates")
@@ -205,10 +185,6 @@ class WebsitePageProperties(models.TransientModel):
 
     @api.depends("url", "website_id.homepage_url")
     def _compute_is_homepage(self):
-        """
-        Don't match is_homepage when url is '/' as this model's url is not the
-        accessed route's url.
-        """
         for record in self:
             url = record.url
             current_homepage_url = record.website_id.homepage_url or "/"
@@ -224,8 +200,6 @@ class WebsitePageProperties(models.TransientModel):
     def write(self, vals):
         write_result = super().write(vals)
 
-        # Once website.page has been written, the url might have been modified.
-        # We can now create the redirects.
         if "url" in vals:
             for record in self:
                 old_url = record.old_url

@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { getBootstrapComponent } from "@html_builder/core/bootstrap_realm";
 import { scrollTo } from "@html_builder/utils/scrolling";
-import { Tooltip } from "@web/libs/bootstrap";
 import {
     Component,
     onMounted,
@@ -81,6 +81,14 @@ export class BackgroundPositionOverlay extends Component {
         });
 
         useEffect(() => {
+            // The dragger lives in the edited document, so its Bootstrap must come from that
+            // realm (see `bootstrap_realm`). A realm that ships no edit bundle yields
+            // undefined: drop the hint rather than throw.
+            const win = this.bgDraggerRef.el?.ownerDocument.defaultView;
+            const Tooltip = getBootstrapComponent(win, "Tooltip");
+            if (!Tooltip) {
+                return;
+            }
             this.tooltip = Tooltip.getOrCreateInstance(this.bgDraggerRef.el, {
                 trigger: "manual",
                 container: this.backgroundOverlayRef.el,
@@ -90,7 +98,7 @@ export class BackgroundPositionOverlay extends Component {
 
         onWillUnmount(() => {
             this.builderOverlayContainerEl.style.clipPath = "";
-            this.tooltip.dispose();
+            this.tooltip?.dispose();
         });
     }
 

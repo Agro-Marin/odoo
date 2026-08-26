@@ -8,13 +8,8 @@ class TestWebsiteAssets(odoo.tests.HttpCase):
     def test_01_multi_domain_assets_generation(self):
         Website = self.env["website"]
         Attachment = self.env["ir.attachment"]
-        # Create an additional website to ensure it works in multi-website setup
         Website.create({"name": "Second Website"})
-        # Simulate single website DBs: make sure other website do not interfer
-        # (We can't delete those, constraint will most likely be raised)
         [w.write({"domain": f"inactive-{w.id}.test"}) for w in Website.search([])]
-        # Don't use HOST, hardcode it so it doesn't get changed one day and make
-        # the test useless
         domain_1 = f"http://127.0.0.1:{self.http_port()}"
         domain_2 = f"http://localhost:{self.http_port()}"
         Website.browse(1).domain = domain_1
@@ -41,22 +36,6 @@ class TestWebsiteAssets(odoo.tests.HttpCase):
 
         last_backend_asset_attach_id = get_last_backend_asset_attach_id()
 
-        # The first call will generate the assets and populate the cache and
-        # take ~100 SQL Queries (~cold state).
-        # Any later call to `/web`, regardless of the domain, will take only
-        # ~10 SQL Queries (hot state).
-        # Without the calls the `check_asset()` (which would raise early and
-        # would not call other `url_open()`) and before the fix coming with this
-        # test, here is the logs:
-        #      "GET /web HTTP/1.1" 200 - 222 0.135 3.840  <-- 222 Queries, ~4s
-        #      "GET /web HTTP/1.1" 200 - 181 0.101 3.692  <-- 181 Queries, ~4s
-        #      "GET /web HTTP/1.1" 200 - 215 0.121 3.704  <-- 215 Queries, ~4s
-        #      "GET /web HTTP/1.1" 200 - 181 0.100 3.616  <-- 181 Queries, ~4s
-        # After the fix, here is the logs:
-        #      "GET /web HTTP/1.1" 200 - 101 0.043 0.353  <-- 101 Queries, ~0.3s
-        #      "GET /web HTTP/1.1" 200 - 11 0.004 0.007   <--  11 Queries, ~10ms
-        #      "GET /web HTTP/1.1" 200 - 11 0.003 0.005   <--  11 Queries, ~10ms
-        #      "GET /web HTTP/1.1" 200 - 11 0.003 0.008   <--  11 Queries, ~10ms
         self.url_open(domain_1 + "/odoo")
         check_asset()
         self.url_open(domain_2 + "/odoo")
@@ -70,7 +49,7 @@ class TestWebsiteAssets(odoo.tests.HttpCase):
 
     def test_02_t_cache_invalidation(self):
         self.authenticate(None, None)
-        page = self.url_open("/").text  # add to cache
+        page = self.url_open("/").text
         public_assets_links = re.findall(
             r'(/web/assets/\d+/\w{7}/web.assets_frontend\..+)"/>', page
         )
@@ -84,15 +63,13 @@ class TestWebsiteAssets(odoo.tests.HttpCase):
 
         self.assertEqual(public_assets_links, admin_assets_links)
 
-        snippets = self.env[
-            "ir.asset"
-        ].search(
+        snippets = self.env["ir.asset"].search(
             [
                 (
                     "path",
                     "=like",
                     "website/static/src/snippets/s_social_media/000.scss",
-                ),  # arbitrary, a unused css one that doesn't make the page fail when archived.
+                ),
                 ("bundle", "=", "web.assets_frontend"),
             ]
         )
@@ -307,7 +284,6 @@ class TestWebAssets(odoo.tests.HttpCase):
             200,
         )
 
-        # redirect urls
         invalid_version = "1234567"
         self.assertEqual(
             self.url_open(
@@ -325,8 +301,6 @@ class TestWebAssets(odoo.tests.HttpCase):
         )
 
     def test_ensure_correct_website_asset(self):
-        # when searching for an attachment, if the unique a wildcard, we want to ensute that we don't match a website one when seraching a no website one.
-        # this test should also wheck that the clean_attachement does not erase a website_attachement after generating a base attachment
         website_id = self.env["website"].search([], limit=1, order="id asc").id
         unique = (
             self.env["ir.qweb"]
@@ -342,7 +316,6 @@ class TestWebAssets(odoo.tests.HttpCase):
         website_url = self.env["ir.asset"]._get_asset_bundle_url(
             "web.assets_frontend.min.js", "%", {"website_id": website_id}
         )
-        # we expect the unique to be the same in this case, but there is no garantee
         website_url_versioned = self.env["ir.asset"]._get_asset_bundle_url(
             "web.assets_frontend.min.js", unique, {"website_id": website_id}
         )
@@ -351,7 +324,6 @@ class TestWebAssets(odoo.tests.HttpCase):
             [("url", "=like", "%web.assets_frontend.min.js")]
         ).unlink()
 
-        # generate website assets
         self.assertEqual(
             self.url_open(website_url, allow_redirects=False).status_code, 200
         )
@@ -363,13 +335,6 @@ class TestWebAssets(odoo.tests.HttpCase):
             "Only the website asset is expected to be present",
         )
 
-        # Generate the base asset. The cross-params "copy the compiled bytes
-        # from a same-version website attachment" fallback was deliberately
-        # removed: equal version does not imply equal content across websites,
-        # so it served one website's CSS/JS under another URL (see
-        # TestCustomAssetIsolation). The base bundle is therefore generated
-        # fresh, and -- crucially, per this test's intent -- generating it must
-        # NOT erase the pre-existing website attachment.
         self.assertEqual(
             self.url_open(base_url, allow_redirects=False).status_code, 200
         )

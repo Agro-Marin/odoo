@@ -99,3 +99,21 @@ export function parseQuestionMarkup(rendered) {
     template.innerHTML = String(rendered).trim();
     return template.content.firstElementChild || template.content;
 }
+
+/**
+ * Read the page count out of the embedded PDF viewer iframe.
+ *
+ * Lives here because the fullscreen player and the non-fullscreen share button
+ * both need it and each carried its own copy, neither of which guarded the two
+ * things that can be absent: the iframe (no document slide on the page yet) and
+ * `#page_count` (the viewer has not finished loading).
+ *
+ * @param {Document} [doc]
+ * @returns {number|false} the page count, or false when it cannot be read
+ */
+export function getDocumentMaxPage(doc = document) {
+    const iframe = doc.querySelector("iframe.o_wslides_iframe_viewer");
+    const pageCount = iframe?.contentWindow?.document?.querySelector("#page_count");
+    const parsed = parseInt(pageCount?.innerText, 10);
+    return Number.isNaN(parsed) ? false : parsed;
+}

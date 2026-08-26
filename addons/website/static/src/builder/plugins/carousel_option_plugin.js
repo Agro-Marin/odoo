@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { getBootstrapComponent } from "@html_builder/core/bootstrap_realm";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { between } from "@html_builder/utils/option_sequence";
@@ -9,7 +10,6 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";
 import { renderToElement } from "@web/core/utils/render";
-import { Carousel } from "@web/libs/bootstrap";
 import {
     BOX_BORDER_SHADOW,
     WEBSITE_BACKGROUND_OPTIONS,
@@ -271,6 +271,15 @@ export class CarouselOptionPlugin extends Plugin {
             // beyond any real transition.
             setTimeout(finalize, 3000);
 
+            // `editingElement` is in the edited document; its Carousel must come from that
+            // realm (see `bootstrap_realm`). Without the edit bundle there is nothing to
+            // drive, so settle the promise instead of waiting out the 3s bound above.
+            const win = editingElement.ownerDocument.defaultView;
+            const Carousel = getBootstrapComponent(win, "Carousel");
+            if (!Carousel) {
+                finalize();
+                return;
+            }
             const carouselInstance = Carousel.getOrCreateInstance(editingElement, {
                 ride: false,
                 pause: true,

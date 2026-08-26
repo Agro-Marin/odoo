@@ -64,9 +64,6 @@ class ModelPageController(Controller):
         if record_slug:
             _, res_id = request.env["ir.http"]._unslug(record_slug)
             record = Model.browse(res_id).filtered_domain(Domain.AND(domains))
-            # We check for slug matching because we are not entirely sure
-            # that we end up seeing record for the right model
-            # i.e. in case of a redirect when a "single" page doesn't match the listing
             if not record.exists() or record_slug != request.env["ir.http"]._slug(
                 record
             ):
@@ -75,7 +72,7 @@ class ModelPageController(Controller):
             render_context = {
                 "main_object": page.sudo()
                 if not implements_published_mixin
-                else record,  # The template reads some fields that are actually on view
+                else record,
                 "record": record,
                 "listing": {"href": ".", "name": page.name},
             }
@@ -83,14 +80,9 @@ class ModelPageController(Controller):
 
         layout_mode = request.session.get(f"website_{view.id}_layout_mode")
         if not layout_mode:
-            # use the default layout set for this page
             layout_mode = page.default_layout
 
         searches.setdefault("search", "")
-        # ``order`` comes from the (public) query string and flows into
-        # ``search(order=...)``; an unknown/non-stored field would raise
-        # ValueError and 500 the public page. Only allow stored, sortable
-        # columns, falling back to the default otherwise.
         default_order = "create_date desc"
         sortable_fields = {
             name
@@ -113,7 +105,6 @@ class ModelPageController(Controller):
             )
 
         if searches["search"]:
-            # _name_search doesn't take offset, we reimplement the logic that builds the name domain here
             search_fnames = set(
                 Model._rec_names_search
                 or ([Model._rec_name] if Model._rec_name else [])
@@ -138,7 +129,6 @@ class ModelPageController(Controller):
             step=self.pager_step,
             scope=5,
         )
-        # if we are after the last page, redirect to last page
         if search_count <= self.pager_step * (page_number - 1) > 0:
             return request.redirect(pager["page_last"]["url"])
 
@@ -158,6 +148,6 @@ class ModelPageController(Controller):
             "record_to_url": record_to_url,
             "layout_mode": layout_mode,
             "view_id": view.id,
-            "main_object": page.sudo(),  # The template reads some fields that are actually on view
+            "main_object": page.sudo(),
         }
         return request.render(view.key, render_context)

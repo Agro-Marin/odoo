@@ -5,8 +5,6 @@ from odoo.tools.json import scriptsafe as json_scriptsafe
 
 
 class IrActionsServer(models.Model):
-    """Add website option in server actions."""
-
     _inherit = "ir.actions.server"
 
     xml_id = fields.Char(
@@ -54,7 +52,6 @@ class IrActionsServer(models.Model):
 
     @api.model
     def _get_eval_context(self, action=None):
-        """Override to add the request object in eval_context."""
         eval_context = super()._get_eval_context(action)
         if action and action.state == "code":
             eval_context["request"] = request
@@ -63,9 +60,5 @@ class IrActionsServer(models.Model):
 
     @api.model
     def _run_action_code_multi(self, eval_context=None):
-        """Override to allow returning response the same way action is already
-        returned by the basic server action behavior. Note that response has
-        priority over action, avoid using both.
-        """
         res = super()._run_action_code_multi(eval_context)
         return eval_context.get("response", res)

@@ -25,9 +25,7 @@ access_slide_channel_officer,slide.channel.officer,model_slide_channel,website_s
 access_slide_channel_manager,slide.channel.manager,model_slide_channel,website_slides.group_website_slides_manager,1,1,1,1
 access_slide_channel_partners_all,slide.channel.users.all,model_slide_channel_partner,,0,0,0,0
 access_slide_channel_partners_system,slide.channel.users.system,model_slide_channel_partner,website_slides.group_website_slides_officer,1,1,1,1
-access_slide_embed_public,slide.embed.all,model_slide_embed,base.group_public,1,0,0,0
-access_slide_embed_portal,slide.embed.all,model_slide_embed,base.group_portal,1,0,0,0
-access_slide_embed_user,slide.embed.user,model_slide_embed,base.group_user,1,1,1,1
+access_slide_embed_officer,slide.embed.officer,model_slide_embed,website_slides.group_website_slides_officer,1,1,1,1
 access_slide_slide_resource_all,slide.slide.resource.all,model_slide_slide_resource,,0,0,0,0
 access_slide_slide_resource_public,slide.slide.resource.public,model_slide_slide_resource,base.group_public,0,0,0,0
 access_slide_slide_resource_portal,slide.slide.resource.portal,model_slide_slide_resource,base.group_portal,1,0,0,0

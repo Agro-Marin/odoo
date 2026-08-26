@@ -116,7 +116,6 @@ class WebsiteVisitorTestsCommon(MockVisitor, HttpCaseWithUserDemo):
                     "group_ids": [(6, 0, [self.env.ref("base.group_portal").id])],
                 }
             )
-        # Partner with no user associated, to test partner merge that forbids merging partners with more than 1 user
         self.partner_admin_duplicate = self.env["res.partner"].create(
             {"name": "Mitchell"}
         )
@@ -125,40 +124,23 @@ class WebsiteVisitorTestsCommon(MockVisitor, HttpCaseWithUserDemo):
         return self.env["website.visitor"].search([], limit=1, order="id DESC")
 
     def assertPageTracked(self, visitor, page):
-        """Check a page is in visitor tracking data"""
         self.assertIn(page, visitor.website_track_ids.page_id)
         self.assertIn(page, visitor.page_ids)
 
     def assertVisitorTracking(self, visitor, pages):
-        """Check the whole tracking history of a visitor"""
         for page in pages:
             self.assertPageTracked(visitor, page)
         self.assertEqual(len(visitor.website_track_ids), len(pages))
 
     def assertVisitorDeactivated(self, visitor, main_visitor):
-        """Method that checks that a visitor has been de-activated / merged
-        with other visitor, notably in case of login (see User.authenticate() as
-        well as Visitor._merge_visitor() )."""
         self.assertFalse(visitor.exists(), "The anonymous visitor should be deleted")
         self.assertTrue(visitor.website_track_ids < main_visitor.website_track_ids)
 
     def _test_unlink_old_visitors(self, inactive_visitors, active_visitors):
-        """This method will test that the visitors are correctly deleted when inactive.
-
-        - inactive_visitors: all visitors that should be unlinked by the CRON
-          '_cron_unlink_old_visitors'
-        - active_visitors: all visitors that should NOT be cleaned because they are either active
-          or have some important data linked to them (partner, ...) and we want to keep them.
-
-        We use this method as a private tool so that sub-module can also test the cleaning of visitors
-        based on their own sets of conditions."""
-
         WebsiteVisitor = self.env["website.visitor"]
 
         self.env["ir.config_parameter"].sudo().set_param("website.visitor.live.days", 7)
 
-        # ensure we keep a single query by correct usage of "not in"
-        # (+1 query to fetch the 'ir.config_parameter')
         with self.assertQueryCount(2):
             WebsiteVisitor.search(WebsiteVisitor._inactive_visitors_domain())
 
@@ -167,12 +149,10 @@ class WebsiteVisitorTestsCommon(MockVisitor, HttpCaseWithUserDemo):
 
         self.env.ref("website.website_visitor_cron").method_direct_trigger()
         if inactive_visitor_ids:
-            # all inactive visitors should be deleted
             self.assertFalse(
                 bool(WebsiteVisitor.search([("id", "in", inactive_visitor_ids)]))
             )
         if active_visitor_ids:
-            # all active visitors should be kept
             self.assertEqual(
                 active_visitors,
                 WebsiteVisitor.search([("id", "in", active_visitor_ids)]),
@@ -205,12 +185,6 @@ class WebsiteVisitorTestsCommon(MockVisitor, HttpCaseWithUserDemo):
         }
 
     def _authenticate_via_web(self, login, pwd):
-        # We can't call `self.authenticate` because that tour util is
-        # regenerating a new session.id before calling the real
-        # `authenticate` method.
-        # But we need the session id in the `authenticate` method because
-        # we need to retrieve the visitor before the authentication, which
-        # require the session id.
         res = self.url_open("/web/login")
         csrf_anchor = '<input type="hidden" name="csrf_token" value="'
         self.url_open(
@@ -231,8 +205,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         cls.set_registry_readonly_mode(False)
 
     def test_visitor_creation_on_tracked_page(self):
-        """Test various flows involving visitor creation and update."""
-
         existing_visitors = self.env["website.visitor"].search([])
         existing_tracks = self.env["website.track"].search([])
         self.url_open(self.untracked_page.url)
@@ -251,17 +223,11 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         self.assertEqual(new_visitor.website_track_ids, new_track)
         self.assertVisitorTracking(new_visitor, self.tracked_page + self.tracked_page)
 
-        # ------------------------------------------------------------
-        # Admin connects
-        # ------------------------------------------------------------
-
         self._authenticate_via_web(self.user_admin.login, "admin")
 
         visitor_admin = new_visitor
-        # visit a page
         self.url_open(self.tracked_page_2.url)
 
-        # check tracking and visitor / user sync
         new_visitors = self.env["website.visitor"].search(
             [("id", "not in", existing_visitors.ids)]
         )
@@ -274,10 +240,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         self.assertEqual(visitor_admin.partner_id, self.partner_admin)
         self.assertEqual(visitor_admin.name, self.partner_admin.name)
 
-        # ------------------------------------------------------------
-        # Portal connects
-        # ------------------------------------------------------------
-
         self.url_open("/web/session/logout")
         self._authenticate_via_web(self.user_portal.login, "portal")
 
@@ -288,12 +250,10 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
             "No extra visitor should be created",
         )
 
-        # visit a page
         self.url_open(self.tracked_page.url)
         self.url_open(self.untracked_page.url)
         self.url_open(self.tracked_page_2.url)
 
-        # new visitor is created
         new_visitors = self.env["website.visitor"].search(
             [("id", "not in", existing_visitors.ids)]
         )
@@ -305,19 +265,12 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
             visitor_portal, self.tracked_page | self.tracked_page_2
         )
 
-        # ------------------------------------------------------------
-        # Back to anonymous
-        # ------------------------------------------------------------
-
-        # portal user disconnects
         self.url_open("/web/session/logout")
 
-        # visit some pages
         self.url_open(self.tracked_page.url)
         self.url_open(self.untracked_page.url)
         self.url_open(self.tracked_page_2.url)
 
-        # new visitor is created
         new_visitors = self.env["website.visitor"].search(
             [("id", "not in", existing_visitors.ids)]
         )
@@ -330,10 +283,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         )
         visitor_anonymous_tracks = visitor_anonymous.website_track_ids
 
-        # ------------------------------------------------------------
-        # Admin connects again
-        # ------------------------------------------------------------
-
         self._authenticate_via_web(self.user_admin.login, "admin")
 
         new_visitors = self.env["website.visitor"].search(
@@ -343,7 +292,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         visitor_admin = self.env["website.visitor"].search(
             [("partner_id", "=", self.partner_admin.id)]
         )
-        # tracks are linked
         self.assertTrue(visitor_anonymous_tracks < visitor_admin.website_track_ids)
         self.assertEqual(
             len(visitor_admin.website_track_ids),
@@ -351,19 +299,12 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
             "There should be 5 tracked page for the admin",
         )
 
-        # ------------------------------------------------------------
-        # Back to anonymous
-        # ------------------------------------------------------------
-
-        # admin disconnects
         self.url_open("/web/session/logout")
 
-        # visit some pages
         self.url_open(self.tracked_page.url)
         self.url_open(self.untracked_page.url)
         self.url_open(self.tracked_page_2.url)
 
-        # new visitor created
         new_visitors = self.env["website.visitor"].search(
             [("id", "not in", existing_visitors.ids)]
         )
@@ -376,17 +317,12 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         )
         visitor_anonymous_2_tracks = visitor_anonymous_2.website_track_ids
 
-        # ------------------------------------------------------------
-        # Portal connects again
-        # ------------------------------------------------------------
         self._authenticate_via_web(self.user_portal.login, "portal")
 
-        # one visitor is deleted
         new_visitors = self.env["website.visitor"].search(
             [("id", "not in", existing_visitors.ids)]
         )
         self.assertEqual(new_visitors, visitor_admin | visitor_portal)
-        # tracks are linked
         self.assertTrue(visitor_anonymous_2_tracks < visitor_portal.website_track_ids)
         self.assertEqual(
             len(visitor_portal.website_track_ids),
@@ -394,23 +330,19 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
             "There should be 4 tracked page for the portal user",
         )
 
-        # simulate the portal user comes back 30min later
         for track in visitor_portal.website_track_ids:
             track.write(
                 {"visit_datetime": track.visit_datetime - timedelta(minutes=30)}
             )
 
-        # visit a page
         self.url_open(self.tracked_page.url)
         visitor_portal.invalidate_model(["website_track_ids"])
-        # tracks are created
         self.assertEqual(
             len(visitor_portal.website_track_ids),
             5,
             "There should be 5 tracked page for the portal user",
         )
 
-        # simulate the portal user comes back 8hours later
         visitor_portal.write(
             {
                 "last_connection_datetime": visitor_portal.last_connection_datetime
@@ -419,7 +351,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         )
         self.url_open(self.tracked_page.url)
         visitor_portal.invalidate_model(["visit_count"])
-        # check number of visits
         self.assertEqual(
             visitor_portal.visit_count,
             2,
@@ -427,8 +358,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         )
 
     def test_update_last_visit_8h_increment(self):
-        """``_update_visitor_last_visit`` bumps ``visit_count`` only after 8h,
-        decided in SQL from the row's own ``last_connection_datetime`` (UTC)."""
         visitor = self.env["website.visitor"].create(
             {
                 "lang_id": self.env.ref("base.lang_en").id,
@@ -437,7 +366,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
             }
         )
         start = visitor.visit_count
-        # Backdate the row unambiguously (same UTC basis as the comparison).
         self.env.cr.execute(
             "UPDATE website_visitor "
             "SET last_connection_datetime = (now() at time zone 'UTC') - INTERVAL '9 hours' "
@@ -452,7 +380,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
             visitor.visit_count, start + 1, "a visit after 8h must increment"
         )
 
-        # An immediate re-visit (well within 8h) must not increment.
         visitor._update_visitor_last_visit()
         visitor.invalidate_recordset()
         self.assertEqual(
@@ -502,18 +429,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         self._test_unlink_old_visitors(inactive_visitors, active_visitors)
 
     def test_link_to_visitor(self):
-        """Visitors are 'linked' together when the user, previously not connected, authenticates
-        and the system detects it already had a website.visitor for that partner_id.
-        This can happen quite often if the user switches browsers / hardwares.
-
-        When 'linking' visitors together, the new visitor is archived and all its relevant data is
-        merged within the main visitor. See 'website.visitor#_merge_visitor' for more details.
-
-        This test ensures that all the relevant data are properly merged.
-
-        We build this logic with sub-methods so that sub-modules can easily add their own data and
-        test that they are correctly merged."""
-
         [main_visitor, linked_visitor] = self.env["website.visitor"].create(
             [self._prepare_main_visitor_data(), self._prepare_linked_visitor_data()]
         )
@@ -522,8 +437,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         self.assertVisitorDeactivated(linked_visitor, main_visitor)
 
     def test_merge_partner_with_visitor_both(self):
-        """See :meth:`test_merge_partner_with_visitor_single`"""
-        # Setup a visitor for admin_duplicate and none for admin
         Visitor = self.env["website.visitor"]
         (self.partner_admin_duplicate + self.partner_admin).visitor_ids.unlink()
         [visitor_admin_duplicate, visitor_admin] = Visitor.create(
@@ -538,12 +451,6 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
                 },
             ]
         )
-        # | id | access_token           | partner_id            |
-        # | -- | ---------------------- | --------------------- |
-        # |  1 |     admin_duplicate_id |   admin_duplicate_id  |
-        # |    |      1062141           |    1062141            |
-        # |  2 |     admin_id           |   admin_id            |
-        # |    |      5013266           |    5013266            |
         self.assertTrue(
             visitor_admin_duplicate.partner_id.id
             == int(visitor_admin_duplicate.access_token)
@@ -569,15 +476,9 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
         )
         self.assertEqual(visitor_admin.website_track_ids.url, "/admin")
 
-        # Merge admin_duplicate partner (no user associated) in admin partner
         self.env["base.partner.merge.automatic.wizard"]._merge(
             (self.partner_admin + self.partner_admin_duplicate).ids, self.partner_admin
         )
-        # Should be
-        # | id | access_token | partner_id |
-        # | -- | ------------ | ---------- |
-        # |  2 |     admin_id |   admin_id |
-        # |    |      5013266 |    5013266 |
         self.assertTrue(visitor_admin.exists())
         self.assertFalse(visitor_admin_duplicate.exists())
         self.assertFalse(
@@ -586,38 +487,12 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
             ),
             "The admin_duplicate visitor should've been merged (and deleted) with the admin one.",
         )
-        # Track check
         self.assertEqual(
             visitor_admin.website_track_ids.sorted("url").mapped("url"),
             ["/admin", "/admin/about-duplicate"],
         )
 
     def test_merge_partner_with_visitor_single(self):
-        """The partner merge feature of Odoo is auto discovering relations to
-        ``res_partner`` to change the field value, in raw SQL.
-        It will change the ``partner_id`` field of visitor without changing the
-        ``access_token``, which is supposed to be the same value (``partner_id``
-        is just a stored computed field holding the ``access_token`` value if it
-        is an integer value).
-        This partner_id/access_token "de-sync" need to be handled, this is done
-        in ``_update_foreign_keys()`` website override.
-        This test is ensuring that it works as it should.
-
-        There is 2 possible cases:
-
-        1. There is a visitor for partner 1, none for partner 2. Partner 1 is
-           merged into partner 2, making partner_id of visitor from partner 1
-           becoming partner 2.
-           -> The ``access_token`` value should also be updated from 1 to 2.
-        2. There is a visitor for both partners and partner 1 is merged into
-           partner 2.
-           -> Both visitor should be merged too, so data are aggregated into a
-              single visitor.
-
-        Case 1 is tested here.
-        Cade 2 is tested in :meth:`test_merge_partner_with_visitor_both`.
-        """
-        # Setup a visitor for admin_duplicate and none for admin
         Visitor = self.env["website.visitor"]
         (self.partner_admin_duplicate + self.partner_admin).visitor_ids.unlink()
         visitor_admin_duplicate = Visitor.create(
@@ -626,30 +501,15 @@ class WebsiteVisitorTests(WebsiteVisitorTestsCommon):
                 "access_token": self.partner_admin_duplicate.id,
             }
         )
-        # | id | access_token           | partner_id            |
-        # | -- | ---------------------- | --------------------- |
-        # |  1 |     admin_duplicate_id |   admin_duplicate_id  |
-        # |    |      1062141           |    1062141            |
         self.assertTrue(
             visitor_admin_duplicate.partner_id.id
             == int(visitor_admin_duplicate.access_token)
             == self.partner_admin_duplicate.id
         )
 
-        # Merge admin_duplicate partner (no user associated) in admin partner
         self.env["base.partner.merge.automatic.wizard"]._merge(
             (self.partner_admin + self.partner_admin_duplicate).ids, self.partner_admin
         )
-        # This should not happen..
-        # | id | access_token           | partner_id |
-        # | -- | ---------------------- | ---------- |
-        # |  1 |     admin_duplicate_id |   admin_id | <-- Mismatch
-        # |    |      1062141           |    5013266 |
-        # .. it should be:
-        # | id | access_token | partner_id |
-        # | -- | ------------ | ---------- |
-        # |  1 |     admin_id |   admin_id | <-- No mismatch, became admin_id
-        # |    |      5013266 |    5013266 |
         self.assertTrue(
             visitor_admin_duplicate.partner_id.id
             == int(visitor_admin_duplicate.access_token)
@@ -700,10 +560,6 @@ class TestPortalWizardMultiWebsites(HttpCase):
         self.portal_user_all_websites = self._create_portal_user(partner_all_websites)
 
     def test_portal_wizard_multi_websites_1(self):
-        # 1)
-        # It should be possible to grant portal access for two partners that
-        # have the same email address but are linked to different websites that
-        # have the "specific user account" characteristic.
         partner_specific_other_website = self.env["res.partner"].create(
             {
                 "name": "partner_specific_other_website",
@@ -717,10 +573,6 @@ class TestPortalWizardMultiWebsites(HttpCase):
         self.assertEqual(portal_user_specific_other_website.email_state, "ok")
 
     def test_portal_wizard_multi_websites_2(self):
-        # 2)
-        # It should not be possible to grant portal access for two partners that
-        # have the same email address and are linked to the same website that
-        # has the "specific user account" characteristic.
         partner_specific_same_website = self.env["res.partner"].create(
             {
                 "name": "partner_specific_same_website",
@@ -734,21 +586,9 @@ class TestPortalWizardMultiWebsites(HttpCase):
         self.assertEqual(portal_user_specific_same_website.email_state, "exist")
 
     def test_portal_wizard_multi_websites_3(self):
-        # 3)
-        # In this situation, there are two partners with the same email address.
-        # One is linked to a website that has the "specific_user_account"
-        # characteristic and the other is not linked to a website. In this
-        # situation, it should be possible to grant portal access for the second
-        # partner even if the first one is already a portal user.
         self.assertEqual(self.portal_user_all_websites.email_state, "ok")
 
     def test_portal_wizard_multi_websites_4(self):
-        # 4)
-        # In 3), the partner that is linked to a website that has the
-        # "specific_user_account" setting was the first to have the portal
-        # access. This situation is testing the same case than 3) but when the
-        # partner that is not linked to a website is the first to receive the
-        # portal access.
         other_email_address = "other_email_address@example.com"
         partner_specific_other_website = self.env["res.partner"].create(
             {
@@ -774,9 +614,6 @@ class TestPortalWizardMultiWebsites(HttpCase):
         self.assertEqual(portal_user_specific_other_website.email_state, "ok")
 
     def test_portal_wizard_multi_websites_5(self):
-        # 5)
-        # It should not be possible to grant portal access for two partners that
-        # have the same email address and are not linked to a website.
         partner_all_websites_second = self.env["res.partner"].create(
             {
                 "name": "partner_all_websites_second",
@@ -791,10 +628,6 @@ class TestPortalWizardMultiWebsites(HttpCase):
         self.assertEqual(portal_user_all_websites_second.email_state, "exist")
 
     def test_portal_wizard_multi_websites_6(self):
-        # 6)
-        # It should not be possible to grant portal access for a partner that is
-        # not linked to a website if it exists a user with the same email
-        # address that is linked to the current website.
         partner_specific_current_website = self.env["res.partner"].create(
             {
                 "name": "partner_specific_current_website",
@@ -810,10 +643,6 @@ class TestPortalWizardMultiWebsites(HttpCase):
         self.assertEqual(self.portal_user_all_websites.email_state, "exist")
 
     def _create_portal_user(self, partner):
-        """Return a portal wizard user from a partner
-        :param partner: the partner from which a portal wizard user has to be
-        created
-        """
         portal_wizard = (
             self.env["portal.wizard"].with_context(active_ids=[partner.id]).create({})
         )

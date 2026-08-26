@@ -27,7 +27,6 @@ class MixinWebsitePublished(models.AbstractModel):
         compute="_compute_website_url",
         help="The full relative URL to access the document through the website.",
     )
-    # The compute dependency (for get_base_url) must be added and get_base_url must be overridden if needed
     website_absolute_url = fields.Char(
         "Website Absolute URL",
         compute="_compute_website_absolute_url",
@@ -79,10 +78,6 @@ class MixinWebsitePublished(models.AbstractModel):
 
     @api.depends_context("uid")
     def _compute_can_publish(self):
-        """This method can be overridden if you need more complex rights
-        management than just write access to the model.
-        The publish widget will be hidden and the user won't be able to change
-        the 'website_published' value if this method sets can_publish False"""
         for record in self:
             try:
                 self.env["website"].get_current_website()._check_user_can_modify(record)
@@ -92,6 +87,4 @@ class MixinWebsitePublished(models.AbstractModel):
 
     @api.model
     def _get_can_publish_error_message(self):
-        """Override this method to customize the error message shown when the user doesn't
-        have the rights to publish/unpublish."""
         return _("You do not have the rights to publish/unpublish")

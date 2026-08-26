@@ -63,11 +63,9 @@ class WebsiteConfiguratorFeature(models.Model):
             if color_key in default_colors
         }
 
-        # Replace the default colors by the chosen ones
         for default_color, chosen_color in color_mapping.items():
             svg = svg.replace(default_color, chosen_color)
 
-        # Replace the default images by the one corresponding to the industry
         for default_img, new_img in image_mapping.items():
             svg = svg.replace(default_img, new_img)
         return svg

@@ -35,7 +35,7 @@ class TestWebsiteRedirect(TransactionCase):
                     "name": "Test Website Redirect",
                     "redirect_type": "308",
                     "url_from": "/website/info",
-                    "url_to": "/favicon.ico/",  # trailing slash on purpose
+                    "url_to": "/favicon.ico/",
                 }
             )
         self.assertIn("existing page", str(error.exception))
@@ -83,13 +83,8 @@ class TestWebsiteRedirect(TransactionCase):
 @tagged("-at_install", "post_install")
 class TestWebsiteRedirectServe(HttpCase):
     def test_specific_website_redirect_wins_over_generic(self):
-        """With the same ``url_from``, a rewrite specific to the current website
-        must take precedence over a generic (website-less) one. Ordering only by
-        ``url_from`` let the generic rule (usually a lower id) shadow the
-        per-website override."""
         Rewrite = self.env["website.rewrite"]
         website = self.env["website"].browse(1)
-        # Generic rule created first (lower id), then a website-specific override.
         Rewrite.create(
             {
                 "name": "generic",

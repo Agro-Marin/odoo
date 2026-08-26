@@ -13,6 +13,20 @@ const testPdf =
  * PUBLISHER / CONTENT CREATION
  */
 
+/**
+ * Adding a course tag ends in `window.location.reload()`, and the markup of the
+ * reloaded page is in place before its public interactions have started. A step
+ * that clicks something an interaction binds -- Add Section is one -- lands on a
+ * dead element and the tour walks on. `is-ready` is set once
+ * `public.interactions` has settled, so wait for it before the next click.
+ */
+const waitForInteractions = (prefix) => [
+    {
+        content: "eLearning: wait for the reloaded page's interactions",
+        trigger: prefix + "body[is-ready=true]",
+    },
+];
+
 const addSection = function (sectionName, backend = false) {
     const prefix = backend ? ":iframe " : "";
     return [
@@ -40,6 +54,9 @@ const addSection = function (sectionName, backend = false) {
                 '")',
             run: "click",
         },
+        // Saving the section submits a form, so this is another fresh page
+        // whose Add Content link is inert until its interactions start.
+        ...waitForInteractions(prefix),
     ];
 };
 
@@ -363,6 +380,7 @@ const addExistingCourseTag = function (backend = false) {
             content: "eLearning: check that modal is closed",
             trigger: prefix + "body:not(.modal-open)",
         },
+        ...waitForInteractions(prefix),
     ];
 };
 
@@ -381,8 +399,11 @@ const addNewCourseTag = function (courseTagName, backend) {
             run: "click",
         },
         {
+            // The Tag Group select only renders once the new tag is created, so
+            // `:last` named the tag toggler until that render landed and the
+            // click re-opened the tag menu instead. Name the group toggler.
             content: "eLearning: click on tag group dropdown",
-            trigger: prefix + "button.o_select_menu_toggler:last",
+            trigger: prefix + "button.o_wslides_tag_group_toggler",
             run: "click",
         },
         {
@@ -399,6 +420,7 @@ const addNewCourseTag = function (courseTagName, backend) {
             content: "eLearning: check that modal is closed",
             trigger: prefix + "body:not(.modal-open)",
         },
+        ...waitForInteractions(prefix),
     ];
 };
 

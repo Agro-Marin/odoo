@@ -12,7 +12,6 @@ class TestLangUrlCommon(HttpCase):
     def setUp(self):
         super().setUp()
 
-        # Simulate multi lang without loading translations
         self.website = self.env.ref("website.default_website")
         self.lang_fr = self.env["res.lang"]._activate_lang("fr_FR")
         self.lang_fr.write({"url_code": "fr"})
@@ -50,7 +49,6 @@ class TestLangUrl(TestLangUrlCommon):
         )
 
     def test_03_url_cook_lang_not_available(self):
-        """An activated res.lang should not be displayed in the frontend if not a website lang."""
         self.website.language_ids = self.env.ref("base.lang_en")
         r = self.url_open("/fr/contactus")
 
@@ -63,13 +61,6 @@ class TestLangUrl(TestLangUrlCommon):
             )
 
     def test_04_url_cook_lang_not_available(self):
-        """`nearest_lang` should filter out lang not available in frontend.
-        Eg: 1. go in backend in english -> request.env.context['lang'] = `en_US`
-            2. go in frontend, the request.env.context['lang'] is passed through
-               `nearest_lang` which should not return english. More then a
-               misbehavior it will crash in website language selector template.
-        """
-        # 1. Load backend
         self.authenticate("admin", "admin")
         r = self.url_open("/odoo")
         self.assertEqual(r.status_code, 200)
@@ -92,11 +83,9 @@ class TestLangUrl(TestLangUrlCommon):
         else:
             raise ValueError("Session info not found in web page")
 
-        # 2. Remove en_US from frontend
         self.website.language_ids = self.lang_fr
         self.website.default_lang_id = self.lang_fr
 
-        # 3. Ensure visiting /contactus do not crash
         url = "/contactus"
         r = self.url_open(url)
         self.assertEqual(r.status_code, 200)
@@ -190,10 +179,6 @@ class TestControllerRedirect(TestLangUrlCommon):
         super().setUp()
 
     def test_01_controller_redirect(self):
-        """Trailing slash URLs should be redirected to non-slash URLs (unless
-        the controller explicitly specifies a trailing slash in the route).
-        """
-
         def assertUrlRedirect(url, expected_url, msg="", code=301):
             if not msg:
                 msg = "Url <%s> differ from <%s>." % (url, expected_url)
@@ -207,19 +192,15 @@ class TestControllerRedirect(TestLangUrlCommon):
 
         self.authenticate("admin", "admin")
 
-        # Controllers
         assertUrlRedirect("/my/", "/my", "Check for basic controller.")
         assertUrlRedirect(
             "/my/?a=b", "/my?a=b", "Check for basic controller + URL params."
         )
-        # website.page
         assertUrlRedirect("/page_1/", "/page_1", "Check for website.page.")
         assertUrlRedirect(
             "/page_1/?a=b", "/page_1?a=b", "Check for website.page + URL params."
         )
 
-        # == Same with language ==
-        # Controllers
         assertUrlRedirect(
             "/fr/my/", "/fr/my", "Check for basic controller with language in URL."
         )
@@ -228,12 +209,10 @@ class TestControllerRedirect(TestLangUrlCommon):
             "/fr/my?a=b",
             "Check for basic controller with language in URL + URL params.",
         )
-        # Homepage (which is a controller)
         assertUrlRedirect("/fr/", "/fr", "Check for homepage + language.")
         assertUrlRedirect(
             "/fr/?a=b", "/fr?a=b", "Check for homepage + language + URL params"
         )
-        # website.page
         assertUrlRedirect(
             "/fr/page_1/", "/fr/page_1", "Check for website.page with language in URL."
         )
@@ -244,14 +223,6 @@ class TestControllerRedirect(TestLangUrlCommon):
         )
 
     def test_02_homepage_trailing_slash_cookie(self):
-        """The bare ``/<lang>/`` homepage redirect (case /8 of
-        ``ir.http._match``) must pin the ``frontend_lang`` cookie to the
-        destination language, not the website default.
-
-        Regression: it used to write ``default_lang`` there, so hitting the
-        French homepage with a trailing slash emitted a 301 that briefly
-        advertised ``en_US`` before the followed ``/fr`` request corrected it.
-        """
         r = self.url_open("/fr/", allow_redirects=False)
         self.assertEqual(r.status_code, 301)
         self.assertEqual(urlparse(r.headers.get("Location", "")).path, "/fr")

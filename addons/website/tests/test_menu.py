@@ -73,7 +73,6 @@ class TestMenu(common.TransactionCase):
         Menu = self.env["website.menu"]
         total_menu_items = Menu.search_count([])
 
-        # Simulating website.menu created on module install (blog, shop, forum..) that will be created on default menu tree
         default_menu = self.env.ref("website.main_menu")
         Menu.create(
             {
@@ -87,7 +86,6 @@ class TestMenu(common.TransactionCase):
             "Creating a default child menu should create it as such and copy it on every website",
         )
 
-        # Ensure new website got a top menu
         total_menus = Menu.search_count([])
         Website.create({"name": "new website"})
         self.assertEqual(
@@ -121,7 +119,6 @@ class TestMenu(common.TransactionCase):
         new_menus = Menu.search([]) - existing_menus
         specific1, specific2 = new_menus.with_context(lang="fr_FR") - template_menu
 
-        # create fr_FR translation for template menu
         self.env.ref("base.lang_fr").active = True
         template_menu.with_context(lang="fr_FR").name = "Menu en français"
         self.assertEqual(
@@ -130,10 +127,8 @@ class TestMenu(common.TransactionCase):
             "Translating template menu does not translate specific menu",
         )
 
-        # have different translation for specific website
         specific1.name = "Menu in french"
 
-        # loading translation add missing specific translation
         IrModuleModule._load_module_terms(["website"], ["fr_FR"])
         Menu.invalidate_model(["name"])
         self.assertEqual(
@@ -147,7 +142,6 @@ class TestMenu(common.TransactionCase):
             "Load translation add missing translation from template menu",
         )
 
-        # loading translation with overwrite sync all translations from menu template
         IrModuleModule._load_module_terms(["website"], ["fr_FR"], overwrite=True)
         Menu.invalidate_model(["name"])
         self.assertEqual(
@@ -181,31 +175,10 @@ class TestMenu(common.TransactionCase):
 
         def urlsplit_mock(s):
             if isinstance(s, Mock):
-                # We end up in this case when `urlsplit` is actually called on
-                # `request.httprequest.url`. This is simulating as if we were
-                # really calling the `_is_active()` method from this endpoint
-                # url.
                 return urlsplit(self.request_url_mock)
             return urlsplit(s)
 
         def test_full_case(a_menu):
-            """This method is testing all the possible flows about URL
-            matching:
-            - Same domain:
-              - no qs & no anchor:
-                - Same path -> Active
-                - Not same path -> Not active
-              - qs:
-                - same qs
-                  - Same path -> Active
-                  - Not same path -> Not active
-                - not same qs -> Not active
-              - Anchor
-                - Same path -> Active
-                - Not same path -> Not active
-            - Not same domain: -> Not active
-            It should receives a URL with no query string and no anchor.
-            """
             url = a_menu.url
             self.request_url_mock = "http://localhost:8069" + url
             with (
@@ -252,15 +225,8 @@ class TestMenu(common.TransactionCase):
                     a_menu._is_active(), "Same path, same domain, should match"
                 )
 
-        # First, test the full cases with a normal top menu (no child)
         test_full_case(menu)
 
-        # Create the following menu structure:
-        # - 2 menus without children: `/` and `#`
-        # - 2 menus with children: `/` and `#`, both with a `/contactus` child
-        #
-        # menu (/)                  menu2 (/)     menu3 (#)                 menu4 (#)
-        # - submenu (/contactus)                  - submenu2 (/contactus)
         menu.url = "/"
         menu2 = menu.copy()
         menu3 = menu.copy({"url": "#"})
@@ -275,7 +241,6 @@ class TestMenu(common.TransactionCase):
         )
         submenu2 = submenu.copy({"parent_id": menu3.id})
 
-        # Second, test a nested menu configuration (simple URL, no qs/anchor)
         self.request_url_mock = "http://localhost:8069/"
         with (
             MockRequest(self.env, website=website_1),
@@ -291,12 +256,6 @@ class TestMenu(common.TransactionCase):
                 menu2._is_active(), "Same path and no child -> Should be active"
             )
             self.assertFalse(menu3._is_active(), "Not same path + children")
-            # Anchor menus are a mistake (unless for container menu) (and
-            # shouldn't even be possible to create from frontend), the user
-            # forgot to add the path (the menu won't work on pages without the
-            # anchor) so the system will prefix it by `/` for the check. This
-            # will then become `/#` and since anchors are ignored for the check,
-            #  this will match.
             self.assertTrue(menu4._is_active(), "Should match, see comment in code")
             self.assertFalse(submenu._is_active(), "Not same path (2)")
             self.assertFalse(submenu2._is_active(), "Not same path (3)")
@@ -309,16 +268,10 @@ class TestMenu(common.TransactionCase):
             self.assertTrue(submenu._is_active(), "Same path")
             self.assertTrue(submenu2._is_active(), "Same path (2)")
 
-        # Third, do the same test as the first one but with a child menu, to
-        # ensure the behavior remains the same regardless if it is a top menu or
-        # a child menu
         test_full_case(submenu)
-        # Fourth, do the same test again with a slugified URL, to be sure the
-        # anchor and query string are not messing with the slug url compare
         submenu.url = "/sub/slug-3"
         test_full_case(submenu)
 
-        #  Do the same test with a menu that is linked to a page
         result = website_1.new_page(
             name="/sub/page-3",
             add_menu=True,
@@ -360,7 +313,6 @@ class TestMenu(common.TransactionCase):
     def test_07_menu_hierarchy_validation(self):
         Menu = self.env["website.menu"]
 
-        # Validation 1: Parent menu validation
         self.main_menu = Menu.create(
             {
                 "name": "Main",
@@ -373,8 +325,6 @@ class TestMenu(common.TransactionCase):
         )
         self.child_menu_1.parent_id = self.main_menu.id
 
-        # Attempt to assign a second child menu as a child of the first child menu,
-        # which should raise a UserError due to hierarchy restrictions.
         self.child_menu_2 = Menu.create(
             {
                 "name": "Child2",
@@ -383,7 +333,6 @@ class TestMenu(common.TransactionCase):
         with self.assertRaises(UserError):
             self.child_menu_2.parent_id = self.child_menu_1.id
 
-        # Validation 2: Mega menu validation
         self.mega_menu = Menu.create(
             {
                 "name": "Mega menu",
@@ -396,25 +345,16 @@ class TestMenu(common.TransactionCase):
             }
         )
 
-        # Attempt to assign a parent to the mega menu and a child to it,
-        # which should both raise UserErrors due to mega menu restrictions.
         with self.assertRaises(UserError):
             self.mega_menu.parent_id = self.another_menu.id
 
         with self.assertRaises(UserError):
             self.another_menu.parent_id = self.mega_menu.id
 
-        # Validation 3: Child menu condition validation
-        # Attempt to assign another_menu as a parent of main_menu chain having Child1,
-        # which should raise a UserError because a main_menu had child.
         with self.assertRaises(UserError):
             self.main_menu.parent_id = self.another_menu.id
 
     def test_08_menu_save_is_gated_and_field_whitelisted(self):
-        """``website.menu.save`` is an RPC entry point that writes a
-        client-controlled dict per menu. It must (1) require the website-editor
-        group and (2) only write whitelisted fields, so a client cannot reassign
-        a menu to another website or grant itself menu visibility groups."""
         Menu = self.env["website.menu"]
         website = self.env["website"].search([], limit=1)
         other_website = self.env["website"].create({"name": "W2"})
@@ -422,12 +362,10 @@ class TestMenu(common.TransactionCase):
             {"name": "Editable", "url": "/editable", "website_id": website.id}
         )
 
-        # (1) A user without the editor group cannot call save().
         public = self.env.ref("base.public_user")
         with self.assertRaises(AccessError):
             Menu.with_user(public).save(website.id, {"data": [], "to_delete": []})
 
-        # (2) As an editor, injected non-whitelisted fields are dropped.
         payload = {
             "data": [
                 {
@@ -436,7 +374,6 @@ class TestMenu(common.TransactionCase):
                     "url": "/editable",
                     "parent_id": website.menu_id.id,
                     "sequence": 3,
-                    # Injected, security-sensitive — must be ignored:
                     "website_id": other_website.id,
                     "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
                 }
@@ -453,9 +390,6 @@ class TestMenu(common.TransactionCase):
         self.assertFalse(menu.group_ids, "group_ids injection must be ignored")
 
     def test_09_default_sequence_scoped_to_website(self):
-        """A new menu's default sequence must be scoped to its own website when
-        one is in context — a high sequence on another website must not inflate
-        it."""
         Menu = self.env["website.menu"]
         website_a = self.env["website"].search([], limit=1)
         website_b = self.env["website"].create({"name": "Seq Site B"})
@@ -476,7 +410,6 @@ class TestMenuHttp(common.HttpCase):
             {
                 "url": self.page_url,
                 "website_id": 1,
-                # ir.ui.view properties
                 "name": "Base",
                 "type": "qweb",
                 "arch": "<div>Specific View</div>",
@@ -495,9 +428,6 @@ class TestMenuHttp(common.HttpCase):
 
     def simulate_rpc_save_menu(self, data, to_delete=None):
         self.authenticate("admin", "admin")
-        # `Menu.save(1, {'data': [data], 'to_delete': []})` would have been
-        # ideal but need a full frontend context to generate routing maps,
-        # router and registry, even MockRequest is not enough
         self.url_open(
             "/web/dataset/call_kw",
             data=json.dumps(
@@ -517,9 +447,7 @@ class TestMenuHttp(common.HttpCase):
         )
 
     def test_01_menu_page_m2o(self):
-        # Ensure that the M2o relation tested later in the test is properly set.
         self.assertTrue(self.menu.page_id, "M2o should have been set by the setup")
-        # Edit the menu URL to a 'reserved' URL
         data = {
             "id": self.menu.id,
             "parent_id": self.menu.parent_id.id,
@@ -538,7 +466,6 @@ class TestMenuHttp(common.HttpCase):
             self.page.url, self.page_url, "Page's URL shouldn't have changed."
         )
 
-        # 3. Edit the menu URL back to the page URL
         data["url"] = self.page_url
         self.env["website.menu"].save(1, {"data": [data], "to_delete": []})
         self.assertEqual(
@@ -549,9 +476,7 @@ class TestMenuHttp(common.HttpCase):
         self.assertTrue(self.page.url == self.menu.url == self.page_url)
 
     def test_02_menu_anchors(self):
-        # Ensure that the M2o relation tested later in the test is properly set.
         self.assertTrue(self.menu.page_id, "M2o should have been set by the setup")
-        # Edit the menu URL to an anchor
         data = {
             "id": self.menu.id,
             "parent_id": self.menu.parent_id.id,
@@ -572,7 +497,6 @@ class TestMenuHttp(common.HttpCase):
         )
 
     def test_03_mega_menu_translate(self):
-        # Setup
         self.authenticate("admin", "admin")
         fr = self.env["res.lang"]._activate_lang("fr_FR")
         Menu = self.env["website.menu"]
@@ -588,11 +512,9 @@ class TestMenuHttp(common.HttpCase):
         )
         self.env["ir.module.module"]._load_module_terms(["website"], [fr.code])
 
-        # Load cache
         self.url_open("/%s" % fr.url_code)
         self.url_open("/%s?edit_translations=1" % fr.url_code)
 
-        # Translate
         root = html.fromstring(menu.mega_menu_content)
         to_translate = root.text_content()
         sha = sha256(to_translate.encode()).hexdigest()
@@ -614,7 +536,6 @@ class TestMenuHttp(common.HttpCase):
             menu.with_context(lang=fr.code, website_id=website.id).mega_menu_content,
         )
 
-        # Checks
         page = self.url_open("/%s" % fr.url_code)
         self.assertIn(b"french_mega_menu_content", page.content)
         page = self.url_open("/%s?edit_translations=1" % fr.url_code)
