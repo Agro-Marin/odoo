@@ -3,6 +3,9 @@ import contextlib
 import hashlib
 import io
 import os
+import shutil
+import time
+import uuid
 from pathlib import Path
 from unittest.mock import patch
 
@@ -247,8 +250,11 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             Path(self.filestore, attachment.store_fname).unlink, missing_ok=True
         )
         self.assertNotIn("db_datas", attachment.copy_data()[0])
+        _vals, has_content = self.Attachment._normalize_content_vals(
+            {"db_datas": False}
+        )
         self.assertFalse(
-            self.Attachment._normalize_content_vals({"db_datas": False}),
+            has_content,
             "a falsy db_datas from any source must not read as empty content",
         )
         self.assertEqual(attachment.copy().raw, self.blob1)
@@ -1320,6 +1326,200 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             list(target.parent.glob(f"{checksum}.tmp-*")),
             [],
             "no temp may be staged in the shard dir",
+        )
+
+    def test_stale_temp_gc_removes_only_what_outlived_the_window(self):
+        tmp_dir = self.Attachment._get_filestore_dir("tmp")
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        stale = tmp_dir / f"stale-{uuid.uuid4().hex}"
+        fresh = tmp_dir / f"fresh-{uuid.uuid4().hex}"
+        for path in (stale, fresh):
+            path.write_bytes(b"staged")
+            self.addCleanup(path.unlink, missing_ok=True)
+        aged = time.time() - self.Attachment._FILESTORE_TMP_MAX_AGE - 60
+        os.utime(stale, (aged, aged))
+
+        self.Attachment._gc_stale_filestore_temps()
+
+        self.assertFalse(stale.exists(), "a temp past the window must be collected")
+        self.assertTrue(fresh.exists(), "a temp inside the window must be spared")
+
+    def test_stale_temp_gc_survives_a_subdirectory(self):
+        tmp_dir = self.Attachment._get_filestore_dir("tmp")
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        intruder = tmp_dir / f"dir-{uuid.uuid4().hex}"
+        intruder.mkdir()
+        self.addCleanup(intruder.rmdir)
+        aged = time.time() - self.Attachment._FILESTORE_TMP_MAX_AGE - 60
+        os.utime(intruder, (aged, aged))
+
+        self.Attachment._gc_stale_filestore_temps()
+
+        self.assertTrue(intruder.is_dir(), "the sweep must not touch a directory")
+
+    def test_stale_temp_gc_is_a_noop_without_a_tmp_dir(self):
+        tmp_dir = self.Attachment._get_filestore_dir("tmp")
+        if tmp_dir.is_dir() and not any(tmp_dir.iterdir()):
+            tmp_dir.rmdir()
+        if not tmp_dir.exists():
+            self.Attachment._gc_stale_filestore_temps()
+
+    def test_marking_for_gc_never_aborts_the_operation_it_bookkeeps(self):
+        payload = b"gc-mark-failure-" + os.urandom(16)
+        attachment = self.Attachment.create(
+            {"name": "gcfail.txt", "raw": payload, "mimetype": "text/plain"}
+        )
+        self.env.flush_all()
+        fname = attachment.store_fname
+        self.addCleanup(Path(self.filestore, fname).unlink, missing_ok=True)
+
+        checklist = self.Attachment._get_filestore_dir("checklist")
+        checklist.mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(checklist / fname.split("/")[0], ignore_errors=True)
+        mode = checklist.stat().st_mode
+        checklist.chmod(0o500)
+        self.addCleanup(checklist.chmod, mode)
+
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_attachment", level="WARNING"
+        ) as logs:
+            attachment.unlink()
+        checklist.chmod(mode)
+
+        self.assertTrue(
+            any("could not mark" in msg for msg in logs.output),
+            f"an unmarkable file must be reported, got: {logs.output!r}",
+        )
+        self.assertFalse(
+            attachment.exists(), "the unlink itself must still have gone through"
+        )
+
+    def test_index_stops_at_the_char_limit_instead_of_truncating_after(self):
+        self.env["ir.config_parameter"].set_param(
+            "ir_attachment.index_max_chars", "500"
+        )
+        blob = (b"the quick brown fox jumps over the lazy dog " * 4000)[: 128 * 1024]
+        indexed = self.Attachment._index(blob, "text/plain")
+        self.assertLessEqual(
+            len(indexed),
+            600,
+            "the extraction must stop near the limit, not build the whole text",
+        )
+        self.assertGreater(len(indexed), 400, "it must still fill the budget")
+        self.assertEqual(
+            self.Attachment._extract_index_content(blob, "text/plain"),
+            indexed,
+            "the backstop truncation must agree with the bounded extraction",
+        )
+
+    def test_index_honours_a_disabled_limit(self):
+        self.env["ir.config_parameter"].set_param("ir_attachment.index_max_chars", "0")
+        blob = b"alpha bravo charlie delta " * 500
+        indexed = self.Attachment._index(blob, "text/plain")
+        self.assertGreater(len(indexed), 10_000, "limit <= 0 means no bound")
+
+    def test_a_digest_twin_in_one_batch_never_borrows_the_first_payload(self):
+        self.env["ir.config_parameter"].set_param(
+            "ir_attachment.verify_content_collision", "True"
+        )
+        alpha = b"CONTENT-ALPHA" * 8
+        bravo = b"CONTENT-BRAVO" * 8
+        self.assertEqual(len(alpha), len(bravo), "a collision pair shares its length")
+        real = type(self.Attachment)._get_content_checksum
+        digest = "c2" * 20
+
+        def colliding(model, data):
+            return digest if data in (alpha, bravo) else real(model, data)
+
+        self.addCleanup(
+            Path(self.filestore, self.Attachment._get_store_key(digest)).unlink,
+            missing_ok=True,
+        )
+        with patch.object(type(self.Attachment), "_get_content_checksum", colliding):
+            with self.assertRaises(UserError):
+                self.Attachment.create(
+                    [
+                        {
+                            "name": "a.bin",
+                            "mimetype": "application/octet-stream",
+                            "raw": alpha,
+                        },
+                        {
+                            "name": "b.bin",
+                            "mimetype": "application/octet-stream",
+                            "raw": bravo,
+                        },
+                    ]
+                )
+            self.env.invalidate_all()
+            with self.assertRaises(UserError):
+                self.Attachment.create_unique(
+                    [
+                        {
+                            "name": "a2.bin",
+                            "mimetype": "application/octet-stream",
+                            "raw": alpha,
+                        },
+                        {
+                            "name": "b2.bin",
+                            "mimetype": "application/octet-stream",
+                            "raw": bravo,
+                        },
+                    ]
+                )
+
+    def test_identical_payloads_in_one_batch_still_derive_once(self):
+        self.env["ir.config_parameter"].set_param(
+            "ir_attachment.verify_content_collision", "True"
+        )
+        payload = b"shared payload under the guard"
+        IrAttachmentCls = self.registry["ir.attachment"]
+        with patch.object(
+            IrAttachmentCls,
+            "_index",
+            autospec=True,
+            side_effect=IrAttachmentCls._index,
+        ) as index_spy:
+            atts = self.Attachment.create(
+                [
+                    {"name": f"g{i}.txt", "raw": payload, "mimetype": "text/plain"}
+                    for i in range(3)
+                ]
+            )
+        self.assertEqual(index_spy.call_count, 1, "the guard must not defeat the memo")
+        self.assertEqual(len(set(atts.mapped("store_fname"))), 1)
+
+    def test_with_field_rows_owns_the_res_field_precondition(self):
+        partner = self.env["res.partner"].create({"name": "field host"})
+        field_row = self.Attachment.sudo().create(
+            {
+                "name": "image_1920",
+                "res_model": "res.partner",
+                "res_field": "image_1920",
+                "res_id": partner.id,
+                "raw": b"field-backed",
+                "mimetype": "image/png",
+            }
+        )
+        self.env.flush_all()
+        domain = [("name", "=", "image_1920"), ("res_id", "=", partner.id)]
+        self.assertFalse(
+            self.Attachment.sudo().search(domain),
+            "the default search hides a field-backed row",
+        )
+        self.assertEqual(
+            self.Attachment.sudo()._with_field_rows().search(domain),
+            field_row,
+            "_with_field_rows must be the one way to lift that filter",
+        )
+
+    def test_full_path_returns_a_confined_absolute_path(self):
+        root = str(Path(self.filestore).resolve())
+        resolved = self.Attachment._get_full_path("b3/ab/" + "a" * 64)
+        self.assertIsInstance(resolved, str)
+        self.assertTrue(resolved.startswith(root + os.sep))
+        self.assertEqual(
+            self.Attachment._get_full_path(""), root, "an empty key is the root itself"
         )
 
     def test_file_write_single_get_path(self):
@@ -3229,6 +3429,76 @@ class TestDedupOwnership(TransactionCaseWithUserDemo):
         )
         self.env.flush_all()
         self.assertEqual(self._create_unique(), [free.id])
+
+    def test_create_unique_never_reuses_a_record_owned_row(self):
+        owned = self.Attachment.create(
+            {
+                "name": "host-doc.png",
+                "raw": self.payload,
+                "mimetype": "image/png",
+                "res_model": "res.partner",
+                "res_id": self.partner.id,
+            }
+        )
+        self.env.flush_all()
+        [reused] = self._create_unique()
+        self.assertNotEqual(
+            reused,
+            owned.id,
+            "create_unique reused a row owned by an unrelated record",
+        )
+
+    def test_a_reused_row_outlives_the_record_the_caller_never_named(self):
+        self.Attachment.create(
+            {
+                "name": "host-doc.png",
+                "raw": self.payload,
+                "mimetype": "image/png",
+                "res_model": "res.partner",
+                "res_id": self.partner.id,
+            }
+        )
+        self.env.flush_all()
+        [reused] = self._create_unique()
+        self.env.flush_all()
+
+        self.partner.unlink()
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertTrue(
+            self.Attachment.browse(reused).exists(),
+            "BaseModel.unlink cascades on res_model/res_id, so a reused "
+            "record-owned row dies with a record the caller never asked for",
+        )
+        self.assertEqual(self.Attachment.browse(reused).raw, self.payload)
+
+    def test_create_unique_dedups_within_the_owner_the_caller_asked_for(self):
+        owner = {"res_model": "res.partner", "res_id": self.partner.id}
+        first = self.Attachment.create(
+            {
+                "name": "same-owner.png",
+                "raw": self.payload,
+                "mimetype": "image/png",
+                **owner,
+            }
+        )
+        self.env.flush_all()
+        [reused] = self.Attachment.create_unique(
+            [
+                {
+                    "name": "same-owner-again.png",
+                    "raw": self.payload,
+                    "mimetype": "image/png",
+                    **owner,
+                }
+            ]
+        )
+        self.assertEqual(
+            reused,
+            first.id,
+            "dedup must still reuse a row under the owner the caller named",
+        )
 
 
 class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
