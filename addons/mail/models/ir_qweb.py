@@ -6,7 +6,7 @@ from lxml import etree
 from odoo import models
 from odoo.tools.rendering_tools import BINARY_TYPES
 
-from odoo.addons.base.models.ir_qweb import indent_code
+from odoo.addons.base.models.ir_qweb import CompileContext, indent_code
 
 STATIC_EXPRESSION_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\Z")
 
@@ -87,7 +87,7 @@ class IrQweb(models.AbstractModel):
     def _compile_directive(
         self,
         el: etree._Element,
-        compile_context: dict[str, Any],
+        compile_context: CompileContext,
         directive: str,
         level: int,
     ) -> list[str]:
@@ -101,7 +101,7 @@ class IrQweb(models.AbstractModel):
         return super()._compile_directive(el, compile_context, directive, level)
 
     def _compile_directive_att(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if "raise_on_forbidden_code_for_model" in compile_context:
             self._check_restricted_attributes(
@@ -128,7 +128,7 @@ class IrQweb(models.AbstractModel):
         return super()._compile_expr(expr, raise_on_missing)
 
     def _compile_directive_out(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if "raise_on_forbidden_code_for_model" in compile_context:
             if len(el) != 0:

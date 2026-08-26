@@ -13,8 +13,9 @@ import traceback
 import urllib.parse
 import warnings
 from collections import defaultdict
-from collections.abc import Iterable, Iterator, Mapping, Sequence, Sized
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Sized
 from copy import deepcopy
+from dataclasses import dataclass, field, replace
 from itertools import chain, count
 from pathlib import Path
 from types import FunctionType
@@ -409,6 +410,53 @@ class QwebJSON(json.JSON):
 
 
 qwebJSON = QwebJSON()
+
+
+@dataclass(slots=True)
+class CompileContext:
+    """The compiler's own state, plus the context the compile was started with.
+
+    Two addressing modes, and which one you use says which namespace you mean:
+    **attribute access is the compiler's state**, **`.get()` and `in` are the
+    caller's context**.  There is deliberately no `__getitem__`: subscripting is
+    what made the two indistinguishable, and `html_editor` reading
+    `compile_context['ref_name']` and `compile_context.get('snippet-key')` two
+    lines apart is what that cost.  ADR-0063.
+    """
+
+    #: The env context the compile was started with.  Open-ended: an addon may
+    #: put anything here through `t-options`, and the compiler never looks.
+    context: dict[str, Any]
+
+    ref: str | int | None
+    ref_name: str | None
+    ref_xml: str | None
+    template: int | str | etree._Element | None
+    root: etree._ElementTree
+    #: Mints a unique function name per template; closes over the template's
+    #: own `def_name`, so two templates cannot collide.
+    make_name: Callable[[str], str]
+    template_functions: dict[str, list[str]]
+    #: Literal text accumulated since the last flush, emitted as one `yield`.
+    text_concat: list[str]
+    #: A compiler field *seeded* from the caller's context, because it is both:
+    #: a `t-call` passes one in its options and the compiler mutates it as it
+    #: descends.
+    nsmap: dict[str | None, str]
+    #: The directive order, consumed once per element.  A handler that recurses
+    #: into `_compile_directives` continues this same iterator, which is how
+    #: each directive runs once and in order.
+    directives: Iterator[str] | None = None
+    #: `[ref, path, xml]` of the node being compiled.  Shared with render time,
+    #: which is why `_render_prepared` resets it; see ADR-0063's consequences.
+    error_path_xml: list[Any] = field(default_factory=lambda: [None, None, None])
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Read the caller's context.  Never the compiler's own state."""
+        return self.context.get(key, default)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.context
 
 
 class IrQweb(models.AbstractModel):
@@ -956,14 +1004,13 @@ class IrQweb(models.AbstractModel):
                 "A qweb template is an id, an xml id/key or an etree element, "
                 f"got {type(template).__name__}: {template!r}"
             )
-        compile_context = self.env.context.copy()
+        context = self.env.context.copy()
 
         try:
             element, document, ref = self._get_template(template)
         except (ValueError, UserError) as e:
             options = {
-                k: compile_context.get(k, False)
-                for k in self._get_template_cache_keys()
+                k: context.get(k, False) for k in self._get_template_cache_keys()
             }
             message = str(e)
             if hasattr(e, "context") and e.context.get("view"):
@@ -971,32 +1018,40 @@ class IrQweb(models.AbstractModel):
             options["error"] = (e.__class__, message, traceback.format_exc())
             return (None, options, "not_found_template")
 
-        compile_context.pop("raise_if_not_found", None)
+        context.pop("raise_if_not_found", None)
 
         ref_name = element.attrib.pop("t-name", None)
         if isinstance(ref, int) or (isinstance(template, str) and "<" not in template):
             ref_name = self._get_template_info(ref)["key"] or ref_name
 
-        compile_context["ref"] = ref
-        compile_context["ref_name"] = ref_name
-        compile_context["ref_xml"] = str(document) if document else None
-        compile_context["template"] = template
-        compile_context["root"] = element.getroottree()
-        compile_context["_qweb_error_path_xml"] = compile_context.get(
-            "_qweb_error_path_xml", [None, None, None]
+        compile_context = CompileContext(
+            context=context,
+            ref=ref,
+            ref_name=ref_name,
+            ref_xml=str(document) if document else None,
+            template=template,
+            root=element.getroottree(),
+            make_name=None,
+            template_functions={},
+            text_concat=[],
+            nsmap={
+                ns_prefix: str(ns_definition)
+                for ns_prefix, ns_definition in context.get("nsmap", {}).items()
+            },
+            error_path_xml=context.get("_qweb_error_path_xml", [None, None, None]),
         )
 
-        compile_context["nsmap"] = {
-            ns_prefix: str(ns_definition)
-            for ns_prefix, ns_definition in compile_context.get("nsmap", {}).items()
-        }
-
+        # The cache keys are the caller's, except `nsmap`, which the compiler
+        # has just normalised and which the compiled options must record in
+        # that form.
+        cache_values = {**context, "nsmap": compile_context.nsmap}
         options = {
-            key: compile_context.get(key, False)
-            for key in self._get_template_cache_keys() + ["ref", "ref_name"]
+            key: cache_values.get(key, False) for key in self._get_template_cache_keys()
         }
+        options["ref"] = compile_context.ref
+        options["ref_name"] = compile_context.ref_name
 
-        ref_name = compile_context["ref_name"] or ""
+        ref_name = compile_context.ref_name or ""
         if isinstance(template, etree._Element):
             def_name = TO_VARNAME_REGEXP.sub(
                 r"_", f"template_etree_{next(ETREE_TEMPLATE_REF)}"
@@ -1008,24 +1063,40 @@ class IrQweb(models.AbstractModel):
             )
 
         name_gen = count()
-        compile_context["make_name"] = lambda prefix: (
+        compile_context.make_name = lambda prefix: (
             f"{def_name}_{prefix}_{next(name_gen)}"
         )
 
         if element.text:
             element.text = FIRST_RSTRIP_REGEXP.sub(r"\2", element.text)
 
-        compile_context["template_functions"] = {}
+        compile_context.template_functions = {}
 
-        compile_context["_text_concat"] = []
+        compile_context.text_concat = []
         self._add_text("", compile_context)
-        compile_context["template_functions"][f"{def_name}_content"] = (
+        compile_context.template_functions[f"{def_name}_content"] = (
             [f"def {def_name}_content(self, values):"]
             + self._compile_node(element, compile_context, 2)
             + self._flush_text(compile_context, 2, rstrip=True)
         )
 
-        compile_context["template_functions"][def_name] = [
+        compile_context.template_functions[def_name] = self._compile_entry_point(
+            def_name, options
+        )
+
+        if options.get("profile"):
+            options["ref_xml"] = compile_context.ref_xml
+
+        return (
+            self._assemble_module_source(compile_context.template_functions, options),
+            options,
+            def_name,
+        )
+
+    @staticmethod
+    def _compile_entry_point(def_name: str, options: dict[str, Any]) -> list[str]:
+        """The template's outermost function: what a render enters through."""
+        return [
             indent_code(
                 f"""
             def {def_name}(self, values):
@@ -1040,29 +1111,26 @@ class IrQweb(models.AbstractModel):
             )
         ]
 
-        code_lines = []
-        code_lines.extend(
-            (
-                f"template_options = {pprint.pformat(options, indent=4)}",
-                "code = None",
-                "template_functions = {}",
-            )
-        )
+    @staticmethod
+    def _assemble_module_source(
+        template_functions: dict[str, list[str]], options: dict[str, Any]
+    ) -> str:
+        """Every compiled function, plus the module-level names they close over.
 
-        for lines in compile_context["template_functions"].values():
+        `template_options` and `code` are read by the entry point; the trailing
+        assignments are what `_generate_code_uncached` collects the functions by.
+        """
+        code_lines = [
+            f"template_options = {pprint.pformat(options, indent=4)}",
+            "code = None",
+            "template_functions = {}",
+        ]
+        for lines in template_functions.values():
             code_lines.extend(lines)
-
         code_lines.extend(
-            f"template_functions[{name!r}] = {name}"
-            for name in compile_context["template_functions"]
+            f"template_functions[{name!r}] = {name}" for name in template_functions
         )
-
-        code = "\n".join(code_lines)
-
-        if options.get("profile"):
-            options["ref_xml"] = compile_context["ref_xml"]
-
-        return (code, options, def_name)
+        return "\n".join(code_lines)
 
     def _get_template(
         self, template: int | str | etree._Element
@@ -1250,17 +1318,17 @@ class IrQweb(models.AbstractModel):
         }
 
     def _add_text(
-        self, text: str | bytes | None, compile_context: dict[str, Any]
+        self, text: str | bytes | None, compile_context: CompileContext
     ) -> None:
-        compile_context["_text_concat"].append(to_text(text))
+        compile_context.text_concat.append(to_text(text))
 
-    def _strip_pending_trailing_ws(self, compile_context: dict[str, Any]) -> None:
-        text_concat = compile_context["_text_concat"]
+    def _strip_pending_trailing_ws(self, compile_context: CompileContext) -> None:
+        text_concat = compile_context.text_concat
         if text_concat and text_concat[-1].isspace():
             text_concat[-1] = text_concat[-1].rstrip(" \t")
 
-    def _rstrip_text(self, compile_context: dict[str, Any]) -> str:
-        text_concat = compile_context["_text_concat"]
+    def _rstrip_text(self, compile_context: CompileContext) -> str:
+        text_concat = compile_context.text_concat
         if not text_concat:
             return ""
 
@@ -1271,9 +1339,9 @@ class IrQweb(models.AbstractModel):
         return strip
 
     def _flush_text(
-        self, compile_context: dict[str, Any], level: int, rstrip: bool = False
+        self, compile_context: CompileContext, level: int, rstrip: bool = False
     ) -> list[str]:
-        text_concat = compile_context["_text_concat"]
+        text_concat = compile_context.text_concat
         if not text_concat:
             return []
         if rstrip:
@@ -1283,7 +1351,7 @@ class IrQweb(models.AbstractModel):
         return [f"{'    ' * level}yield {text!r}"]
 
     def _is_static_node(
-        self, el: etree._Element, compile_context: dict[str, Any]
+        self, el: etree._Element, compile_context: CompileContext
     ) -> bool:
         return (
             el.tag != "t"
@@ -1295,9 +1363,9 @@ class IrQweb(models.AbstractModel):
         )
 
     def _new_namespaces(
-        self, el: etree._Element, compile_context: dict[str, Any]
+        self, el: etree._Element, compile_context: CompileContext
     ) -> set[tuple[str | None, str]]:
-        return set(el.nsmap.items()) - set(compile_context["nsmap"].items())
+        return set(el.nsmap.items()) - set(compile_context.nsmap.items())
 
     @staticmethod
     def _qualified_attribute_name(key: str, nsprefixmap: dict[str, str | None]) -> str:
@@ -1313,11 +1381,11 @@ class IrQweb(models.AbstractModel):
         return name
 
     def _ns_prefix_map(
-        self, el: etree._Element, compile_context: dict[str, Any]
+        self, el: etree._Element, compile_context: CompileContext
     ) -> dict[str, str | None]:
         return {
             uri: prefix
-            for prefix, uri in chain(compile_context["nsmap"].items(), el.nsmap.items())
+            for prefix, uri in chain(compile_context.nsmap.items(), el.nsmap.items())
         }
 
     def _element_marker(self, path: str | None, xml: str | None) -> str:
@@ -1676,7 +1744,7 @@ class IrQweb(models.AbstractModel):
         ]
 
     def _compile_node(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if "t-qweb-skip" in el.attrib:
             return []
@@ -1686,14 +1754,14 @@ class IrQweb(models.AbstractModel):
         if self._is_static_node(el, compile_context):
             return self._compile_static_node(el, compile_context, level)
 
-        path = compile_context["root"].getpath(el)
+        path = compile_context.root.getpath(el)
         xml = etree.tostring(etree.Element(el.tag, el.attrib), encoding="unicode")
-        compile_context["_qweb_error_path_xml"][0] = compile_context["ref"]
-        compile_context["_qweb_error_path_xml"][1] = path
-        compile_context["_qweb_error_path_xml"][2] = xml
+        compile_context.error_path_xml[0] = compile_context.ref
+        compile_context.error_path_xml[1] = path
+        compile_context.error_path_xml[2] = xml
         body = [indent_code(self._element_marker(path, xml), level)]
 
-        compile_context["iter_directives"] = iter(self._directives_eval_order())
+        compile_context.directives = iter(self._directives_eval_order())
 
         if not el.nsmap:
             unqualified_el_tag = el_tag = el.tag
@@ -1714,19 +1782,19 @@ class IrQweb(models.AbstractModel):
         return body + self._compile_directives(el, compile_context, level)
 
     def _normalize_deprecated_attributes(
-        self, el: etree._Element, compile_context: dict[str, Any]
+        self, el: etree._Element, compile_context: CompileContext
     ) -> None:
         if "t-call-options" in el.attrib:
             _logger.warning(
                 "Found deprecated attribute @t-call-options=%r in template %r. "
                 "Replace by @t-options",
                 el.get("t-call-options"),
-                compile_context.get("ref", "<unknown>"),
+                compile_context.ref or "<unknown>",
             )
             el.attrib["t-options"] = el.attrib.pop("t-call-options")
 
     def _compile_static_node(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if not el.nsmap:
             unqualified_el_tag = el_tag = el.tag
@@ -1757,7 +1825,7 @@ class IrQweb(models.AbstractModel):
 
             attrib = self._post_processing_att(el.tag, attrib, is_static=True)
 
-            original_nsmap = dict(compile_context["nsmap"])
+            original_nsmap = dict(compile_context.nsmap)
 
         if unqualified_el_tag != "t":
             attributes = "".join(
@@ -1774,9 +1842,9 @@ class IrQweb(models.AbstractModel):
         el.attrib.clear()
 
         if el.nsmap:
-            compile_context["nsmap"].update(el.nsmap)
+            compile_context.nsmap.update(el.nsmap)
             body = self._compile_directive(el, compile_context, "inner-content", level)
-            compile_context["nsmap"] = original_nsmap
+            compile_context.nsmap = original_nsmap
         else:
             body = self._compile_directive(el, compile_context, "inner-content", level)
 
@@ -1787,7 +1855,7 @@ class IrQweb(models.AbstractModel):
         return body
 
     def _compile_directives(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if self._is_static_node(el, compile_context):
             el.attrib.pop("t-tag-open", None)
@@ -1797,7 +1865,7 @@ class IrQweb(models.AbstractModel):
 
         code = []
 
-        for directive in compile_context["iter_directives"]:
+        for directive in compile_context.directives:
             if (
                 ("t-" + directive) in el.attrib
                 or directive == "att"
@@ -1830,7 +1898,7 @@ class IrQweb(models.AbstractModel):
             _logger.warning(
                 "Unknown directives or unused attributes: %s in %s",
                 remaining,
-                compile_context["template"],
+                compile_context.template,
             )
 
         return code
@@ -1838,7 +1906,7 @@ class IrQweb(models.AbstractModel):
     def _compile_directive(
         self,
         el: etree._Element,
-        compile_context: dict[str, Any],
+        compile_context: CompileContext,
         directive: str,
         level: int,
     ) -> list[str]:
@@ -1850,8 +1918,8 @@ class IrQweb(models.AbstractModel):
             "tag-open",
             "tag-close",
         ):
-            enter = f"{' ' * 4 * level}self.env.context['qweb_tracker'].enter_directive({directive!r}, {el.attrib!r}, {compile_context['_qweb_error_path_xml'][1]!r})"
-            leave = f"{' ' * 4 * level}self.env.context['qweb_tracker'].leave_directive({directive!r}, {el.attrib!r}, {compile_context['_qweb_error_path_xml'][1]!r})"
+            enter = f"{' ' * 4 * level}self.env.context['qweb_tracker'].enter_directive({directive!r}, {el.attrib!r}, {compile_context.error_path_xml[1]!r})"
+            leave = f"{' ' * 4 * level}self.env.context['qweb_tracker'].leave_directive({directive!r}, {el.attrib!r}, {compile_context.error_path_xml[1]!r})"
             code_directive = compile_handler(el, compile_context, level)
             if code_directive:
                 code_directive = [enter, *code_directive, leave]
@@ -1860,7 +1928,7 @@ class IrQweb(models.AbstractModel):
         return code_directive
 
     def _compile_directive_debug(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         debugger = el.attrib.pop("t-debug")
         code = []
@@ -1871,7 +1939,7 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_options(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         code = []
         dict_options = []
@@ -1911,13 +1979,13 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_consumed_options(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         msg = "the t-options must be on the same tag as a directive that consumes it (for example: t-out, t-field, t-call)"
         raise SyntaxError(msg)
 
     def _compile_directive_att(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         code = [indent_code("attrs = values['__qweb_attrs__'] = {}", level)]
 
@@ -1961,7 +2029,7 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_tag_open(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
 
         el_tag = el.attrib.pop("t-tag-open", None)
@@ -1995,7 +2063,7 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_tag_close(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         el_tag = el.attrib.pop("t-tag-close", None)
         if el_tag:
@@ -2003,7 +2071,7 @@ class IrQweb(models.AbstractModel):
         return []
 
     def _compile_directive_set(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
 
         code = self._flush_text(compile_context, level, rstrip=el.tag.lower() == "t")
@@ -2079,21 +2147,21 @@ class IrQweb(models.AbstractModel):
                     indent_code(f"values.update({self._compile_expr(varname)})", level)
                 )
             else:
-                _ref, path, xml = compile_context["_qweb_error_path_xml"]
+                _ref, path, xml = compile_context.error_path_xml
                 content = self._compile_directive(
                     el, compile_context, "inner-content", 1
                 ) + self._flush_text(compile_context, 1)
                 if content:
-                    def_name = compile_context["make_name"]("t_set")
+                    def_name = compile_context.make_name("t_set")
                     def_code = [f"def {def_name}(self, values):"]
                     def_code.append(indent_code(self._element_marker(path, xml), 1))
                     def_code.extend(content)
-                    compile_context["template_functions"][def_name] = def_code
+                    compile_context.template_functions[def_name] = def_code
 
                     code.append(
                         indent_code(
                             f"""
-                        values[{varname!r}] = QwebContent(self, QwebCallParameters(self.env.context, {compile_context["ref"]!r}, {def_name}, values.copy(), 'root', 't-set', (template_options['ref'], {path!r}, {xml!r})))
+                        values[{varname!r}] = QwebContent(self, QwebCallParameters(self.env.context, {compile_context.ref!r}, {def_name}, values.copy(), 'root', 't-set', (template_options['ref'], {path!r}, {xml!r})))
                     """,
                             level,
                         )
@@ -2104,24 +2172,24 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_value(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         msg = "t-value must be on the same node of t-set"
         raise SyntaxError(msg)
 
     def _compile_directive_valuef(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         msg = "t-valuef must be on the same node of t-set"
         raise SyntaxError(msg)
 
     def _compile_directive_inner_content(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         el.attrib.pop("t-inner-content", None)
 
         if el.nsmap:
-            compile_context = dict(compile_context, nsmap=el.nsmap)
+            compile_context = replace(compile_context, nsmap=el.nsmap)
 
         if el.text is not None:
             self._add_text(el.text, compile_context)
@@ -2151,7 +2219,7 @@ class IrQweb(models.AbstractModel):
         return body
 
     def _compile_directive_if(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         # Not `pop("t-if", pop("t-elif", None))`: the default is evaluated
         # first, so a node carrying both lost its `t-elif` silently instead of
@@ -2210,7 +2278,7 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_elif(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if not el.attrib.pop("t-else-valid", None):
             msg = "t-elif directive must be preceded by t-if or t-elif directive"
@@ -2219,7 +2287,7 @@ class IrQweb(models.AbstractModel):
         return self._compile_directive_if(el, compile_context, level)
 
     def _compile_directive_else(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if not el.attrib.pop("t-else-valid", None):
             msg = "t-else directive must be preceded by t-if or t-elif directive"
@@ -2228,7 +2296,7 @@ class IrQweb(models.AbstractModel):
         return []
 
     def _compile_directive_groups(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         # Both spellings are independent restrictions, so they compose with
         # `and`.  Popping one as the other's default -- `pop("t-groups",
@@ -2263,7 +2331,7 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_foreach(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         expr_foreach = el.attrib.pop("t-foreach")
         expr_as = el.attrib.pop("t-as")
@@ -2286,9 +2354,9 @@ class IrQweb(models.AbstractModel):
             el, compile_context, level + 1
         ) + self._flush_text(compile_context, level + 1, rstrip=True)
 
-        t_foreach = compile_context["make_name"]("t_foreach")
-        size = compile_context["make_name"]("size")
-        has_value = compile_context["make_name"]("has_value")
+        t_foreach = compile_context.make_name("t_foreach")
+        size = compile_context.make_name("size")
+        has_value = compile_context.make_name("has_value")
 
         if expr_foreach.isdigit():
             code.append(
@@ -2353,7 +2421,7 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_as(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if "t-foreach" not in el.attrib:
             msg = "t-as must be on the same node of t-foreach"
@@ -2361,13 +2429,13 @@ class IrQweb(models.AbstractModel):
         return []
 
     def _compile_directive_out(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         ttype, expr = self._compile_out_target(el)
 
         code = self._flush_text(compile_context, level)
 
-        _ref, path, xml = compile_context["_qweb_error_path_xml"]
+        _ref, path, xml = compile_context.error_path_xml
 
         has_options = el.attrib.pop("t-consumed-options", None) is not None
         tag_open = self._compile_directive(
@@ -2488,7 +2556,7 @@ class IrQweb(models.AbstractModel):
 
     def _compile_out_emit(
         self,
-        compile_context: dict[str, Any],
+        compile_context: CompileContext,
         tag_open: list[str],
         tag_close: list[str],
         default_body: list[str],
@@ -2515,13 +2583,13 @@ class IrQweb(models.AbstractModel):
         )
         code.extend(tag_close)
 
-        if default_body or compile_context["_text_concat"]:
-            _text_concat = list(compile_context["_text_concat"])
-            compile_context["_text_concat"].clear()
+        if default_body or compile_context.text_concat:
+            _text_concat = list(compile_context.text_concat)
+            compile_context.text_concat.clear()
             code.append(indent_code("else:", level))
             code.extend(tag_open)
             code.extend(default_body)
-            compile_context["_text_concat"].extend(_text_concat)
+            compile_context.text_concat.extend(_text_concat)
             code.extend(tag_close)
         elif force_display_dependent:
             if tag_open + tag_close:
@@ -2535,30 +2603,30 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_esc(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if compile_context.get("dev_mode"):
             _logger.warning(
                 "Found deprecated directive @t-esc=%r in template %r. Replace by @t-out",
                 el.get("t-esc"),
-                compile_context.get("ref", "<unknown>"),
+                compile_context.ref or "<unknown>",
             )
         return self._compile_directive_out(el, compile_context, level)
 
     def _compile_directive_raw(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         _logger.warning(
             "Found deprecated directive @t-raw=%r in template %r. Replace by "
             "@t-out, and explicitely wrap content in `Markup` if "
             "necessary (which likely is not the case)",
             el.get("t-raw"),
-            compile_context.get("ref", "<unknown>"),
+            compile_context.ref or "<unknown>",
         )
         return self._compile_directive_out(el, compile_context, level)
 
     def _compile_directive_field(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         tagName = el.tag
         if tagName in FORBIDDEN_FIELD_TAGS:
@@ -2577,7 +2645,7 @@ class IrQweb(models.AbstractModel):
         return self._compile_directive_out(el, compile_context, level)
 
     def _compile_directive_call(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         expr = el.attrib.pop("t-call")
 
@@ -2587,10 +2655,10 @@ class IrQweb(models.AbstractModel):
                 f"t-call must be on a <t> element (actually on <{el_tag}>)."
             )
 
-        nsmap = compile_context.get("nsmap")
+        nsmap = compile_context.nsmap
 
         code = self._flush_text(compile_context, level, rstrip=el.tag.lower() == "t")
-        _ref, path, xml = compile_context["_qweb_error_path_xml"]
+        _ref, path, xml = compile_context.error_path_xml
 
         el.attrib.pop("t-consumed-options", None)
         code.append(
@@ -2598,7 +2666,7 @@ class IrQweb(models.AbstractModel):
         )
         if nsmap:
             nsmap = []
-            for key, value in compile_context["nsmap"].items():
+            for key, value in compile_context.nsmap.items():
                 if isinstance(key, str):
                     nsmap.append(f"{key!r}:{value!r}")
                 else:
@@ -2615,7 +2683,7 @@ class IrQweb(models.AbstractModel):
                 not key.startswith("t-") for key in el.attrib
             ) and any(n.attrib.get("t-set") for n in el)
 
-            def_name = compile_context["make_name"]("t_call")
+            def_name = compile_context.make_name("t_call")
             code_content = [f"def {def_name}(self, values):"]
             code_content.append(indent_code(self._element_marker(path, xml), 1))
             code_content.extend(
@@ -2624,13 +2692,13 @@ class IrQweb(models.AbstractModel):
             self._add_text("", compile_context)
             code_content.extend(self._flush_text(compile_context, 1, rstrip=True))
 
-            compile_context["template_functions"][def_name] = code_content
+            compile_context.template_functions[def_name] = code_content
 
             code.append(
                 indent_code(
                     f"""
                 t_call_content_values = values.copy()
-                qwebContent = QwebContent(self, QwebCallParameters(self.env.context, {compile_context["ref"]!r}, {def_name}, t_call_content_values, 'root', 'inner-content', (template_options['ref'], {path!r}, {xml!r})))
+                qwebContent = QwebContent(self, QwebCallParameters(self.env.context, {compile_context.ref!r}, {def_name}, t_call_content_values, 'root', 'inner-content', (template_options['ref'], {path!r}, {xml!r})))
                 t_call_values = {{{T_CALL_SLOT!r}: qwebContent}}
             """,
                     level,
@@ -2721,7 +2789,7 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_directive_lang(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if "t-call" not in el.attrib:
             msg = "t-lang is an alias of t-options-lang but only available on the same node of t-call"
@@ -2730,7 +2798,7 @@ class IrQweb(models.AbstractModel):
         return []
 
     def _compile_directive_call_assets(
-        self, el: etree._Element, compile_context: dict[str, Any], level: int
+        self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
         if len(el) > 0:
             msg = "t-call-assets cannot contain children nodes"

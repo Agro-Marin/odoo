@@ -15,6 +15,7 @@ from odoo.tools.rendering_tools import QWebError
 
 from odoo.addons.base.models.ir_qweb import (
     ELEMENT_MARKER_REGEXP,
+    CompileContext,
     QwebCallParameters,
     QwebContent,
     render,
@@ -3326,6 +3327,27 @@ class TestQWebCompileIsolation(TransactionCase):
 
 
 class TestQWebHelpers(TransactionCase):
+    @staticmethod
+    def _context(**fields):
+        """A minimal CompileContext for testing one helper in isolation.
+
+        The helpers under test read one field each; the dataclass is what lets
+        a test say which, where a hand-built dict said only "some mapping".
+        """
+        defaults = {
+            "context": {},
+            "ref": None,
+            "ref_name": None,
+            "ref_xml": None,
+            "template": None,
+            "root": None,
+            "make_name": None,
+            "template_functions": {},
+            "text_concat": [],
+            "nsmap": {},
+        }
+        return CompileContext(**{**defaults, **fields})
+
     def test_compile_format(self):
         qweb = self.env["ir.qweb"]
         code = qweb._compile_format("Save 50%")
@@ -3354,7 +3376,7 @@ class TestQWebHelpers(TransactionCase):
 
     def test_is_static_node(self):
         qweb = self.env["ir.qweb"]
-        ctx = {"nsmap": {}}
+        ctx = self._context(nsmap={})
         self.assertTrue(qweb._is_static_node(etree.fromstring('<div class="x"/>'), ctx))
         self.assertTrue(
             qweb._is_static_node(etree.fromstring('<div t-tag-open="div"/>'), ctx)
@@ -3372,11 +3394,19 @@ class TestQWebHelpers(TransactionCase):
     def test_namespace_helpers(self):
         qweb = self.env["ir.qweb"]
         el = etree.fromstring('<div xmlns:x="urn:x"/>')
-        self.assertEqual(qweb._new_namespaces(el, {"nsmap": {}}), {("x", "urn:x")})
-        self.assertEqual(qweb._new_namespaces(el, {"nsmap": {"x": "urn:x"}}), set())
+        self.assertEqual(
+            qweb._new_namespaces(el, self._context(nsmap={})), {("x", "urn:x")}
+        )
+        self.assertEqual(
+            qweb._new_namespaces(el, self._context(nsmap={"x": "urn:x"})), set()
+        )
         eld = etree.fromstring('<div xmlns="urn:d"/>')
-        self.assertEqual(qweb._new_namespaces(eld, {"nsmap": {}}), {(None, "urn:d")})
-        self.assertEqual(qweb._ns_prefix_map(el, {"nsmap": {}}), {"urn:x": "x"})
+        self.assertEqual(
+            qweb._new_namespaces(eld, self._context(nsmap={})), {(None, "urn:d")}
+        )
+        self.assertEqual(
+            qweb._ns_prefix_map(el, self._context(nsmap={})), {"urn:x": "x"}
+        )
 
     def test_compile_out_target(self):
         qweb = self.env["ir.qweb"]
