@@ -270,7 +270,7 @@ class L10nHuEdiTestFlowsLive(L10nHuEdiTestCommon, TestAccountMoveSendCommon):
         """Patch _call_nav_endpoint in l10n_hu_edi.connection, so that a Timeout is raised on the specified endpoint.
 
         :param endpoint: the endpoint for which to raise a Timeout
-        :param make_request bool: If true, will still make the request before raising the timeout.
+        :param bool make_request: If true, will still make the request before raising the timeout.
         """
         real_call_nav_endpoint = L10nHuEdiConnection._call_nav_endpoint
 
