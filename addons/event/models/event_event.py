@@ -45,7 +45,7 @@ class EventEvent(models.Model):
         result = super().default_get(fields)
         if "date_begin" in fields and "date_begin" not in result:
             now = Datetime.now()
-            # Round the datetime to the nearest half hour (e.g. 08:17 => 08:30 and 08:37 => 09:00)
+            # Round the datetime to the next half hour (e.g. 08:17 => 08:30 and 08:37 => 09:00)
             result["date_begin"] = now.replace(second=0, microsecond=0) + timedelta(
                 minutes=-now.minute % 30
             )
