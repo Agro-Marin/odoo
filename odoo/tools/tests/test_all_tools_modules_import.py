@@ -13,8 +13,8 @@ class TestAllToolsModulesImport(unittest.TestCase):
             root = pathlib.Path(t.__path__[0])
             failures = []
             scanned = 0
-            # rglob, not glob: the non-recursive version skipped 9 of the 39
-            # modules -- all of assets/ (5), babel_extractors/ (2) and pdf/ (2),
+            # rglob, not glob: the non-recursive version skipped 11 of the 41
+            # modules -- all of assets/ (7), babel_extractors/ (2) and pdf/ (2),
             # which are precisely the subpackages carrying import-time side
             # effects (pdf/__init__.py patches pypdf.filters.decompress and
             # DictionaryObject.get at module scope).
