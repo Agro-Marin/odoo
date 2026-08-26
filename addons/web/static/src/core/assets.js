@@ -13,6 +13,7 @@ import {
 } from "./module_bridge.js";
 import { registry } from "./registry.js";
 import { makeAssetLog } from "./utils/asset_log.js";
+import { runInBundleTransaction } from "./utils/bundle_transaction.js";
 import { globalSingleton } from "./utils/global_singleton.js";
 
 const log = makeAssetLog("js");
@@ -483,23 +484,28 @@ export const assets = {
                     log("loadESMBundle:injected fresh import map entries=", nFresh);
                 }
             }
-            const results = await Promise.all(
-                specifiers.map(async (specifier) => {
-                    const { target } = resolveSpecifierTarget(
-                        specifier,
-                        importMap,
-                        injectedImportMapKeys,
-                        document,
-                    );
-                    const mod = await import(target);
-                    const mappedUrl = importMap?.[specifier];
-                    if (mappedUrl && typeof mod.__setImplUrl === "function") {
-                        await mod.__setImplUrl(
-                            new URL(mappedUrl, document.baseURI).href,
+            // One transaction for the whole bundle: these imports run in
+            // parallel and every await between them lets a registry reaction
+            // see the bundle half applied. See bundle_transaction.js.
+            const results = await runInBundleTransaction(() =>
+                Promise.all(
+                    specifiers.map(async (specifier) => {
+                        const { target } = resolveSpecifierTarget(
+                            specifier,
+                            importMap,
+                            injectedImportMapKeys,
+                            document,
                         );
-                    }
-                    return [specifier, mod];
-                }),
+                        const mod = await import(target);
+                        const mappedUrl = importMap?.[specifier];
+                        if (mappedUrl && typeof mod.__setImplUrl === "function") {
+                            await mod.__setImplUrl(
+                                new URL(mappedUrl, document.baseURI).href,
+                            );
+                        }
+                        return [specifier, mod];
+                    }),
+                ),
             );
             const modules = Object.fromEntries(results);
             if (/** @type {any} */ (globalThis).odoo?.loader?.registerNativeModules) {

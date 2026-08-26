@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, getFixture, test } from "@odoo/hoot";
-import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
+import { hidePDFJSButtons, withWasmDefault } from "@web/core/utils/pdfjs";
 
 describe.current.tags("headless");
 
@@ -42,4 +42,60 @@ test("resolves the iframe from a container root element", () => {
     const styleEl = iframe.contentDocument.head.querySelector("style");
     expect(styleEl).not.toBe(null);
     expect(styleEl.textContent).toInclude("button#downloadButton");
+});
+
+/**
+ * A stand-in for the pdfjs module namespace: its exports are non-writable and
+ * non-configurable, which is what made assigning through a prototype throw.
+ */
+function makeNamespaceLike(getDocument) {
+    const ns = {};
+    Object.defineProperty(ns, "getDocument", {
+        configurable: false,
+        enumerable: true,
+        value: getDocument,
+        writable: false,
+    });
+    Object.defineProperty(ns, "GlobalWorkerOptions", {
+        configurable: false,
+        enumerable: true,
+        value: {},
+        writable: false,
+    });
+    return Object.freeze(ns);
+}
+
+test("wraps getDocument over a module namespace, whose exports cannot be assigned", () => {
+    const calls = [];
+    const lib = makeNamespaceLike((params) => {
+        calls.push(params);
+        return "task";
+    });
+    // Assigning is what the code used to do, and it throws in strict mode.
+    expect(() => {
+        Object.create(lib).getDocument = () => {};
+    }).toThrow();
+
+    const view = withWasmDefault(lib);
+    expect(view.getDocument("/a.pdf")).toBe("task");
+    expect(calls).toEqual([
+        { url: "/a.pdf", wasmUrl: "/web/static/lib/pdfjs/web/wasm/" },
+    ]);
+    expect(view.GlobalWorkerOptions).toBe(lib.GlobalWorkerOptions);
+});
+
+test("getDocument normalises every source shape and keeps an explicit wasmUrl", () => {
+    const calls = [];
+    const lib = makeNamespaceLike((params) => calls.push(params));
+    const view = withWasmDefault(lib);
+    const data = new Uint8Array([1, 2]);
+
+    view.getDocument(new URL("https://example.test/a.pdf"));
+    view.getDocument(data);
+    view.getDocument({ url: "/b.pdf", wasmUrl: "/elsewhere/" });
+
+    expect(calls[0].url.href).toBe("https://example.test/a.pdf");
+    expect(calls[0].wasmUrl).toBe("/web/static/lib/pdfjs/web/wasm/");
+    expect(calls[1].data).toBe(data);
+    expect(calls[2].wasmUrl).toBe("/elsewhere/");
 });

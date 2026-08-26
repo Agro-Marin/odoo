@@ -57,6 +57,7 @@ import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { htmlJoin, isHtmlEmpty, setElementContent } from "@web/core/utils/dom/html";
 import { isEmail } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+import { rootIdOf } from "@web/ui/overlay/root_id";
 const EDIT_CLICK_TYPE = {
     CANCEL: "cancel",
     SAVE: "save",
@@ -723,7 +724,7 @@ export class Composer extends Component {
                         "Are you sure you want to bid farewell to this message forever?",
                     ),
                 },
-                { context: this },
+                { rootId: rootIdOf(this.root.el) },
             );
         }
         this.suggestion?.clearRawMentions();

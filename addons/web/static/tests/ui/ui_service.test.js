@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, useState, xml } from "@odoo/owl";
+import { Component, onWillRender, useState, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
@@ -507,4 +507,57 @@ test("destroy() releases the active-element stack and the block counter", async 
     expect(ui.activeElement).toBe(document);
     expect(ui.isBlocked).toBe(false);
     el.remove();
+});
+
+test("an unmatched unblock leaves the ui unblocked and announces nothing", async () => {
+    const env = await makeMockEnv();
+    const ui = /** @type {any} */ (env.services.ui);
+    patchWithCleanup(console, { warn: () => expect.step("warn") });
+    ui.bus.addEventListener(AppEvent.UNBLOCK, () => expect.step("unblock"));
+
+    ui.unblock();
+
+    expect(ui.blockCount).toBe(0);
+    expect(ui.isBlocked).toBe(false);
+    expect.verifySteps(["warn"]);
+
+    ui.block();
+    expect(ui.isBlocked).toBe(true);
+    ui.unblock();
+    expect(ui.isBlocked).toBe(false);
+    expect.verifySteps(["unblock"]);
+});
+
+test("isBlocked is its own reactive key, so a nested block does not invalidate it", async () => {
+    class Reader extends Component {
+        static template = xml`<div class="reader" t-esc="ui.isBlocked"/>`;
+        static props = {};
+        setup() {
+            this.ui = useState(useService("ui"));
+            onWillRender(() => expect.step(`render ${this.ui.isBlocked}`));
+        }
+    }
+    await mountWithCleanup(Reader);
+    expect.verifySteps(["render false"]);
+
+    const ui = /** @type {any} */ (getService("ui"));
+    ui.block();
+    await animationFrame();
+    expect.verifySteps(["render true"]);
+
+    ui.block();
+    ui.block();
+    await animationFrame();
+    expect(ui.blockCount).toBe(3);
+    expect.verifySteps([]);
+
+    ui.unblock();
+    ui.unblock();
+    await animationFrame();
+    expect(ui.isBlocked).toBe(true);
+    expect.verifySteps([]);
+
+    ui.unblock();
+    await animationFrame();
+    expect.verifySteps(["render false"]);
 });

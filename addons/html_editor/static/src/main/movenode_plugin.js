@@ -291,7 +291,6 @@ export class MoveNodePlugin extends Plugin {
                     ${escape(dragToMoveTooltip)}<br/>
                     ${escape(clickToSelectTooltip)}
                 </div>`,
-            arrow: true,
         });
 
         this.addDomListener(this.moveWidget, "click", () => {

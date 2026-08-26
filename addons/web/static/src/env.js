@@ -9,6 +9,7 @@ import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
 import { componentLog, makeAssetLog, serviceLog } from "@web/core/utils/asset_log";
+import { deferUntilBundlesSettled } from "@web/core/utils/bundle_transaction";
 import {
     createWaveResolver,
     findDependencyCycle,
@@ -115,12 +116,7 @@ export async function startServices(env) {
     log("startServices: registry size=", serviceRegistry.getEntries().length);
     await Promise.resolve();
 
-    const onRegistryUpdate = async (ev) => {
-        await Promise.resolve();
-        const { operation } = ev.detail;
-        if (operation === "delete") {
-            return;
-        }
+    const runStartupPass = async () => {
         try {
             await _startServices(env, new Map());
         } catch (error) {
@@ -129,6 +125,22 @@ export async function startServices(env) {
                 error,
             );
         }
+    };
+    const onRegistryUpdate = async (ev) => {
+        await Promise.resolve();
+        const { operation } = ev.detail;
+        if (operation === "delete") {
+            return;
+        }
+        // A bundle is a unit: hold the pass until it has finished evaluating.
+        // Without this, a service registered by a lazily-loaded bundle starts
+        // one microtask later -- before the rest of that same bundle exists,
+        // including any patch to it. See bundle_transaction.js for the failure
+        // that made this necessary.
+        if (deferUntilBundlesSettled(runStartupPass)) {
+            return;
+        }
+        await runStartupPass();
     };
     env.disposeServiceRegistryListener?.();
     serviceRegistry.addEventListener("UPDATE", onRegistryUpdate);

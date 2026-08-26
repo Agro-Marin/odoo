@@ -18,7 +18,7 @@ export const messageActionsRegistry = registry.category("mail.message/actions");
 
 /** @typedef {import("@odoo/owl").Component} Component */
 /**
- * @typedef {Component & { reactionPicker?: Object, optionsDropdown?: Object, root?: {el?: HTMLElement|null}, isActive?: boolean, shouldHideFromMessageListOnDelete?: boolean, openReactionMenu?: () => void, }} MessageActionOwner
+ * @typedef {Component & { reactionPicker?: Object, optionsDropdown?: Object, root?: {el?: HTMLElement|null}, isActive?: boolean, overlayRootId?: string, shouldHideFromMessageListOnDelete?: boolean, openReactionMenu?: () => void, }} MessageActionOwner
  */
 /**
  * @typedef {import("@mail/core/common/action").ActionDefinition<MessageActionOwner, ActionParams, MessageAction>} ActionDefinition
@@ -199,7 +199,7 @@ registerMessageAction("delete", {
                     });
                 },
             },
-            { context: owner, onClose: () => def.resolve(false) },
+            { rootId: owner.overlayRootId, onClose: () => def.resolve(false) },
         );
         return def;
     },

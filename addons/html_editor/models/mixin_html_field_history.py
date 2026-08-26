@@ -120,7 +120,7 @@ class MixinHtmlFieldHistory(models.AbstractModel):
     def _check_revision_id(self, revision_id):
         if isinstance(revision_id, bool) or not isinstance(revision_id, int):
             raise UserError(_(
-                'Invalid revision id %(revision)r: expected an integer.',
+                'Invalid revision id "%(revision)s": expected an integer.',
                 revision=revision_id,
             ))
 

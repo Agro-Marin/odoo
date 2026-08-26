@@ -206,7 +206,7 @@ class Base(models.AbstractModel):
                     if not isinstance(row_id, int) or isinstance(row_id, bool):
                         raise UserError(
                             self.env._(
-                                'Invalid record reference %(row_id)r in field "'
+                                "Invalid record reference '%(row_id)s' in field \""
                                 '%(field)s". Your changes were not saved — '
                                 "please reload the page and re-apply them.",
                                 row_id=row_id,

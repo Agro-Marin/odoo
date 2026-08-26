@@ -1,10 +1,11 @@
 // @ts-check
 
-import { beforeEach, expect, test } from "@odoo/hoot";
+import { beforeEach, expect, getFixture, test } from "@odoo/hoot";
 import { click, press, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import {
+    getMockEnv,
     getService,
     mountWithCleanup,
     patchWithCleanup,
@@ -13,6 +14,8 @@ import { browser } from "@web/core/browser/browser";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
+import { OverlayContainer } from "@web/ui/overlay/overlay_container";
+import { rootIdOf } from "@web/ui/overlay/root_id";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 beforeEach(async () => {
@@ -487,4 +490,75 @@ test("the function add() hands back closes through the closing state", async () 
     await closing;
     await animationFrame();
     expect(".o_dialog").toHaveCount(0);
+});
+
+async function mountShadowOverlayContainer(hostId) {
+    const { App } = await import("@odoo/owl");
+    const { getTemplate } = await import("@web/core/templates");
+    const host = document.createElement("div");
+    host.id = hostId;
+    getFixture().appendChild(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const overlays = getService("overlay").overlays;
+    class ShadowHost extends Component {
+        static components = { OverlayContainer };
+        static props = {};
+        static template = xml`<OverlayContainer overlays="overlays" rootId="rootId"/>`;
+        setup() {
+            this.overlays = overlays;
+            this.rootId = hostId;
+        }
+    }
+    const app = new App(ShadowHost, { env: getMockEnv(), getTemplate });
+    await app.mount(shadow);
+    return { app, shadow };
+}
+
+test("rootIdOf names the shadow host a node lives under", async () => {
+    const { app, shadow } = await mountShadowOverlayContainer("chatterRoot");
+    const inShadow = document.createElement("div");
+    shadow.appendChild(inShadow);
+    expect(rootIdOf(inShadow)).toBe("chatterRoot");
+    expect(rootIdOf(getFixture())).toBe(undefined);
+    expect(rootIdOf(null)).toBe(undefined);
+    app.destroy();
+});
+
+test("a dialog opened with a rootId renders in that shadow root, not the page behind it", async () => {
+    class CustomDialog extends Component {
+        static components = { Dialog };
+        static template = xml`<Dialog title="'Farewell'">content</Dialog>`;
+        static props = ["*"];
+    }
+    const { app, shadow } = await mountShadowOverlayContainer("chatterRoot");
+
+    getService("dialog").add(CustomDialog, {}, { rootId: "chatterRoot" });
+    await animationFrame();
+
+    // The regression this pins: `mail` passed the calling component as
+    // `{ context }`, the option the dialog service used to derive the root
+    // from. Once that became an explicit `rootId`, `context` was silently
+    // dropped and every confirm/reaction dialog opened from the portal
+    // chatter -- which mounts into `#chatterRoot`'s shadow root -- rendered
+    // in the document behind it. Every website_slides review tour died on a
+    // `#chatterRoot:shadow` step it could no longer reach.
+    expect(shadow.querySelectorAll(".o_dialog")).toHaveLength(1);
+    expect(".o_dialog").toHaveCount(0);
+    app.destroy();
+});
+
+test("a dialog opened with no rootId stays in the main document", async () => {
+    class CustomDialog extends Component {
+        static components = { Dialog };
+        static template = xml`<Dialog title="'Farewell'">content</Dialog>`;
+        static props = ["*"];
+    }
+    const { app, shadow } = await mountShadowOverlayContainer("chatterRoot");
+
+    getService("dialog").add(CustomDialog);
+    await animationFrame();
+
+    expect(".o_dialog").toHaveCount(1);
+    expect(shadow.querySelectorAll(".o_dialog")).toHaveLength(0);
+    app.destroy();
 });

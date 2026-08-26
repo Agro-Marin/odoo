@@ -18,6 +18,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { debounce } from "@web/core/utils/timing";
+import { rootIdOf } from "@web/ui/overlay/root_id";
 
 import { CallAction, computeActionsStack } from "./call_actions.js";
 
@@ -691,7 +692,7 @@ export class Rtc extends Record {
             id: CALL_FULLSCREEN_ID,
             keepBrowserHeader: true,
             props,
-            rootId: this.rootEl?.getRootNode()?.host?.id,
+            rootId: rootIdOf(this.rootEl),
         });
     }
 
@@ -783,7 +784,7 @@ export class Rtc extends Record {
                 useCamera: () =>
                     this.toggleVideo("camera", { force: true, refreshStream: true }),
             },
-            { rootId: this.rootEl?.getRootNode()?.host?.id },
+            { rootId: rootIdOf(this.rootEl) },
         );
     }
 

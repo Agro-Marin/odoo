@@ -70,7 +70,7 @@ test("overlay.add leaves nested values alone too", async () => {
 });
 
 test("the popover presenter accepts only what Popover declares", async () => {
-    patchWithCleanup(odoo, { debug: "1" });
+    patchWithCleanup(odoo, { debug: "" });
     await mountWithCleanup(MainComponentsContainer);
     /** @type {string[]} */
     const warnings = [];
@@ -97,8 +97,14 @@ test("the popover presenter accepts only what Popover declares", async () => {
     expect(warnings.filter((w) => w.includes("position"))).toHaveLength(0);
 });
 
-test("dialog.add names the options it will not act on", async () => {
-    patchWithCleanup(odoo, { debug: "1" });
+// Both of these run with debug OFF on purpose. The check used to be gated on
+// `odoo.debug`, and these tests turned it on -- so they passed while the option
+// they exist to catch was being dropped in silence everywhere else. `mail` kept
+// calling `dialog.add(..., { context: this })` for a year after `context` was
+// replaced by `rootId`, and every dialog opened from a shadow-root app rendered
+// in the page behind it.
+test("dialog.add names the options it will not act on, debug or not", async () => {
+    patchWithCleanup(odoo, { debug: "" });
     await mountWithCleanup(MainComponentsContainer);
     /** @type {string[]} */
     const warnings = [];
@@ -112,11 +118,13 @@ test("dialog.add names the options it will not act on", async () => {
         {
             sequence: 10,
             closeOnEscape: false,
+            context: {},
         },
     );
     await animationFrame();
 
     expect(warnings.filter((w) => w.includes("closeOnEscape"))).toHaveLength(1);
+    expect(warnings.filter((w) => w.includes("context"))).toHaveLength(1);
     expect(warnings.filter((w) => w.includes("sequence"))).toHaveLength(0);
 });
 

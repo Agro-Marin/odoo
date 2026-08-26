@@ -13,6 +13,7 @@ import {
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { ErrorHandler } from "@web/core/utils/components";
+import { rootIdOf } from "@web/ui/overlay/root_id";
 
 export const OVERLAY_SYMBOL = Symbol("Overlay");
 
@@ -114,9 +115,7 @@ export class OverlayContainer extends Component {
         if (!this.props.rootId) {
             useEffect(
                 () => {
-                    this.state.rootId = /** @type {ShadowRoot} */ (
-                        this.root.el?.getRootNode()
-                    )?.host?.id;
+                    this.state.rootId = rootIdOf(this.root.el);
                 },
                 () => [this.root.el],
             );

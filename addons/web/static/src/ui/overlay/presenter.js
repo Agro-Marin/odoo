@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { markRaw } from "@odoo/owl";
+import { rootIdOf } from "@web/ui/overlay/root_id";
 
 const SERVICE_OPTIONS = ["env", "onClose", "sequence", "useBottomSheet"];
 
@@ -28,9 +29,11 @@ function acceptedOptionsFor(component) {
  * @param {Set<string>} accepted
  */
 export function warnUnknownOptions(scope, options, accepted) {
-    if (!odoo.debug) {
-        return;
-    }
+    // Unconditional: an unknown option is always a programming error, and one
+    // silently dropped is how `dialog.add(..., { context })` kept compiling
+    // after `context` was replaced by `rootId` -- every dialog opened from
+    // inside a shadow-root app rendered in the page behind it instead, and no
+    // run outside debug mode said so.
     for (const key in options) {
         if (!accepted.has(key)) {
             console.warn(`[${scope}] unknown option "${key}"; it will be ignored.`);
@@ -55,14 +58,6 @@ export const PRESENTED_PROPS = {
 
     ref: { optional: true, type: Function },
 };
-
-/**
- * @param {HTMLElement} target
- * @returns {string | undefined}
- */
-function rootIdOf(target) {
-    return /** @type {ShadowRoot} */ (target?.getRootNode())?.host?.id;
-}
 
 /**
  * @param {boolean | ((target: HTMLElement) => boolean) | undefined} value

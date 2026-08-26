@@ -36,6 +36,7 @@ import { createElementWithContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
 import { renderToElement } from "@web/core/utils/render";
 import { getOrigin, url } from "@web/core/utils/urls";
+import { rootIdOf } from "@web/ui/overlay/root_id";
 import { usePopover } from "@web/ui/popover";
 
 import { discussComponentRegistry } from "./discuss_component_registry.js";
@@ -553,13 +554,24 @@ export class Message extends Component {
         this.optionsDropdown.open();
     }
 
+    /**
+     * The overlay root this message is rendered in, so a dialog it opens lands
+     * in the same app -- the portal chatter and the livechat embed mount into a
+     * shadow root, and an overlay with no rootId goes to the page behind them.
+     *
+     * @returns {string | undefined}
+     */
+    get overlayRootId() {
+        return rootIdOf(this.root.el);
+    }
+
     /** @param {import("models").MessageReactions} [reaction] */
     openReactionMenu(reaction) {
         const message = toRaw(this.props.message);
         this.dialog.add(
             MessageReactionMenu,
             { message, initialReaction: reaction },
-            { context: this },
+            { rootId: this.overlayRootId },
         );
     }
 

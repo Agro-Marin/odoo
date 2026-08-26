@@ -67,7 +67,15 @@ export class CopyClipboardButtonField extends CopyClipboardField {
 
 export class CopyClipboardCharField extends CopyClipboardField {
     static components = { Field: CharField, CopyButton };
-    static props = { ...CopyClipboardField.props, ...CharField.props };
+    // A getter, not a snapshot: `mail` REASSIGNS `CharField.props` /
+    // `UrlField.props` at module load to add its onchange-on-keydown props,
+    // while `buildCopyClipboardField` captures the registry entry by
+    // reference and so supplies those props at render time. Spread once at
+    // class-definition time, the schema never saw them and Owl rejected
+    // every render as invalid props.
+    static get props() {
+        return { ...CopyClipboardField.props, ...CharField.props };
+    }
     static defaultProps = {
         ...CopyClipboardField.defaultProps,
         ...CharField.defaultProps,
@@ -81,7 +89,15 @@ export class CopyClipboardCharField extends CopyClipboardField {
 
 export class CopyClipboardURLField extends CopyClipboardField {
     static components = { Field: UrlField, CopyButton };
-    static props = { ...CopyClipboardField.props, ...UrlField.props };
+    // A getter, not a snapshot: `mail` REASSIGNS `CharField.props` /
+    // `UrlField.props` at module load to add its onchange-on-keydown props,
+    // while `buildCopyClipboardField` captures the registry entry by
+    // reference and so supplies those props at render time. Spread once at
+    // class-definition time, the schema never saw them and Owl rejected
+    // every render as invalid props.
+    static get props() {
+        return { ...CopyClipboardField.props, ...UrlField.props };
+    }
     static defaultProps = {
         ...CopyClipboardField.defaultProps,
         ...UrlField.defaultProps,
