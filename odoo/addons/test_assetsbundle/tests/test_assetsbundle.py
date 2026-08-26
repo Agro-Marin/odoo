@@ -45,6 +45,20 @@ class TestJavascriptAssetsBundle(FileTouchable):
             bundle, files, env=self.env, debug_assets=debug_assets, rtl=rtl
         )
 
+    def _assert_bundle_changed(self, bundle0, bundle1, method):
+        """Assert that rebuilding a bundle after an ir.asset addition
+        changed both its computed file list and its version."""
+        self.assertNotEqual(
+            bundle0.files,
+            bundle1.files,
+            "the list of files should be different because a file has been added to the bundle",
+        )
+        self.assertNotEqual(
+            bundle0.get_version(method),
+            bundle1.get_version(method),
+            "the version should be different because a file has been added to the bundle",
+        )
+
     def _any_ira_for_bundle(self, extension, rtl=False):
         bundle = (
             self.jsbundle_name if extension in ["js", "min.js"] else self.cssbundle_name
@@ -178,8 +192,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
     def test_04_content_invalidation(self):
         bundle0 = self._get_asset(self.jsbundle_name)
         bundle0.js()
-        files0 = bundle0.files
-        version0 = bundle0.get_version("js")
 
         self.assertEqual(
             len(self._any_ira_for_bundle("min.js")),
@@ -197,19 +209,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
 
         bundle1 = self._get_asset(self.jsbundle_name)
         bundle1.js()
-        files1 = bundle1.files
-        version1 = bundle1.get_version("js")
 
-        self.assertNotEqual(
-            files0,
-            files1,
-            "the list of files should be different because a file has been added to the bundle",
-        )
-        self.assertNotEqual(
-            version0,
-            version1,
-            "the version should be different because a file has been added to the bundle",
-        )
+        self._assert_bundle_changed(bundle0, bundle1, "js")
 
         self.assertEqual(
             len(self._any_ira_for_bundle("min.js")),
@@ -323,8 +324,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
     def test_11_css_content_invalidation(self):
         bundle0 = self._get_asset(self.cssbundle_name)
         bundle0.css()
-        files0 = bundle0.files
-        version0 = bundle0.get_version("css")
 
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
 
@@ -338,11 +337,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
 
         bundle1 = self._get_asset(self.cssbundle_name)
         bundle1.css()
-        files1 = bundle1.files
-        version1 = bundle1.get_version("css")
 
-        self.assertNotEqual(files0, files1)
-        self.assertNotEqual(version0, version1)
+        self._assert_bundle_changed(bundle0, bundle1, "css")
 
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
 
@@ -491,13 +487,9 @@ class TestJavascriptAssetsBundle(FileTouchable):
     def test_18_css_bundle_content_invalidation(self):
         ltr_bundle0 = self._get_asset(self.cssbundle_name)
         ltr_bundle0.css()
-        ltr_files0 = ltr_bundle0.files
-        ltr_version0 = ltr_bundle0.get_version("css")
 
         rtl_bundle0 = self._get_asset(self.cssbundle_name, rtl=True)
         rtl_bundle0.css()
-        rtl_files0 = rtl_bundle0.files
-        rtl_version0 = rtl_bundle0.get_version("css")
 
         css_bundles = self.env["ir.attachment"].search(
             [
@@ -520,21 +512,15 @@ class TestJavascriptAssetsBundle(FileTouchable):
 
         ltr_bundle1 = self._get_asset(self.cssbundle_name)
         ltr_bundle1.css()
-        ltr_files1 = ltr_bundle1.files
-        ltr_version1 = ltr_bundle1.get_version("css")
         ltr_ira1 = self._any_ira_for_bundle("min.css")
 
-        self.assertNotEqual(ltr_files0, ltr_files1)
-        self.assertNotEqual(ltr_version0, ltr_version1)
+        self._assert_bundle_changed(ltr_bundle0, ltr_bundle1, "css")
 
         rtl_bundle1 = self._get_asset(self.cssbundle_name, rtl=True)
         rtl_bundle1.css()
-        rtl_files1 = rtl_bundle1.files
-        rtl_version1 = rtl_bundle1.get_version("css")
         rtl_ira1 = self._any_ira_for_bundle("min.css", rtl=True)
 
-        self.assertNotEqual(rtl_files0, rtl_files1)
-        self.assertNotEqual(rtl_version0, rtl_version1)
+        self._assert_bundle_changed(rtl_bundle0, rtl_bundle1, "css")
 
         self.assertNotEqual(ltr_ira1.id, rtl_ira1.id)
 
