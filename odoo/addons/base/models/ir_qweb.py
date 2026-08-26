@@ -18,7 +18,7 @@ from copy import deepcopy
 from itertools import chain, count
 from pathlib import Path
 from types import FunctionType
-from typing import Any, Literal, NamedTuple, Self
+from typing import Any, Literal, NamedTuple, NoReturn, Self
 
 from dateutil.relativedelta import relativedelta
 from lxml import etree
@@ -169,11 +169,9 @@ FORBIDDEN_FIELD_TAGS = frozenset(
         "dd",
     ]
 )
+# `False`, `None` and `True` are not listed: `_BUILTINS` carries all three.
 ALLOWED_KEYWORD = frozenset(
     [
-        "False",
-        "None",
-        "True",
         "and",
         "as",
         "elif",
@@ -194,6 +192,9 @@ VARNAME_REGEXP = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 ELEMENT_MARKER_REGEXP = re.compile(r"\s*# element: (.*)")
 TO_VARNAME_REGEXP = re.compile(r"[^A-Za-z0-9_]+")
 SPECIAL_DIRECTIVES = {"t-translation", "t-ignore", "t-title"}
+# The ref an inline etree template compiles under: it names no view, so a
+# lookup of it can only ever fail.
+ETREE_REF = "etree._Element"
 OUTPUT_DIRECTIVES = ("t-out", "t-field", "t-esc", "t-raw")
 ARGUMENT_NAME_TEMPLATE = "_arg_%s__"
 T_CALL_SLOT = "0"
@@ -263,9 +264,14 @@ class QwebCallParameters(NamedTuple):
 
 
 class QwebStackFrame(NamedTuple):
-    params: QwebCallParameters | QwebContent
+    # Never a QwebContent: `_render_iterall` unwraps one to its `params__`
+    # before building a frame, and `_wrap_render_error` reads `params.view_ref`,
+    # which on a QwebContent would render the body and then fail on `Markup`.
+    params: QwebCallParameters
     irQweb: IrQweb
-    iterator: Iterator[str | QwebCallParameters | QwebContent]
+    # An empty list for the frame that only carries an error path, and the `""`
+    # that `not_found_template` returns; neither is an Iterator.
+    iterator: Iterable[str | QwebCallParameters | QwebContent]
     values: dict[str, Any]
     options: dict[str, Any] | None
 
@@ -599,8 +605,8 @@ class IrQweb(models.AbstractModel):
         stack: list[QwebStackFrame],
         frame: QwebStackFrame,
         view_ref: int | str | etree._Element,
-    ) -> None:
-        qweb_error_info = self._get_error_info(error, stack, stack[-1])
+    ) -> NoReturn:
+        qweb_error_info = self._get_error_info(error, stack)
         if qweb_error_info.template is None and qweb_error_info.ref is None:
             qweb_error_info.ref = view_ref
 
@@ -637,18 +643,14 @@ class IrQweb(models.AbstractModel):
         return False
 
     def _get_error_info(
-        self,
-        error: Exception,
-        stack: list[QwebStackFrame],
-        frame: QwebStackFrame,
+        self, error: Exception, stack: list[QwebStackFrame]
     ) -> QWebErrorInfo:
-        no_id_ref = "etree._Element"
-
+        frame = stack[-1]
         ref, ref_name, code, path, html = self._resolve_error_frame(
-            error, stack, frame, no_id_ref
+            error, stack, frame, ETREE_REF
         )
 
-        line_nb = self._error_line_number(ref, no_id_ref)
+        line_nb = self._error_line_number(ref, ETREE_REF)
 
         source = [info.params.path_xml for info in stack if info.params.path_xml]
         code_lines = (code or "").split("\n")
@@ -1058,7 +1060,7 @@ class IrQweb(models.AbstractModel):
                 if ref:
                     return (node, document, _id_or_xmlid(ref))
 
-            return (element, document, "etree._Element")
+            return (element, document, ETREE_REF)
 
         if isinstance(template, str) and "<" in template:
             msg = "Inline templates must be passed as `etree` documents"
@@ -1184,13 +1186,15 @@ class IrQweb(models.AbstractModel):
         return image_data_uri(base64_source)
 
     def _prepare_environment(self, values: dict[str, Any]) -> Self:
-        debug = (request and request.session.debug) or ""
         values.update(
             true=True,
             false=False,
         )
         if not self.env.context.get("minimal_qcontext"):
-            values.setdefault("debug", debug)
+            values.setdefault("debug", (request and request.session.debug) or "")
+            # `env.user` is `self(su=True)["res.users"].browse(uid)`, so the
+            # rebind is not the no-op it looks like: it drops that sudo, and a
+            # template reading `user_id` reads with the user's own rights.
             values.setdefault("user_id", self.env.user.with_env(self.env))
             values.setdefault("res_company", self.env.company.sudo())
             values.update(
@@ -1275,6 +1279,19 @@ class IrQweb(models.AbstractModel):
         self, el: etree._Element, compile_context: dict[str, Any]
     ) -> set[tuple[str | None, str]]:
         return set(el.nsmap.items()) - set(compile_context["nsmap"].items())
+
+    @staticmethod
+    def _qualified_attribute_name(key: str, nsprefixmap: dict[str, str | None]) -> str:
+        """An attribute's name as it must be written back out.
+
+        Strips the `.translate` marker and re-qualifies a namespaced name with
+        the prefix in scope, which is not the one lxml resolved it under.
+        """
+        name = key.removesuffix(".translate")
+        qname = etree.QName(name)
+        if qname.namespace:
+            return f"{nsprefixmap[qname.namespace]}:{qname.localname}"
+        return name
 
     def _ns_prefix_map(
         self, el: etree._Element, compile_context: dict[str, Any]
@@ -1593,7 +1610,7 @@ class IrQweb(models.AbstractModel):
         self._compile_expr_cache[cache_key] = result
         return result
 
-    def _compile_bool(self, attr: str | bool | None, default: bool = False) -> bool:
+    def _compile_bool(self, attr: str | bool | None) -> bool:
         if attr:
             if attr is True:
                 return True
@@ -1602,7 +1619,7 @@ class IrQweb(models.AbstractModel):
                 return False
             elif attr in ("true", "1"):
                 return True
-        return bool(default)
+        return False
 
     def _compile_to_str(self, expr: Any) -> str:
         """Turn an evaluated value into text.
@@ -1725,14 +1742,7 @@ class IrQweb(models.AbstractModel):
 
             nsprefixmap = self._ns_prefix_map(el, compile_context)
             for key, value in el.attrib.items():
-                name = key.removesuffix(".translate")
-                attrib_qname = etree.QName(name)
-                if attrib_qname.namespace:
-                    attrib[
-                        f"{nsprefixmap[attrib_qname.namespace]}:{attrib_qname.localname}"
-                    ] = value
-                else:
-                    attrib[name] = value
+                attrib[self._qualified_attribute_name(key, nsprefixmap)] = value
 
             attrib = self._post_processing_att(el.tag, attrib, is_static=True)
 
@@ -1912,10 +1922,7 @@ class IrQweb(models.AbstractModel):
             for key in list(el.attrib):
                 if not key.startswith("t-"):
                     value = el.attrib.pop(key)
-                    name = key.removesuffix(".translate")
-                    attrib_qname = etree.QName(name)
-                    if attrib_qname.namespace:
-                        name = f"{nsprefixmap[attrib_qname.namespace]}:{attrib_qname.localname}"
+                    name = self._qualified_attribute_name(key, nsprefixmap)
                     code.append(indent_code(f"attrs[{name!r}] = {value!r}", level))
 
         for key in list(el.attrib):
@@ -2816,6 +2823,11 @@ class IrQweb(models.AbstractModel):
                     atts[attr] = ""
         return atts
 
+    def _get_field_converter(self, widget_type: str) -> models.BaseModel:
+        """The `ir.qweb.field.*` model for a widget, or the generic one."""
+        model = "ir.qweb.field." + widget_type
+        return self.env[model] if model in self.env else self.env["ir.qweb.field"]
+
     def _get_field(
         self,
         record: models.BaseModel,
@@ -2844,9 +2856,7 @@ class IrQweb(models.AbstractModel):
         )
         field_options["translate"] = translate
 
-        model = "ir.qweb.field." + field_options["type"]
-        converter = self.env[model] if model in self.env else self.env["ir.qweb.field"]
-
+        converter = self._get_field_converter(field_options["type"])
         content = converter.record_to_html(record, field_name, field_options)
         attributes = converter.attributes(record, field_name, field_options, values)
 
@@ -2874,9 +2884,7 @@ class IrQweb(models.AbstractModel):
         inherit_branding = self.env.context.get("inherit_branding")
         field_options["inherit_branding"] = inherit_branding
 
-        model = "ir.qweb.field." + field_options["type"]
-        converter = self.env[model] if model in self.env else self.env["ir.qweb.field"]
-
+        converter = self._get_field_converter(field_options["type"])
         content = converter.value_to_html(value, field_options)
         # Branding, and gated like branding.  `ir.qweb.field.attributes`, which
         # `_get_field` reaches for `t-field`, returns `{}` unless
