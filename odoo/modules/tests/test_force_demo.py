@@ -9,7 +9,7 @@ demo XML had just raised as carrying demo data. Reproduced through the real
 field logged "demo data failed to install" and came out `demo = t`, while the
 ordinary install path recorded `f` for the same module.
 
-Note that `load_demo` returns True for a module with *no* demo data at all, and
+`load_demo` returns True for a module with *no* demo data at all, and
 must: `demo_installable` is `all(p.demo for p in self.depends)`, so a
 demo-less dependency has to count as satisfied or nothing downstream of it
 could ever take demo.

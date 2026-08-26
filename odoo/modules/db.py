@@ -81,9 +81,9 @@ def _insert_modules(cr: Cursor, rows: list[tuple]) -> dict[str, int]:
     One statement per chunk rather than one per module. The per-module
     `INSERT ... RETURNING id` was there only to learn the id before building the
     `ir_model_data` and dependency rows, which are themselves already written
-    with `copy_from` -- so a fresh database paid 1554 round trips to collect
-    1554 integers. Batched, `initialize` issues 2036 -> 483 queries and writes a
-    byte-identical table.
+    with `copy_from` -- so a fresh database paid one round trip per module to
+    collect their ids. Batched, `initialize` issues one round trip per chunk
+    instead and writes a byte-identical table.
     """
     placeholder = "(" + ", ".join(["%s"] * len(_MODULE_COLUMNS)) + ")"
     columns = ", ".join(_MODULE_COLUMNS)
