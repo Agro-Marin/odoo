@@ -283,8 +283,8 @@ class PaymentMethod(models.Model):
         :param bool force_tokenization: Whether only payment methods supporting tokenization can be
                                         matched.
         :param bool is_express_checkout: Whether the payment is made through express checkout.
-        :param dict report: The report in which each provider's availability status and reason must
-                            be logged.
+        :param dict report: The report in which each payment method's availability status and
+                            reason must be logged.
         :param dict kwargs: Optional data. This parameter is not used here.
         :return: The compatible payment methods.
         :rtype: payment.method
