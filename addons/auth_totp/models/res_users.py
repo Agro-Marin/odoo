@@ -107,7 +107,7 @@ class ResUsers(models.Model):
             _logger.info("2FA check: SUCCESS for %s %r", self, sudo.login)
             self._totp_rate_limit_purge("code_check")
             return {
-                "uid": self.env.user.id,
+                "uid": self.id,
                 "auth_method": "totp",
                 "mfa": "default",
             }

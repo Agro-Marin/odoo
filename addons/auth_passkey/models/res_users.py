@@ -59,7 +59,7 @@ class ResUsers(models.Model):
                 .sudo()
                 .search(
                     [
-                        ("create_uid", "=", self.env.user.id),
+                        ("create_uid", "=", self.id),
                         ("credential_identifier", "=", webauthn["id"]),
                     ]
                 )
@@ -76,7 +76,7 @@ class ResUsers(models.Model):
                 raise AccessDenied(e.args[0]) from None
             passkey.sign_count = new_sign_count
             return {
-                "uid": self.env.user.id,
+                "uid": self.id,
                 "auth_method": "passkey",
                 "mfa": "skip",
             }

@@ -677,10 +677,39 @@ class Field[T](
 
     def _inverse_related(self, records: BaseModel) -> None:
         record_value = {record: record[self.name] for record in records}
+        latest: dict[tuple, tuple] = {}
         for record in records:
             target, field = self.traverse_related(record)
             if target and bool(target.id) == bool(record.id):
-                target[field.name] = record_value[record]
+                latest[target._name, target.id, field.name] = (
+                    target,
+                    field,
+                    record_value[record],
+                )
+
+        groups: dict[tuple, tuple] = {}
+        ungrouped: list[tuple] = []
+        for target, field, value in latest.values():
+            key = (
+                target._name,
+                field.name,
+                type(value).__name__,
+                value._ids if is_recordset(value) else value,
+            )
+            try:
+                hash(key)
+            except TypeError:
+                ungrouped.append((target, field, value))
+                continue
+            if key in groups:
+                groups[key][3].append(target.id)
+            else:
+                groups[key] = (target, field, value, [target.id])
+
+        for target, field, value, ids in groups.values():
+            target.browse(ids)[field.name] = value
+        for target, field, value in ungrouped:
+            target[field.name] = value
 
     def _search_related(self, records: BaseModel, operator: str, value) -> DomainType:
 

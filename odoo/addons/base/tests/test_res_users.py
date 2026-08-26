@@ -704,8 +704,7 @@ class TestEmptyPassword(TransactionCase):
         return self.env.cr.fetchone()[0]
 
     def _check_credentials(self, user, password):
-        env = self.env(user=user)
-        return env["res.users"]._check_credentials(
+        return user.with_user(user)._check_credentials(
             {"type": "password", "login": user.login, "password": password},
             {"interactive": True},
         )
@@ -1214,11 +1213,12 @@ class TestInstalledLangCodes(TransactionCase):
     def test_codes_match_get_installed_and_track_activation(self):
         Users = self.env["res.users"]
         codes = Users._get_installed_lang_codes()
-        self.assertIsInstance(codes, frozenset)
+        self.assertIsInstance(codes, tuple)
         self.assertIn("en_US", codes)
         self.assertEqual(
             codes,
-            frozenset(code for code, _name in self.env["res.lang"].get_installed()),
+            tuple(code for code, _name in self.env["res.lang"].get_installed()),
+            "the order is load-bearing: _context_get_cached falls back to codes[0]",
         )
         if "fr_FR" in codes:
             self.skipTest("fr_FR already installed; cannot test invalidation")
@@ -1526,3 +1526,387 @@ class TestSessionTokenInvalidation(TransactionCase):
             user._compute_session_token(self.SID),
             "one user's password change must not invalidate another's session",
         )
+
+
+class TestAdministratorSurvivesArchiving(TransactionCase):
+    def _admin(self, login):
+        return self.env["res.users"].create(
+            {
+                "name": login,
+                "login": login,
+                "group_ids": [Command.link(self.env.ref("base.group_system").id)],
+            }
+        )
+
+    def _active_admins(self):
+        return (
+            self.env["res.users"]
+            .sudo()
+            .search(
+                [
+                    ("all_group_ids", "in", self.env.ref("base.group_system").ids),
+                    ("active", "=", True),
+                ]
+            )
+        )
+
+    def test_archiving_the_last_administrator_is_refused(self):
+        spare = self._admin("ru_arch_spare")
+        admins = self._active_admins()
+        self.assertIn(spare, admins)
+
+        (admins - spare).write({"active": False})
+        self.env.flush_all()
+        self.assertEqual(
+            self._active_admins(),
+            spare,
+            "archiving all but one administrator must be allowed",
+        )
+
+        with self.assertRaises(ValidationError):
+            spare.with_user(SUPERUSER_ID).write({"active": False})
+            self.env.flush_all()
+
+    def test_archiving_a_non_administrator_is_unaffected(self):
+        portal = new_test_user(
+            self.env, login="ru_arch_portal", groups="base.group_portal"
+        )
+        before = self._active_admins()
+
+        portal.with_user(SUPERUSER_ID).write({"active": False})
+        self.env.flush_all()
+
+        self.assertFalse(portal.active)
+        self.assertEqual(self._active_admins(), before)
+
+
+class TestBlankNameAvatar(TransactionCase):
+    def test_a_blank_after_strip_name_does_not_crash_create(self):
+        user = self.env["res.users"].create({"login": "ru_blank_name", "name": "   "})
+        self.env.flush_all()
+        self.assertFalse(
+            user.image_1920,
+            "no avatar can be generated from a name with no first character",
+        )
+        self.assertTrue(user.avatar_128, "the mixin still answers with a placeholder")
+
+    def test_the_import_path_accepts_a_blank_name(self):
+        result = self.env["res.users"].load(
+            ["login", "name"], [["ru_blank_load", "  "]]
+        )
+        self.assertFalse(
+            [m for m in result["messages"] if m.get("type") == "error"],
+            f"import must not fail on a padded-blank name: {result['messages']}",
+        )
+        self.assertTrue(result["ids"])
+
+    def test_a_real_name_still_gets_an_avatar(self):
+        user = self.env["res.users"].create(
+            {"login": "ru_real_name", "name": " Real Name "}
+        )
+        self.env.flush_all()
+        self.assertTrue(user.image_1920)
+
+
+class TestRoleIsWritable(TransactionCase):
+    def _user(self, login):
+        return self.env["res.users"].create({"name": login, "login": login})
+
+    def test_writing_role_changes_the_groups(self):
+        user = self._user("ru_role_write")
+        self.assertEqual(user.role, "group_user")
+
+        user.write({"role": "group_system"})
+        self.env.flush_all()
+        user.invalidate_recordset()
+
+        self.assertEqual(user.role, "group_system")
+        self.assertTrue(user._is_system())
+        self.assertTrue(user._is_internal(), "the implied internal group must remain")
+
+    def test_writing_role_back_to_user_drops_the_admin_group(self):
+        self.env["res.users"].create(
+            {
+                "name": "ru_role_spare_admin",
+                "login": "ru_role_spare_admin",
+                "group_ids": [Command.link(self.env.ref("base.group_system").id)],
+            }
+        )
+        user = self._user("ru_role_demote")
+        user.write({"role": "group_system"})
+        self.env.flush_all()
+
+        user.write({"role": "group_user"})
+        self.env.flush_all()
+        user.invalidate_recordset()
+
+        self.assertEqual(user.role, "group_user")
+        self.assertFalse(user._is_system())
+
+    def test_the_import_path_applies_the_role(self):
+        result = self.env["res.users"].load(
+            ["login", "name", "role"],
+            [["ru_role_import", "Ru Role Import", "group_system"]],
+        )
+        self.assertTrue(result["ids"], result["messages"])
+        self.env.flush_all()
+
+        user = self.env["res.users"].browse(result["ids"][0])
+        self.assertTrue(
+            user._is_system(),
+            "an imported Role column must produce the access rights it names",
+        )
+
+    def test_role_keeps_the_other_groups(self):
+        extra = self.env["res.groups"].create({"name": "RU Role Extra"})
+        user = self._user("ru_role_keep")
+        user.write({"group_ids": [Command.link(extra.id)]})
+        self.env.flush_all()
+
+        user.write({"role": "group_system"})
+        self.env.flush_all()
+        user.invalidate_recordset()
+
+        self.assertIn(extra, user.group_ids)
+        self.assertTrue(user._is_system())
+
+    def test_login_date_declares_no_write(self):
+        field = self.env["res.users"]._fields["login_date"]
+        self.assertTrue(
+            field.readonly,
+            "login_date resolves through a readonly target, so it takes no inverse",
+        )
+        self.assertIsNone(field.inverse)
+
+
+class TestCredentialsBindToSelf(TransactionCase):
+    PASSWORD = "Ru!Cred12345"
+
+    def _user(self, login, password=None):
+        user = self.env["res.users"].create({"name": login, "login": login})
+        user._change_password(password or self.PASSWORD)
+        self.env.flush_all()
+        return user
+
+    def test_credentials_answer_about_self_not_env_user(self):
+        victim = self._user("ru_cred_victim", "Ru!Victim12345")
+        caller = self._user("ru_cred_caller", "Ru!Caller12345")
+
+        with self.assertRaises(
+            AccessDenied,
+            msg="the caller's own password must not authenticate another record",
+        ):
+            victim.with_user(caller)._check_credentials(
+                {
+                    "login": caller.login,
+                    "password": "Ru!Caller12345",
+                    "type": "password",
+                },
+                {"interactive": True},
+            )
+
+        self.assertEqual(
+            victim.with_user(caller)._check_credentials(
+                {
+                    "login": victim.login,
+                    "password": "Ru!Victim12345",
+                    "type": "password",
+                },
+                {"interactive": True},
+            )["uid"],
+            victim.id,
+            "the record's own password must still authenticate it",
+        )
+
+    def test_the_returned_uid_is_the_checked_record(self):
+        user = self._user("ru_cred_uid")
+        public = self.env.ref("base.public_user")
+
+        result = user.with_user(public)._check_credentials(
+            {"login": user.login, "password": self.PASSWORD, "type": "password"},
+            {"interactive": True},
+        )
+
+        self.assertEqual(
+            result["uid"],
+            user.id,
+            "the uid must name the authenticated record, not the acting environment",
+        )
+
+    def test_a_multi_record_check_is_refused(self):
+        two = self._user("ru_cred_a") | self._user("ru_cred_b")
+        with self.assertRaises(ValueError):
+            two._check_credentials(
+                {"login": "x", "password": self.PASSWORD, "type": "password"},
+                {"interactive": True},
+            )
+
+
+class TestUnknownGroupReference(TransactionCase):
+    def test_an_uninstalled_module_stays_lenient(self):
+        user = self.env.ref("base.user_admin")
+        with self.assertNoLogs("odoo.addons.base.models.res_users", "WARNING"):
+            self.assertFalse(user.has_group("no_such_module.group_x"))
+            self.assertTrue(user.has_groups("!no_such_module.group_x"))
+
+    def test_a_typo_inside_a_loaded_module_is_named(self):
+        user = self.env.ref("base.user_admin")
+        with self.assertLogs("odoo.addons.base.models.res_users", "WARNING") as logs:
+            self.assertFalse(user.has_group("base.group_sytem_typo_probe"))
+        self.assertIn("group_sytem_typo_probe", "".join(logs.output))
+
+    def test_known_references_are_unaffected(self):
+        user = self.env.ref("base.user_admin")
+        self.assertTrue(user.has_group("base.group_system"))
+        self.assertTrue(user.has_groups("base.group_system,base.group_user"))
+        self.assertFalse(user.has_groups("!base.group_system"))
+        self.assertTrue(user.has_groups("!base.group_portal"))
+        self.assertFalse(user.has_groups("."))
+        self.assertFalse(user.has_groups(""))
+
+    def test_every_group_family_shares_one_debug_rule(self):
+        user = self.env.ref("base.user_admin")
+        no_one = self.env.ref("base.group_no_one")
+        user.write({"group_ids": [Command.link(no_one.id)]})
+        self.env.flush_all()
+
+        self.assertFalse(user.has_group("base.group_no_one"))
+        self.assertFalse(user.has_groups("base.group_no_one"))
+        self.assertFalse(user.has_any_group_id(no_one.ids))
+
+
+class TestRelatedInverseIsBatched(TransactionCase):
+    def _users(self, n, prefix):
+        return self.env["res.users"].create(
+            [{"name": f"{prefix}{i}", "login": f"{prefix}{i}"} for i in range(n)]
+        )
+
+    def _cost(self, users, vals):
+        self.env.flush_all()
+        before = self.env.cr.sql_log_count
+        users.write(vals)
+        self.env.flush_all()
+        return self.env.cr.sql_log_count - before
+
+    def test_one_shared_value_costs_one_write_however_many_records(self):
+        few = self._users(2, "ru_rel_few")
+        many = self._users(20, "ru_rel_many")
+        self.env.flush_all()
+
+        small = self._cost(few, {"name": "Ru Rel Shared"})
+        large = self._cost(many, {"name": "Ru Rel Shared"})
+
+        self.assertLessEqual(
+            large - small,
+            4,
+            f"writing one related value to 20 records must not cost per record "
+            f"(N=2 {small} queries, N=20 {large})",
+        )
+
+    def test_distinct_values_still_land_on_their_own_record(self):
+        users = self._users(3, "ru_rel_distinct")
+        self.env.flush_all()
+
+        users[0].name = "Ru Alpha"
+        users[1].name = "Ru Beta"
+        users[2].name = "Ru Gamma"
+        self.env.flush_all()
+        users.invalidate_recordset()
+
+        self.assertEqual(users.mapped("name"), ["Ru Alpha", "Ru Beta", "Ru Gamma"])
+        self.assertEqual(
+            users.partner_id.mapped("name"), ["Ru Alpha", "Ru Beta", "Ru Gamma"]
+        )
+
+    def test_the_last_record_wins_when_two_share_a_target(self):
+        company = self.env["res.company"].create({"name": "Ru Rel Co"})
+        users = self.env["res.users"].create(
+            [
+                {
+                    "name": f"ru_rel_share{i}",
+                    "login": f"ru_rel_share{i}",
+                    "company_id": company.id,
+                    "company_ids": [Command.set(company.ids)],
+                }
+                for i in range(3)
+            ]
+        )
+        self.env.flush_all()
+
+        partner = self.env["res.partner"].create({"name": "Ru Shared Target"})
+        users.write({"partner_id": partner.id})
+        self.env.flush_all()
+
+        users[0].name = "Ru First"
+        users[1].name = "Ru Second"
+        users[2].name = "Ru First"
+        self.env.flush_all()
+        partner.invalidate_recordset()
+
+        self.assertEqual(
+            partner.name,
+            "Ru First",
+            "the last record written must win, as it did record by record",
+        )
+
+    def test_a_falsy_value_still_reaches_the_target(self):
+        users = self._users(2, "ru_rel_falsy")
+        users.write({"email": "shared@example.com"})
+        self.env.flush_all()
+
+        users.write({"email": False})
+        self.env.flush_all()
+        users.invalidate_recordset()
+
+        self.assertFalse(any(users.mapped("email")))
+        self.assertFalse(any(users.partner_id.mapped("email")))
+
+
+class TestPasswordWriteIsBatched(TransactionCase):
+    def test_a_batch_password_write_costs_one_statement_per_row(self):
+        users = self.env["res.users"].create(
+            [{"name": f"ru_pw{i}", "login": f"ru_pw{i}"} for i in range(3)]
+        )
+        self.env.flush_all()
+
+        users.write({"password": "Ru!Batch12345"})
+        self.env.flush_all()
+
+        for user in users:
+            self.assertEqual(
+                user._check_credentials(
+                    {
+                        "login": user.login,
+                        "password": "Ru!Batch12345",
+                        "type": "password",
+                    },
+                    {"interactive": True},
+                )["uid"],
+                user.id,
+            )
+
+    def test_clearing_passwords_in_a_batch_clears_every_row(self):
+        users = self.env["res.users"].create(
+            [{"name": f"ru_pwc{i}", "login": f"ru_pwc{i}"} for i in range(3)]
+        )
+        users.write({"password": "Ru!Batch12345"})
+        self.env.flush_all()
+
+        users.write({"password": ""})
+        self.env.flush_all()
+
+        self.env.cr.execute(
+            "SELECT COUNT(*) FROM res_users WHERE id = ANY(%s) AND password IS NOT NULL",
+            (users.ids,),
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 0)
+
+
+class TestCryptContextConfiguration(TransactionCase):
+    def test_a_non_numeric_rounds_parameter_does_not_break_authentication(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "password.hashing.rounds", "not-a-number"
+        )
+        with mute_logger("odoo.addons.base.models.res_users"):
+            context = self.env["res.users"]._crypt_context()
+        self.assertTrue(context.hash("Ru!Rounds1234"))

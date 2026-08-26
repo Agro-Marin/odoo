@@ -164,7 +164,7 @@ class ResUsers(models.Model):
             self._totp_rate_limit_purge("code_check")
             self._totp_rate_limit_purge("send_email")
             return {
-                "uid": self.env.user.id,
+                "uid": self.id,
                 "auth_method": "totp_mail",
                 "mfa": "default",
             }
