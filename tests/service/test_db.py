@@ -2116,6 +2116,96 @@ class TestAdminPasswordComplexity:
         mock_save.assert_called_once_with(["admin_passwd"])
 
 
+class TestAdminPasswordPersistFailureRollsBack:
+    """A failed ``config.save`` must not leave the process holding a password
+    that is not on disk.
+
+    ``exp_change_admin_password`` sets the in-memory hash FIRST and persists
+    second, so if the write fails — read-only filesystem, full disk, a
+    permission change — the running server would go on accepting the new master
+    password while the config file still holds the old one.  Every destructive
+    database verb authorises against that hash, so the two would disagree until
+    the next restart, at which point the new password silently stops working.
+
+    The rollback that prevents it was covered by nothing: the whole
+    ``except Exception`` arm, both of its branches, was unreached (measured with
+    a line-coverage probe over the suite).  The sibling class above drives only
+    the success path.
+    """
+
+    @staticmethod
+    def _config(existing_hash):
+        cfg = _MockConfig({"list_db": True})
+        cfg.options = {} if existing_hash is None else {"admin_passwd": existing_hash}
+
+        def set_admin_password(value):
+            cfg.options["admin_passwd"] = f"hashed:{value}"
+
+        cfg.set_admin_password = set_admin_password
+        cfg.save = MagicMock(side_effect=OSError("read-only file system"))
+        return cfg
+
+    def test_an_existing_password_is_restored(self, db_mod):
+        import odoo.tools
+
+        cfg = self._config("hashed:old-password")
+        with patch.object(odoo.tools, "config", cfg):
+            with pytest.raises(OSError, match="read-only"):
+                db_mod.exp_change_admin_password("a-new-password")
+        assert cfg.options["admin_passwd"] == "hashed:old-password", (
+            "the in-memory hash still holds the new password after the write "
+            "failed; the running server and the config file now disagree about "
+            "the master credential"
+        )
+
+    def test_an_absent_password_is_removed_again(self, db_mod):
+        """``admin_passwd`` unset before the call must be unset after it.
+
+        Restoring ``None`` by assignment would leave the key present with a
+        ``None`` value, which ``verify_admin_password`` reads differently from
+        an absent key — hence the ``pop`` branch, which is the arm a single
+        happy-path test would never reach.
+        """
+        import odoo.tools
+
+        cfg = self._config(None)
+        with patch.object(odoo.tools, "config", cfg):
+            with pytest.raises(OSError):
+                db_mod.exp_change_admin_password("a-new-password")
+        assert "admin_passwd" not in cfg.options, f"key left behind: {cfg.options!r}"
+
+    def test_the_failure_is_logged_not_swallowed(self, db_mod, caplog):
+        """The exception propagates, and an operator gets a record naming the
+        cause — a silent revert would look to the caller like a password change
+        that simply did not take."""
+        import logging
+
+        import odoo.tools
+
+        cfg = self._config("hashed:old-password")
+        with (
+            patch.object(odoo.tools, "config", cfg),
+            caplog.at_level(logging.ERROR, logger="odoo.service.db.rpc"),
+        ):
+            with pytest.raises(OSError):
+                db_mod.exp_change_admin_password("a-new-password")
+        assert any(r.levelno >= logging.ERROR for r in caplog.records), (
+            "the reverted password change produced no operator-visible record"
+        )
+
+    def test_a_successful_save_keeps_the_new_password(self, db_mod):
+        """Guard the guard: if ``save`` never succeeded, the rollback tests
+        above would hold for the wrong reason."""
+        import odoo.tools
+
+        cfg = self._config("hashed:old-password")
+        cfg.save = MagicMock()
+        with patch.object(odoo.tools, "config", cfg):
+            assert db_mod.exp_change_admin_password("a-new-password") is True
+        assert cfg.options["admin_passwd"] == "hashed:a-new-password"
+        cfg.save.assert_called_once_with(["admin_passwd"])
+
+
 class TestExpRenameValidation:
     """exp_rename validates new_name against DBNAME_PATTERN at the service
     layer (not just the HTTP controller), so direct RPC callers are also
