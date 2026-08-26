@@ -395,9 +395,15 @@ class BaseCase(case.TestCase):
         self.addTypeEqualityFunc(etree._Element, self.assertTreesEqual)
         self.addTypeEqualityFunc(html.HtmlElement, self.assertTreesEqual)
         if methodName != "runTest":
-            self.test_tags = (self.test_tags or set()) | set(
-                self.get_method_additional_tags(getattr(self, methodName))
+            test_method = getattr(self, methodName)
+            test_tags = (self.test_tags or set()) | set(
+                self.get_method_additional_tags(test_method)
             )
+            # A method-level @tagged is applied here, over the class's tags, so
+            # "-at_install" can drop the position the class asked for.
+            test_tags |= getattr(test_method, "test_tags", set())
+            test_tags -= getattr(test_method, "test_tags_exclude", set())
+            self.test_tags = test_tags
 
     @classmethod
     def _request_handler(cls, s: Session, r: PreparedRequest, /, **kw):
@@ -1406,6 +1412,18 @@ def tagged(*tags: str) -> Callable:
     exclude = {t[1:] for t in tags if t.startswith("-")}
 
     def tags_decorator(obj: Any) -> Any:
+        if not isinstance(obj, type):
+            # A test *method*. Its tags cannot be resolved here: "-at_install"
+            # has to remove a tag the class contributes, and the class is not
+            # visible from the function. Keep both halves and let
+            # BaseCase.__init__ apply them over the class's set. Storing only
+            # the difference here is what made method-level @tagged a silent
+            # no-op: TagsSelector reads the *instance* attribute, which never
+            # saw the method's own tags.
+            obj.test_tags = getattr(obj, "test_tags", set()) | include
+            obj.test_tags_exclude = getattr(obj, "test_tags_exclude", set()) | exclude
+            return obj
+
         obj.test_tags = (getattr(obj, "test_tags", set()) | include) - exclude
         at_install = "at_install" in obj.test_tags
         post_install = "post_install" in obj.test_tags
