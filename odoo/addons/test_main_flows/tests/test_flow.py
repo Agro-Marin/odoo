@@ -146,7 +146,7 @@ class TestUi(BaseTestUi):
     def _setup_multicompany_access_error(self):
         company1 = self.env.company
         company2 = self.env["res.company"].create({"name": "second company"})
-        self.env["res.users"].browse(2).write(
+        self.env.ref("base.user_admin").write(
             {
                 "company_ids": [
                     Command.clear(),
