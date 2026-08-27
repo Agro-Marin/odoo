@@ -2,70 +2,66 @@ from odoo import models
 from odoo.libs.sql import SQL
 
 
+# This mixin builds the ``FROM`` expression of ``_auto = False`` reports from
+# structured registries (dicts for SELECT, lists for FROM / WHERE / GROUP /
+# ORDER) rather than from string-manipulation of monolithic SQL methods.
+# Subclasses add, modify, or remove entries via normal dict / list operations.
+#
+# Composition with ``mixin.materialized.view``
+# ---------------------------------------------
+# When a model also inherits ``mixin.materialized.view``, its ``_materialized``
+# class attribute is True.  ``_table_query`` then returns ``None`` so the ORM
+# reads from the physical materialized view at ``self._table`` instead of
+# inlining the query as a subquery.  ``_prepare_table_query()`` is still used to
+# populate the MV via ``_create_materialized_view()``.
+#
+# Trust contract for registry values
+# -----------------------------------
+# Every string returned by the ``_get_*`` methods is inserted into SQL
+# verbatim -- there is no parameter binding. *Never* build registry values
+# from ``self.env.context``, request data, or any other untrusted source.
+# For parameterized conditions, return a ``SQL`` object directly (supported
+# in ``_get_where_conditions``) -- e.g. ``SQL("o.partner_id = %s", partner_id)``.
+#
+# Registry hooks (override these)
+# ---------------------------------
+# - ``_get_fields_select() -> dict``  : ``{field_name: sql_expression}``
+# - ``_get_from_tables()  -> list``   : ``[(table, alias, join_type, on)]``
+# - ``_get_where_conditions() -> list``  : ``[str | SQL]``
+# - ``_get_fields_group_by()  -> list``  : ``[str]``
+# - ``_get_fields_order_by()  -> list``  : ``[str]``
+# - ``_with_cte() -> SQL`` (optional, default ``SQL.EMPTY``)
+#
+# Example
+# -------
+# class MyReport(models.Model):
+#     _name = "my.report"
+#     _inherit = "mixin.sql.report"
+#     _auto = False
+#
+#     product_id = fields.Many2one("product.product", readonly=True)
+#     total_qty = fields.Float(readonly=True)
+#
+#     def _get_fields_select(self):
+#         return {
+#             "id": "MIN(l.id)",
+#             "product_id": "l.product_id",
+#             "total_qty": "SUM(l.quantity)",
+#         }
+#
+#     def _get_from_tables(self):
+#         return [
+#             ("sale_order_line", "l", None, None),
+#             ("sale_order", "o", "LEFT JOIN", "l.order_id = o.id"),
+#         ]
+#
+#     def _get_where_conditions(self):
+#         return ["l.display_type IS NULL"]
+#
+#     def _get_fields_group_by(self):
+#         return ["l.product_id"]
 class MixinSqlReport(models.AbstractModel):
-    """Registry-driven SQL construction for analytical reports.
-
-    This mixin builds the ``FROM`` expression of ``_auto = False`` reports from
-    structured registries (dicts for SELECT, lists for FROM / WHERE / GROUP /
-    ORDER) rather than from string-manipulation of monolithic SQL methods.
-    Subclasses add, modify, or remove entries via normal dict / list operations.
-
-    Composition with ``mixin.materialized.view``
-    --------------------------------------------
-    When a model also inherits ``mixin.materialized.view``, its ``_materialized``
-    class attribute is True.  ``_table_query`` then returns ``None`` so the ORM
-    reads from the physical materialized view at ``self._table`` instead of
-    inlining the query as a subquery.  ``_prepare_table_query()`` is still used to
-    populate the MV via ``_create_materialized_view()``.
-
-    Trust contract for registry values
-    ----------------------------------
-    Every string returned by the ``_get_*`` methods is inserted into SQL
-    verbatim — there is no parameter binding.  **Never** build registry values
-    from ``self.env.context``, request data, or any other untrusted source.
-    For parameterized conditions, return a ``SQL`` object directly (supported
-    in ``_get_where_conditions``) — e.g. ``SQL("o.partner_id = %s", partner_id)``.
-
-    Registry hooks (override these)
-    -------------------------------
-    - ``_get_fields_select() -> dict``  : ``{field_name: sql_expression}``
-    - ``_get_from_tables()  -> list``   : ``[(table, alias, join_type, on)]``
-    - ``_get_where_conditions() -> list``  : ``[str | SQL]``
-    - ``_get_fields_group_by()  -> list``  : ``[str]``
-    - ``_get_fields_order_by()  -> list``  : ``[str]``
-    - ``_with_cte() -> SQL`` (optional, default ``SQL.EMPTY``)
-
-    Example
-    -------
-    ::
-
-        class MyReport(models.Model):
-            _name = "my.report"
-            _inherit = "mixin.sql.report"
-            _auto = False
-
-            product_id = fields.Many2one("product.product", readonly=True)
-            total_qty = fields.Float(readonly=True)
-
-            def _get_fields_select(self):
-                return {
-                    "id": "MIN(l.id)",
-                    "product_id": "l.product_id",
-                    "total_qty": "SUM(l.quantity)",
-                }
-
-            def _get_from_tables(self):
-                return [
-                    ("sale_order_line", "l", None, None),
-                    ("sale_order", "o", "LEFT JOIN", "l.order_id = o.id"),
-                ]
-
-            def _get_where_conditions(self):
-                return ["l.display_type IS NULL"]
-
-            def _get_fields_group_by(self):
-                return ["l.product_id"]
-    """
+    """Registry-driven SQL construction for ``_auto = False`` analytical reports."""
 
     _name = "mixin.sql.report"
     _description = "SQL Report Construction Helper"

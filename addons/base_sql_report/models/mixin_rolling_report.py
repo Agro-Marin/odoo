@@ -6,48 +6,46 @@ from odoo.libs.sql import SQL
 _logger = logging.getLogger(__name__)
 
 
+# ``mixin.materialized.view`` re-derives every row on every tick, because
+# ``REFRESH MATERIALIZED VIEW`` has no partial form.  That is the right shape
+# for a report over mutable source rows.  It is the wrong shape for a report
+# whose grain is a closed period -- a day, a week -- where yesterday's answer
+# is settled and only the newest period can still move.  Re-deriving the
+# settled part is pure waste, and it grows without bound: the GPS daily report
+# reached 69s and 2.7 GB of temp spill per hourly tick to produce the 95 rows
+# that could change out of 7,404.
+#
+# So this stores the report in a real table and refreshes a trailing window:
+# ``DELETE`` the rows at or after a cutoff, ``INSERT`` them back from the
+# source.  Everything older is left alone.
+#
+# Two things make that give the same answer as a full rebuild rather than
+# merely a similar one, and both are mandatory:
+#
+# - A bounded scan is not a bounded window.  If the report uses window
+#   functions (``LAG``, running totals) then the first source row inside the
+#   scan has no predecessor and computes differently than it would in a full
+#   pass.  ``_rolling_scope`` must therefore also re-admit each partition's
+#   last row from *before* the cutoff.  Measured on the GPS report, omitting
+#   those seed rows silently dropped one capped time-gap per device that had
+#   been quiet across the window edge: an answer that looks plausible and is
+#   wrong.
+# - The cutoff must land on a grain boundary.  Deleting from the middle of a
+#   period and re-inserting only the part of it the scan saw would truncate
+#   that period.  ``_rolling_cutoff_sql`` returns a value of the grain column,
+#   not "now minus N days".
+#
+# A subclass declares the grain (``_rolling_key_field``), the window length
+# (``_rolling_window_days``) and the scope predicate, and consults
+# ``_rolling_scope_sql()`` wherever it builds its FROM.  ``refresh()`` then
+# does the window; ``refresh(full=True)`` rebuilds from scratch, which is what
+# to call when something feeding the settled part changes.
+#
+# Compose with ``mixin.sql.report``: the window refresh names the report's
+# columns explicitly on both sides of its ``INSERT ... SELECT``, and takes
+# them from ``_get_fields_select()``.
 class MixinRollingReport(models.AbstractModel):
-    """A report whose oldest rows never change, refreshed one window at a time.
-
-    ``mixin.materialized.view`` re-derives every row on every tick, because
-    ``REFRESH MATERIALIZED VIEW`` has no partial form.  That is the right shape
-    for a report over mutable source rows.  It is the wrong shape for a report
-    whose grain is a closed period -- a day, a week -- where yesterday's answer
-    is settled and only the newest period can still move.  Re-deriving the
-    settled part is pure waste, and it grows without bound: the GPS daily report
-    reached 69s and 2.7 GB of temp spill per hourly tick to produce the 95 rows
-    that could change out of 7,404.
-
-    So this stores the report in a real table and refreshes a trailing window:
-    ``DELETE`` the rows at or after a cutoff, ``INSERT`` them back from the
-    source.  Everything older is left alone.
-
-    Two things make that give the same answer as a full rebuild rather than
-    merely a similar one, and both are mandatory:
-
-    - **A bounded scan is not a bounded window.**  If the report uses window
-      functions (``LAG``, running totals) then the first source row inside the
-      scan has no predecessor and computes differently than it would in a full
-      pass.  ``_rolling_scope`` must therefore also re-admit each partition's
-      last row from *before* the cutoff.  Measured on the GPS
-      report, omitting those seed rows silently dropped one capped time-gap per
-      device that had been quiet across the window edge: an answer that looks
-      plausible and is wrong.
-    - **The cutoff must land on a grain boundary.**  Deleting from the middle of
-      a period and re-inserting only the part of it the scan saw would truncate
-      that period.  ``_rolling_cutoff_sql`` returns a value of the grain column,
-      not "now minus N days".
-
-    A subclass declares the grain (``_rolling_key_field``), the window length
-    (``_rolling_window_days``) and the scope predicate, and consults
-    ``_rolling_scope_sql()`` wherever it builds its FROM.  ``refresh()`` then
-    does the window; ``refresh(full=True)`` rebuilds from scratch, which is what
-    to call when something feeding the settled part changes.
-
-    Compose with ``mixin.sql.report``: the window refresh names the report's
-    columns explicitly on both sides of its ``INSERT ... SELECT``, and takes
-    them from ``_get_fields_select()``.
-    """
+    """A report whose oldest rows never change, refreshed one window at a time."""
 
     _name = "mixin.rolling.report"
     _inherit = ["mixin.materialized.view"]

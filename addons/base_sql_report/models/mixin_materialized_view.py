@@ -26,14 +26,12 @@ _TRANSIENT_REFRESH_ERRORS = (
 )
 
 
+# Provides idempotent ``_create_materialized_view()``, safe ``refresh()`` with
+# a fallback between CONCURRENTLY and blocking variants, and a cron entry
+# point.  Introspection queries are scoped to ``current_schema`` so
+# multi-schema databases are handled correctly.
 class MixinMaterializedView(models.AbstractModel):
-    """Abstract mixin for models backed by PostgreSQL materialized views.
-
-    Provides idempotent ``_create_materialized_view()``, safe ``refresh()`` with
-    a fallback between CONCURRENTLY and blocking variants, and a cron entry
-    point.  Introspection queries are scoped to ``current_schema`` so multi-
-    schema databases are handled correctly.
-    """
+    """Abstract mixin for models backed by PostgreSQL materialized views."""
 
     _name = "mixin.materialized.view"
     _description = "Materialized View Mixin"
