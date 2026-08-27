@@ -10,7 +10,7 @@ from odoo.tools.assets.esm_graph import _MODULE_SYNTAX_RE
 from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.json import scriptsafe as json
 
-from .common import asset_file
+from .common import asset_file, make_bundle
 from odoo.addons.base.models.assetsbundle import (
     AssetsBundle,
     JavascriptAsset,
@@ -60,13 +60,11 @@ class TestModuleSyntaxGuard(TransactionCase):
     BUNDLE = "test_assetsbundle.legacy_guard"
 
     def _legacy_bundle(self, name=None):
-        return AssetsBundle(
+        return make_bundle(
+            self,
             name or self.BUNDLE,
-            [
-                asset_file("/test_assetsbundle/static/src/mod.js", MODULE_JS),
-                asset_file("/test_assetsbundle/static/src/plain.js", PLAIN_JS),
-            ],
-            env=self.env,
+            ("/test_assetsbundle/static/src/mod.js", MODULE_JS),
+            ("/test_assetsbundle/static/src/plain.js", PLAIN_JS),
         )
 
     def test_module_file_stops_the_build_when_someone_can_read_it(self):
@@ -170,13 +168,11 @@ class TestModuleSyntaxGuard(TransactionCase):
 
 class TestTemplateIifeAsiGuard(TransactionCase):
     def _bundle(self, name, debug=False):
-        return AssetsBundle(
+        return make_bundle(
+            self,
             name,
-            [
-                asset_file("/test/audit_g10_asi.js", UNTERMINATED_JS),
-                asset_file("/test/audit_g10_asi.xml", TEMPLATE_XML),
-            ],
-            env=self.env,
+            ("/test/audit_g10_asi.js", UNTERMINATED_JS),
+            ("/test/audit_g10_asi.xml", TEMPLATE_XML),
             css=False,
             debug_assets=debug,
         )
