@@ -6,6 +6,8 @@
 This module will test the main workflow of Odoo.
 It will install some main apps and will try to execute the most important actions.
 """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "web_tour",
         "crm",
@@ -14,14 +16,14 @@ It will install some main apps and will try to execute the most important action
         "mrp",
         "account",
     ],
-    "installable": True,
-    "post_init_hook": "_auto_install_enterprise_dependencies",
-    "data": ["models/ir.model.access.csv"],
+    "data": [
+        "models/ir.model.access.csv",
+    ],
     "assets": {
         "web.assets_tests": [
             "test_main_flows/static/tests/tours/*.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "post_init_hook": "_auto_install_enterprise_dependencies",
 }
