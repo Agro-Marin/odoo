@@ -1,15 +1,13 @@
 from odoo import _, api, exceptions, fields, models
 
 
+# Unlike challenges (which are flat lists of independent goals), quests
+# are *ordered sequences* of steps with prerequisites, narrative context,
+# and a sense of progression.  They map to Octalysis drives 1 (Epic
+# Meaning) and 3 (Empowerment of Creativity) by giving users a story
+# and choices.
 class GamificationQuest(models.Model):
-    """Multi-step narrative journey wrapping goal definitions.
-
-    Unlike challenges (which are flat lists of independent goals), quests
-    are *ordered sequences* of steps with prerequisites, narrative context,
-    and a sense of progression.  They map to Octalysis drives 1 (Epic
-    Meaning) and 3 (Empowerment of Creativity) by giving users a story
-    and choices.
-    """
+    """Multi-step narrative journey wrapping goal definitions."""
 
     _name = "gamification.quest"
     _description = "Gamification Quest"
@@ -91,13 +89,11 @@ class GamificationQuest(models.Model):
             quest.completion_count = counts.get(quest.id, 0)
 
 
+# Each step references a goal definition that must be met.  Steps are
+# ordered by sequence and may have prerequisite steps that must be
+# completed first.
 class GamificationQuestStep(models.Model):
-    """Individual step within a quest.
-
-    Each step references a goal definition that must be met.  Steps are
-    ordered by sequence and may have prerequisite steps that must be
-    completed first.
-    """
+    """Individual step within a quest."""
 
     _name = "gamification.quest.step"
     _description = "Quest Step"
@@ -167,12 +163,10 @@ class GamificationQuestStep(models.Model):
                 )
 
 
+# One enrollment per user per quest.  Each enrollment has step
+# completion records that track which steps are done.
 class GamificationQuestEnrollment(models.Model):
-    """Tracks a user's progress through a quest.
-
-    One enrollment per user per quest.  Each enrollment has step
-    completion records that track which steps are done.
-    """
+    """Tracks a user's progress through a quest."""
 
     _name = "gamification.quest.enrollment"
     _description = "Quest Enrollment"

@@ -3,15 +3,13 @@ from odoo import api, fields, models
 from .gamification_utils import start_end_date_for_period
 
 
+# Teams aggregate individual member performance into a team score.
+# They can be manually composed or auto-populated from an HR department.
+# Team-vs-team competition increases engagement for all participants --
+# collaboration within a team offsets the demotivation that individual
+# leaderboards cause for the bottom 80% of performers.
 class GamificationTeam(models.Model):
-    """Team for collaborative gamification challenges.
-
-    Teams aggregate individual member performance into a team score.
-    They can be manually composed or auto-populated from an HR department.
-    Team-vs-team competition increases engagement for all participants —
-    collaboration within a team offsets the demotivation that individual
-    leaderboards cause for the bottom 80% of performers.
-    """
+    """Team for collaborative gamification challenges."""
 
     _name = "gamification.team"
     _description = "Gamification Team"
