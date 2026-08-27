@@ -65,7 +65,7 @@ class test_inherits(common.TransactionCase):
 
     def test_51_define_model_inherit(self):
         model = self.env["test_inherit_parent"]
-        self.assertEqual(bool(model._fields["foo"]), True)
+        self.assertIn("foo", model._fields)
 
     def test_60_inherit_with_python(self):
         self.assertEqual(self.env["test.inherit.mother"].foo(), 42)
