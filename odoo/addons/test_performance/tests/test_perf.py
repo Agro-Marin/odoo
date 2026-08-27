@@ -575,22 +575,37 @@ class TestCacheInternals(PerfTestCase):
 
     def test_07_invalidate_all(self):
         records = self.Model.search([], limit=100)
-        _ = records.mapped("name")
 
-        def bench():
+        # Repopulating the cache once before the loop and then invalidating
+        # it ITERATIONS times meant only the first call ever invalidated a
+        # populated cache -- the rest measured clearing an already-empty
+        # one. _bench doesn't separate an untimed setup phase from the
+        # timed call, so this repopulates (untimed) right before each
+        # timed invalidate_all() instead.
+        timer = PerfTimer()
+        for _ in range(WARMUP):
+            records.mapped("name")
             self.env.invalidate_all()
-
-        timer = _bench(bench)
+        for _ in range(ITERATIONS):
+            records.mapped("name")
+            timer.start()
+            self.env.invalidate_all()
+            timer.stop()
         self._log(timer.stats("invalidate_all()", warmup=0))
 
     def test_08_invalidate_recordset(self):
         records = self.Model.search([], limit=100)
-        _ = records.mapped("name")
 
-        def bench():
+        # Same reasoning as test_07_invalidate_all.
+        timer = PerfTimer()
+        for _ in range(WARMUP):
+            records.mapped("name")
             records.invalidate_recordset()
-
-        timer = _bench(bench)
+        for _ in range(ITERATIONS):
+            records.mapped("name")
+            timer.start()
+            records.invalidate_recordset()
+            timer.stop()
         self._log(timer.stats("invalidate_recordset(100)", warmup=0))
 
     def test_09_get_cache(self):
