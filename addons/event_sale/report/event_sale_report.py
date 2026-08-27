@@ -5,8 +5,7 @@ from odoo.addons.sale import const
 
 
 class EventSaleReport(models.Model):
-    """Event Registrations-based sales report, allowing to analyze sales and number of seats
-    by event (type), ticket, etc. Each opened record will also give access to all this information."""
+    """Event Registrations-based sales report."""
 
     _name = "event.sale.report"
     _description = "Event Sales Report"

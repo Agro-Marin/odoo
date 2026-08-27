@@ -115,18 +115,11 @@ class SaleOrderLine(models.Model):
 
     @api.depends("event_slot_id", "event_ticket_id")
     def _compute_name(self):
-        """Override to add the compute dependency.
-
-        The custom name logic can be found below in _get_line_multiline_description_sale.
-        """
+        """Override to add the compute dependency (see _get_line_multiline_description_sale)."""
         super()._compute_name()
 
     def _get_line_multiline_description_sale(self):
-        """We override this method because we decided that:
-        The default description of a sales order line containing a ticket must be different than the default description when no ticket is present.
-        So in that case we use the description computed from the ticket, instead of the description computed from the product.
-        We need this override to be defined here in sales order line (and not in product) because here is the only place where the event_ticket_id is referenced.
-        """
+        """Return the ticket-based description when a ticket is set, else defer to the product."""
         if self.event_ticket_id:
             return (
                 self.event_ticket_id._get_ticket_multiline_description()
