@@ -1,8 +1,6 @@
 import odoo.tests
 
-SEARCH_PANEL_ERROR = {
-    "error_msg": "Too many items to display.",
-}
+from .common import SEARCH_PANEL_ERROR, strip_version
 
 
 @odoo.tests.tagged("post_install", "-at_install")
@@ -17,9 +15,7 @@ class TestSelectRange(odoo.tests.TransactionCase):
 
     def _select_range(self, *args, **kwargs):
         result = self.SourceModel.search_panel_select_range(*args, **kwargs)
-        if isinstance(result, dict):
-            result.pop("__version", None)
-        return result
+        return strip_version(result)
 
     def test_many2one_empty(self):
         result = self._select_range("folder_id")

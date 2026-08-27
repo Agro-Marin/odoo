@@ -2,9 +2,7 @@ import json
 
 import odoo.tests
 
-SEARCH_PANEL_ERROR = {
-    "error_msg": "Too many items to display.",
-}
+from .common import SEARCH_PANEL_ERROR, strip_version
 
 
 @odoo.tests.tagged("post_install", "-at_install")
@@ -17,9 +15,7 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
 
     def _select_multi_range(self, *args, **kwargs):
         result = self.SourceModel.search_panel_select_multi_range(*args, **kwargs)
-        if isinstance(result, dict):
-            result.pop("__version", None)
-        return result
+        return strip_version(result)
 
     def test_many2one_empty(self):
         result = self._select_multi_range("tag_id")
