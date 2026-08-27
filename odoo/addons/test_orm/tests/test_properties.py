@@ -1703,7 +1703,7 @@ class PropertiesCase(TestPropertiesMixin):
             }
         ]
 
-        def name_get(records):
+        def id_name_pairs(records):
             return list(zip(records._ids, records.mapped("display_name"), strict=False))
 
         with self.assertQueryCount(4):
@@ -1723,19 +1723,19 @@ class PropertiesCase(TestPropertiesMixin):
                 },
             ]
             attributes = self.message_1.read(["attributes"])[0]["attributes"]
-            self.assertEqual(attributes[0]["value"], name_get(partners[:10]))
+            self.assertEqual(attributes[0]["value"], id_name_pairs(partners[:10]))
 
         self.assertIsInstance(hash(self.message_1.attributes), int)
 
         partners[:5].unlink()
         with self.assertQueryCount(5):
             attributes = self.message_1.read(["attributes"])[0]["attributes"]
-            self.assertEqual(attributes[0]["value"], name_get(partners[5:10]))
+            self.assertEqual(attributes[0]["value"], id_name_pairs(partners[5:10]))
 
         partners[5].unlink()
         with self.assertQueryCount(5):
             properties = self.message_1.read(["attributes"])[0]["attributes"]
-        self.assertEqual(properties[0]["value"], name_get(partners[6:10]))
+        self.assertEqual(properties[0]["value"], id_name_pairs(partners[6:10]))
 
         attributes = self.message_1.read(["attributes"])[0]["attributes"]
         self.message_1.invalidate_recordset()
@@ -1761,7 +1761,7 @@ class PropertiesCase(TestPropertiesMixin):
         properties = self.message_1.read(["attributes"], load=None)[0]["attributes"]
         self.assertEqual(
             properties[0]["value"],
-            name_get(partners[6:10]),
+            id_name_pairs(partners[6:10]),
             msg="Should removed duplicated ids",
         )
 
@@ -2277,8 +2277,15 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.env.invalidate_all()
 
+        # Reassigning the parent discussion must not raise despite the rule
+        # above scoping this non-superuser user to discussion_1 only (the
+        # write itself is checked against the record's pre-write, still
+        # rule-matching state), and `attributes` must recompute against the
+        # new parent's own definition (discussion_2's "state" selection,
+        # not discussion_1's "discussion_color_code"/"moderator_partner_id").
         message.discussion = self.discussion_2
         self.env.flush_all()
+        self.assertEqual(message.attributes, {"state": "draft"})
 
     @users("test")
     def test_properties_field_no_parent_access(self):
@@ -3371,7 +3378,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 
     @mute_logger("odoo.fields")
     def test_properties_field_read_group_date_month(self, date_type="date"):
-        self._properties_field_read_group_date_prepare()
+        self._properties_field_read_group_date_prepare(date_type)
         Model = self.env["test_orm.message"]
 
         result = Model.formatted_read_group(
@@ -3410,7 +3417,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         first_week_day = int(get_lang(self.env).week_start) - 1
         self.assertEqual(first_week_day, 6, "First day of the week must be Sunday")
 
-        self._properties_field_read_group_date_prepare()
+        self._properties_field_read_group_date_prepare(date_type)
         Model = self.env["test_orm.message"]
 
         result = Model.formatted_read_group(
@@ -3450,11 +3457,19 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
         self._check_domains_count(result)
 
+        # Week boundaries always land on a day boundary, but a datetime
+        # property's extra_domain still spells them with a "00:00:00" time
+        # component that a plain "%Y-%m-%d" format can't parse.
+        boundary_format = "%Y-%m-%d %H:%M:%S" if date_type == "datetime" else "%Y-%m-%d"
         for line in result[1:]:
             self.assertEqual(line["__extra_domain"][1][1], ">=")
             self.assertEqual(line["__extra_domain"][2][1], "<")
-            start = datetime.datetime.strptime(line["__extra_domain"][1][2], "%Y-%m-%d")
-            end = datetime.datetime.strptime(line["__extra_domain"][2][2], "%Y-%m-%d")
+            start = datetime.datetime.strptime(
+                line["__extra_domain"][1][2], boundary_format
+            )
+            end = datetime.datetime.strptime(
+                line["__extra_domain"][2][2], boundary_format
+            )
             self.assertEqual(start.weekday(), first_week_day)
             self.assertEqual(end.weekday(), first_week_day)
 
@@ -3474,8 +3489,12 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         for line in result[1:]:
             self.assertEqual(line["__extra_domain"][1][1], ">=")
             self.assertEqual(line["__extra_domain"][2][1], "<")
-            start = datetime.datetime.strptime(line["__extra_domain"][1][2], "%Y-%m-%d")
-            end = datetime.datetime.strptime(line["__extra_domain"][2][2], "%Y-%m-%d")
+            start = datetime.datetime.strptime(
+                line["__extra_domain"][1][2], boundary_format
+            )
+            end = datetime.datetime.strptime(
+                line["__extra_domain"][2][2], boundary_format
+            )
             self.assertEqual(
                 start.weekday(), 2, "First day of the week must be Wednesday"
             )
@@ -3485,7 +3504,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 
     @mute_logger("odoo.fields")
     def test_properties_field_read_group_date_year(self, date_type="date"):
-        self._properties_field_read_group_date_prepare()
+        self._properties_field_read_group_date_prepare(date_type)
         Model = self.env["test_orm.message"]
 
         result = Model.formatted_read_group(
@@ -3976,8 +3995,8 @@ class PropertiesGroupByCase(TestPropertiesMixin):
     def _check_domains_count(self, result):
         for line in result:
             records = self.env["test_orm.message"].search(line["__extra_domain"])
-            count_key = next(key for key in line if "_count" in key)
-            self.assertEqual(len(records), line[count_key])
+            self.assertIn("__count", line, "every caller aggregates on __count")
+            self.assertEqual(len(records), line["__count"])
 
     def _check_many_falsy_group(self, property_name, result):
         Model = self.env["test_orm.message"]
@@ -4134,6 +4153,13 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.subtest_properties_field_web_read_group_date_like("datetime")
 
     def test_unfold_read_specification_on_web_read_group(self):
+        # Groups by a plain many2one (`author`), not a properties field —
+        # this predates the properties-groupby tests around it and checks
+        # `read_specification` unfolding on `test_orm.message` specifically,
+        # not `auto_unfold` itself (already covered generically in
+        # odoo/addons/test_read_group/tests/test_web_read_group.py). Kept
+        # here rather than moved: test_orm scope for this audit round
+        # doesn't extend to editing test_read_group.
         self.messages.discussion = self.discussion_1
         self.discussion_1.write({"participants": [Command.link(self.test_user.id)]})
         self.message_2.author = self.test_user

@@ -1159,7 +1159,7 @@ class TestOrmComputedInverseOne2many(models.Model):
             )
 
 
-class TesOrmComputedInverseOne2manyLine(models.Model):
+class TestOrmComputedInverseOne2manyLine(models.Model):
     _name = "test_orm.computed_inverse_one2many_line"
     _description = "Line of a computed/inverse one2many"
 
