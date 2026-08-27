@@ -12,9 +12,6 @@ from odoo.addons.base.tests.test_expression import TransactionExpressionCase
 
 
 class TestDomain(TransactionExpressionCase):
-    def _search(self, model, domain, init_domain=Domain.TRUE, test_complement=False):
-        return super()._search(model, domain, init_domain, test_complement)
-
     def test_00_test_bool_undefined(self):
 
         self.env["ir.model.fields"].create(
