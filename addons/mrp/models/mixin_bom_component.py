@@ -3,19 +3,7 @@ from odoo.exceptions import ValidationError
 
 
 class MixinBomComponent(models.AbstractModel):
-    """A quantity of a product on a BoM: a component line or a by-product.
-
-    The two models are the same shape -- a product, how much of it, in which
-    unit, produced or consumed at which operation -- and had said so twice:
-    two byte-identical `_get_product_catalog_lines_data`, two `_check_product
-    _uom_id_category` differing only in their message, two `action_add_from
-    _catalog` differing only in the one2many they write back to.
-
-    Only what genuinely differs is left to the models: the field labels, whether
-    the product column is indexed, and the sentence a translator reads. The
-    catalog child field is a class attribute rather than a method because it is
-    a fact about the model, not a decision.
-    """
+    """A quantity of a product on a BoM: a component line or a by-product."""
 
     _name = "mixin.bom.component"
     _inherit = ["mixin.bom.variant.line"]

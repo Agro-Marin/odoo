@@ -2,25 +2,7 @@ from odoo import fields, models
 
 
 class MixinMrpProduct(models.AbstractModel):
-    """What `product.template` and `product.product` say identically about BoMs.
-
-    The two carried six members that differed in exactly one token: which field
-    names this product on `mrp.bom.line` and on `stock.move`, and which
-    one2many holds the BoMs archived along with it. Both are class attributes
-    here, and the bodies are written once.
-
-    Only what is genuinely the same lives here. `bom_count`, `mrp_product_qty`
-    and `is_kit` have one shape and two different derivations -- a variant is a
-    kit through a BoM of its own *or* one its template carries for every
-    variant, and a template's manufactured quantity is the sum over its variants
-    -- so the fields are declared here and each model computes them itself.
-
-    The mixin sits last in the MRO (`_inherit = ["<model>", "mixin.mrp.product"]`),
-    so every `super()` call below resolves to a BaseModel-level implementation:
-    `action_archive` from `odoo.orm.models.mixins.lifecycle` and
-    `_get_backend_root_menu_ids` from `mail`'s `base` extension. Nothing here may
-    call `super()` on a method that only `product.template` defines.
-    """
+    """BoM behaviour `product.template` and `product.product` implement identically."""
 
     _name = "mixin.mrp.product"
     _description = "BoM behaviour shared by product.template and product.product"
