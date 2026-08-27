@@ -89,8 +89,10 @@ class TestPerformanceTimeit(TransactionCase):
     ) -> float:
         if ctx is None:
             ctx = {}
-        assert repeat > 1, "repeat at least twice as the first result is often slower"
-        assert number > 0, "number of runs must be positive"
+        self.assertGreater(
+            repeat, 1, "repeat at least twice as the first result is often slower"
+        )
+        self.assertGreater(number, 0, "number of runs must be positive")
         args = {
             "globals": {**ctx, "records": records},
             "repeat": repeat,
