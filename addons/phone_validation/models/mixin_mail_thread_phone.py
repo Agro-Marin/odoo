@@ -10,22 +10,7 @@ PHONE_REGEX_PATTERN = r"[\s\\./\(\)\-]"
 
 
 class MixinMailThreadPhone(models.AbstractModel):
-    """Purpose of this mixin is to offer two services
-
-      * compute a sanitized phone number based on _phone_get_number_fields.
-        It takes first sanitized value, trying each field returned by the
-        method (see ``BaseModel._phone_get_number_fields()`` for more details
-        about the usage of this method);
-      * compute blacklist state of records. It is based on phone.blacklist
-        model and give an easy-to-use field and API to manipulate blacklisted
-        records;
-
-    Main API methods
-
-      * ``_phone_set_blacklisted``: set recordset as blacklisted;
-      * ``_phone_reset_blacklisted``: reactivate recordset (even if not blacklisted
-        this method can be called safely);
-    """
+    """Compute a sanitized phone number and manage phone-blacklist state for records."""
 
     _name = "mixin.mail.thread.phone"
     _description = "Phone Blacklist Mixin"
@@ -200,7 +185,7 @@ class MixinMailThreadPhone(models.AbstractModel):
         for record in self:
             record.phone_sanitized_blacklisted = record.phone_sanitized in blacklist
             phone_blacklisted = False
-            # Note that the limitation of only having 1 phone_sanitized value means that a phone/mobile number
+            # The limitation of only having 1 phone_sanitized value means that a phone/mobile number
             # may not be calculated as blacklisted even though it is if both field values exist in a model.
             for number_field in number_fields:
                 phone_blacklisted = (
