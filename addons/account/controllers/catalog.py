@@ -1,4 +1,4 @@
-from odoo.http import request, route
+from odoo.http import route
 
 from odoo.addons.product.controllers.catalog import ProductCatalogController
 
@@ -6,7 +6,7 @@ from odoo.addons.product.controllers.catalog import ProductCatalogController
 class ProductCatalogAccountController(ProductCatalogController):
     @route("/product/catalog/get_sections", auth="user", type="jsonrpc", readonly=True)
     def product_catalog_get_sections(self, res_model, order_id, child_field, **kwargs):
-        order = request.env[res_model].browse(order_id)
+        order = self._get_order(res_model, order_id)
         return order.with_company(order.company_id)._get_sections(child_field, **kwargs)
 
     @route("/product/catalog/create_section", auth="user", type="jsonrpc")
@@ -19,7 +19,7 @@ class ProductCatalogAccountController(ProductCatalogController):
         position,
         **kwargs,
     ):
-        order = request.env[res_model].browse(order_id)
+        order = self._get_order(res_model, order_id)
         return order.with_company(order.company_id)._create_section(
             child_field,
             name,
@@ -36,7 +36,7 @@ class ProductCatalogAccountController(ProductCatalogController):
         child_field,
         **kwargs,
     ):
-        order = request.env[res_model].browse(order_id)
+        order = self._get_order(res_model, order_id)
         return order.with_company(order.company_id)._resequence_sections(
             sections,
             child_field,
