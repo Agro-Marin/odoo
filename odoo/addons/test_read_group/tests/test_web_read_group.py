@@ -9,10 +9,10 @@ class TestWebReadGroup(common.TransactionCase):
     def setUp(self):
         super().setUp()
         model_cls = type(self.env["base"])
-        original = model_cls.web_read_group
+        self._original_web_read_group = model_cls.web_read_group
 
         def _strip_version(records, *args, **kwargs):
-            result = original(records, *args, **kwargs)
+            result = self._original_web_read_group(records, *args, **kwargs)
             if isinstance(result, dict):
                 result.pop("__version", None)
             return result
@@ -20,6 +20,35 @@ class TestWebReadGroup(common.TransactionCase):
         patcher = patch.object(model_cls, "web_read_group", _strip_version)
         patcher.start()
         self.addCleanup(patcher.stop)
+
+    def test_version_key_present_and_stable(self):
+        # Every other test in this file goes through the __version-stripping
+        # patch in setUp, so the @versioned contract of web_read_group would
+        # otherwise go completely unexercised in this addon. Call the real,
+        # unpatched method directly to check it.
+        Model = self.env["test_read_group.aggregate"]
+        Model.create({"key": 1, "value": 1})
+
+        result = self._original_web_read_group(
+            Model, domain=[], groupby=["key"], aggregates=["value:sum"]
+        )
+        self.assertIn("__version", result)
+        version = result["__version"]
+        self.assertIsInstance(version, str)
+        self.assertTrue(version)
+
+        # Same data, same call -> same digest.
+        result_again = self._original_web_read_group(
+            Model, domain=[], groupby=["key"], aggregates=["value:sum"]
+        )
+        self.assertEqual(version, result_again["__version"])
+
+        # Changing the underlying data must change the digest.
+        Model.create({"key": 2, "value": 2})
+        result_changed = self._original_web_read_group(
+            Model, domain=[], groupby=["key"], aggregates=["value:sum"]
+        )
+        self.assertNotEqual(version, result_changed["__version"])
 
     def test_limit_offset(self):
         Model = self.env["test_read_group.aggregate"]
