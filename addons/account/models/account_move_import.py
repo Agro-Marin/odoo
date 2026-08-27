@@ -25,7 +25,7 @@ class AccountMove(models.Model):
                 except UserError, ValueError:
                     _logger.exception("Failed to link bill to purchase order")
 
-        if new:
+        if new and res:
             self._portal_ensure_token()
             self.flush_recordset(["access_token"])
             try:
