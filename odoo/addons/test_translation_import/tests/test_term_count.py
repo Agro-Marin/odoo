@@ -310,7 +310,7 @@ class TestTranslationFlow(common.TransactionCase):
                 translation_file_reader(
                     file_path(f"{module_name}/i18n/{module_name}.pot"), "po"
                 ),
-                strict=False,
+                strict=True,
             ):
                 self.assertEqual(line1, line2)
 
