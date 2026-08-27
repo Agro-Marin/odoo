@@ -29,3 +29,7 @@ class TestInheritDepends(common.TransactionCase):
 
     def test_60_inherit_with_python(self):
         self.assertEqual(self.env["test.inherit.mother"].foo(), 42 * 2)
+
+    def test_50_field_extension_cross_module(self):
+        mother = self.env["test.inherit.mother"]
+        self.assertIn("field_in_mother_5", mother._fields)
