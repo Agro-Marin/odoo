@@ -481,6 +481,31 @@ class TestSqlLint(BaseCase):
         for line in ("2", "5", "8"):
             self.assertIn(f"dummy.py:{line}", violations[0].message)
 
+    def test_a_same_named_method_in_another_class_does_not_taint_a_safe_one(self):
+        """Two classes are free to name a method the same thing.
+
+        `_function_defs`/`_callsites` used to be keyed by bare method name, so
+        a safe `A()._query()` -- a constant string, nothing built from input --
+        was flagged purely because an unrelated `B._query` elsewhere in the
+        same file built a query from a variable.
+        """
+        violations = self._check("""
+        class A:
+            def _query(self):
+                return "select 1"
+
+        class B:
+            def _query(self):
+                return "select " + user_input
+
+        class C:
+            def run(self):
+                self.env.cr.execute(A()._query())
+        """)
+        self.assertFalse(
+            violations, "A's safe method must not be flagged over B's unsafe one"
+        )
+
     def test_a_helper_defined_first_is_reported_at_each_call(self):
         """The other order is genuinely several findings, and stays several.
 
