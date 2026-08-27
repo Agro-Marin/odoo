@@ -1,7 +1,7 @@
 from odoo.tests import common
 
 
-class test_inherits(common.TransactionCase):
+class TestInheritsDepends(common.TransactionCase):
     def test_ir_model_data_inherits_again(self):
         IrModelData = self.env["ir.model.data"]
         field = IrModelData.search([("name", "=", "field_test_unit__name")])
