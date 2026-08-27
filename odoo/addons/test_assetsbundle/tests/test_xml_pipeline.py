@@ -1,9 +1,11 @@
+import pathlib
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import mute_logger
 from odoo.tools.json import scriptsafe as json
+from odoo.tools.misc import file_path
 
 from .common import FileTouchable, asset_file
 from odoo.addons.base.models.assetsbundle import (
@@ -44,6 +46,28 @@ class TestXMLAssetsBundle(FileTouchable):
                 "Invalid XML template: Opening and ending tag mismatch: SomeComponent line 4 and t, line 5, column 7' in file '/test_assetsbundle/static/invalid_src/xml/invalid_xml.xml",
             ):
                 self.bundle.xml()
+
+    def test_02b_multiple_broken_xml_second_file(self):
+        # multiple_broken_xml fails fast on the first bad file
+        # (test_02, above), so second_invalid_xml.xml's own error is
+        # otherwise never exercised. Build a bundle from that file
+        # alone to assert on it too.
+        path = file_path(
+            "test_assetsbundle/static/invalid_src/xml/second_invalid_xml.xml"
+        )
+        content = pathlib.Path(path).read_text(encoding="utf-8")
+
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            bundle = AssetsBundle(
+                "test.second_invalid_xml_only",
+                [asset_file("/m/static/src/second_invalid_xml.xml", content)],
+                env=self.env,
+            )
+            with self.assertRaisesRegex(
+                XMLAssetError,
+                "Invalid XML template: XML declaration allowed only at the start of the document, line 2, column 6' in file '/m/static/src/second_invalid_xml.xml",
+            ):
+                bundle.xml()
 
     def test_04_template_wo_name(self):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
