@@ -2,11 +2,9 @@ import gc
 import json
 import logging
 import statistics
-from collections.abc import Callable
 from datetime import datetime
-from typing import Any
 
-from odoo.tests.benchmark import BenchmarkStats, run_benchmark
+from odoo.tests.benchmark import BenchmarkCase
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools.misc import real_time
 
@@ -17,11 +15,14 @@ WARMUP_ITERATIONS = 5
 
 
 @tagged("standard", "orm_benchmark")
-class TestORMBenchmark(TransactionCase):
+class TestORMBenchmark(BenchmarkCase, TransactionCase):
+    benchmark_log_prefix = "ORM_BENCHMARK"
+    benchmark_iterations = DEFAULT_ITERATIONS
+    benchmark_warmup = WARMUP_ITERATIONS
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.all_results: list[BenchmarkStats] = []
         cls.Model = cls.env["test_performance.base"]
         cls.SimpleModel = cls.env["test_performance.simple.minded"]
 
@@ -45,27 +46,6 @@ class TestORMBenchmark(TransactionCase):
         super().setUp()
         gc.collect()
         self.Model.search_count([])
-
-    def _run_benchmark(
-        self,
-        name: str,
-        func: Callable[[], Any],
-        iterations: int = DEFAULT_ITERATIONS,
-        warmup: int = WARMUP_ITERATIONS,
-        setup: Callable[[], None] | None = None,
-        invalidate_cache: bool = True,
-    ) -> BenchmarkStats:
-        stats = run_benchmark(
-            name,
-            func,
-            iterations=iterations,
-            warmup=warmup,
-            setup=setup,
-            invalidate=self.env.invalidate_all if invalidate_cache else None,
-        )
-        self.all_results.append(stats)
-        _logger.info("[ORM_BENCHMARK] %s", stats.summary())
-        return stats
 
     def test_01_browse_single(self):
         record = self.Model.search([], limit=1)
