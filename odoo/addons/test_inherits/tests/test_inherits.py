@@ -5,7 +5,7 @@ from odoo.exceptions import ValidationError
 from odoo.tests import common
 
 
-class test_inherits(common.TransactionCase):
+class TestInherits(common.TransactionCase):
     def test_ir_model_inherit(self):
         imi = self.env["ir.model.inherit"].search([("model_id.model", "=", "test.box")])
         self.assertEqual(len(imi), 1)
