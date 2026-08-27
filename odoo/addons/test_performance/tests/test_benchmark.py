@@ -6,7 +6,6 @@ from datetime import datetime
 
 from odoo.tests.benchmark import BenchmarkCase
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools.misc import real_time
 
 _logger = logging.getLogger(__name__)
 
@@ -471,38 +470,33 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
         )
 
     def test_91_orm_overhead_calculation(self):
-        records = self.Model.search([], limit=100)
-        ids = list(records.ids)
+        """Read the ORM-vs-raw-SQL overhead off test_90's own results.
 
-        orm_times = []
-        for _ in range(50):
-            self.env.invalidate_all()
-            start = real_time()
-            records.read(["name", "value"])
-            orm_times.append((real_time() - start) * 1_000_000)
+        test_90_orm_vs_raw_read already benchmarks "ORM read() (100
+        records)" and "Raw SQL SELECT (100 records)" and appends both
+        BenchmarkStats to all_results; alphabetical method ordering runs it
+        before this one. Re-measuring both from scratch here duplicated
+        that effort instead of reading the figures test_90 already computed.
+        """
+        orm_stat = next(
+            s for s in self.all_results if s.name == "ORM read() (100 records)"
+        )
+        raw_stat = next(
+            s for s in self.all_results if s.name == "Raw SQL SELECT (100 records)"
+        )
 
-        raw_times = []
-        for _ in range(50):
-            start = real_time()
-            self.env.cr.execute(
-                "SELECT id, name, value FROM test_performance_base WHERE id = ANY(%s)",
-                [ids],
-            )
-            self.env.cr.fetchall()
-            raw_times.append((real_time() - start) * 1_000_000)
-
-        orm_mean = statistics.mean(orm_times)
-        raw_mean = statistics.mean(raw_times)
-        overhead = orm_mean - raw_mean
-        overhead_pct = (overhead / orm_mean) * 100 if orm_mean > 0 else 0
+        overhead = orm_stat.mean_us - raw_stat.mean_us
+        overhead_pct = (
+            (overhead / orm_stat.mean_us) * 100 if orm_stat.mean_us > 0 else 0
+        )
 
         _logger.info(
             "[ORM_BENCHMARK] ORM OVERHEAD ANALYSIS:\n"
             "  ORM time:      %.1f µs\n"
             "  Raw SQL time:  %.1f µs\n"
             "  ORM overhead:  %.1f µs (%.1f%%)",
-            orm_mean,
-            raw_mean,
+            orm_stat.mean_us,
+            raw_stat.mean_us,
             overhead,
             overhead_pct,
         )
