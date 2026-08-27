@@ -23,12 +23,7 @@ class AccountEdiProxyError(Exception):
 
 
 class Account_Edi_Proxy_ClientUser(models.Model):
-    """Represents a user of the proxy for an electronic invoicing format.
-    An edi_proxy_user has a unique identification on a specific format (for example, the vat for Peppol) which
-    allows to identify him when receiving a document addressed to him. It is linked to a specific company on a specific
-    Odoo database.
-    It also owns a key with which each file should be decrypted with (the proxy encrypt all the files with the public key).
-    """
+    """A user of the proxy for one electronic-invoicing format, identified by a per-format key."""
 
     _name = "account_edi_proxy_client.user"
     _description = "Account EDI proxy user"
