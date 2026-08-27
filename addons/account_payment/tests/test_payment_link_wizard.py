@@ -1,0 +1,49 @@
+from odoo import Command
+from odoo.tests import tagged
+
+from odoo.addons.account_payment.tests.common import AccountPaymentCommon
+
+
+@tagged("-at_install", "post_install")
+class TestPaymentLinkWizard(AccountPaymentCommon):
+    def _create_posted_invoice(self):
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "line", "price_unit": 100.0}),
+                ],
+            }
+        )
+        invoice.action_post()
+        return invoice
+
+    def _create_wizard(self, invoice, **vals):
+        return (
+            self.env["payment.link.wizard"]
+            .with_context(active_model="account.move", active_id=invoice.id)
+            .create(vals)
+        )
+
+    def test_epd_info_set_on_exact_match(self):
+        """Test that epd_info is populated when amount equals invoice_amount_due."""
+        invoice = self._create_posted_invoice()
+        wizard = self._create_wizard(invoice, amount=100.0, amount_max=100.0)
+        wizard.has_eligible_epd = True
+        wizard.discount_date = "2024-01-01"
+        wizard._compute_epd_info()
+        self.assertTrue(
+            wizard.epd_info,
+            "epd_info should be set when amount exactly equals invoice_amount_due.",
+        )
+
+    def test_epd_info_not_set_on_real_mismatch(self):
+        """Test that epd_info stays empty when amount is genuinely different from
+        invoice_amount_due (beyond rounding tolerance)."""
+        invoice = self._create_posted_invoice()
+        wizard = self._create_wizard(invoice, amount=50.0, amount_max=100.0)
+        wizard.has_eligible_epd = True
+        wizard.discount_date = "2024-01-01"
+        wizard._compute_epd_info()
+        self.assertFalse(wizard.epd_info)
