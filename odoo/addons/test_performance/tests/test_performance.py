@@ -761,20 +761,21 @@ class TestIncrementFieldsSkipLock(TransactionCase):
 
         self.record.invalidate_recordset()
 
+        # No concurrent transaction holds the row lock here, so the update
+        # must have gone through: assert the expected outcome directly
+        # instead of branching on `did_update`, which would let this test
+        # pass even if `_increment_fields_skiplock` regressed to a no-op.
+        self.assertTrue(
+            did_update,
+            "increment_fields_skiplock should have updated the field: "
+            "no concurrent transaction holds the row lock.",
+        )
         with self.assertQueryCount(1):
-            if did_update:
-                self.assertEqual(
-                    self.record.value,
-                    2,
-                    "according to increment_fields_skiplock's output, this number should have been incremented.",
-                )
-            else:
-                self.assertEqual(
-                    self.record.value,
-                    1,
-                    "according to increment_fields_skiplock output's, this number should NOT have been incremented.",
-                )
-
+            self.assertEqual(
+                self.record.value,
+                2,
+                "increment_fields_skiplock should have incremented this field.",
+            )
             self.assertEqual(
                 self.record.value_plus_one,
                 2,
@@ -804,29 +805,25 @@ class TestIncrementFieldsSkipLock(TransactionCase):
 
         self.record.invalidate_recordset()
 
+        # Same reasoning as test_increment_fields_skiplock_one_field: no
+        # concurrent transaction holds the row lock, so the update must have
+        # gone through — assert the expected outcome, not `did_update` itself.
+        self.assertTrue(
+            did_update,
+            "increment_fields_skiplock should have updated the fields: "
+            "no concurrent transaction holds the row lock.",
+        )
         with self.assertQueryCount(1):
-            if did_update:
-                self.assertEqual(
-                    self.record.value,
-                    2,
-                    "according to increment_fields_skiplock's output, this number should have been incremented.",
-                )
-                self.assertEqual(
-                    self.record.value_plus_one,
-                    3,
-                    "according to increment_fields_skiplock's output, this number should have been incremented.",
-                )
-            else:
-                self.assertEqual(
-                    self.record.value,
-                    1,
-                    "according to increment_fields_skiplock output's, this number should NOT have been incremented.",
-                )
-                self.assertEqual(
-                    self.record.value_plus_one,
-                    2,
-                    "according to increment_fields_skiplock's output, this number should NOT have been incremented.",
-                )
+            self.assertEqual(
+                self.record.value,
+                2,
+                "increment_fields_skiplock should have incremented this field.",
+            )
+            self.assertEqual(
+                self.record.value_plus_one,
+                3,
+                "increment_fields_skiplock should have incremented this field.",
+            )
 
         self.assertEqual(
             self.other_record.value,
