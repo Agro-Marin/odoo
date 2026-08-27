@@ -152,6 +152,18 @@ class IrAttachment(models.Model):
             return ""
 
         f = io.BytesIO(bin_data)
+        if zipfile.is_zipfile(f):
+            oversized = any(
+                info.file_size > self._INDEX_MAX_BYTES
+                for info in zipfile.ZipFile(f).infolist()
+            )
+            f.seek(0)
+            if oversized:
+                _logger.info(
+                    "attachment_indexation: skipping oversized xlsx zip entry (zip-bomb guard)"
+                )
+                return ""
+
         all_sheets = []
         try:
             with warnings.catch_warnings():
