@@ -187,7 +187,8 @@ class AccountPaymentRegister(models.TransientModel):
         "SEPA Direct Debit: Get paid in the SEPA zone thanks to a mandate your partner will have granted to you. Module account_sepa is necessary.\n",
     )
     available_payment_method_line_ids = fields.Many2many(
-        "account.payment.method.line", compute="_compute_available_payment_method_line_ids"
+        "account.payment.method.line",
+        compute="_compute_available_payment_method_line_ids",
     )
     payment_method_code = fields.Char(related="payment_method_line_id.code")
 
@@ -240,7 +241,6 @@ class AccountPaymentRegister(models.TransientModel):
     missing_account_partners = fields.Many2many(
         "res.partner", compute="_compute_trust_values"
     )
-
 
     @api.model
     def _get_communication(self, lines):
@@ -380,7 +380,6 @@ class AccountPaymentRegister(models.TransientModel):
         if self._from_sibling_companies(lines):
             return companies.root_id
         return min(companies, key=lambda c: len(c.sudo().parent_ids))
-
 
     @api.depends(
         "early_payment_discount_mode",
@@ -1183,7 +1182,6 @@ class AccountPaymentRegister(models.TransientModel):
         )
         return dummy._get_duplicate_reference(matching_states)
 
-
     @api.model
     def default_get(self, fields):
         res = super().default_get(fields)
@@ -1263,7 +1261,6 @@ class AccountPaymentRegister(models.TransientModel):
             res["line_ids"] = [(6, 0, available_lines.ids)]
 
         return res
-
 
     def _get_early_payment_write_off_vals(self, lines, currency, open_amount_currency):
         epd_aml_values_list = [
