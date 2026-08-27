@@ -144,10 +144,10 @@ class TestPerformanceTimeit(TransactionCase):
             min_time = check_results[0]
             max_time = max(check_results)
             max_tolerance = 2.5
-            _logger.info(
-                "%s Linear behaviour for %s",
-                max_time / min_time < max_tolerance,
-                check_results,
+            self.assertLess(
+                max_time / min_time,
+                max_tolerance,
+                f"Non-linear scaling for {code!r}: per-unit times {check_results}",
             )
         else:
             self.assertFalse(check_type, "Unsupported check_type")
