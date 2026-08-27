@@ -11,6 +11,40 @@ class TestPrivateReadGroup(common.TransactionCase):
             cls.env, login="Base User", groups="base.group_user"
         )
 
+    def _create_related_fixtures(self):
+        """Shared bar/foo/base fixture used by test_related and the two
+        test_groupby_chain_fnames_* tests: two bars (bar_a, bar_false),
+        four foos (one per bar plus two with name=False), five base
+        records referencing them. Returns (bars, foos)."""
+        RelatedBar = self.env["test_read_group.related_bar"]
+        RelatedFoo = self.env["test_read_group.related_foo"]
+        RelatedBase = self.env["test_read_group.related_base"]
+
+        bars = RelatedBar.create(
+            [
+                {"name": "bar_a"},
+                {"name": False},
+            ]
+        )
+        foos = RelatedFoo.create(
+            [
+                {"name": "foo_a_bar_a", "bar_id": bars[0].id},
+                {"name": "foo_b_bar_false", "bar_id": bars[1].id},
+                {"name": False, "bar_id": bars[0].id},
+                {"name": False},
+            ]
+        )
+        RelatedBase.create(
+            [
+                {"name": "base_foo_a_1", "foo_id": foos[0].id},
+                {"name": "base_foo_a_2", "foo_id": foos[0].id},
+                {"name": "base_foo_b_bar_false", "foo_id": foos[1].id},
+                {"name": "base_false_foo_bar_a", "foo_id": foos[2].id},
+                {"name": "base_false_foo", "foo_id": foos[3].id},
+            ]
+        )
+        return bars, foos
+
     def test_simple_private_read_group(self):
         Model = self.env["test_read_group.aggregate"]
         partner_1 = self.env["res.partner"].create({"name": "z_one"})
@@ -284,18 +318,21 @@ class TestPrivateReadGroup(common.TransactionCase):
 
     def test_array_read_groups(self):
         Model = self.env["test_read_group.aggregate"]
-        Model.create({"partner_id": 1})
-        Model.create({"partner_id": 1})
-        Model.create({"partner_id": 2})
+        Partner = self.env["res.partner"]
+        partner_1 = Partner.create({"name": "test_array_read_groups_1"})
+        partner_2 = Partner.create({"name": "test_array_read_groups_2"})
+        Model.create({"partner_id": partner_1.id})
+        Model.create({"partner_id": partner_1.id})
+        Model.create({"partner_id": partner_2.id})
 
         self.assertEqual(
             Model._read_group([], aggregates=["partner_id:array_agg"]),
-            [([1, 1, 2],)],
+            [([partner_1.id, partner_1.id, partner_2.id],)],
         )
 
         self.assertEqual(
             Model._read_group([], aggregates=["partner_id:recordset"]),
-            [(self.env["res.partner"].browse([1, 2]),)],
+            [(partner_1 + partner_2,)],
         )
 
     def test_flush_read_group(self):
@@ -457,43 +494,72 @@ class TestPrivateReadGroup(common.TransactionCase):
 
     def test_malformed_params(self):
         Model = self.env["test_read_group.order.line"]
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, "Granularity specification isn't correct: 'bad_granularity'"
+        ):
             Model._read_group([], ["create_date:bad_granularity"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Invalid aggregate/groupby specification 'Other stuff create_date:week'",
+        ):
             Model._read_group([], ["Other stuff create_date:week"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, r"Granularity not set on a date\(time\) field: 'create_date'"
+        ):
             Model._read_group([], ["create_date"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Invalid aggregate/groupby specification '\"create_date:week'",
+        ):
             Model._read_group([], ['"create_date:week'])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Invalid aggregate/groupby specification '\"create_date:unknown_number'",
+        ):
             Model._read_group([], ['"create_date:unknown_number'])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, "Aggregate method is mandatory for 'value'"
+        ):
             Model._read_group([], aggregates=["value"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Invalid field '__count_'"):
             Model._read_group([], aggregates=["__count_"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Invalid aggregate method '__count'"):
             Model._read_group([], aggregates=["value:__count"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, "Invalid aggregate/groupby specification 'other value:sum'"
+        ):
             Model._read_group([], aggregates=["other value:sum"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Invalid aggregate/groupby specification 'value:array_agg OR'",
+        ):
             Model._read_group([], aggregates=["value:array_agg OR"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Invalid aggregate/groupby specification '\"value:sum'",
+        ):
             Model._read_group([], aggregates=['"value:sum'])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Invalid aggregate/groupby specification 'label:sum\(value\)'",
+        ):
             Model._read_group([], aggregates=["label:sum(value)"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Invalid 'order_id\.create_date:min', this dot notation is not supported",
+        ):
             Model._read_group([], aggregates=["order_id.create_date:min"])
 
         with self.assertRaisesRegex(
@@ -502,13 +568,17 @@ class TestPrivateReadGroup(common.TransactionCase):
         ):
             Model._read_group([], aggregates=["value:sum", "not_another_field:sum"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, r"Invalid having clause \('__count', '>'\)"
+        ):
             Model._read_group([], ["value"], having=[("__count", ">")])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, r"Invalid having clause 'COUNT\(\*\) > 2'"
+        ):
             Model._read_group([], ["value"], having=["COUNT(*) > 2"])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Invalid having clause '\"=\"'"):
             Model._read_group([], ["value"], having=['"="'])
 
         with self.assertRaises(ValueError):
@@ -977,7 +1047,7 @@ class TestPrivateReadGroup(common.TransactionCase):
         self.assertEqual(result1, [(2,)])
 
         result2 = model._read_group(domain2, aggregates=["__count"])
-        self.assertEqual(result1, [(2,)])
+        self.assertEqual(result2, [(2,)])
 
         self.patch(type(model).line_ids, "bypass_search_access", True)
 
@@ -1024,7 +1094,10 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertRaises(AccessError):
             task_as_user._read_group([], groupby=["user_ids"], aggregates=["__count"])
 
-        Task._read_group([], groupby=["user_ids"], aggregates=["__count"])
+        self.assertEqual(
+            Task._read_group([], groupby=["user_ids"], aggregates=["__count"]),
+            [(self.env["test_read_group.user"], 1)],
+        )
 
     def test_groupby_many2many(self):
         User = self.env["test_read_group.user"]
@@ -1291,34 +1364,8 @@ class TestPrivateReadGroup(common.TransactionCase):
 
     def test_related(self):
         RelatedBar = self.env["test_read_group.related_bar"]
-        RelatedFoo = self.env["test_read_group.related_foo"]
         RelatedBase = self.env["test_read_group.related_base"]
-
-        bars = RelatedBar.create(
-            [
-                {"name": "bar_a"},
-                {"name": False},
-            ]
-        )
-
-        foos = RelatedFoo.create(
-            [
-                {"name": "foo_a_bar_a", "bar_id": bars[0].id},
-                {"name": "foo_b_bar_false", "bar_id": bars[1].id},
-                {"name": False, "bar_id": bars[0].id},
-                {"name": False},
-            ]
-        )
-
-        RelatedBase.create(
-            [
-                {"name": "base_foo_a_1", "foo_id": foos[0].id},
-                {"name": "base_foo_a_2", "foo_id": foos[0].id},
-                {"name": "base_foo_b_bar_false", "foo_id": foos[1].id},
-                {"name": "base_false_foo_bar_a", "foo_id": foos[2].id},
-                {"name": "base_false_foo", "foo_id": foos[3].id},
-            ]
-        )
+        self._create_related_fixtures()
 
         RelatedBase = RelatedBase.with_user(self.base_user)
 
@@ -1387,8 +1434,19 @@ class TestPrivateReadGroup(common.TransactionCase):
                 RelatedBase._read_group([], ["foo_id_bar_id_name"], ["__count"]),
                 [("bar_a", 3), (False, 2)],
             )
-            RelatedBase._read_group([], ["foo_id_bar_name"], ["__count"])
-            RelatedBase._read_group([], ["foo_id_bar_name_sudo"], ["__count"])
+            # foo_id_bar_name (related_sudo=False) and foo_id_bar_name_sudo
+            # (default related_sudo=True) exist specifically to test the
+            # sudo bypass on a related field chain; assert their data too,
+            # not just their SQL shape, so a regression in that bypass is
+            # actually caught here.
+            self.assertEqual(
+                RelatedBase._read_group([], ["foo_id_bar_name"], ["__count"]),
+                [("bar_a", 3), (False, 2)],
+            )
+            self.assertEqual(
+                RelatedBase._read_group([], ["foo_id_bar_name_sudo"], ["__count"]),
+                [("bar_a", 3), (False, 2)],
+            )
 
         with self.assertQueries(
             [
@@ -1506,7 +1564,20 @@ class TestPrivateReadGroup(common.TransactionCase):
             RelatedInherits._read_group([], ["foo_id_name"])
 
     def test_related_many2many_groupby(self):
-        RelatedFoo = self.env["test_read_group.related_foo"].with_user(self.base_user)
+        RelatedBase = self.env["test_read_group.related_base"]
+        RelatedBar = self.env["test_read_group.related_bar"]
+        RelatedFoo = self.env["test_read_group.related_foo"]
+
+        base_1, base_2 = RelatedBase.create(
+            [
+                {"name": "test_related_many2many_groupby_base_1"},
+                {"name": "test_related_many2many_groupby_base_2"},
+            ]
+        )
+        bar = RelatedBar.create({"base_ids": [Command.set((base_1 + base_2).ids)]})
+        RelatedFoo.create({"bar_id": bar.id})
+
+        RelatedFoo = RelatedFoo.with_user(self.base_user)
 
         RelatedFoo._read_group([], ["bar_base_ids"], ["__count"])
         with self.assertQueries(
@@ -1525,6 +1596,11 @@ class TestPrivateReadGroup(common.TransactionCase):
             ]
         ):
             RelatedFoo._read_group([], ["bar_base_ids"], ["__count"])
+
+        self.assertEqual(
+            RelatedFoo._read_group([], ["bar_base_ids"], ["__count"]),
+            [(base_1, 1), (base_2, 1)],
+        )
 
         field_info = RelatedFoo.fields_get(["bar_base_ids"], ["groupable"])
         self.assertTrue(field_info["bar_base_ids"]["groupable"])
@@ -1597,32 +1673,7 @@ class TestPrivateReadGroup(common.TransactionCase):
         RelatedBar = self.env["test_read_group.related_bar"]
         RelatedFoo = self.env["test_read_group.related_foo"]
         RelatedBase = self.env["test_read_group.related_base"]
-
-        bars = RelatedBar.create(
-            [
-                {"name": "bar_a"},
-                {"name": False},
-            ]
-        )
-
-        foos = RelatedFoo.create(
-            [
-                {"name": "foo_a_bar_a", "bar_id": bars[0].id},
-                {"name": "foo_b_bar_false", "bar_id": bars[1].id},
-                {"name": False, "bar_id": bars[0].id},
-                {"name": False},
-            ]
-        )
-
-        RelatedBase.create(
-            [
-                {"name": "base_foo_a_1", "foo_id": foos[0].id},
-                {"name": "base_foo_a_2", "foo_id": foos[0].id},
-                {"name": "base_foo_b_bar_false", "foo_id": foos[1].id},
-                {"name": "base_false_foo_bar_a", "foo_id": foos[2].id},
-                {"name": "base_false_foo", "foo_id": foos[3].id},
-            ]
-        )
+        bars, foos = self._create_related_fixtures()
 
         RelatedBase._read_group([], ["foo_id.bar_id"], ["__count"])
 
@@ -1692,32 +1743,7 @@ class TestPrivateReadGroup(common.TransactionCase):
         RelatedBar = self.env["test_read_group.related_bar"]
         RelatedFoo = self.env["test_read_group.related_foo"]
         RelatedBase = self.env["test_read_group.related_base"]
-
-        bars = RelatedBar.create(
-            [
-                {"name": "bar_a"},
-                {"name": False},
-            ]
-        )
-
-        foos = RelatedFoo.create(
-            [
-                {"name": "foo_a_bar_a", "bar_id": bars[0].id},
-                {"name": "foo_b_bar_false", "bar_id": bars[1].id},
-                {"name": False, "bar_id": bars[0].id},
-                {"name": False},
-            ]
-        )
-
-        RelatedBase.create(
-            [
-                {"name": "base_foo_a_1", "foo_id": foos[0].id},
-                {"name": "base_foo_a_2", "foo_id": foos[0].id},
-                {"name": "base_foo_b_bar_false", "foo_id": foos[1].id},
-                {"name": "base_false_foo_bar_a", "foo_id": foos[2].id},
-                {"name": "base_false_foo", "foo_id": foos[3].id},
-            ]
-        )
+        _bars, foos = self._create_related_fixtures()
 
         RelatedBase._read_group([], ["foo_id.bar_id.name"], ["__count"])
 
