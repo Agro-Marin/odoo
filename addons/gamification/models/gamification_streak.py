@@ -18,13 +18,11 @@ STREAK_MILESTONES = {
 }
 
 
+# Each streak type specifies an ORM domain evaluated daily per user.
+# If the domain matches at least one record created/modified on the
+# previous day, the streak continues; otherwise it breaks.
 class GamificationStreakType(models.Model):
-    """Configurable streak type defining what activity sustains the streak.
-
-    Each streak type specifies an ORM domain evaluated daily per user.
-    If the domain matches at least one record created/modified on the
-    previous day, the streak continues; otherwise it breaks.
-    """
+    """Configurable streak type defining what activity sustains the streak."""
 
     _name = "gamification.streak.type"
     _description = "Gamification Streak Type"

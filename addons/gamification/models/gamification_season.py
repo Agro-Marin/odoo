@@ -6,14 +6,12 @@ from odoo import _, api, fields, models
 _logger = logging.getLogger(__name__)
 
 
+# Seasons create urgency and novelty (Octalysis drive 6: Scarcity).
+# Each season has its own leaderboard that resets, solving the
+# "permanent bottom-half" problem of global leaderboards.
+# Exclusive badges and challenges are only available during the season.
 class GamificationSeason(models.Model):
-    """Time-limited themed gamification event with exclusive rewards.
-
-    Seasons create urgency and novelty (Octalysis drive 6: Scarcity).
-    Each season has its own leaderboard that resets, solving the
-    "permanent bottom-half" problem of global leaderboards.
-    Exclusive badges and challenges are only available during the season.
-    """
+    """Time-limited themed gamification event with exclusive rewards."""
 
     _name = "gamification.season"
     _description = "Gamification Season"

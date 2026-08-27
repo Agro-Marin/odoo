@@ -3,15 +3,13 @@ from psycopg.errors import UniqueViolation
 from odoo import _, api, exceptions, fields, models
 
 
+# Each tree contains nodes arranged with prerequisite edges.  Users
+# unlock nodes by completing linked quests or challenges, giving a
+# visual map of "what's possible" and "what I've achieved."  This maps
+# to Octalysis drives 2 (Accomplishment), 3 (Creativity/Choice), and
+# 4 (Ownership).
 class GamificationSkillTree(models.Model):
-    """Branching skill progression tree (e.g., Sales, Technical, Leadership).
-
-    Each tree contains nodes arranged with prerequisite edges.  Users
-    unlock nodes by completing linked quests or challenges, giving a
-    visual map of "what's possible" and "what I've achieved."  This maps
-    to Octalysis drives 2 (Accomplishment), 3 (Creativity/Choice), and
-    4 (Ownership).
-    """
+    """Branching skill progression tree (e.g., Sales, Technical, Leadership)."""
 
     _name = "gamification.skill.tree"
     _description = "Gamification Skill Tree"
@@ -28,13 +26,11 @@ class GamificationSkillTree(models.Model):
     node_count = fields.Count("node_ids", "# Nodes")
 
 
+# Nodes represent specific skills or competencies.  They can be
+# unlocked by completing associated quests or meeting karma thresholds.
+# Prerequisite edges between nodes create the branching tree structure.
 class GamificationSkillNode(models.Model):
-    """Individual competency node within a skill tree.
-
-    Nodes represent specific skills or competencies.  They can be
-    unlocked by completing associated quests or meeting karma thresholds.
-    Prerequisite edges between nodes create the branching tree structure.
-    """
+    """Individual competency node within a skill tree."""
 
     _name = "gamification.skill.node"
     _description = "Skill Tree Node"
