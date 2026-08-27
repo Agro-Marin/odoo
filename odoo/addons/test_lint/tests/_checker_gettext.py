@@ -26,7 +26,7 @@ PLACEHOLDER_REGEXP = re.compile(
 """,
     re.VERBOSE,
 )
-REPR_REGEXP = re.compile(r"%(?:\(\w+\))?r")
+REPR_REGEXP = re.compile(r"(?<!%)(?:%%)*%(?:\(\w+\))?r")
 
 ERRORS_REQUIRING_GETTEXT = frozenset(
     {
