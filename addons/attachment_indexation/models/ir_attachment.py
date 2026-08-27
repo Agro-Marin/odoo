@@ -25,6 +25,21 @@ if not (
 
 FTYPES = ["docx", "pptx", "xlsx", "opendoc", "pdf"]
 
+# Direct mimetype -> ftype dispatch, so a recognized mimetype tries its own
+# extractor first instead of always walking FTYPES in a fixed order (docx,
+# pptx, xlsx... zip-based extractors all pay a wasted parse attempt on every
+# non-docx zip before reaching their real one).
+_MIMETYPE_TO_FTYPE = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.oasis.opendocument.text": "opendoc",
+    "application/vnd.oasis.opendocument.spreadsheet": "opendoc",
+    "application/vnd.oasis.opendocument.presentation": "opendoc",
+    "application/vnd.oasis.opendocument.graphics": "opendoc",
+    "application/pdf": "pdf",
+}
+
 
 index_content_cache = LRU(1)
 
@@ -350,7 +365,10 @@ class IrAttachment(models.Model):
             if cached_content:
                 return cached_content
         res = False
-        for ftype in FTYPES:
+        preferred = _MIMETYPE_TO_FTYPE.get(mimetype)
+        ftypes = [preferred] if preferred else []
+        ftypes += [ftype for ftype in FTYPES if ftype != preferred]
+        for ftype in ftypes:
             buf = getattr(self, "_index_%s" % ftype)(bin_data)
             if buf:
                 res = buf.replace("\x00", "")
