@@ -1578,10 +1578,17 @@ class AccountPaymentRegister(models.TransientModel):
                     new_batches.extend(sub_batches.values())
                 batches = new_batches
 
+            filtered_batches = []
             for batch_result in batches:
-                batch_result["lines"] &= lines_to_pay
-                if not batch_result["lines"]:
+                filtered_lines = batch_result["lines"] & lines_to_pay
+                if not filtered_lines:
                     continue
+                # batch_result may still be the same dict cached on the
+                # self.batches compute field (when self.group_payment is
+                # True, the rebuild above is skipped) - never mutate it in
+                # place, build a fresh dict instead.
+                batch_result = {**batch_result, "lines": filtered_lines}
+                filtered_batches.append(batch_result)
                 to_process.append(
                     {
                         "create_vals": self._create_payment_vals_from_batch(
@@ -1591,6 +1598,7 @@ class AccountPaymentRegister(models.TransientModel):
                         "batch": batch_result,
                     }
                 )
+            batches = filtered_batches
 
         lines = sum(
             (batch_result["lines"] for batch_result in batches),
