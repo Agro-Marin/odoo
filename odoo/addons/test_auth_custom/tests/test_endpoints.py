@@ -26,7 +26,7 @@ class TestCustomAuth(HttpCase):
                 "Access-Control-Request-Headers": "XYZ",
             },
         )
-        self.assertTrue(r.ok)
+        self.assertTrue(r.ok, r.text)
         self.assertEqual(r.headers["Access-Control-Allow-Origin"], "*")
         self.assertEqual(
             r.headers["Access-Control-Allow-Methods"],
