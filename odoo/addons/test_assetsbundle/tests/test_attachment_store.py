@@ -569,47 +569,77 @@ class TestEsmAssetGc(TransactionCase):
             att.invalidate_recordset()
         return att
 
-    def test_gc_matrix(self):
+    def test_superseded_version_and_sidecar_are_gcd(self):
         old_v1 = self._mk("x.gcb.esm.js", "/web/assets/esm/aaaa/x.gcb.esm.js", 30)
         old_map = self._mk(
             "x.gcb.esm.js.map", "/web/assets/esm/aaaa/x.gcb.esm.js.map", 30
         )
         new_v2 = self._mk("x.gcb.esm.js", "/web/assets/esm/bbbb/x.gcb.esm.js")
         new_map = self._mk("x.gcb.esm.js.map", "/web/assets/esm/bbbb/x.gcb.esm.js.map")
-        lone_old = self._mk("y.gcb.esm.js", "/web/assets/esm/cccc/y.gcb.esm.js", 400)
-        recent_old = self._mk("z.gcb.esm.js", "/web/assets/esm/dddd/z.gcb.esm.js", 2)
-        recent_new = self._mk("z.gcb.esm.js", "/web/assets/esm/eeee/z.gcb.esm.js")
-        bridge_old = self._mk(
-            "aabbccddeeff0011.js", "/web/assets/esm/bridges/aabbccddeeff0011.js", 400
-        )
-        bridge_mid = self._mk(
-            "33445566778899aa.js", "/web/assets/esm/bridges/33445566778899aa.js", 30
-        )
-        bridge_new = self._mk(
-            "1100ffeeddccbbaa.js", "/web/assets/esm/bridges/1100ffeeddccbbaa.js", 1
-        )
-        classic = self._mk("x.gcb.min.js", "/web/assets/0123456/x.gcb.min.js", 400)
 
         self.env["ir.attachment"]._gc_esm_assets()
 
         self.assertFalse(old_v1.exists(), "superseded old version must be GC'd")
         self.assertFalse(old_map.exists(), "superseded old sidecar must be GC'd")
+        self.assertTrue(new_v2.exists(), "current version must survive")
+        self.assertTrue(new_map.exists(), "current sidecar must survive")
+
+    def test_lone_old_survives_with_no_newer_sibling(self):
+        lone_old = self._mk("y.gcb.esm.js", "/web/assets/esm/cccc/y.gcb.esm.js", 400)
+
+        self.env["ir.attachment"]._gc_esm_assets()
+
+        self.assertTrue(lone_old.exists(), "newest-per-name survives any age")
+
+    def test_recent_survives_the_grace_window(self):
+        recent_old = self._mk("z.gcb.esm.js", "/web/assets/esm/dddd/z.gcb.esm.js", 2)
+        recent_new = self._mk("z.gcb.esm.js", "/web/assets/esm/eeee/z.gcb.esm.js")
+
+        self.env["ir.attachment"]._gc_esm_assets()
+
+        self.assertTrue(recent_old.exists(), "within grace window — survives")
+        self.assertTrue(recent_new.exists())
+
+    def test_bridge_past_its_own_grace_is_gcd(self):
+        bridge_old = self._mk(
+            "aabbccddeeff0011.js", "/web/assets/esm/bridges/aabbccddeeff0011.js", 400
+        )
+
+        self.env["ir.attachment"]._gc_esm_assets()
+
         self.assertFalse(
             bridge_old.exists(),
             "a bridge past its own (much longer) grace must still be GC'd",
         )
-        self.assertTrue(new_v2.exists(), "current version must survive")
-        self.assertTrue(new_map.exists(), "current sidecar must survive")
-        self.assertTrue(lone_old.exists(), "newest-per-name survives any age")
-        self.assertTrue(recent_old.exists(), "within grace window — survives")
-        self.assertTrue(recent_new.exists())
-        self.assertTrue(bridge_new.exists(), "young bridge survives")
+
+    def test_bridge_older_than_artifact_grace_survives(self):
+        bridge_mid = self._mk(
+            "33445566778899aa.js", "/web/assets/esm/bridges/33445566778899aa.js", 30
+        )
+
+        self.env["ir.attachment"]._gc_esm_assets()
+
         self.assertTrue(
             bridge_mid.exists(),
             "a bridge older than the ARTIFACT grace survives: shims are tiny "
             "(23 rows = 13 kB measured) and content-addressed with no supersession, "
             "so collecting them on the artifact clock deleted live rows for nothing",
         )
+
+    def test_young_bridge_survives(self):
+        bridge_new = self._mk(
+            "1100ffeeddccbbaa.js", "/web/assets/esm/bridges/1100ffeeddccbbaa.js", 1
+        )
+
+        self.env["ir.attachment"]._gc_esm_assets()
+
+        self.assertTrue(bridge_new.exists(), "young bridge survives")
+
+    def test_classic_bundle_out_of_scope(self):
+        classic = self._mk("x.gcb.min.js", "/web/assets/0123456/x.gcb.min.js", 400)
+
+        self.env["ir.attachment"]._gc_esm_assets()
+
         self.assertTrue(classic.exists(), "classic bundles are out of scope")
 
     def test_a_bridge_still_in_use_is_refreshed_before_it_can_age_out(self):
