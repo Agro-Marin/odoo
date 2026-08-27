@@ -16,10 +16,7 @@ class BaseGeo_Provider(models.Model):
 
 
 class BaseGeocoder(models.AbstractModel):
-    """
-    Abstract class used to call Geolocalization API and convert addresses
-    into GPS coordinates.
-    """
+    """Call a geolocation API and convert addresses into GPS coordinates."""
 
     _name = "base.geocoder"
     _description = "Geo Coder"
@@ -235,6 +232,14 @@ class BaseGeocoder(models.AbstractModel):
         raise UserError(_("Error with geolocation server: %s", error))
 
     def _get_localisation(self, latitude, longitude):
+        """Return a "city, country" string for the given coordinates.
+
+        :param float latitude: latitude to resolve
+        :param float longitude: longitude to resolve
+        :return: human-readable location, using request.geoip first and a
+            reverse-geocode fallback
+        :rtype: str
+        """
         # try to get city and/or country from request.geoip first
         # if not possible, get them from latitude and longitude
         city = request.geoip.city.name
