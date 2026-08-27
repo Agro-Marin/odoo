@@ -19,18 +19,10 @@ export class BooleanToggleField extends BooleanField {
     };
 
     /**
-     * @param {boolean} newValue
-     * @returns {Promise<void>}
+     * @returns {{ save: boolean }}
      */
-    async onChange(newValue) {
-        this.state.value = newValue;
-        const changes = { [this.props.name]: newValue };
-        try {
-            await this.props.record.update(changes, { save: this.props.autosave });
-        } catch (error) {
-            this.state.value = this.field.value;
-            throw error;
-        }
+    get updateOptions() {
+        return { save: this.props.autosave };
     }
 }
 

@@ -50,6 +50,7 @@ export class ColorField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const colorField = {
     component: ColorField,
+    displayName: _t("Color"),
     interactiveOutsideEdition: true,
     supportedOptions: [
         {

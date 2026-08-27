@@ -2,8 +2,10 @@
 /** @odoo-module native */
 
 import { ColorList } from "@web/components/colorlist/colorlist";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class ColorPickerField extends FieldComponent {
@@ -32,6 +34,8 @@ export class ColorPickerField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const colorPickerField = {
     component: ColorPickerField,
+    displayName: _t("Color Index"),
+    isEmpty: isFalseEmpty,
     supportedTypes: ["integer"],
     extractProps: ({ viewType }) => ({
         canToggle: viewType !== "list",

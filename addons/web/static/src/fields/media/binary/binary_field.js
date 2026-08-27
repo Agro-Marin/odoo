@@ -12,6 +12,7 @@ import {
     acceptedFileExtensionsOption,
     filenameAttribute,
 } from "@web/fields/field_options";
+import { updateFileValue } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export const MAX_FILENAME_SIZE_BYTES = 0xff;
@@ -75,12 +76,12 @@ export class BinaryField extends FieldComponent {
      * @returns {Promise<any>}
      */
     update({ data, name }) {
-        const { fileNameField, record } = this.props;
-        const changes = { [this.props.name]: data || false };
-        if (fileNameField in record.fields && record.data[fileNameField] !== name) {
-            changes[fileNameField] = name || "";
-        }
-        return this.props.record.update(changes);
+        return updateFileValue(this.props.record, {
+            valueField: this.props.name,
+            fileNameField: this.props.fileNameField,
+            data,
+            name,
+        });
     }
 
     /** @returns {{ model: string, field: string, id: number } & Record<string, any>} */

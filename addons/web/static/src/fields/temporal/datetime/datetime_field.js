@@ -592,14 +592,15 @@ export const dateRangeField = {
     },
     isValid: (record, fieldname, fieldInfo) => {
         if (fieldInfo.widget === "daterange") {
-            const filled = !record.data[fieldname];
+            const thisEndIsEmpty = !record.data[fieldname];
             for (const option of [END_DATE_FIELD_OPTION, START_DATE_FIELD_OPTION]) {
                 const otherEnd = fieldInfo.options[option];
                 if (!otherEnd) {
                     continue;
                 }
+                // Exactly one end filled, and the empty one is required.
                 if (
-                    !record.data[otherEnd] !== filled &&
+                    !record.data[otherEnd] !== thisEndIsEmpty &&
                     evaluateBooleanExpr(
                         record.activeFields[otherEnd]?.required,
                         record.evalContextWithVirtualIds,

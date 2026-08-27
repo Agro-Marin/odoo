@@ -14,7 +14,7 @@ import {
     enableFormattingOption,
     hideTrailingZerosOption,
 } from "@web/fields/field_options";
-import { isFalseEmpty } from "@web/fields/field_utils";
+import { extractFormatNumber, isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { NumericInputFieldBase } from "../numeric_input_field_base.js";
@@ -164,10 +164,7 @@ export const monetaryField = {
             : [],
     extractProps: ({ attrs, options }) => ({
         currencyField: options.currency_field,
-        formatNumber:
-            options.enable_formatting !== undefined
-                ? Boolean(options.enable_formatting)
-                : true,
+        formatNumber: extractFormatNumber(options),
         inputType: attrs.type,
         useFieldDigits: options.field_digits,
         hideSymbol: options.no_symbol,

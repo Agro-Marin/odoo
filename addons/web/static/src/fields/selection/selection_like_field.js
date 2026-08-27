@@ -5,7 +5,7 @@ import { Domain } from "@web/core/domain";
 import { FieldComponent } from "@web/fields/field_component";
 import { fieldHandleFor } from "@web/fields/field_handle";
 import { useSpecialData } from "@web/fields/relational/special_data";
-import { getFieldDomain } from "@web/model/relational_model/utils";
+import { getFieldDomain } from "@web/model/relational_model";
 
 export class SelectionLikeField extends FieldComponent {
     /** @type {{ data: [number, string][] }} */

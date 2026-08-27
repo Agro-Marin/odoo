@@ -773,7 +773,7 @@ test("Many2ManyTagsField: toggle colorpicker with multiple tags", async () => {
         resId: 1,
     });
 
-    expect(".o_colorpicker").toHaveCount(0);
+    expect(".o_colorlist").toHaveCount(0);
 
     await contains(".o_field_many2many_tags .badge").click();
     expect(".o_colorlist").toHaveCount(1);
@@ -782,13 +782,13 @@ test("Many2ManyTagsField: toggle colorpicker with multiple tags", async () => {
     expect(".o_colorlist").toHaveCount(1);
 
     await contains(".o_field_many2many_tags [data-tooltip=silver]").click();
-    expect(".o_colorpicker").toHaveCount(0);
+    expect(".o_colorlist").toHaveCount(0);
 
     await contains(".o_field_many2many_tags [data-tooltip=silver]").click();
     expect(".o_colorlist").toHaveCount(1);
 
     await contains(getFixture()).click();
-    expect(".o_colorpicker").toHaveCount(0);
+    expect(".o_colorlist").toHaveCount(0);
 });
 
 test("Many2ManyTagsField: toggle colorpicker multiple times", async () => {
@@ -807,7 +807,7 @@ test("Many2ManyTagsField: toggle colorpicker multiple times", async () => {
 
     expect(".o_field_many2many_tags .badge").toHaveCount(1);
     expect(".o_field_many2many_tags .badge").toHaveAttribute("data-color", "0");
-    expect(".o_colorpicker").toHaveCount(0);
+    expect(".o_colorlist").toHaveCount(0);
 
     await contains(".o_field_many2many_tags .badge").click();
 

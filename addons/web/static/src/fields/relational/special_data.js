@@ -72,7 +72,7 @@ export function useSpecialData(loadFn) {
     });
 
     const ormWithCache = Object.create(orm);
-    ormWithCache.call = (...args) => {
+    ormWithCache.call = (/** @type {Parameters<typeof orm.call>} */ ...args) => {
         const key = JSON.stringify(args);
         const subscribers = subscribersFor(specialDataCaches, key);
         subscribers.add(reloadOnStaleCache);

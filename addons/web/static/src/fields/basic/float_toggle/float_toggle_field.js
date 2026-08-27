@@ -82,6 +82,7 @@ export class FloatToggleField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const floatToggleField = {
     component: FloatToggleField,
+    displayName: _t("Float Toggle"),
     supportedOptions: [
         {
             label: _t("Digits"),

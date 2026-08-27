@@ -237,3 +237,45 @@ test("Many2OneReferenceField with no_create option", async () => {
         ".o_field_widget[name='res_id'] .dropdown-menu .o_m2o_dropdown_option_create",
     ).toHaveCount(0);
 });
+
+class Attachment extends models.Model {
+    _name = "ir.attachment";
+    name = fields.Char();
+    res_model = fields.Char({ string: "Resource Model" });
+    res_id = fields.Many2oneReference({
+        string: "Resource Id",
+        model_field: "res_model",
+        relation: "ir.attachment",
+    });
+
+    _records = [
+        { id: 1, name: "original", res_model: "ir.attachment", res_id: 2 },
+        { id: 2, name: "variant", res_model: false, res_id: false },
+        { id: 3, name: "other", res_model: false, res_id: false },
+    ];
+}
+
+defineModels([Attachment]);
+
+test.tags("desktop");
+test("an attachment referencing an attachment excludes itself, and stays searchable", async () => {
+    onRpc("ir.attachment", "web_name_search", ({ kwargs }) => {
+        expect.step(JSON.stringify(kwargs.domain));
+    });
+    await mountView({
+        type: "form",
+        resModel: "ir.attachment",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="res_model" invisible="1"/>
+                <field name="res_id"/>
+            </form>`,
+    });
+    expect(".o_field_widget[name=res_id] input").toHaveValue("variant");
+
+    // The dropdown must open without the props / `getDomain` blowing up, and
+    // the record must not be offered as a parent of itself.
+    await contains(".o_field_widget[name=res_id] input").click();
+    expect.verifySteps([`[["id","!=",1]]`]);
+});

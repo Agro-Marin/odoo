@@ -10,7 +10,7 @@ import { debounce } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { getFieldDomain } from "@web/model/relational_model/utils";
+import { getFieldDomain } from "@web/model/relational_model";
 
 import { useSpecialData } from "../special_data.js";
 

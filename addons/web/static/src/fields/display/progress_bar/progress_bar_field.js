@@ -7,6 +7,7 @@ import { parseFloat, parseInteger } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { archAttribute } from "@web/fields/field_options";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -267,6 +268,7 @@ export const progressBarField = {
             help: _t("Label drawn beside the bar."),
         }),
     ],
+    isEmpty: isFalseEmpty,
     supportedTypes: ["integer", "float"],
     isValid: (
         /** @type {any} */ record,

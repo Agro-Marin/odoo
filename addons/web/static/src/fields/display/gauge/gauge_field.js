@@ -7,6 +7,7 @@ import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { useChartCanvas } from "@web/fields/chart_canvas_hook";
 import { FieldComponent } from "@web/fields/field_component";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 /**
@@ -141,6 +142,7 @@ export class GaugeField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const gaugeField = {
     component: GaugeField,
+    displayName: _t("Gauge"),
     supportedOptions: [
         {
             label: _t("Title"),
@@ -159,6 +161,7 @@ export const gaugeField = {
             type: "number",
         },
     ],
+    isEmpty: isFalseEmpty,
     supportedTypes: ["integer", "float"],
     fieldDependencies: ({ options }) =>
         options.max_field

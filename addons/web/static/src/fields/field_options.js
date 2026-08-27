@@ -33,7 +33,7 @@ export function createPermissionAttribute() {
     return archAttribute("can_create", _t("Can create"), {
         type: "boolean",
         help: _t(
-            "Python expression; when it is false the dropdown offers no creation at all.",
+            "Constant boolean -- `True` or `False`. When false the dropdown offers no creation at all. It is evaluated with NO record in scope, so an expression over field values raises instead of reading them.",
         ),
     });
 }
@@ -45,7 +45,7 @@ export function writePermissionAttribute() {
     return archAttribute("can_write", _t("Can write"), {
         type: "boolean",
         help: _t(
-            "Python expression; when it is false the linked record cannot be edited from here.",
+            "Constant boolean -- `True` or `False`. When false the linked record cannot be edited from here. It is evaluated with NO record in scope, so an expression over field values raises instead of reading them.",
         ),
     });
 }

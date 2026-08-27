@@ -20,7 +20,7 @@ import { fieldHandleFor } from "@web/fields/field_handle";
 import { archAttribute } from "@web/fields/field_options";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { getFieldDomain } from "@web/model/relational_model/utils";
+import { getFieldDomain } from "@web/model/relational_model";
 import { useCommand } from "@web/ui/commands/command_hook";
 
 /**

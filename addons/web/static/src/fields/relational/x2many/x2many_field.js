@@ -14,7 +14,7 @@ import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { archAttribute } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { getFieldDomain } from "@web/model/relational_model/utils";
+import { getFieldDomain } from "@web/model/relational_model";
 
 import { useSelectCreate } from "../many2x_autocomplete.js";
 import { useActiveActions } from "../relational_active_actions.js";
@@ -114,17 +114,14 @@ export class X2ManyField extends FieldComponent {
      * @param {{ linkRecords: Function, saveAndLink: Function, updateRecord: Function }} crud
      */
     setupRecordOpeners({ linkRecords, saveAndLink, updateRecord }) {
-        const openRecord = useOpenX2ManyRecord(
-            /** @type {any} */ ({
-                resModel: this.list.resModel,
-                activeField: this.activeField,
-                activeActions: this.activeActions,
-                getList: () => this.list,
-                saveRecord: saveAndLink,
-                updateRecord,
-                isMany2Many: this.isMany2Many,
-            }),
-        );
+        const openRecord = useOpenX2ManyRecord({
+            activeField: this.activeField,
+            activeActions: this.activeActions,
+            getList: () => this.list,
+            saveRecord: saveAndLink,
+            updateRecord,
+            isMany2Many: this.isMany2Many,
+        });
         this._openRecord = (params) => {
             const activeElement = document.activeElement;
             openRecord({
@@ -402,6 +399,44 @@ export const x2ManyField = {
             help: _t('Text of the row/card creation button, replacing "Add a line".'),
         }),
     ],
+    supportedOptions: [
+        {
+            label: _t("Can create"),
+            name: "create",
+            type: "string",
+            help: _t(
+                "Python domain; creation is offered only for records it matches. `False` forbids it outright.",
+            ),
+        },
+        {
+            label: _t("Can delete"),
+            name: "delete",
+            type: "string",
+            help: _t("Python domain gating the per-row delete action."),
+        },
+        {
+            label: _t("Can link"),
+            name: "link",
+            type: "string",
+            help: _t("many2many only: Python domain gating 'Add' / the select dialog."),
+        },
+        {
+            label: _t("Can unlink"),
+            name: "unlink",
+            type: "string",
+            help: _t(
+                "many2many only: Python domain gating removal of an existing link.",
+            ),
+        },
+        {
+            label: _t("Can write"),
+            name: "write",
+            type: "string",
+            help: _t(
+                "Python domain; when it does not match, the sub-view is read-only.",
+            ),
+        },
+    ],
     supportedTypes: ["one2many", "many2many"],
     useSubView: true,
     extractProps: (
@@ -412,7 +447,20 @@ export const x2ManyField = {
             addLabel: attrs["add-label"],
             context: dynamicInfo.context,
             domain: dynamicInfo.domain,
-            crudOptions: options,
+            // Named, not `options` wholesale: these five are the entire
+            // vocabulary `useActiveActions` reads, and spelling them out is
+            // what lets `supportedOptions` above be checked against the code
+            // in both directions. `createEdit` and `edit` were reachable the
+            // old way and are not declared here -- no arch in any repo sets
+            // either, and `edit` was overridden unconditionally by
+            // `getEvalParams` anyway.
+            crudOptions: {
+                create: options.create,
+                delete: options.delete,
+                link: options.link,
+                unlink: options.unlink,
+                write: options.write,
+            },
             string,
         };
         if (viewMode) {

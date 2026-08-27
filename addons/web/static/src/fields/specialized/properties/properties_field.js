@@ -547,6 +547,12 @@ export class PropertiesField extends FieldComponent {
         const propertyDefinition = this.propertiesList.find(
             (property) => property.name === propertyName,
         );
+        if (!propertyDefinition) {
+            // Every other `_updateRecordProperties` callback guards this way;
+            // this one did not, and threw if the property was deleted from
+            // under it.
+            return;
+        }
         propertyDefinition.tags = newTags;
         if (newValue !== null) {
             propertyDefinition.value = newValue;

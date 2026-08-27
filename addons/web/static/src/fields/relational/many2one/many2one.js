@@ -11,7 +11,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
-import { getFieldDomain } from "@web/model/relational_model/utils";
+import { getFieldDomain } from "@web/model/relational_model";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
@@ -48,25 +48,31 @@ function m2oHolder(fieldProps) {
     }
     let holder = byName.get(name);
     if (!holder) {
-        holder = { latest: fieldProps, stable: null, props: null };
-        holder.stable = {
+        // Built under a const so the closures below capture something that is
+        // never undefined: they read `latest` on every call, long after this
+        // block, and a `let` reassigned here stays possibly-undefined to the
+        // checker for all of them.
+        /** @type {{ latest: any, stable: any, props: any }} */
+        const created = { latest: fieldProps, stable: null, props: null };
+        created.stable = {
             domain: () =>
                 getFieldDomain(
-                    holder.latest.record,
-                    holder.latest.name,
-                    holder.latest.domain,
+                    created.latest.record,
+                    created.latest.name,
+                    created.latest.domain,
                 ),
             openActionContext: () => {
-                const { context, name, openActionContext, record } = holder.latest;
+                const { context, name, openActionContext, record } = created.latest;
                 return makeContext(
                     [openActionContext || context, record.fields[name].context],
                     record.evalContext,
                 );
             },
             update: (value, options = {}) =>
-                holder.latest.record.update({ [holder.latest.name]: value }, options),
+                created.latest.record.update({ [created.latest.name]: value }, options),
         };
-        byName.set(name, holder);
+        byName.set(name, created);
+        holder = created;
     }
     holder.latest = fieldProps;
     return holder;

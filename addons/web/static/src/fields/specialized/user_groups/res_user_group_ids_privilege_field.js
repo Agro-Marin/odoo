@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { BooleanField } from "@web/fields/basic/boolean/boolean_field";
 import { FieldComponent } from "@web/fields/field_component";
@@ -153,6 +154,7 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const resUserGroupIdsPrivilegeField = {
     component: ResUserGroupIdsPrivilegeField,
+    displayName: _t("Privilege"),
     supportedTypes: ["boolean", "selection"],
 };
 

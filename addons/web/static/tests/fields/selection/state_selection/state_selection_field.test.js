@@ -541,6 +541,61 @@ test("StateSelectionField uses legend_* fields", async () => {
     ]);
 });
 
+test("StateSelectionField loads legend_* itself, with no arch declaration", async () => {
+    // The widget declares the three legends as OPTIONAL fieldDependencies, so a
+    // view no longer has to carry `<field name="legend_x" invisible="1"/>`
+    // beside it -- 21 such lines existed across three repos when this landed.
+    Partner._fields.legend_normal = fields.Char();
+    Partner._fields.legend_blocked = fields.Char();
+    Partner._fields.legend_done = fields.Char();
+    Partner._records[0].legend_normal = "Custom normal";
+    Partner._records[0].legend_blocked = "Custom blocked";
+    Partner._records[0].legend_done = "Custom done";
+
+    /** @type {string[]} */
+    let requested = [];
+    onRpc("partner", "web_read", ({ kwargs }) => {
+        requested = Object.keys(kwargs.specification);
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="selection" widget="state_selection"/></form>`,
+    });
+
+    expect(requested).toInclude("legend_normal");
+
+    await click(".o_status");
+    await animationFrame();
+    expect(queryAllTexts(".o-dropdown--menu .dropdown-item")).toEqual([
+        "Custom normal",
+        "Custom blocked",
+        "Custom done",
+    ]);
+});
+
+test("StateSelectionField is unaffected on a model with no legend fields", async () => {
+    // `optional: true` means `addFieldDependencies` skips a dependency the
+    // model does not carry -- which is every user of this widget outside
+    // kanban state (maintenance, the payroll validation states, ...).
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="selection" widget="state_selection"/></form>`,
+    });
+
+    await click(".o_status");
+    await animationFrame();
+    expect(queryAllTexts(".o-dropdown--menu .dropdown-item")).toEqual([
+        "Normal",
+        "Blocked",
+        "Done",
+    ]);
+});
+
 test("works when required in a readonly view", async () => {
     Partner._records[0].selection = "normal";
     Partner._records = [Partner._records[0]];

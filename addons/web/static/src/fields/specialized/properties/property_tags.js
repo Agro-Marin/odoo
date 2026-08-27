@@ -283,6 +283,7 @@ export class PropertyTagsField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const propertyTagsField = {
     component: PropertyTagsField,
+    displayName: _t("Property Tags"),
 };
 
 registerField("property_tags", propertyTagsField);

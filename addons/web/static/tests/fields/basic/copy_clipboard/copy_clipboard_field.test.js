@@ -9,6 +9,7 @@ import {
     mockService,
     models,
     mountView,
+    onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 
@@ -269,4 +270,30 @@ test("CopyClipboardURLField shows the copy button on an empty url", async () => 
 
     expect(".o_field_CopyClipboardURL[name=url_field] input").toHaveValue("");
     expect(".o_clipboard_button.o_btn_char_copy").toHaveCount(1);
+});
+
+test("a copy-clipboard widget keeps the wrapped widget's fieldDependencies", async () => {
+    // `buildCopyClipboardField` used to rebuild the descriptor from a
+    // hand-picked list of keys, which dropped `fieldDependencies` -- so
+    // `dynamic_placeholder` never got the `render_model` it reads, and the
+    // picker refused to open on a CopyClipboardChar.
+    Partner._fields.render_model = fields.Char();
+    Partner._records[0].render_model = "res.partner";
+
+    /** @type {string[]} */
+    let requested = [];
+    onRpc("res.partner", "web_read", ({ kwargs }) => {
+        requested = Object.keys(kwargs.specification);
+    });
+    await mountView({
+        type: "form",
+        resModel: "res.partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="char_field" widget="CopyClipboardChar" options="{'dynamic_placeholder': True}"/>
+            </form>`,
+    });
+
+    expect(requested).toInclude("render_model");
 });

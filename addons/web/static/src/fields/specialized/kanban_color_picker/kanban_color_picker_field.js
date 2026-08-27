@@ -5,6 +5,7 @@ import { ColorList } from "@web/components/colorlist/colorlist";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class KanbanColorPickerField extends FieldComponent {
@@ -30,6 +31,7 @@ const kanbanColorPickerField = {
     component: KanbanColorPickerField,
     displayName: _t("Color Picker"),
     interactiveOutsideEdition: true,
+    isEmpty: isFalseEmpty,
     supportedTypes: ["integer"],
 };
 

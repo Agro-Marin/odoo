@@ -8,11 +8,11 @@ import { registry } from "@web/core/registry";
 import { fieldLog } from "@web/core/utils/asset_log";
 import { omit } from "@web/core/utils/collections/objects";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
+import { getFieldContext } from "@web/model/relational_model";
 import {
     FIELD_DEPENDENCIES_VALIDATION,
     RELATED_FIELDS_VALIDATION,
 } from "@web/model/relational_model/field_metadata";
-import { getFieldContext } from "@web/model/relational_model/utils";
 
 import { getTooltipInfo } from "./field_tooltip.js";
 import { standardFieldProps } from "./standard_field_props.js";

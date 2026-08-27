@@ -193,7 +193,6 @@ test("every widget renders each type it claims in supportedTypes", async () => {
 const UNDECLARED_BY_DESIGN = {
     date: ["always_range", "end_date_field", "rounding", "start_date_field"],
     datetime: ["always_range", "end_date_field", "start_date_field"],
-    float_time: ["displaySeconds"],
 };
 
 /**
@@ -353,6 +352,51 @@ test("supportedOptions and supportedAttributes declare nothing extractProps igno
 
     expect(drift).toEqual([]);
     expect(checked).toBeGreaterThan(88);
+});
+
+/**
+ * A numeric widget that does not declare `isEmpty` inherits
+ * `fieldVisualFeedback`'s falsy test, so a legitimate 0 is classified empty and
+ * the field is styled as if it had no value. `isFalseEmpty` is the opt-out the
+ * numeric widgets share; `() => false` is the other accepted answer, for
+ * widgets that are never empty at all.
+ *
+ * @type {string[]}
+ */
+const NUMERIC_TYPES = ["integer", "float", "monetary"];
+
+test("every numeric widget opts out of the falsy-is-empty default", () => {
+    const missing = registryEntries()
+        .filter(
+            ({ descr }) =>
+                (descr.supportedTypes || []).some((/** @type {string} */ t) =>
+                    NUMERIC_TYPES.includes(t),
+                ) && typeof descr.isEmpty !== "function",
+        )
+        .map(({ key }) => key)
+        .sort();
+
+    expect(missing).toEqual([]);
+});
+
+/**
+ * `displayName` is what the field tooltip renders as `widgetDescription` and
+ * what Studio lists a widget under. A widget without one is invisible to both.
+ *
+ * @type {string[]}
+ */
+const NO_DISPLAY_NAME_BY_DESIGN = [];
+
+test("every registry entry names itself", () => {
+    const missing = registryEntries()
+        .filter(
+            ({ key, descr }) =>
+                !descr.displayName && !NO_DISPLAY_NAME_BY_DESIGN.includes(key),
+        )
+        .map(({ key }) => key)
+        .sort();
+
+    expect(missing).toEqual([]);
 });
 
 const NO_SUPPORTED_TYPES_BY_DESIGN = ["property_tags"];

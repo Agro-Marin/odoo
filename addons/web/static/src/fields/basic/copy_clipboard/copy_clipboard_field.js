@@ -157,9 +157,14 @@ registerField("CopyClipboardButton", copyClipboardButtonField);
  */
 function buildCopyClipboardField(component, wrapped) {
     return {
+        // Spread, never a hand-picked list of keys: picking four of them
+        // silently dropped `fieldDependencies`, and with it the `render_model`
+        // that `dynamic_placeholder` needs, so the picker refused to open on a
+        // CopyClipboardChar. `isEmpty`, `listViewWidth`, `relatedFields` and
+        // `additionalClasses` were going the same way for the next widget that
+        // grew one.
+        ...wrapped,
         component,
-        supportedTypes: wrapped.supportedTypes,
-        supportedOptions: wrapped.supportedOptions,
         supportedAttributes: [
             ...copyClipboardAttributes,
             ...(wrapped.supportedAttributes || []),

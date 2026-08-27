@@ -100,6 +100,7 @@ export class JsonCheckboxes extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const jsonCheckboxes = {
     component: JsonCheckboxes,
+    displayName: _t("Checkbox List"),
     supportedOptions: [
         {
             label: _t("Stacked"),

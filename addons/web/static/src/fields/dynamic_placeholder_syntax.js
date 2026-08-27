@@ -1,7 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-
 export const UNRENDERABLE_FIELD_TYPES = [
     "binary",
     "boolean",

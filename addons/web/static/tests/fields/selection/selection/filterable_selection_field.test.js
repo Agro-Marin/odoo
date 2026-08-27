@@ -125,14 +125,14 @@ test(`FilterableSelectionField keeps the current many2one value visible`, async 
     ]);
 });
 
-test(`FilterableSelectionField test whitelist_fname`, async () => {
+test(`FilterableSelectionField test whitelist_field`, async () => {
     await mountView({
         resModel: "program",
         type: "form",
         arch: `
             <form>
                 <field name="available_types" invisible="1"/>
-                <field name="type" widget="filterable_selection" options="{'whitelist_fname': 'available_types'}"/>
+                <field name="type" widget="filterable_selection" options="{'whitelist_field': 'available_types'}"/>
             </form>
         `,
         resId: 1,

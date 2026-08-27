@@ -6,6 +6,7 @@ import { _t } from "@web/core/translation";
 import { clamp } from "@web/core/utils/format/numbers";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class PercentPieField extends FieldComponent {
@@ -35,6 +36,7 @@ export const percentPieField = {
     component: PercentPieField,
     displayName: _t("PercentPie"),
     supportedTypes: ["float", "integer"],
+    isEmpty: isFalseEmpty,
     additionalClasses: ["o_field_percent_pie"],
     extractProps: ({ string }) => ({ string }),
 };

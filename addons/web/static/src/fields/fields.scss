@@ -83,9 +83,14 @@
     }
 }
 
-.o_field_empty {
-    display: none;
-}
+// `.o_field_empty` carries no `display: none` here on purpose. `web.Field`
+// renders ONE element and `Field.classNames` always puts `o_field_widget` on it
+// beside `o_field_empty`, so a bare `.o_field_empty { display: none }` is
+// shadowed by the `.o_field_widget` display rule below -- equal specificity,
+// later in the file. It sat here unreachable for the whole life of the file;
+// `button_box.scss` had already had to re-state the same declaration at a
+// higher specificity to get the effect. The class stays a live hook: see that
+// rule and `.o_form_view .o_field_empty:empty` in `form_controller.scss`.
 
 .o_field_number {
     white-space: nowrap;

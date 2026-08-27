@@ -29,21 +29,44 @@ export class JournalDashboardGraphField extends FieldComponent {
         this.canvasRef = useChartCanvas(() => [this.field.value]);
     }
 
-    renderChart() {
-        if (this.chart) {
-            this.chart.destroy();
-        }
+    /**
+     * The field is plain text, so its contents are not guaranteed to be the
+     * shape both config builders read -- and they read it without asking:
+     * `this.data[0].values` is mapped by one and forEach'd by the other. JSON
+     * that parses to the wrong shape used to reach them and throw out of
+     * `onMounted`, taking the view down; only unparseable JSON was caught. Both
+     * now fail the same way: log, render nothing.
+     *
+     * @returns {any[] | null}
+     */
+    parseSeries() {
+        let data;
         try {
-            this.data = JSON.parse(this.field.value || "[]");
+            data = JSON.parse(this.field.value || "[]");
         } catch (error) {
             console.error(
                 `[dashboard_graph] "${this.props.name}" does not hold valid JSON; ` +
                     `rendering no graph:`,
                 error,
             );
-            this.data = [];
+            return null;
         }
-        if (!Array.isArray(this.data) || !this.data.length) {
+        if (!Array.isArray(data) || !data.length) {
+            return null;
+        }
+        if (!Array.isArray(data[0]?.values)) {
+            console.error(
+                `[dashboard_graph] "${this.props.name}" parsed, but its first ` +
+                    `series carries no "values" array; rendering no graph.`,
+            );
+            return null;
+        }
+        return data;
+    }
+
+    renderChart() {
+        this.data = this.parseSeries();
+        if (!this.data) {
             return;
         }
         const config =
@@ -178,6 +201,7 @@ export class JournalDashboardGraphField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const journalDashboardGraphField = {
     component: JournalDashboardGraphField,
+    displayName: _t("Dashboard Graph"),
     supportedAttributes: [
         archAttribute("graph_type", _t("Graph type"), {
             type: "selection",

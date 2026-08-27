@@ -9,7 +9,9 @@ import {
     findComponent,
     models,
     mountView,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { JournalDashboardGraphField } from "@web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 
 const graph_values = [
@@ -176,4 +178,86 @@ test("dashboard_graph survives a malformed payload and a missing graph_type", as
     expect(".o_dashboard_graph.o_graph_barchart").toHaveCount(1, {
         message: "graphType falls back to its default",
     });
+});
+
+/**
+ * `parseSeries` reads only `this.field.value` and `this.props.name`, so it can
+ * be exercised without a view -- which is the point: it is the one place that
+ * decides whether the config builders are allowed to run.
+ *
+ * @param {string} value
+ * @returns {{ result: any, logged: string }}
+ */
+function parseSeriesOf(value) {
+    let logged = "";
+    patchWithCleanup(console, {
+        error: (...args) => {
+            logged += args.map(String).join(" ");
+        },
+    });
+    const component = {
+        props: { name: "graph_data" },
+        field: { value },
+    };
+    const result = JournalDashboardGraphField.prototype.parseSeries.call(component);
+    return { result, logged };
+}
+
+test("parseSeries refuses anything the config builders cannot read", () => {
+    // Both builders reach straight into `data[0].values`. Unparseable JSON was
+    // already caught here; JSON that parsed to the wrong shape was not, and
+    // reached them.
+    const wellFormed = JSON.stringify([{ values: graph_values, key: "A key" }]);
+    expect(parseSeriesOf(wellFormed).result).toHaveLength(1);
+
+    for (const [value, expectedLog] of [
+        ["not json at all", "does not hold valid JSON"],
+        ["{oops", "does not hold valid JSON"],
+        ["[1,2,3]", "carries no"],
+        ['[{"key":"k"}]', "carries no"],
+        ['[{"values":"not an array"}]', "carries no"],
+        ['{"key":"k"}', ""],
+        ["[]", ""],
+        ["", ""],
+    ]) {
+        const { result, logged } = parseSeriesOf(value);
+        expect(result).toBe(null, { message: `rejected: ${JSON.stringify(value)}` });
+        expect(logged).toInclude(expectedLog, {
+            message: `log for ${JSON.stringify(value)}`,
+        });
+    }
+});
+
+test("graph data of the wrong shape leaves the view standing", async () => {
+    // Before the guard this threw out of `onMounted` and destroyed the view.
+    for (const record of Partner._records) {
+        record.graph_data = "[1,2,3]";
+    }
+    /** @type {string[]} */
+    const logged = [];
+    patchWithCleanup(console, {
+        error: (...args) => logged.push(args.map(String).join(" ")),
+    });
+
+    const view = await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="graph_data" widget="dashboard_graph" graph_type="bar"/>
+                    </t>
+                </templates>
+            </kanban>`,
+    });
+    await animationFrame();
+
+    const graph = findComponent(
+        view,
+        (component) => component instanceof JournalDashboardGraphField,
+    );
+    expect(Boolean(graph)).toBe(true);
+    expect(graph.chart ?? null).toBe(null);
+    expect(logged.join(" ")).toInclude("carries no");
 });

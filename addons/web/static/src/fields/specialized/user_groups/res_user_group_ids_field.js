@@ -334,6 +334,7 @@ class ResUserGroupIdsField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const resUserGroupIdsField = {
     component: ResUserGroupIdsField,
+    displayName: _t("User Groups"),
     fieldDependencies: [{ name: "view_group_hierarchy", type: "json", readonly: true }],
     additionalClasses: ["w-100"],
     supportedTypes: ["many2many"],

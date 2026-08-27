@@ -111,6 +111,7 @@ export class Many2ManyBinaryField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const many2ManyBinaryField = {
     component: Many2ManyBinaryField,
+    displayName: _t("Files"),
     supportedOptions: [
         acceptedFileExtensionsOption(),
         {

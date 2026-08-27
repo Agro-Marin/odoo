@@ -16,7 +16,7 @@ import {
     useOwnedDialogs,
     useService,
 } from "@web/core/utils/hooks";
-import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
+import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 const views = registry.category("views");
@@ -289,7 +289,7 @@ function getDialogTitles(activeField, record, title) {
 }
 
 /**
- * @param {{ isMany2Many: boolean, activeActions: any, readonly: boolean }} params
+ * @param {{ isMany2Many: boolean, activeActions: any, readonly?: boolean }} params
  * @returns {"edit" | "readonly"}
  */
 function getDialogMode({ isMany2Many, activeActions, readonly }) {
@@ -351,7 +351,7 @@ async function openX2ManyRecord(
     }
     const { activeFields, fields } = extractFieldsFromArchInfo(archInfo, _fields);
 
-    const isDuplicate = !!record;
+    const isExistingRecord = !!record;
     const params = {
         activeFields,
         fields,
@@ -378,7 +378,7 @@ async function openX2ManyRecord(
             controls,
             addNew: () => getList().extendRecord(creationParams),
             save: (rec) =>
-                isDuplicate && rec.id === record.id
+                isExistingRecord && rec.id === record.id
                     ? ctx.updateRecord(rec)
                     : ctx.saveRecord(rec),
             title: titles.title,

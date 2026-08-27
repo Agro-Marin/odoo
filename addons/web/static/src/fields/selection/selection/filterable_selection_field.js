@@ -10,9 +10,9 @@ import {
 export class FilterableSelectionField extends SelectionField {
     static props = {
         ...SelectionField.props,
-        whitelist_fname: { type: String, optional: true },
-        whitelisted_values: { type: Array, optional: true },
-        blacklisted_values: { type: Array, optional: true },
+        whitelistField: { type: String, optional: true },
+        whitelistedValues: { type: Array, optional: true },
+        blacklistedValues: { type: Array, optional: true },
     };
 
     /**
@@ -22,22 +22,22 @@ export class FilterableSelectionField extends SelectionField {
     get options() {
         /** @type {Array<[string, string]>} */
         let options = super.options;
-        if (this.props.whitelist_fname) {
-            const whitelist = this.props.record.data[this.props.whitelist_fname] || [];
+        if (this.props.whitelistField) {
+            const whitelist = this.props.record.data[this.props.whitelistField] || [];
             options = options.filter(
                 (option) => option[0] === this.value || whitelist.includes(option[0]),
             );
-        } else if (this.props.whitelisted_values) {
+        } else if (this.props.whitelistedValues) {
             options = options.filter(
                 (option) =>
                     option[0] === this.value ||
-                    this.props.whitelisted_values.includes(option[0]),
+                    this.props.whitelistedValues.includes(option[0]),
             );
-        } else if (this.props.blacklisted_values) {
+        } else if (this.props.blacklistedValues) {
             options = options.filter(
                 (option) =>
                     option[0] === this.value ||
-                    !this.props.blacklisted_values.includes(option[0]),
+                    !this.props.blacklistedValues.includes(option[0]),
             );
         }
         return options;
@@ -49,26 +49,31 @@ const filterableSelectionField = {
     component: FilterableSelectionField,
     supportedOptions: [
         {
-            label: _t("Whitelisted Values"),
+            label: _t("Whitelisted values"),
             name: "whitelisted_values",
             type: "string",
+            help: _t("List of selection values to keep, e.g. `['a', 'b']`."),
         },
         {
-            label: _t("Blacklisted Values"),
+            label: _t("Blacklisted values"),
             name: "blacklisted_values",
             type: "string",
+            help: _t("List of selection values to drop, e.g. `['a', 'b']`."),
         },
         {
-            label: _t("Whitelisted field name"),
-            name: "whitelist_fname",
-            type: "string",
+            label: _t("Whitelist field"),
+            name: "whitelist_field",
+            type: "field",
+            help: _t(
+                "Field holding the list of selection values to keep. Takes precedence over the two lists above.",
+            ),
         },
     ],
     extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         ...selectionField.extractProps(fieldInfo, dynamicInfo),
-        whitelist_fname: fieldInfo.options.whitelist_fname,
-        whitelisted_values: fieldInfo.options.whitelisted_values,
-        blacklisted_values: fieldInfo.options.blacklisted_values,
+        whitelistField: fieldInfo.options.whitelist_field,
+        whitelistedValues: fieldInfo.options.whitelisted_values,
+        blacklistedValues: fieldInfo.options.blacklisted_values,
     }),
 };
 

@@ -45,7 +45,9 @@ export function useDynamicPlaceholder(elementRef) {
             return;
         }
         const tzPath =
-            fieldType === "datetime" ? await resolveTzPath(orm, model) : undefined;
+            fieldType === "datetime"
+                ? ((await resolveTzPath(orm, model)) ?? undefined)
+                : undefined;
         const dynamicPlaceholder = ` ${buildInlinePlaceholder({
             path,
             fieldType,

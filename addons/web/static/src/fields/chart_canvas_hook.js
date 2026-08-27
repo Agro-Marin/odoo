@@ -19,7 +19,12 @@ export function useChartCanvas(dependencies) {
         component.renderChart();
         return () => {
             if (component.chart) {
+                // Null it out: the reference outlived the chart, so a
+                // `renderChart` that bails early on empty data left the next
+                // teardown destroying an already-destroyed Chart. Callers can
+                // now treat `component.chart` as "a live chart or nothing".
                 component.chart.destroy();
+                component.chart = null;
             }
         };
     }, dependencies);

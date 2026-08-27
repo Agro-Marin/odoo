@@ -3576,7 +3576,7 @@ test("one2many kanban: edition", async () => {
     await contains(".o_kanban_record:eq(0)").click();
     expect(".modal .modal-footer .o_btn_remove").toHaveCount(1);
     await contains(".modal .modal-footer .o_btn_remove:eq(0)").click();
-    expect(".o_modal").toHaveCount(0, { message: "modal should have been closed" });
+    expect(".modal").toHaveCount(0, { message: "modal should have been closed" });
     expect(
         ".o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new)",
     ).toHaveCount(3);

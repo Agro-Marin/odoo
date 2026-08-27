@@ -15,7 +15,11 @@ import {
     pagerNext,
 } from "@web/../tests/web_test_helpers";
 import { toBase64Length } from "@web/core/utils/format/binary";
-import { MAX_FILENAME_SIZE_BYTES } from "@web/fields/media/binary/binary_field";
+import {
+    BinaryField,
+    MAX_FILENAME_SIZE_BYTES,
+} from "@web/fields/media/binary/binary_field";
+import { PdfViewerField } from "@web/fields/media/pdf_viewer/pdf_viewer_field";
 
 const BINARY_FILE =
     "R0lGODlhDAAMAKIFAF5LAP/zxAAAANyuAP/gaP///wAAAAAAACH5BAEAAAUALAAAAAAMAAwAAAMlWLPcGjDKFYi9lxKBOaGcF35DhWHamZUW0K4mAbiwWtuf0uxFAgA7";
@@ -613,4 +617,104 @@ test("BinaryField: a dependency never unlocks an arch-readonly filename field", 
     await clickSave();
 
     expect.verifySteps([{ document: "aGVsbG8=" }]);
+});
+
+/**
+ * `binary` and `pdf_viewer` write the value and the `filename=` field in one
+ * changeset, so neither can go through `field.update`. They used to each carry
+ * their own copy of that logic and had drifted apart in two places; this pins
+ * them to the same answers.
+ *
+ * @param {any} proto
+ * @param {{ fileNameField?: string, modelFields: Record<string, any>, currentName?: string }} ctx
+ * @param {{ name?: string, data?: any }} payload
+ * @returns {Record<string, any> | null}
+ */
+function captureFileUpdate(
+    proto,
+    { fileNameField, modelFields, currentName },
+    payload,
+) {
+    /** @type {Record<string, any> | null} */
+    let captured = null;
+    const component = {
+        props: {
+            name: "document",
+            fileNameField,
+            record: {
+                fields: modelFields,
+                data: {
+                    document: false,
+                    ...(currentName === undefined
+                        ? {}
+                        : { [fileNameField]: currentName }),
+                },
+                update: (/** @type {Record<string, any>} */ changes) => {
+                    captured = changes;
+                    return Promise.resolve();
+                },
+            },
+        },
+    };
+    proto.update.call(component, payload);
+    return captured;
+}
+
+const FILE_UPDATE_MODEL_FIELDS = { document: {}, document_name: {} };
+
+test("binary and pdf_viewer write a file the same way", () => {
+    const cases = [
+        [
+            "filename names a field on the record",
+            {
+                fileNameField: "document_name",
+                modelFields: FILE_UPDATE_MODEL_FIELDS,
+                currentName: "old.pdf",
+            },
+            { name: "new.pdf", data: "X" },
+            { document: "X", document_name: "new.pdf" },
+        ],
+        [
+            "filename names a field the record does not carry",
+            { fileNameField: "absent", modelFields: FILE_UPDATE_MODEL_FIELDS },
+            { name: "new.pdf", data: "X" },
+            { document: "X" },
+        ],
+        [
+            "no filename attribute at all",
+            { fileNameField: undefined, modelFields: FILE_UPDATE_MODEL_FIELDS },
+            { name: "new.pdf", data: "X" },
+            { document: "X" },
+        ],
+        [
+            "clearing the file blanks the name to false, not to an empty string",
+            {
+                fileNameField: "document_name",
+                modelFields: FILE_UPDATE_MODEL_FIELDS,
+                currentName: "old.pdf",
+            },
+            { name: "", data: false },
+            { document: false, document_name: false },
+        ],
+        [
+            "a name that already matches is not rewritten",
+            {
+                fileNameField: "document_name",
+                modelFields: FILE_UPDATE_MODEL_FIELDS,
+                currentName: "same.pdf",
+            },
+            { name: "same.pdf", data: "X" },
+            { document: "X" },
+        ],
+    ];
+    for (const [label, ctx, payload, expected] of cases) {
+        expect(captureFileUpdate(BinaryField.prototype, ctx, payload)).toEqual(
+            expected,
+            { message: `binary: ${label}` },
+        );
+        expect(captureFileUpdate(PdfViewerField.prototype, ctx, payload)).toEqual(
+            expected,
+            { message: `pdf_viewer: ${label}` },
+        );
+    }
 });

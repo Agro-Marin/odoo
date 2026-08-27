@@ -30,12 +30,23 @@ export class BooleanField extends FieldComponent {
     }
 
     /**
+     * The single override point for subclasses that save on toggle. Kept as a
+     * getter rather than a duplicated `onChange`, which is what the toggle and
+     * its list variant each used to carry.
+     *
+     * @returns {{ save?: boolean } | undefined}
+     */
+    get updateOptions() {
+        return undefined;
+    }
+
+    /**
      * @param {boolean} newValue
      */
     async onChange(newValue) {
         this.state.value = newValue;
         try {
-            await this.field.update(newValue);
+            await this.field.update(newValue, this.updateOptions);
         } catch (error) {
             this.state.value = this.field.value;
             throw error;

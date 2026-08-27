@@ -47,9 +47,7 @@ export const floatTimeField = {
     supportedTypes: ["float"],
     isEmpty: () => false,
     extractProps: ({ options }) => ({
-        displaySeconds: exprToBoolean(
-            options.display_seconds ?? options.displaySeconds ?? false,
-        ),
+        displaySeconds: exprToBoolean(options.display_seconds ?? false),
     }),
 };
 

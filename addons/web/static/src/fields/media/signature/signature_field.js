@@ -156,6 +156,7 @@ export class SignatureField extends FieldComponent {
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const signatureField = {
     component: SignatureField,
+    displayName: _t("Signature"),
     fieldDependencies: ({ options }) => [
         { name: "write_date", type: "datetime" },
         ...(options.full_name

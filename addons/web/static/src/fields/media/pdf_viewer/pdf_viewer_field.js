@@ -18,6 +18,7 @@ import { url } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { filenameAttribute } from "@web/fields/field_options";
+import { updateFileValue } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class PdfViewerField extends FieldComponent {
@@ -108,16 +109,12 @@ export class PdfViewerField extends FieldComponent {
     }
 
     update({ name, data }) {
-        const changes = {
-            [this.props.name]: data || false,
-        };
-        if (
-            this.props.fileNameField &&
-            this.props.record.data[this.props.fileNameField] !== name
-        ) {
-            changes[this.props.fileNameField] = name || false;
-        }
-        return this.props.record.update(changes);
+        return updateFileValue(this.props.record, {
+            valueField: this.props.name,
+            fileNameField: this.props.fileNameField,
+            data,
+            name,
+        });
     }
 
     onFileRemove() {
