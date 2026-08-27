@@ -29,7 +29,7 @@ def _log_result(timer: PerfTimer, name: str):
     return stats
 
 
-@tagged("standard", "python_hotspots_benchmark")
+@tagged("-standard", "python_hotspots_benchmark")
 class TestPythonHotspots(TransactionCase):
     """Timing only: no test_* method here asserts on a measured value.
 

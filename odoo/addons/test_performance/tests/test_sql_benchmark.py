@@ -17,7 +17,7 @@ DEFAULT_ITERATIONS = 50
 WARMUP_ITERATIONS = 5
 
 
-@tagged("standard", "sql_benchmark")
+@tagged("-standard", "sql_benchmark")
 class TestSQLBenchmark(BenchmarkCase, TransactionCase):
     """Timing only: no test_* method here asserts on a measured value.
 
