@@ -502,6 +502,14 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
         )
 
     def test_99_generate_summary(self):
+        """Extra breakdowns on top of the shared BenchmarkCase summary.
+
+        The slowest-operations listing below used to be reimplemented here;
+        it is exactly what log_benchmark_summary() already provides, so this
+        now calls it and only adds the breakdowns that method doesn't have:
+        ranking by overhead ratio, the zero-query/pure-Python bucket, and
+        the aggregate/JSON export.
+        """
         if not self.all_results:
             _logger.info("[ORM_BENCHMARK] No results to summarize.")
             return
@@ -533,22 +541,8 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
                 stat.query_count_mean,
             )
 
-        sorted_by_time = sorted(self.all_results, key=lambda x: x.mean_us, reverse=True)
-
         _logger.info("\n[ORM_BENCHMARK] SLOWEST OPERATIONS:")
-        _logger.info("-" * 70)
-        _logger.info(
-            "%-40s %10s %10s %10s", "Test Name", "Mean(µs)", "P95(µs)", "StdDev"
-        )
-        _logger.info("-" * 70)
-        for stat in sorted_by_time[:10]:
-            _logger.info(
-                "%-40s %10.1f %10.1f %10.1f",
-                stat.name[:40],
-                stat.mean_us,
-                stat.p95_us,
-                stat.std_dev_us,
-            )
+        self.log_benchmark_summary()
 
         zero_query_ops = [s for s in self.all_results if s.query_count_mean == 0]
         if zero_query_ops:
