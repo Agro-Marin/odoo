@@ -3,6 +3,7 @@ import json
 import logging
 import statistics
 import time
+import unittest
 from datetime import datetime
 
 from odoo.tests.benchmark import (
@@ -597,6 +598,21 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         if not self.all_results:
             _logger.info("[SQL_BENCHMARK] No results to summarize.")
             return
+
+        # Only guarding the zero-results case let a partial selection
+        # (--test-tags excluding some but not all test_NN_* methods, or an
+        # earlier test erroring) silently print an incomplete summary as
+        # if it were complete. Compare against how many benchmark methods
+        # this class actually defines and say so explicitly instead.
+        expected = len(unittest.TestLoader().getTestCaseNames(type(self))) - 1
+        if len(self.all_results) < expected:
+            _logger.warning(
+                "[SQL_BENCHMARK] PARTIAL RESULTS: only %d/%d benchmark "
+                "method(s) recorded a result -- some tests were likely "
+                "deselected or failed before reaching this summary.",
+                len(self.all_results),
+                expected,
+            )
 
         _logger.info("\n%s", "=" * 80)
         _logger.info("[SQL_BENCHMARK] FINAL SUMMARY")
