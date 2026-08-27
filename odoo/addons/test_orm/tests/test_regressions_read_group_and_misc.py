@@ -1,3 +1,11 @@
+"""Regression tests for read_group, xid, with_company and misc ORM fixes.
+
+Cumulative with ``test_regressions_o2m_and_defaults.py`` (one2many
+clear/archived, company-dependent insert fallback, datetime equality) —
+each file guards a disjoint set of prior fixes, neither supersedes the
+other.
+"""
+
 import warnings
 
 from odoo.exceptions import AccessError

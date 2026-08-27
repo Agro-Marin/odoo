@@ -1,3 +1,11 @@
+"""Regression tests for one2many/company-dependent/datetime fixes.
+
+Cumulative with ``test_regressions_read_group_and_misc.py`` (read_group,
+xid determinism, with_company, display_name search, copy_translations) —
+each file guards a disjoint set of prior fixes, neither supersedes the
+other.
+"""
+
 from datetime import date, timedelta
 
 from odoo.fields import Command
