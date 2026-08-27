@@ -80,7 +80,7 @@ class MimeGuessingCases:
             "text/plain",
         )
 
-    def test_unkown(self):
+    def test_unknown(self):
         self.assertEqual(
             self.guess_mimetype(b"\1\2\3\1\2\3\1\2\3\1\2\3\1\2\3"),
             "application/octet-stream",
