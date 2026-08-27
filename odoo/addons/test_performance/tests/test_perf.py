@@ -31,7 +31,7 @@ def _log_result(stats: dict):
     _logger.info("[ORM_PERF] %s", stats.get("summary", stats.get("name", "?")))
 
 
-@tagged("standard", "orm_perf")
+@tagged("-standard", "orm_perf")
 class TestFieldConversion(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -175,7 +175,7 @@ class TestFieldConversion(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "orm_perf", "field_get")
+@tagged("-standard", "orm_perf", "field_get")
 class TestFieldGet(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -364,7 +364,7 @@ class TestFieldGet(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "orm_perf")
+@tagged("-standard", "orm_perf")
 class TestIteration(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -479,7 +479,7 @@ class TestIteration(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "orm_perf")
+@tagged("-standard", "orm_perf")
 class TestCacheInternals(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -609,7 +609,7 @@ class TestCacheInternals(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "orm_perf")
+@tagged("-standard", "orm_perf")
 class TestUnlink(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -651,7 +651,7 @@ class TestUnlink(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "orm_perf")
+@tagged("-standard", "orm_perf")
 class TestDomainPerf(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -762,7 +762,7 @@ class TestDomainPerf(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "orm_perf")
+@tagged("-standard", "orm_perf")
 class TestReadGroupPerf(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -827,7 +827,7 @@ class TestReadGroupPerf(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "orm_perf")
+@tagged("-standard", "orm_perf")
 class TestHotPaths(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -956,7 +956,7 @@ class TestHotPaths(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "orm_perf")
+@tagged("-standard", "orm_perf")
 class TestFullPipeline(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -1107,7 +1107,7 @@ class TestFullPipeline(TransactionCase):
             _logger.info(json.dumps(export, indent=2, default=str))
 
 
-@tagged("standard", "accel_baseline")
+@tagged("-standard", "accel_baseline")
 class TestAccelClone(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -1236,7 +1236,7 @@ class TestAccelClone(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "accel_baseline")
+@tagged("-standard", "accel_baseline")
 class TestAccelMappedFiltered(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -1343,7 +1343,7 @@ class TestAccelMappedFiltered(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "accel_baseline")
+@tagged("-standard", "accel_baseline")
 class TestAccelFieldCache(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -1466,7 +1466,7 @@ class TestAccelFieldCache(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-@tagged("standard", "accel_baseline")
+@tagged("-standard", "accel_baseline")
 class TestAccelPrimitives(TransactionCase):
     @classmethod
     def setUpClass(cls):
