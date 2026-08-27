@@ -249,6 +249,33 @@ class TestAccountPayment(AccountPaymentCommon):
         self.assertEqual(same_group_2.suitable_payment_token_ids, token)
         self.assertEqual(other_group.suitable_payment_token_ids, other_token)
 
+    def test_payment_action_void_ensures_single_record(self):
+        """Test that payment_action_void raises on a multi-record recordset, matching
+        its sibling payment_action_capture, instead of silently voiding transactions
+        across several invoices at once."""
+        invoice_1 = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "line 1", "price_unit": 50.0}),
+                ],
+            }
+        )
+        invoice_2 = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "line 2", "price_unit": 50.0}),
+                ],
+            }
+        )
+        with self.assertRaises(ValueError):
+            (invoice_1 + invoice_2).payment_action_void()
+        # Single-record call still works.
+        invoice_1.payment_action_void()
+
     def test_no_payment_for_validations(self):
         tx = self._create_transaction(
             flow="dummy", operation="validation"
