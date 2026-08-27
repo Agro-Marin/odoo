@@ -169,3 +169,11 @@ class test_inherits(common.TransactionCase):
             self.assertEqual(
                 len(parent.child_id.test_unstored_inherits_shared_line_ids), 1
             )
+
+    def test_search_child_id_matches_nothing(self):
+        self.env["test.unstored.inherits.parent"].create({"name": "foo"})
+        self.env["test.unstored.inherits.parent"].create({"name": "bar"})
+        found = self.env["test.unstored.inherits.parent"].search(
+            [("child_id", "=", 999999999)]
+        )
+        self.assertFalse(found)
