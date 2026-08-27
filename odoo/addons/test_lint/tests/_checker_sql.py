@@ -65,11 +65,19 @@ class Violation:
 class SqlInjectionChecker:
     filepath: str
 
-    _function_defs: dict[str, list[ast.FunctionDef]] = field(
+    # Keyed by (enclosing class name, method/function name), not by bare name:
+    # two unrelated classes in the same file are free to name a method the
+    # same thing (`_query`, `_domain`, ...), and a bare-name key merged them,
+    # so a safe call in one class could be flagged -- or a risky one waved
+    # through -- because of an unrelated same-named method elsewhere in the
+    # file. `None` as the class component means a module-level function.
+    _function_defs: dict[tuple[str | None, str], list[ast.FunctionDef]] = field(
         default_factory=lambda: defaultdict(list),
         init=False,
     )
-    _callsites: dict[str, list[tuple[int | None, bool, ast.Call]]] = field(
+    _callsites: dict[
+        tuple[str | None, str], list[tuple[int | None, bool, ast.Call]]
+    ] = field(
         default_factory=lambda: defaultdict(list),
         init=False,
     )
@@ -111,11 +119,12 @@ class SqlInjectionChecker:
         Two findings that really are on the same LINE stay two: they differ by
         column, which is what `Finding.col_offset` carries.
         """
-        self._function_defs[node.name].append(node)
+        key = (self._enclosing_class_name(node), node.name)
+        self._function_defs[key].append(node)
 
         offending = {
             call.lineno
-            for position, const_args, call in self._callsites[node.name]
+            for position, const_args, call in self._callsites[key]
             if not self._is_const_def(node, position=position, const_args=const_args)
         }
         if not offending:
@@ -450,11 +459,12 @@ class SqlInjectionChecker:
             return True
 
         const_args = self._all_const(node.args, args_allowed=args_allowed)
+        key = (self._enclosing_class_name(node), name)
 
         if self._root_call is not None:
-            self._callsites[name].append((position, const_args, self._root_call))
+            self._callsites[key].append((position, const_args, self._root_call))
 
-        if funs := self._function_defs[name]:
+        if funs := self._function_defs[key]:
             return all(
                 self._is_const_def(fun, position=position, const_args=const_args)
                 for fun in funs
@@ -542,6 +552,21 @@ class SqlInjectionChecker:
         while current is not None:
             if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
                 return current
+            current = getattr(current, "_parent", None)
+        return None
+
+    @staticmethod
+    def _enclosing_class_name(node: ast.AST) -> str | None:
+        """The name of the nearest enclosing class, or `None` at module level.
+
+        Used to key `_function_defs`/`_callsites` by class as well as by name,
+        so a method in one class does not get merged with an unrelated
+        same-named method in another class in the same file.
+        """
+        current = getattr(node, "_parent", None)
+        while current is not None:
+            if isinstance(current, ast.ClassDef):
+                return current.name
             current = getattr(current, "_parent", None)
         return None
 
