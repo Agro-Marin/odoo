@@ -4,7 +4,6 @@ import geoip2.errors
 import geoip2.models
 
 from odoo.http import FilesystemSessionStore
-from odoo.libs._vendor.sessions import SessionStore
 
 TEST_IP = "192.0.2.42"
 TEST_IP_GEOIP_CITY = geoip2.models.City(
@@ -134,7 +133,7 @@ class MemoryGeoipResolver:
         return record
 
 
-class MemorySessionStore(SessionStore):
+class MemorySessionStore(FilesystemSessionStore):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.store = {}
@@ -166,18 +165,6 @@ class MemorySessionStore(SessionStore):
 
     def get_missing_session_identifiers(self, identifiers):
         return set(identifiers).difference(self.store)
-
-    def delete_old_sessions(self, session):
-        return FilesystemSessionStore.delete_old_sessions(self, session)
-
-    def rotate(self, session, env, soft=None):
-        FilesystemSessionStore.rotate(self, session, env, soft)
-
-    def generate_key(self, salt=None):
-        return FilesystemSessionStore.generate_key(self, salt)
-
-    def is_valid_key(self, key):
-        return FilesystemSessionStore.is_valid_key(self, key)
 
     def vacuum(self):
         return
