@@ -15,7 +15,6 @@ class MixinAccountMoveSend(models.AbstractModel):
     _name = "mixin.account.move.send"
     _description = "Account Move Send"
 
-
     @api.model
     def _get_default_sending_methods(self, move) -> set:
         return {
@@ -150,7 +149,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             )
         return vals
 
-
     @api.model
     def _get_alerts(self, moves, moves_data):
         alerts = {}
@@ -200,7 +198,6 @@ class MixinAccountMoveSend(models.AbstractModel):
                 }
 
         return alerts
-
 
     @api.model
     def _get_mail_default_field_value_from_template(
@@ -275,7 +272,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             if self.env.context.get("allow_partners_without_mail")
             else partners.filtered("email")
         )
-
 
     @api.model
     def _get_default_mail_attachments_widget(
@@ -373,7 +369,6 @@ class MixinAccountMoveSend(models.AbstractModel):
             for attachment in mail_template.attachment_ids
         ]
 
-
     @api.model
     def _raise_danger_alerts(self, alerts):
         danger_alert_messages = [
@@ -445,7 +440,6 @@ class MixinAccountMoveSend(models.AbstractModel):
     @api.model
     def _display_attachments_widget(self, edi_format, sending_methods):
         return "email" in sending_methods
-
 
     @api.model
     def _is_applicable_to_company(self, method, company):
@@ -896,9 +890,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         batches = []
         pdf_to_generate = {}
         for invoice, invoice_data in invoices_data_pdf.items():
-            if (
-                not invoice_data.get("error") and not invoice.invoice_pdf_report_id
-            ):
+            if not invoice_data.get("error") and not invoice.invoice_pdf_report_id:
                 pdf_to_generate[invoice] = invoice_data
 
                 if len(pdf_to_generate) > int(batch_size):
