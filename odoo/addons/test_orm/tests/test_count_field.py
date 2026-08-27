@@ -36,6 +36,13 @@ class TestCountField(TransactionCase):
             ("tag_count", "len_tag_count"),
         ]
         for count_name, len_name in pairs:
+            # Invalidate before *each* read, not once before both: count_name
+            # and len_name are independently-cached fields, so a single
+            # invalidate would already force a fresh SELECT for len_name
+            # regardless — the second invalidate exists to keep this
+            # immune to a future compute that makes one field's read a
+            # side-effect of the other's (a shared prefetch/compute path
+            # bleeding a stale value across the pair).
             self.env.invalidate_all()
             counted = [record[count_name] for record in records]
             self.env.invalidate_all()
