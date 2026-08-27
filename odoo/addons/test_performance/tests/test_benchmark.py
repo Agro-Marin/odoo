@@ -35,8 +35,14 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
 
     @classmethod
     def _create_test_data(cls):
-        existing = cls.Model.search_count([("name", "like", "ORMBench%")])
-        if existing < 100:
+        existing = cls.Model.search([("name", "like", "ORMBench%")])
+        if 0 < len(existing) < 100:
+            # A prior non-rolled-back run left a partial batch (e.g.
+            # interrupted mid-create): reconcile it instead of appending a
+            # second full batch on top of these 1-99 stale rows.
+            existing.unlink()
+            existing = cls.Model.browse()
+        if len(existing) < 100:
             _logger.info("[ORM_BENCHMARK] Creating test data...")
             cls.Model.create(
                 [{"name": f"ORMBench_{i}", "value": i} for i in range(100)]
