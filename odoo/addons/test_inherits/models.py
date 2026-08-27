@@ -46,14 +46,14 @@ class TestPallet(models.Model):
     field_in_pallet = fields.Char("Field2")
 
 
-class TestAnother_Unit(models.Model):
+class TestAnotherUnit(models.Model):
     _name = "test.another_unit"
     _description = "Another Test Unit"
 
     val1 = fields.Integer("Value 1", required=True)
 
 
-class TestAnother_Box(models.Model):
+class TestAnotherBox(models.Model):
     _name = "test.another_box"
     _inherits = {"test.another_unit": "another_unit_id"}
     _description = "Another Test Box"
