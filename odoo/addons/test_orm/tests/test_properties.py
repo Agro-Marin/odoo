@@ -2702,25 +2702,30 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.message_2.attributes = {"mymany2many": [partners[1].id]}
         self.message_3.attributes = {"mymany2many": [partners[2].id]}
 
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mymany2many", "in", partners[0].ids)]
+        messages = self._search(
+            self.env["test_orm.message"],
+            [("attributes.mymany2many", "in", partners[0].ids)],
         )
         self.assertEqual(messages, self.message_1)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mymany2many", "in", partners[1].ids)]
+        messages = self._search(
+            self.env["test_orm.message"],
+            [("attributes.mymany2many", "in", partners[1].ids)],
         )
         self.assertEqual(messages, self.message_1 | self.message_2)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mymany2many", "in", partners[2].ids)]
+        messages = self._search(
+            self.env["test_orm.message"],
+            [("attributes.mymany2many", "in", partners[2].ids)],
         )
         self.assertEqual(messages, self.message_1 | self.message_3)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mymany2many", "not in", partners[0].ids)]
+        messages = self._search(
+            self.env["test_orm.message"],
+            [("attributes.mymany2many", "not in", partners[0].ids)],
         )
         self.assertEqual(messages, self.message_2 | self.message_3)
 
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mymany2many", "in", partners[0:2].ids)]
+        messages = self._search(
+            self.env["test_orm.message"],
+            [("attributes.mymany2many", "in", partners[0:2].ids)],
         )
         self.assertEqual(messages, self.message_1 | self.message_2)
 
@@ -2738,30 +2743,33 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.message_2.attributes = {"mypartner": self.partner_2.id}
         self.message_3.attributes = {"mypartner": False}
 
-        messages = self.env["test_orm.message"].search(
+        messages = self._search(
+            self.env["test_orm.message"],
             [
                 (
                     "attributes.mypartner",
                     "in",
                     [self.partner.id, self.partner_2.id],
                 )
-            ]
+            ],
         )
         self.assertEqual(messages, self.message_1 | self.message_2)
 
-        messages = self.env["test_orm.message"].search(
+        messages = self._search(
+            self.env["test_orm.message"],
             [
                 (
                     "attributes.mypartner",
                     "not in",
                     [self.partner.id, self.partner_2.id],
                 )
-            ]
+            ],
         )
         self.assertEqual(messages, self.message_3)
 
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mypartner", "ilike", self.partner.display_name)]
+        messages = self._search(
+            self.env["test_orm.message"],
+            [("attributes.mypartner", "ilike", self.partner.display_name)],
         )
         self.assertFalse(
             messages, "The ilike on relational properties is not supported"
@@ -2781,61 +2789,66 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.message_2.attributes = {"mytags": ["b"]}
         self.message_3.attributes = {"mytags": ["aa"]}
 
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "in", "a")]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "in", "a")]
         )
         self.assertEqual(messages, self.message_1)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "ilike", "a")]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "ilike", "a")]
         )
         self.assertEqual(messages, self.message_1 | self.message_3)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "not ilike", "a")]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "not ilike", "a")]
         )
         self.assertEqual(messages, self.message_2)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "in", "b")]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "in", "b")]
         )
         self.assertEqual(messages, self.message_1 | self.message_2)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "in", "aa")]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "in", "aa")]
         )
         self.assertEqual(messages, self.message_3)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "not in", "b")]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "not in", "b")]
         )
         self.assertEqual(messages, self.message_3)
+        # Not self._search(): SQL matches record 6 by `ilike` against the
+        # raw JSON encoding of the tags property, but filtered_domain's
+        # Python-side evaluation of the same condition does not — a real
+        # SQL/Python parity gap in odoo/orm/, out of this audit's scope
+        # (test_orm/ only). Tracked as Odoo task 26309.
         messages = self.env["test_orm.message"].search(
             [("attributes.mytags", "ilike", '["aa"]')]
         )
         self.assertEqual(messages, self.message_3)
 
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "in", [])]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "in", [])]
         )
         self.assertFalse(messages)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "not in", [])]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "not in", [])]
         )
         self.assertEqual(messages, self.message_1 | self.message_2 | self.message_3)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "in", ["a", "b"])]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "in", ["a", "b"])]
         )
         self.assertEqual(messages, self.message_1 | self.message_2)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "in", ["b", "a"])]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "in", ["b", "a"])]
         )
         self.assertEqual(messages, self.message_1 | self.message_2)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "in", ["aa"])]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "in", ["aa"])]
         )
         self.assertEqual(messages, self.message_3)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "in", ["aa", "b"])]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "in", ["aa", "b"])]
         )
         self.assertEqual(messages, self.message_1 | self.message_2 | self.message_3)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mytags", "not in", ["a", "b"])]
+        messages = self._search(
+            self.env["test_orm.message"], [("attributes.mytags", "not in", ["a", "b"])]
         )
         self.assertEqual(messages, self.message_3)
 
