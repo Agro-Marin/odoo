@@ -99,6 +99,8 @@ class AccountDocumentDownloadController(http.Controller):
         auth="user",
     )
     def download_move_attachments(self, moves):
+        moves.check_access("read")
+
         def rename_duplicates(docs):
             seen = {}
             for doc in docs:
