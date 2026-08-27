@@ -26,24 +26,24 @@ EXPENSE_APPROVAL_STATE = [
 
 
 class HrExpense(models.Model):
-    """
-    Here are the rights associated with the expense flow
+    """Expense."""
 
-    Action       Group                   Restriction
-    =================================================================================
-    Submit      Employee                Only his own
-                Officer                 If he is expense manager of the employee, manager of the employee
-                                          or the employee is in the department managed by the officer
-                Manager                 Always
-    Approve     Officer                 Not his own and he is expense manager of the employee, manager of the employee
-                                          or the employee is in the department managed by the officer
-                Manager                 Always
-    Post        Billing accountant      State == approved
-    Cancel      Officer                 Not his own and he is expense manager of the employee, manager of the employee
-                                          or the employee is in the department managed by the officer
-                Manager                 Always
-    =================================================================================
-    """
+    # Rights associated with the expense flow:
+    #
+    # Action       Group                   Restriction
+    # =================================================================================
+    # Submit      Employee                Only his own
+    #             Officer                 If he is expense manager of the employee, manager of the employee
+    #                                       or the employee is in the department managed by the officer
+    #             Manager                 Always
+    # Approve     Officer                 Not his own and he is expense manager of the employee, manager of the employee
+    #                                       or the employee is in the department managed by the officer
+    #             Manager                 Always
+    # Post        Billing accountant      State == approved
+    # Cancel      Officer                 Not his own and he is expense manager of the employee, manager of the employee
+    #                                       or the employee is in the department managed by the officer
+    #             Manager                 Always
+    # =================================================================================
 
     _name = "hr.expense"
     _inherit = [
