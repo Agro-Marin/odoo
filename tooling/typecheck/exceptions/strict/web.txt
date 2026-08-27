@@ -89,7 +89,6 @@ addons/web/static/src/views/settings/settings_form_controller.js
 addons/web/static/src/views/view_dialogs/export_data_dialog.js
 addons/web/static/src/webclient/actions/action_dispatch.js
 addons/web/static/src/webclient/actions/action_state.js
-addons/web/static/src/webclient/actions/controller_component.js
 addons/web/static/src/webclient/actions/reports/report_action.js
 addons/web/static/src/webclient/clickbot/clickbot.js
 addons/web/static/src/webclient/debug/profiling/profiling_qweb.js
@@ -107,7 +106,6 @@ addons/web/static/tests/_framework/mock_server_state.hoot.js
 addons/web/static/tests/_framework/mock_templates.hoot.js
 addons/web/static/tests/_framework/mock_user.hoot.js
 addons/web/static/tests/_framework/search_test_helpers.js
-addons/web/static/tests/_framework/touch_helpers.js
 addons/web/static/tests/_framework/view_test_helpers.js
 addons/web/static/tests/components/action_swiper.test.js
 addons/web/static/tests/components/autocomplete.test.js
@@ -211,15 +209,11 @@ addons/web/static/tests/core/utils/urls.test.js
 addons/web/static/tests/core/virtual_grid_hook.test.js
 addons/web/static/tests/env.test.js
 addons/web/static/tests/fields/basic/char/char_field.test.js
-addons/web/static/tests/fields/basic/email/email_field.test.js
 addons/web/static/tests/fields/basic/monetary/monetary_field.test.js
 addons/web/static/tests/fields/basic/numeric_fields.test.js
-addons/web/static/tests/fields/basic/phone/phone_field.test.js
-addons/web/static/tests/fields/basic/url/url_field.test.js
 addons/web/static/tests/fields/field_audit_regressions.test.js
 addons/web/static/tests/fields/input_field_hook.test.js
 addons/web/static/tests/fields/media/binary/binary_field.test.js
-addons/web/static/tests/fields/media/contact_image/contact_image_field.test.js
 addons/web/static/tests/fields/media/image/image_field.test.js
 addons/web/static/tests/fields/media/image_url/image_url_field.test.js
 addons/web/static/tests/fields/media/pdf_viewer/pdf_viewer_field.test.js
@@ -237,14 +231,12 @@ addons/web/static/tests/fields/selection/badge_selection/badge_selection_field.t
 addons/web/static/tests/fields/selection/badge_selection_with_filter/badge_selection_with_filter_field.test.js
 addons/web/static/tests/fields/selection/priority/priority_field.test.js
 addons/web/static/tests/fields/selection/selection/selection_field.test.js
-addons/web/static/tests/fields/selection/state_selection/state_selection_field.test.js
 addons/web/static/tests/fields/specialized/domain/domain_field.test.js
 addons/web/static/tests/fields/specialized/properties/properties_field.test.js
 addons/web/static/tests/fields/specialized/properties/properties_layout.test.js
 addons/web/static/tests/fields/specialized/properties/property_tags.test.js
 addons/web/static/tests/fields/specialized/user_groups/res_user_group_ids_field.test.js
 addons/web/static/tests/fields/temporal/datetime/date_field.test.js
-addons/web/static/tests/fields/temporal/datetime/daterange_field.test.js
 addons/web/static/tests/fields/temporal/datetime/datetime_field.test.js
 addons/web/static/tests/fields/translation_dialog.test.js
 addons/web/static/tests/helpers/dom_test_helpers.test.js
@@ -254,7 +246,6 @@ addons/web/static/tests/libs/bootstrap.test.js
 addons/web/static/tests/libs/favorite_star.test.js
 addons/web/static/tests/mock_server/mock_model.test.js
 addons/web/static/tests/mock_server/mock_server.test.js
-addons/web/static/tests/model/command_builder.test.js
 addons/web/static/tests/model/record.test.js
 addons/web/static/tests/model/relational_model/config_candidate_isolation.test.js
 addons/web/static/tests/model/relational_model/config_transitions_limit_reset.test.js
@@ -320,7 +311,6 @@ addons/web/static/tests/ui/ui_service.test.js
 addons/web/static/tests/utils.js
 addons/web/static/tests/views/calendar/calendar_common_popover.test.js
 addons/web/static/tests/views/calendar/calendar_date_picker.test.js
-addons/web/static/tests/views/calendar/calendar_dst.test.js
 addons/web/static/tests/views/calendar/calendar_model.test.js
 addons/web/static/tests/views/calendar/calendar_multi_create.test.js
 addons/web/static/tests/views/calendar/calendar_test_helpers.js
@@ -336,7 +326,6 @@ addons/web/static/tests/views/kanban/kanban_view.test.js
 addons/web/static/tests/views/layout.test.js
 addons/web/static/tests/views/list/list_column_utils.test.js
 addons/web/static/tests/views/list/list_controller.test.js
-addons/web/static/tests/views/list/list_footer_alignment.test.js
 addons/web/static/tests/views/list/list_grid_state.test.js
 addons/web/static/tests/views/list/list_group_layout.test.js
 addons/web/static/tests/views/list/list_section_col_index.test.js
@@ -361,9 +350,7 @@ addons/web/static/tests/views/view_dialogs/form_view_dialog.test.js
 addons/web/static/tests/views/view_dialogs/select_create_dialog.test.js
 addons/web/static/tests/views/view_service.test.js
 addons/web/static/tests/views/view_utils.test.js
-addons/web/static/tests/views/widgets/attach_document.test.js
 addons/web/static/tests/views/widgets/notification_alert.test.js
-addons/web/static/tests/views/widgets/signature.test.js
 addons/web/static/tests/web_test_helpers.js
 addons/web/static/tests/webclient/actions/act_url_executor.test.js
 addons/web/static/tests/webclient/actions/action_container.test.js
@@ -390,7 +377,6 @@ addons/web/static/tests/webclient/debug/debug_manager.test.js
 addons/web/static/tests/webclient/install_scoped_app/install_scoped_app.test.js
 addons/web/static/tests/webclient/menu_service.test.js
 addons/web/static/tests/webclient/mobile/burger_user_menu.test.js
-addons/web/static/tests/webclient/mobile/mobile_switch_company.test.js
 addons/web/static/tests/webclient/navbar.test.js
 addons/web/static/tests/webclient/rpc_mutation_listeners.test.js
 addons/web/static/tests/webclient/session_service.test.js

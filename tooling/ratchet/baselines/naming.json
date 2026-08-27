@@ -1,4 +1,4 @@
 {
-  "count": 130,
-  "note": "website_slides drops to zero offenders. 135 -> 130. Five `_fetch_*` definitions renamed to the canonical `_get_*` (_get_external_metadata, _get_youtube_metadata, _get_google_drive_metadata, _get_vimeo_metadata, _get_thumbnail) and `_ensure_quiz_survey` to `_check_quiz_survey`. Renamed rather than baselined because two of the offenders were new code added in the same change: raising the floor to admit them would have made the gate pay for its own violation. Nothing outside addons/website_slides references any of the six -- verified by grep across odoo/addons, enterprise and agromarin -- so the rename is confined to the module. An exact ratchet fails in the falling direction too, which is why the reduction is banked here."
+  "count": 115,
+  "note": "An override does not choose its name -- the base does. The gate counted one as its own violation, which double-counted the debt (fixing the base fixes every override with it) and invited a rename that silently unhooks the override: the method keeps compiling, super() still resolves, and the behaviour just stops being reached. 130 -> 115; the 15 removed are all super()-calling overrides. Workspace-wide the same shape covered 52 of 368 definitions."
 }

@@ -131,7 +131,6 @@ addons/web/static/src/views/kanban/kanban_record.js
 addons/web/static/src/views/kanban/kanban_record_quick_create.js
 addons/web/static/src/views/kanban/kanban_renderer.js
 addons/web/static/src/views/kanban/kanban_sortable_hook.js
-addons/web/static/src/views/kanban/kanban_view.js
 addons/web/static/src/views/kanban/progress_bar_hook.js
 addons/web/static/src/views/list/column_width_hook.js
 addons/web/static/src/views/list/list_aggregates.js
@@ -176,7 +175,6 @@ addons/web/static/src/webclient/actions/action_state.js
 addons/web/static/src/webclient/actions/breadcrumb_manager.js
 addons/web/static/src/webclient/actions/client_actions.js
 addons/web/static/src/webclient/clickbot/clickbot.js
-addons/web/static/src/webclient/clickbot/clickbot_loader.js
 addons/web/static/src/webclient/debug/debug_items.js
 addons/web/static/src/webclient/debug/field_widgets_dialog.js
 addons/web/static/src/webclient/debug/profiling/profiling_item.js
@@ -300,7 +298,6 @@ addons/web/static/tests/core/virtual_grid_hook.test.js
 addons/web/static/tests/env.test.js
 addons/web/static/tests/fields/basic/char/char_field.test.js
 addons/web/static/tests/fields/basic/monetary/monetary_field.test.js
-addons/web/static/tests/fields/basic/numeric_fields.test.js
 addons/web/static/tests/fields/display/gauge/gauge_field.test.js
 addons/web/static/tests/fields/field_audit_regressions.test.js
 addons/web/static/tests/fields/input_field_hook.test.js
@@ -463,7 +460,6 @@ addons/web/static/tests/views/view_service.test.js
 addons/web/static/tests/views/view_utils.test.js
 addons/web/static/tests/views/widgets/attach_document.test.js
 addons/web/static/tests/views/widgets/notification_alert.test.js
-addons/web/static/tests/views/widgets/signature.test.js
 addons/web/static/tests/web_test_helpers.js
 addons/web/static/tests/webclient/actions/act_url_executor.test.js
 addons/web/static/tests/webclient/actions/act_window_executor.test.js
