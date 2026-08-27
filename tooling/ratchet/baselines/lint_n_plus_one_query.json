@@ -1,4 +1,4 @@
 {
-  "count": 378,
-  "note": "380 -> 378, and one of the two is this change's. Measured against 1e60eda9ce5 with `tooling/lint/py_lint.py odoo addons --rule n-plus-one-query --count`: pristine reads 379 against the 380 floor, so one was already standing and is banked here rather than claimed. The unit that is this change's: ir.model.fields._compute_selection ran `ir.model.fields.selection._get_selection(rec.id)` inside `for rec in self`, so reading `selection` over N fields cost N flushes and N queries -- measured on one database at 551 models / 10555 fields, 586 selection fields went from 587 queries to 5. It now reads `rec.selection_ids`, which the ORM prefetches across the recordset, and `_get_selection` -- whose only caller this was, in all four repositories -- is deleted. The same rewrite fixes a raw ProgrammingError: the SQL took `rec.id`, so `read([\"selection\"])` on an in-memory record died with \"cannot adapt type 'NewId'\"."
+  "count": 377,
+  "note": "378 -> 377, measured at the CI scope. Banked in the change that measured it."
 }

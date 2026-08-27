@@ -1,4 +1,4 @@
 {
-  "count": 35,
-  "note": "37 -> 35. A WAIVER WRITTEN ANYWHERE IN THE STATEMENT NOW COUNTS. No query changed.\n\n`Suppressions.suppresses` looked at the finding's anchor line alone, and the\nanchor is where the STATEMENT starts. So of the three places a developer writes a\ndirective -- on the finding, on the line that opens the statement, on the line\nthat closes it -- only the first worked, and the other two failed silently: an\nignored directive looks exactly like an absent one.\n\nThree real waivers were inert and are honoured now:\n\n  agromarin  geoengine/models/geo_domain.py:221   opens a wrapped SQL(...), the\n             finding is the nested SQL() on 222\n  odoo       website/models/ir_module_module.py:703        closes a comprehension\n  odoo       website_sale/models/ir_module_module.py:28    closes a wrapped SQL()\n\nEach was written by someone who believed it worked. `_rules.directive_lines`\ngives the lines a directive may sit on, and a COMPOUND statement is still one\nline, so a directive in a function body cannot silence a finding about the `def`."
+  "count": 33,
+  "note": "35 -> 33, measured at the CI scope (--addons-path=odoo/addons,addons, test_lint alone). The debt fell and an exact ratchet fails in the falling direction too, so the floor follows it down."
 }

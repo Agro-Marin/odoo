@@ -1,4 +1,4 @@
 {
-  "count": 3370,
-  "note": "3641 -> 3370, and not one file was formatted: `is_formattable` stops selecting fixtures. 281 of the XML files this gate walked live under a tests/ directory and 271 of them were unformatted -- 7.4% of a floor that could never legitimately be paid, because canonicalising a fixture changes what its test asserts. l10n_it_edi/tests/import_xmls/IT01234567889_FPR03.xml is the clearest case: a deliberately malformed EDI sample that does not parse at all, which four XML gates were dropping in silence.\n\nVerified before excluding them: no manifest names a data or demo file under tests/, so nothing that loads is lost. `TestFixerScope.test_no_fixture_directory_is_selected_as_data` holds the selection, and `PrettyXmlLinter.test_no_data_file_is_unparseable` turns the silent drop into a failure."
+  "count": 3362,
+  "note": "3370 -> 3362. Four newly-added survey demo files arrived non-canonical, which is the increase this ratchet exists to refuse; formatting them alone would have left the module split between two conventions, so the whole of addons/survey/demo was canonicalised -- 9 files, `_pretty_xml.py addons/survey/demo`. The formatter re-parses its own output and refuses a change `_xml_identity.is_faithful` cannot confirm, so this is a whitespace change by construction."
 }

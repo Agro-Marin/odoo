@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="1">
 
+    <data noupdate="1">
         <record id="survey_vendor_certification_answer_1" model="survey.user_input">
             <field name="survey_id" ref="survey.vendor_certification" />
             <field name="partner_id" ref="base.res_partner_address_3" />
             <field name="email">douglas.fletcher51@example.com</field>
-            <field name="end_datetime"
+            <field
+                name="end_datetime"
                 eval="datetime.now() - timedelta(days=1, hours=3, minutes=10)" />
-            <field name="start_datetime"
+            <field
+                name="start_datetime"
                 eval="datetime.now() - timedelta(days=1, hours=3, minutes=50)" />
             <field name="state">done</field>
         </record>
@@ -16,8 +18,11 @@
             <field name="survey_id" ref="survey.vendor_certification" />
             <field name="partner_id" ref="base.res_partner_address_7" />
             <field name="email">billy.fox45@example.com</field>
-            <field name="end_datetime" eval="datetime.now() - timedelta(days=0, hours=3, minutes=0)" />
-            <field name="start_datetime"
+            <field
+                name="end_datetime"
+                eval="datetime.now() - timedelta(days=0, hours=3, minutes=0)" />
+            <field
+                name="start_datetime"
                 eval="datetime.now() - timedelta(days=0, hours=3, minutes=50)" />
             <field name="state">done</field>
         </record>
@@ -25,9 +30,11 @@
             <field name="survey_id" ref="survey.vendor_certification" />
             <field name="partner_id" ref="base.res_partner_address_15" />
             <field name="email">brandon.freeman55@example.com</field>
-            <field name="end_datetime"
+            <field
+                name="end_datetime"
                 eval="datetime.now() - timedelta(days=0, hours=3, minutes=30)" />
-            <field name="start_datetime"
+            <field
+                name="start_datetime"
                 eval="datetime.now() - timedelta(days=0, hours=3, minutes=50)" />
             <field name="state">done</field>
         </record>
@@ -35,12 +42,14 @@
             <field name="survey_id" ref="survey.vendor_certification" />
             <field name="partner_id" ref="base.res_partner_address_25" />
             <field name="email">oscar.morgan11@example.com</field>
-            <field name="end_datetime"
+            <field
+                name="end_datetime"
                 eval="datetime.now() - timedelta(days=0, hours=2, minutes=30)" />
-            <field name="start_datetime"
+            <field
+                name="start_datetime"
                 eval="datetime.now() - timedelta(days=0, hours=2, minutes=50)" />
             <field name="state">done</field>
         </record>
-
     </data>
+
 </odoo>
