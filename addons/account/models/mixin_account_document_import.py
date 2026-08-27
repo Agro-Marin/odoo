@@ -216,6 +216,9 @@ class MixinAccountDocumentImport(models.AbstractModel):
 
         self.ensure_one()
 
+        if not files_data:
+            return None
+
         for file_data in files_data:
             if "decoder_info" not in file_data:
                 file_data["decoder_info"] = self._get_edi_decoder(file_data, new=new)
