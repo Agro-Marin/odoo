@@ -441,6 +441,57 @@ class TestAccountPayment(AccountPaymentCommon):
         tx._post_process()
         self.assertEqual(tx.payment_id.state, "in_process")
 
+    def test_post_process_only_posts_own_transaction_invoices(self):
+        """Test that `_post_process` on a batch of transactions only posts the invoices linked
+        to the transaction that actually reached the `done` state, not invoices linked to other
+        (non-done) transactions in the same batch."""
+        done_invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "done tx line", "price_unit": 100.0}),
+                ],
+            }
+        )
+        pending_invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "pending tx line", "price_unit": 50.0}),
+                ],
+            }
+        )
+        done_tx = self._create_transaction(
+            flow="direct",
+            state="pending",
+            reference="Test Transaction Done",
+            invoice_ids=[done_invoice.id],
+        )
+        pending_tx = self._create_transaction(
+            flow="direct",
+            state="pending",
+            reference="Test Transaction Pending",
+            invoice_ids=[pending_invoice.id],
+        )
+        done_tx._set_done()
+        # Only done_tx is 'done'; call _post_process on the whole batch, as
+        # account_payment.py's action_post() does when several token-based
+        # payments are posted together.
+        (done_tx + pending_tx)._post_process()
+        self.assertEqual(
+            done_invoice.state,
+            "posted",
+            "The invoice linked to the done transaction should be posted.",
+        )
+        self.assertEqual(
+            pending_invoice.state,
+            "draft",
+            "The invoice linked to the still-pending transaction should NOT be posted "
+            "as a side effect of processing an unrelated done transaction in the same batch.",
+        )
+
     def test_payment_token_for_invoice_partner_is_available(self):
         """Test that the payment token of the invoice partner is available"""
         Wizard = self.env["account.payment.register"].with_context(
