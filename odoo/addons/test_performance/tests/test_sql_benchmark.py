@@ -327,27 +327,37 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         def bench():
             _ = partner.name
 
-        self._run_benchmark("Cache Hit (single field)", bench, iterations=100)
+        # invalidate_cache defaults to True, which would wipe the cache
+        # before every timed iteration -- exactly the opposite of what a
+        # "cache hit" benchmark needs.
+        self._run_benchmark(
+            "Cache Hit (single field)", bench, iterations=100, invalidate_cache=False
+        )
 
     def test_71_cache_miss_single(self):
         partner = self.Partner.search([], limit=1)
 
-        def setup():
-            self.env.invalidate_all()
-
         def bench():
             _ = partner.name
 
-        self._run_benchmark("Cache Miss (single field)", bench, setup=setup)
+        # invalidate_cache defaults to True, so the harness already
+        # invalidates the cache before every iteration; no extra setup()
+        # is needed to force a miss.
+        self._run_benchmark("Cache Miss (single field)", bench)
 
     def test_72_prefetch_behavior(self):
         partners = self.Partner.search([], limit=100)
-        self.env.invalidate_all()
 
         def bench():
             for p in partners:
                 _ = p.name
 
+        # invalidate_cache defaults to True, so the harness already
+        # invalidates before every iteration (including the first): the
+        # explicit invalidate_all() this test used to do beforehand was
+        # redundant with it, and this benchmark genuinely wants the cache
+        # cold on every iteration to measure the prefetch-trigger cost
+        # repeatedly, unlike test_70's "Cache Hit".
         self._run_benchmark("Prefetch (100 records)", bench)
 
     def test_80_sequential_operations(self):
