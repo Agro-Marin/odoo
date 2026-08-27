@@ -55,28 +55,40 @@ class TestPerfCompare(TransactionCase):
         single = hot[0]
         Base = self.Base
 
+        def _measure(name, func, **kwargs):
+            # Guard each benchmark so one incompatible operation (e.g. an API
+            # difference when this module runs against a vanilla-upstream
+            # checkout, its whole reason to exist) degrades gracefully instead
+            # of aborting the method before rec.write() is ever reached.
+            measure = rec.measure
+            try:
+                return measure(name, func, **kwargs)
+            except Exception:
+                _logger.warning("[PERF_CMP] %s unavailable/failed; skipping", name)
+                return None
+
         all_recs.mapped("value")
         all_recs.mapped("rel_id")
 
-        rec.measure(
+        _measure(
             "search.empty_limit100",
             lambda: Base.search([], limit=100),
             group="search",
             invalidate=env.invalidate_all,
         )
-        rec.measure(
+        _measure(
             "search.domain_value_gt",
             lambda: Base.search([("value", ">", 50)], limit=100),
             group="search",
             invalidate=env.invalidate_all,
         )
-        rec.measure(
+        _measure(
             "search.count",
             lambda: Base.search_count([("value", ">", 50)]),
             group="search",
             invalidate=env.invalidate_all,
         )
-        rec.measure(
+        _measure(
             "search.read_3fields_100",
             lambda: Base.search_read(
                 [("value", ">", 50)], ["name", "value", "rel_id"], limit=100
@@ -86,26 +98,26 @@ class TestPerfCompare(TransactionCase):
         )
 
         read_recs = Base.browse(hot_ids)
-        rec.measure(
+        _measure(
             "read.cold_100x3",
             lambda: read_recs.read(["name", "value", "rel_id"]),
             group="read",
             invalidate=env.invalidate_all,
         )
         read_recs.read(["name", "value", "rel_id"])
-        rec.measure(
+        _measure(
             "read.warm_100x3",
             lambda: read_recs.read(["name", "value", "rel_id"]),
             group="read",
         )
-        rec.measure(
+        _measure(
             "read.m2o_access_100",
             lambda: [r.rel_id.name for r in read_recs],
             group="read",
             invalidate=env.invalidate_all,
         )
         _ = single.value
-        rec.measure(
+        _measure(
             "field.access_scalar_cached",
             lambda: single.value,
             group="read",
@@ -114,32 +126,32 @@ class TestPerfCompare(TransactionCase):
         )
 
         read_recs.read(["name", "value", "rel_id"])
-        rec.measure(
+        _measure(
             "mapped.scalar_100",
             lambda: read_recs.mapped("value"),
             group="recordset",
         )
-        rec.measure(
+        _measure(
             "mapped.m2o_100",
             lambda: read_recs.mapped("rel_id"),
             group="recordset",
         )
-        rec.measure(
+        _measure(
             "filtered.field_100",
             lambda: read_recs.filtered("flag"),
             group="recordset",
         )
-        rec.measure(
+        _measure(
             "filtered.lambda_100",
             lambda: read_recs.filtered(lambda r: r.value > 50),
             group="recordset",
         )
-        rec.measure(
+        _measure(
             "sorted.field_100",
             lambda: read_recs.sorted("value"),
             group="recordset",
         )
-        rec.measure(
+        _measure(
             "iterate_100",
             lambda: [None for _ in read_recs],
             group="recordset",
@@ -150,13 +162,13 @@ class TestPerfCompare(TransactionCase):
         except AttributeError, TypeError:
             _logger.warning("[PERF_CMP] _read_group unavailable; skipping group")
         else:
-            rec.measure(
+            _measure(
                 "read_group.by_state",
                 lambda: Base._read_group([], groupby=["state"], aggregates=["__count"]),
                 group="read_group",
                 invalidate=env.invalidate_all,
             )
-            rec.measure(
+            _measure(
                 "read_group.by_state_sum",
                 lambda: Base._read_group(
                     [], groupby=["state"], aggregates=["__count", "value:sum"]
@@ -172,14 +184,14 @@ class TestPerfCompare(TransactionCase):
             single.write({"value": counter[0]})
             env.flush_all()
 
-        rec.measure("write.single_recompute", _write_recompute, group="write")
+        _measure("write.single_recompute", _write_recompute, group="write")
 
         def _write_plain():
             counter[0] += 1
             single.write({"name": f"x_{counter[0]}"})
             env.flush_all()
 
-        rec.measure("write.single_norecompute", _write_plain, group="write")
+        _measure("write.single_norecompute", _write_plain, group="write")
 
         batch = Base.browse(hot_ids)
 
@@ -188,16 +200,14 @@ class TestPerfCompare(TransactionCase):
             batch.write({"flag": counter[0] % 2 == 0})
             env.flush_all()
 
-        rec.measure(
-            "write.batch100", _write_batch, group="write", iterations=40, warmup=5
-        )
+        _measure("write.batch100", _write_batch, group="write", iterations=40, warmup=5)
 
         def _assign():
             counter[0] += 1
             single.value = counter[0]
             env.flush_all()
 
-        rec.measure("write.assign_scalar", _assign, group="write")
+        _measure("write.assign_scalar", _assign, group="write")
 
         cc = [0]
 
@@ -206,7 +216,7 @@ class TestPerfCompare(TransactionCase):
             Base.create({"name": f"c_{cc[0]}", "value": cc[0]})
             env.flush_all()
 
-        rec.measure(
+        _measure(
             "create.single", _create_single, group="create", iterations=40, warmup=5
         )
 
@@ -215,7 +225,7 @@ class TestPerfCompare(TransactionCase):
             Base.create([{"name": f"cb_{cc[0]}_{i}", "value": i} for i in range(100)])
             env.flush_all()
 
-        rec.measure(
+        _measure(
             "create.batch100", _create_batch, group="create", iterations=15, warmup=3
         )
 
@@ -229,7 +239,7 @@ class TestPerfCompare(TransactionCase):
             )
             env.flush_all()
 
-        rec.measure(
+        _measure(
             "create.with_lines10",
             _create_lines,
             group="create",
@@ -244,7 +254,7 @@ class TestPerfCompare(TransactionCase):
             Base.create({"name": f"ct_{cc[0]}", "tag_ids": [(6, 0, tag_ids)]})
             env.flush_all()
 
-        rec.measure(
+        _measure(
             "create.with_tags10",
             _create_tags,
             group="create",
@@ -261,7 +271,7 @@ class TestPerfCompare(TransactionCase):
         def _unlink_single():
             victim[0].unlink()
 
-        rec.measure(
+        _measure(
             "unlink.single",
             _unlink_single,
             group="unlink",
@@ -284,7 +294,7 @@ class TestPerfCompare(TransactionCase):
         def _unlink_batch():
             victims[0].unlink()
 
-        rec.measure(
+        _measure(
             "unlink.batch10",
             _unlink_batch,
             group="unlink",
