@@ -58,9 +58,9 @@ class TestPythonHotspots(TransactionCase):
         self._bench("safe_eval: compile (domain expr)", lambda: compile_codeobj(expr))
 
     def test_01_safe_eval_validate(self):
+        from odoo.tools import safe_eval as safe_eval_module
         from odoo.tools.safe_eval import (
             _SAFE_OPCODES,
-            _validated_bytecode_cache,
             assert_valid_codeobj,
             compile_codeobj,
         )
@@ -69,8 +69,17 @@ class TestPythonHotspots(TransactionCase):
         codes = [compile_codeobj(e) for e in exprs]
         idx = [0]
 
+        # assert_valid_codeobj reads the module-global
+        # _validated_bytecode_cache at call time, so patching that
+        # attribute to a private dict here scopes every clear() below to
+        # this test instead of wiping the shared production cache that any
+        # other code sharing the process (e.g. concurrent workers) relies
+        # on for its own safe_eval calls.
+        self.patch(safe_eval_module, "_validated_bytecode_cache", {})
+        local_cache = safe_eval_module._validated_bytecode_cache
+
         def bench():
-            _validated_bytecode_cache.clear()
+            local_cache.clear()
             assert_valid_codeobj(_SAFE_OPCODES, codes[idx[0]], exprs[idx[0]])
             idx[0] += 1
 
