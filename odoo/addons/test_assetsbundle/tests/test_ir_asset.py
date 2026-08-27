@@ -690,7 +690,10 @@ class TestAssetsManifest(AddonManifestPatched):
             """,
         )
 
-    def test_20_css_compatibility_prefix(self):
+    def _prefixed_css_content(self):
+        """Build test_assetsbundle.irasset2 with autoprefix on and return
+        its compiled CSS. Shared by the test_20_* CSS-compatibility-prefix
+        tests below -- each asserts on one feature group."""
         self.env["ir.asset"].create(
             {
                 "name": "1",
@@ -701,7 +704,10 @@ class TestAssetsManifest(AddonManifestPatched):
         bundle = self.env["ir.qweb"]._get_asset_bundle(
             "test_assetsbundle.irasset2", js=False, autoprefix=True
         )
-        content = bundle.css().raw.decode()
+        return bundle.css().raw.decode()
+
+    def test_20_css_compatibility_prefix_appearance(self):
+        content = self._prefixed_css_content()
         self.assertRegex(
             content,
             r"\.appearance-none\{-webkit-appearance:none;-moz-appearance:none;appearance:none\}",
@@ -724,6 +730,8 @@ class TestAssetsManifest(AddonManifestPatched):
             r"-moz-appearance:menulist-button;appearance:menulist-button\}",
         )
 
+    def test_20_css_compatibility_prefix_display(self):
+        content = self._prefixed_css_content()
         self.assertRegex(content, r"\.display-flex\{display:flex\}")
         self.assertRegex(content, r"\.display-inline-flex\{display:inline-flex\}")
         self.assertRegex(content, r"\.display-inline\{display:inline\}")
@@ -734,6 +742,8 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         self.assertRegex(content, r"\.display-var-inline\{--dummy-display: inline\}")
 
+    def test_20_css_compatibility_prefix_flex_flow(self):
+        content = self._prefixed_css_content()
         self.assertRegex(content, r"\.flex-flow-row-nowrap\{flex-flow:row nowrap\}")
         self.assertRegex(content, r"\.flex-flow-column-wrap\{flex-flow:column wrap\}")
         self.assertRegex(
@@ -742,6 +752,8 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         self.assertRegex(content, r"\.flex-flow-row\{flex-flow:row\}")
 
+    def test_20_css_compatibility_prefix_flex_direction(self):
+        content = self._prefixed_css_content()
         self.assertRegex(content, r"\.flex-direction-column\{flex-direction:column\}")
         self.assertRegex(
             content,
@@ -749,10 +761,14 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         self.assertRegex(content, r"\.flex-direction-row\{flex-direction:row\}")
 
+    def test_20_css_compatibility_prefix_flex_wrap(self):
+        content = self._prefixed_css_content()
         self.assertRegex(content, r"\.flex-wrap-wrap\{flex-wrap:wrap\}")
         self.assertRegex(content, r"\.flex-wrap-nowrap\{flex-wrap:nowrap\}")
         self.assertRegex(content, r"\.flex-wrap-wrap-reverse\{flex-wrap:wrap-reverse\}")
 
+    def test_20_css_compatibility_prefix_flex_shorthand(self):
+        content = self._prefixed_css_content()
         self.assertRegex(content, r"\.flex-0-0-auto\{flex:0 0 auto\}")
         self.assertRegex(content, r"\.flex-0-1-auto\{flex:0 1 auto\}")
         self.assertRegex(content, r"\.flex-1-1-100\{flex:1 1 100\}")
