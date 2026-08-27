@@ -3,9 +3,14 @@
 #
 # The ruff floor is exact, not aspirational: `explicit-preview-rules` means preview
 # rules are named individually below, and a ruff that predates any of them aborts with
-# "Unknown rule selector" rather than skipping it. Keep these five in lockstep:
+# "Unknown rule selector" rather than skipping it. Keep these six in lockstep:
 #   requirements-dev.txt · .pre-commit-config.yaml · .github/workflows/ruff.yml
 #   ../enterprise/.pre-commit-config.yaml · ../agromarin/.pre-commit-config.yaml
+#   JemXiaolong/pre-commit-agromarin config/.pre-commit-config.yaml (the template
+#     new repos are bootstrapped from; it lives outside this checkout, which is
+#     exactly why it drifted twice — 24449 and 26105 — while the five above did
+#     not. A bump that stops at this repo's edge leaves the next repo born from
+#     the template pinned to a ruff that cannot read this file.)
 #
 # Pinned at 0.16.2, and 0.16.2 is a HARD floor — but not via a selector. The
 # 0.16.0 -> 0.16.2 bump introduced no new rule and no preview stabilization
