@@ -1,4 +1,4 @@
-import unittest
+import base64
 from typing import NamedTuple
 
 from lxml import etree as ET
@@ -64,6 +64,20 @@ class TestEvalXML(common.TransactionCase):
             ["foo", 5, 4.76, None],
         )
 
+    def test_tuple(self):
+        self.assertEqual(self.eval_xml(Field(type="tuple")), ())
+
+        self.assertEqual(
+            self.eval_xml(
+                Field(
+                    Value("foo"),
+                    Value("5", type="int"),
+                    type="tuple",
+                )
+            ),
+            ("foo", 5),
+        )
+
     def test_file(self):
         Obj = _Obj
         obj = Obj("test_convert", None)
@@ -74,6 +88,16 @@ class TestEvalXML(common.TransactionCase):
 
         with self.assertRaises(IOError):
             self.eval_xml(Field("test_nofile.txt", type="file"), obj)
+
+    def test_base64(self):
+        result = self.eval_xml(Field(type="base64", file="test_convert/test_file.txt"))
+        self.assertEqual(
+            base64.b64decode(result).rstrip(b"\n"),
+            b"nothing to see here, move along",
+        )
+
+        with self.assertRaises(ValueError):
+            self.eval_xml(Field("anything", type="base64"))
 
     def test_function(self):
         obj = xml_import(self.env, "test_convert", None, "init")
@@ -290,9 +314,16 @@ class TestEvalXML(common.TransactionCase):
         )
         self.assertEqual(record.with_context(lang=None).name, "foo")
 
-    @unittest.skip("not tested")
     def test_xml(self):
-        pass
+        self.assertEqual(
+            self.eval_xml(
+                Field(
+                    ET.fromstring("<parent><child/></parent>"),
+                    type="xml",
+                )
+            ),
+            '<?xml version="1.0"?>\n<parent><child/></parent>',
+        )
 
     def test_html(self):
         self.assertEqual(
