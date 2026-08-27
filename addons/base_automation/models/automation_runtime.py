@@ -7,15 +7,7 @@ _logger = logging.getLogger(__name__)
 
 
 class AutomationRuntime(models.Model):
-    """Per-execution instance for an automation workflow run.
-
-    One record is created per multi-step (``on_hand`` DAG) execution and
-    tracks isolated state across all steps: every field here and on the
-    child ``automation.runtime.line`` records is per-execution, so two
-    concurrent runs never share state. ``automation_id`` is the
-    ``base.automation`` rule being run; ``res_model``/``res_id`` identify
-    the specific record being automated.
-    """
+    """Per-execution runtime instance tracking isolated state for a multi-step automation run."""
 
     _name = "automation.runtime"
     _description = "Automation Workflow Runtime Instance"
