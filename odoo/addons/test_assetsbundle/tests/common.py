@@ -42,6 +42,13 @@ def make_cursor_readonly(case):
     case.addCleanup(setattr, cr, "_readonly", original)
 
 
+class _Mod:
+    def __init__(self, module_path, raw_content, url=""):
+        self.module_path = module_path
+        self.raw_content = raw_content
+        self.url = url
+
+
 class Manifests(dict):
     def __init__(self, default):
         self.defaults = default
