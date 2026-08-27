@@ -424,12 +424,24 @@ class MixinAccountMoveSend(models.AbstractModel):
             )
 
     @api.model
+    def _normalize_error(self, error):
+        # Extensions of this mixin (e.g. l10n_dk_nemhandel) sometimes set
+        # invoice_data["error"] to a plain string instead of the expected
+        # {"error_title": ..., "errors": [...]} dict; normalize so the
+        # formatters below don't crash on a bare .get()/["..."] access.
+        if not isinstance(error, dict):
+            return {"error_title": str(error)}
+        return error
+
+    @api.model
     def _format_error_text(self, error):
+        error = self._normalize_error(error)
         errors = "\n- ".join(error.get("errors", ""))
         return f"{error['error_title']}\n- {errors}" if errors else error["error_title"]
 
     @api.model
     def _format_error_html(self, error):
+        error = self._normalize_error(error)
         if "errors" not in error:
             return error["error_title"]
         errors = Markup().join(
