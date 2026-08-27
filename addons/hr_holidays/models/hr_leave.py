@@ -36,40 +36,40 @@ def get_employee_from_context(values, context, user_employee_id):
 
 
 class HrLeave(models.Model):
-    """Time Off Requests Access specifications
+    """Time Off Request."""
 
-     - a regular employee / user
-      - can see all leaves;
-      - cannot see name field of leaves belonging to other user as it may contain
-        private information that we don't want to share to other people than
-        HR people;
-      - can modify only its own not validated leaves (except writing on state to
-        bypass approval);
-      - can discuss on its leave requests;
-      - can reset only its own leaves;
-      - cannot validate any leaves;
-     - an Officer
-      - can see all leaves;
-      - can validate "HR" single validation leaves from people if
-       - he is the employee manager;
-       - he is the department manager;
-       - he is member of the same department;
-       - target employee has no manager and no department manager;
-      - can validate "Manager" single validation leaves from people if
-       - he is the employee manager;
-       - he is the department manager;
-       - target employee has no manager and no department manager;
-      - can first validate "Both" double validation leaves from people like "HR"
-        single validation, moving the leaves to validate1 state;
-      - cannot validate its own leaves;
-      - can reset only its own leaves;
-      - can refuse all leaves;
-     - a Manager
-      - can do everything he wants
-
-    On top of that multicompany rules apply based on company defined on the
-    leave request leave type.
-    """
+    # Access specifications:
+    #  - a regular employee / user
+    #   - can see all leaves;
+    #   - cannot see name field of leaves belonging to other user as it may contain
+    #     private information that we don't want to share to other people than
+    #     HR people;
+    #   - can modify only its own not validated leaves (except writing on state to
+    #     bypass approval);
+    #   - can discuss on its leave requests;
+    #   - can reset only its own leaves;
+    #   - cannot validate any leaves;
+    #  - an Officer
+    #   - can see all leaves;
+    #   - can validate "HR" single validation leaves from people if
+    #    - he is the employee manager;
+    #    - he is the department manager;
+    #    - he is member of the same department;
+    #    - target employee has no manager and no department manager;
+    #   - can validate "Manager" single validation leaves from people if
+    #    - he is the employee manager;
+    #    - he is the department manager;
+    #    - target employee has no manager and no department manager;
+    #   - can first validate "Both" double validation leaves from people like "HR"
+    #     single validation, moving the leaves to validate1 state;
+    #   - cannot validate its own leaves;
+    #   - can reset only its own leaves;
+    #   - can refuse all leaves;
+    #  - a Manager
+    #   - can do everything he wants
+    #
+    # On top of that multicompany rules apply based on company defined on the
+    # leave request leave type.
 
     _name = "hr.leave"
     _description = "Time Off"
