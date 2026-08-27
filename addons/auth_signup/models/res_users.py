@@ -351,7 +351,10 @@ class ResUsers(models.Model):
                 ("email", "in", emails),
             ]
         )
-        new_emails = set(emails) - set(inactive_users.mapped("email"))
+        inactive_matches = set(inactive_users.mapped("login")) | set(
+            inactive_users.mapped("email")
+        )
+        new_emails = set(emails) - inactive_matches
         res = super().web_create_users(list(new_emails))
         # Only (re)send the signup invite to inactive users that HAVE an email:
         # action_reset_password raises "user has no email address" for an
