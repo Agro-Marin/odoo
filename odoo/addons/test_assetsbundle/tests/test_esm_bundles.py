@@ -2325,6 +2325,17 @@ class TestEsmManifestShapeGuards(BaseCase):
 class TestBridgeRwCursorEscalation(TransactionCase):
     URL_PREFIX = "/web/assets/esm/bridges/rwprobe"
 
+    def setUp(self):
+        super().setUp()
+        # _persist_bridges_via_rw_cursor commits on a second cursor
+        # outside this TransactionCase's rollback, so a crash between
+        # that commit and addCleanup(self._cleanup_rows) in some earlier
+        # run can leave stray rows behind (addCleanup isn't crash-safe
+        # either). Sweep before the test too, not just after, so any
+        # given successful run self-heals regardless of when a previous
+        # process died.
+        self._cleanup_rows()
+
     def _cleanup_rows(self):
         from odoo.modules.registry import Registry
         from odoo.tests.common import get_db_name
