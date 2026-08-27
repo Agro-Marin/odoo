@@ -642,7 +642,16 @@ class TestDomainIdComparand(TransactionCase):
                 self.assertEqual(rows.filtered_domain(domain).ids, ["hello"])
 
 
-class TestDomainEvaluatorParityGenerated(TransactionCase):
+class _DomainGeneratorMixin:
+    """Shared random-domain generator/evaluator for the two classes below.
+
+    Deliberately not a TransactionCase subclass: TestDomainPartition used to
+    subclass TestDomainEvaluatorParityGenerated for these helpers alone,
+    which also meant inheriting (and silently re-running, under a different
+    seed) that class's own test method. Both classes now inherit this mixin
+    side-by-side with TransactionCase instead of one inheriting the other.
+    """
+
     SEED = 20260726
     DOMAINS = 400
 
@@ -731,6 +740,8 @@ class TestDomainEvaluatorParityGenerated(TransactionCase):
         except Exception as error:
             return type(error).__name__, None
 
+
+class TestDomainEvaluatorParityGenerated(_DomainGeneratorMixin, TransactionCase):
     def test_generated_domains_agree_between_evaluators(self):
         rng = random.Random(self.SEED)
         specs = self._specs()
@@ -761,7 +772,7 @@ class TestDomainEvaluatorParityGenerated(TransactionCase):
         )
 
 
-class TestDomainPartition(TestDomainEvaluatorParityGenerated):
+class TestDomainPartition(_DomainGeneratorMixin, TransactionCase):
     SEED = 20260727
 
     def test_generated_domains_partition_the_record_set(self):
