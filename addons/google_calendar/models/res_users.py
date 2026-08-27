@@ -292,7 +292,7 @@ class ResUsers(models.Model):
         This function retrieves the synchronization status from the user's environment
         and checks if the Google Calendar synchronization is active.
 
-        :return: Action to delete the event
+        :return: boolean indicating if Google Calendar synchronization is active
         """
         sync_status = self.check_synchronization_status()
         res = super()._has_any_active_synchronization()
