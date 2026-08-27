@@ -113,7 +113,6 @@ class TestUnstoredInheritsParent(models.Model):
         required=True,
         store=False,
         compute_sudo=True,
-        groups="hr.group_hr_user",
     )
 
     @api.depends("name")
