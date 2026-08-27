@@ -186,9 +186,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
             if record.linked_journal_id:
                 record.new_journal_name = record.linked_journal_id.name
 
-    @api.depends(
-        "journal_id"
-    )
+    @api.depends("journal_id")
     def _compute_linked_journal_id(self):
         journal_type = self.env.context.get("journal_type", "bank")
         for record in self:
