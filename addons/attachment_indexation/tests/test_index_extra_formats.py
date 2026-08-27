@@ -72,6 +72,19 @@ class TestIndexExtraFormats(TransactionCase):
         self.assertIn("Alice", result)
         self.assertIn("Data", result)
 
+    def test_index_xlsx_skips_oversized_entry(self):
+        """A sheet XML entry larger than _INDEX_MAX_BYTES must be skipped
+        before load_workbook inflates it (zip-bomb guard, mirrors the docx
+        guard in test_indexation.py)."""
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            zf.writestr(
+                "xl/worksheets/sheet1.xml",
+                b"a" * (self.Attachment._INDEX_MAX_BYTES + 1),
+            )
+        result = self.Attachment._index_xlsx(buffer.getvalue())
+        self.assertEqual(result, "", "an oversized entry must be skipped, not parsed")
+
     def test_index_odt_extracts_paragraphs(self):
         """An .odt payload yields its paragraph text."""
         body = f'<text:p xmlns:text="{TEXT_NS}">First para</text:p>'
