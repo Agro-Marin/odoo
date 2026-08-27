@@ -182,6 +182,17 @@ class TestAuditFallbackDeadInBase(TransactionCase):
             1,
             "base must run only the primary query, not the redundant fallback",
         )
+        (executed_sql,), _kwargs = spy.call_args
+        url_pattern = store.get_asset_url_pattern(
+            unique=store._version("js"), extension="min.js"
+        )
+        self.assertIn(
+            url_pattern,
+            executed_sql.params,
+            "the one query that ran must be the primary lookup (against the "
+            "un-relaxed url_pattern), not a lone fallback query slipping "
+            "through under the same call count",
+        )
 
 
 class TestAuditLikeUnderscoreWildcard(TransactionCase):
