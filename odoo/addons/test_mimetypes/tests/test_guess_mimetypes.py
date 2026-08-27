@@ -3,6 +3,7 @@ from pathlib import Path
 
 from odoo.libs.filesystem import guess_mimetype
 from odoo.libs.filesystem.mimetypes import _odoo_guess_mimetype
+from odoo.libs.filesystem.mimetypes import magic as _magic
 from odoo.tests import BaseCase
 from odoo.tools.misc import file_open
 
@@ -96,7 +97,7 @@ class TestMimeGuessingOdoo(BaseCase, MimeGuessingCases):
         )
 
 
-@unittest.skipIf(guess_mimetype is _odoo_guess_mimetype, "python-magic not installed")
+@unittest.skipIf(_magic is None, "python-magic not installed")
 class TestMimeGuessingMagic(BaseCase, MimeGuessingCases):
     guess_mimetype = staticmethod(guess_mimetype)
 
