@@ -143,9 +143,8 @@ class IrAttachment(models.Model):
                     if raw is None:
                         continue
                     content = defused_parse_string(raw)
-                    for val in ["a:t"]:
-                        for element in content.getElementsByTagName(val):
-                            buf += textToString(element) + "\n"
+                    for element in content.getElementsByTagName("a:t"):
+                        buf += textToString(element) + "\n"
             except Exception:
                 _logger.debug(
                     "attachment_indexation: failed to index pptx content", exc_info=True
