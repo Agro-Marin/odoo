@@ -29,6 +29,11 @@ def _log_result(timer: PerfTimer, name: str):
 
 @tagged("standard", "python_hotspots_benchmark")
 class TestPythonHotspots(TransactionCase):
+    """Timing only: no test_* method here asserts on a measured value.
+
+    A failure here is an exception, never a performance regression.
+    """
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
