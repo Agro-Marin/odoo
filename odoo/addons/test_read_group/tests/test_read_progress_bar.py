@@ -17,11 +17,29 @@ class TestReadProgressBar(common.TransactionCase):
                 "other": "200",
             },
         }
-        result = self.env["res.partner"].read_progress_bar(
-            [], "category_id", progressbar
+        tag = self.env["res.partner.category"].create(
+            {"name": "test_read_progress_bar_m2m_tag"}
         )
-        self.assertTrue(result)
-        self.assertIn("False", result)
+        tagged = self.Model.create(
+            {
+                "name": "test_read_progress_bar_m2m_tagged",
+                "type": "contact",
+                "category_id": [(6, 0, tag.ids)],
+            }
+        )
+        untagged = self.Model.create(
+            {"name": "test_read_progress_bar_m2m_untagged", "type": "other"}
+        )
+        result = self.Model.read_progress_bar(
+            [("id", "in", (tagged + untagged).ids)], "category_id", progressbar
+        )
+        self.assertEqual(
+            result,
+            {
+                str(tag.id): {"contact": 1, "private": 0, "other": 0},
+                "False": {"contact": 0, "private": 0, "other": 1},
+            },
+        )
 
     def test_week_grouping(self):
         context = {"lang": "en_US"}
