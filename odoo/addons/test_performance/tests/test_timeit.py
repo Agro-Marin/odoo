@@ -221,15 +221,25 @@ class TestPerformanceTimeit(TransactionCase):
 
         ctx = {"dom": large_domain}
         self.launch_perf_set("records._search(dom(records))", ctx=ctx, number=3)
+
+        # get_test_children(max_size=...) truncates the largest set to
+        # max_size, so its actual length no longer matches the default
+        # relative_size (assumed powers of ten): derive relative_size from
+        # each set's own length instead, or the per-unit timings below are
+        # computed against the wrong denominator.
+        search_records = self.get_test_children(max_size=9500)
         self.launch_perf_set(
             "records.search(dom(records))",
-            record_list=self.get_test_children(max_size=9500),
+            record_list=search_records,
+            relative_size=[len(recs) for recs in search_records],
             ctx=ctx,
             number=1,
         )
+        filtered_records = self.get_test_children(max_size=400)
         self.launch_perf_set(
             "records.filtered_domain(dom(records))",
-            record_list=self.get_test_children(max_size=400),
+            record_list=filtered_records,
+            relative_size=[len(recs) for recs in filtered_records],
             ctx=ctx,
             number=2,
             check_type=None,
