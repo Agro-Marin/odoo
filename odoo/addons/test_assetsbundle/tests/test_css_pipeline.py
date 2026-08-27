@@ -36,8 +36,24 @@ NON_ASCII_SCSS = '.audit-charset{content:"→ flecha"}'
 PLAIN_CSS = "body { margin-left: 1px; }"
 
 
+def _fake_bundle(**overrides):
+    """A stub bundle exposing the subset of AssetsBundle's shape that
+    CssPipeline/StylesheetAsset need, with sane defaults overridden
+    per test."""
+    defaults = {
+        "name": "test.bundle",
+        "stylesheets": [],
+        "css_errors": [],
+        "autoprefix": False,
+        "rtl": False,
+        "is_debug_assets": False,
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
 def _sanitized(source):
-    bundle = SimpleNamespace(css_errors=[], name="test.spans", stylesheets=[])
+    bundle = _fake_bundle(name="test.spans")
     out = CssPipeline(bundle).compile_css(lambda src: src, source)
     return out, bundle.css_errors
 
@@ -63,14 +79,7 @@ class _MissAttachModel:
 
 class TestPreprocessCssErrorContract(BaseCase):
     def _pipeline(self, stylesheets):
-        bundle = SimpleNamespace(
-            stylesheets=stylesheets,
-            css_errors=[],
-            autoprefix=False,
-            rtl=False,
-            name="test.bundle",
-            is_debug_assets=False,
-        )
+        bundle = _fake_bundle(stylesheets=stylesheets)
         return CssPipeline(bundle), bundle
 
     def test_compile_failure_returns_empty_not_raw_source(self):
@@ -127,13 +136,9 @@ class TestPreprocessLeafErrorRebuilt(BaseCase):
     _MISSING = "/web/static/src/audit_missing.scss"
 
     def _bundle_with_missing_scss(self, autoprefix=False, rtl=False):
-        bundle = SimpleNamespace(
-            stylesheets=[],
-            css_errors=[],
+        bundle = _fake_bundle(
             autoprefix=autoprefix,
             rtl=rtl,
-            name="test.bundle",
-            is_debug_assets=False,
             env={"ir.attachment": _MissAttachModel()},
         )
         asset = ScssStylesheetAsset(bundle, url=self._MISSING)
@@ -176,14 +181,7 @@ class TestPreprocessCssAtRulesIdempotent(BaseCase):
         scss.get_source.return_value = "/*! odoo-split:abc123 */\nh1{}"
         scss.minify.return_value = "h1{color:red}"
         scss.errors = []
-        bundle = SimpleNamespace(
-            stylesheets=[scss],
-            css_errors=[],
-            autoprefix=False,
-            rtl=rtl,
-            name="test.bundle",
-            is_debug_assets=False,
-        )
+        bundle = _fake_bundle(stylesheets=[scss], rtl=rtl)
         pipeline = CssPipeline(bundle)
         pipeline.compile_css = lambda compiler, source: self._COMPILED
         pipeline.run_rtlcss = lambda source: source
@@ -522,7 +520,7 @@ class TestEmbeddedSassFallbackWarning(BaseCase):
 class TestCompileCssImportSanitizeUnit(BaseCase):
     @staticmethod
     def _sanitize(source):
-        bundle = SimpleNamespace(css_errors=[])
+        bundle = _fake_bundle()
         out = CssPipeline(bundle).compile_css(lambda s: s, source)
         return out, bundle.css_errors
 
@@ -900,7 +898,7 @@ class TestUrlFragmentReferences(BaseCase):
         from odoo.addons.base.models import assetsbundle
         from odoo.addons.base.models.assetsbundle import StylesheetAsset, WebAsset
 
-        bundle = SimpleNamespace(is_debug_assets=False)
+        bundle = _fake_bundle()
         sample = (
             '@import "theme.css";\n'
             ".a { background: url(images/logo.png); }\n"
@@ -1049,7 +1047,7 @@ class TestPlainCssMinifyStringHandling(BaseCase):
 
     def test_css_minify_preserves_legal_comments(self):
         asset = StylesheetAsset(
-            SimpleNamespace(is_debug_assets=False),
+            _fake_bundle(),
             inline="/*! (c) Audit Corp */\n/* strip me */\nbody { color: red; }",
         )
         out = asset.minify()
@@ -1131,7 +1129,7 @@ class TestScssMinifySkipsRegex(TransactionCase):
 
 class TestDebugCssMinifySkipsRegex(BaseCase):
     def _minify(self, *, debug):
-        bundle = SimpleNamespace(is_debug_assets=debug)
+        bundle = _fake_bundle(is_debug_assets=debug)
         return StylesheetAsset(bundle, inline="body {  color:   red ; }").minify()
 
     def test_debug_leaves_content_unminified(self):
@@ -1254,7 +1252,7 @@ class TestAuditRtlSilentDegradation(TransactionCase):
 
 class TestRunRtlcssEmptyOutputGuard(BaseCase):
     def _run(self, source, fake_out):
-        bundle = SimpleNamespace(css_errors=[], name="t.b", stylesheets=[])
+        bundle = _fake_bundle(name="t.b")
         pipe = CssPipeline(bundle)
         CssPipeline._compiled_cache.clear()
         with (
@@ -1529,7 +1527,7 @@ class TestCssCompileErrorReporting(TransactionCase):
         self.assertIn("test_assetsbundle.csserr", banner)
 
     def test_sass_load_path_noise_is_trimmed(self):
-        pipeline = CssPipeline(SimpleNamespace(name="b", stylesheets=[], css_errors=[]))
+        pipeline = CssPipeline(_fake_bundle(name="b"))
         formatted = pipeline._format_compiler_error(
             "Error: bad\n  Use --trace for backtrace.\nLoad paths\n  /a\n  /b\n"
         )
