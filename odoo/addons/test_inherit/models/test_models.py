@@ -111,6 +111,3 @@ class TestOrmMessage(models.Model):
     _inherit = "test_orm.message"
 
     body = fields.Text(translate=True)
-
-    def bar(self):
-        return 1
