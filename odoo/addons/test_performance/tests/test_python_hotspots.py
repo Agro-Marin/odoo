@@ -1,3 +1,13 @@
+"""Wall-clock benchmarks for pure-Python hotspots.
+
+Was named for `odoo_rust` ("pyo3 candidates"), but never imported or compared
+against it: every benchmark here times a pure-Python function
+(`safe_eval`, `groupby`, `OrderedSet`, `frozendict`, `plaintext2html`,
+`html_sanitize`, `clean_context`, `str2bool`, ...) in isolation. Renamed to
+describe what it actually measures; extend it to compare against an
+`odoo_rust` implementation once one of these functions gets one.
+"""
+
 import gc
 import logging
 
@@ -8,7 +18,7 @@ _logger = logging.getLogger(__name__)
 
 N = 2000
 WARMUP = 200
-TAG = "[PYO3_BENCH]"
+TAG = "[PY_HOTSPOTS]"
 
 
 def _log_result(timer: PerfTimer, name: str):
@@ -17,8 +27,8 @@ def _log_result(timer: PerfTimer, name: str):
     return stats
 
 
-@tagged("standard", "pyo3_benchmark")
-class TestPyO3Candidates(TransactionCase):
+@tagged("standard", "python_hotspots_benchmark")
+class TestPythonHotspots(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
