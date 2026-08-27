@@ -255,7 +255,7 @@ class TestPerfCompare(TransactionCase):
         victim = [None]
 
         def _mk_single():
-            victim[0] = Base.create({"name": "u"})
+            victim[0] = Base.create({"name": "u", "line_ids": [(0, 0, {"value": 1})]})
             env.flush_all()
 
         def _unlink_single():
@@ -273,7 +273,12 @@ class TestPerfCompare(TransactionCase):
         victims = [None]
 
         def _mk_batch():
-            victims[0] = Base.create([{"name": f"ub_{i}"} for i in range(10)])
+            victims[0] = Base.create(
+                [
+                    {"name": f"ub_{i}", "line_ids": [(0, 0, {"value": 1})]}
+                    for i in range(10)
+                ]
+            )
             env.flush_all()
 
         def _unlink_batch():
