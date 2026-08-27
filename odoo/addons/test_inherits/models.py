@@ -124,7 +124,7 @@ class TestUnstoredInheritsParent(models.Model):
             )
 
     def _search_child_id(self, operator, value):
-        return []
+        return [("id", "=", False)]
 
     @api.model
     def _create(self, data_list):
