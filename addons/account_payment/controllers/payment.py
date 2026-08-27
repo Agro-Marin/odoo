@@ -175,7 +175,13 @@ class PaymentPortal(payment_portal.PaymentPortal):
                     kwargs.get("currency_id"),
                 ):
                     raise
-                invoice_sudo = request.env["account.move"].sudo().browse(invoice_id)
+                invoice_sudo = (
+                    request.env["account.move"].sudo().browse(invoice_id).exists()
+                )
+                if not invoice_sudo:
+                    raise ValidationError(
+                        _("The provided parameters are invalid.")
+                    ) from None
 
             # Interrupt the payment flow if the invoice has been canceled.
             if invoice_sudo.state == "cancel":
