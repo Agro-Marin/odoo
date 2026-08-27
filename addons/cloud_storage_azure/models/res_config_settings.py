@@ -7,16 +7,7 @@ from odoo.exceptions import UserError, ValidationError
 
 
 class ResConfigSettings(models.TransientModel):
-    """
-    Instructions:
-    cloud_storage_azure_account_name, cloud_storage_azure_container_name:
-        if changed and old container names are still in use, you should
-        promise the current application registration has the permission
-        to access all old containers.
-    cloud_storage_azure_invalidate_user_delegation_key:
-        invalidate the cached value for
-        get_cloud_storage_azure_user_delegation_key
-    """
+    """Azure configuration for cloud storage attachments."""
 
     _inherit = "res.config.settings"
 
@@ -25,11 +16,18 @@ class ResConfigSettings(models.TransientModel):
     )
 
     cloud_storage_azure_account_name = fields.Char(
-        string="Azure Account Name", config_parameter="cloud_storage_azure_account_name"
+        string="Azure Account Name",
+        config_parameter="cloud_storage_azure_account_name",
+        help="If changed and old container names are still in use, you "
+        "should promise the current application registration has the "
+        "permission to access all old containers.",
     )
     cloud_storage_azure_container_name = fields.Char(
         string="Azure Container Name",
         config_parameter="cloud_storage_azure_container_name",
+        help="If changed and old container names are still in use, you "
+        "should promise the current application registration has the "
+        "permission to access all old containers.",
     )
     # Application Registry Info
     cloud_storage_azure_tenant_id = fields.Char(
@@ -44,6 +42,8 @@ class ResConfigSettings(models.TransientModel):
     )
     cloud_storage_azure_invalidate_user_delegation_key = fields.Boolean(
         string="Invalidate Cached Azure User Delegation Key",
+        help="Invalidate the cached value for "
+        "get_cloud_storage_azure_user_delegation_key.",
     )
 
     def _get_cloud_storage_configuration(self):
