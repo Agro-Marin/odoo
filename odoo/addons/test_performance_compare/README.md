@@ -49,15 +49,25 @@ Two environment variables drive a run:
 | `BENCH_ITER` | measured iterations per benchmark         | `60`                           |
 | `BENCH_WARMUP`| warmup iterations per benchmark          | `8`                            |
 
+The commands below are written against placeholders, not one engineer's local
+paths — substitute your own:
+
+- `$REPO_ROOT` — this fork's checkout (the directory containing `odoo-bin`)
+- `$VENV` — its Python 3.14 virtualenv
+- `$CONF` — its `odoo.conf`
+- `$WORKTREES` — any scratch directory for step 2's upstream worktree + venv
+- `$UPSTREAM_VENV`, `$UPSTREAM_CONF` — the upstream checkout's own venv/conf,
+  set up in step 2
+
 ### 1 — Fork (this checkout: Python 3.14 + psycopg3)
 
 ```bash
-cd /home/marin/Odoo
+cd $REPO_ROOT
 createdb -U odoo -h localhost perf_cmp_marin   # throwaway DB
 
 BENCH_LABEL=marin BENCH_OUT=$PWD/perf_compare_marin.json \
-venv/p314o19marin/bin/python addons/core/odoo-bin \
-    -c config/p314o19marin.conf -d perf_cmp_marin \
+$VENV/bin/python odoo-bin \
+    -c $CONF -d perf_cmp_marin \
     -i test_performance_compare --test-enable \
     --test-tags /test_performance_compare \
     --stop-after-init --workers=0
@@ -70,24 +80,24 @@ set, so it needs **its own checkout and its own venv**.
 
 ```bash
 # (a) worktree pinned to the pristine upstream-mirror branch
-cd /home/marin/Odoo/addons/core
-git worktree add /home/marin/Odoo/.worktrees/upstream-19.0 19.0
+cd $REPO_ROOT
+git worktree add $WORKTREES/upstream-19.0 19.0
 
 # (b) Python 3.13 venv via uv + upstream requirements (psycopg2, not psycopg3)
-uv venv --python 3.13 /home/marin/Odoo/.worktrees/upstream-venv
-VENV=/home/marin/Odoo/.worktrees/upstream-venv
-uv pip install --python $VENV/bin/python \
-    -r /home/marin/Odoo/.worktrees/upstream-19.0/requirements.txt
+uv venv --python 3.13 $WORKTREES/upstream-venv
+UPSTREAM_VENV=$WORKTREES/upstream-venv
+uv pip install --python $UPSTREAM_VENV/bin/python \
+    -r $WORKTREES/upstream-19.0/requirements.txt
 
 # (c) drop this module into the upstream tree (it has no fork deps)
-cp -r /home/marin/Odoo/addons/core/odoo/addons/test_performance_compare \
-      /home/marin/Odoo/.worktrees/upstream-19.0/odoo/addons/
+cp -r $REPO_ROOT/odoo/addons/test_performance_compare \
+      $WORKTREES/upstream-19.0/odoo/addons/
 
 # (d) run with an upstream conf + throwaway DB
 createdb -U odoo -h localhost perf_cmp_upstream
-BENCH_LABEL=upstream BENCH_OUT=/home/marin/Odoo/perf_compare_upstream.json \
-$VENV/bin/python /home/marin/Odoo/.worktrees/upstream-19.0/odoo-bin \
-    -c /home/marin/Odoo/config/upstream-19.0.conf -d perf_cmp_upstream \
+BENCH_LABEL=upstream BENCH_OUT=$REPO_ROOT/perf_compare_upstream.json \
+$UPSTREAM_VENV/bin/python $WORKTREES/upstream-19.0/odoo-bin \
+    -c $UPSTREAM_CONF -d perf_cmp_upstream \
     -i test_performance_compare --test-enable \
     --test-tags /test_performance_compare \
     --stop-after-init --workers=0
@@ -96,7 +106,7 @@ $VENV/bin/python /home/marin/Odoo/.worktrees/upstream-19.0/odoo-bin \
 ### 3 — Compare
 
 ```bash
-CMP=addons/core/odoo/addons/test_performance_compare/compare.py
+CMP=$REPO_ROOT/odoo/addons/test_performance_compare/compare.py
 
 # single run each (baseline = upstream, candidate = fork)
 python3 $CMP -b perf_compare_upstream.json -c perf_compare_marin.json
