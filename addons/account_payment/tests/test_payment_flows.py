@@ -81,15 +81,14 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
                 CustomerPortal, "_document_check_access", _document_check_access_mock
             ),
             patch(
-                "odoo.addons.payment.utils.check_access_token"
+                "odoo.addons.payment.utils.check_access_token",
+                return_value=False,
             ) as check_payment_access_token_mock,
         ):
-            try:  # noqa: SIM105
+            with self.assertRaises(AccessError):
                 payment_portal_controller._get_extra_payment_form_values(
                     invoice_id=self.invoice.id, access_token="whatever"
                 )
-            except Exception:
-                pass  # We don't care if it runs or not; we only count the calls.
             self.assertEqual(
                 check_payment_access_token_mock.call_count,
                 1,
