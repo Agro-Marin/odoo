@@ -5,10 +5,12 @@ import { livechatRoutingMap } from "@im_livechat/embed/cors/livechat_routing_map
 import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
-import { livechatLog } from "@web/core/utils/asset_log";
+import { makeLivechatLog } from "@web/core/utils/asset_log";
 import { session } from "@web/session";
 
 const ABSOLUTE_URL = /^(?:https?:)?\/\//;
+
+const log = makeLivechatLog("cors");
 
 /**
  * @param {string | URL | Request} input
@@ -16,7 +18,7 @@ const ABSOLUTE_URL = /^(?:https?:)?\/\//;
  */
 function toServerUrl(input) {
     const out = _toServerUrl(input);
-    livechatLog(
+    log(
         "fetch:rewrite",
         typeof input === "string" ? "string" : input?.constructor?.name,
         String(/** @type {any} */ (input)?.url ?? input),
@@ -63,7 +65,7 @@ function _toServerUrl(input) {
         if (!ABSOLUTE_URL.test(route)) {
             route = session.origin + route;
         }
-        livechatLog("rpc:route", route, params?.guest_token ? "+guest_token" : "");
+        log("rpc:route", route, params?.guest_token ? "+guest_token" : "");
         return originalRPC(route, params, settings);
     };
     registry.category("services").remove("error");

@@ -5,8 +5,10 @@ import { reactive } from "@odoo/owl";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { livechatLog } from "@web/core/utils/asset_log";
+import { makeLivechatLog } from "@web/core/utils/asset_log";
 import { session } from "@web/session";
+
+const log = makeLivechatLog("service");
 
 export const RATING = Object.freeze({
     GOOD: 5,
@@ -41,7 +43,7 @@ export class LivechatService {
     }
 
     async initialize() {
-        livechatLog("service:initialize", `channel=${this.options.channel_id}`);
+        log("initialize", `channel=${this.options.channel_id}`);
         this.store.fetchStoreData("init_livechat", this.options.channel_id, {
             readonly: false,
         });
@@ -84,7 +86,7 @@ export class LivechatService {
             return;
         }
         savedThread.fetchNewMessages();
-        livechatLog("service:persist:store-initialize", `thread=${savedThread.id}`);
+        log("persist:store-initialize", `thread=${savedThread.id}`);
         this.env.services["mail.store"].initialize();
         savedThread.readyToSwapDeferred.then(async () => {
             if (!savedThread?.exists()) {

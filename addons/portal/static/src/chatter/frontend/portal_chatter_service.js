@@ -6,6 +6,7 @@ import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
+import { attachShadowRoot } from "@web/core/utils/dom/ui";
 import { session } from "@web/session";
 
 export class PortalChatterService {
@@ -19,7 +20,7 @@ export class PortalChatterService {
     }
 
     async createShadow(root) {
-        const shadow = root.attachShadow({ mode: "open" });
+        const shadow = attachShadowRoot(root);
         await loadCssFromBundle(shadow, "portal.assets_chatter_style");
         return shadow;
     }
@@ -45,7 +46,10 @@ export class PortalChatterService {
             root.classList.add("p-0");
         }
         chatterEl.appendChild(root);
-        const thread = this.store.Thread.insert({ model: props.resModel, id: props.resId });
+        const thread = this.store.Thread.insert({
+            model: props.resModel,
+            id: props.resId,
+        });
         Object.assign(thread, {
             access_token: chatterEl.getAttribute("data-token"),
             hash: chatterEl.getAttribute("data-hash"),
@@ -60,7 +64,7 @@ export class PortalChatterService {
                     thread_id: props.resId,
                     ...thread.rpcParams,
                 },
-                { silent: true }
+                { silent: true },
             ),
         ]);
         this.store.insert(data);

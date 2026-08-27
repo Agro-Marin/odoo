@@ -1,6 +1,11 @@
 import { expect, getFixture, test } from "@odoo/hoot";
 import { blendColors, rgbaToHex, rgbToHex } from "@web/core/utils/format/colors";
 
+// `rgbToHex` and `blendColors` used to be two copies of the same compositing
+// rule that disagreed by one step on every channel whose blend was not an exact
+// integer -- `Math.floor` against `Math.round`. They are one implementation
+// now, so each pair below asserts the same value on purpose.
+
 test("should convert an rgb and rgba color to hexadecimal", async () => {
     expect(rgbToHex("rgb(0, 0, 255)")).toBe("#0000ff");
     expect(rgbToHex("rgb(0,0,255)")).toBe("#0000ff");
@@ -13,7 +18,7 @@ test("should convert an rgba color to hexadecimal (background is hexadecimal)", 
     parent.style.backgroundColor = "#ff0000";
     node.style.backgroundColor = "#0000ff";
     parent.append(node);
-    expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#7f7fff");
+    expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
     expect(blendColors("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
 });
 
@@ -23,7 +28,7 @@ test("should convert an rgba color to hexadecimal (background is color name)", a
     parent.style.backgroundColor = "#ff0000";
     node.style.backgroundColor = "blue";
     parent.append(node);
-    expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#7f7fff");
+    expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
     expect(blendColors("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
 });
 
@@ -33,7 +38,7 @@ test("should convert an rgba color to hexadecimal (background is rgb)", async ()
     parent.style.backgroundColor = "#ff0000";
     node.style.backgroundColor = "rgb(0, 0, 255)";
     parent.append(node);
-    expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#7f7fff");
+    expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
     expect(blendColors("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
     parent.remove();
 });
@@ -44,6 +49,6 @@ test("should convert an rgba color to hexadecimal (background is rgba)", async (
     parent.style.backgroundColor = "rgb(255, 0, 0)";
     node.style.backgroundColor = "rgba(0, 0, 255, 0.5)";
     parent.append(node);
-    expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#bf7fbf");
+    expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#c080c0");
     expect(blendColors("rgba(255, 255, 255, 0.5)", node)).toBe("#c080c0");
 });

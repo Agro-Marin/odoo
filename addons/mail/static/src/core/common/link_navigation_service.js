@@ -25,7 +25,16 @@ export class LinkNavigation {
      * @returns {boolean}
      */
     handleClickOnLink(ev, thread) {
-        const link = ev.target.closest("a");
+        // The body of an EMAIL message is rendered into a shadow root
+        // (`message.js:168`, gated by `message.xml:113`) while the click
+        // handler sits on the message root, in the light DOM. `ev.target` is
+        // therefore retargeted to the shadow host and `closest("a")` answered
+        // null for every link in an email body -- so none of the redirects
+        // below ever fired, and a decorated `#channel` mention silently fell
+        // through to a full page load. The composed path names the element
+        // that was actually clicked.
+        const target = /** @type {Element} */ (ev.composedPath?.()[0] ?? ev.target);
+        const link = target.closest?.("a");
         if (!link) {
             return false;
         }

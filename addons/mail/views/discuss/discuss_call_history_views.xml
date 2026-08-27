@@ -12,7 +12,7 @@
                 <field
                     name="duration_hour"
                     widget="float_time"
-                    options="{'displaySeconds': True}" />
+                    options="{'display_seconds': True}" />
             </list>
         </field>
     </record>
@@ -29,7 +29,7 @@
                     <field
                         name="duration_hour"
                         widget="float_time"
-                        options="{'displaySeconds': True}" />
+                        options="{'display_seconds': True}" />
                 </group>
             </form>
         </field>

@@ -27,6 +27,7 @@ import {
     pointerDown,
     press,
     queryFirst,
+    queryOne,
     waitFor,
 } from "@odoo/hoot-dom";
 import { advanceTime, mockDate, mockTouch, mockUserAgent, tick } from "@odoo/hoot-mock";
@@ -1866,6 +1867,36 @@ test("Channel should be opened after clicking on its mention", async () => {
     await click(".o_channel_redirect");
     await contains(".o-mail-ChatWindow .o-mail-Thread");
     await contains(".o-mail-ChatWindow", { text: "my-channel" });
+});
+
+test("a #channel mention in an EMAIL body opens the channel", async () => {
+    // The body of an EMAIL message is rendered into a SHADOW ROOT, while the
+    // click handler sits on the message root in the light DOM. `ev.target` is
+    // retargeted to the shadow host there, so `handleClickOnLink`'s
+    // `closest("a")` answered null and none of the redirects fired -- a
+    // decorated mention silently fell through to a full page load. The
+    // comment-message twin is "Channel should be opened after clicking on its
+    // mention"; only `message_type` differs, and the link has to be reached
+    // through the shadow root because the query helpers do not pierce one.
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    const otherId = pyEnv["discuss.channel"].create({ name: "my-channel" });
+    pyEnv["mail.message"].create({
+        body: `<p><a href="/odoo/discuss/${otherId}" class="o_channel_redirect" data-oe-model="discuss.channel" data-oe-id="${otherId}">#my-channel</a></p>`,
+        message_type: "email",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message");
+    const host = [...queryOne(".o-mail-Message").querySelectorAll("*")].find(
+        (el) => el.shadowRoot,
+    );
+    const link = host?.shadowRoot.querySelector("a.o_channel_redirect");
+    expect(link).toBeInstanceOf(HTMLAnchorElement);
+    link.click();
+    await contains(".o-mail-DiscussContent-threadName", { value: "my-channel" });
 });
 
 test("delete all attachments of message without content should mark message as deleted", async () => {

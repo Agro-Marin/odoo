@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
+import { attachShadowRoot } from "@web/core/utils/dom/ui";
 import { url } from "@web/core/utils/urls";
 
 async function loadFont(name, url, targetDocument) {
@@ -77,7 +78,7 @@ export async function loadAssets(styleTarget) {
  * @returns {ShadowRoot}
  */
 export async function makeShadow(root) {
-    const shadow = root.attachShadow({ mode: "open" });
+    const shadow = attachShadowRoot(root);
     await loadAssets(shadow);
     return shadow;
 }

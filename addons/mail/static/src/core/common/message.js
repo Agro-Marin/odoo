@@ -33,6 +33,7 @@ import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/translation";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { createElementWithContent } from "@web/core/utils/dom/html";
+import { attachShadowRoot } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
 import { renderToElement } from "@web/core/utils/render";
 import { getOrigin, url } from "@web/core/utils/urls";
@@ -165,7 +166,7 @@ export class Message extends Component {
                         if (el.shadowRoot) {
                             this.shadowRoot = el.shadowRoot;
                         } else {
-                            this.shadowRoot = el.attachShadow({ mode: "open" });
+                            this.shadowRoot = attachShadowRoot(el);
                             this.setupShadowStyles(this.shadowRoot);
                         }
                     }
