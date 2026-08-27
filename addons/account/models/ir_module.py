@@ -117,18 +117,24 @@ class IrModuleModule(models.Model):
             and self.account_templates
             and (guessed := self._account_template_to_auto_install())
         ):
+
             def try_loading(env):
                 env["account.chart.template"].try_loading(
                     guessed,
                     env.company,
                 )
 
+            # Single slot by design: `write()` only reaches here once per
+            # registry build (guarded by `not was_installed and is_installed`
+            # on `account`'s own installation), and `_register_hook()` below
+            # consumes and deletes it before the registry is used again.
             self.env.registry._auto_install_template = try_loading
         return res
 
     def _load_module_terms(self, modules, langs, overwrite=False):
         super()._load_module_terms(modules, langs, overwrite=overwrite)
         if "account" in modules:
+
             def load_account_translations(env):
                 env["account.chart.template"]._load_translations(langs=langs)
                 env["account.account.tag"]._translate_tax_tags(langs=langs)
@@ -136,6 +142,9 @@ class IrModuleModule(models.Model):
             if self.env.registry.loaded:
                 load_account_translations(self.env)
             else:
+                # Single slot by design: `_load_module_terms` for `account`
+                # runs once per registry build, consumed and deleted by
+                # `_register_hook()` below before the registry is used again.
                 self.env.registry._delayed_account_translator = (
                     load_account_translations
                 )
