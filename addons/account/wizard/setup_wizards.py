@@ -82,7 +82,7 @@ class AccountFinancialYearOp(models.TransientModel):
                 company = self.env["res.company"].browse(vals["company_id"])
                 self._update_company(company, vals)
 
-                for key in self._company_fields_to_update() - {"opening_date"}:
+                for key in self._company_fields_to_update():
                     vals.pop(key, None)
 
         return super().create(vals_list)
