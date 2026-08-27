@@ -115,7 +115,6 @@ class MixinAccountDocumentImport(models.AbstractModel):
 
         return records
 
-
     def _group_files_data_by_origin_attachment(self, files_data):
         return [
             file_data_group
@@ -200,7 +199,6 @@ class MixinAccountDocumentImport(models.AbstractModel):
         matcher = difflib.SequenceMatcher(a=filename1, b=filename2, autojunk=False)
         return matcher.find_longest_match().size
 
-
     def _extend_with_attachments(self, files_data, new=False):
         def _get_attachment_name(file_data):
             params = {
@@ -281,7 +279,6 @@ class MixinAccountDocumentImport(models.AbstractModel):
     def _get_edi_decoder(self, file_data, new=False):
         pass
 
-
     def _attachment_fields_to_clear(self):
         return []
 
@@ -343,7 +340,6 @@ class MixinAccountDocumentImport(models.AbstractModel):
             }
         )
 
-
     @api.model
     def _to_files_data(self, attachments):
         files_data = []
@@ -380,15 +376,12 @@ class MixinAccountDocumentImport(models.AbstractModel):
     @api.model
     def _get_xml_tree(self, file_data):
         if (
-            (
-                "text/plain" in file_data["mimetype"]
-                and (
-                    guess_mimetype(file_data["raw"] or b"").endswith("/xml")
-                    or file_data["name"].endswith(".xml")
-                )
+            "text/plain" in file_data["mimetype"]
+            and (
+                guess_mimetype(file_data["raw"] or b"").endswith("/xml")
+                or file_data["name"].endswith(".xml")
             )
-            or file_data["mimetype"].endswith("/xml")
-        ):
+        ) or file_data["mimetype"].endswith("/xml"):
             try:
                 return etree.fromstring(
                     file_data["raw"],
