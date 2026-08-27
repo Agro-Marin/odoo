@@ -24,14 +24,10 @@ class EventEvent(models.Model):
         "sale_order_lines_ids.order_id.date_order",
     )
     def _compute_sale_price_total(self):
-        """Takes only confirmed the sale.order.lines related to this event and converts amounts
-        from the currency of the sale order to the currency of the event company.
-
-        To avoid extra overhead, we use conversion rates as of 'today'.
-        Meaning we have a number that can change over time, but using the conversion rates
-        at the time of the related sale.order would mean thousands of extra requests as we would
-        have to do one conversion per sale.order (and a sale.order is created every time
-        we sell a single event ticket)."""
+        """Sum confirmed sale.order.line amounts, converted to the event company's currency."""
+        # Conversion rates are taken as of 'today' rather than each sale.order's own date,
+        # to avoid one currency-conversion request per sale.order (one is created per
+        # event ticket sold).
         date_now = fields.Datetime.now()
         event_subtotals = self.env["sale.order.line"]._read_group(
             [

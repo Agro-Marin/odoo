@@ -44,7 +44,6 @@ class SaleOrder(models.Model):
                         so_lines_descriptions,
                     )
                 )
-            # Initialize registrations
             so.line_ids._init_registrations()
             if len(self) == 1:
                 return (
