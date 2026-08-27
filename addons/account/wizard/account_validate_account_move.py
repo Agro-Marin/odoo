@@ -98,15 +98,30 @@ class ValidateAccountMove(models.TransientModel):
             self.abnormal_date_partner_ids.ignore_abnormal_invoice_date = True
         if self.force_post:
             self.move_ids.auto_post = "no"
+        excluded_moves = self.env["account.move"]
         if self.force_hash:
             moves_to_post = self.move_ids
         else:
             moves_to_post = self.move_ids.filtered(
                 lambda m: not m.restrict_mode_hash_table
             )
+            excluded_moves = self.move_ids - moves_to_post
         moves_to_post._post_check_business_rules()
         moves_to_post._post(not self.force_post)
 
         if autopost_bills_wizard := moves_to_post._show_autopost_bills_wizard():
             return autopost_bills_wizard
+        if excluded_moves:
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "type": "warning",
+                    "message": _(
+                        "The following entries were not posted because they are hash-restricted: %(moves)s. Check the 'Force' option to post them anyway.",
+                        moves=", ".join(excluded_moves.mapped("name")),
+                    ),
+                    "sticky": True,
+                },
+            }
         return {"type": "ir.actions.act_window_close"}
