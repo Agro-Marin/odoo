@@ -4024,7 +4024,10 @@ class AccountMove(models.Model):
                 raise UserError(
                     _(
                         "You cannot modify the following readonly fields on a posted move: %s",
-                        ", ".join(readonly_fields),
+                        ", ".join(
+                            f["string"]
+                            for f in self.fields_get(readonly_fields).values()
+                        ),
                     )
                 )
 
