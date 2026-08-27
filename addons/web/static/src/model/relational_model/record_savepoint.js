@@ -15,7 +15,7 @@ export { createSavePoint } from "./record_edit_state.js";
  * @param {ConstructedRecord} record
  */
 export function addSavePoint(record) {
-    record._editState.snapshot();
+    record._snapshotEditState();
     for (const fieldName of Object.keys(record._changes)) {
         if (isX2Many(record.fields[fieldName])) {
             record._changes[fieldName]._addSavePoint();
@@ -28,7 +28,7 @@ export function addSavePoint(record) {
  * @returns {boolean}
  */
 export function restoreFromSavePoint(record) {
-    return record._editState.restoreSnapshot();
+    return record._restoreEditState();
 }
 
 /**

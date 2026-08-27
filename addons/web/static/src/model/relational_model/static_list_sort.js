@@ -14,7 +14,11 @@ import { compareRecords, computeNextOrderBy } from "./static_list_utils.js";
  * @param {any[]} [currentIds]
  * @param {any[]} [orderBy]
  */
-export async function sort(list, currentIds = list.currentIds, orderBy = list.orderBy) {
+export async function sortStaticList(
+    list,
+    currentIds = list.currentIds,
+    orderBy = list.orderBy,
+) {
     if (!orderBy.length) {
         return currentIds;
     }
@@ -69,7 +73,7 @@ export async function sort(list, currentIds = list.currentIds, orderBy = list.or
  * @param {number|string} movedId
  * @param {number|string|null} targetId
  */
-export async function resequence(list, movedId, targetId) {
+export async function resequenceStaticList(list, movedId, targetId) {
     const handleField = /** @type {string} */ (list.handleField);
     const order = list.orderBy.find((o) => o.name === handleField);
     const asc = !order || order.asc;
@@ -97,7 +101,7 @@ export async function resequence(list, movedId, targetId) {
     }
     await Promise.all(proms);
 
-    await sort(list);
+    await sortStaticList(list);
     await list._onUpdate();
 }
 
@@ -111,5 +115,5 @@ export function sortBy(list, fieldName) {
         list.orderBy,
         Boolean(list._needsReordering),
     );
-    return sort(list, list._currentIds, orderBy);
+    return sortStaticList(list, list._currentIds, orderBy);
 }

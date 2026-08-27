@@ -6,7 +6,7 @@ import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
 import { applyCommands } from "@web/model/relational_model/static_list_command_engine";
-import { sort } from "@web/model/relational_model/static_list_sort";
+import { sortStaticList } from "@web/model/relational_model/static_list_sort";
 
 const { CLEAR, DELETE, LINK, UNLINK, UPDATE } = x2ManyCommands;
 
@@ -95,7 +95,9 @@ describe("count follows membership through a partial load", () => {
             deleted: new Set([99]),
         });
 
-        await sort(list, list._currentIds, [{ name: "display_name", asc: true }]);
+        await sortStaticList(list, list._currentIds, [
+            { name: "display_name", asc: true },
+        ]);
 
         expect(list._currentIds).toEqual([2, 3, 1]);
         expect(list.count).toBe(3);

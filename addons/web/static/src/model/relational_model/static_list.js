@@ -18,7 +18,7 @@ import {
 import { fromUnityToServerValues, invalidateAggregateSpecs } from "./field_values.js";
 import { ListMembership } from "./list_membership.js";
 import { applyCommands } from "./static_list_command_engine.js";
-import { resequence, sort as sortRecords, sortBy } from "./static_list_sort.js";
+import { resequenceStaticList, sortBy, sortStaticList } from "./static_list_sort.js";
 import { copyRecordData, listId, pairCreatedRows } from "./static_list_utils.js";
 
 /** @import { DatapointId } from "@web/model/types" */
@@ -40,6 +40,16 @@ function cloneCommandsById(byId) {
 }
 
 /**
+ * The state a snapshot carries, and therefore the state `_restore` puts back.
+ *
+ * Three fields are deliberately absent. `_savePoint` holds the snapshot being
+ * restored, so restoring it too would be circular. `_replayFailed` records that
+ * a command replay rejected and the window may be short rows; a snapshot taken
+ * before the failure would clear a flag that is still true, and one taken after
+ * would resurrect a failure already healed. `_extendedRecords` indexes the
+ * *cache*, which `_restore` does not touch, and `_pruneExtendedRecords`
+ * reconciles it against the cache anyway.
+ *
  * @type {Record<string, { clone: (value: any) => any, restore?: (list: any, value: any) => void }>}
  */
 const RESTORABLE_STATE = {
@@ -259,7 +269,7 @@ export class StaticList extends EditableListDataPoint {
         return this.model.mutex.exec(async () => {
             await this._applyCommands(commands, omit(options, "sort"));
             if (options.sort) {
-                await sortRecords(this);
+                await sortStaticList(this);
             }
             await this._onUpdate();
         });
@@ -388,8 +398,14 @@ export class StaticList extends EditableListDataPoint {
                     }
                 }
                 record._applyValues(data);
-                const commands = this._unknownRecordCommands.get(record.resId);
-                this._unknownRecordCommands.delete(record.resId);
+                // `listId`, not `resId`: the ledger keys a row by whatever the
+                // commands name it, which for a row that has not been created
+                // yet is its virtual id. Keyed by `resId` this asked the ledger
+                // for `false` on every new record, so a new row's deferred
+                // commands were dropped instead of replayed.
+                const ledgerId = listId(record);
+                const commands = this._unknownRecordCommands.get(ledgerId);
+                this._unknownRecordCommands.delete(ledgerId);
                 if (commands) {
                     await this._applyCommands(commands);
                 }
@@ -504,7 +520,9 @@ export class StaticList extends EditableListDataPoint {
     }
 
     async resequence(movedId, targetId) {
-        return this.model.mutex.exec(() => resequence(this, movedId, targetId));
+        return this.model.mutex.exec(() =>
+            resequenceStaticList(this, movedId, targetId),
+        );
     }
 
     /**
@@ -608,7 +626,7 @@ export class StaticList extends EditableListDataPoint {
         } else {
             const currentIds = [...this._currentIds, listId(record)];
             if (this.orderBy.length && sort) {
-                await sortRecords(this, currentIds);
+                await sortStaticList(this, currentIds);
             } else {
                 if (this.records.length < this.limit) {
                     this.records.push(record);
@@ -638,7 +656,11 @@ export class StaticList extends EditableListDataPoint {
             index >= 0
                 ? this.records[Math.min(index, this.records.length - 1)]
                 : undefined;
-        await resequence(this, newRecord.id, targetRecord ? targetRecord.id : null);
+        await resequenceStaticList(
+            this,
+            newRecord.id,
+            targetRecord ? targetRecord.id : null,
+        );
         newRecord.dirty = false;
         return newRecord;
     }
@@ -1124,7 +1146,7 @@ export class StaticList extends EditableListDataPoint {
             newRecords.map((record) => this._addRecord(record, { sort: false })),
         );
 
-        await sortRecords(this);
+        await sortStaticList(this);
     }
 
     /** @param {{ withReadonly?: boolean }} [options] */

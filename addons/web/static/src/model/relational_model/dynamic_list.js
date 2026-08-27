@@ -12,7 +12,7 @@ import { EditableListDataPoint } from "./editable_list_datapoint.js";
 import { getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { RelationalRecord } from "./record.js";
-import { resequence } from "./resequence.js";
+import { resequenceRecords } from "./resequence.js";
 import { computeNextOrderBy } from "./static_list_utils.js";
 
 /** @import { DataPoint } from "./datapoint.js" */
@@ -614,7 +614,7 @@ export class DynamicList extends EditableListDataPoint {
         const order = this.orderBy.find((o) => o.name === handleField);
         const getSequence = (dp) => dp && this._getDPFieldValue(dp, handleField);
         const getResId = (dp) => this._getDPresId(dp);
-        const resequencedRecords = await resequence({
+        const resequencedRecords = await resequenceRecords({
             records: originalList,
             resModel,
             movedId,

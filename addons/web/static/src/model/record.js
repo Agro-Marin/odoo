@@ -5,8 +5,8 @@ import { Component, onWillStart, onWillUpdateProps, useState, xml } from "@odoo/
 import { isX2ManyType } from "@web/core/field_types";
 import { isObject, pick } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
+import { getFieldsSpec } from "@web/model/relational_model/field_spec";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
-import { getFieldsSpec } from "@web/model/relational_model/utils";
 
 /** @import { Field, FieldInfo } from "@web/model/types" */
 /** @import { RelationalModelConfig } from "@web/model/relational_model/relational_model" */

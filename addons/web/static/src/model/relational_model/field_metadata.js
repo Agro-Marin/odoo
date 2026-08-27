@@ -10,7 +10,10 @@ import { isX2Many, isX2ManyType } from "@web/core/field_types";
 import { omit } from "@web/core/utils/collections/objects";
 
 import { invalidateAggregateSpecs } from "./field_values.js";
-import { invalidateModifierDependencies } from "./record_utils.js";
+import {
+    invalidateAllModifierDependencies,
+    invalidateModifierDependencies,
+} from "./record_utils.js";
 
 /**
  * @param {boolean | string} value
@@ -24,11 +27,16 @@ function convertBoolToPyExpr(value) {
 }
 
 /**
+ * `null` rides in from `combineModifiers`, which accepts it because its
+ * dominant input is `Element.getAttribute`. It stops here: every one of these
+ * reaches `convertBoolToPyExpr(x || false)`, so an absent modifier becomes
+ * `"False"` however it was spelled.
+ *
  * @typedef {{
  * context?: string;
- * invisible?: boolean | string;
- * readonly?: boolean | string;
- * required?: boolean | string;
+ * invisible?: boolean | string | null;
+ * readonly?: boolean | string | null;
+ * required?: boolean | string | null;
  * onChange?: boolean | string;
  * forceSave?: boolean;
  * isHandle?: boolean;
@@ -99,6 +107,26 @@ export function makeActiveField({
         forceSave: forceSave || false,
         isHandle: isHandle || false,
     };
+}
+
+/**
+ * A patch may carry a `related` sub-schema for a field the target describes
+ * without one -- the same field named twice in an arch where only one node has
+ * a sub-view, or a widget dependency that declared an x2many with a scalar
+ * type. Both readers below then dereferenced `activeField.related.activeFields`
+ * on `undefined` and killed the whole asset bundle with a `TypeError` that
+ * named neither the field nor the view. Adopting the patch's sub-schema is what
+ * the caller means in every such case: the two nodes describe one field, and
+ * the richer description wins.
+ *
+ * @param {Record<string, any>} activeField
+ * @returns {{ activeFields: Record<string, any>, fields: Record<string, any> }}
+ */
+function ensureRelated(activeField) {
+    if (!activeField.related) {
+        activeField.related = { activeFields: {}, fields: {} };
+    }
+    return activeField.related;
 }
 
 /**
@@ -178,21 +206,22 @@ export function addFieldDependencies(activeFields, fields, fieldDependencies = [
  */
 function completeActiveField(activeField, extra) {
     if (extra.related) {
-        invalidateModifierDependencies(activeField.related.activeFields);
-        invalidateAggregateSpecs(activeField.related.fields);
+        const related = ensureRelated(activeField);
+        invalidateModifierDependencies(related.activeFields);
+        invalidateAggregateSpecs(related.fields);
         for (const fieldName of Object.keys(extra.related.activeFields)) {
-            if (fieldName in activeField.related.activeFields) {
+            if (fieldName in related.activeFields) {
                 completeActiveField(
-                    activeField.related.activeFields[fieldName],
+                    related.activeFields[fieldName],
                     extra.related.activeFields[fieldName],
                 );
             } else {
-                activeField.related.activeFields[fieldName] = {
+                related.activeFields[fieldName] = {
                     ...extra.related.activeFields[fieldName],
                 };
             }
         }
-        Object.assign(activeField.related.fields, extra.related.fields);
+        Object.assign(related.fields, extra.related.fields);
     }
 }
 
@@ -240,10 +269,14 @@ export function createPropertyActiveField(property) {
 }
 
 /**
- * @param {boolean | string | undefined} mod1
- * @param {boolean | string | undefined} mod2
+ * `null` is accepted because the dominant caller is `Element.getAttribute`,
+ * which answers `string | null` for an absent attribute -- and an absent
+ * modifier is exactly what `undefined` already means here.
+ *
+ * @param {boolean | string | null | undefined} mod1
+ * @param {boolean | string | null | undefined} mod2
  * @param {"AND" | "OR"} operator
- * @returns {boolean | string | undefined}
+ * @returns {boolean | string | null | undefined}
  */
 export function combineModifiers(mod1, mod2, operator) {
     if (operator !== "AND" && operator !== "OR") {
@@ -291,6 +324,7 @@ export function combineModifiers(mod1, mod2, operator) {
  * @returns {void}
  */
 export function patchActiveFields(activeField, patch) {
+    const before = [activeField.invisible, activeField.readonly, activeField.required];
     activeField.invisible = combineModifiers(
         activeField.invisible,
         patch.invisible,
@@ -302,11 +336,22 @@ export function patchActiveFields(activeField, patch) {
         "AND",
     );
     activeField.required = combineModifiers(activeField.required, patch.required, "OR");
+    if (
+        before[0] !== activeField.invisible ||
+        before[1] !== activeField.readonly ||
+        before[2] !== activeField.required
+    ) {
+        // The dependency graph is cached per activeFields map, and this
+        // function is handed one field without its owner. Bump the epoch so
+        // every cached graph is recomputed on next read rather than relying on
+        // each caller to remember which map it just changed.
+        invalidateAllModifierDependencies();
+    }
     activeField.onChange = activeField.onChange || patch.onChange;
     activeField.forceSave = activeField.forceSave || patch.forceSave;
     activeField.isHandle = activeField.isHandle || patch.isHandle;
     if (patch.related) {
-        const related = activeField.related;
+        const related = ensureRelated(activeField);
         invalidateModifierDependencies(related.activeFields);
         invalidateAggregateSpecs(related.fields);
         for (const fieldName of Object.keys(patch.related.activeFields)) {

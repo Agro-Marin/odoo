@@ -3,20 +3,29 @@
 
 import { x2ManyCommands } from "@web/core/network/commands";
 
+/** @import { X2ManyCommand, X2ManyRowId } from "@web/core/network/commands" */
+
+/**
+ * One command as the ledger holds it: the command itself, plus where it sat in
+ * the order the batch produced them.
+ *
+ * @typedef {{ command: X2ManyCommand, index: number }} LedgerEntry
+ */
+
 const { CREATE, UPDATE, UNLINK, LINK, SET } = x2ManyCommands;
 
 /**
- * @param {Array<[number, string|number, any?]>} commands
+ * @param {X2ManyCommand[]} commands
  * @param {Object} params
- * @param {Map<string|number, Array<[number, any, any?]>>} params.unknownRecordCommands
+ * @param {Map<X2ManyRowId, X2ManyCommand[]>} params.unknownRecordCommands
  * @param {Object} params.fields
  * @param {Object} params.activeFields
  * @param {Object} params.context
  * @param {boolean} [params.withReadonly]
- * @param {(id: string|number) => Object|undefined} params.getRecord
+ * @param {(id: X2ManyRowId) => Object|undefined} params.getRecord
  * @param {(record: Object, withReadonly: boolean) => Object} params.getRecordChanges
  * @param {(values: Object, fields: Object, activeFields: Object, options: Object) => Object} params.convertUnityValues
- * @returns {Array<[number, string|number, any?]>}
+ * @returns {X2ManyCommand[]}
  */
 export function serializeCommands(commands, params) {
     const {
@@ -67,24 +76,24 @@ export function serializeCommands(commands, params) {
         }
     }
 
-    return /** @type {[number, string | number, any?][]} */ (result);
+    return /** @type {X2ManyCommand[]} */ (result);
 }
 
 /**
- * @param {Array<{command: number[], index: number}>} ownCommands
+ * @param {LedgerEntry[]} ownCommands
  * @returns {boolean}
  */
-export function shouldEmitDelete(ownCommands) {
+export function reconcileDelete(ownCommands) {
     const hasCreate = ownCommands.some((x) => x.command[0] === CREATE);
     ownCommands.splice(0);
     return !hasCreate;
 }
 
 /**
- * @param {Array<{command: number[], index: number}>} ownCommands
+ * @param {LedgerEntry[]} ownCommands
  * @returns {boolean}
  */
-export function shouldEmitUnlink(ownCommands) {
+export function reconcileUnlink(ownCommands) {
     if (ownCommands.some((x) => x.command[0] === CREATE)) {
         ownCommands.splice(0);
         return false;
@@ -102,8 +111,8 @@ export function shouldEmitUnlink(ownCommands) {
 }
 
 /**
- * @param {Array<[number, any, any?]>} allCommands
- * @param {string|number} recordId
+ * @param {X2ManyCommand[]} allCommands
+ * @param {X2ManyRowId} recordId
  * @returns {boolean}
  */
 export function absorbUnlinkIntoSet(allCommands, recordId) {
@@ -120,7 +129,7 @@ export function absorbUnlinkIntoSet(allCommands, recordId) {
 }
 
 /**
- * @param {Array<{command: number[], index: number}>} ownCommands
+ * @param {LedgerEntry[]} ownCommands
  * @returns {boolean}
  */
 export function isUpdateRedundant(ownCommands) {

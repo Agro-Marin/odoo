@@ -87,7 +87,7 @@ export function computeResequencePlan({
  * @param {Object} [params.context]
  * @returns {Promise<any>}
  */
-export async function resequence({
+export async function resequenceRecords({
     records,
     resModel,
     orm,

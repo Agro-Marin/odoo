@@ -15,6 +15,7 @@ import {
 } from "@web/core/utils/concurrency";
 import { orderByToString } from "@web/core/utils/order_by";
 import { Model } from "@web/model/model";
+import { addPropertyFieldDef } from "@web/model/property_fields";
 
 import { cloneGroupTree, computeNextConfig } from "./config_transitions.js";
 import { DynamicGroupList } from "./dynamic_group_list.js";
@@ -22,7 +23,6 @@ import { DynamicRecordList } from "./dynamic_record_list.js";
 import { FetchRecordError } from "./errors.js";
 import { getId, getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
-import { invalidateAggregateSpecs } from "./field_values.js";
 import { Group } from "./group.js";
 import { postprocessReadGroup } from "./group_postprocessor.js";
 import { buildWebReadGroupParams } from "./read_group_builder.js";
@@ -412,22 +412,13 @@ export class RelationalModel extends Model {
      * @param {string} propertyFullName
      */
     async _getPropertyDefinition(config, propertyFullName) {
-        const definition = await this.orm.call(
+        await addPropertyFieldDef(
+            this.orm,
             config.resModel,
-            "get_property_definition",
-            [propertyFullName],
-            { context: config.context },
+            config.context,
+            config.fields,
+            propertyFullName,
         );
-        config.fields[propertyFullName] = {
-            ...(definition?.type ? definition : { type: "char" }),
-            propertyName: definition?.name,
-            name: propertyFullName,
-            relatedPropertyField: {
-                fieldName: propertyFullName.split(".")[0],
-            },
-            relation: definition?.comodel,
-        };
-        invalidateAggregateSpecs(config.fields);
     }
 
     /**
@@ -591,7 +582,7 @@ export class RelationalModel extends Model {
             return;
         }
         if (root.config.groupBy.length) {
-            delete this.root.config.currentGroups;
+            delete root.config.currentGroups;
             result = await this._postprocessReadGroup(root.config, result);
         }
         root._setData(result);

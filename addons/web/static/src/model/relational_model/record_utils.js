@@ -66,9 +66,24 @@ export function extractFieldNamesFromExpr(expr) {
 }
 
 /**
- * @type {WeakMap<object, { dependents: Map<string, Set<string>>, always: Set<string> }>}
+ * @typedef {{ dependents: Map<string, Set<string>>, always: Set<string> }} ModifierDependencies
+ */
+
+/**
+ * @type {WeakMap<object, { epoch: number, value: ModifierDependencies }>}
  */
 const _modifierDependencyCache = new WeakMap();
+
+/**
+ * The graph below is derived from every entry's modifier expressions, so any
+ * write to one of those expressions invalidates it. Callers that hold the map
+ * say so directly; `patchActiveFields` is handed a single field without its
+ * owner and bumps this epoch instead, which retires every cached graph lazily
+ * on next read. An unenforced "remember to invalidate" rule was the alternative
+ * and it fails silently: the scope simply stops containing the field that
+ * started depending on the one that changed.
+ */
+let _modifierEpoch = 0;
 
 /**
  * @param {Object} activeFields
@@ -78,13 +93,20 @@ export function invalidateModifierDependencies(activeFields) {
 }
 
 /**
+ * @returns {void}
+ */
+export function invalidateAllModifierDependencies() {
+    _modifierEpoch++;
+}
+
+/**
  * @param {Object} activeFields
- * @returns {{ dependents: Map<string, Set<string>>, always: Set<string> }}
+ * @returns {ModifierDependencies}
  */
 export function getModifierDependencies(activeFields) {
-    let cached = _modifierDependencyCache.get(activeFields);
-    if (cached) {
-        return cached;
+    const entry = _modifierDependencyCache.get(activeFields);
+    if (entry && entry.epoch === _modifierEpoch) {
+        return entry.value;
     }
     /** @type {Map<string, Set<string>>} */
     const dependents = new Map();
@@ -122,9 +144,9 @@ export function getModifierDependencies(activeFields) {
             set.add(fieldB);
         }
     }
-    cached = { dependents, always };
-    _modifierDependencyCache.set(activeFields, cached);
-    return cached;
+    const value = { dependents, always };
+    _modifierDependencyCache.set(activeFields, { epoch: _modifierEpoch, value });
+    return value;
 }
 
 /**

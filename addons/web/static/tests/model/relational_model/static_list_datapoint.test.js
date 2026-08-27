@@ -5,7 +5,7 @@ import { markRaw } from "@odoo/owl";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { ListMembership } from "@web/model/relational_model/list_membership";
 import { StaticList } from "@web/model/relational_model/static_list";
-import { sort } from "@web/model/relational_model/static_list_sort";
+import { sortStaticList } from "@web/model/relational_model/static_list_sort";
 
 describe("extendRecord fields identity", () => {
     test("keeps the extended record's config.fields === list.fields", async () => {
@@ -168,7 +168,7 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
         };
         list._cache.set(1, dirty);
 
-        await sort(list, [1], [{ name: "name", asc: true }]);
+        await sortStaticList(list, [1], [{ name: "name", asc: true }]);
 
         expect(list._cache.get(1)).toBe(dirty);
         expect(dirty._changes.other).toBe("PENDING_UPDATE");

@@ -6,7 +6,6 @@ import { SignalStore } from "@web/core/utils/reactive";
 
 import { getId } from "./field_context.js";
 /** @import { Field, FieldInfo } from "@web/model/types" */
-/** @import { RecordEditState } from "./record_edit_state.js" */
 /** @import { RelationalModel, RelationalModelConfig } from "./relational_model.js" */
 
 /**
@@ -14,7 +13,15 @@ import { getId } from "./field_context.js";
  */
 
 export class DataPoint extends SignalStore {
-    /** @type {RecordEditState} */
+    /**
+     * Declared here, not on `RelationalRecord`, and it has to stay here: the
+     * constructor below calls `setup()`, which is where the subclass assigns
+     * these. A subclass's own field declarations run *after* `super()` returns,
+     * so moving either line down one level resets it to `undefined` after
+     * `setup()` filled it -- silently, until the first read.
+     *
+     * @type {import("./record_edit_state.js").RecordEditState}
+     */
     _editState;
 
     /** @type {Set<string>} */

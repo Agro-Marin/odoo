@@ -4,7 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
-import { sort } from "@web/model/relational_model/static_list_sort";
+import { sortStaticList } from "@web/model/relational_model/static_list_sort";
 
 const ROWS = {
     1: { id: 1, name: "F", note: "n1" },
@@ -83,11 +83,11 @@ function makeList({
     return { list, requested };
 }
 
-describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
+describe("sortStaticList() keeps _cache free of narrowly-specified datapoints", () => {
     test("an off-page row read only for its sort key does not become a datapoint", async () => {
         const { list } = makeList();
 
-        await sort(list, list._currentIds, [{ name: "name", asc: true }]);
+        await sortStaticList(list, list._currentIds, [{ name: "name", asc: true }]);
 
         for (const [id, record] of /** @type {any} */ (list._cache)) {
             expect(Object.keys(record.activeFields).sort()).toEqual(["name", "note"], {
@@ -102,7 +102,7 @@ describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
     test("a list whose fields the sort already covers still sorts in one request", async () => {
         const { list, requested } = makeList({ fieldNames: ["name"] });
 
-        await sort(list, list._currentIds, [{ name: "name", asc: true }]);
+        await sortStaticList(list, list._currentIds, [{ name: "name", asc: true }]);
 
         expect(requested).toEqual([{ ids: [3, 4, 5, 6], spec: ["name"] }]);
         expect(list.records.map((r) => r.data.name)).toEqual(["A", "B"]);
@@ -113,7 +113,7 @@ describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
         const before = /** @type {any} */ (list._cache).get(1);
         before._changes.note = "PENDING";
 
-        await sort(list, list._currentIds, [{ name: "name", asc: true }]);
+        await sortStaticList(list, list._currentIds, [{ name: "name", asc: true }]);
 
         expect(/** @type {any} */ (list._cache).get(1)).toBe(before);
         expect(before._changes.note).toBe("PENDING");
@@ -122,7 +122,7 @@ describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
     test("ordering still uses the freshly read keys of off-page rows", async () => {
         const { list } = makeList();
 
-        await sort(list, list._currentIds, [{ name: "name", asc: true }]);
+        await sortStaticList(list, list._currentIds, [{ name: "name", asc: true }]);
 
         expect(list._currentIds).toEqual([6, 5, 4, 3, 2, 1]);
     });

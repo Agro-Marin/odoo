@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { sort, sortBy } from "@web/model/relational_model/static_list_sort";
+import { sortBy, sortStaticList } from "@web/model/relational_model/static_list_sort";
 
 describe.current.tags("headless");
 
@@ -37,20 +37,20 @@ describe("sort — empty orderBy", () => {
     test("returns currentIds unchanged when orderBy is empty", async () => {
         const list = makeList();
         const ids = [3, 1, 2];
-        const result = await sort(list, ids, []);
+        const result = await sortStaticList(list, ids, []);
         expect(result).toBe(ids);
     });
 
     test("does not call list._load when orderBy is empty", async () => {
         const list = makeList();
-        await sort(list, [1, 2], []);
+        await sortStaticList(list, [1, 2], []);
         expect(list._loadCalls.length).toBe(0);
     });
 
     test("uses list.orderBy default when not provided", async () => {
         const list = makeList({ orderBy: [] });
         const ids = [5, 6];
-        const result = await sort(list, ids);
+        const result = await sortStaticList(list, ids);
         expect(result).toBe(ids);
     });
 });
@@ -66,7 +66,7 @@ describe("sort — with cached records", () => {
             [3, { resId: 3, _virtualId: null, data: { name: "Mango" } }],
         ]);
 
-        await sort(list, [1, 2, 3], [{ name: "name", asc: true }]);
+        await sortStaticList(list, [1, 2, 3], [{ name: "name", asc: true }]);
 
         expect(list._loadCalls.length).toBe(1);
         expect(list._loadCalls[0].nextCurrentIds).toEqual([2, 3, 1]);
@@ -79,7 +79,7 @@ describe("sort — with cached records", () => {
         });
         list._cache = new Map([[1, { resId: 1, data: { name: "A" } }]]);
 
-        await sort(list, [1], [{ name: "name", asc: true }]);
+        await sortStaticList(list, [1], [{ name: "name", asc: true }]);
 
         expect(list._needsReordering).toBe(false);
     });
@@ -93,7 +93,7 @@ describe("sort — with cached records", () => {
             [2, { resId: 2, data: { name: "Zebra" } }],
         ]);
 
-        await sort(list, [1, 2], [{ name: "name", asc: false }]);
+        await sortStaticList(list, [1, 2], [{ name: "name", asc: false }]);
 
         expect(list._loadCalls[0].nextCurrentIds).toEqual([2, 1]);
     });

@@ -7,26 +7,24 @@ import { x2ManyCommands } from "@web/core/network/commands";
 import {
     absorbUnlinkIntoSet,
     isUpdateRedundant,
-    shouldEmitDelete,
-    shouldEmitUnlink,
+    reconcileDelete,
+    reconcileUnlink,
 } from "./command_builder.js";
 import { getId } from "./field_context.js";
 import { listId } from "./static_list_utils.js";
 
+/** @import { X2ManyCommand } from "@web/core/network/commands" */
+/** @import { LedgerEntry } from "./command_builder.js" */
 /** @import { StaticListInternals } from "./static_list_contract.js" */
 
 /**
- * @typedef {[number, any, any?]} X2ManyCommand
- */
-
-/**
  * @typedef {{
- * addOwnCommand: (command: [number, any, any?], index?: number) => void;
- * getOwnCommands: (id: string | number) => { command: [number, any, any?], index: number }[];
+ * addOwnCommand: (command: X2ManyCommand, index?: number) => void;
+ * getOwnCommands: (id: string | number) => LedgerEntry[];
  * dropOwnCommands: (id: string | number) => void;
  * clearOwnCommands: () => void;
  * hasOwnCommands: () => boolean;
- * orderedCommands: () => [number, any, any?][];
+ * orderedCommands: () => X2ManyCommand[];
  * topInsertIndex: number;
  * }} CommandLedger
  * @typedef {CommandLedger & {
@@ -87,13 +85,13 @@ function dropFirstOccurrences(items, removedIds, keyOf) {
 }
 
 /**
- * @param {[number, any, any?][]} seedCommands
+ * @param {X2ManyCommand[]} seedCommands
  * @returns {CommandLedger}
  */
 function createCommandLedger(seedCommands) {
     const { SET, CLEAR } = x2ManyCommands;
     let lastCommandIndex = -1;
-    /** @type {Record<string | number, { command: [number, any, any?], index: number }[]>} */
+    /** @type {Record<string | number, LedgerEntry[]>} */
     const commandsByIds = {};
     const ledger = {
         topInsertIndex: -0.5,
@@ -346,10 +344,10 @@ function applyRemoval(list, command, batch) {
     } else {
         const ownCommands = batch.getOwnCommands(id);
         if (command[0] === DELETE) {
-            if (shouldEmitDelete(ownCommands)) {
+            if (reconcileDelete(ownCommands)) {
                 batch.addOwnCommand([DELETE, id, false]);
             }
-        } else if (shouldEmitUnlink(ownCommands)) {
+        } else if (reconcileUnlink(ownCommands)) {
             batch.addOwnCommand([UNLINK, id, false]);
         }
     }

@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import {
     computeResequencePlan,
-    resequence,
+    resequenceRecords,
 } from "@web/model/relational_model/resequence";
 
 /**
@@ -39,7 +39,7 @@ describe("resequence — move forward", () => {
             [3, 30],
         ]);
 
-        await resequence({
+        await resequenceRecords({
             records,
             resModel: "product.product",
             orm,
@@ -61,7 +61,7 @@ describe("resequence — move forward", () => {
             [3, 30],
         ]);
 
-        await resequence({
+        await resequenceRecords({
             records,
             resModel: "res.partner",
             orm,
@@ -81,7 +81,7 @@ describe("resequence — move forward", () => {
             [3, 30],
         ]);
 
-        const result = await resequence({
+        const result = await resequenceRecords({
             records,
             resModel: "product.product",
             orm,
@@ -104,7 +104,7 @@ describe("resequence — ORM call parameters", () => {
             [2, 20],
         ]);
 
-        await resequence({
+        await resequenceRecords({
             records,
             resModel: "sale.order",
             orm,
@@ -124,7 +124,7 @@ describe("resequence — ORM call parameters", () => {
             [3, 15],
         ]);
 
-        await resequence({
+        await resequenceRecords({
             records,
             resModel: "product.product",
             orm,
@@ -144,7 +144,7 @@ describe("resequence — ORM call parameters", () => {
         ]);
         const context = { company_id: 1 };
 
-        await resequence({
+        await resequenceRecords({
             records,
             resModel: "res.partner",
             orm,
@@ -166,7 +166,7 @@ describe("resequence — custom callbacks", () => {
             { id: 2, data: { order: 20 } },
         ];
 
-        await resequence({
+        await resequenceRecords({
             records,
             resModel: "x",
             orm,
@@ -187,7 +187,7 @@ describe("resequence — custom callbacks", () => {
             { id: 2, res_id: 200, sequence: 2 },
         ];
 
-        await resequence({
+        await resequenceRecords({
             records,
             resModel: "x",
             orm,
@@ -213,7 +213,7 @@ describe("resequence — rollback on ORM error", () => {
 
         let thrown = false;
         try {
-            await resequence({
+            await resequenceRecords({
                 records,
                 resModel: "x",
                 orm,
@@ -348,7 +348,7 @@ describe("resequence — descending order", () => {
             [3, 10],
         ]);
 
-        await resequence({
+        await resequenceRecords({
             records,
             resModel: "x",
             orm,

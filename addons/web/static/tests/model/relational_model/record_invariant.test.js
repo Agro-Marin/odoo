@@ -21,6 +21,9 @@ function makeSetDataProbeRecord({ dirty, changes = {} } = {}) {
         get _changes() {
             return editState.changes;
         },
+        get _hasChanges() {
+            return !editState.isChangeSetEmpty;
+        },
         _clearChanges: () => editState.clearChanges(),
         _clearValidity: () => editState.clearValidity(),
         resModel: "test.model",

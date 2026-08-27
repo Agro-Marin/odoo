@@ -70,6 +70,26 @@ const NO_UNDO = () => {};
 
 const MULTI_EDIT_RESULT = Symbol("multiEditResult");
 
+/**
+ * `_update` answers a multi-edit dispatch with a sentinel-keyed envelope, so
+ * that the caller can tell "the edit was handed to the multi-save path, which
+ * answered X" from "the edit was applied here and there is nothing to report".
+ *
+ * Both exits of `update` have to open it. Leaking the envelope makes a caller
+ * that tests the result for truthiness -- `DynamicGroupList.moveRecord` does,
+ * to decide whether to revert a drag -- read a refused multi-save as a
+ * successful one, because the envelope is an object and `false` is not.
+ *
+ * @param {any} dispatched
+ * @returns {{ dispatched: boolean, result: any }}
+ */
+function openMultiEditEnvelope(dispatched) {
+    if (dispatched && MULTI_EDIT_RESULT in dispatched) {
+        return { dispatched: true, result: dispatched[MULTI_EDIT_RESULT] };
+    }
+    return { dispatched: false, result: undefined };
+}
+
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 
@@ -147,7 +167,7 @@ export class RelationalRecord extends DataPoint {
         if (!keepChanges) {
             this._clearChanges();
         } else {
-            this.dirty = this.dirty || !this._editState.isChangeSetEmpty;
+            this.dirty = this.dirty || this._hasChanges;
         }
         this.data = { ...this._values, ...this._changes };
         this._initialTextValues = markRaw({ ...this._textValues });
@@ -350,17 +370,19 @@ export class RelationalRecord extends DataPoint {
      * @param {Object} changes
      * @param {{ save?: boolean, withoutParentUpdate?: boolean }} [options]
      */
-    update(changes, { save, withoutParentUpdate } = {}) {
+    async update(changes, { save, withoutParentUpdate } = {}) {
         if (this.model.urgentSave.isActive) {
-            return this._update(changes, { withoutParentUpdate });
+            const envelope = await this._update(changes, { withoutParentUpdate });
+            return openMultiEditEnvelope(envelope).result;
         }
         return this.model.mutex.exec(async () => {
-            const dispatched = await this._update(changes, {
+            const envelope = await this._update(changes, {
                 withoutOnchange: save,
                 withoutParentUpdate,
             });
-            if (dispatched && MULTI_EDIT_RESULT in dispatched) {
-                return dispatched[MULTI_EDIT_RESULT];
+            const { dispatched, result } = openMultiEditEnvelope(envelope);
+            if (dispatched) {
+                return result;
             }
             if (save && this.canSaveOnUpdate) {
                 return this._save();
@@ -378,6 +400,16 @@ export class RelationalRecord extends DataPoint {
     /** @returns {boolean} */
     get hasPendingChanges() {
         return this._editState.hasPendingChanges;
+    }
+
+    /**
+     * Whether an edit is staged, ignoring the `dirty` flag -- which can be set
+     * by a field that reported itself invalid without producing a value.
+     *
+     * @returns {boolean}
+     */
+    get _hasChanges() {
+        return !this._editState.isChangeSetEmpty;
     }
 
     /**
@@ -502,6 +534,25 @@ export class RelationalRecord extends DataPoint {
 
     _addSavePoint() {
         addSavePoint(this);
+    }
+
+    /**
+     * `_editState` is this record's own field, so the two collaborators that
+     * need to take and put back an edit-state snapshot ask for the behaviour
+     * rather than reaching for the object. The record is the face; nothing
+     * outside it names `_editState`.
+     *
+     * @returns {void}
+     */
+    _snapshotEditState() {
+        this._editState.snapshot();
+    }
+
+    /**
+     * @returns {boolean} whether a snapshot was there to restore
+     */
+    _restoreEditState() {
+        return this._editState.restoreSnapshot();
     }
 
     /** @param {any} changes */
@@ -1001,7 +1052,7 @@ export class RelationalRecord extends DataPoint {
         const wasDirty = raw.dirty;
         this._markDirty();
         const restoreDirty = () => {
-            if (raw._editState.isChangeSetEmpty && !raw._invalidFields.size) {
+            if (!raw._hasChanges && !raw._invalidFields.size) {
                 this.dirty = wasDirty;
             }
         };
@@ -1023,7 +1074,19 @@ export class RelationalRecord extends DataPoint {
         }
 
         if (this.selected && this.model.multiEdit) {
-            const result = await this.model.multiEditDispatch(this, changes);
+            let result;
+            try {
+                result = await this.model.multiEditDispatch(this, changes);
+            } catch (e) {
+                // Every other failure below unwinds the x2many snapshots taken
+                // above; this one used to propagate straight out and leave them
+                // applied. `_multiSave` discards the selected records on a
+                // rejected save, but not on one from the commands it replays
+                // first or from the `onWillSaveMulti` hook.
+                rollbackLists();
+                restoreDirty();
+                throw e;
+            }
             restoreDirty();
             return { [MULTI_EDIT_RESULT]: result };
         }

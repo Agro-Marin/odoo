@@ -12,7 +12,8 @@ export { RECORD_CONTRACT_SURFACE };
  * data: Record<string, any>,
  * savedData: Record<string, any>,
  * _values: Record<string, any>,
- * _editState: RecordEditState,
+ * _editState: import("@web/model/relational_model/record_edit_state").RecordEditState,
+ * _hasChanges: boolean,
  * _changes: Record<string, any>,
  * _textValues: Record<string, any>,
  * _initialTextValues: Record<string, any>,
@@ -201,6 +202,15 @@ export function makeRecordDouble({
         },
         get hasPendingChanges() {
             return editState.hasPendingChanges;
+        },
+        get _hasChanges() {
+            return !editState.isChangeSetEmpty;
+        },
+        _snapshotEditState() {
+            editState.snapshot();
+        },
+        _restoreEditState() {
+            return editState.restoreSnapshot();
         },
         get _changes() {
             return editState.changes;

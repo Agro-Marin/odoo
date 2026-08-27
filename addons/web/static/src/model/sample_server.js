@@ -15,7 +15,7 @@ import {
     unique,
 } from "@web/core/utils/collections/arrays";
 
-import { parseServerValue } from "./relational_model/utils.js";
+import { parseServerValue } from "./relational_model/field_values.js";
 import {
     DISPLAY_FORMATS,
     FORMATS,
@@ -126,6 +126,8 @@ export class SampleServer {
         switch (params.method || params.route) {
             case "web_search_read":
                 return this._mockWebSearchReadUnity(params);
+            case "web_read":
+                return this._mockWebRead(params);
             case "web_read_group":
                 return this._mockWebReadGroup(params);
             case "formatted_read_group":
@@ -504,6 +506,26 @@ export class SampleServer {
     }
 
     /**
+     * `web_read` is `web_search_read` with the ids given rather than searched
+     * for, and the relational model reaches it whenever a StaticList loads a
+     * window -- healing a short page, sorting on a field it has not read,
+     * replacing its contents. Leaving it unimplemented meant those threw
+     * `UnimplementedRouteError` under sample data, and nothing in the tree
+     * catches that class, so it surfaced as an unhandled error rather than as
+     * the sample rows the caller was owed.
+     *
+     * @private
+     * @param {MockRpcParams} params
+     * @returns {Record<string, any>[]}
+     */
+    _mockWebRead(params) {
+        return this._mockWebSearchReadUnity({
+            ...params,
+            recordIds: params.args[0],
+        }).records;
+    }
+
+    /**
      * @private
      * @param {MockRpcParams} params
      * @returns {{ records: Record<string, any>[]; length: number }}
@@ -598,8 +620,8 @@ export class SampleServer {
                 delete group["id:array_agg"];
             }
         }
-        if (params.groupby_read_specification && params.groupby?.length) {
-            const groupBy = params.groupby[0];
+        if (params.groupby_read_specification && params.groupBy?.length) {
+            const groupBy = params.groupBy[0];
             const readSpec = params.groupby_read_specification[groupBy];
             const field = this.data[params.model].fields[groupBy.split(":")[0]];
             if (readSpec && field?.relation) {

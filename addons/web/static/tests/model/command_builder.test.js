@@ -4,12 +4,31 @@ import { describe, expect, test } from "@odoo/hoot";
 import {
     absorbUnlinkIntoSet,
     isUpdateRedundant,
+    reconcileDelete,
+    reconcileUnlink,
     serializeCommands,
-    shouldEmitDelete,
-    shouldEmitUnlink,
 } from "@web/model/relational_model/command_builder";
 
+/** @import { X2ManyCommand } from "@web/core/network/commands" */
+/** @import { LedgerEntry } from "@web/model/relational_model/command_builder" */
+
 describe.current.tags("headless");
+
+/**
+ * The literals below are commands and ledger entries, and a JS array literal
+ * widens to `number[]` rather than narrowing to the tuple the functions take.
+ * These two say what the literal is once, instead of an annotation per call.
+ *
+ * @param {any[][]} commands
+ * @returns {X2ManyCommand[]}
+ */
+const cmds = (commands) => /** @type {X2ManyCommand[]} */ (commands);
+
+/**
+ * @param {any[]} entries
+ * @returns {LedgerEntry[]}
+ */
+const ledger = (entries) => /** @type {LedgerEntry[]} */ (entries);
 
 const CREATE = 0;
 const UPDATE = 1;
@@ -37,31 +56,31 @@ describe("serializeCommands", () => {
     }
 
     test("passes through DELETE commands unchanged", () => {
-        const commands = [[DELETE, 1]];
+        const commands = cmds([[DELETE, 1]]);
         const result = serializeCommands(commands, makeParams());
         expect(result).toEqual([[DELETE, 1]]);
     });
 
     test("passes through UNLINK commands unchanged", () => {
-        const commands = [[UNLINK, 5]];
+        const commands = cmds([[UNLINK, 5]]);
         const result = serializeCommands(commands, makeParams());
         expect(result).toEqual([[UNLINK, 5]]);
     });
 
     test("passes through LINK commands unchanged", () => {
-        const commands = [[LINK, 3]];
+        const commands = cmds([[LINK, 3]]);
         const result = serializeCommands(commands, makeParams());
         expect(result).toEqual([[LINK, 3]]);
     });
 
     test("passes through SET commands unchanged", () => {
-        const commands = [[SET, false, [1, 2, 3]]];
+        const commands = cmds([[SET, false, [1, 2, 3]]]);
         const result = serializeCommands(commands, makeParams());
         expect(result).toEqual([[SET, false, [1, 2, 3]]]);
     });
 
     test("serializes CREATE command with record changes", () => {
-        const commands = [[CREATE, "virtual_1"]];
+        const commands = cmds([[CREATE, "virtual_1"]]);
         const params = makeParams({
             getRecord: (id) => ({ resId: false }),
             getRecordChanges: () => ({ name: "New Record" }),
@@ -71,7 +90,7 @@ describe("serializeCommands", () => {
     });
 
     test("converts CREATE to LINK when record has resId", () => {
-        const commands = [[CREATE, "virtual_1"]];
+        const commands = cmds([[CREATE, "virtual_1"]]);
         const params = makeParams({
             getRecord: () => ({ resId: 42 }),
             getRecordChanges: () => ({}),
@@ -81,7 +100,7 @@ describe("serializeCommands", () => {
     });
 
     test("serializes UPDATE command with record changes", () => {
-        const commands = [[UPDATE, 1]];
+        const commands = cmds([[UPDATE, 1]]);
         const params = makeParams({
             getRecord: () => ({ resId: 1 }),
             getRecordChanges: () => ({ name: "Updated" }),
@@ -91,7 +110,7 @@ describe("serializeCommands", () => {
     });
 
     test("skips UPDATE with empty changes", () => {
-        const commands = [[UPDATE, 1]];
+        const commands = cmds([[UPDATE, 1]]);
         const params = makeParams({
             getRecord: () => ({ resId: 1 }),
             getRecordChanges: () => ({}),
@@ -101,7 +120,7 @@ describe("serializeCommands", () => {
     });
 
     test("always includes CREATE even with empty changes", () => {
-        const commands = [[CREATE, "virtual_1"]];
+        const commands = cmds([[CREATE, "virtual_1"]]);
         const params = makeParams({
             getRecord: () => ({ resId: false }),
             getRecordChanges: () => ({}),
@@ -111,7 +130,7 @@ describe("serializeCommands", () => {
     });
 
     test("handles unknown record commands via convertUnityValues", () => {
-        const commands = [[UPDATE, 99]];
+        const commands = cmds([[UPDATE, 99]]);
         const params = makeParams({
             unknownRecordCommands: new Map([
                 [99, [[UPDATE, 99, { name: "unity_value" }]]],
@@ -125,7 +144,7 @@ describe("serializeCommands", () => {
     });
 
     test("merges multiple unknown record commands for same id (last wins)", () => {
-        const commands = [[UPDATE, 99]];
+        const commands = cmds([[UPDATE, 99]]);
         const params = makeParams({
             unknownRecordCommands: new Map([
                 [
@@ -143,7 +162,7 @@ describe("serializeCommands", () => {
     });
 
     test("cached record's own changes are merged over deferred slices", () => {
-        const commands = [[UPDATE, 42]];
+        const commands = cmds([[UPDATE, 42]]);
         const params = makeParams({
             unknownRecordCommands: new Map([
                 [42, [[UPDATE, 42, { invisible_lines: [[5, 0, 0]] }]]],
@@ -159,12 +178,12 @@ describe("serializeCommands", () => {
     });
 
     test("handles mixed command types", () => {
-        const commands = [
+        const commands = cmds([
             [CREATE, "v1"],
             [UPDATE, 1],
             [DELETE, 2],
             [LINK, 3],
-        ];
+        ]);
         const params = makeParams({
             getRecord: (id) => {
                 if (id === "v1") {
@@ -188,79 +207,79 @@ describe("serializeCommands", () => {
     });
 });
 
-describe("shouldEmitDelete", () => {
+describe("reconcileDelete", () => {
     test("returns true when no CREATE exists (real record)", () => {
-        const ownCommands = [{ command: [UPDATE, 1], index: 0 }];
-        expect(shouldEmitDelete(ownCommands)).toBe(true);
+        const ownCommands = ledger([{ command: [UPDATE, 1], index: 0 }]);
+        expect(reconcileDelete(ownCommands)).toBe(true);
         expect(ownCommands.length).toBe(0);
     });
 
     test("returns false when CREATE exists (cancels out)", () => {
-        const ownCommands = [
+        const ownCommands = ledger([
             { command: [CREATE, "v1"], index: 0 },
             { command: [UPDATE, "v1"], index: 1 },
-        ];
-        expect(shouldEmitDelete(ownCommands)).toBe(false);
+        ]);
+        expect(reconcileDelete(ownCommands)).toBe(false);
         expect(ownCommands.length).toBe(0);
     });
 
     test("clears commands even when returning true", () => {
-        const ownCommands = [
+        const ownCommands = ledger([
             { command: [UPDATE, 5], index: 0 },
             { command: [UPDATE, 5], index: 1 },
-        ];
-        shouldEmitDelete(ownCommands);
+        ]);
+        reconcileDelete(ownCommands);
         expect(ownCommands.length).toBe(0);
     });
 
     test("handles empty command list", () => {
-        const ownCommands = [];
-        expect(shouldEmitDelete(ownCommands)).toBe(true);
+        const ownCommands = ledger([]);
+        expect(reconcileDelete(ownCommands)).toBe(true);
     });
 });
 
-describe("shouldEmitUnlink", () => {
+describe("reconcileUnlink", () => {
     test("returns true when no LINK exists", () => {
-        const ownCommands = [{ command: [UPDATE, 3], index: 0 }];
-        expect(shouldEmitUnlink(ownCommands)).toBe(true);
+        const ownCommands = ledger([{ command: [UPDATE, 3], index: 0 }]);
+        expect(reconcileUnlink(ownCommands)).toBe(true);
         expect(ownCommands.length).toBe(1);
     });
 
     test("returns false when LINK exists (cancels out)", () => {
-        const ownCommands = [
+        const ownCommands = ledger([
             { command: [LINK, 3], index: 0 },
             { command: [UPDATE, 3], index: 1 },
-        ];
-        expect(shouldEmitUnlink(ownCommands)).toBe(false);
+        ]);
+        expect(reconcileUnlink(ownCommands)).toBe(false);
         expect(ownCommands.length).toBe(0);
     });
 
     test("handles empty command list", () => {
-        const ownCommands = [];
-        expect(shouldEmitUnlink(ownCommands)).toBe(true);
+        const ownCommands = ledger([]);
+        expect(reconcileUnlink(ownCommands)).toBe(true);
     });
 
     test("only removes first LINK", () => {
-        const ownCommands = [
+        const ownCommands = ledger([
             { command: [LINK, 3], index: 0 },
             { command: [LINK, 3], index: 1 },
-        ];
-        expect(shouldEmitUnlink(ownCommands)).toBe(false);
+        ]);
+        expect(reconcileUnlink(ownCommands)).toBe(false);
         expect(ownCommands.length).toBe(1);
     });
 
     test("returns false and clears when a CREATE exists (cancels out)", () => {
-        const ownCommands = [{ command: [CREATE, "v1"], index: 0 }];
-        expect(shouldEmitUnlink(ownCommands)).toBe(false);
+        const ownCommands = ledger([{ command: [CREATE, "v1"], index: 0 }]);
+        expect(reconcileUnlink(ownCommands)).toBe(false);
         expect(ownCommands.length).toBe(0);
     });
 
     test("returns false and clears a CREATE with pending UPDATEs", () => {
-        const ownCommands = [
+        const ownCommands = ledger([
             { command: [CREATE, "v1"], index: 0 },
             { command: [UPDATE, "v1"], index: 1 },
-        ];
-        expect(shouldEmitUnlink(ownCommands)).toBe(false);
+        ]);
+        expect(reconcileUnlink(ownCommands)).toBe(false);
         expect(ownCommands.length).toBe(0);
     });
 });
@@ -271,34 +290,34 @@ describe("absorbUnlinkIntoSet", () => {
     });
 
     test("returns false when first command is not SET", () => {
-        const commands = [[UPDATE, 1, {}]];
+        const commands = cmds([[UPDATE, 1, {}]]);
         expect(absorbUnlinkIntoSet(commands, 1)).toBe(false);
     });
 
     test("returns false when id is not in SET list", () => {
-        const commands = [[SET, false, [2, 3, 4]]];
+        const commands = cmds([[SET, false, [2, 3, 4]]]);
         expect(absorbUnlinkIntoSet(commands, 1)).toBe(false);
         expect(commands[0][2]).toEqual([2, 3, 4]);
     });
 
     test("absorbs unlink by removing id from SET list", () => {
-        const commands = [[SET, false, [1, 2, 3]]];
+        const commands = cmds([[SET, false, [1, 2, 3]]]);
         expect(absorbUnlinkIntoSet(commands, 2)).toBe(true);
         expect(commands[0][2]).toEqual([1, 3]);
     });
 
     test("handles last id in SET list", () => {
-        const commands = [[SET, false, [5]]];
+        const commands = cmds([[SET, false, [5]]]);
         expect(absorbUnlinkIntoSet(commands, 5)).toBe(true);
         expect(commands[0][2]).toEqual([]);
     });
 
     test("touches ONLY the SET payload, never the rest of the log", () => {
-        const commands = [
+        const commands = cmds([
             [SET, false, [1, 2, 3]],
             [UPDATE, 2, { name: "edited" }],
             [UPDATE, 3, { name: "keep" }],
-        ];
+        ]);
         expect(absorbUnlinkIntoSet(commands, 2)).toBe(true);
         expect(commands).toEqual([
             [SET, false, [1, 3]],
@@ -314,20 +333,20 @@ describe("isUpdateRedundant", () => {
     });
 
     test("returns true when CREATE exists", () => {
-        const commands = [{ command: [CREATE, "v1"], index: 0 }];
+        const commands = ledger([{ command: [CREATE, "v1"], index: 0 }]);
         expect(isUpdateRedundant(commands)).toBe(true);
     });
 
     test("returns true when UPDATE exists", () => {
-        const commands = [{ command: [UPDATE, 1], index: 0 }];
+        const commands = ledger([{ command: [UPDATE, 1], index: 0 }]);
         expect(isUpdateRedundant(commands)).toBe(true);
     });
 
     test("returns false when only non-CREATE/UPDATE commands exist", () => {
-        const commands = [
+        const commands = ledger([
             { command: [LINK, 1], index: 0 },
             { command: [DELETE, 2], index: 1 },
-        ];
+        ]);
         expect(isUpdateRedundant(commands)).toBe(false);
     });
 });

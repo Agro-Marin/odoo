@@ -3,6 +3,7 @@
 
 import { x2ManyCommands } from "@web/core/network/commands";
 import { _t } from "@web/core/translation";
+import { describePropertyDefinitionAsField } from "@web/model/property_fields";
 
 import { createPropertyActiveField } from "./field_metadata.js";
 import { invalidateAggregateSpecs } from "./field_values.js";
@@ -12,17 +13,12 @@ import { invalidateModifierDependencies } from "./record_utils.js";
 
 /**
  * @param {Record<string, any>} property
- * @param {string} fieldName
  * @param {string} propertyFieldName
  * @returns {Record<string, any>}
  */
-function describePropertyAsField(property, fieldName, propertyFieldName) {
+function describePropertyAsField(property, propertyFieldName) {
     return {
-        ...property,
-        name: propertyFieldName,
-        relatedPropertyField: { name: fieldName },
-        propertyName: property.name,
-        relation: property.comodel,
+        ...describePropertyDefinitionAsField(propertyFieldName, property),
         sortable: !["many2one", "many2many", "tags"].includes(property.type),
     };
 }
@@ -116,7 +112,6 @@ export function processProperties(
         if (hasCurrentValues || !record.fields[propertyFieldName]) {
             record.fields[propertyFieldName] = describePropertyAsField(
                 property,
-                fieldName,
                 propertyFieldName,
             );
         }

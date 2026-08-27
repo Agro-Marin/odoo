@@ -39,7 +39,13 @@ describe("_getPropertyDefinition", () => {
         expect(field.propertyName).toBe("my_prop");
         expect(field.type).toBe("many2one");
         expect(field.relation).toBe("res.users");
-        expect(field.relatedPropertyField).toEqual({ fieldName: "props" });
+        // `name`, not `fieldName`: this key is declared in `model/types.js` as
+        // `{ name, id?, displayName? }` and read as `.name` by
+        // `list_column_utils` and `search_state`. This assertion used to pin
+        // `{ fieldName }`, which is why grouping a list by a property silently
+        // dropped that property's columns -- see
+        // relational_model/property_field_shape.test.js.
+        expect(field.relatedPropertyField).toEqual({ name: "props" });
     });
 
     test("a deleted property keeps the axis and gets a typed placeholder", async () => {

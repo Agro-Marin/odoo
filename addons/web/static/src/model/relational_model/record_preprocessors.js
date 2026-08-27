@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { markup } from "@odoo/owl";
+import { isX2ManyType } from "@web/core/field_types";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { _t } from "@web/core/translation";
 
@@ -152,10 +153,7 @@ export async function preprocessReferenceChanges(record, changes) {
  */
 export async function preprocessX2manyChanges(record, changes) {
     for (const [fieldName, value] of Object.entries(changes)) {
-        if (
-            record.fields[fieldName].type !== "one2many" &&
-            record.fields[fieldName].type !== "many2many"
-        ) {
+        if (!isX2ManyType(record.fields[fieldName].type)) {
             continue;
         }
         const list = /** @type {Record<string, any>} */ (record.data)[fieldName];

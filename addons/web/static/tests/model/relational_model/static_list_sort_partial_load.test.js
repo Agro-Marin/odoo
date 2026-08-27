@@ -4,7 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
-import { sort } from "@web/model/relational_model/static_list_sort";
+import { sortStaticList } from "@web/model/relational_model/static_list_sort";
 
 const SERVER_ROWS = {
     1: { id: 1, display_name: "C" },
@@ -61,7 +61,9 @@ describe("static_list_sort.sort partial server response", () => {
         });
         expect(list._currentIds.filter((id) => !list._cache.get(id))).toEqual([3, 99]);
 
-        await sort(list, list._currentIds, [{ name: "display_name", asc: true }]);
+        await sortStaticList(list, list._currentIds, [
+            { name: "display_name", asc: true },
+        ]);
 
         expect(requested).toEqual([[3, 99]]);
         expect(list.records.includes(undefined)).toBe(false);
@@ -72,7 +74,9 @@ describe("static_list_sort.sort partial server response", () => {
     test("a full response still keeps every id (guard is inert on the happy path)", async () => {
         const { list } = makeList({ resIds: [1, 2, 3, 99], limit: 2 });
 
-        await sort(list, list._currentIds, [{ name: "display_name", asc: true }]);
+        await sortStaticList(list, list._currentIds, [
+            { name: "display_name", asc: true },
+        ]);
 
         expect(list._currentIds).toEqual([2, 3, 1, 99]);
         expect(list.records.map((r) => r.data.display_name)).toEqual(["A", "B"]);
