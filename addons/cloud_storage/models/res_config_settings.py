@@ -5,16 +5,7 @@ DEFAULT_CLOUD_STORAGE_MIN_FILE_SIZE = 20_000_000  # 20MB
 
 
 class ResConfigSettings(models.TransientModel):
-    """
-    Instructions:
-    cloud_storage_provider: Once set, new attachments from the web client can
-        be created as cloud storage attachments. Once changed, all attachments
-        stored in the old cloud storage provider cannot be fetched. Please
-        migrate those cloud storage blobs and the url field of their
-        ir.attachment records before change.
-    cloud_storage_min_file_size: a soft limit for the file size that can be
-        uploaded as the cloud storage attachments for web client.
-    """
+    """Cloud storage settings for web client attachments."""
 
     _inherit = "res.config.settings"
 
