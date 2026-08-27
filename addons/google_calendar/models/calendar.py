@@ -200,7 +200,6 @@ class CalendarEvent(models.Model):
         if google_event.is_cancelled():
             return {"active": False}
 
-        # default_reminders is never () it is set to google's default reminder (30 min before)
         # we need to check 'useDefault' for the event to determine if we have to use google's
         # default reminder or not
         reminder_command = google_event.reminders.get("overrides")
