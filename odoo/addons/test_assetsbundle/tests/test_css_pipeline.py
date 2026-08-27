@@ -1156,15 +1156,21 @@ class TestVendoredCssMinifyCorpus(BaseCase):
         return re.sub(r"'(?:[^'\\]|\\.)*'", "<S>", css)
 
     def _shipped_css_files(self):
-        import odoo.addons
+        # Pinned to base specifically, rather than the whole live
+        # odoo.addons.__path__: base is a hard dependency of every
+        # install and always resolves right next to test_assetsbundle,
+        # so the corpus size/content stays stable regardless of which
+        # extra addons-path entries (enterprise, agromarin-addons, ...)
+        # happen to be mounted on a given run.
+        from odoo.modules.module import get_module_path
 
+        base_path = get_module_path("base")
         seen = set()
-        for root in odoo.addons.__path__:
-            for path in Path(root).rglob("*.css"):
-                if path.name.endswith(".min.css") or path in seen:
-                    continue
-                seen.add(path)
-                yield path
+        for path in Path(base_path).rglob("*.css"):
+            if path.name.endswith(".min.css") or path in seen:
+                continue
+            seen.add(path)
+            yield path
 
     def test_minify_is_semantically_identical_to_legacy_on_shipped_css(self):
         checked = differed = 0
