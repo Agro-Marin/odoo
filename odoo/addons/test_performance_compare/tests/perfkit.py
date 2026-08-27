@@ -53,16 +53,6 @@ def _stats_us(times_us):
 
 
 def _driver_label():
-    try:
-        from odoo import sql_db
-
-        mod = getattr(sql_db, "psycopg", None) or getattr(sql_db, "psycopg2", None)
-        if mod is not None:
-            name = getattr(mod, "__name__", "?")
-            ver = getattr(mod, "__version__", "")
-            return f"{name} {ver.split(' ')[0]}".strip()
-    except Exception:
-        pass
     for name in ("psycopg", "psycopg2"):
         if importlib.util.find_spec(name) is None:
             continue
