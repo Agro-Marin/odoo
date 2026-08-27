@@ -33,9 +33,6 @@
         <field name="arch" type="xml">
             <kanban highlight_color="color" default_group_by="stage_id" quick_create_view="website_event_track.event_track_view_form_quick_create">
                 <field name="website_url"/>
-                <field name="legend_blocked"/>
-                <field name="legend_normal"/>
-                <field name="legend_done"/>
                 <templates>
                     <progressbar field="kanban_state" colors='{"done": "success", "blocked": "danger"}'/>
                     <t t-name="menu" groups="base.group_user">
@@ -146,9 +143,6 @@
                         </button>
                         <field name="is_published" widget="website_redirect_button"/>
                     </div>
-                    <field name="legend_blocked" invisible="1"/>
-                    <field name="legend_normal" invisible="1"/>
-                    <field name="legend_done" invisible="1"/>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <div class="d-flex gap-4 mb-3">
                         <div class="flex-grow-1">

@@ -12,7 +12,7 @@
                        placeholder="Peppol ID"
                        nolabel="1"
                        widget="filterable_selection"
-                       options="{'whitelist_fname': 'available_peppol_eas'}"
+                       options="{'whitelist_field': 'available_peppol_eas'}"
                        class="o_field_peppol_eas_selection"/>
                 <field name="peppol_endpoint" nolabel="1"/>
             </xpath>

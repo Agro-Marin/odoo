@@ -140,8 +140,11 @@ export class SurveyQuestionTriggerWidget extends Component {
 export const surveyQuestionTriggerWidget = {
     component: SurveyQuestionTriggerWidget,
     fieldDependencies: [
-        { name: "triggering_question_ids", type: "many2one" },
-        { name: "triggering_answer_ids", type: "many2one" },
+        // Both are Many2many on survey.question. Declaring them as many2one
+        // makes addFieldDependencies skip the `related` sub-schema, and a
+        // dependency-first arch then loads them with no specification at all.
+        { name: "triggering_question_ids", type: "many2many" },
+        { name: "triggering_answer_ids", type: "many2many" },
     ],
 };
 registry

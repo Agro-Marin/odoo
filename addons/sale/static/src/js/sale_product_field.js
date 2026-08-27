@@ -10,7 +10,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { uuid } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
-import { sort as sortListRecords } from "@web/model/relational_model";
+import { sortStaticList } from "@web/model/relational_model";
 
 import { ComboConfiguratorDialog } from "./combo_configurator_dialog/combo_configurator_dialog.js";
 import { ProductCombo } from "./models/product_combo.js";
@@ -373,7 +373,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
             comboLineValues.virtual_id = uuid();
         }
         await comboLineRecord.update(comboLineValues);
-        await sortListRecords(saleOrder.line_ids);
+        await sortStaticList(saleOrder.line_ids);
 
         if (hasOptionalProducts && !edit) {
             const selectedComboProducts = selectedComboItems.map((item) => ({
