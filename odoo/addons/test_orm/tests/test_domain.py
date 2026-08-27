@@ -1493,7 +1493,12 @@ class TestIdComparandValidation(TransactionCase):
         model = self.env["res.partner"]
         with self.assertRaises(ValueError):
             model.search([("id", ">", "abc")])
-        self.assertTrue(self.env["res.country"].search_count([]) >= 0)
+        # A tautological `>= 0` can't fail even if the transaction were left
+        # aborted by the raise above (a query on an aborted transaction
+        # raises, it doesn't return a negative count) — assert against the
+        # base module's seeded countries so a broken transaction actually
+        # fails this instead of vacuously passing.
+        self.assertGreater(self.env["res.country"].search_count([]), 0)
 
     def test_valid_comparands_still_work(self):
         model = self.env["res.partner"]
@@ -1528,6 +1533,12 @@ class TestIdComparandValidation(TransactionCase):
 
 
 class TestSearchFilteredDomainParity(TransactionCase):
+    # 300 real DB round-trips per run, deliberately: this is a randomized
+    # parity check between search() and filtered_domain(), and its value is
+    # proportional to how much of the random domain space it covers. No
+    # slow/nightly test-tag lane exists in this repo to move it to (grepped
+    # for one before adding this comment) — cutting ITERATIONS would only
+    # shrink coverage, not runtime category, so it stays as-is here.
     ITERATIONS = 300
     SEED = 20260724
 
