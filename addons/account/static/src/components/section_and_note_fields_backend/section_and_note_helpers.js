@@ -47,6 +47,11 @@ export function getRecordsUntilSection(list, record, asc, subSection) {
 
     const sectionRecords = [];
     let index = list.records.findIndex((listRecord) => listRecord.id === record.id);
+    if (index === -1) {
+        // The record left the list while a handler still held it: an untouched new
+        // row is abandoned by leaveEditMode() before the handler resumes.
+        return { sectionRecords, sectionIndex: index };
+    }
     if (asc) {
         sectionRecords.push(list.records[index]);
         index++;
@@ -93,6 +98,7 @@ export function getPreviousSectionRecords(list, record) {
 export function hasNextSection(list, record) {
     const { sectionIndex } = getRecordsUntilSection(list, record, true);
     return (
+        sectionIndex >= 0 &&
         sectionIndex < list.records.length &&
         list.records[sectionIndex].data.display_type === record.data.display_type
     );

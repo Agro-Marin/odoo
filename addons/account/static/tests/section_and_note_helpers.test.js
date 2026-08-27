@@ -71,6 +71,18 @@ describe("section_and_note_helpers", () => {
         expect(hasNextSection(list, list.records[5])).toBe(false);
     });
 
+    test("a record no longer in the list yields no records, index -1 and no next section", () => {
+        // A section row added and then abandoned (leaveEditMode drops an untouched
+        // new record) while the row menu still holds it: the helper must not walk
+        // from findIndex()'s -1.
+        const list = makeList();
+        const abandoned = rec("s-new", DISPLAY_TYPES.SECTION);
+        const { sectionRecords, sectionIndex } = getRecordsUntilSection(list, abandoned, true);
+        expect(ids(sectionRecords)).toEqual([]);
+        expect(sectionIndex).toBe(-1);
+        expect(hasNextSection(list, abandoned)).toBe(false);
+    });
+
     test("no section above yields an empty array and index -1 (no undefined entry)", () => {
         const list = makeList();
         expect(getPreviousSectionRecords(list, list.records[0])).toEqual([]);
