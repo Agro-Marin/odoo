@@ -5,22 +5,7 @@ from odoo.tools.date_utils import localized, sum_intervals
 
 
 class MixinResourceSchedulingTools(models.AbstractModel):
-    """Calendar-aware scheduling helpers shared by scheduling consumers.
-
-    These methods translate between wall-clock datetimes and *working* time
-    (hours that respect a resource calendar, its leaves and flexible-hours
-    rules).  They are independent of any field-name convention — callers pass
-    the datetimes/resource/calendar explicitly — which is why they live in a
-    standalone abstract model rather than on either concrete consumer.
-
-    Inherited by:
-    - :class:`mixin.resource.scheduling` (and, through it, every consumer such
-      as ``project.task``)
-    - :class:`resource.reservation` (which must compute its own committed hours
-      without depending on the mixin)
-
-    Keeping a single implementation here avoids the two copies drifting apart.
-    """
+    """Calendar-aware scheduling helpers shared by scheduling consumers."""
 
     _name = "mixin.resource.scheduling.tools"
     _description = "Resource Scheduling Helpers"

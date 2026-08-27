@@ -3,36 +3,7 @@ from odoo.exceptions import ValidationError
 
 
 class MixinResourceAllocation(models.AbstractModel):
-    """Opt-in allocation semantics for consumers of the reservation ledger.
-
-    Declares one meaning of allocation, stated rather than assumed:
-
-    - ``allocated_percentage`` is an *input* -- the share of the resource's
-      capacity this record claims, 0 to 100.
-    - ``allocated_hours`` is *derived* -- the sum of the record's ledger
-      claims, in person-hours across every resource booked (the PMI Work
-      semantic).
-
-    Inherit this **only** if that is what allocation means for the model.  It
-    is deliberately separate from :class:`mixin.resource.scheduling`, which
-    every consumer needs, because this half is not universal:
-
-    - ``project.task`` fits: its hours genuinely are the sum over per-assignee
-      reservations.
-    - ``mrp.workorder`` does not: its time is workcenter capacity in minutes,
-      driven by the routing rather than by a share.
-    - ``planning.slot`` does not: hours and percentage are mutually computed
-      so a user may enter either, and the percentage measures working time
-      rather than capacity -- 20 hours booked into an 8-hour day is a
-      legitimate 250% overtime shift.
-
-    Splitting it this way is not tidiness.  Field dependencies union along the
-    MRO, so a consumer that inherited these fields and overrode the compute
-    would silently keep ``reservation_ids.allocated_hours`` as a dependency on
-    top of its own, and every ledger write would re-run its compute at a
-    moment it was not written for.  Declining the mixin is the only way to
-    truly decline the semantics.
-    """
+    """Opt-in allocation semantics for consumers of the reservation ledger."""
 
     _name = "mixin.resource.allocation"
     _description = "Resource Allocation Mixin"
