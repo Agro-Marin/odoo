@@ -104,9 +104,8 @@ class IrAttachment(models.Model):
                 if raw is None:
                     return buf
                 content = defused_parse_string(raw)
-                for val in ["w:p", "w:h", "text:list"]:
-                    for element in content.getElementsByTagName(val):
-                        buf += textToString(element) + "\n"
+                for element in content.getElementsByTagName("w:p"):
+                    buf += textToString(element) + "\n"
             except Exception:
                 _logger.debug(
                     "attachment_indexation: failed to index docx content", exc_info=True
