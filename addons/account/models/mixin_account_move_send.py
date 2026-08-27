@@ -893,7 +893,7 @@ class MixinAccountMoveSend(models.AbstractModel):
             if not invoice_data.get("error") and not invoice.invoice_pdf_report_id:
                 pdf_to_generate[invoice] = invoice_data
 
-                if len(pdf_to_generate) > int(batch_size):
+                if len(pdf_to_generate) >= int(batch_size):
                     batches.append(pdf_to_generate)
                     pdf_to_generate = {}
 
