@@ -12,9 +12,11 @@ The `pdfminer.six` Python library has to be installed in order to index PDF file
 """,
     "depends": ["web"],
     "external_dependencies": {
-        "python": ["defusedxml"],
+        "python": ["defusedxml", "openpyxl", "pdfminer"],
         "apt": {
             "defusedxml": "python3-defusedxml",
+            "openpyxl": "python3-openpyxl",
+            "pdfminer": "python3-pdfminer",
         },
     },
     "installable": True,
