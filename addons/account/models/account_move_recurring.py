@@ -16,16 +16,12 @@ class AccountMove(models.Model):
 
     def _copy_recurring_entries(self):
         for record in self:
-            record.auto_post_origin_id = (
-                record.auto_post_origin_id or record
-            )
+            record.auto_post_origin_id = record.auto_post_origin_id or record
             next_date = self._apply_delta_recurring_entries(
                 record.date, record.auto_post_origin_id.date, record.auto_post
             )
 
-            if (
-                not record.auto_post_until or next_date <= record.auto_post_until
-            ):
+            if not record.auto_post_until or next_date <= record.auto_post_until:
                 record.copy(
                     default=record._get_fields_to_copy_recurring_entries(
                         {"date": next_date}
