@@ -8,11 +8,6 @@ import {
 
 describe.current.tags("headless");
 
-/**
- * A drag borrows the DOM and has to hand it back exactly as it found it. Every
- * helper here registers its own undo; these pin that the undo is faithful, not
- * merely opposite.
- */
 function helpers() {
     const cleanup = makeCleanupManager();
     return { cleanup, dom: makeDOMHelpers(cleanup) };
@@ -31,8 +26,6 @@ function element(className = "") {
 
 describe("addClass", () => {
     test("gives back a class the element already carried", () => {
-        // The cleanup used to remove every name it was handed, so this left the
-        // node without `shadow` for the rest of the page's life.
         const el = element("o_hierarchy_node shadow");
         const { cleanup, dom } = helpers();
 

@@ -4,13 +4,6 @@ import { describe, expect, test } from "@odoo/hoot";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { buildSampleORM } from "@web/model/sample_server";
 
-/**
- * `_loadRecords` reaches `orm.webRead`, and a StaticList reaches `_loadRecords`
- * whenever it fills a short window, sorts on a field it has not read, or is
- * replaced wholesale. Under sample data the sample server answered `web_read`
- * with `UnimplementedRouteError`, which nothing in the tree catches.
- */
-
 describe.current.tags("headless");
 
 const FIELDS = {
@@ -20,7 +13,7 @@ const FIELDS = {
 };
 
 /**
- * @param {any[][]} calls records every call that escaped to the real ORM
+ * @param {any[][]} calls
  */
 function makeRealOrm(calls) {
     return {

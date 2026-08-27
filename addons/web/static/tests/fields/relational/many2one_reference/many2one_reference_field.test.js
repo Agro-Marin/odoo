@@ -274,8 +274,6 @@ test("an attachment referencing an attachment excludes itself, and stays searcha
     });
     expect(".o_field_widget[name=res_id] input").toHaveValue("variant");
 
-    // The dropdown must open without the props / `getDomain` blowing up, and
-    // the record must not be offered as a parent of itself.
     await contains(".o_field_widget[name=res_id] input").click();
     expect.verifySteps([`[["id","!=",1]]`]);
 });

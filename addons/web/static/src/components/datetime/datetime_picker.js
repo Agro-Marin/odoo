@@ -351,7 +351,6 @@ export class DateTimePicker extends Component {
     static components = { TimePicker };
 
     /**
-     * Values normalised from `props.value`: always an array, invalid dates nulled.
      * @type {[NullableDateTime] | NullableDateRange}
      */
     values;
@@ -360,13 +359,10 @@ export class DateTimePicker extends Component {
     /** @type {DateTime} */
     minDate;
     /**
-     * `values`, with the hovered bound substituted while a range is being picked.
      * @type {NullableDateTime[]}
      */
     selectedRange;
     /**
-     * What `_grid` was built from. Rebuilding the grid is the expensive half of a
-     * render, so it is skipped while every input is unchanged.
      * @type {any[] | undefined}
      */
     _gridKey;

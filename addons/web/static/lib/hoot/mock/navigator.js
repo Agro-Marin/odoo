@@ -30,8 +30,6 @@ function getBlobValue(value) {
 }
 
 /**
- * Returns the final synchronous value of several item types.
- *
  * @param {unknown} value
  * @param {string} type
  */

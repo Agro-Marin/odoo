@@ -1,23 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * The public face of the relational model.
- *
- * Everything a view, a field widget or a sibling repo needs is exported here,
- * from the module that defines it. There used to be a second barrel --
- * `relational_model/utils.js` -- re-exporting an overlapping set, and consumers
- * split roughly evenly between the two: `extractFieldsFromArchInfo` was
- * imported 8 times through this file and 7 times through that one, for the same
- * function. `named_export_coherence.py` proves either path resolves; nothing
- * said which to write, so both kept growing.
- *
- * Deep imports of `@web/model/relational_model/<module>` still work and are
- * still the right thing inside `model/` itself, where importing this file would
- * close a cycle back through `@web/model/model`. They are not the right thing
- * from outside it.
- */
-
 export { DynamicGroupList } from "./relational_model/dynamic_group_list.js";
 export { DynamicList } from "./relational_model/dynamic_list.js";
 export { DynamicRecordList } from "./relational_model/dynamic_record_list.js";

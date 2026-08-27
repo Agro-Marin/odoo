@@ -195,14 +195,8 @@ export class Navigator {
     /** @type {Array<NavigationItem>} */
     items = [];
 
-    /**
-     * @private
-     * @type {Array<() => void>}
-     */ _hotkeyRemoves = [];
-    /**
-     * @private
-     * @type {import("@web/core/hotkeys/hotkey_service").HotkeyService}
-     */ _hotkeyService;
+    /** @private @type {Array<() => void>} */ _hotkeyRemoves = [];
+    /** @private @type {import("@web/core/hotkeys/hotkey_service").HotkeyService} */ _hotkeyService;
 
     /**
      * @param {NavigationOptions} options
@@ -332,8 +326,6 @@ export class Navigator {
     }
 
     /**
-     * The focused element as seen from the navigated tree.
-     *
      * @private
      * @returns {Element | null}
      */
@@ -561,9 +553,6 @@ export class Navigator {
             Boolean(el) &&
             ARIA_ACTIVEDESCENDANT_ROLES.has(el.getAttribute("role") ?? "");
         if (this._options.virtualFocus) {
-            // `ownerDocument.activeElement` is the shadow HOST for a container
-            // inside one, so the owner this hands `aria-activedescendant` to
-            // was the wrong node -- a screen reader told about the wrong item.
             const focused = /** @type {HTMLElement | null} */ (
                 getActiveElement(container)
             );
@@ -618,9 +607,6 @@ export class Navigator {
      */
     _updateActiveItemIndex(index, mayFocus = true) {
         if (this.items[index]) {
-            // Resolved once, not per item: `.some()` scans the whole list
-            // whenever focus is outside the navigator, and `_activeElement()`
-            // costs a `getContainer()` plus a `getRootNode()` every call.
             const active = mayFocus ? this._activeElement() : null;
             const shouldFocus =
                 mayFocus && !this.items.some((item) => item.target === active);

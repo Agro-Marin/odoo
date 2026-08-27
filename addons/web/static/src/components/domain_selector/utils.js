@@ -9,13 +9,6 @@ import { getDefaultPath } from "@web/core/tree/utils";
 import { useService } from "@web/core/utils/hooks";
 
 /**
- * The condition an editor starts a new leaf from: the first field the model
- * offers, its first legal operator, and whatever that operator defaults to.
- *
- * The operator list is the parameter because it is the only thing the two
- * editors disagree about - the expression editor accepts a subset of what a
- * domain does.
- *
  * @param {Record<string, Record<string, any>>} fieldDefs
  * @param {(fieldDef: Record<string, any>) => string[]} getOperators
  * @returns {import("@web/core/tree/condition_tree").Condition}

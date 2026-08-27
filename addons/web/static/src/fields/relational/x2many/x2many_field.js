@@ -447,13 +447,6 @@ export const x2ManyField = {
             addLabel: attrs["add-label"],
             context: dynamicInfo.context,
             domain: dynamicInfo.domain,
-            // Named, not `options` wholesale: these five are the entire
-            // vocabulary `useActiveActions` reads, and spelling them out is
-            // what lets `supportedOptions` above be checked against the code
-            // in both directions. `createEdit` and `edit` were reachable the
-            // old way and are not declared here -- no arch in any repo sets
-            // either, and `edit` was overridden unconditionally by
-            // `getEvalParams` anyway.
             crudOptions: {
                 create: options.create,
                 delete: options.delete,

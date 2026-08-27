@@ -181,10 +181,6 @@ test("dashboard_graph survives a malformed payload and a missing graph_type", as
 });
 
 /**
- * `parseSeries` reads only `this.field.value` and `this.props.name`, so it can
- * be exercised without a view -- which is the point: it is the one place that
- * decides whether the config builders are allowed to run.
- *
  * @param {string} value
  * @returns {{ result: any, logged: string }}
  */
@@ -204,9 +200,6 @@ function parseSeriesOf(value) {
 }
 
 test("parseSeries refuses anything the config builders cannot read", () => {
-    // Both builders reach straight into `data[0].values`. Unparseable JSON was
-    // already caught here; JSON that parsed to the wrong shape was not, and
-    // reached them.
     const wellFormed = JSON.stringify([{ values: graph_values, key: "A key" }]);
     expect(parseSeriesOf(wellFormed).result).toHaveLength(1);
 
@@ -229,7 +222,6 @@ test("parseSeries refuses anything the config builders cannot read", () => {
 });
 
 test("graph data of the wrong shape leaves the view standing", async () => {
-    // Before the guard this threw out of `onMounted` and destroyed the view.
     for (const record of Partner._records) {
         record.graph_data = "[1,2,3]";
     }

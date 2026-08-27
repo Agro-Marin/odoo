@@ -48,10 +48,6 @@ function m2oHolder(fieldProps) {
     }
     let holder = byName.get(name);
     if (!holder) {
-        // Built under a const so the closures below capture something that is
-        // never undefined: they read `latest` on every call, long after this
-        // block, and a `let` reassigned here stays possibly-undefined to the
-        // checker for all of them.
         /** @type {{ latest: any, stable: any, props: any }} */
         const created = { latest: fieldProps, stable: null, props: null };
         created.stable = {

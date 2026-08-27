@@ -163,10 +163,6 @@ test("a cross-tab update reaches a component watching the service", async () => 
     await mountWithCleanup(Watcher);
     expect(".revision").toHaveText("0");
 
-    // The service is handed out as a reactive proxy. If it subscribed to `storage`
-    // with a handler bound to the raw instance instead, this write would land but
-    // notify nobody, and the picker would keep showing the previous "frequently
-    // used" row until something else re-rendered it.
     browser.dispatchEvent(
         Object.assign(new Event("storage"), {
             key: KEY,

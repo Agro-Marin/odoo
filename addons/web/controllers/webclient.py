@@ -124,18 +124,6 @@ class WebClient(http.Controller):
 
         debug = bundle_params.get("debug", request.session.debug)
 
-        # The wire format follows how the bundle was BUILT, not whether anyone
-        # declared an intention to fetch it at runtime. `runtime_bundle_names`
-        # is that intention -- `esm.runtime_bundles` plus dynamic children --
-        # and it is a strict subset of `bundles`, the set that actually has an
-        # ESM build (`esm_registry` validates the inclusion in both places it
-        # reads them). Keying the format on the smaller set produced a
-        # self-contradictory descriptor for the difference: the classic
-        # envelope, listing a `.esm.` script that `getBundle` is documented to
-        # skip, and inline `<script>` nodes it cannot carry at all because they
-        # have no `src`. `web.assets_frontend` and `web.assets_frontend_lazy`
-        # were served that way -- three script nodes in, zero out, no error --
-        # so `loadBundle()` on either returned stylesheets and silently no JS.
         use_esm = bundle_name in esm_registry().bundles
         log_event(
             _http_log,

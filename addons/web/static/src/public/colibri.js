@@ -396,19 +396,6 @@ export class Colibri {
     }
 
     /**
-     * Read the modifier suffixes off an event name.
-     *
-     * `keepInHistory` is the one modifier that decorates nothing: it opts the
-     * listener out of `domEffectScope`, so its DOM changes count as the user's
-     * own. Accepted as a suffix and as an option, and stripped from `options`
-     * by copy -- `addEventListener` must not receive it, and the caller's
-     * object is not ours to mutate.
-     *
-     * The decorators are returned rather than applied, so the caller can
-     * install the scope UNDER them: `prevent`/`stop`/`noUpdate` must wrap the
-     * scope, not sit inside it, which is where they were when the editor
-     * wrapped the callback and handed the result to `addListener`.
-     *
      * @param {string} event
      * @param {AddEventListenerOptions} [options]
      * @returns {{ event: string, options: AddEventListenerOptions | undefined, keepInHistory: boolean, decorators: string[] }}
@@ -438,20 +425,12 @@ export class Colibri {
     }
 
     /**
-     * Wrap a listener callback into the handler that is actually registered.
-     *
      * @param {Function} fn
      * @param {boolean} keepInHistory
      * @param {string[]} decorators
      * @returns {EventListener}
      */
     _buildEventHandler(fn, keepInHistory, decorators) {
-        // Scope the interaction's own callback, NOT the handler built below:
-        // the implicit `updateContent()` that follows it must stay outside,
-        // exactly as it was when the editor wrapped the callback itself. An
-        // already-built handler was scoped when it was first registered --
-        // `refreshNodes` re-registers it verbatim, and wrapping twice would
-        // change its identity and leak the listener.
         if (!(/** @type {any} */ (fn).isHandler) && !keepInHistory) {
             const effect = fn;
             fn = (/** @type {any[]} */ ...args) =>
@@ -861,9 +840,9 @@ export class Colibri {
                     } else {
                         for (const node of nodes) {
                             const [C, props, pos] =
-                                /**
-                                 * @type {[import("@odoo/owl").ComponentConstructor, Record<string, any>?, InsertPosition?]}
-                                 */ (value(node));
+                                /** @type {[import("@odoo/owl").ComponentConstructor, Record<string, any>?, InsertPosition?]} */ (
+                                    value(node)
+                                );
                             this.mountComponent(node, C, props, pos);
                         }
                     }

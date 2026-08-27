@@ -468,10 +468,6 @@ test("both class spellings reach the root, because both callers exist", async ()
         }
     }
     await mountWithCleanup(Parent);
-    // `className` is what a hand-written template passes. `class` is what the view
-    // compiler sets on a component it emits into a group cell, and it used to be
-    // declared and read by nothing - so a <notebook> inside a <group> silently lost
-    // its cell layout classes.
     expect("div.o_notebook").toHaveClass("from-template");
     expect("div.o_notebook").toHaveClass("from-compiler");
 });

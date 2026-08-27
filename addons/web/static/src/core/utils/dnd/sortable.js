@@ -86,9 +86,12 @@ const hookParams = {
     },
 
     onDragStart(
-        /**
-         * @type {{ ctx: Record<string, any>, addListener: Function, addStyle: Function, callHandler: Function }}
-         */ { ctx, addListener, addStyle, callHandler },
+        /** @type {{ ctx: Record<string, any>, addListener: Function, addStyle: Function, callHandler: Function }} */ {
+            ctx,
+            addListener,
+            addStyle,
+            callHandler,
+        },
     ) {
         const { connectGroups, current, elementSelector, groupSelector, ref } = ctx;
 

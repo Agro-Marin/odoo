@@ -49,14 +49,6 @@ class FieldService {
     }
 
     /**
-     * The field definitions of `resModel`.
-     *
-     * The RPC is cached with `immutable: true`, which deep-freezes the payload
-     * so every caller can share one object. The copy below is SHALLOW: new
-     * top-level keys can be added, but each field definition inside is frozen
-     * and writing to one throws. A caller that needs to edit a definition has
-     * to `deepCopy` it first, as `res_user_group_ids_field.js:34` does.
-     *
      * @param {string} resModel
      * @param {LoadFieldsOptions} [options]
      * @returns {Promise<Record<string, Readonly<Record<string, any>>>>}

@@ -16,12 +16,10 @@ import { HootJobButtons } from "./hoot_job_buttons.js";
  *  selected: boolean;
  *  unfolded: boolean;
  * }} HootSideBarSuiteProps
- *
  * @typedef {{
  *  reporting: import("../hoot_utils").Reporting;
  *  statusFilter: import("./setup_hoot_ui").StatusFilter | null;
  * }} HootSideBarCounterProps
- *
  * @typedef {{
  * }} HootSideBarProps
  */
@@ -241,9 +239,6 @@ export class HootSideBar extends Component {
         });
     }
 
-    /**
-     * Filters
-     */
     getFilteredVisibleSuites() {
         const { runner } = this.env;
         const { hideEmpty } = this.state;

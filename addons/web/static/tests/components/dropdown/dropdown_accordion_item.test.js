@@ -107,7 +107,6 @@ test("the parent hears an accordion state change only when the state changed", a
     const parent = await mountWithCleanup(Parent);
     expect.verifySteps([]);
 
-    // A render caused by anything else must not be reported as a state change.
     parent.state.tick++;
     await animationFrame();
     expect.verifySteps([]);

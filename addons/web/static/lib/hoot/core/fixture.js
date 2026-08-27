@@ -14,7 +14,6 @@ import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
  *  className: string | string[];
  *  target?: import("@odoo/hoot-dom").Target;
  * }} MountOnFixtureOptions
- *
  * @typedef {{
  *  component: import("@odoo/owl").ComponentConstructor;
  *  props: unknown;

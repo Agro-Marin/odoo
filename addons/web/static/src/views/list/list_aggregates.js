@@ -222,8 +222,6 @@ export function useListAggregates(ctx) {
                 if (!func) {
                     continue;
                 }
-                // The value of `??=` is the filled array, which is what the
-                // reads below want; `values` itself stays the lazy cache.
                 const rows = (values ??= getAggregationValues());
                 const fieldEntries = [];
                 for (const record of rows) {

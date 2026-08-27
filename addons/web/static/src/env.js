@@ -132,11 +132,6 @@ export async function startServices(env) {
         if (operation === "delete") {
             return;
         }
-        // A bundle is a unit: hold the pass until it has finished evaluating.
-        // Without this, a service registered by a lazily-loaded bundle starts
-        // one microtask later -- before the rest of that same bundle exists,
-        // including any patch to it. See bundle_transaction.js for the failure
-        // that made this necessary.
         if (deferUntilBundlesSettled(runStartupPass)) {
             return;
         }

@@ -1024,9 +1024,6 @@ test("display shortcuts correctly for MacOS ", async () => {
 });
 
 test("display shortcuts correctly for non-MacOS with a new overlayModifier", async () => {
-    // The modifier is instance state on the running service, not a
-    // read-through to the `hotkeyService` descriptor -- patching the
-    // descriptor after the service has started no longer reaches it.
     getService("hotkey").overlayModifier = "alt+control";
 
     class MyComponent extends Component {
@@ -1050,9 +1047,6 @@ test("display shortcuts correctly for non-MacOS with a new overlayModifier", asy
 test("display shortcuts correctly for MacOS with a new overlayModifier", async () => {
     mockUserAgent("mac");
 
-    // The modifier is instance state on the running service, not a
-    // read-through to the `hotkeyService` descriptor -- patching the
-    // descriptor after the service has started no longer reaches it.
     getService("hotkey").overlayModifier = "alt+control";
 
     class MyComponent extends Component {

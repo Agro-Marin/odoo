@@ -7,23 +7,7 @@ import { invalidateAggregateSpecs } from "./relational_model/field_values.js";
 /** @import { ServiceFactories as Services } from "services" */
 
 /**
- * A property is addressed as `<properties field>.<property name>` and behaves,
- * everywhere downstream, like a field of the record. Two loaders used to build
- * that synthetic field independently -- one for graph/pivot, one for the
- * relational model's group-by path -- and they disagreed on the shape of
- * `relatedPropertyField`, which is the key `list_column_utils` filters property
- * columns on. The relational one wrote `{ fieldName }` where every consumer and
- * `model/types.js` read `.name`, so grouping a list by a property dropped that
- * property's columns from the list entirely.
- *
- * One builder, one shape. `{ name, id?, displayName? }` is what `types.js`
- * declares; `id`/`displayName` name the parent *record* and are known only where
- * a record is in hand, so they are filled in by `record_properties.js` on the
- * activeField rather than here.
- */
-
-/**
- * @param {string} propertyFullName `"<properties field>.<property name>"`
+ * @param {string} propertyFullName
  * @param {Record<string, any> | undefined | false} definition
  * @returns {Field}
  */
@@ -41,17 +25,10 @@ export function describePropertyDefinitionAsField(propertyFullName, definition) 
 }
 
 /**
- * Reads one property definition from the server and installs it in `fields`.
- *
- * A definition that cannot be read degrades to a `char` field rather than
- * failing the load: the usual cause is a property that was removed while a
- * saved group-by still names it, and losing the whole view over that is worse
- * than showing the column as text.
- *
  * @param {Services["orm"]} orm
  * @param {string} resModel
  * @param {Record<string, any>} context
- * @param {Record<string, Field>} fields mutated in place
+ * @param {Record<string, Field>} fields
  * @param {string} propertyFullName
  * @returns {Promise<void>}
  */
@@ -84,7 +61,7 @@ export async function addPropertyFieldDef(
  * @param {Services["orm"]} orm
  * @param {string} resModel
  * @param {Record<string, any>} context
- * @param {Record<string, Field>} fields mutated in place
+ * @param {Record<string, Field>} fields
  * @param {Iterable<string>} groupBy
  * @returns {Promise<void>}
  */

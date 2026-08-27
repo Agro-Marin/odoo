@@ -9,14 +9,6 @@ const SCROLL_SETTLE_TIMEOUT = 1000;
 const SUPPORTS_SCROLLEND = "onscrollend" in window;
 
 /**
- * The next node up, crossing out of a shadow root through its host.
- *
- * `parentElement` is null for the first child of a shadow root, so a plain
- * upward walk stopped dead at the boundary: measured, a scrollable sitting
- * immediately outside a host was found from the host and NOT from a node one
- * level inside it. `scrollTo` -- which `navigation.js` calls to keep the active
- * item in view -- therefore did nothing at all inside a shadow root.
- *
  * @param {Element} el
  * @returns {HTMLElement | null}
  */

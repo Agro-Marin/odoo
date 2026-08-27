@@ -591,7 +591,6 @@ describe("minDigits never exceeds the precision the value was rounded to", () =>
 });
 
 describe("negative zero", () => {
-    // `toBe` is `===`, which cannot tell -0 from 0; `Object.is` can.
     const signOf = (/** @type {number} */ v) => (Object.is(v, -0) ? "-0" : String(v));
 
     test("rounding to zero answers +0, in every method", () => {

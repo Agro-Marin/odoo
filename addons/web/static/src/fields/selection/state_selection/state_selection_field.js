@@ -106,13 +106,6 @@ export const stateSelectionField = {
         },
     ],
     supportedTypes: ["selection"],
-    // The widget reads `legend_<value>` off the record for every value in the
-    // selection, so every consuming view used to declare these three by hand as
-    // `invisible="1"` -- fifteen such lines went with this, across
-    // `website_event_track`, `helpdesk` and `mrp_plm`. `optional: true` makes
-    // the dependency a no-op on a model that has no legends
-    // (`addFieldDependencies` skips it), which is every user of this widget
-    // outside kanban state.
     fieldDependencies: [
         { name: "legend_normal", type: "char", optional: true, readonly: true },
         { name: "legend_blocked", type: "char", optional: true, readonly: true },

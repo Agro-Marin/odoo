@@ -37,7 +37,7 @@ export function indexQueryBySearchItem(query) {
 }
 
 /**
- * @param {StoredSearchItem} searchItem the model has already given it an id
+ * @param {StoredSearchItem} searchItem
  * @param {QueryElement[] | Map<number, QueryElement[]>} query
  * @param {any} referenceMoment
  * @param {Record<string, any>[]} intervalOptions
@@ -71,8 +71,6 @@ export function enrichSearchItem(searchItem, query, referenceMoment, intervalOpt
             break;
         case "field":
         case "field_property":
-            // A query element for a field item always carries one; the
-            // filter keeps the declaration honest without inventing a value.
             enrichedSearchItem.autocompleteValues = queryElements
                 .map((queryElem) => queryElem.autocompleteValue)
                 .filter((value) => value !== undefined);

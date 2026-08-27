@@ -11,9 +11,7 @@ import { CONFIG_KEYS, CONFIG_SCHEMA, FILTER_KEYS, FILTER_SCHEMA } from "./config
  *  debug?: boolean;
  *  ignore?: boolean;
  * }} CreateUrlFromIdOptions
- *
  * @typedef {typeof import("./config").DEFAULT_CONFIG} DEFAULT_CONFIG
- *
  * @typedef {typeof import("./config").DEFAULT_FILTERS} DEFAULT_FILTERS
  */
 

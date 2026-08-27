@@ -355,12 +355,6 @@ test("supportedOptions and supportedAttributes declare nothing extractProps igno
 });
 
 /**
- * A numeric widget that does not declare `isEmpty` inherits
- * `fieldVisualFeedback`'s falsy test, so a legitimate 0 is classified empty and
- * the field is styled as if it had no value. `isFalseEmpty` is the opt-out the
- * numeric widgets share; `() => false` is the other accepted answer, for
- * widgets that are never empty at all.
- *
  * @type {string[]}
  */
 const NUMERIC_TYPES = ["integer", "float", "monetary"];
@@ -380,9 +374,6 @@ test("every numeric widget opts out of the falsy-is-empty default", () => {
 });
 
 /**
- * `displayName` is what the field tooltip renders as `widgetDescription` and
- * what Studio lists a widget under. A widget without one is invisible to both.
- *
  * @type {string[]}
  */
 const NO_DISPLAY_NAME_BY_DESIGN = [];

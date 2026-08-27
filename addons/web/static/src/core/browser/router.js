@@ -383,12 +383,6 @@ function onClick(/** @type {any} */ ev) {
     if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) {
         return;
     }
-    // `ev.target` is retargeted at every shadow boundary, so a click on an
-    // anchor inside a shadow root arrives as the HOST: `closest("a")` then
-    // answers with whatever anchor encloses the host in the light DOM, and the
-    // router navigates somewhere the user never clicked. The composed path's
-    // first entry is the element actually clicked, and it is what the
-    // `[contenteditable]` opt-out has to be measured against too.
     const target = /** @type {Element} */ (ev.composedPath?.()[0] ?? ev.target);
     if (typeof target?.closest !== "function") {
         return;

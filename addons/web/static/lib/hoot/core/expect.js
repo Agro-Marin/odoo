@@ -55,27 +55,18 @@ import { Test } from "./test.js";
  *  aborted?: boolean;
  *  debug?: boolean;
  * }} AfterTestOptions
- *
  * @typedef {import("../hoot_utils").ArgumentType} ArgumentType
- *
  * @typedef {string | ((pass: boolean) => string)} AssertionMessage
- *
  * @typedef {string | string[] | ((pass: boolean, raw: typeof String["raw"]) => string | string[])} AssertionReportMessage
- *
  * @typedef {VerifierOptions & {
  *  timeout?: number;
  * }} AsyncVerifierOptions
- *
  * @typedef {InteractionType | "assertion" | "error" | "step"} CaseEventType
- *
  * @typedef {{ exact?: boolean }} ClassListOptions
- *
  * @typedef {{ exact?: boolean; inline?: boolean }} DOMStyleOptions
- *
  * @typedef {{
  *  headless: boolean;
  * }} ExpectBuilderParams
- *
  * @typedef {{
  *  message?: AssertionMessage;
  *  not?: boolean;
@@ -83,14 +74,11 @@ import { Test } from "./test.js";
  *  resolves?: boolean;
  *  silent?: boolean;
  * }} ExpectOptions
- *
  * @typedef {DeepEqualOptions & {
  *  message?: AssertionMessage;
  * }} VerifierOptions
- *
  * @typedef {import("../hoot_utils").DeepEqualOptions} DeepEqualOptions
  * @typedef {import("../hoot_utils").Label} Label
- *
  * @typedef {import("@odoo/hoot-dom").Dimensions} Dimensions
  * @typedef {import("@odoo/hoot-dom").FormatXmlOptions} FormatXmlOptions
  * @typedef {import("@odoo/hoot-dom-utils").InteractionDetails} InteractionDetails
@@ -211,7 +199,7 @@ function getLength(object) {
 }
 
 /**
- * @param {number} depth amount of lines to remove from the stack
+ * @param {number} depth
  */
 function getStack(depth) {
     const error = new Error();
@@ -560,12 +548,6 @@ export function makeExpect(params) {
     }
 
     /**
-     * Expects the current test to have the `expected` amount of assertions. This
-     * number cannot be less than 1.
-     *
-     * Note that it is generally preferred to use `expect.step` and `expect.verifySteps`
-     * instead as it is more reliable and allows to test more extensively.
-     *
      * @param {number} expected
      */
     function assertions(expected) {
@@ -689,11 +671,6 @@ export function makeExpect(params) {
     }
 
     /**
-     * Expects the current test to have the `expected` amount of errors.
-     *
-     * This also means that from the moment this function is called, the test will
-     * accept that amount of errors before being considered as failed.
-     *
      * @param {number} expected
      */
     function errors(expected) {
@@ -707,7 +684,7 @@ export function makeExpect(params) {
 
     /**
      * @param {Error} error
-     * @returns {boolean} `true` if the error can be ignored
+     * @returns {boolean}
      */
     function onError(error) {
         if (!currentResult) {
@@ -735,9 +712,6 @@ export function makeExpect(params) {
     }
 
     /**
-     * Registers a step for the current test, that can be consumed by `expect.verifySteps`.
-     * Unconsumed steps will fail the test.
-     *
      * @param {unknown} value
      */
     function step(value) {
@@ -751,17 +725,9 @@ export function makeExpect(params) {
     }
 
     /**
-     * Expects the received matchers to match the errors thrown since the start
-     * of the test or the last call to {@link verifyErrors}. Calling this matcher
-     * will reset the list of current errors.
-     *
-     * `expect.errors(...)` should be called before function
-     *
      * @param {unknown[]} errors
      * @param {VerifierOptions} [options]
      * @returns {boolean}
-     * @example
-     *  expect.verifyErrors([/RPCError/, /Invalid domain AST/]);
      */
     function verifyErrors(errors, options) {
         if (!currentResult) {
@@ -778,17 +744,9 @@ export function makeExpect(params) {
     }
 
     /**
-     * Expects the received steps to be equal to the steps emitted since the start
-     * of the test or the last call to {@link verifySteps}. Calling this matcher
-     * will reset the list of current steps.
-     *
      * @param {unknown[]} steps
      * @param {VerifierOptions} [options]
      * @returns {boolean}
-     * @example
-     *  expect.step("web_read_group");
-     *  expect.step([1, 2]);
-     *  expect.verifySteps(["web_read_group", "web_search_read"]);
      */
     function verifySteps(steps, options) {
         if (!currentResult) {
@@ -800,19 +758,9 @@ export function makeExpect(params) {
     }
 
     /**
-     * Same as {@link verifyErrors}, but will not immediatly fail if errors are
-     * not caught yet, and will instead wait for a certain timeout (default: 2000ms)
-     * to allow errors to be caught later.
-     *
-     * Checks are performed initially, at the end of the timeout, and each time
-     * an error is detected.
-     *
      * @param {unknown[]} errors
      * @param {AsyncVerifierOptions} [options]
      * @returns {Promise<boolean>}
-     * @example
-     *  fetch("invalid/url");
-     *  await expect.waitForErrors([/RPCError/]);
      */
     function waitForErrors(errors, options) {
         if (!currentResult) {
@@ -839,19 +787,9 @@ export function makeExpect(params) {
     }
 
     /**
-     * Same as {@link verifySteps}, but will not immediatly fail if steps have not
-     * been registered yet, and will instead wait for a certain timeout (default:
-     * 2000ms) to allow steps to be registered later.
-     *
-     * Checks are performed initially, at the end of the timeout, and each time
-     * a step is registered.
-     *
      * @param {unknown[]} steps
      * @param {AsyncVerifierOptions} [options]
      * @returns {Promise<boolean>}
-     * @example
-     *  fetch(".../call_kw/web_read_group");
-     *  await expect.waitForSteps(["web_read_group"]);
      */
     async function waitForSteps(steps, options) {
         if (!currentResult) {
@@ -878,17 +816,8 @@ export function makeExpect(params) {
     }
 
     /**
-     * Main entry point to write assertions in tests.
-     *
-     * This function takes a value whose expected type depends on the following
-     * matcher. See the documentation of each matcher for more information.
-     *
-     * Note that this function can only be called inside of a test.
-     *
      * @template [R=unknown]
      * @param {R} received
-     * @example
-     *  expect([1, 2, 3]).toEqual([1, 2, 3]);
      */
     function expect(received) {
         if (arguments.length > 1) {
@@ -1001,7 +930,6 @@ export class CaseResult {
     }
 
     /**
-     *
      * @param {CaseEventType} type
      * @param {unknown} value
      */
@@ -1096,14 +1024,7 @@ export class Matcher {
     }
 
     /**
-     * Returns a set of matchers expecting a result opposite to what normal matchers
-     * would expect.
-     *
      * @returns {Omit<Matcher<R, A, Async>, "not">}
-     * @example
-     *  expect([1]).not.toBeEmpty();
-     * @example
-     *  expect("foo").not.toBe("bar");
      */
     get not() {
         if (this._flags & FLAGS.not) {
@@ -1113,13 +1034,7 @@ export class Matcher {
     }
 
     /**
-     * Returns a set of matchers which will await the received value as a promise
-     * and will be applied to a value rejected by that promise. The matcher will
-     * throw an error should the promise resolve instead of being rejected.
-     *
      * @returns {Omit<Matcher<R, A, true>, "rejects" | "resolves">}
-     * @example
-     *  await expect(Promise.reject("foo")).rejects.toBe("foo");
      */
     get rejects() {
         if (this._flags & (FLAGS.rejects | FLAGS.resolves)) {
@@ -1132,13 +1047,7 @@ export class Matcher {
     }
 
     /**
-     * Returns a set of matchers which will await the received value as a promise
-     * and will be applied to a value resolved by that promise. The matcher will
-     * throw an error should the promise reject instead of being resolved.
-     *
      * @returns {Omit<Matcher<R, A, true>, "rejects" | "resolves">}
-     * @example
-     *  await expect(Promise.resolve("foo")).resolves.toBe("foo");
      */
     get resolves() {
         if (this._flags & (FLAGS.rejects | FLAGS.resolves)) {
@@ -1151,14 +1060,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be *strictly* equal to the `expected` value.
-     *
      * @param {R} expected
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect("foo").toBe("foo");
-     * @example
-     *  expect({ foo: 1 }).not.toBe({ foo: 1 });
      */
     toBe(expected, options) {
         this._ensureArguments(arguments, "any");
@@ -1179,17 +1082,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be close to the `expected` value by a given
-     * margin (i.e. the maximum difference allowed between the 2, default is 1).
-     *
-     * Note: the margin is exclusive; it should be strictly larger than the diff.
-     *
      * @param {R} expected
      * @param {ExpectOptions & { margin?: number }} [options]
-     * @example
-     *  expect(0.2 + 0.1).toBeCloseTo(0.3);
-     * @example
-     *  expect(3.51).toBeCloseTo(3.5, { margin: 0.1 });
      */
     toBeCloseTo(expected, options) {
         this._ensureArguments(arguments, "number");
@@ -1208,19 +1102,7 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be empty:
-     * - `iterable`: no items
-     * - `object`: no keys
-     * - `node`: no content (i.e. no value or text)
-     * - anything else: falsy value (`false`, `0`, `""`, `null`, `undefined`)
-     *
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect({}).toBeEmpty();
-     * @example
-     *  expect(["a", "b"]).not.toBeEmpty();
-     * @example
-     *  expect(queryOne("input")).toBeEmpty();
      */
     toBeEmpty(options) {
         this._ensureArguments(arguments);
@@ -1237,14 +1119,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be strictly greater than `min`.
-     *
      * @param {number} min
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(5).toBeGreaterThan(-1);
-     * @example
-     *  expect(4 + 2).toBeGreaterThan(5);
      */
     toBeGreaterThan(min, options) {
         this._ensureArguments(arguments, "number");
@@ -1265,14 +1141,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be an instance of the given `cls`.
-     *
      * @param {Function} cls
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect({ foo: 1 }).not.toBeInstanceOf(Object);
-     * @example
-     *  expect(document.createElement("div")).toBeInstanceOf(HTMLElement);
      */
     toBeInstanceOf(cls, options) {
         this._ensureArguments(arguments, "function");
@@ -1295,14 +1165,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be strictly less than `max`.
-     *
      * @param {number} max
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(5).toBeLessThan(10);
-     * @example
-     *  expect(8 - 6).toBeLessThan(3);
      */
     toBeLessThan(max, options) {
         this._ensureArguments(arguments, "number");
@@ -1323,14 +1187,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be greater than or equal to `min`.
-     *
      * @param {number} min
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(5).toBeGreaterThanOrEqual(5);
-     * @example
-     *  expect(6).toBeGreaterThanOrEqual(5);
      */
     toBeGreaterThanOrEqual(min, options) {
         this._ensureArguments(arguments, "number");
@@ -1351,14 +1209,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be less than or equal to `max`.
-     *
      * @param {number} max
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(5).toBeLessThanOrEqual(5);
-     * @example
-     *  expect(4).toBeLessThanOrEqual(5);
      */
     toBeLessThanOrEqual(max, options) {
         this._ensureArguments(arguments, "number");
@@ -1379,14 +1231,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be of the given `type`.
-     *
      * @param {ArgumentType} type
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect("foo").toBeOfType("string");
-     * @example
-     *  expect({ foo: 1 }).toBeOfType("object");
      */
     toBeOfType(type, options) {
         this._ensureArguments(arguments, "string");
@@ -1407,17 +1253,9 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be strictly between `min` and `max` (both inclusive).
-     *
-     * @param {number} min (inclusive)
-     * @param {number} max (inclusive)
+     * @param {number} min
+     * @param {number} max
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(3).toBeWithin(3, 9);
-     * @example
-     *  expect(-8.5).toBeWithin(-20, 0);
-     * @example
-     *  expect(100).toBeWithin(50, 100);
      */
     toBeWithin(min, max, options) {
         this._ensureArguments(arguments, "number", "number");
@@ -1444,14 +1282,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to be *deeply* equal to the `expected` value.
-     *
      * @param {R} expected
      * @param {ExpectOptions & DeepEqualOptions} [options]
-     * @example
-     *  expect(["foo"]).toEqual(["foo"]);
-     * @example
-     *  expect({ foo: 1 }).toEqual({ foo: 1 });
      */
     toEqual(expected, options) {
         this._ensureArguments(arguments, "any");
@@ -1469,20 +1301,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to have a length of the given `length`.
-     *
-     * Received value can be a string, an iterable or an object.
-     *
      * @param {number} length
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect("foo").toHaveLength(3);
-     * @example
-     *  expect([1, 2, 3]).toHaveLength(3);
-     * @example
-     *  expect({ foo: 1, bar: 2 }).toHaveLength(2);
-     * @example
-     *  expect(new Set([1, 2])).toHaveLength(2);
      */
     toHaveLength(length, options) {
         this._ensureArguments(arguments, "integer");
@@ -1506,24 +1326,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to include an `item` of a given shape.
-     *
-     * Received value can be an iterable or an object (in case it is an object,
-     * the `item` should be a key or a tuple representing an entry in that object).
-     *
-     * Note that it is NOT a strict comparison: the item will be matched for deep
-     * equality against each item of the iterable.
-     *
      * @param {keyof R | R[number]} item
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect([1, 2, 3]).toInclude(2);
-     * @example
-     *  expect({ foo: 1, bar: 2 }).toInclude("foo");
-     * @example
-     *  expect({ foo: 1, bar: 2 }).toInclude(["foo", 1]);
-     * @example
-     *  expect(new Set([{ foo: 1 }, { bar: 2 }])).toInclude({ bar: 2 });
      */
     toInclude(item, options) {
         this._ensureArguments(arguments, "any");
@@ -1544,14 +1348,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to match the given `matcher`.
-     *
      * @param {import("../hoot_utils").Matcher} matcher
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(new Error("foo")).toMatch("foo");
-     * @example
-     *  expect("a foo value").toMatch(/fo.*ue/);
      */
     toMatch(matcher, options) {
         this._ensureArguments(arguments, "any");
@@ -1572,39 +1370,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received value to include the given object shape.
-     *
-     * A *partial* deep equality is performed, meaning that only the keys included
-     * in `partialObject` will be checked on the received value.
-     *
-     * This partial matching is only applied to non-iterable object, and not to
-     * arrays and other iterables; these are checked for deep equality. Although,
-     * non-iterable objects contained in iterables will be partially checked again.
-     *
      * @param {Partial<R>} partialObject
      * @param {ExpectOptions} [options]
-     * @example
-     *  // Partial equality can be performed on nested objects
-     *  expect({
-     *      company: {
-     *          name: "Odoo",
-     *          location: "Belgium",
-     *      },
-     *      employees: new Set([
-     *          {
-     *              name: "Julien",
-     *              age: 28,
-     *          },
-     *      ]),
-     *  }).toMatchObject({
-     *      company: { name: "Odoo" }
-     *      employees: new Set([{ age: 28 }]),
-     *  });
-     * @example
-     *  // Iterables should have an (deep) equal content
-     *  expect({ list: [1, 2, 3], other: "property" }).not.toMatchObject({ list: [1, 2] });
-     *  // ... as expected in the following assertion
-     *  expect({ list: [1, 2, 3], other: "property" }).toMatchObject({ list: [1, 2, 3] });
      */
     toMatchObject(partialObject, options) {
         this._ensureArguments(arguments, "object");
@@ -1630,14 +1397,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Function} to throw an error after being called.
-     *
      * @param {import("../hoot_utils").Matcher} [matcher=Error]
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(() => { throw new Error("Woops!") }).toThrow(/woops/i);
-     * @example
-     *  await expect(Promise.reject("foo")).rejects.toThrow("foo");
      */
     toThrow(matcher = Error, options) {
         this._ensureArguments(arguments, "any");
@@ -1679,12 +1440,7 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to be checked, or to be indeterminate
-     * if the homonymous option is set to `true`.
-     *
      * @param {ExpectOptions & { indeterminate?: boolean }} [options]
-     * @example
-     *  expect("input[type=checkbox]").toBeChecked();
      */
     toBeChecked(options) {
         this._ensureArguments(arguments);
@@ -1705,15 +1461,7 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to be displayed, meaning that:
-     * - it has a bounding box;
-     * - it is contained in the root document.
-     *
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(document.body).toBeDisplayed();
-     * @example
-     *  expect(document.createElement("div")).not.toBeDisplayed();
      */
     toBeDisplayed(options) {
         this._ensureArguments(arguments);
@@ -1732,14 +1480,7 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to be enabled, meaning that it
-     * matches the `:enabled` pseudo-selector.
-     *
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect("button").toBeEnabled();
-     * @example
-     *  expect("input[type=radio]").not.toBeEnabled();
      */
     toBeEnabled(options) {
         this._ensureArguments(arguments);
@@ -1757,8 +1498,6 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to be focused in its owner document.
-     *
      * @param {ExpectOptions} [options]
      */
     toBeFocused(options) {
@@ -1777,16 +1516,7 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to be visible, meaning that:
-     * - it has a bounding box;
-     * - it is contained in the root document;
-     * - it is not hidden by CSS properties.
-     *
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(document.body).toBeVisible();
-     * @example
-     *  expect("[style='opacity: 0']").not.toBeVisible();
      */
     toBeVisible(options) {
         this._ensureArguments(arguments);
@@ -1804,16 +1534,9 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to have the given attribute set on
-     * itself, and for that attribute value to match the given `value` if any.
-     *
      * @param {string} attribute
      * @param {import("../hoot_utils").Matcher} [value]
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect("a").toHaveAttribute("href");
-     * @example
-     *  expect("script").toHaveAttribute("src", "./index.js");
      */
     toHaveAttribute(attribute, value, options) {
         this._ensureArguments(arguments, "string", ["string", "number", "regex", null]);
@@ -1846,14 +1569,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to have the given class name(s).
-     *
      * @param {string | string[]} className
      * @param {ExpectOptions & ClassListOptions} [options]
-     * @example
-     *  expect("inline").toHaveClass("btn btn-primary");
-     * @example
-     *  expect("body").toHaveClass(["o_webclient", "o_dark"]);
      */
     toHaveClass(className, options) {
         this._ensureArguments(arguments, ["string", "string[]"]);
@@ -1888,18 +1605,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to contain exactly `amount` element(s).
-     * Note that the `amount` parameter can be omitted, in which case the function
-     * will expect *at least* one element.
-     *
      * @param {number} [amount]
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect(".o_webclient").toHaveCount(1);
-     * @example
-     *  expect(".o_form_view .o_field_widget").toHaveCount();
-     * @example
-     *  expect("ul > li").toHaveCount(4);
      */
     toHaveCount(amount, options) {
         this._ensureArguments(arguments, ["integer", null]);
@@ -1931,15 +1638,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the `innerHTML` of the received {@link Target} to match the `expected`
-     * value (upon formatting).
-     *
      * @param {string | RegExp} [expected]
      * @param {ExpectOptions & FormatXmlOptions} [options]
-     * @example
-     *  expect(".my_element").toHaveInnerHTML(`
-     *      Some <strong>text</strong>
-     *  `);
      */
     toHaveInnerHTML(expected, options) {
         this._ensureArguments(arguments, ["string", "regex"]);
@@ -1948,17 +1648,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the `outerHTML` of the received {@link Target} to match the `expected`
-     * value (upon formatting).
-     *
      * @param {string | RegExp} [expected]
      * @param {ExpectOptions & FormatXmlOptions} [options]
-     * @example
-     *  expect(".my_element").toHaveOuterHTML(`
-     *      <div class="my_element">
-     *          Some <strong>text</strong>
-     *      </div>
-     *  `);
      */
     toHaveOuterHTML(expected, options) {
         this._ensureArguments(arguments, ["string", "regex"]);
@@ -1967,16 +1658,9 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to have its given property value match
-     * the given `value`.
-     *
      * @param {string} property
      * @param {any} [value]
      * @param {ExpectOptions} [options]
-     * @example
-     *  expect("button").toHaveProperty("tabIndex", 0);
-     * @example
-     *  expect("script").toHaveProperty("src", "./index.js");
      */
     toHaveProperty(property, value, options) {
         this._ensureArguments(arguments, "string", "any");
@@ -2008,22 +1692,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the {@link DOMRect} of the received {@link Target} to match the given
-     * `rect` object.
-     *
-     * The `rect` object can either be:
-     * - a {@link DOMRect} object;
-     * - a CSS selector string (to get the rect of the *only* matching element);
-     * - a node.
-     *
-     * If the resulting `rect` value is a node, then both nodes' rects will be compared.
-     *
      * @param {Partial<DOMRect> | Target} rect
      * @param {ExpectOptions & QueryRectOptions} [options]
-     * @example
-     *  expect("button").toHaveRect({ x: 20, width: 100, height: 50 });
-     * @example
-     *  expect("button").toHaveRect(".container");
      */
     toHaveRect(rect, options) {
         this._ensureArguments(arguments, ["object", "string", "node", "node[]"]);
@@ -2055,14 +1725,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the received {@link Target} to match the given style properties.
-     *
      * @param {string | Record<string, string | RegExp>} style
      * @param {ExpectOptions & DOMStyleOptions} [options]
-     * @example
-     *  expect("button").toHaveStyle({ color: "red" });
-     * @example
-     *  expect("p").toHaveStyle("text-align: center");
      */
     toHaveStyle(style, options) {
         this._ensureArguments(arguments, ["string", "object"]);
@@ -2097,16 +1761,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the text content of the received {@link Target} to either:
-     * - be strictly equal to a given string;
-     * - match a given regular expression.
-     *
      * @param {string | RegExp} [text]
      * @param {ExpectOptions & QueryTextOptions} [options]
-     * @example
-     *  expect("p").toHaveText("lorem ipsum dolor sit amet");
-     * @example
-     *  expect("header h1").toHaveText(/odoo/i);
      */
     toHaveText(text, options) {
         this._ensureArguments(arguments, ["string", "regex", null]);
@@ -2135,21 +1791,8 @@ export class Matcher {
     }
 
     /**
-     * Expects the value of the received {@link Target} to either:
-     * - be strictly equal to a given string or number;
-     * - match a given regular expression;
-     * - contain file objects matching the given `files` list.
-     *
      * @param {ReturnType<typeof getNodeValue>} [value]
      * @param {ExpectOptions & { raw?: boolean }} [options]
-     * @example
-     *  expect("input[name=age]").toHaveValue(29);
-     * @example
-     *  expect("input[type=file]").toHaveValue(new File(["foo"], "foo.txt"));
-     * @example
-     *  expect("select[multiple]").toHaveValue(["foo", "bar"]);
-     * @example
-     *  expect("input[name=age]").toHaveValue("29", { raw: true });
      */
     toHaveValue(value, options) {
         this._ensureArguments(arguments, [
@@ -2211,12 +1854,6 @@ export class Matcher {
     }
 
     /**
-     * Validates the given `arguments` object, with an implicitly added `options`
-     * validator at the end (optional).
-     *
-     * Flags are then modified based on these options, and the current stack is
-     * saved for error reporting.
-     *
      * @private
      * @param {any[]} argumentsObject
      * @param {...(ArgumentType | ArgumentType[])} argumentsDefs

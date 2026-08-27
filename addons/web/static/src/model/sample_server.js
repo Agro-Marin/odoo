@@ -506,14 +506,6 @@ export class SampleServer {
     }
 
     /**
-     * `web_read` is `web_search_read` with the ids given rather than searched
-     * for, and the relational model reaches it whenever a StaticList loads a
-     * window -- healing a short page, sorting on a field it has not read,
-     * replacing its contents. Leaving it unimplemented meant those threw
-     * `UnimplementedRouteError` under sample data, and nothing in the tree
-     * catches that class, so it surfaced as an unhandled error rather than as
-     * the sample rows the caller was owed.
-     *
      * @private
      * @param {MockRpcParams} params
      * @returns {Record<string, any>[]}

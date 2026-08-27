@@ -46,10 +46,6 @@ export function convertRgbToHsl(r, g, b) {
     let saturation = 0;
     const lightness = (maxColor + minColor) / 2;
     if (delta) {
-        // These three are NOT `else if`, and must not become one: when two
-        // channels tie for the maximum -- yellow, cyan, magenta -- both
-        // branches run and both assign the same hue, which is how those three
-        // land on 60, 180 and 300. Making them exclusive breaks yellow.
         if (maxColor === red) {
             hue = (green - blue) / delta;
         }
@@ -282,9 +278,6 @@ export function mixCssColors(cssColor1, cssColor2, weight) {
     const [r, g, b] = rgb1.map((_, idx) =>
         Math.round(rgb2[idx] + (rgb1[idx] - rgb2[idx]) * weight),
     );
-    // Opacity is interpolated on the same weight as the channels. Reading only
-    // red/green/blue silently turned a mix of two translucent colours into an
-    // opaque one; two opaque inputs still give a 6-digit hex, unchanged.
     const opacity = rgba2.opacity + (rgba1.opacity - rgba2.opacity) * weight;
     return /** @type {string} */ (convertRgbaToCSSColor(r, g, b, opacity));
 }
@@ -322,11 +315,6 @@ export function rgbToHex(rgb = "", node = null) {
         return rgb;
     }
     if (rgb.startsWith("rgba")) {
-        // This used to be a second, hand-written copy of `blendColors`. The two
-        // differed in one character -- `Math.floor` against `Math.round` -- and
-        // so answered a different hex for about 85% of blends, `rgbToHex`
-        // biasing every channel down by up to 1/255. There is one compositing
-        // rule, and it rounds to nearest.
         return blendColors(rgb, node);
     }
     return (

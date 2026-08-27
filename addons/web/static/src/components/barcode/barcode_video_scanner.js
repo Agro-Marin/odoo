@@ -89,10 +89,6 @@ export class BarcodeVideoScanner extends Component {
     }
 
     /**
-     * Acquires the camera and starts the detection loop. Every failure path here
-     * has to report through `props.onError` rather than throw: the caller renders
-     * a message beside the dead preview, and an unhandled rejection out of
-     * `onMounted` would leave it showing a black rectangle instead.
      * @returns {Promise<void>}
      */
     async startScanning() {
@@ -128,7 +124,7 @@ export class BarcodeVideoScanner extends Component {
     }
 
     /**
-     * @returns {Promise<MediaStream | null>} null once the error is reported
+     * @returns {Promise<MediaStream | null>}
      */
     async requestStream() {
         try {
@@ -156,8 +152,6 @@ export class BarcodeVideoScanner extends Component {
     }
 
     /**
-     * The crop overlay works in displayed pixels and the detector in camera ones,
-     * so the ratio between them has to be known before either can be trusted.
      * @param {MediaStream} stream
      */
     setUpZoom(stream) {

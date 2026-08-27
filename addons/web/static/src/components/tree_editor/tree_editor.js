@@ -72,14 +72,10 @@ export class TreeEditor extends Component {
     treeProcessor;
 
     /**
-     * The tree this component edits: a clone of `props.tree`, normalised to a
-     * connector at the root so that every edit has somewhere to attach.
      * @type {Tree}
      */
     tree;
     /**
-     * The previous clone, kept so an equivalent update can reuse it and leave the
-     * editor's node identities - and therefore its DOM - alone.
      * @type {Tree | null}
      */
     previousTree;
@@ -219,9 +215,6 @@ export class TreeEditor extends Component {
      * @param {HTMLInputElement} [inputEl]
      */
     updateComplexCondition(node, value, inputEl) {
-        // Not awaited: `_updateComplexCondition` is synchronous, so the node has
-        // already accepted or refused the expression by the time updateNode yields,
-        // and the box has to be corrected in the same tick as the change event.
         const applied = this.updateNode(node, () =>
             this._updateComplexCondition(node, value),
         );
@@ -413,10 +406,6 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Applies one edit to the tree and reports it upward. Every public wrapper
-     * returns this: `_updatePath` awaits the field service, so a rejection there
-     * has nowhere to go if the promise is dropped.
-     *
      * @param {Tree} node
      * @param {() => void|Promise<void>} operation
      * @returns {Promise<void>}

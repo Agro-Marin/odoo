@@ -15,10 +15,6 @@ import {
 describe.current.tags("headless");
 
 /**
- * The literals below are commands and ledger entries, and a JS array literal
- * widens to `number[]` rather than narrowing to the tuple the functions take.
- * These two say what the literal is once, instead of an annotation per call.
- *
  * @param {any[][]} commands
  * @returns {X2ManyCommand[]}
  */

@@ -40,13 +40,6 @@ export const MANDATORY_PARAMS = ["ref"];
 export const WHITE_LISTED_KEYS = ["Alt", "Control", "Meta", "Shift"];
 
 /**
- * Read the grouping parameters a sortable is configured with into its drag
- * context, narrowing the element selector to the group when there is one.
- *
- * Shared by `sortable` and `nested_sortable`, whose `onComputeParams` each
- * opened with these same four statements: grouping is one job, and neither
- * hook builder owns it more than the other.
- *
  * @param {Record<string, any>} ctx
  * @param {Record<string, any>} params
  */
@@ -193,13 +186,6 @@ export function makeDOMHelpers(cleanup) {
         if (!el || !classNames.length) {
             return;
         }
-        // Undo only what was actually added. The cleanup used to remove every
-        // name it was handed, so a class the element ALREADY carried was
-        // stripped when the drag ended -- `addClass(node, "shadow")` on a node
-        // that was already `shadow` left it flat, for good. `removeClass` has
-        // always restored faithfully; this is the same promise on the other
-        // side. Removing rather than restoring the whole attribute is
-        // deliberate: a re-render during the drag must not be clobbered.
         const added = classNames.filter((name) => !el.classList.contains(name));
         if (!added.length) {
             return;
@@ -258,9 +244,6 @@ export function makeDOMHelpers(cleanup) {
         rect.height = el.offsetHeight;
 
         if (options.adjust) {
-            // This helper measures across documents on purpose -- `drag_geometry`
-            // resolves an iframe offset a few lines below -- so the element's own
-            // view is the one to ask.
             const style = viewOf(el).getComputedStyle(el);
             const [pl, pr, pt, pb] = [
                 "padding-left",

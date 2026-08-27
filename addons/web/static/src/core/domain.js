@@ -564,10 +564,6 @@ function isDateLiteral(value) {
 }
 
 /**
- * `str(value)` as CPython spells it, for the value shapes a domain literal can
- * carry. Only reachable from the `like` family, where the server stringifies a
- * non-string pattern rather than rejecting it.
- *
  * @param {any} value
  * @returns {string}
  */
@@ -588,8 +584,6 @@ function pyStr(value) {
 }
 
 /**
- * `repr(value)`, which is what `str()` applies to a list's elements.
- *
  * @param {any} value
  * @returns {string}
  */
@@ -645,24 +639,6 @@ function compileCondition(condition) {
     }
     const op = operator.toLowerCase();
 
-    // Operand-shape parity with the server.
-    //
-    // `orm/domain/optimizations.py` rewrites a condition whose value does not
-    // have the shape its operator expects, BEFORE any matching happens, and a
-    // client-side matcher that skips those rewrites answers differently from
-    // `search()` for the very same domain. Measured against a real server over
-    // 1087 generated domains: 672 well-formed ones agreed exactly, and every
-    // one of the 81 disagreements was one of the three rewrites below.
-    //
-    // These shapes are not exotic. Both product callers of `Domain.contains`
-    // are fed domains a person wrote -- a loyalty reward's product domain
-    // (`pos_loyalty`), and a field's `domain=` deciding whether create / write
-    // / unlink is allowed (`relational_active_actions`).
-
-    // `_operator_equal_as_in` (optimizations.py:177): `=` / `!=` against a
-    // collection IS `in` / `not in`. Without this the client matched NOTHING
-    // where the server matched the listed values, and EVERYTHING for `!=` --
-    // an inversion, not an edge nudge. An empty collection compares with False.
     if (["=", "==", "!=", "<>"].includes(op) && Array.isArray(value)) {
         const positive = op === "=" || op === "==";
         return compileCondition([
@@ -672,10 +648,6 @@ function compileCondition(condition) {
         ]);
     }
 
-    // `_optimize_in_set` (optimizations.py:200): `in` / `not in` against a
-    // falsy value is an empty collection, so the condition is constant. An
-    // empty array already behaves this way below; `0`, `""` and `false` did
-    // not -- they were wrapped into a one-element list and matched on.
     if ((op === "in" || op === "not in") && !Array.isArray(value) && !value) {
         const matches = op === "not in";
         return () => matches;
@@ -775,14 +747,6 @@ function compileCondition(condition) {
         case "=ilike":
         case "not =ilike": {
             const anchored = op.startsWith("=") || op.startsWith("not =");
-            // `_optimize_like_str` (optimizations.py:305): a truthy non-string
-            // pattern RAISES for the anchored operators and is stringified
-            // with Python's `str()` for the others. A falsy value collapses to
-            // a constant on both sides already, and a number stringifies the
-            // same in both languages -- the corpus in
-            // `domain_server_parity.test.js` pins that -- so the divergence is
-            // exactly the values whose `str()` is a repr: `str(["R1"])` is
-            // "['R1']" where JS's `String(["R1"])` is "R1".
             if (value && typeof value !== "string") {
                 if (anchored) {
                     return () => {

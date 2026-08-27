@@ -28,11 +28,8 @@ import { HootTagButton } from "./hoot_tag_button.js";
 /**
  * @typedef {{
  * }} HootSearchProps
- *
  * @typedef {import("../core/config").SearchFilter} SearchFilter
- *
  * @typedef {import("../core/tag").Tag} Tag
- *
  * @typedef {import("../core/test").Test} Test
  */
 
@@ -77,8 +74,6 @@ function removeRegExp(query) {
 }
 
 /**
- * /!\ Requires "job" and "category" to be in scope
- *
  * @param {string} tagName
  */
 const templateIncludeWidget = (tagName) => `
@@ -156,7 +151,6 @@ const templateIncludeWidget = (tagName) => `
 `;
 
 /**
- *
  * @param {ReturnType<typeof useRef<HTMLInputElement>>} ref
  */
 function useKeepSelection(ref) {
@@ -557,7 +551,6 @@ export class HootSearch extends Component {
     }
 
     /**
-     *
      * @param {(Suite | Test)[]} path
      */
     getShortPath(path) {

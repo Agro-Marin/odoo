@@ -12,7 +12,6 @@ import { HootCopyButton } from "./hoot_copy_button.js";
 
 /**
  * @typedef {"dark" | "light"} ColorScheme
- *
  * @typedef {{
  * }} HootConfigMenuProps
  */

@@ -542,9 +542,6 @@ test("StateSelectionField uses legend_* fields", async () => {
 });
 
 test("StateSelectionField loads legend_* itself, with no arch declaration", async () => {
-    // The widget declares the three legends as OPTIONAL fieldDependencies, so a
-    // view no longer has to carry `<field name="legend_x" invisible="1"/>`
-    // beside it -- 21 such lines existed across three repos when this landed.
     Partner._fields.legend_normal = fields.Char();
     Partner._fields.legend_blocked = fields.Char();
     Partner._fields.legend_done = fields.Char();
@@ -577,9 +574,6 @@ test("StateSelectionField loads legend_* itself, with no arch declaration", asyn
 });
 
 test("StateSelectionField is unaffected on a model with no legend fields", async () => {
-    // `optional: true` means `addFieldDependencies` skips a dependency the
-    // model does not carry -- which is every user of this widget outside
-    // kanban state (maintenance, the payroll validation states, ...).
     await mountView({
         type: "form",
         resModel: "partner",

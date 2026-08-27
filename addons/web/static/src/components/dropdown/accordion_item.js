@@ -38,9 +38,6 @@ export class AccordionItem extends Component {
     /** @type {AccordionParent | undefined} */
     parentComponent;
     /**
-     * The last openness the parent was told about. `onPatched` fires for every
-     * render, so without it the parent hears "state changed" when a sibling
-     * re-rendered and nothing here moved.
      * @type {boolean}
      */
     _reportedOpen;

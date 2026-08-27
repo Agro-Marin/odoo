@@ -11,7 +11,6 @@ import { HootTestPath } from "./hoot_test_path.js";
 
 /**
  * @typedef {import("../core/runner").Runner} Runner
- *
  * @typedef {{
  * }} HootStatusPanelProps
  */

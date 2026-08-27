@@ -12,12 +12,12 @@ import { ensureTest } from "../main_runner.js";
 /**
  * @typedef DateSpecs
  * @property {number} [year]
- * @property {number} [month] // 1-12
- * @property {number} [day] // 1-31
- * @property {number} [hour] // 0-23
- * @property {number} [minute] // 0-59
- * @property {number} [second] // 0-59
- * @property {number} [millisecond] // 0-999
+ * @property {number} [month]
+ * @property {number} [day]
+ * @property {number} [hour]
+ * @property {number} [minute]
+ * @property {number} [second]
+ * @property {number} [millisecond]
  */
 
 const { Date, Intl } = globalThis;
@@ -155,20 +155,8 @@ export function cleanupDate() {
 }
 
 /**
- * Mocks the current date and time, and also the time zone if any.
- *
- * Date can either be an object describing the date and time to mock, or a
- * string in SQL or ISO format (time and millisecond values can be omitted).
- * @see {@link mockTimeZone} for the time zone params.
- *
  * @param {string | DateSpecs} [date]
  * @param {string | number | null} [tz]
- * @example
- *  mockDate("2023-12-25T20:45:00"); // 2023-12-25 20:45:00 UTC
- * @example
- *  mockDate({ year: 2023, month: 12, day: 25, hour: 20, minute: 45 }); // same as above
- * @example
- *  mockDate("2019-02-11 09:30:00.001", +2);
  */
 export function mockDate(date, tz) {
     ensureTest("mockDate");
@@ -179,14 +167,7 @@ export function mockDate(date, tz) {
 }
 
 /**
- * Mocks the current locale.
- *
- * If the time zone hasn't been mocked already, it will be assigned to the first
- * time zone available in the given locale (if any).
- *
  * @param {string} newLocale
- * @example
- *  mockTimeZone("ja-JP"); // UTC + 9
  */
 export function mockLocale(newLocale) {
     ensureTest("mockLocale");
@@ -201,18 +182,7 @@ export function mockLocale(newLocale) {
 }
 
 /**
- * Mocks the current time zone.
- *
- * Time zone can either be a time zone or an offset. Number offsets are expressed
- * in hours.
- *
  * @param {string | number | null} [tz]
- * @example
- *  mockTimeZone(+10); // UTC + 10
- * @example
- *  mockTimeZone("Europe/Brussels"); // UTC + 1 (or UTC + 2 in summer)
- * @example
- *  mockTimeZone(null) // Resets to test default (+1)
  */
 export function mockTimeZone(tz) {
     ensureTest("mockTimeZone");
@@ -220,8 +190,6 @@ export function mockTimeZone(tz) {
 }
 
 /**
- * Subscribe to changes made on the time zone (mocked) value.
- *
  * @param {(tz: string | number) => any} callback
  */
 export function onTimeZoneChange(callback) {

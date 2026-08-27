@@ -285,10 +285,6 @@ function mockedElementFromPoint(...args) {
 }
 
 /**
- * Mocked version of {@link document.elementsFromPoint} to:
- * - remove "HOOT-..." elements from the result
- * - put the <body> & <html> elements at the end of the list, as they may be ordered
- *  incorrectly due to the fixture being behind the body.
  * @type {Document["elementsFromPoint"]}
  */
 function mockedElementsFromPoint(...args) {
@@ -365,9 +361,6 @@ function onAnchorHrefClick(ev) {
     if (ev.defaultPrevented) {
         return;
     }
-    // `ev.target` is not always an Element (a click dispatched at `document`,
-    // a text node): this listener is global, so throwing here aborts the
-    // capture phase for every other handler on the event.
     if (typeof ev.target?.closest !== "function") {
         return;
     }
@@ -702,15 +695,9 @@ export function watchListeners(view = getWindow()) {
 }
 
 /**
- * Returns a function checking that the given target does not contain any unexpected
- * key. The list of accepted keys is the initial list of keys of the target, along
- * with an optional `whiteList` argument.
- *
  * @template T
  * @param {T} target
  * @param {string[]} [whiteList]
- * @example
- *  afterEach(watchKeys(window, ["odoo"]));
  */
 export function watchKeys(target, whiteList) {
     const acceptedKeys = new Set([...$ownKeys(target), ...(whiteList || [])]);

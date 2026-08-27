@@ -160,8 +160,6 @@ export class EmbeddedActions {
      */
     constructor({ env, orm, notification, dialog, action }) {
         this.env = env;
-        // This bar is only ever built inside an action, so `env.config` is
-        // there. Bound once so the seven reads below do not each re-prove it.
         const config = /** @type {NonNullable<typeof env.config>} */ (env.config);
         this.orm = orm;
         this.notificationService = notification;
@@ -363,9 +361,6 @@ export class EmbeddedActions {
      * @returns {Promise<boolean>}
      */
     async saveNewAction() {
-        // Same reasoning as the constructor: a bar only exists inside an
-        // action. Bound locally rather than through an accessor, because this
-        // method is also exercised by calling it on a plain object.
         const actionConfig = /** @type {any} */ (this.env.config);
         const {
             newActionName,

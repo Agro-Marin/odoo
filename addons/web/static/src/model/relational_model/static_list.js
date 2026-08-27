@@ -40,16 +40,6 @@ function cloneCommandsById(byId) {
 }
 
 /**
- * The state a snapshot carries, and therefore the state `_restore` puts back.
- *
- * Three fields are deliberately absent. `_savePoint` holds the snapshot being
- * restored, so restoring it too would be circular. `_replayFailed` records that
- * a command replay rejected and the window may be short rows; a snapshot taken
- * before the failure would clear a flag that is still true, and one taken after
- * would resurrect a failure already healed. `_extendedRecords` indexes the
- * *cache*, which `_restore` does not touch, and `_pruneExtendedRecords`
- * reconciles it against the cache anyway.
- *
  * @type {Record<string, { clone: (value: any) => any, restore?: (list: any, value: any) => void }>}
  */
 const RESTORABLE_STATE = {
@@ -398,11 +388,6 @@ export class StaticList extends EditableListDataPoint {
                     }
                 }
                 record._applyValues(data);
-                // `listId`, not `resId`: the ledger keys a row by whatever the
-                // commands name it, which for a row that has not been created
-                // yet is its virtual id. Keyed by `resId` this asked the ledger
-                // for `false` on every new record, so a new row's deferred
-                // commands were dropped instead of replayed.
                 const ledgerId = listId(record);
                 const commands = this._unknownRecordCommands.get(ledgerId);
                 this._unknownRecordCommands.delete(ledgerId);

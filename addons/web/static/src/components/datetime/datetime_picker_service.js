@@ -302,8 +302,6 @@ export class DateTimePickerController {
     };
 
     /**
-     * Which of the two inputs an event came from. Anything that is not the end
-     * input counts as the start one, which is what a single-input picker needs.
      * @param {EventTarget | null} el
      * @returns {0 | 1}
      */
@@ -607,10 +605,6 @@ export class DateTimePickerController {
     };
 }
 
-/**
- * Hands out {@link DateTimePickerHandle}s and keeps the set of live ones, so that
- * opening any picker closes the others.
- */
 export class DateTimePickerService {
     /**
      * @param {any} env

@@ -9,9 +9,6 @@ const { Event, Promise, Set } = globalThis;
 const notifications = new Set();
 
 /**
- * Returns the list of notifications that have been created since the last call
- * to this function, consuming it in the process.
- *
  * @returns {MockNotification[]}
  */
 export function flushNotifications() {

@@ -20,7 +20,6 @@ test("nothing in flight: the caller runs its own reaction", () => {
 test("a reaction raised during evaluation is held until it finishes", async () => {
     const calls = [];
     const evaluation = runInBundleTransaction(async () => {
-        // stands for one module of the bundle registering something
         expect(deferUntilBundlesSettled(() => calls.push("reaction"))).toBe(true);
         expect(calls).toEqual([], {
             message: "must not run while the bundle is half applied",

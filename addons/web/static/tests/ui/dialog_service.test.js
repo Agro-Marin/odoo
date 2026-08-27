@@ -535,13 +535,6 @@ test("a dialog opened with a rootId renders in that shadow root, not the page be
     getService("dialog").add(CustomDialog, {}, { rootId: "chatterRoot" });
     await animationFrame();
 
-    // The regression this pins: `mail` passed the calling component as
-    // `{ context }`, the option the dialog service used to derive the root
-    // from. Once that became an explicit `rootId`, `context` was silently
-    // dropped and every confirm/reaction dialog opened from the portal
-    // chatter -- which mounts into `#chatterRoot`'s shadow root -- rendered
-    // in the document behind it. Every website_slides review tour died on a
-    // `#chatterRoot:shadow` step it could no longer reach.
     expect(shadow.querySelectorAll(".o_dialog")).toHaveLength(1);
     expect(".o_dialog").toHaveCount(0);
     app.destroy();

@@ -6,15 +6,6 @@ import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
 
-/**
- * `_update` answers a multi-edit dispatch with a sentinel-keyed envelope so its
- * caller can tell a dispatch that returned `false` from an edit applied in
- * place. `update` has two exits -- one through the mutex, one straight through
- * during an urgent save -- and only the first used to open it, so a caller that
- * tests the result for truthiness read a refused multi-save as a successful
- * one.
- */
-
 describe.current.tags("headless");
 
 /**

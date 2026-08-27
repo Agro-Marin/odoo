@@ -408,9 +408,6 @@ test("keyboard navigation survives an emoji bundle that failed to load", async (
     });
     expect(".o-EmojiPicker").toHaveCount(1);
 
-    // The empty picker renders nothing focusable, so this cannot be reached with a
-    // real keypress today. It is one `= []` away from being reachable by anything
-    // that leaves the grid unbuilt, and `loadEmoji` swallows every failure.
     picker.handleNavigation("ArrowDown");
     picker.handleNavigation("ArrowUp");
     picker.handleNavigation("ArrowLeft");

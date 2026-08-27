@@ -97,8 +97,6 @@ async function commitInputChanges(ctx, urgent) {
 async function commitUrgently(ctx) {
     const { component, params, inputRef, fieldName } = ctx;
     if (!inputRef.el) {
-        // Nothing to commit: the input is gone. This runs from an urgent save,
-        // which is exactly when the component may already be unmounted.
         return;
     }
     let value = inputRef.el.value;

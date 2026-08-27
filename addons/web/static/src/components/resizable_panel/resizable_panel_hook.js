@@ -22,14 +22,6 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @property {(props: Object) => ResizeSide} [getResizeSide]
  */
 
-/**
- * Drags one panel edge.
- *
- * The measurements all read from the live element rather than from state,
- * because the thing being resized is also being laid out by CSS: the offset
- * parent decides the ceiling, the handle's own width decides how close to it the
- * panel may get, and the container's `direction` decides which way a drag grows.
- */
 class ResizeController {
     /**
      * @param {import("@odoo/owl").Ref<HTMLElement>} containerRef
@@ -61,8 +53,6 @@ class ResizeController {
         this.resizeSide = this.params.getResizeSide(nextProps);
         this.initialWidth = this.params.getInitialWidth(nextProps);
         const currentWidth = this.currentWidth();
-        // A changed initialWidth is an instruction; an unchanged one must not undo
-        // a width the user dragged to.
         const nextWidth = this.clampWidth(
             this.initialWidth !== previousInitialWidth
                 ? this.initialWidth
@@ -75,7 +65,7 @@ class ResizeController {
 
     /**
      * @param {HTMLElement} handle
-     * @returns {() => void} teardown
+     * @returns {() => void}
      */
     attach(handle) {
         this.resize(this.clampWidth(this.initialWidth));
@@ -93,9 +83,7 @@ class ResizeController {
         document.body.classList.add("pe-none", "user-select-none");
         try {
             this.handleRef.el?.setPointerCapture(ev.pointerId);
-        } catch {
-            // No capture is survivable: the document-level listeners still fire.
-        }
+        } catch {}
         document.addEventListener("pointermove", this.onPointerMove);
         document.addEventListener("pointerup", this.onPointerUp);
         document.addEventListener("pointercancel", this.onPointerUp);
@@ -134,7 +122,7 @@ class ResizeController {
         }
     }
 
-    /** @returns {number} half the handle, so the panel stops short of the edge */
+    /** @returns {number} */
     handlerSpacing() {
         return this.handleRef.el ? this.handleRef.el.offsetWidth / 2 : 10;
     }
@@ -174,7 +162,7 @@ class ResizeController {
         return this.containerRef.el ? this.containerRect().width : this.initialWidth;
     }
 
-    /** @returns {number} how wide the panel is allowed to get */
+    /** @returns {number} */
     limitWidth() {
         const offsetParent = /** @type {HTMLElement | null} */ (
             this.containerRef.el?.offsetParent ?? null
@@ -222,9 +210,6 @@ export function useResizable({
         useThrottleForAnimation(() => controller.onWindowResize()),
     );
 
-    // Keyed on the handle element, not on mount/unmount: bound in onMounted and
-    // released in onWillUnmount, a handle replaced in between keeps the old
-    // listener and the new one never gets one.
     useEffect(
         (el) => (el ? controller.attach(el) : undefined),
         () => [handleRef.el],

@@ -139,11 +139,9 @@ function useMovable(containerRefName, handleRefName, allowDrag) {
 
 /**
  * @typedef {import("../core/expect").Assertion} Assertion
- *
  * @typedef {{
  *  test: Test;
  * }} HootDebugToolBarProps
- *
  * @typedef {import("../core/expect").CaseResult} CaseResult
  */
 

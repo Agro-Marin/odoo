@@ -14,12 +14,6 @@ import { getId } from "./field_context.js";
 
 export class DataPoint extends SignalStore {
     /**
-     * Declared here, not on `RelationalRecord`, and it has to stay here: the
-     * constructor below calls `setup()`, which is where the subclass assigns
-     * these. A subclass's own field declarations run *after* `super()` returns,
-     * so moving either line down one level resets it to `undefined` after
-     * `setup()` filled it -- silently, until the first read.
-     *
      * @type {import("./record_edit_state.js").RecordEditState}
      */
     _editState;

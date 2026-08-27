@@ -13,22 +13,6 @@ import {
 import { describePropertyDefinitionAsField } from "@web/model/property_fields";
 import { getPropertyFieldColumns } from "@web/views/list/list_column_utils";
 
-/**
- * A property reaches the views as a synthetic field named
- * `<properties field>.<property name>`, and `list_column_utils` decides which
- * property columns belong to which `properties` column by comparing
- * `field.relatedPropertyField.name` against the column's name.
- *
- * Three places used to build that synthetic field and they disagreed on the
- * key: the group-by loader wrote `{ fieldName }` where every consumer and
- * `model/types.js` read `.name`. The visible consequence was that grouping a
- * list *by* a property dropped every property column from that list -- the
- * optional-columns menu lost its only entry and the toggle disappeared with it.
- *
- * The three producers are now one function, and these tests pin both halves:
- * the shape it emits, and the list behaviour that depends on it.
- */
-
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
 const DEFINITION = { type: "char", name: "property_char", string: "Property char" };

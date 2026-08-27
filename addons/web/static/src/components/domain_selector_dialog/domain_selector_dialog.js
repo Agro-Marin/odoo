@@ -90,8 +90,6 @@ export class DomainSelectorDialog extends Component {
     }
 
     /**
-     * Two checks, and the second needs the first: the domain has to parse here
-     * before the server can be asked whether it runs.
      * @returns {Promise<boolean>}
      */
     async isDomainValid() {

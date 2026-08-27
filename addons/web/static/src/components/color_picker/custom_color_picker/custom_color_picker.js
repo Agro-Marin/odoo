@@ -72,7 +72,6 @@ export class CustomColorPicker extends Component {
         this.shouldSetSelectedColor = false;
         this.lastFocusedSliderEl = undefined;
         this.selectedColor = this.props.selectedColor || this.defaultColor;
-        // useExternalListener binds to the component itself, so these need no bind.
         this.onPointerUp = this.onPointerUp.bind(this);
         this.onEscapeKeydown = this.onEscapeKeydown.bind(this);
 
@@ -88,8 +87,6 @@ export class CustomColorPicker extends Component {
         this.setupDragListeners();
         this.publishCallbacks();
 
-        // Not async: Owl does not await an onMounted callback, so a throw inside an
-        // async one becomes an unhandled rejection instead of a mount error.
         onMounted(() => {
             const rgba =
                 convertCSSColorToRgba(this.selectedColor) ||
@@ -110,15 +107,6 @@ export class CustomColorPicker extends Component {
         });
     }
 
-    /**
-     * A drag started on a slider has to keep tracking after the pointer leaves it,
-     * so the move and up listeners are on the document rather than the element.
-     *
-     * On every same-origin document, not just this one: the website editor renders
-     * the site in an iframe, and a drag that crosses into it must keep working.
-     * That is also what `getLocalPoint`'s frameElement walk is translating.
-     * Each handler leaves immediately unless its own drag flag is set.
-     */
     setupDragListeners() {
         this.throttleOnPointerMove = useThrottleForAnimation((ev) => {
             this.onPointerMovePicker(ev);
@@ -138,7 +126,7 @@ export class CustomColorPicker extends Component {
     }
 
     /**
-     * @returns {Document[]} this document alone when the top frame is cross-origin
+     * @returns {Document[]}
      */
     reachableDocuments() {
         try {
@@ -157,11 +145,6 @@ export class CustomColorPicker extends Component {
         }
     }
 
-    /**
-     * The picker is opened inside someone else's popover, so the owner of that
-     * popover asks for these rather than the other way round: what to do when it
-     * closes, and how to preview and revert without a re-render.
-     */
     publishCallbacks() {
         this.props.setOnCloseCallback?.(() => {
             if (this.shouldSetSelectedColor) {

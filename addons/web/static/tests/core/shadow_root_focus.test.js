@@ -18,14 +18,6 @@ import {
 describe.current.tags("headless");
 
 /**
- * Core resolves "where is focus" and "what document am I in" against the
- * top-level `document`. Inside a shadow root `document.activeElement` is the
- * HOST, and inside an iframe it is that iframe -- so every `indexOf` and
- * `contains` test against nodes of the inner tree misses, silently, and reads
- * as "nothing is focused" rather than as an error.
- */
-
-/**
  * @param {string} html
  * @returns {ShadowRoot}
  */
@@ -57,7 +49,6 @@ describe("getActiveElement", () => {
 
         expect(getActiveElement(b)).toBe(b);
         expect(getActiveElement(root)).toBe(b);
-        // ...where the global answer is the host.
         expect(document.activeElement).toBe(root.host);
     });
 
@@ -75,15 +66,12 @@ describe("getActiveElement", () => {
         const active = /** @type {Node} */ (getActiveElement(wrap));
         expect(active).toBe(innerHost);
         expect(wrap.contains(active)).toBe(true);
-        // getDeepActiveElement is the other question: the element itself.
         expect(getDeepActiveElement(wrap)).toBe(deep);
     });
 
     test("degrades to the document for a detached or absent node", () => {
         const detached = document.createElement("div");
         detached.innerHTML = `<button id="d">d</button>`;
-        // A detached subtree's root has no `activeElement`; falling back to the
-        // node's ownerDocument keeps the pre-existing answer rather than null.
         expect(getActiveElement(detached)).toBe(document.activeElement);
         expect(getActiveElement()).toBe(null);
         expect(viewOf(detached)).toBe(window);
@@ -195,8 +183,6 @@ describe("router click interception across a shadow boundary", () => {
         /** @type {HTMLElement} */ (root.getElementById("inner")).click();
         window.removeEventListener("click", onClick);
 
-        // Without the composed path, `ev.target` is the host and `closest("a")`
-        // answers "/odoo/outer" -- an anchor the user never clicked.
         expect(resolved).toEqual(["/odoo/inner"]);
     });
 });
@@ -214,8 +200,6 @@ describe("scrolling across a shadow boundary", () => {
         scroller.insertAdjacentHTML("beforeend", `<div style="height:500px"></div>`);
 
         const leaf = /** @type {HTMLElement} */ (root.getElementById("leaf"));
-        // `parentElement` is null at the boundary, so this used to answer null
-        // and `scrollTo` silently did nothing inside a shadow root.
         expect(closestScrollableY(leaf)).toBe(scroller);
         expect(closestScrollableY(host)).toBe(scroller);
     });
@@ -228,15 +212,6 @@ describe("scrolling across a shadow boundary", () => {
 });
 
 describe("tab order across a shadow boundary", () => {
-    /**
-     * `getTabableElements` used to run one `querySelectorAll`, which does not
-     * pierce a shadow root -- so a focus trap over a container HOLDING one
-     * skipped everything inside it. There is no selector for "has a shadow
-     * root", and scanning every element to find hosts measured +40% on the
-     * focus-trap path; marking the host at attach time makes them findable by
-     * the query that was already running, at no measurable cost (interleaved
-     * A/B over 8000 elements: -0.5%, -4.0%, -2.4%).
-     */
     function hosted(/** @type {string} */ light, /** @type {string} */ shadow) {
         const wrap = document.createElement("div");
         getFixture().appendChild(wrap);
@@ -293,12 +268,6 @@ describe("tab order across a shadow boundary", () => {
 });
 
 describe("getDeepActiveElement descends both kinds of boundary", () => {
-    /**
-     * An `<iframe>` IS the active element of its parent document, and a shadow
-     * host IS the active element of its own tree. Neither descent implies the
-     * other: `drag_session` walked iframes and stopped at shadow roots, this
-     * walked shadow roots and stopped at iframes. One walk does both now.
-     */
     test("through an iframe", async () => {
         const fixture = getFixture();
         const iframe = document.createElement("iframe");

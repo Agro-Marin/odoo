@@ -16,7 +16,6 @@ import { HootMain } from "./hoot_main.js";
 
 /**
  * @typedef {"failed" | "passed" | "skipped" | "todo"} StatusFilter
- *
  * @typedef {ReturnType<typeof makeUiState>} UiState
  */
 
@@ -117,9 +116,6 @@ export function makeUiState() {
 }
 
 /**
- * Appends the main Hoot UI components in a container, which itself will be appended
- * on the current document body.
- *
  * @returns {Promise<void>}
  */
 export async function setupHootUI() {

@@ -533,10 +533,6 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * What `state.choices` was derived from. `onWillRender` compares it against
-     * `_derivedKey` to decide whether to derive again, so the two must be the same
-     * string for the same inputs - spelling it twice is a cache that fails silently
-     * in whichever direction the two drift.
      * @param {string} searchString
      * @returns {string}
      */

@@ -172,15 +172,6 @@ describe(parseUrl(import.meta.url), () => {
         expect(runner.hasFilter).toBe(false);
     });
 
-    // Hook timeout. Exercised through `_raceHookTimeout` rather than by starting a
-    // nested Runner: nothing in this suite starts one, and a started Runner
-    // installs its own global "error"/"unhandledrejection" listeners, which would
-    // race with the listeners of the Runner executing these very tests.
-    //
-    // `config.hookTimeout` is what makes this deterministic AND fast: the timer is
-    // the native setTimeout captured before any mock, so a few milliseconds are
-    // enough and no clock has to be faked.
-
     const neverSettles = () => new Promise(() => {});
 
     test("a before-test hook that outlives the timeout is reported, not discarded", async () => {
@@ -193,8 +184,6 @@ describe(parseUrl(import.meta.url), () => {
             neverSettles,
         );
 
-        // The caller skips the test body on a non-null return, so the body never
-        // runs against the half-built environment.
         expect(error).not.toBe(null);
         expect(error.message).toInclude("before-test");
         expect(error.message).toInclude("stuck test");
@@ -225,12 +214,8 @@ describe(parseUrl(import.meta.url), () => {
         ).toBe(null);
     });
     test("what the orphaned hooks throw after the timeout is dropped", async () => {
-        // The orphan resolves once the test is over and its environment torn
-        // down, so reporting its fallout would fail a second, unrelated test on
-        // top of the one that timed out.
         const runner = makeTestRunner();
         runner.config.hookTimeout = 10;
-        // The instance is throwaway (see makeTestRunner), so no cleanup needed.
         const reported = [];
         runner._handleError = (error) => reported.push(error);
 
@@ -246,7 +231,6 @@ describe(parseUrl(import.meta.url), () => {
         );
 
         expect(error).not.toBe(null);
-        // Raised before the timeout: the hooks still owned the test, so it stands.
         expect(reported).toHaveLength(1);
 
         lateOnError(new Error("after the timeout, from the orphan"));

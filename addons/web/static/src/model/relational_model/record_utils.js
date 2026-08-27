@@ -74,15 +74,6 @@ export function extractFieldNamesFromExpr(expr) {
  */
 const _modifierDependencyCache = new WeakMap();
 
-/**
- * The graph below is derived from every entry's modifier expressions, so any
- * write to one of those expressions invalidates it. Callers that hold the map
- * say so directly; `patchActiveFields` is handed a single field without its
- * owner and bumps this epoch instead, which retires every cached graph lazily
- * on next read. An unenforced "remember to invalidate" rule was the alternative
- * and it fails silently: the scope simply stops containing the field that
- * started depending on the one that changed.
- */
 let _modifierEpoch = 0;
 
 /**

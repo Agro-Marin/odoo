@@ -194,10 +194,6 @@ export class EmojiPicker extends Component {
     lastSearchTerm;
     keyboardNavigated = false;
     /**
-     * Rows of emoji indices, rebuilt from the laid-out grid. Empty until
-     * `updateEmojiPickerRepr` has run, which it declines to do when the emoji
-     * bundle failed to load - `loadEmoji` swallows that and answers with no
-     * emojis at all, so keyboard navigation must survive the empty case.
      * @type {number[][]}
      */
     emojiMatrix = [];
@@ -253,10 +249,6 @@ export class EmojiPicker extends Component {
         this.setupKeyboardFollow();
     }
 
-    /**
-     * The navbar pages its categories by measuring, and the grid's rows are read
-     * back out of the DOM, so both have to re-measure when their width changes.
-     */
     setupLayoutObservers() {
         onMounted(() => {
             if (!this.emojis.length) {
@@ -299,11 +291,6 @@ export class EmojiPicker extends Component {
         );
     }
 
-    /**
-     * Selecting a category scrolls to its heading - but the heading may not be in
-     * the DOM yet on the patch that selected it, so `shouldScrollElem` holds the
-     * lookup over to the next one rather than giving up.
-     */
     setupCategoryScrolling() {
         onPatched(() => {
             if (!this.emojis.length || !this.shouldScrollElem) {
@@ -345,10 +332,6 @@ export class EmojiPicker extends Component {
         );
     }
 
-    /**
-     * Keep the active emoji in view, but only when the keyboard put it there -
-     * scrolling under the mouse fights the user.
-     */
     setupKeyboardFollow() {
         useEffect(
             () => {
@@ -710,14 +693,6 @@ export class EmojiPicker extends Component {
     }
 }
 
-/**
- * Shows a picker on a small screen, where there is nowhere to put a popover.
- *
- * Two ways, and the caller does not choose between them - having a toggler
- * element to take over decides it. Mounted into that element it is a popout; with
- * no element it is a dialog. Either way exactly one teardown is live at a time,
- * which is what `close()` is for.
- */
 class MobilePickerHost {
     /**
      * @param {{ PickerComponent: any, component: any, addDialog: Function,
@@ -746,7 +721,7 @@ class MobilePickerHost {
     /**
      * @param {{ el: HTMLElement } | undefined} ref
      * @param {Record<string, any>} [openProps]
-     * @returns {Deferred} resolves true if an emoji was picked, false if dismissed
+     * @returns {Deferred}
      */
     open(ref, openProps) {
         const def = new Deferred();

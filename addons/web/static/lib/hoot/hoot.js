@@ -15,7 +15,6 @@ import { setupHootUI } from "./ui/setup_hoot_ui.js";
  * @typedef {import("../hoot-dom/helpers/dom").QueryRectOptions} QueryRectOptions
  * @typedef {import("../hoot-dom/helpers/dom").QueryTextOptions} QueryTextOptions
  * @typedef {import("../hoot-dom/helpers/dom").Target} Target
- *
  * @typedef {import("../hoot-dom/helpers/events").DragHelpers} DragHelpers
  * @typedef {import("../hoot-dom/helpers/events").DragOptions} DragOptions
  * @typedef {import("../hoot-dom/helpers/events").EventType} EventType
@@ -23,9 +22,7 @@ import { setupHootUI } from "./ui/setup_hoot_ui.js";
  * @typedef {import("../hoot-dom/helpers/events").InputValue} InputValue
  * @typedef {import("../hoot-dom/helpers/events").KeyStrokes} KeyStrokes
  * @typedef {import("../hoot-dom/helpers/events").PointerOptions} PointerOptions
- *
  * @typedef {import("./mock/network").ServerWebSocket} ServerWebSocket
- *
  * @typedef {{
  *  runner: Runner;
  *  ui: import("./ui/setup_hoot_ui").UiState
@@ -60,7 +57,6 @@ export { defineTags } from "./core/tag.js";
 export { createJobScopedGetter } from "./hoot_utils.js";
 
 export const globals = copyAndBind(globalThis);
-// global API mocks (patchWindow): the integrated Odoo JS runner at
 const _inTestPage =
     typeof window !== "undefined" &&
     (window.location.pathname.startsWith("/web/tests") ||

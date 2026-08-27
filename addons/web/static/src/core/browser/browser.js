@@ -140,16 +140,9 @@ Object.defineProperty(browserImpl, "innerWidth", {
 });
 
 export const browser =
-    /**
-     * @type {typeof browserImpl & {
-     * location: typeof locationFacade,
-     * innerHeight: number,
-     * innerWidth: number,
-     * scrollX: number,
-     * scrollY: number,
-     * ontouchstart: ((this: Window, ev: TouchEvent) => any) | null | undefined,
-     * }}
-     */ (browserImpl);
+    /** @type {typeof browserImpl & { location: typeof locationFacade, innerHeight: number, innerWidth: number, scrollX: number, scrollY: number, ontouchstart: ((this: Window, ev: TouchEvent) => any) | null | undefined, }} */ (
+        browserImpl
+    );
 
 /**
  * @returns {typeof window["localStorage"]}

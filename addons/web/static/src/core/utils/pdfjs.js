@@ -114,14 +114,6 @@ export async function loadPDFJS() {
 const PDFJS_WASM_URL = "/web/static/lib/pdfjs/web/wasm/";
 
 /**
- * A view of pdfjs whose `getDocument` supplies our wasm location by default,
- * leaving every other export resolving live against the library.
- *
- * `lib` is a module namespace: its properties are non-writable, so *assigning*
- * `view.getDocument` throws `TypeError: Cannot assign to property 'getDocument'
- * of [object Module]` -- the prototype's descriptor refuses the write and this
- * module, like every ESM module, is strict. It has to be defined, not assigned.
- *
  * @param {any} lib
  * @returns {any}
  */

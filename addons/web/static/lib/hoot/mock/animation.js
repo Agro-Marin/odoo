@@ -79,9 +79,6 @@ export function cleanupAnimations() {
 }
 
 /**
- * Turns off all animations triggered programmatically (such as with `animate`),
- * as well as smooth scrolls.
- *
  * @param {boolean} [enable=false]
  */
 export function disableAnimations(enable = false) {
@@ -90,9 +87,6 @@ export function disableAnimations(enable = false) {
 }
 
 /**
- * Restores all suppressed "animation" and "transition" properties for the current
- * test, as they are turned off by default.
- *
  * @param {boolean} [enable=true]
  */
 export function enableTransitions(enable = true) {

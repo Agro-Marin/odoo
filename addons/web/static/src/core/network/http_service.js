@@ -82,8 +82,6 @@ class HttpService {
     }
 }
 
-// The module-level API and the service facade share one prototype, so a patch
-// on HttpService reaches importers of get/post as well (ADR-0021).
 const http = new HttpService();
 
 /**

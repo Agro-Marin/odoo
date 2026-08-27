@@ -277,7 +277,6 @@ export function makeNetworkLogger(prefix, title) {
             : title;
     return {
         /**
-         * Request logger: blue lotus.
          * @param {() => any[]} getData
          */
         logRequest(getData) {
@@ -301,7 +300,6 @@ export function makeNetworkLogger(prefix, title) {
             $groupEnd();
         },
         /**
-         * Response logger: dark orange.
          * @param {() => any[]} getData
          */
         logResponse(getData) {
@@ -328,52 +326,9 @@ export function makeNetworkLogger(prefix, title) {
 }
 
 export const ISSUE_LEVELS = {
-    /**
-     * Suppressed:
-     *
-     * Condition:
-     *  - typically: in "todo" tests where issues should be ignored
-     *
-     * Effect:
-     *  - all errors and warnings are replaced by 'trace' calls
-     */
     suppressed: 0,
-    /**
-     * Trace:
-     *
-     * Condition:
-     *  - default level within a test run
-     *
-     * Effect:
-     *  - warnings are left as-is;
-     *  - errors are replaced by 'trace' calls, so that the actual console error
-     *    comes from the test runner with a summary of all failed reasons.
-     */
     trace: 1,
-    /**
-     * Global:
-     *
-     * Condition:
-     *  - errors which should be reported globally but not interrupt the run
-     *
-     * Effect:
-     *  - warnings are left as-is;
-     *  - errors are wrapped with a "HOOT" prefix, as to not stop the current test
-     *    run. Can typically be used to log test failed reasons.
-     */
     global: 2,
-    /**
-     * Critical:
-     *
-     * Condition:
-     *  - any error compromising the whole test run and should cancel or interrupt it
-     *  - default level outside of a test run (import errors, module root errors, etc.)
-     *
-     * Effect:
-     *  - warnings are left as-is;
-     *  - errors are left as-is, as to tell the server test to stop the current
-     *    (Python) test.
-     */
     critical: 3,
 };
 export const LOG_LEVELS = {

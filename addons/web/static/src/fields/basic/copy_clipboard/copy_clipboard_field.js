@@ -67,12 +67,6 @@ export class CopyClipboardButtonField extends CopyClipboardField {
 
 export class CopyClipboardCharField extends CopyClipboardField {
     static components = { Field: CharField, CopyButton };
-    // A getter, not a snapshot: `mail` REASSIGNS `CharField.props` /
-    // `UrlField.props` at module load to add its onchange-on-keydown props,
-    // while `buildCopyClipboardField` captures the registry entry by
-    // reference and so supplies those props at render time. Spread once at
-    // class-definition time, the schema never saw them and Owl rejected
-    // every render as invalid props.
     static get props() {
         return { ...CopyClipboardField.props, ...CharField.props };
     }
@@ -89,12 +83,6 @@ export class CopyClipboardCharField extends CopyClipboardField {
 
 export class CopyClipboardURLField extends CopyClipboardField {
     static components = { Field: UrlField, CopyButton };
-    // A getter, not a snapshot: `mail` REASSIGNS `CharField.props` /
-    // `UrlField.props` at module load to add its onchange-on-keydown props,
-    // while `buildCopyClipboardField` captures the registry entry by
-    // reference and so supplies those props at render time. Spread once at
-    // class-definition time, the schema never saw them and Owl rejected
-    // every render as invalid props.
     static get props() {
         return { ...CopyClipboardField.props, ...UrlField.props };
     }
@@ -157,12 +145,6 @@ registerField("CopyClipboardButton", copyClipboardButtonField);
  */
 function buildCopyClipboardField(component, wrapped) {
     return {
-        // Spread, never a hand-picked list of keys: picking four of them
-        // silently dropped `fieldDependencies`, and with it the `render_model`
-        // that `dynamic_placeholder` needs, so the picker refused to open on a
-        // CopyClipboardChar. `isEmpty`, `listViewWidth`, `relatedFields` and
-        // `additionalClasses` were going the same way for the next widget that
-        // grew one.
         ...wrapped,
         component,
         supportedAttributes: [

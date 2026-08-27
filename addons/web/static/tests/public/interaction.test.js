@@ -5047,7 +5047,6 @@ describe("DOM effect scope", () => {
         await startInteraction(Test, TemplateTest);
         expect(order.slice(0, 3)).toEqual(["enter", "setup", "leave"]);
         expect(order).toInclude("start");
-        // every `setup`/`start` is bracketed — none escaped the scope
         expect(order.filter((s) => s === "enter").length).toBe(
             order.filter((s) => s === "leave").length,
         );
@@ -5124,8 +5123,6 @@ describe("DOM effect scope", () => {
         const colibri = core.interactions[0];
         const el = queryOne("span");
 
-        // Each DOM write is scoped on its own, so that a caller reaching one
-        // of them directly is covered without also scoping its own work.
         let before = entered;
         colibri.applyAttr(el, "data-x", "1", {});
         expect(entered).toBe(before + 1);
@@ -5194,7 +5191,6 @@ describe("DOM effect scope", () => {
         await click("span");
         expect(handlerInScope).toBe(false);
         expect(defaultPrevented).toBe(true);
-        // the suffixes are consumed, not passed through to addEventListener
         expect(core.interactions[0].listenerRecords[0].event).toBe("click");
     });
 
@@ -5222,7 +5218,6 @@ describe("DOM effect scope", () => {
         await startInteraction(Test, TemplateTest);
         order.length = 0;
         await click("span");
-        // `prevent` runs before the scope is entered: decorator outside, scope in
         expect(order.slice(0, 3)).toEqual(["enter", "body", "leave"]);
     });
 
@@ -5246,7 +5241,6 @@ describe("DOM effect scope", () => {
         expect(seen).toHaveLength(1);
         expect("keepInHistory" in seen[0]).toBe(false);
         expect(seen[0].capture).toBe(true);
-        // the caller's own object is untouched
         expect(options.keepInHistory).toBe(true);
     });
 });

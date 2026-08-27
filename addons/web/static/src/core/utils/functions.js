@@ -3,17 +3,6 @@
 
 import { globalSingleton } from "@web/core/utils/global_singleton";
 
-/**
- * A map that holds object keys weakly and everything else strongly.
- *
- * `memoize` keys on argument IDENTITY, so a plain `Map` pins every object ever
- * passed to a memoized function for the life of the page. Several callers do
- * exactly that -- `memoize((element) => new TableOfContentManager(...))` keys on
- * a DOM node, `memoize((button) => button.isAvailable(...))` on a component --
- * and none of them can ever release what they cached. Weak keys change no
- * semantics: an entry is only ever dropped once nothing else can ask for it,
- * because asking requires holding the key.
- */
 class IdentityKeyMap {
     constructor() {
         /** @type {Map<any, any>} */
@@ -26,8 +15,6 @@ class IdentityKeyMap {
      * @returns {Map<any, any> | WeakMap<object, any>}
      */
     _mapFor(key) {
-        // Symbols are left strong: they are cheap, bounded in practice, and
-        // only became legal WeakMap keys recently.
         return key !== null && (typeof key === "object" || typeof key === "function")
             ? this._weak
             : this._strong;

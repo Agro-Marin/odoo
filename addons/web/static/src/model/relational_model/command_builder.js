@@ -6,9 +6,6 @@ import { x2ManyCommands } from "@web/core/network/commands";
 /** @import { X2ManyCommand, X2ManyRowId } from "@web/core/network/commands" */
 
 /**
- * One command as the ledger holds it: the command itself, plus where it sat in
- * the order the batch produced them.
- *
  * @typedef {{ command: X2ManyCommand, index: number }} LedgerEntry
  */
 

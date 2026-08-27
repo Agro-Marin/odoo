@@ -20,19 +20,6 @@ import {
     invalidateModifierDependencies,
 } from "@web/model/relational_model/record_utils";
 
-/**
- * Merging two descriptions of one field.
- *
- * A field can be described more than once -- named twice in an arch, or named
- * once and also pulled in as another widget's dependency -- and the two
- * descriptions need not agree on whether the field has a `related` sub-schema.
- * `buildActiveFieldFromNode` attaches one to a many2one only when the node
- * carries views, and `addFieldDependencies` attaches one only when the
- * *declared* type is x2many. So a bare description merged with a rich one used
- * to dereference `undefined.activeFields` and take the whole asset bundle with
- * it, in `onWillStart`, naming neither the field nor the view.
- */
-
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
 class Bar extends models.Model {
@@ -56,13 +43,11 @@ class Probe extends Component {
     static props = ["*"];
 }
 
-/** the shape `documents_many2one_avatar` has: a many2one that wants a sub-schema */
 registry.category("fields").add("test_m2o_with_related", {
     component: Probe,
     supportedTypes: ["many2one"],
     relatedFields: [{ name: "name", type: "char" }],
 });
-/** the shape `survey_question_trigger` had: an x2many dependency typed as a scalar */
 registry.category("fields").add("test_dep_mistyped", {
     component: Probe,
     fieldDependencies: [{ name: "line_ids", type: "many2one" }],
@@ -147,9 +132,7 @@ describe("the modifier dependency graph", () => {
             a: makeActiveField(),
             b: makeActiveField({ invisible: true }),
         };
-        // warm the cache while nothing depends on anything
         expect([...computeRevalidationScope(["a"], activeFields)]).toEqual(["a"]);
-        // "True" AND "a" === "a": b now depends on a
         patchActiveFields(activeFields.b, makeActiveField({ invisible: "a" }));
         expect(activeFields.b.invisible).toBe("a");
         expect([...computeRevalidationScope(["a"], activeFields)]).toEqual(["a", "b"]);

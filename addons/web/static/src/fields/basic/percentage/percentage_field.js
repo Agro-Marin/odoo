@@ -26,9 +26,6 @@ export class PercentageField extends NumericInputFieldBase {
      */
     parse(v) {
         const parsed = parsePercentage(v, { allowOperation: true });
-        // `parsePercentage` scales a plain number but hands an Operation back
-        // unscaled, so only an ADDITIVE operand needs the /100: `*2` and `/2`
-        // already act correctly on the stored fraction.
         if (parsed instanceof Operation && ["+", "-"].includes(parsed.operator)) {
             return new Operation(parsed.operator, parsed.operand / 100);
         }

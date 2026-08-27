@@ -13,12 +13,6 @@ import { registry } from "@web/core/registry";
 const STORAGE_KEY = "web.emoji.frequent";
 const MAX_TRACKED = 200;
 
-/**
- * Usage counts per emoji, shared across tabs through the `storage` event.
- *
- * `revision` is what consumers watch: the counts live in a plain object, so a
- * component that wants to re-derive on any change has nothing else to key on.
- */
 class FrequentEmojiService {
     /** @type {Record<string, number>} */
     all;
@@ -30,11 +24,6 @@ class FrequentEmojiService {
         this.all = FrequentEmojiService.read();
     }
 
-    /**
-     * Subscribe to other tabs. Called on the reactive proxy rather than from the
-     * constructor on purpose: an arrow bound in the constructor captures the raw
-     * instance, and writes through it notify nobody.
-     */
     listen() {
         this.onStorage = (/** @type {StorageEvent} */ ev) => this.applyStorage(ev);
         browser.addEventListener("storage", this.onStorage);
@@ -47,14 +36,12 @@ class FrequentEmojiService {
         if (ev.key !== STORAGE_KEY && ev.key !== null) {
             return;
         }
-        // A null key is the whole store being cleared.
         this.all = ev.key === null ? {} : FrequentEmojiService.read(ev.newValue);
         this.revision++;
     }
 
     /**
-     * @param {string | null} [raw] the `storage` event's payload, if this is a
-     *  cross-tab update rather than the initial read
+     * @param {string | null} [raw]
      * @returns {Record<string, number>}
      */
     static read(raw) {
@@ -87,8 +74,7 @@ class FrequentEmojiService {
     }
 
     /**
-     * Tracking is unbounded otherwise: every emoji ever used keeps a counter.
-     * @param {string} keep the emoji just used, which is never a candidate
+     * @param {string} keep
      */
     forgetColdest(keep) {
         const tracked = Object.keys(this.all);

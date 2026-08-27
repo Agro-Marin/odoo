@@ -19,9 +19,12 @@ const useDialogDraggable = makeDraggableHook(
     /** @type {any} */ ({
         name: "useDialogDraggable",
         onWillStartDrag(
-            /**
-             * @type {{ ctx: { current: any }, addCleanup: Function, addStyle: Function, getRect: Function }}
-             */ { ctx, addCleanup, addStyle, getRect },
+            /** @type {{ ctx: { current: any }, addCleanup: Function, addStyle: Function, getRect: Function }} */ {
+                ctx,
+                addCleanup,
+                addStyle,
+                getRect,
+            },
         ) {
             const { height, width } = getRect(ctx.current.element);
             ctx.current.container = document.createElement("div");

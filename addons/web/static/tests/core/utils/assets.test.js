@@ -607,10 +607,6 @@ test("loadBundle: an iframe's own assets are not requested again", async () => {
 });
 
 test("getBundle: a classic descriptor naming only ESM chunks fails loudly", async () => {
-    // The `.esm.` skip exists so the ESM branch can own those files. When the
-    // server picks the classic envelope for a bundle that was built as ESM,
-    // that branch never runs and the skip silently swallowed every script —
-    // `loadBundle` resolved with stylesheets and no JS, and nothing said so.
     mockFetch(
         () =>
             new Response(
@@ -628,8 +624,6 @@ test("getBundle: a classic descriptor naming only ESM chunks fails loudly", asyn
 });
 
 test("getBundle: an ESM chunk alongside a real script is still just skipped", async () => {
-    // The skip is only a contradiction when it leaves nothing behind. A
-    // classic bundle that legitimately carries both must keep working.
     mockFetch(
         () =>
             new Response(
@@ -647,15 +641,7 @@ test("getBundle: an ESM chunk alongside a real script is still just skipped", as
 });
 
 describe("a target document that cannot take the element", () => {
-    /**
-     * Five mount sites in assets.js fall back to `documentElement`; two did
-     * not, and `loadJS` appended AFTER caching its promise — so a throw left a
-     * cache entry that could never settle and every later load of that url in
-     * that document waited on it forever. A hang is the one failure mode with
-     * no message and no stack.
-     */
     function headlessDocument() {
-        // No `head`, and no `documentElement` either, so the fallback fails too.
         return /** @type {Document} */ (
             document.implementation.createDocument(null, null, null)
         );
@@ -678,8 +664,6 @@ describe("a target document that cannot take the element", () => {
     test("a failed mount leaves nothing cached, so a later load can succeed", async () => {
         const targetDoc = headlessDocument();
         await expect(assets.loadJS("/twice.js", { targetDoc })).rejects.toThrow();
-        // the entry was evicted, so this is a fresh attempt and not the same
-        // rejected (or pending) promise handed back
         await expect(assets.loadJS("/twice.js", { targetDoc })).rejects.toThrow();
     });
 });

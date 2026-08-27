@@ -4,7 +4,6 @@
 const MIN_CROP_SIZE = 16;
 const HAVE_METADATA = 1;
 
-/** Our format names, in the order a caller gets them from getSupportedFormats. */
 const FORMAT_NAMES = [
     "aztec",
     "code_39",
@@ -20,8 +19,6 @@ const FORMAT_NAMES = [
 ];
 
 /**
- * ZXing spells the same formats as enum members; map both ways once, because the
- * reverse direction is read on every successful decode.
  * @param {any} ZXing
  * @returns {{ toZXing: Map<string, any>, toName: Map<any, string> }}
  */
@@ -36,7 +33,6 @@ function buildFormatTables(ZXing) {
 }
 
 /**
- * Called once per frame while the camera is open, so it does not allocate.
  * @param {HTMLVideoElement | null} video
  * @returns {boolean}
  */
@@ -45,11 +41,6 @@ export function isVideoElementReady(video) {
 }
 
 /**
- * A `BarcodeDetector` built on ZXing, for the browsers that ship no native one.
- *
- * `cropsAtSource` is the flag the scanner reads to decide whether to hand this a
- * crop rectangle (which it draws from) or to crop the frame itself first.
- *
  * @param {any} ZXing
  * @returns {typeof BarcodeDetector}
  */
@@ -97,8 +88,6 @@ export class ZXingBarcodeDetector {
     }
 
     /**
-     * The rectangle of the frame to decode: the crop the scanner asked for,
-     * unless it is too small to hold a barcode, in which case the whole frame.
      * @param {HTMLVideoElement} video
      * @returns {{x: number, y: number, width: number, height: number}}
      */
@@ -117,7 +106,7 @@ export class ZXingBarcodeDetector {
 
     /**
      * @param {HTMLVideoElement} video
-     * @returns {any} a ZXing BinaryBitmap of the area to decode
+     * @returns {any}
      */
     captureBitmap(video) {
         const { x, y, width, height } = this.barcodeAreaOf(video);
@@ -149,7 +138,7 @@ export class ZXingBarcodeDetector {
 
     /**
      * @param {any} result
-     * @returns {Record<string, any>} in the shape the native BarcodeDetector uses
+     * @returns {Record<string, any>}
      */
     static toDetectedBarcode(result, toName) {
         const { resultPoints } = result;
@@ -194,7 +183,6 @@ export class ZXingBarcodeDetector {
                 ZXingBarcodeDetector.toDetectedBarcode(result, this.formats.toName),
             ];
         } catch (err) {
-            // The overwhelmingly common outcome: this frame held no barcode.
             if (err.name === "NotFoundException") {
                 return [];
             }
@@ -204,9 +192,6 @@ export class ZXingBarcodeDetector {
 }
 
 /**
- * Binds a ZXing build to the detector, so callers construct it the way they
- * construct the native `BarcodeDetector`: `new Detector({ formats })`.
- *
  * @param {any} ZXing
  * @returns {typeof BarcodeDetector}
  */

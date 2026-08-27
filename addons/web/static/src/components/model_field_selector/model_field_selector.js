@@ -46,9 +46,6 @@ export class ModelFieldSelector extends Component {
     state;
 
     /**
-     * The path the popover last reported, applied when it closes. Three states:
-     * `null` means the popover was opened and nothing was picked, `""` means the
-     * field was cleared, and a string is a new path.
      * @type {string | null}
      */
     newPath = null;

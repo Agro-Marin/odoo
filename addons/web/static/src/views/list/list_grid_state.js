@@ -68,14 +68,6 @@ export class ListGridState {
     }
 
     /**
-     * Every member is optional and an absent one is left alone, which is why
-     * each is tested rather than assigned unconditionally.
-     *
-     * Written out rather than driven from a name map. The map version wrote
-     * `this[field] = options[name]` six times, which is six dynamic property
-     * writes in a `@ts-check` file -- unreadable to the checker, and one typo in
-     * the map away from silently setting nothing.
-     *
      * @param {object} options
      */
     update(options) {

@@ -179,8 +179,6 @@ describe("loadDefinitions", () => {
 
 describe("what triggers the fetch", () => {
     /**
-     * The unit tests above drive `loadDefinitions` directly, which says nothing
-     * about *when* it runs. These mount the component so the accordion decides.
      * @param {() => Promise<void>} fill
      */
     async function mountItem(fill) {

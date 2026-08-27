@@ -168,10 +168,6 @@ describe("scrollTop hash", () => {
 
 describe("page readiness", () => {
     test("the page is marked ready even when the boot fails before mounting", async () => {
-        // `is-ready` is what the website builder's iframe observer, the
-        // add-page dialog and every tour block on. A boot that dies in
-        // `lazyloader`, `whenReady` or `startServices` must still release
-        // them — otherwise the reader waits for a page that will never come.
         const body = document.body;
         const had = body.getAttribute("is-ready");
         after(() => {
@@ -187,7 +183,6 @@ describe("page readiness", () => {
         patchWithCleanup(lazyloader, {
             allScriptsLoaded: Promise.reject(boom),
         });
-        // the rejection is the point; swallow it the way public_boot_instance does
         await expect(startPublicApp()).rejects.toThrow(boom.message);
         await Promise.resolve();
         expect(body).toHaveAttribute("is-ready", "true");

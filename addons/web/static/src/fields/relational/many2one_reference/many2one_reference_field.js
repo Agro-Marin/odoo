@@ -28,12 +28,6 @@ export class Many2OneReferenceField extends Many2OneField {
         };
         const { resId, resModel } = this.props.record;
         if (resModel === "ir.attachment" && relation === "ir.attachment" && resId) {
-            // `Many2One.domain` is a THUNK, not a list: it is re-evaluated on
-            // every search so the record's own evalContext stays current.
-            // Narrowing it must therefore produce a thunk too -- assigning the
-            // evaluated list here made Owl reject the props outright
-            // ("'domain' is not a function") and, past validation, made
-            // `Many2XAutocomplete.search` call an Array.
             const baseDomain = props.domain;
             props.domain = () =>
                 Domain.and([

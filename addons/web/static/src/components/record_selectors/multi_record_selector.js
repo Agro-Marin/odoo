@@ -12,10 +12,6 @@ import { RecordAutocomplete } from "./record_autocomplete.js";
 import { useTagNavigation } from "./tag_navigation_hook.js";
 
 /**
- * A tag as `TagsList` renders it. `id` and `colorIndex` are the two halves of
- * one distinction: a tag standing for a record has an id, and one standing for
- * a domain-selector expression has no record to point at and carries a colour.
- *
  * @typedef {{ id?: number, text: string, onDelete: Function, img: string | false,
  * colorIndex?: number }} RecordTag
  */

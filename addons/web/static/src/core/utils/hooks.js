@@ -242,8 +242,6 @@ function _useService(serviceName, optional) {
 export function useSpellCheck({ refName } = {}) {
     const ref = useRef(refName || "spellcheck");
     function toggleSpellcheck(/** @type {Event} */ ev) {
-        // Inside a shadow root `document.activeElement` is the host, so this
-        // never matched and spellcheck stayed off for good.
         /** @type {HTMLElement} */ (ev.target).spellcheck =
             getActiveElement(/** @type {Node} */ (ev.target)) === ev.target;
     }

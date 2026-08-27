@@ -6,11 +6,6 @@ import { AceEditorController } from "@web/components/code_editor/ace_editor_hook
 
 describe.current.tags("headless");
 
-/**
- * A stand-in for the parts of Ace this controller drives. The point of pulling
- * the controller out of `setup` is that it can be exercised like this: no Owl,
- * no DOM, no ace_lib bundle.
- */
 function makeAce() {
     const log = [];
     class Session {
@@ -73,8 +68,6 @@ function makeAce() {
         focus: () => log.push("focused"),
         destroy: () => log.push("editor destroyed"),
     };
-    // Restored after the test: leaking this stub hands the real CodeEditor suites
-    // a fake Ace, and they fail only when run in the same page as this file.
     patchWithCleanup(window, {
         ace: {
             edit: () => editor,
@@ -129,13 +122,10 @@ test("a programmatic value sync is not reported back as an edit", () => {
     controller.attach(document.createElement("div"));
     expect(changes).toEqual([]);
 
-    // Ace fires `change` for setValue too. Reporting that to the caller is how a
-    // value round-trips into an edit loop.
     controller.syncValue("a", "from the outside");
     expect(changes).toEqual([]);
     expect(controller.sessions["a"].getValue()).toBe("from the outside");
 
-    // A change Ace did not originate still reaches the caller.
     controller.sessions["a"].handlers.at(-1)();
     expect(changes).toEqual(["from the outside"]);
 });
@@ -168,8 +158,6 @@ test("detach destroys the editor and every session it opened", () => {
 test("options and theme are inert before an editor exists", () => {
     makeAce();
     const { controller } = makeController();
-    // Owl runs the option effects in registration order after the attach one, but
-    // nothing guarantees an element was there for it.
     expect(() => controller.applyTheme("monokai")).not.toThrow();
     expect(() => controller.applyOptions(true, false, 10)).not.toThrow();
     expect(() => controller.showSession("a", "xml")).not.toThrow();

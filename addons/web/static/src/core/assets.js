@@ -257,20 +257,6 @@ export function loadCSS(url, options) {
 export class AssetsLoadingError extends Error {}
 
 /**
- * Append an asset element, turning a failed append into a REJECTION.
- *
- * Five sites in this file mount with `head || documentElement`; two mounted on
- * `targetDoc.head` alone, and `loadJS` did it AFTER caching its promise — so a
- * throw there left an entry in the cache that could never settle, and every
- * later `loadJS` of that url in that document waited on it forever. A hang is
- * the one failure mode with no message and no stack. Callers pass live
- * documents today, so this is a shape removed rather than a bug observed.
- *
- * `onError` is called SYNCHRONOUSLY, which is why it must not reach for the
- * promise the caller is in the middle of building: both callers name that
- * binding in their eviction closures, and on this path it is still in its
- * temporal dead zone. `loadCSS` evicts from its own outer `.catch` instead.
- *
  * @param {Document} targetDoc
  * @param {HTMLLinkElement | HTMLScriptElement} el
  * @param {string} url
@@ -290,17 +276,8 @@ function mountAsset(targetDoc, el, url, onError) {
 }
 
 /**
- * Read a bundle descriptor into the file lists the loaders consume.
- *
- * Two wire formats reach this: an ESM descriptor, which names its chunks under
- * `files` and carries the specifiers and import map the module loader needs,
- * and the classic one, which IS the file map. Neither is a variant of the
- * other -- they disagree on where the files live and on whether there is an
- * import map at all -- so the shape check and the two readings are one job,
- * separate from fetching the descriptor and from caching its promise.
- *
- * @param {any} result the parsed descriptor
- * @param {URL} url the descriptor's url, named in the error messages
+ * @param {any} result
+ * @param {URL} url
  * @returns {BundleFileNames}
  */
 function readBundleDescriptor(result, url) {
@@ -336,11 +313,6 @@ function readBundleDescriptor(result, url) {
             skippedEsm++;
         }
     }
-    // A classic descriptor naming an ESM chunk contradicts itself: the skip
-    // above exists so the ESM branch can own those files, and here that branch
-    // never ran. Silently, this yielded a bundle with stylesheets and no JS.
-    // Fail loudly instead -- the server decided the wrong format for this
-    // bundle.
     if (skippedEsm && !jsLibs.length) {
         throw new AssetsLoadingError(
             `The loading of ${url} failed: a non-ESM descriptor named ` +
@@ -547,9 +519,6 @@ export const assets = {
                     log("loadESMBundle:injected fresh import map entries=", nFresh);
                 }
             }
-            // One transaction for the whole bundle: these imports run in
-            // parallel and every await between them lets a registry reaction
-            // see the bundle half applied. See bundle_transaction.js.
             const results = await runInBundleTransaction(() =>
                 Promise.all(
                     specifiers.map(async (specifier) => {

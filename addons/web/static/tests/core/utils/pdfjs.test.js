@@ -44,10 +44,6 @@ test("resolves the iframe from a container root element", () => {
     expect(styleEl.textContent).toInclude("button#downloadButton");
 });
 
-/**
- * A stand-in for the pdfjs module namespace: its exports are non-writable and
- * non-configurable, which is what made assigning through a prototype throw.
- */
 function makeNamespaceLike(getDocument) {
     const ns = {};
     Object.defineProperty(ns, "getDocument", {
@@ -71,7 +67,6 @@ test("wraps getDocument over a module namespace, whose exports cannot be assigne
         calls.push(params);
         return "task";
     });
-    // Assigning is what the code used to do, and it throws in strict mode.
     expect(() => {
         Object.create(lib).getDocument = () => {};
     }).toThrow();

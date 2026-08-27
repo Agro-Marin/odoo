@@ -30,13 +30,6 @@ export class JournalDashboardGraphField extends FieldComponent {
     }
 
     /**
-     * The field is plain text, so its contents are not guaranteed to be the
-     * shape both config builders read -- and they read it without asking:
-     * `this.data[0].values` is mapped by one and forEach'd by the other. JSON
-     * that parses to the wrong shape used to reach them and throw out of
-     * `onMounted`, taking the view down; only unparseable JSON was caught. Both
-     * now fail the same way: log, render nothing.
-     *
      * @returns {any[] | null}
      */
     parseSeries() {

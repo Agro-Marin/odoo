@@ -12,7 +12,6 @@ import {
  * @typedef {import("./job").Job} Job
  * @typedef {import("./suite").Suite} Suite
  * @typedef {import("./suite").Test} Test
- *
  * @typedef {{
  *  name: string;
  *  exclude?: string[];
@@ -28,13 +27,6 @@ const {
 } = globalThis;
 
 /**
- * Checks for similarity with other existing tag names.
- *
- * A tag name is considered similar to another if the following conditions are met:
- * - it doesn't include numbers (the number is likely meaningful enough to dissociate
- *   it from other similar tags);
- * - the edit distance between the 2 is <= 10% of the length of the largest string
- *
  * @param {string} tagKey
  * @param {string} tagName
  */
@@ -103,16 +95,7 @@ export function applyTags(job, tags) {
 }
 
 /**
- * Globally defines specifications for a list of tags.
- * This is useful to add metadata or side-effects to a given tag, like an exclusion
- * to prevent specific tags to be added at the same time.
- *
  * @param {...TagDefinition} definitions
- * @example
- *  defineTags({
- *      name: "desktop",
- *      exclude: ["mobile"],
- *  });
  */
 export function defineTags(...definitions) {
     return definitions.map((def) => {
@@ -147,10 +130,6 @@ export function getTagSimilarities() {
 }
 
 /**
- * ! SHOULD NOT BE EXPORTED OUTSIDE OF HOOT
- *
- * Used in Hoot internal tests to remove tags introduced within a test.
- *
  * @private
  * @param {Iterable<string>} tagKeys
  */
@@ -160,10 +139,6 @@ export function undefineTags(tagKeys) {
     }
 }
 
-/**
- * Should **not** be instantiated outside of {@link defineTags}.
- * @see {@link defineTags}
- */
 export class Tag {
     static DEBUG = "debug";
     static ONLY = "only";
@@ -177,7 +152,7 @@ export class Tag {
     }
 
     /**
-     * @param {string} key normalized tag name
+     * @param {string} key
      * @param {TagDefinition} definition
      */
     constructor(key, { name, exclude, before, after }) {

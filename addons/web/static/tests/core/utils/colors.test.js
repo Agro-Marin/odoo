@@ -24,8 +24,6 @@ describe("RGBA_REGEX", () => {
 
 describe("rgbToHex", () => {
     test("blends a long alpha against the default white background", () => {
-        // Rounded to nearest, as `blendColors` does -- this used to read
-        // "#e0e1e3", one step down on two channels, from a `Math.floor`.
         expect(rgbToHex("rgba(10, 20, 30, 0.12345)")).toBe("#e1e2e3");
     });
 

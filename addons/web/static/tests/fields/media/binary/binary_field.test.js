@@ -620,11 +620,6 @@ test("BinaryField: a dependency never unlocks an arch-readonly filename field", 
 });
 
 /**
- * `binary` and `pdf_viewer` write the value and the `filename=` field in one
- * changeset, so neither can go through `field.update`. They used to each carry
- * their own copy of that logic and had drifted apart in two places; this pins
- * them to the same answers.
- *
  * @param {any} proto
  * @param {{ fileNameField?: string, modelFields: Record<string, any>, currentName?: string }} ctx
  * @param {{ name?: string, data?: any }} payload

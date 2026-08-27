@@ -15,7 +15,6 @@ import { getRunner } from "./main_runner.js";
 
 /**
  * @typedef {ArgumentPrimitive | `${ArgumentPrimitive}[]` | null} ArgumentType
- *
  * @typedef {"any"
  *  | "bigint"
  *  | "boolean"
@@ -32,20 +31,14 @@ import { getRunner } from "./main_runner.js";
  *  | "symbol"
  *  | "url"
  *  | "undefined"} ArgumentPrimitive
- *
  * @typedef {{
  *  ignoreOrder?: boolean;
  *  partial?: boolean;
  * }} DeepEqualOptions
- *
  * @typedef {[string, ArgumentType]} Label
- *
  * @typedef {"expected" | "group" | "received" | "technical"} MarkupType
- *
  * @typedef {string | RegExp | { new(): any }} Matcher
- *
  * @typedef {QueryRegExp | QueryExactString | QueryPartialString} QueryPart
- *
  * @typedef {{
  *  assertions: number;
  *  failed: number;
@@ -55,7 +48,6 @@ import { getRunner } from "./main_runner.js";
  *  tests: number;
  *  todo: number;
  * }} Reporting
- *
  * @typedef {import("./core/runner").Runner} Runner
  */
 
@@ -191,7 +183,6 @@ function resolve(value) {
 }
 
 /**
- * Useful to deal with symbols as primitives
  * @param {unknown} a
  * @param {unknown} b
  */
@@ -603,8 +594,6 @@ const windowTarget = {
 };
 
 /**
- * Global object used in {@link getFuzzyScore} when performing a lookup, to avoid
- * computing score for the same string twice.
  * @type {Record<string, number> | null}
  */
 let fuzzyScoreMap = null;
@@ -974,9 +963,6 @@ export function formatTime(value, unit) {
 }
 
 /**
- * Based on Java's String.hashCode, a simple but not rigorously collision resistant
- * hashing function.
- *
  * @param {...string} strings
  */
 export function generateHash(...strings) {
@@ -992,12 +978,6 @@ export function generateHash(...strings) {
 }
 
 /**
- * Returns the constructor of the given value, and if it is "Object": tries to
- * infer the actual constructor name from the string representation of the object.
- *
- * This is needed for cursed JavaScript objects such as "Arguments", which is an
- * array-like object without a proper constructor.
- *
  * @param {unknown} value
  */
 export function getConstructor(value) {
@@ -1027,18 +1007,8 @@ export function getConstructor(value) {
 }
 
 /**
- * This function computes a score that represent the fact that the
- * string contains the pattern, or not
- *
- * - If the score is 0, the string does not contain the letters of the pattern in
- *   the correct order.
- * - if the score is > 0, it actually contains the letters.
- *
- * Better matches will get a higher score: consecutive letters are better,
- * and a match closer to the beginning of the string is also scored higher.
- *
- * @param {string} pattern (normalized & lower-cased)
- * @param {string} string (normalized)
+ * @param {string} pattern
+ * @param {string} string
  */
 export function getFuzzyScore(pattern, string) {
     string = string.toLowerCase();
@@ -1069,10 +1039,6 @@ export function getFuzzyScore(pattern, string) {
 }
 
 /**
- * Returns the value associated to the given object.
- * If 'toStringValue' is set, the result will concatenate any inner object that
- * also has an associated sync value. This is typically useful for nested Blobs.
- *
  * @param {unknown} object
  * @param {boolean} toStringValue
  */
@@ -1152,8 +1118,6 @@ export function isLabel(label) {
 }
 
 /**
- * Returns whether the given value is either `null` or `undefined`.
- *
  * @template T
  * @param {T} value
  * @returns {T extends (undefined | null) ? true : false}
@@ -1211,17 +1175,9 @@ export function isSafe(value) {
 }
 
 /**
- * Returns the edit distance between 2 strings
- *
  * @param {string} a
  * @param {string} b
  * @returns {number}
- * @example
- *  levenshtein("abc", "àbc"); // => 0
- * @example
- *  levenshtein("abc", "def"); // => 3
- * @example
- *  levenshtein("abc", "adc"); // => 1
  */
 export function levenshtein(a, b) {
     if (!a.length) {
@@ -1244,12 +1200,8 @@ export function levenshtein(a, b) {
 }
 
 /**
- * Returns a list of items that match the given pattern, ordered by their 'score'
- * (descending). A higher score means that the match is closer (e.g. consecutive
- * letters).
- *
  * @template {{ key: string }} T
- * @param {QueryPart[]} parsedQuery normalized string or RegExp
+ * @param {QueryPart[]} parsedQuery
  * @param {Iterable<T>} items
  * @param {keyof T} [property]
  * @returns {T[]}
@@ -1300,7 +1252,6 @@ export function makeLabel(value, type) {
 }
 
 /**
- * Special label type used in test results
  * @param {string} className
  */
 export function makeLabelIcon(className) {
@@ -1310,13 +1261,6 @@ export function makeLabelIcon(className) {
 }
 
 /**
- * The returned wrapper accepts one argument the underlying `Runner` method does
- * not: a trailing options object whose `global` flag detaches the hook from the
- * enclosing suite (see the `isGlobal` branch below). Declaring the return as
- * `Runner[T]` hid that — every call site passing `{ global: true }` was a
- * typecheck error for an option the runtime has always honoured, ten of them
- * across `web`'s test framework with five in `module_set.hoot.js` alone.
- *
  * @template {keyof Runner} T
  * @param {T} name
  * @returns {(...args: [...Parameters<Runner[T]>, ({ global?: boolean })?]) => ReturnType<Runner[T]>}
@@ -1361,8 +1305,6 @@ export function makeRuntimeHook(name) {
 }
 
 /**
- * Returns whether one of the given `matchers` matches the given `value`.
- *
  * @param {unknown} value
  * @param {...Matcher} matchers
  * @returns {boolean}
@@ -1575,8 +1517,6 @@ export function title(string) {
 }
 
 /**
- * Replaces invisible characters in a given value with their unicode value.
- *
  * @param {unknown} value
  */
 export function toExplicitString(value) {
@@ -1838,9 +1778,6 @@ export class ElementMap extends Map {
     }
 
     /**
-     * Returns a flat list of values mapped by the given function.
-     * Additionnaly, group headers are inserted if the map has more than 1 element.
-     *
      * @template [N=T]
      * @param {(value: T, element: Element, map: ElementMap) => N[]} mapFn
      * @param {(value: T, element: Element, map: ElementMap) => boolean} predicate
@@ -1875,7 +1812,6 @@ export class HootError extends Error {
     level;
 
     /**
-     *
      * @param {string} [message]
      * @param {ErrorOptions & {
      *  level?: keyof typeof import("./core/logger").ISSUE_LEVELS;
@@ -2023,9 +1959,6 @@ export class Markup {
     }
 }
 
-/**
- * Centralized version of {@link EventTarget} to make cleanups more streamlined.
- */
 export class MockEventTarget extends EventTarget {
     /** @type {string[]} */
     static publicListeners = [];

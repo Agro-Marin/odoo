@@ -134,11 +134,6 @@ export class Dropdown extends Component {
         this._boundHandleClick = this.handleClick.bind(this);
         this._boundHandleMouseEnter = this.handleMouseEnter.bind(this);
 
-        // Read once, and it has to be: useDropdownNesting subscribes to this object
-        // and useDropdownGroup registers it, both in effects keyed on nothing. A
-        // caller that swaps the prop would keep driving a dropdown that no longer
-        // listens - silently, which is why the swap is refused below rather than
-        // ignored. search_panel.js memoises its per-section state for this reason.
         this.state = this.props.state || useDropdownState();
         this.nesting = useDropdownNesting(this.state);
         this.group = useDropdownGroup();
@@ -171,12 +166,6 @@ export class Dropdown extends Component {
         this.setupTargetBinding();
     }
 
-    /**
-     * The menu is a popover, and most of what it needs is only knowable at open
-     * time - the position depends on whether this dropdown has a parent, and the
-     * classes on whether it is rendering as a bottom sheet - so the options are
-     * getters rather than values.
-     */
     setupPopover() {
         const self = this;
         /** @type {any} */
@@ -212,8 +201,6 @@ export class Dropdown extends Component {
         };
         this.popover = usePopover(DropdownPopover, options);
 
-        // The popover renders in its own subtree, so it does not re-render when
-        // this one does; bumping the token is how a render here reaches it.
         onRendered(() => {
             if (this.popoverRefresher) {
                 this.popoverRefresher.token++;
@@ -228,11 +215,6 @@ export class Dropdown extends Component {
         onWillDestroy(disposeEffect);
     }
 
-    /**
-     * The toggle is whatever the caller put in the default slot, so the classes
-     * and listeners that make it a toggle are applied to the element rather than
-     * declared in a template.
-     */
     setupTargetBinding() {
         useEffect(
             (target) => this.setTargetElement(target),

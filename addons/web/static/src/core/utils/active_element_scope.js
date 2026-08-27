@@ -52,8 +52,6 @@ export function useActiveElementScope() {
         if (own?.el) {
             return own.el;
         }
-        // An unmounted component has no element and therefore no enclosing
-        // scope; `document` is what the default resolver answers anyway.
         const el = getComponentElement(component);
         return el ? enclosingScopeOf(el) : document;
     };

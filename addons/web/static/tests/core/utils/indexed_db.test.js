@@ -543,14 +543,6 @@ test("a quota failure surfaces IDBQuotaExceededError when estimate() itself thro
 });
 
 describe("a callback that rejects must not wedge the mutex", () => {
-    /**
-     * `_deleteDatabase` resolves and never rejects, which is the contract its
-     * callers rely on. It used to reach that with `then(resolve)` alone, so a
-     * REJECTING callback left the promise pending — and the one caller that
-     * passes such a callback is `_checkVersion`, from the constructor, inside
-     * the mutex. Everything queued behind it would have waited forever, with
-     * no message and no stack.
-     */
     test("_deleteDatabase settles when its callback rejects", async () => {
         const idb = new IndexedDB(CACHE_NAME, "v1");
         await expect(
@@ -562,8 +554,6 @@ describe("a callback that rejects must not wedge the mutex", () => {
     test("the mutex still runs the work queued behind it", async () => {
         const idb = new IndexedDB(CACHE_NAME, "v1");
         await idb._deleteDatabase(() => Promise.reject(new Error("boom")));
-        // If the promise above had stayed pending the mutex would never
-        // advance and this would hang rather than answer.
         await idb.write("things", "k", { a: 1 });
         expect(await idb.read("things", "k")).toEqual({ a: 1 });
         await deleteCacheDB();

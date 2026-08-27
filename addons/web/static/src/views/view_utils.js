@@ -123,9 +123,9 @@ export function handleBeforeUnload(
     }
     const canBeacon = Boolean(record.resId) && !inDialog && useSendBeacon;
     if (!canBeacon) {
-        /**
-         * @type {import("@web/model/relational_model/urgent_save_coordinator").UrgentSaveCoordinator}
-         */ (record.model.urgentSave).run(() => Promise.resolve());
+        /** @type {import("@web/model/relational_model/urgent_save_coordinator").UrgentSaveCoordinator} */ (
+            record.model.urgentSave
+        ).run(() => Promise.resolve());
         if (record.dirty) {
             ev.preventDefault();
             ev.returnValue = "Unsaved changes";

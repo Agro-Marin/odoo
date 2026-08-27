@@ -598,7 +598,6 @@ export const dateRangeField = {
                 if (!otherEnd) {
                     continue;
                 }
-                // Exactly one end filled, and the empty one is required.
                 if (
                     !record.data[otherEnd] !== thisEndIsEmpty &&
                     evaluateBooleanExpr(

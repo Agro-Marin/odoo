@@ -5,7 +5,6 @@ import { Job } from "./job.js";
 
 /**
  * @typedef {import("./tag").Tag} Tag
- *
  * @typedef {import("./test").Test} Test
  */
 

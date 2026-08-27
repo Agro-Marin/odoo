@@ -292,8 +292,6 @@ export class DragSession {
 
         safePrevent(ev);
         target.focus();
-        // This walked iframes and stopped at shadow roots; `getDeepActiveElement`
-        // walked shadow roots and stopped at iframes. One walk does both.
         const activeElement = getDeepActiveElement(target);
         if (activeElement && !activeElement.contains(target)) {
             /** @type {HTMLElement} */ (activeElement).blur();

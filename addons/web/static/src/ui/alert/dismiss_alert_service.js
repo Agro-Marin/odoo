@@ -7,8 +7,6 @@ import { registry } from "@web/core/registry";
 class DismissAlertService {
     constructor() {
         this.destroyed = false;
-        // Bound through the instance rather than registered directly, so a
-        // patch on onClick reaches the listener too (ADR-0021).
         this.listener = (/** @type {MouseEvent} */ ev) => this.onClick(ev);
         whenReady(() => {
             if (!this.destroyed) {

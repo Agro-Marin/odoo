@@ -154,9 +154,9 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
         for (const child of node.children) {
             const viewType = child.tagName;
             const { ArchParser } =
-                /**
-                 * @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }}
-                 */ (viewRegistry.get(viewType));
+                /** @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }} */ (
+                    viewRegistry.get(viewType)
+                );
             const childCopy = /** @type {Element} */ (child.cloneNode(true));
             const archInfo = new ArchParser().parse(
                 childCopy,

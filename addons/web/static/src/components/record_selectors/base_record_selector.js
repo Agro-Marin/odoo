@@ -8,8 +8,6 @@ import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 
 /**
- * The name service answers with nothing both for an id the reader cannot see and
- * for one that no longer exists, and a selector has to render something either way.
  * @param {Record<number, string>} displayNames
  * @param {number} id
  * @returns {string}

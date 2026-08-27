@@ -8,11 +8,6 @@
  */
 
 /**
- * The window an element actually belongs to.
- *
- * The bare `getComputedStyle` is the top-level window's; called on a node from
- * an iframe it answers about a document that is not the node's own.
- *
  * @param {Node} node
  * @returns {Window}
  */
@@ -21,18 +16,6 @@ export function viewOf(node) {
 }
 
 /**
- * The focused element of `node`'s own tree, or null.
- *
- * `document.activeElement` answers for the top-level document only: for a node
- * inside a shadow root it reports the shadow HOST, and for a node in an iframe
- * it reports that iframe. Either way an `indexOf` or a `contains` test against
- * nodes of `node`'s own tree silently misses, and the miss reads as "nothing is
- * focused" rather than as an error.
- *
- * A root's own `activeElement` is always a node OF that root's tree -- focus
- * deeper inside a nested shadow root is retargeted to its host -- so
- * `contains()` still answers correctly for anything below it.
- *
  * @param {Node | DocumentOrShadowRoot | null} [node]
  * @returns {Element | null}
  */
@@ -47,20 +30,6 @@ export function getActiveElement(node) {
 }
 
 /**
- * The innermost focused element, descending through every nested shadow root
- * AND every same-origin iframe.
- *
- * Use this when the element itself is the point -- blurring it, reading its
- * value. Use `getActiveElement` when the question is "where is focus, relative
- * to this tree".
- *
- * Both descents are needed and neither implies the other: an `<iframe>` IS the
- * active element of its parent document, and a shadow host IS the active
- * element of its own tree. `drag_session` walked iframes and stopped at shadow
- * roots; this walked shadow roots and stopped at iframes. A cross-origin frame
- * denies `contentDocument`, which ends the walk at the frame itself -- the best
- * answer available, and the one the DOM gives.
- *
  * @param {Node | DocumentOrShadowRoot | null} [node]
  * @returns {Element | null}
  */
@@ -79,7 +48,6 @@ export function getDeepActiveElement(node) {
                 /** @type {HTMLIFrameElement} */ (active)?.contentDocument
                     ?.activeElement ?? null;
         } catch {
-            // A cross-origin frame denies `contentDocument`.
             inFrame = null;
         }
         if (!inFrame || inFrame === active) {
@@ -90,20 +58,6 @@ export function getDeepActiveElement(node) {
 }
 
 /**
- * Marks a host so its shadow tree can be FOUND by a selector.
- *
- * There is no selector for "has a shadow root", and no event when one is
- * attached: the only way to discover a host is to walk every element and read
- * `.shadowRoot`. Measured on an 8000-element tree, that scan costs ~1.3ms --
- * about +40% on `getTabableElements`, which runs on the focus-trap path per Tab
- * keypress. Paying that on every form so a handful of pages can be traversed
- * correctly is the wrong trade.
- *
- * An attribute moves the cost to attach time, where there is one host, and lets
- * the traversal find them with the query it was already running. Attach shadow
- * roots through here so they stay reachable; a raw `attachShadow` is invisible
- * to `getTabableElements` and to anything else that has to cross the boundary.
- *
  * @param {HTMLElement} host
  * @param {ShadowRootInit} [init]
  * @returns {ShadowRoot}
@@ -143,9 +97,6 @@ export function isVisible(el) {
     if (!el) {
         return false;
     }
-    // A Document or a Window is always "visible". Comparing against the global
-    // `document` / `window` only recognises the top-level pair, so an element
-    // living in an iframe fell through to the measuring branch below.
     if (el.nodeType === Node.DOCUMENT_NODE || el.window === el) {
         return true;
     }
@@ -239,8 +190,6 @@ const TABABLE_SELECTORS = FOCUSABLE_SELECTORS.map(
 );
 const FOCUSABLE_SELECTOR = FOCUSABLE_SELECTORS.join(",");
 const TABABLE_SELECTOR = TABABLE_SELECTORS.join(",");
-// Hosts ride along in the same query, so finding them costs one more selector
-// term rather than a second pass over every element.
 const TABABLE_OR_HOST_SELECTOR = `${TABABLE_SELECTOR},${SHADOW_HOST_SELECTOR}`;
 
 /**
@@ -251,9 +200,6 @@ export function isFocusable(el) {
 }
 
 /**
- * Every tabable element of `container`, in tab order, descending into any
- * shadow root attached through `attachShadowRoot`.
- *
  * @param {HTMLElement | DocumentFragment} [container=document.body]
  * @returns {HTMLElement[]}
  */
@@ -275,11 +221,6 @@ export function getTabableElements(container = document.body) {
  * @param {HTMLElement[]} out
  */
 function collectTabable(root, out) {
-    // Almost every tree has no shadow host at all, and the combined query below
-    // pays an `el.matches()` per result to tell hosts from tabables -- measured
-    // at +13% on an 8000-element form, on the focus-trap path. One attribute
-    // query answers whether that work is needed; it is indexed, so on the
-    // common path it costs nothing and the loop is what it always was.
     if (!root.querySelector(SHADOW_HOST_SELECTOR)) {
         for (const el of /** @type {NodeListOf<HTMLElement>} */ (
             root.querySelectorAll(TABABLE_SELECTOR)
@@ -302,8 +243,6 @@ function collectTabable(root, out) {
         ) {
             out.push(el);
         }
-        // A host contributes its shadow tree AT ITS OWN POSITION, which is
-        // where the browser puts it in the tab order.
         if (el.shadowRoot && !inert) {
             collectTabable(/** @type {any} */ (el.shadowRoot), out);
         }

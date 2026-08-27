@@ -83,7 +83,6 @@ export class CodeEditor extends Component {
     }
 
     /**
-     * The live Ace instance, for the rare caller that needs it. Prefer props.
      * @returns {any}
      */
     get aceEditor() {

@@ -68,9 +68,6 @@ export class ExpressionEditorDialog extends Component {
     }
 
     /**
-     * One check, and it is local: an expression is valid if it evaluates against a
-     * record of the right shape. No server round trip, unlike the domain dialog -
-     * which is why this one is not async and the two confirm paths are not shared.
      * @returns {boolean}
      */
     isExpressionValid() {

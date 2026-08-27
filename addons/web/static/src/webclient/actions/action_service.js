@@ -215,28 +215,6 @@ function chainOnClose(own, stolen) {
 
 export class ActionManager {
     /**
-     * The five services the manager and its executors call are bound here, once.
-     *
-     * They used to be reached as `am.env.services.X` at eleven call sites, each
-     * carrying the same three-line `eslint-disable no-restricted-syntax` — one
-     * architectural fact copied eleven times. The rule is right to fire:
-     * `useService` adds the lifecycle protection a raw read skips. It just has
-     * no answer for a plain object with no lifecycle, and the answer was always
-     * the second argument `start()` already receives and this class threw away.
-     *
-     * `services` is a defaulted third parameter, not the second: the second is
-     * the router, and `makeActionManager(env, router)` is public API that
-     * `enterprise/web_studio/.../editor.js` calls. The default keeps every
-     * existing caller working, and a bare `env.services` in a default parameter
-     * is not what the lint selector matches (it wants `<holder>.env.services`).
-     *
-     * Suffixed `Service` uniformly because one of them would otherwise collide:
-     * `this.dialog` is the open dialog record, not the dialog service.
-     *
-     * `?? {}` so a partial env fails where it used to: at the call site that
-     * needs the service, not at construction. Four test files build an env by
-     * hand with `services: {}` or none, and the reads were previously lazy.
-     *
      * @param {import("@web/env").OdooEnv} env
      * @param {RouterLike} [router]
      * @param {Record<string, any>} [services]

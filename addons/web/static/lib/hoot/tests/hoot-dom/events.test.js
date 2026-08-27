@@ -1677,11 +1677,6 @@ describe(parseUrl(import.meta.url), () => {
             "focus@input",
             "focusin@input",
             "focusin@form",
-            // The 'Tab' that moved focus here also fires its keyup, and the
-            // browser aims that keyup at wherever focus LANDED -- not at the
-            // element the sequence started on. hoot-dom re-resolves the target
-            // after keydown for exactly that reason (b567f9a12b3, port of
-            // upstream d0842c1bc86); these expectations predate the fix.
             "keyup:Tab@input",
             "keyup:Tab@form",
             "keydown:Enter@input",
@@ -1713,11 +1708,6 @@ describe(parseUrl(import.meta.url), () => {
             "focus@button",
             "focusin@button",
             "focusin@form",
-            // The 'Tab' that moved focus here also fires its keyup, and the
-            // browser aims that keyup at wherever focus LANDED -- not at the
-            // element the sequence started on. hoot-dom re-resolves the target
-            // after keydown for exactly that reason (b567f9a12b3, port of
-            // upstream d0842c1bc86); these expectations predate the fix.
             "keyup:Tab@button",
             "keyup:Tab@form",
             "keydown:Enter@button",
@@ -1750,11 +1740,6 @@ describe(parseUrl(import.meta.url), () => {
             "focus@button",
             "focusin@button",
             "focusin@form",
-            // The 'Tab' that moved focus here also fires its keyup, and the
-            // browser aims that keyup at wherever focus LANDED -- not at the
-            // element the sequence started on. hoot-dom re-resolves the target
-            // after keydown for exactly that reason (b567f9a12b3, port of
-            // upstream d0842c1bc86); these expectations predate the fix.
             "keyup:Tab@button",
             "keyup:Tab@form",
             "keydown:Enter@button",

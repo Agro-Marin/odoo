@@ -277,8 +277,6 @@ test("zoom is bounded at both ends", async () => {
     }
     expect(viewer.state.scale).toBe(viewer.minScale);
 
-    // zoomOut has always clamped; without the matching ceiling a scroll wheel
-    // takes the image to a scale nothing can pan back from.
     for (let i = 0; i < 400; i++) {
         viewer.zoomIn({ scroll: true });
     }
@@ -299,8 +297,6 @@ describe("createFileViewer", () => {
 
     test("a list with nothing viewable in it opens no viewer", () => {
         const { open, close } = createFileViewer();
-        // `files` is non-empty, so guarding on its length says nothing about
-        // whether anything in it can be shown.
         open(IMAGE_FILE, [{ name: "b.bin", isViewable: false }]);
         expect(registeredViewer()).toBe(undefined);
         close();

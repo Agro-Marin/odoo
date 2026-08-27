@@ -23,7 +23,6 @@ import { ensureTest } from "../main_runner.js";
  *  type?: ResponseType;
  *  url?: string;
  * }} MockResponseInit
- *
  * @typedef {AbortController
  *  | MockBroadcastChannel
  *  | MockMessageChannel
@@ -106,7 +105,6 @@ async function dispatchMessage(target, data, transfer) {
 }
 
 /**
- *
  * @param {{ headers?: HeadersInit } | undefined} object
  * @param {string} content
  */
@@ -159,11 +157,6 @@ function markOpen(instance) {
 }
 
 /**
- * Helper used to parse JSON-RPC request/response parameters, and to make their
- * "jsonrpc", "id" and "method" properties non-enumerable, as to make them more
- * inconspicuous in console logs, effectively highlighting the 'params' or 'result'
- * keys.
- *
  * @param {string} stringParams
  */
 function parseJsonRpcParams(stringParams) {
@@ -400,29 +393,7 @@ export async function mockedFetch(input, init) {
 }
 
 /**
- * Mocks the fetch function by replacing it with a given `fetchFn`.
- *
- * The return value of `fetchFn` is used as the response of the mocked fetch, or
- * wrapped in a {@link MockResponse} object if it does not meet the required format.
- *
  * @param {typeof mockFetchFn} [fetchFn]
- * @example
- *  mockFetch((input, init) => {
- *      if (input === "/../web_search_read") {
- *          return { records: [{ id: 3, name: "john" }] };
- *      }
- *      // ...
- *  });
- * @example
- *  mockFetch((input, init) => {
- *      if (input === "/translations") {
- *          const translations = {
- *              "Hello, world!": "Bonjour, monde !",
- *              // ...
- *          };
- *          return new Response(JSON.stringify(translations));
- *      }
- *  });
  */
 export function mockFetch(fetchFn) {
     ensureTest("mockFetch");
@@ -430,10 +401,6 @@ export function mockFetch(fetchFn) {
 }
 
 /**
- * Activates mock WebSocket classe:
- *  - websocket connections will be handled by `window.fetch` (see {@link mockFetch});
- *  - the `onWebSocketConnected` callback will be called after a websocket has been created.
- *
  * @param {typeof mockWebSocketConnection} [onWebSocketConnected]
  */
 export function mockWebSocket(onWebSocketConnected) {
@@ -442,18 +409,7 @@ export function mockWebSocket(onWebSocketConnected) {
 }
 
 /**
- * Activates mock Worker and SharedWorker classes:
- *  - actual code fetched by worker URLs will then be handled by `window.fetch`
- *  (see {@link mockFetch});
- *  - the `onWorkerConnected` callback will be called after a worker has been created.
- *
  * @param {typeof mockWorkerConnections[number]} [onWorkerConnected]
- * @example
- *  mockWorker((worker) => {
- *      worker.addEventListener("message", (event) => {
- *         expect.step(event.type);
- *      });
- *  });
  */
 export function mockWorker(onWorkerConnected) {
     ensureTest("mockWorker");
@@ -525,20 +481,10 @@ export class MockCookie {
     }
 
     /**
-     * Follows the `document.cookie` setter (RFC 6265 §5.2), because the code
-     * under test is written against a browser, not against this jar. Treating
-     * every `;`-separated part as its own cookie and splitting each on *every*
-     * `=` made the double disagree with Chrome on every non-trivial case:
-     * `SameSite=Lax` was stored as a cookie of its own, a value containing `=`
-     * was truncated at the first one, and `max-age=0` was ignored so a delete
-     * left the name behind with an empty value instead of removing it.
-     *
      * @param {string} value
      */
     set(value) {
         const [pair, ...attributes] = String(value).split(R_SEMICOLON);
-        // Only the first part is the name/value pair, and it splits at the
-        // FIRST `=` -- everything after it, `=` included, is the value.
         const separator = pair.indexOf("=");
         const name = separator === -1 ? "" : pair.slice(0, separator).trim();
         const cookieValue = separator === -1 ? pair : pair.slice(separator + 1);
@@ -553,9 +499,6 @@ export class MockCookie {
                 .toLowerCase();
             const attrValue =
                 attrSeparator === -1 ? "" : attribute.slice(attrSeparator + 1).trim();
-            // Last occurrence wins, as it does in the browser. Only `max-age`
-            // is honoured: nothing in the code base writes `expires`, and
-            // reading it would tie the jar to the mocked clock.
             if (attrName === "max-age") {
                 expired = $parseInt(attrValue, 10) <= 0;
             }
@@ -856,9 +799,6 @@ export class MockRequest extends Request {
     }
 
     /**
-     * In tests, requests objects are expected to be read by multiple network handlers.
-     * As such, their 'body' isn't consumed upon reading.
-     *
      * @protected
      * @param {string} reader
      * @param {boolean} toStringValue
@@ -905,9 +845,6 @@ export class MockResponse extends Response {
     }
 
     /**
-     * Reading the 'body' of a response always consumes it, as opposed to the {@link MockRequest}
-     * body.
-     *
      * @protected
      * @param {string} reader
      * @param {boolean} toStringValue

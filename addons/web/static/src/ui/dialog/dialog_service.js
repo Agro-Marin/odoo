@@ -83,9 +83,7 @@ export class DialogService {
             return remove(params);
         };
         const subEnv = reactive(
-            /**
-             * @type {{ id: number, close: Function, isActive: boolean, isClosing: boolean, scrollToOrigin?: () => void }}
-             */ ({
+            /** @type {{ id: number, close: Function, isActive: boolean, isClosing: boolean, scrollToOrigin?: () => void }} */ ({
                 id,
                 close,
                 isActive: true,

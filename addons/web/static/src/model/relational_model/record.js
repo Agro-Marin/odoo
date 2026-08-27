@@ -71,15 +71,6 @@ const NO_UNDO = () => {};
 const MULTI_EDIT_RESULT = Symbol("multiEditResult");
 
 /**
- * `_update` answers a multi-edit dispatch with a sentinel-keyed envelope, so
- * that the caller can tell "the edit was handed to the multi-save path, which
- * answered X" from "the edit was applied here and there is nothing to report".
- *
- * Both exits of `update` have to open it. Leaking the envelope makes a caller
- * that tests the result for truthiness -- `DynamicGroupList.moveRecord` does,
- * to decide whether to revert a drag -- read a refused multi-save as a
- * successful one, because the envelope is an object and `false` is not.
- *
  * @param {any} dispatched
  * @returns {{ dispatched: boolean, result: any }}
  */
@@ -403,9 +394,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * Whether an edit is staged, ignoring the `dirty` flag -- which can be set
-     * by a field that reported itself invalid without producing a value.
-     *
      * @returns {boolean}
      */
     get _hasChanges() {
@@ -413,14 +401,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * The values the server last returned, with no pending edit applied.
-     *
-     * `data` is this overlaid with `_changes`, so the pair answers "what did
-     * this field hold before the user touched it?" -- a question consumers
-     * outside the model have, and used to answer by reading `_values` and
-     * `_changes` directly across a tree boundary. Those are this record's
-     * bookkeeping and its collaborators'; this is the public half.
-     *
      * @returns {Record<string, any>}
      */
     get savedData() {
@@ -537,11 +517,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * `_editState` is this record's own field, so the two collaborators that
-     * need to take and put back an edit-state snapshot ask for the behaviour
-     * rather than reaching for the object. The record is the face; nothing
-     * outside it names `_editState`.
-     *
      * @returns {void}
      */
     _snapshotEditState() {
@@ -549,7 +524,7 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * @returns {boolean} whether a snapshot was there to restore
+     * @returns {boolean}
      */
     _restoreEditState() {
         return this._editState.restoreSnapshot();
@@ -1078,11 +1053,6 @@ export class RelationalRecord extends DataPoint {
             try {
                 result = await this.model.multiEditDispatch(this, changes);
             } catch (e) {
-                // Every other failure below unwinds the x2many snapshots taken
-                // above; this one used to propagate straight out and leave them
-                // applied. `_multiSave` discards the selected records on a
-                // rejected save, but not on one from the commands it replays
-                // first or from the `onWillSaveMulti` hook.
                 rollbackLists();
                 restoreDirty();
                 throw e;

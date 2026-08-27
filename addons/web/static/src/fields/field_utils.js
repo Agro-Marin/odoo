@@ -32,10 +32,6 @@ export function parseDimensionAttr(value) {
 }
 
 /**
- * The `enable_formatting` reading, split out because `monetary` needs it while
- * taking its input type from an ATTRIBUTE rather than from `options.type` --
- * which is why it used to carry its own copy of these three lines.
- *
  * @param {Record<string, any>} options
  * @returns {boolean}
  */
@@ -60,16 +56,6 @@ export function extractNumericOptions({ options }) {
 }
 
 /**
- * Write a binary field and, when the arch named one through `filename=`, the
- * char field carrying the file name -- in ONE changeset, which is why this
- * cannot go through `field.update`, whose whole signature is a single key.
- *
- * The two call sites this replaces had each got one half right: the binary
- * field guarded `fileNameField in record.fields` but blanked the name to `""`,
- * a value the ORM does not treat as an empty Char; the pdf viewer blanked to
- * `false` but wrote the key even when the named field was not on the record.
- * Both halves are kept here.
- *
  * @param {import("@web/model/relational_model/record").RelationalRecord} record
  * @param {{ valueField: string, fileNameField?: string, data?: string | false, name?: string }} params
  * @returns {Promise<void>}

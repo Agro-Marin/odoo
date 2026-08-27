@@ -18,9 +18,6 @@ export function createFileViewer() {
         if (!file.isViewable) {
             return;
         }
-        // Guard the list that is actually handed over, not the one that came in:
-        // `files` may be non-empty and hold nothing viewable, and a FileViewer
-        // opened on an empty list renders a viewer with no file in it.
         const viewableFiles = files.filter((candidate) => candidate.isViewable);
         if (!viewableFiles.length) {
             return;

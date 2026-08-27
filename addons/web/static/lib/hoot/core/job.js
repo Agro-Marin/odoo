@@ -12,7 +12,6 @@ import { applyTags } from "./tag.js";
  *  timeout?: number;
  *  todo?: boolean;
  * }} JobConfig
- *
  * @typedef {import("./tag").Tag} Tag
  */
 

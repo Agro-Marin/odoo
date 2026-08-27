@@ -1932,8 +1932,6 @@ test("a swapped `state` prop is refused rather than silently ignored", async () 
     parent.stateA.close();
     await animationFrame();
 
-    // The dropdown subscribed to stateA in setup and cannot be moved onto stateB.
-    // Left to itself it would keep obeying stateA while the caller drove stateB.
     expect.errors(1);
     parent.state.which = "b";
     await animationFrame();

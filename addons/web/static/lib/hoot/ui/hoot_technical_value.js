@@ -34,8 +34,6 @@ const {
 } = globalThis;
 
 /**
- * Compacted version of {@link owlXml} removing all whitespace between tags.
- *
  * @type {typeof String.raw}
  */
 function xml(template, ...substitutions) {

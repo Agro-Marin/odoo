@@ -10,7 +10,7 @@ export const SPECIAL = Symbol("special");
 /**
  * @template T
  * @param {T} value
- * @returns {T | undefined} `undefined` when the value has no JSON form
+ * @returns {T | undefined}
  */
 function toWire(value) {
     const json = JSON.stringify(value);
@@ -256,7 +256,6 @@ export function propertiesFromState(state, target) {
         }
         const copy = toWire(field);
         if (!copy) {
-            // No JSON form, so nothing to restore -- and nothing to reparent.
             continue;
         }
         const parent = target.searchViewFields[copy.relatedPropertyField?.name];

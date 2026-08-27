@@ -592,11 +592,6 @@ class TestEsbuildIntegration(TransactionCase):
 
 @tagged("web_unit", "web_assets")
 class TestEsbuildSettings(TransactionCase):
-    """`ir.qweb` used to re-derive read/cast/warn/default over
-    `ir.config_parameter`; it now uses the typed readers that model already
-    exposes.  What matters is that the two agree, which is precisely what the
-    re-derivation stopped doing."""
-
     def setUp(self):
         super().setUp()
         self.ICP = self.env["ir.config_parameter"].sudo()
@@ -623,9 +618,6 @@ class TestEsbuildSettings(TransactionCase):
         )
 
     def test_fail_closed_agrees_with_every_other_boolean_parameter(self):
-        """`no`, `off` and `none` used to mean True here and False everywhere
-        else, so an operator disabling fail-closed the obvious way turned an
-        esbuild error into a 500 instead of a fallback."""
         IrQweb = self.env["ir.qweb"]
         for raw in ("0", "false", "no", "off", "none", ""):
             with self.subTest(raw=raw):
@@ -1382,11 +1374,6 @@ class TestNativeNodesDispatch(TransactionCase):
                 impl_mock.assert_called_once()
 
     def test_forced_fallback_is_cached_under_its_own_key(self):
-        """It used to bypass the ormcache, so every request rebuilt the whole
-        per-file answer -- measured at 0.053 s and 19 `AssetsBundle`
-        constructions against 0.000 s and 0 for a cache hit, for as long as the
-        override (or the circuit-breaker cooldown, up to 600 s) lasted.  The
-        degraded render is now a cache entry of its own, keyed `esbuild_ok`."""
         self.env["ir.config_parameter"].sudo().set_param(
             "web.esbuild.force_fallback_bundles", self.BUNDLE
         )
@@ -1426,11 +1413,6 @@ class TestEsbuildLockCursor(TransactionCase):
         return self.env["ir.qweb"]
 
     def test_readwrite_yields_a_dedicated_cursor(self):
-        """It used to hand back `self.env.cr`.  `pg_try_advisory_xact_lock`
-        releases at transaction end, so the lock then outlived the compile by
-        the whole rest of the request, and every worker that wanted the same
-        bundle meanwhile fell into the per-file branch -- a different page, not
-        just a slower one."""
         self.assertFalse(self.env.cr.readonly)
         with self._qweb._get_esbuild_lock_cursor("b.x") as lock_cr:
             self.assertIsNotNone(lock_cr)
@@ -1882,21 +1864,12 @@ class TestGeneratedAssetDomains(TransactionCase):
         )
 
     def test_reuse_only_accepts_a_row_the_controller_would_serve(self):
-        """The reuse check in `_save_esm_attachment` used to match on `url` and
-        `public` alone, while `/web/assets/esm/<unique>/<filename>` also
-        requires `res_model`, `res_id` and `create_uid`.  A row differing in
-        `create_uid` -- a `group_system` user duplicating the attachment, a
-        restore, a migration -- therefore satisfied reuse and not serving: the
-        build was skipped, no row was written, and the `<script src>` the page
-        emitted answered 404, cached in the `assets` ormcache and invisible to
-        the GC, which filters on `create_uid` too."""
         IrQweb = self.env["ir.qweb"]
         Attachment = self.env["ir.attachment"].sudo()
         content = "export const reuse_probe = 1;\n"
         url = f"/web/assets/esm/{cache_hash(content.encode())[:16]}/g4.reuse.esm.js"
         Attachment.search([("url", "=", url)]).unlink()
 
-        # Correct in every respect but the author.
         admin = self.env.ref("base.user_admin")
         self.env["ir.attachment"].with_user(admin).create(
             {
@@ -2406,9 +2379,6 @@ class TestTestSatelliteGating(TransactionCase):
 
 @tagged("web_unit", "web_assets")
 class TestEsmPersistenceDegradation(TransactionCase):
-    """A persistence failure must degrade to an inline `<script>`, never take
-    the page render down."""
-
     def _node(self, exc, raise_on_decline=False):
         IrQweb = self.env["ir.qweb"]
         with patch.object(type(IrQweb), "_save_esm_attachment", side_effect=exc):
@@ -2423,11 +2393,6 @@ class TestEsmPersistenceDegradation(TransactionCase):
         self.assertNotIn("src", attrs)
 
     def test_any_other_persistence_failure_also_inlines(self):
-        """This caught `ReadOnlySqlTransaction` alone, while
-        `_save_esm_attachment_rows`' last-resort `create` runs on the request
-        cursor outside its own `try` and can raise anything -- so a filestore
-        or integrity error took down the whole page render, for a bundle whose
-        code was in hand and inlineable."""
         for exc in (ValueError("filestore write failed"), OSError("ENOSPC")):
             with self.subTest(exc=type(exc).__name__):
                 tag, attrs = self._node(exc)
@@ -2448,11 +2413,6 @@ class TestEsmPersistenceDegradation(TransactionCase):
 @tagged("web_unit", "web_assets")
 class TestEsmAttachmentRowsAreNotDuplicated(TransactionCase):
     def test_the_writing_cursor_re_checks_the_urls(self):
-        """The reuse search runs on the request cursor and the rows are
-        committed out of band, and every cursor here is `repeatable read` -- so
-        a row another transaction committed after the snapshot is invisible to
-        the check that decides whether to write it.  Re-reading on the cursor
-        that writes closes the window to that transaction."""
         IrQweb = self.env["ir.qweb"]
         url = "/web/assets/esm/dup0/g4.dup.esm.js"
         self.env["ir.attachment"].sudo().search([("url", "=", url)]).unlink()
@@ -2485,11 +2445,6 @@ class TestEsmAttachmentRowsAreNotDuplicated(TransactionCase):
 
 @tagged("web_unit", "web_assets")
 class TestPageScopedScriptsAreRenderedOnce(TransactionCase):
-    """The import map and the loader shim are page-scoped, not bundle-scoped.
-    Only the debug branch used to know that; the prod branch emitted both for
-    every bundle, so a page with two prod bundles carried two copies of the
-    shim (5,554 bytes each, the second inert)."""
-
     def _pre(self, bundle, specs):
         IrQweb = self.env["ir.qweb"]
         return [
@@ -2527,8 +2482,6 @@ class TestPageScopedScriptsAreRenderedOnce(TransactionCase):
         self.assertEqual(self._kinds(second), ["other"])
 
     def test_dropping_a_specifier_the_page_lacks_is_reported(self):
-        """Dropping a later bundle's whole map is only sound if the map already
-        rendered resolves everything this one needs, and nothing checked it."""
         IrQweb = self.env["ir.qweb"]
         logger = get_asset_logger("esm")
         with patch.object(ir_qweb_assets, "request", SimpleNamespace()):
@@ -2551,10 +2504,6 @@ class TestPageScopedScriptsAreRenderedOnce(TransactionCase):
 
 @tagged("web_unit", "web_assets")
 class TestAssetLinkCacheKey(TransactionCase):
-    """`rtl` and `autoprefix` reach only the stylesheet pipeline, so carrying
-    them into a JS-only lookup splits one answer across two ormcache entries
-    per text direction and costs a language lookup for nothing."""
-
     def _observe(self, **kwargs):
         IrQweb = self.env["ir.qweb"]
         seen = {}
@@ -2590,18 +2539,6 @@ class TestAssetLinkCacheKey(TransactionCase):
 
 @tagged("post_install", "-at_install", "web_assets")
 class TestBundleDescriptorFormat(HttpCase):
-    """`/web/bundle/<name>`'s envelope must follow how the bundle was built.
-
-    The controller used to key that on ``esm_registry().runtime_bundle_names``
-    -- ``esm.runtime_bundles`` plus dynamic children -- which is an intention
-    someone declares, not a property of the artefact. For an ESM bundle nobody
-    declared, the classic envelope was emitted instead, and it cannot carry
-    one: its inline ``<script>`` nodes have no ``src``, and its only real
-    script is the ``.esm.`` chunk that ``getBundle`` skips by design so the ESM
-    branch can own it. ``loadBundle()`` therefore resolved with stylesheets and
-    silently no JS.
-    """
-
     def _descriptor(self, bundle_name):
         response = self.url_open(f"/web/bundle/{bundle_name}")
         self.assertEqual(response.status_code, 200, bundle_name)
@@ -2629,11 +2566,6 @@ class TestBundleDescriptorFormat(HttpCase):
             self.assertTrue(payload.get("specifiers"), name)
 
     def test_no_bundle_is_served_classic_while_naming_an_esm_chunk(self):
-        """The contradiction itself, over every ESM bundle this install has.
-
-        A classic descriptor whose only script is a ``.esm.`` chunk yields zero
-        loadable scripts on the client, with no error anywhere.
-        """
         installed = set(
             self.env["ir.module.module"]
             .search([("state", "=", "installed")])

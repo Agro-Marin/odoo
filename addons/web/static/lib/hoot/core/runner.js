@@ -75,17 +75,13 @@ const { isPrevented, mockPreventDefault } = _window;
  *  readonly timeout: (ms: number) => CurrentConfigurators;
  *  readonly todo: () => CurrentConfigurators;
  * }} CurrentConfigurators
- *
  * @typedef {{
  *  count: number;
  *  message: string;
  *  name: string;
  * }} GlobalIssueReport
- *
  * @typedef {Suite | Test} Job
- *
  * @typedef {import("./job").JobConfig} JobConfig
- *
  * @typedef {{
  *  icon?: string;
  *  label: string;
@@ -94,7 +90,6 @@ const { isPrevented, mockPreventDefault } = _window;
  *  tags?: string[];
  *  touch?: boolean;
  * }} Preset
- *
  * @typedef {import("./config").SearchFilter} SearchFilter
  */
 
@@ -297,13 +292,9 @@ export class Runner {
         /** @type {Test | null} */
         currentTest: null,
         /**
-         * List of tests that have been run
          * @type {Set<Test>}
          */
         done: new Set(),
-        /**
-         * List of IDs of tests that have failed (previously AND during this run).
-         */
         failedIds: new Set(storageGet(STORAGE.failed)),
         /**
          * @type {Record<string, GlobalIssueReport>}
@@ -314,12 +305,6 @@ export class Runner {
          */
         globalWarnings: {},
         /**
-         * Dictionnary containing whether a job is included or excluded from the
-         * current run. Values are numbers defining priority:
-         *  - 0: inherits inclusion status from parent object
-         *  - +1/-1: included/excluded by URL
-         *  - +2/-2: included/excluded by explicit test tag (readonly)
-         *  - +3/-3: included/excluded by preset (readonly)
          * @type {Record<"id" | "tag", Record<string, number>>}
          */
         includeSpecs: {
@@ -329,12 +314,10 @@ export class Runner {
         /** @type {"ready" | "running" | "done"} */
         status: "ready",
         /**
-         * List of suites that will be run (only available after {@link Runner.start})
          * @type {Suite[]}
          */
         suites: [],
         /**
-         * List of tests that will be run (only available after {@link Runner.start})
          * @type {Test[]}
          */
         tests: [],
@@ -617,18 +600,6 @@ export class Runner {
     }
 
     /**
-     * Registers a callback that will be executed at the end of the current test
-     * entity:
-     *
-     * - inside of a test: executed at the end of the *current* test, after all
-     *  assertions have been completed;
-     *
-     * - inside of a suite: executed at the end of the *current* suite, after all
-     *  tests have been run. Note that neither "after" nor "before" callbacks will
-     *  be called if the suite is empty (= no tests to run);
-     *
-     * - outside of a suite: executed at the end of *every* suite
-     *
      * @param {...Callback<Job>} callbacks
      */
     after(...callbacks) {
@@ -655,13 +626,6 @@ export class Runner {
     }
 
     /**
-     * Registers a callback that will be executed at the end of each test in the
-     * current test entity:
-     *
-     * - inside of a suite: executed for all tests in the *current* suite;
-     *
-     * - outside of a suite: executed for every single test accross *all* suites.
-     *
      * @param {...Callback<Test>} callbacks
      */
     afterEach(...callbacks) {
@@ -685,18 +649,6 @@ export class Runner {
     }
 
     /**
-     * Registers a callback that will be executed at the start of the current test
-     * entity:
-     *
-     * - inside of a test: executed at the start of the *current* test, before any
-     *  assertion have been completed;
-     *
-     * - inside of a suite: executed at the start of the *current* suite, before any
-     *  test is run. Note that neither "before" nor "before" callbacks will be called
-     *  if the suite is empty (= no tests to run);
-     *
-     * - outside of a suite: executed at the start of *every* suite
-     *
      * @param {...Callback<Job>} callbacks
      */
     before(...callbacks) {
@@ -723,13 +675,6 @@ export class Runner {
     }
 
     /**
-     * Registers a callback that will be executed at the start of each test in the
-     * current test entity:
-     *
-     * - inside of a suite: executed for all tests in the *current* suite;
-     *
-     * - outside of a suite: executed for every single test accross *all* suites.
-     *
      * @param {...Callback<Test>} callbacks
      */
     beforeEach(...callbacks) {
@@ -852,11 +797,6 @@ export class Runner {
     }
 
     /**
-     * Registers callbacks that will be executed when an error occurs during the
-     * execution of the test runner.
-     *
-     * If called within a test, the given callbacks will only be called once.
-     *
      * @param {...Callback<ErrorEvent | PromiseRejectionEvent>} callbacks
      */
     onError(...callbacks) {
@@ -892,17 +832,6 @@ export class Runner {
     }
 
     /**
-     * Boot function starting all registered tests and suites.
-     *
-     * The returned promise is resolved after all tests (and teardowns) have been
-     * executed. Its value is an object containing the list of tests and suites
-     * that have been run.
-     *
-     * An optional "dry" option can be passed to the function to only prepare the
-     * list of tests and suites that will be run, without actually running them.
-     * It will then reset all tests' run functions to allow them to be registered
-     * again with the actual run functions.
-     *
      * @param {...Job} jobs
      */
     async start(...jobs) {
@@ -1019,8 +948,6 @@ export class Runner {
 
             let timeoutId = 0;
 
-            // Skipped when the hooks did not complete: the body would run without
-            // the environment they were still building.
             const testPromise = beforeTestError
                 ? Promise.resolve()
                 : Promise.resolve(test.run());
@@ -1235,13 +1162,6 @@ export class Runner {
     }
 
     /**
-     * Enriches the given function with test modifiers, which are:
-     * - `debug`: only run in debug mode
-     * - `only`: only run this test/suite
-     * - `skip`: skip this test/suite
-     * - `todo`: mark this test/suite as todo
-     * - `tags`: add tags to this test/suite
-     *
      * @template {(...args: any[]) => any} T
      * @template {false | () => Job} C
      * @param {T} fn
@@ -1251,7 +1171,6 @@ export class Runner {
     _addConfigurators(fn, getCurrent) {
         /**
          * @typedef {((...args: DropFirst<Parameters<T>>) => Configurators) & Configurators} ConfigurableFunction
-         *
          * @typedef {{
          *  readonly debug: ConfigurableFunction;
          *  readonly only: ConfigurableFunction;
@@ -1294,20 +1213,7 @@ export class Runner {
         }
 
         /**
-         * Modifies the current test/suite configuration.
-         *
-         * - `timeout`: sets the timeout for the current test/suite;
-         * - `multi`: sets the number of times the current test/suite will be run.
-         *
          * @type {Configurators["config"]}
-         * @example
-         *  // Will timeout each of its tests after 10 seconds
-         *  describe.config({ timeout: 10_000 });
-         *  describe("Expensive tests", () => { ... });
-         * @example
-         *  // Will be run 100 times
-         *  test.config({ multi: 100 });
-         *  test("non-deterministic test", async () => { ... });
          */
         function config(...configs) {
             $assign(currentConfig, ...configs);
@@ -1321,18 +1227,7 @@ export class Runner {
         }
 
         /**
-         * Adds tags to the current test/suite.
-         *
-         * Tags can be a string, a list of strings, or a spread of strings.
-         *
          * @type {Configurators["tags"]}
-         * @example
-         *  // Will be tagged with "desktop" and "ui"
-         *  test.tags("desktop", "ui");
-         *  test("my test", () => { ... });
-         * @example
-         *  test.tags("mobile");
-         *  test("my mobile test", () => { ... });
          */
         function tags(...tagNames) {
             currentConfig.tags.push(...getTags(tagNames));
@@ -1391,8 +1286,6 @@ export class Runner {
                         );
                     }
                     this.debug = job;
-                // A debug job is also an "only" job: it must be included and
-                // reported as unsuitable for CI just the same.
                 // falls through
                 case Tag.ONLY:
                     if (!this.dry) {
@@ -1498,7 +1391,6 @@ export class Runner {
     }
 
     /**
-     * Executes a given callback when not in debug mode.
      * @param {() => Promise<void>} callback
      */
     async _execAfterCallback(callback) {
@@ -1510,26 +1402,6 @@ export class Runner {
     }
 
     /**
-     * Runs one hook phase of a test against the configured hook timeout, and
-     * returns the error it failed with (`null` when it completed in time).
-     *
-     * A timeout is returned as an error rather than discarded: `Promise.race`
-     * cannot cancel the losing branch, so a stuck hook keeps running orphaned,
-     * and treating that as success let the test body run against an environment
-     * the hooks were still building — surfacing the failure inside the body
-     * instead of naming the hook in the run. The caller skips the body on a
-     * non-null return; the test itself then fails on "no assertions ran", since
-     * a HootError bypasses the per-test result (see `_handleError`).
-     *
-     * Because that branch cannot be cancelled, `runHooks` receives its error
-     * handler from here rather than closing over the runner's: once the timeout
-     * has won, anything the orphan goes on to throw is dropped. It resolves
-     * after the test is over, when the environment it was building is already
-     * torn down, so its errors would land on whichever test is current by
-     * then — failing a second, unrelated test on top of the one that actually
-     * timed out. The timeout itself was already reported; the orphan's fallout
-     * adds no information.
-     *
      * @param {"before-test" | "after-test"} phase
      * @param {Test} test
      * @param {(onError: Runner["_handleError"]) => Promise<void>} runHooks
@@ -1713,7 +1585,7 @@ export class Runner {
 
     /**
      * @param {Job[]} jobs
-     * @param {boolean} [implicitInclude] fallback include value for sub-jobs
+     * @param {boolean} [implicitInclude]
      * @returns {Job[]}
      */
     _prepareJobs(jobs, implicitInclude = !this._includeFilterCount) {
@@ -2048,16 +1920,6 @@ export class Runner {
 
     /**
      * @param {Runner["state"]["includeSpecs"]["id"]} idSpecs
-     *
-     * Dropping an unresolvable id is what the interactive UI needs — it keeps
-     * ids in the URL across runs, so a renamed test would otherwise wedge the
-     * page — but it is fail-open: once the last id is dropped `hasFilter` is
-     * false and the runner silently runs the WHOLE bundle. A single typo in a
-     * `&id=` filter therefore turns a one-file run into a full-suite one that
-     * reports success (warm runner: exit 0 after 180 s) or dies on the harness
-     * timeout with nothing naming the bad id (`odoo-bin`: 10108 tests, 900 s,
-     * "Script timeout exceeded"). Headless runs have no user to read the
-     * warning, so there the same condition is fatal.
      */
     _simplifyIncludeSpecs(idSpecs) {
         let hasChanged = false;

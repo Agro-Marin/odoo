@@ -406,9 +406,6 @@ test("test display_notification client action with links", async () => {
     });
     await animationFrame();
     expect(".o_notification_manager .o_notification").toHaveCount(1);
-    // No title was passed, and the template inlines a title into the content as
-    // "<title>. " rather than giving it an element of its own -- so the content
-    // reading exactly the message IS the assertion that none was rendered.
     expect(
         ".o_notification_manager .o_notification .o_notification_content",
     ).toHaveText("message test <R&D> <R&D>");

@@ -7,7 +7,7 @@ import { browser } from "@web/core/browser/browser";
 /**
  * @typedef {{ row: number, column: number }} CursorPosition
  * @typedef AceEditorParams
- * @property {{ el: HTMLElement | null }} ref host element for the editor
+ * @property {{ el: HTMLElement | null }} ref
  * @property {() => string} getValue
  * @property {() => string | number} getSessionId
  * @property {() => string | undefined} getMode
@@ -21,16 +21,6 @@ import { browser } from "@web/core/browser/browser";
  * @property {CursorPosition} [initialCursorPosition]
  */
 
-/**
- * One Ace editor's sessions, options and lifetime.
- *
- * A session per `sessionId` is the point of the whole thing - switching sessions
- * is what lets a caller keep an undo history and a cursor per document while one
- * editor renders them - and the map belongs to the editor, not to a render: it
- * dies with the element.
- *
- * Separate from the hook so it can be driven without mounting anything.
- */
 export class AceEditorController {
     /** @param {AceEditorParams} params */
     constructor(params) {
@@ -39,10 +29,6 @@ export class AceEditorController {
         this.sessions = {};
         /** @type {any} */
         this.editor = null;
-        /**
-         * Ace fires `change` for a programmatic setValue too, and reporting that
-         * back to the caller as an edit is how a value round-trips into a loop.
-         */
         this.ignoreAceChange = false;
         this.onSessionChange = () => {
             if (!this.ignoreAceChange && this.editor) {
@@ -56,7 +42,7 @@ export class AceEditorController {
 
     /**
      * @param {HTMLElement} el
-     * @returns {() => void} teardown
+     * @returns {() => void}
      */
     attach(el) {
         const editor = window.ace.edit(el);
@@ -68,8 +54,6 @@ export class AceEditorController {
         );
         editor.on("blur", () => this.params.onBlur?.());
 
-        // Ace hands out a session of its own; adopt it as the first one rather
-        // than replacing it, so the initial value is not set twice.
         const session = editor.getSession();
         this.sessions[this.params.getSessionId()] ??= session;
         session.setValue(this.params.getValue());

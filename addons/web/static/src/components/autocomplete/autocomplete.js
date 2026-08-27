@@ -76,15 +76,6 @@ export class AutoComplete extends Component {
         menuCssClass: {},
     };
 
-    /**
-     * Coordination state, grouped by the question each flag answers. Every one
-     * of these was previously assigned into `this` from wherever it was first
-     * needed — six of them were never declared at all, in a file that opens
-     * `// @ts-check` — so the only way to learn the set was to grep for
-     * `this.`. They are still eleven separate signals because they answer
-     * eleven separate questions; what was missing was saying so.
-     */
-
     inEdition = false;
     isOptionSelected = false;
     forceValFromProp = false;
@@ -170,11 +161,6 @@ export class AutoComplete extends Component {
         this.setupPresentation();
     }
 
-    /**
-     * Typing schedules one load. `pendingPromise` is what a keypress arriving
-     * mid-flight waits on - enter and tab both have to know whether the options
-     * on screen answer the text in the input.
-     */
     setupInputDebounce() {
         this.debouncedProcessInput = useDebounced(
             async () => {
@@ -198,12 +184,6 @@ export class AutoComplete extends Component {
         );
     }
 
-    /**
-     * Anything that closes the list from outside it: a click elsewhere, and a
-     * scroll of some container that would carry the input out from under the
-     * menu. The document's own scroll is not one of those - the menu is
-     * positioned against the input and follows it.
-     */
     setupDismissal() {
         useClickAway((node) => this.externalClose(node), {
             getAnchor: () => this.root.el,
@@ -224,11 +204,6 @@ export class AutoComplete extends Component {
         onWillDestroy(() => this._removeGlobalListeners());
     }
 
-    /**
-     * Two shapes, and they are not variants of one: as a dropdown the list is a
-     * positioned menu that opens on demand, inline it is always open and loads
-     * its sources once at setup.
-     */
     setupPresentation() {
         if (this.props.dropdown) {
             this._dropdownOptions = {};

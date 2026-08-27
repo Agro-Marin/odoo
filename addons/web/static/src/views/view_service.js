@@ -45,16 +45,10 @@ import { registry } from "@web/core/registry";
  */
 
 /**
- * What `loadViews` actually answers. It was declared
- * `Record<string, ViewDescription>`, which describes only the `views` member --
- * `@ts-check` could not see the difference because the object is built through
- * an `any` cast, and every caller uses the real shape (`view.js` reads
- * `result.views[type]` and `result.fields`).
- *
  * @typedef {Object} ViewDescriptions
- * @property {Record<string, any>} fields the requested model's own fields
- * @property {Record<string, any>} relatedModels every model reached by the arch
- * @property {Record<string, ViewDescription>} views one per requested view type
+ * @property {Record<string, any>} fields
+ * @property {Record<string, any>} relatedModels
+ * @property {Record<string, ViewDescription>} views
  */
 
 const GET_VIEWS_MODELS = [

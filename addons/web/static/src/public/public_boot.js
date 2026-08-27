@@ -124,15 +124,6 @@ export async function startPublicApp() {
         /** @type {any} */ (odoo).isReady = true;
         return env;
     } finally {
-        // `is-ready` says the boot has FINISHED, not that it succeeded, and it
-        // is the only thing that says so: the builder's iframe observer
-        // (`website_builder_action.js`), `add_page_dialog` and every tour block
-        // on it. It used to be set in a `finally` guarding the mount alone,
-        // with three awaits ahead of it — so a boot that died in `lazyloader`,
-        // `whenReady` or `startServices` never reached it and left every reader
-        // waiting for a page that was never going to arrive. Widened to guard
-        // the whole boot; `odoo.isReady` stays the flag that means "and it
-        // worked".
         const settled = (/** @type {Promise<any>} */ prom) => prom.then(noop, noop);
         settled(Promise.resolve(env?.services["public.interactions"]?.isReady)).then(
             () => document.body?.setAttribute("is-ready", "true"),

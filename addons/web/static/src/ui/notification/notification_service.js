@@ -45,9 +45,7 @@ class NotificationService {
         /** @type {Set<string>} */
         this.declaredProps = new Set(Object.keys(notificationProps));
         this.notifications = reactive(
-            /**
-             * @type {Record<number, { id: number, props: Record<string, any>, onClose?: () => void }>}
-             */ ({}),
+            /** @type {Record<number, { id: number, props: Record<string, any>, onClose?: () => void }>} */ ({}),
         );
 
         registry

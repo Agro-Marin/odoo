@@ -27,11 +27,6 @@ function convertBoolToPyExpr(value) {
 }
 
 /**
- * `null` rides in from `combineModifiers`, which accepts it because its
- * dominant input is `Element.getAttribute`. It stops here: every one of these
- * reaches `convertBoolToPyExpr(x || false)`, so an absent modifier becomes
- * `"False"` however it was spelled.
- *
  * @typedef {{
  * context?: string;
  * invisible?: boolean | string | null;
@@ -110,15 +105,6 @@ export function makeActiveField({
 }
 
 /**
- * A patch may carry a `related` sub-schema for a field the target describes
- * without one -- the same field named twice in an arch where only one node has
- * a sub-view, or a widget dependency that declared an x2many with a scalar
- * type. Both readers below then dereferenced `activeField.related.activeFields`
- * on `undefined` and killed the whole asset bundle with a `TypeError` that
- * named neither the field nor the view. Adopting the patch's sub-schema is what
- * the caller means in every such case: the two nodes describe one field, and
- * the richer description wins.
- *
  * @param {Record<string, any>} activeField
  * @returns {{ activeFields: Record<string, any>, fields: Record<string, any> }}
  */
@@ -269,10 +255,6 @@ export function createPropertyActiveField(property) {
 }
 
 /**
- * `null` is accepted because the dominant caller is `Element.getAttribute`,
- * which answers `string | null` for an absent attribute -- and an absent
- * modifier is exactly what `undefined` already means here.
- *
  * @param {boolean | string | null | undefined} mod1
  * @param {boolean | string | null | undefined} mod2
  * @param {"AND" | "OR"} operator
@@ -341,10 +323,6 @@ export function patchActiveFields(activeField, patch) {
         before[1] !== activeField.readonly ||
         before[2] !== activeField.required
     ) {
-        // The dependency graph is cached per activeFields map, and this
-        // function is handed one field without its owner. Bump the epoch so
-        // every cached graph is recomputed on next read rather than relying on
-        // each caller to remember which map it just changed.
         invalidateAllModifierDependencies();
     }
     activeField.onChange = activeField.onChange || patch.onChange;

@@ -30,10 +30,6 @@ export class BooleanField extends FieldComponent {
     }
 
     /**
-     * The single override point for subclasses that save on toggle. Kept as a
-     * getter rather than a duplicated `onChange`, which is what the toggle and
-     * its list variant each used to carry.
-     *
      * @returns {{ save?: boolean } | undefined}
      */
     get updateOptions() {

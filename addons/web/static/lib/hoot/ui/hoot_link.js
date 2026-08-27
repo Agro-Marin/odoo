@@ -24,8 +24,6 @@ const {
 } = globalThis;
 
 /**
- * Link component which computes its href lazily (i.e. on focus or pointerenter).
- *
  * @extends {Component<HootLinkProps, import("../hoot").Environment>}
  */
 export class HootLink extends Component {

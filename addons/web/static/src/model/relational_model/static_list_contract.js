@@ -49,13 +49,6 @@ export const INTERNAL_STATE_REACHED = [
 ];
 
 /**
- * Modules allowed to reach the internals above.
- *
- * Nothing imports this. `tooling/architecture/js_private_access.py` reads it
- * out of this file with a regular expression, so it is gate input rather than
- * dead code -- an import-graph sweep will offer to delete it, and deleting it
- * silently widens what the gate permits.
- *
  * @type {string[]}
  */
 export const INTERNAL_COLLABORATORS = [

@@ -72,11 +72,6 @@ class Base(models.AbstractModel):
             ]
         )
         groups = self.with_context(read_group_expand=True).formatted_read_group(
-            # `limit` is `int | bool` here and False means "no limit", which is
-            # what `set_limit and limit` yields when the caller does not want
-            # one. `formatted_read_group` now takes `int | None` and hands the
-            # value to SQL, where a boolean is `LIMIT false` -- a DatatypeMismatch
-            # on every search panel that does not set a limit.
             domain,
             [field_name],
             ["__count"],

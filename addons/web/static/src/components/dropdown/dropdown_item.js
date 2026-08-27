@@ -4,10 +4,6 @@
 import { Component } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown/dropdown_hook";
 
-/**
- * How far up the nesting chain a selected item closes. Internal: consumers spell
- * these values as strings from a template, which is all a template can do.
- */
 const ClosingMode = {
     None: "none",
     ClosestParent: "closest",

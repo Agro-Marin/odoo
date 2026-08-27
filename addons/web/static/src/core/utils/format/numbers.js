@@ -45,7 +45,6 @@ function roundHalfAwayFromZero(value) {
     return Math.round(magnitude) * Math.sign(value);
 }
 
-/** ``2 ** -50``, the relative width of the tie-breaking epsilon. */
 const EPSILON_SCALE = 2 ** -50;
 
 /**
@@ -75,11 +74,6 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
         return 0;
     }
     const sign = Math.sign(normalizedValue);
-    // Scaling by a power of two is exact. The spelling this replaced --
-    // `2 ** (Math.log2(Math.abs(v)) - 50)` -- rounds twice and lands on a
-    // different float for 96.4% of magnitudes, measured; it changed no result
-    // in 364420 cases against the server, but there is no reason to keep an
-    // inexact spelling of the constant `float_utils._EPSILON_SCALE` names.
     const epsilon = Math.abs(normalizedValue) * EPSILON_SCALE;
     const halfEpsilon = Math.max(0, Math.min(epsilon, 0.5 - epsilon / 2));
     const truncEpsilon = Math.min(epsilon, 0.5);
@@ -122,14 +116,6 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
     }
 
     const result = denormalize(roundedValue);
-    // Rounding to zero answers zero, never negative zero. `Math.trunc` and
-    // `Math.sign` both carry the sign of the operand into the result, so DOWN
-    // answered `-0` for every value in (-1, 0) and the HALF methods answered it
-    // for every value that rounds to nothing. A negative zero has no meaning in
-    // a quantity or an amount, it compares equal to zero so nothing catches it,
-    // and it has already reached a user once: `toFixed(0)` keeps the sign, and
-    // formatInteger rendered "-0" until 338ad333da9 patched it at the formatter
-    // rather than here, where it is made.
     return result === 0 ? 0 : result;
 }
 
