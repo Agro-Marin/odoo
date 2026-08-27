@@ -136,6 +136,33 @@ class TestTranslatedUniqueChecker(BaseCase):
             """,
         )
 
+    def test_a_three_way_inherit_cycle_resolves_every_translated_field(self):
+        """A one-hop cycle guard isn't enough for a cycle of length >= 3.
+
+        `walk()` used to cache a model's field set as soon as its own
+        immediate parents were not in `seen`, even mid-cycle -- so the model
+        that happened to close the cycle got cached with only its own fields,
+        missing the others further around the ring. Exercised directly on
+        `resolve_translated` (not `violations()`, which only reports on the
+        rule matching a column, and would stay silent either way): every
+        model in a 3-cycle must resolve to the union of all three, not just
+        a fragment.
+        """
+        infos = [
+            checker.ClassInfo("a.thing", parents=("b.thing",), translated={"name"}),
+            checker.ClassInfo("b.thing", parents=("c.thing",), translated={"label"}),
+            checker.ClassInfo("c.thing", parents=("a.thing",), translated={"title"}),
+        ]
+        resolved = checker.resolve_translated(infos)
+        all_fields = {"name", "label", "title"}
+        for model in ("a.thing", "b.thing", "c.thing"):
+            self.assertEqual(
+                resolved.get(model, set()),
+                all_fields,
+                f"{model} resolved to {resolved.get(model, set())}, missing "
+                "fields from elsewhere in the cycle",
+            )
+
     def test_ignores_a_non_unique_constraint(self):
         self.assertFalse(
             self._findings(
