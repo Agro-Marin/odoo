@@ -1,4 +1,4 @@
 {
-  "count": 39,
-  "note": "40 -> 39, and the unit is this change's. Measured against 1e60eda9ce5 in a detached worktree carrying only this change: pristine 40, with it 39. ir.model.fields.write measured 21 against a max-complexity of 20 before this change and 23 after the two guards it adds (an unknown key in vals raised KeyError from `self._fields[field_name]` before the ORM could name it; `write({\"model\": ...})` was silently dropped while `write({\"model_id\": ...})` raised). The method is split rather than the guards dropped: `_check_immutable_attributes` takes the three per-record refusals, `_plan_write` the loop that decides what is renamed and which models are patched, `_rename_column` the ALTER TABLE / ALTER INDEX pair. `write` is now validate, plan, strip, delegate, reload, and carries no C901 finding."
+  "count": 40,
+  "note": "39 -> 40, measured on the composed tree after rebasing this branch onto origin. Neither parent floor describes it: origin records 40 and measures 41 (red at its own tip), this branch recorded 39 before origin was under it. The composed tree measures 40 -- below origin, and green."
 }

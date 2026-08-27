@@ -1,4 +1,4 @@
 {
-  "count": 559,
-  "note": "510 (origin) / 517 (this branch) -> 559, measured on the composed tree. Neither parent's floor describes it: origin's was taken before this branch's fifteen commits were under it, this branch's before origin's 221 were, and an exact ratchet fails in the falling direction too. Re-derived on a detached worktree at the rebased tip carrying this change's files and nothing else, because the shared checkout holds another session's uncommitted work. The module docstring's MEASURED block is regenerated in the same change, per its own instruction."
+  "count": 548,
+  "note": "559 -> 548, measured on the composed tree after rebasing this branch onto origin. Neither parent floor describes it: origin recorded 559 before this branch was under it, and this branch recorded 508 before origin was. Re-derived with `translation_catalog.py --count` on a clean rebased checkout; the module docstring MEASURED block was regenerated in the same change, per its own instruction."
 }

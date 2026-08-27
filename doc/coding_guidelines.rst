@@ -922,19 +922,19 @@ free-standing form.
   ``_except_`` is a guard and returns, anything else under ``_unlink_`` deletes.
   An ORM-invoked hook is private.
 
-**``@api.constrains``** ``[review]`` is the fourth and largest, at **612** hooks.
-The Validation row governs the spelling and **541** already carry ``_check_``. The
+**``@api.constrains``** ``[review]`` is the fourth and largest, at **614** hooks.
+The Validation row governs the spelling and **543** already carry ``_check_``. The
 rest are names the ratchet counts (``_validate_``, ``_ensure_``, ``_verify_``) and
 the localisation namespace with the verb behind it
 (``_l10n_se_check_payment_reference``). That leaves **47** spelled with a first
 token carrying no rule anywhere: ``_constrains_``, ``_constraint_``,
 ``_limit_available_currency_ids``, and twice the misspelling ``_contrains_``.
 
-**The field-hook rule must not be extended to it** ``[review]``. **299** bind
-exactly one field and only **129** are ``_check_<field>`` -- that gap is the rule
+**The field-hook rule must not be extended to it** ``[review]``. **297** bind
+exactly one field and only **128** are ``_check_<field>`` -- that gap is the rule
 working. A ``compute=`` names a subject; a ``@api.constrains`` argument names a
 **trigger**, and a constraint is named for the **condition it enforces**
-(``_check_at_least_one_administrator``). **49** multi-field constraints are named
+(``_check_at_least_one_administrator``). **51** multi-field constraints are named
 for exactly one of their triggers and every one is right. Ask what **raises**.
 
 **A hook may hold two bindings, and then one prefix has to lose** ``[review]``.
@@ -947,10 +947,10 @@ Do not read a prefix as a claim that no other binding exists.
 carrying an ORM role; every other method opens with a free verb. The abolished
 spellings are wrong, not lesser-preferred. The tree spells single operations many
 ways: 6 stems are written with two or more verbs drawn from one semantic family,
-and 103 groups of methods share a byte-identical body under different names.
+and 102 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,489 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,542 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1108,10 +1108,10 @@ and **read the result**:
   deleting it: ``_get_related_bundle`` → ``_get_bundle_containing_path``.
 
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
-**199** definitions under **98** names in this repository spell it head-first and
-**18** spell it the other way. **The rule is general; the conversion reached one
+**200** definitions under **98** names in this repository spell it head-first and
+**17** spell it the other way. **The rule is general; the conversion reached one
 family** -- across **19** of them this repository spells **65** definitions
-head-first against **187** the other way. A name in the second count is a backlog
+head-first against **177** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
 is measured by nothing; and ``ids`` is deliberately absent, because
@@ -1132,7 +1132,7 @@ Three checks when renaming ``[review]``:
 2.4.5 Converters
 ~~~~~~~~~~~~~~~~
 
-**``X_to_Y`` is the converter idiom, and ``to`` is the verb** ``[review]``. **102**
+**``X_to_Y`` is the converter idiom, and ``to`` is the verb** ``[review]``. **97**
 definitions under **55** names are spelled that way and most are right: the name
 is the pair of representations, and it buys the searchable families ``_str_to_*``
 and ``_*_to_sql``. **``Y_from_X`` is the same idiom spelled backwards**, and
@@ -1189,9 +1189,9 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,426 definitions it is 22.2 % of every method
+**``_get_`` is not a default.** At 5,424 definitions it is 22.1 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
-computing. The split that matters is against ``_prepare_``: 684 definitions are
+computing. The split that matters is against ``_prepare_``: 686 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
 spelled ``get_*``, against 715 already spelled ``_prepare_*``.
@@ -1240,8 +1240,8 @@ new ones this way; do not rename the bound ones.
   ``_migrate_attachments_to_local``.
 
 **``_generate_`` is the largest member of the payload family and is not in the
-table** ``[review]``. The four verbs the Payload row abolishes come to **13**
-definitions between them; ``_generate_`` alone is **132**. It carries two meanings
+table** ``[review]``. The four verbs the Payload row abolishes come to **14**
+definitions between them; ``_generate_`` alone is **134**. It carries two meanings
 -- ``_generate_access_token`` builds a value and takes the payload canonical,
 while ``_generate_consume_moves`` **creates records** and takes the domain
 operation's name -- so wiring it into ``ABOLISHED`` would widen a blocking gate by
@@ -1249,7 +1249,7 @@ more than half its floor, and is owed its own record.
 
 **The assemble verbs are abolished on paper and enforced for one shape**
 ``[review]``: ``naming_vocabulary.py`` reports one only when the name also ends in
-a payload suffix. **13** model methods open with one of those four verbs and the
+a payload suffix. **14** model methods open with one of those four verbs and the
 ratchet flags **4**. Two things hide in that gap -- the suffix list is short
 (``_build_pdf_options`` is invisible because ``_options`` is not one of the nine),
 and *object construction takes ``_prepare_`` too*, since a factory has a consumer
@@ -1263,8 +1263,8 @@ assembles is in the wrong family.
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **370** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **187**
+**A ``bool`` return does not make a predicate** ``[review]``. **374** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **192**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1272,7 +1272,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,032 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,036 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (29) plus ``_verify_``,
 ``_ensure_`` and ``_control_`` (50 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
@@ -1318,7 +1318,7 @@ is a hypothesis, not a verdict.** Where the body disagrees, the body wins.
 ~~~~~~~~~~~~~~~~~~~~~
 
 **Do not name a method for the act of running** -- *provisional*. ``_do_``,
-``_run_``, ``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (189
+``_run_``, ``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (191
 definitions) describe execution rather than behaviour; every method executes. Name
 the domain operation: ``_post_entries``, not ``_do_posting``. No mechanical
 rewrite exists.
@@ -1418,7 +1418,7 @@ in the tree** ``[review]``. ``_migrate_remote_to_local`` is
 discards the return inside ``except (ValidationError, RequestException)``, so the
 contract is *fetch the remote bytes and store them locally*.
 
-**``_resolve_`` is the verb to keep** ``[review]``, at **35** definitions here
+**``_resolve_`` is the verb to keep** ``[review]``, at **36** definitions here
 against the size of ``_find_`` -- **29**. It is a **partial** producer, returning
 the object or ``None`` meaning *not applicable*; a read that always answers is
 ``_get_``. Where a dispatch chain mixes the spellings, read it as the chain saying
@@ -1453,12 +1453,12 @@ classes carry the decorator and agree on nothing.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (143 definitions) and ``_update_*`` (259) are
+and is wired to nothing. ``_set_*`` (145 definitions) and ``_update_*`` (258) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
 * an ``inverse=`` target is ``_inverse_<field>`` and was never a ``_set_``
-  question -- 238 against 2 now that the count is drained;
+  question -- 239 against 2 now that the count is drained;
 * ``set_values`` / ``get_values`` on ``res.config.settings`` are *bound by name,
   not by inheritance* (§2.4.14);
 * ``set_param`` on ``ir.config_parameter`` is public and reached from JS and XML
@@ -1472,7 +1472,7 @@ the duplicate report this section exists to produce.
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
 for it this section had never named: **59** definitions spell it ``_sync_*`` and
-**13** spell it ``_synchronize_*``, against ``_update_*``'s **259**. It is not
+**13** spell it ``_synchronize_*``, against ``_update_*``'s **258**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.
@@ -1484,7 +1484,7 @@ cleared; it is ``_sync_path_reservations``. Its own test was named
 ``test_the_reservation_follows_the_path``: **where a test and the method it covers
 disagree about what the operation is, prefer the test's word.**
 
-**``_post_`` is overloaded** ``[review]``. 134 definitions carry three unrelated
+**``_post_`` is overloaded** ``[review]``. 136 definitions carry three unrelated
 meanings -- ``account.move._post`` (accounting), ``message_post`` (mail) and HTTP
 handlers. Do not add a fourth: new code names the domain operation. The existing
 three are load-bearing.
@@ -1502,9 +1502,9 @@ may not borrow that vocabulary, whether or not it is indented under a class.
 **It governs the module's own helpers too, and no gate sees them** ``[review]``.
 ``naming_vocabulary.py`` implements the scope as a *class-membership* test, so two
 populations in the same files are counted by nothing: a function declared at
-**module level** -- **309** of them under ``models/`` and ``wizard/`` -- and a
-method on a **plain class** declared in the same file, of which there are **361**
-across **140** classes. Counted over the addon trees only, since a directory test
+**module level** -- **308** of them under ``models/`` and ``wizard/`` -- and a
+method on a **plain class** declared in the same file, of which there are **369**
+across **144** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
 
 **A file can be sixteen names wrong and green.** Three sweeps
@@ -1636,8 +1636,8 @@ to a field name and a registry string.
 
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
-call sites ever see. **81** parameters annotated ``field_name`` are ``str`` and
-**0** are a ``Field``, against ``field``'s **93** ``Field`` and **16** ``str``.
+call sites ever see. **83** parameters annotated ``field_name`` are ``str`` and
+**0** are a ``Field``, against ``field``'s **101** ``Field`` and **16** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s
 ``_get_placeholder_filename(self, field: str)`` is *bound by name*, so its
