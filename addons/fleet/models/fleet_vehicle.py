@@ -722,7 +722,7 @@ class FleetVehicle(models.Model):
 
     def action_accept_driver_change(self):
         # Find all the vehicles of the same type for which the driver is the future_driver_id
-        # remove their driver_id and close their history using current date
+        # and remove their driver_id
         vehicles = self.search(
             [
                 ("driver_id", "in", self.mapped("future_driver_id").ids),
