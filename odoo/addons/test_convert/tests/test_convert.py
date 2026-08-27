@@ -27,7 +27,10 @@ class TestEvalXML(common.TransactionCase):
         self.assertEqual(self.eval_xml(Field("None")), "None")
 
     def test_int(self):
-        self.assertIsNone(self.eval_xml(Field("None", type="int")), "what the fuck?")
+        self.assertIsNone(
+            self.eval_xml(Field("None", type="int")),
+            "'None' with type=int must eval to None",
+        )
         self.assertEqual(self.eval_xml(Field(" 42  ", type="int")), 42)
 
         with self.assertRaises(ValueError):
