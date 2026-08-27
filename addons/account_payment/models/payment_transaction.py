@@ -194,7 +194,13 @@ class PaymentTransaction(models.Model):
         payment_term_lines = self.invoice_ids.line_ids.filtered(
             lambda line: line.display_type == "payment_term"
         )
-        if payment_term_lines:
+        if payment_term_lines and len(payment_term_lines.account_id) == 1:
+            # Only set an explicit destination account when every invoice on
+            # the transaction shares the same receivable/payable account;
+            # otherwise let account.payment's own compute derive a sensible
+            # default from the partner instead of arbitrarily picking one
+            # invoice's account and silently excluding the others' lines
+            # from the reconcile() filter below.
             payment_values["destination_account_id"] = payment_term_lines[
                 0
             ].account_id.id
