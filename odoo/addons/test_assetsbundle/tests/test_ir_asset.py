@@ -1004,7 +1004,12 @@ class TestAssetsManifest(AddonManifestPatched):
         "odoo.addons.base.models.ir_asset_paths",
     )
     def test_31(self):
-        path_to_dummy = "../../tests/dummy.js"
+        # Escapes test_assetsbundle/ via ".." and re-enters through a
+        # sibling route, landing on a fixture this addon owns
+        # (tests/security_dummy.js) rather than reaching into an
+        # unrelated subsystem's fixtures -- still exercises the same
+        # escape-and-reenter path the guard under test must refuse.
+        path_to_dummy = "../test_assetsbundle/tests/security_dummy.js"
         me = pathlib.Path(__file__).parent.absolute()
         file_path = me.joinpath("..", path_to_dummy)
         self.assertTrue(file_path.is_file())
@@ -1020,7 +1025,7 @@ class TestAssetsManifest(AddonManifestPatched):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             attach = bundle.js()
             self.assertIn(
-                b"Could not find /test_assetsbundle/../../tests/dummy.js",
+                b"Could not find /test_assetsbundle/../test_assetsbundle/tests/security_dummy.js",
                 attach.exists().raw,
             )
 
@@ -1029,7 +1034,9 @@ class TestAssetsManifest(AddonManifestPatched):
         "odoo.addons.base.models.ir_asset_paths",
     )
     def test_32_a_relative_path_in_addon(self):
-        path_to_dummy = "../../tests/dummy.xml"
+        # See test_31's comment: escapes and re-enters test_assetsbundle/
+        # via "..", landing on an addon-owned fixture.
+        path_to_dummy = "../test_assetsbundle/tests/security_dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
         file_path = me.joinpath("..", path_to_dummy)
         self.assertTrue(file_path.is_file())
@@ -1049,7 +1056,7 @@ class TestAssetsManifest(AddonManifestPatched):
             files,
             (
                 (
-                    "/test_assetsbundle/../../tests/dummy.xml",
+                    "/test_assetsbundle/../test_assetsbundle/tests/security_dummy.xml",
                     None,
                     "test_assetsbundle.irassetsec",
                     None,
@@ -1062,7 +1069,10 @@ class TestAssetsManifest(AddonManifestPatched):
         "odoo.addons.base.models.ir_asset_paths",
     )
     def test_32_b_relative_path_outside_addon(self):
-        path_to_dummy = "../../tests/dummy.xml"
+        # Same addon-owned fixture as test_31/test_32_a, but declared
+        # bare (no /test_assetsbundle/ prefix) -- this is what makes it
+        # "outside_addon" rather than "in_addon".
+        path_to_dummy = "../test_assetsbundle/tests/security_dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
         file_path = me.joinpath("..", path_to_dummy)
         self.assertTrue(file_path.is_file())
@@ -1081,7 +1091,7 @@ class TestAssetsManifest(AddonManifestPatched):
             files,
             (
                 (
-                    "../../tests/dummy.xml",
+                    "../test_assetsbundle/tests/security_dummy.xml",
                     None,
                     "test_assetsbundle.irassetsec",
                     None,
