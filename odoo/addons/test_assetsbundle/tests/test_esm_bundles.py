@@ -1338,7 +1338,9 @@ class TestBridgeExportResolverReadsDisk(BaseCase):
         return _BridgeExportResolver({}, {}, "test")
 
     def test_a_real_module_yields_its_real_exports(self):
-        names, _has_default = self._resolver().source_exports("@web/core/registry")
+        names, _has_default = self._resolver().source_exports(
+            "@test_assetsbundle/../tests/native_esm/registry"
+        )
         self.assertIn("registry", names)
         self.assertIn("Registry", names)
 
