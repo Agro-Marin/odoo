@@ -243,7 +243,11 @@ class TestEvalXML(common.TransactionCase):
 
         xml_import(self.env, "test_convert", None, "init").parse(xml)
 
+        # loaded_xmlids lives on the process-wide registry, not the test's
+        # transaction -- restore it even if an assertion below raises, so a
+        # failure here can't leak stale state into a sibling test.
         self.registry.loaded_xmlids.difference_update(xmlids)
+        self.addCleanup(self.registry.loaded_xmlids.update, xmlids)
 
         idref = {}
         xml_import(self.env, "test_convert", idref, "update").parse(xml)
