@@ -957,6 +957,12 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _generate_invoice_fallback_documents(self, invoices_data):
+        # invoices_data's values are the same dict objects shared by
+        # callers' moves_data/errors/success collections (never copied),
+        # so mutating them here (pop/set below) is deliberately visible to
+        # every other reference to the same invoice_data - do not replace
+        # this with a fresh dict without checking every caller that relies
+        # on that identity.
         for invoice, invoice_data in invoices_data.items():
             if not invoice.invoice_pdf_report_id and invoice_data.get("error"):
                 invoice_data.pop("error")
