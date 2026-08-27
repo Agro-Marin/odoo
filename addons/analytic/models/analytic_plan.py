@@ -94,11 +94,18 @@ class AccountAnalyticPlan(models.Model):
         super()._auto_init()
 
         def precommit():
-            self.env["ir.default"].set(
-                self._name,
-                "default_applicability",
-                "optional",
-            )
+            # Only seed the system default once: `_auto_init` reruns on every
+            # schema init of this model (every `-i`/`-u` that touches it, not
+            # just the first install), and `ir.default.set` unconditionally
+            # overwrites an existing row — so an admin's own customization of
+            # this default would otherwise be silently reset to "optional" on
+            # the next module update.
+            if self.env["ir.default"]._get(self._name, "default_applicability") is None:
+                self.env["ir.default"].set(
+                    self._name,
+                    "default_applicability",
+                    "optional",
+                )
 
         self.env.cr.precommit.add(precommit)
 
