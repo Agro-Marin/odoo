@@ -147,7 +147,7 @@ class TestPerfCompare(TransactionCase):
 
         try:
             Base._read_group([], groupby=["state"], aggregates=["__count"])
-        except Exception:
+        except AttributeError, TypeError:
             _logger.warning("[PERF_CMP] _read_group unavailable; skipping group")
         else:
             rec.measure(
