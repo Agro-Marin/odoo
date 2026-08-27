@@ -48,6 +48,7 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_noqa_rationale.py` | `noqa-rationale` |
 | `_checker_translated_unique.py` | `unique-over-translated-column` (cross-unit) |
 | `_checker_pep649.py` | annotation resolution, used by `test_pep649` |
+| `_checker_shadowed_def.py` | `shadowed-definition` |
 
 `unreadable-source` has no checker file of its own: the engine emits it when a
 file cannot be parsed or tokenised. Both used to be swallowed, and a file whose
