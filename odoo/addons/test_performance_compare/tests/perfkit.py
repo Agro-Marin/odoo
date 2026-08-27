@@ -83,8 +83,13 @@ def environment_meta():
 
 
 class BenchmarkRecorder:
-    DEFAULT_ITERATIONS = int(os.environ.get("BENCH_ITER", "60"))
-    DEFAULT_WARMUP = int(os.environ.get("BENCH_WARMUP", "8"))
+    @staticmethod
+    def _default_iterations():
+        return int(os.environ.get("BENCH_ITER", "60"))
+
+    @staticmethod
+    def _default_warmup():
+        return int(os.environ.get("BENCH_WARMUP", "8"))
 
     def __init__(self, cr, logger=None):
         self.cr = cr
@@ -106,8 +111,8 @@ class BenchmarkRecorder:
         setup=None,
         invalidate=None,
     ):
-        iterations = iterations or self.DEFAULT_ITERATIONS
-        warmup = self.DEFAULT_WARMUP if warmup is None else warmup
+        iterations = iterations or self._default_iterations()
+        warmup = self._default_warmup() if warmup is None else warmup
         cr = self.cr
 
         times_us = []
