@@ -129,7 +129,7 @@ class TestUnstoredInheritsParent(models.Model):
     def _create(self, data_list):
         children = [vals["stored"].pop("child_id", None) for vals in data_list]
         result = super()._create(data_list)
-        for parent, child_id, vals in zip(result, children, data_list, strict=False):
+        for parent, child_id, vals in zip(result, children, data_list, strict=True):
             child = self.env["test.unstored.inherits.child"].browse(child_id)
             child.parent_id = parent.id
             child.write(
