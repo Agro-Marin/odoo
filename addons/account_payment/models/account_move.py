@@ -76,12 +76,11 @@ class AccountMove(models.Model):
         return transactions, pending_transactions, enabled_feature
 
     def _has_to_be_paid(self):
-        transactions, pending_transactions, enabled_feature = (
+        _transactions, pending_transactions, enabled_feature = (
             self._get_online_payment_context()
         )
         return enabled_feature and bool(
-            (self.amount_residual or not transactions)
-            and self.state == "posted"
+            self.state == "posted"
             and self.payment_state in ("not_paid", "in_payment", "partial")
             and not self.currency_id.is_zero(self.amount_residual)
             and self.amount_total
