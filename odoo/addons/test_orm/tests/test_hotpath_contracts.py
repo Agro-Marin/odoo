@@ -3,7 +3,7 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.tools.misc import PENDING, SENTINEL
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestFieldGetContracts(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -92,7 +92,7 @@ class TestFieldGetContracts(TransactionCase):
             self.assertTrue(hasattr(partner, "env"))
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestFieldGetPending(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -144,7 +144,7 @@ class TestFieldGetPending(TransactionCase):
         self.assertEqual(lines.mapped("move_id"), move)
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestReadFormatContracts(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -227,7 +227,7 @@ class TestReadFormatContracts(TransactionCase):
             self.assertEqual(len(val), 2)
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestTraversalContracts(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -326,7 +326,7 @@ class TestTraversalContracts(TransactionCase):
             )
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestWriteFlushContracts(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -394,7 +394,7 @@ class TestWriteFlushContracts(TransactionCase):
         self.assertEqual(self.env.cr.fetchone()[0], 3)
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestCreateCacheContracts(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -433,7 +433,7 @@ class TestCreateCacheContracts(TransactionCase):
         self.assertEqual(field_cache[move.id], tag.id)
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestPreconditionAPI(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -493,7 +493,7 @@ class TestPreconditionAPI(TransactionCase):
         self.assertIs(value, SENTINEL)
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestCacheInvariant(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -532,7 +532,7 @@ class TestCacheInvariant(TransactionCase):
         self.assertFalse(core.has_dirty_field(field))
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestModifiedTriggers(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -579,7 +579,7 @@ class TestModifiedTriggers(TransactionCase):
         self.assertEqual(move.tag_string, "BB")
 
 
-@tagged("-standard", "hotpath_contracts")
+@tagged("hotpath_contracts")
 class TestReadFormatManyRecords(TransactionCase):
     @classmethod
     def setUpClass(cls):
