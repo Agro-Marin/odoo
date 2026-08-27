@@ -174,7 +174,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         }
 
     def _get_price_normalized(self, line) -> tuple[float, float]:
-        """``line``'s discounted price and quantity in reference UoM and currency."""
+        """``line``'s discounted price (in ``self``'s currency) and quantity (in reference UoM)."""
         sample = self._get_price_sample(line)
         reference_uom = line.product_id.uom_id
         price = sample["uom"]._compute_price_report(sample["price"], reference_uom)
