@@ -36,10 +36,17 @@ def _aggregate(paths, metric_key):
         vals = [r[metric_key] for r in recs]
         med = statistics.median(vals)
         cv = (statistics.pstdev(vals) / med) if (len(vals) > 1 and med) else 0.0
+        query_maxes = [r.get("query_max", 0) for r in recs]
+        if len(recs) > 1 and len(set(query_maxes)) > 1:
+            print(
+                f"  ⚠ {name}: query count varied across runs {query_maxes} — "
+                "expected deterministic (see README)",
+                file=sys.stderr,
+            )
         agg[name] = {
             "value": med,
             "cv": cv,
-            "query": max(r.get("query_max", 0) for r in recs),
+            "query": max(query_maxes),
             "group": recs[0]["group"],
             "runs": len(recs),
         }
