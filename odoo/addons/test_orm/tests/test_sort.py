@@ -250,7 +250,12 @@ class TestSort(TransactionCase):
         partners_with_children.invalidate_model(["name"])
         with self.assertQueryCount(1):
             for partner in partners_with_children:
-                partner.child_ids.sorted("id").mapped("name")
+                # "z" is created before "a", so sorting by id (creation
+                # order) must keep "z" first — a broken sort would still
+                # pass this test if the result were discarded.
+                self.assertEqual(
+                    partner.child_ids.sorted("id").mapped("name"), ["z", "a"]
+                )
 
 
 class TestSortNullPlacement(TransactionCase):

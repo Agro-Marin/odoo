@@ -8,11 +8,12 @@ class TestSearchDisplayNameStored(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Model = cls.env["test_orm.display"]
-        cls.records = cls.Model.create([{}, {}, {}])
+        cls.records = cls.Model.create([{}, {}, {}, {}])
         cls.env.flush_all()
         cls.records[0].display_name = "alpha"
         cls.records[1].display_name = "beta"
         cls.records[2].display_name = "alpha"
+        cls.records[3].display_name = False
         cls.env.flush_all()
         cls.env.invalidate_all()
 
@@ -28,7 +29,7 @@ class TestSearchDisplayNameStored(TransactionCase):
         self.assertFalse(self._search("=", "nothing-matches-this"))
 
     def test_inequality_is_the_complement(self):
-        self.assertEqual(self._search("!=", "alpha"), self.records[1])
+        self.assertEqual(self._search("!=", "alpha"), self.records[1] | self.records[3])
 
     def test_like_operators_reach_the_column(self):
         self.assertEqual(
@@ -37,8 +38,15 @@ class TestSearchDisplayNameStored(TransactionCase):
         self.assertFalse(self._search("ilike", "zzz"))
 
     def test_null_comparand_selects_the_records_without_a_value(self):
-        self.assertFalse(self._search("=", False))
-        self.assertEqual(self._search("!=", False), self.records)
+        # records[3] has a real falsy display_name — without it, "= False"
+        # could only ever return empty and this assertion would pass
+        # vacuously regardless of whether the null comparand is handled
+        # correctly.
+        self.assertEqual(self._search("=", False), self.records[3])
+        self.assertEqual(
+            self._search("!=", False),
+            self.records[0] | self.records[1] | self.records[2],
+        )
 
     def test_a_condition_and_its_negation_partition_the_records(self):
         for operator, value in [
