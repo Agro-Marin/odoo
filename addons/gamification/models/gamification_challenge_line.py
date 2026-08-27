@@ -1,13 +1,11 @@
 from odoo import fields, models
 
 
+# Each line links a goal definition to a target value.  When the challenge
+# starts, one ``gamification.goal`` record per participant is generated from
+# each line.
 class GamificationChallengeLine(models.Model):
-    """Predefined goal template within a challenge.
-
-    Each line links a goal definition to a target value.  When the challenge
-    starts, one ``gamification.goal`` record per participant is generated from
-    each line.
-    """
+    """Predefined goal template within a challenge."""
 
     _name = "gamification.challenge.line"
     _description = "Gamification generic goal for challenge"

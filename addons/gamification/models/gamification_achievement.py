@@ -6,14 +6,12 @@ from odoo.tools.safe_eval import safe_eval
 _logger = logging.getLogger(__name__)
 
 
+# Unlike challenges (which are explicitly assigned), achievements are
+# *discovered* when the user's activity matches a trigger condition.
+# Hidden achievements add a layer of surprise and delight -- Octalysis
+# core drive #7 (Unpredictability & Curiosity).
 class GamificationAchievement(models.Model):
-    """Hidden/discovery achievement that users unlock through normal work.
-
-    Unlike challenges (which are explicitly assigned), achievements are
-    *discovered* when the user's activity matches a trigger condition.
-    Hidden achievements add a layer of surprise and delight — Octalysis
-    core drive #7 (Unpredictability & Curiosity).
-    """
+    """Hidden/discovery achievement that users unlock through normal work."""
 
     _name = "gamification.achievement"
     _description = "Gamification Achievement"

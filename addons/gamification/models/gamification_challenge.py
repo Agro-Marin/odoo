@@ -19,12 +19,10 @@ _logger = logging.getLogger(__name__)
 MAX_VISIBILITY_RANKING = 3
 
 
+# If *user_ids* is populated and *period* is not ``'once'``, goals are
+# regenerated for each period (e.g. every 1st of the month for ``'monthly'``).
 class GamificationChallenge(models.Model):
-    """Set of predefined objectives assigned to people with recurrence rules and rewards.
-
-    If *user_ids* is populated and *period* is not ``'once'``, goals are
-    regenerated for each period (e.g. every 1st of the month for ``'monthly'``).
-    """
+    """Set of predefined objectives assigned to people with recurrence rules and rewards."""
 
     _name = "gamification.challenge"
     _description = "Gamification Challenge"
