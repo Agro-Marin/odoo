@@ -239,7 +239,11 @@ class AccountAnalyticPlan(models.Model):
         """Returns the list of plans that should be available.
         This list is computed based on the applicabilities of root plans."""
         cache = self.env.cr.cache.setdefault("get_relevant_plans", {})
-        key = frozendict(kwargs)
+        # `default_applicability` is `company_dependent`, so the result also
+        # depends on the active company even when `kwargs` doesn't carry a
+        # `company_id` — key the cache on it too, or two calls for different
+        # companies in the same request/cursor silently reuse each other's result.
+        key = frozendict(kwargs, __company_ids__=tuple(self.env.companies.ids))
         if key in cache:
             return cache[key]
         record_account_ids = kwargs.get("existing_account_ids", [])
