@@ -10,7 +10,6 @@ class Test_ConverterTest_Model(models.Model):
     float = fields.Float()
     numeric = fields.Float(digits=(16, 2))
     many2one = fields.Many2one("test_converter.test_model.sub")
-    binary = fields.Binary(attachment=False)
     date = fields.Date()
     datetime = fields.Datetime()
     selection_str = fields.Selection(
@@ -25,15 +24,3 @@ class Test_ConverterTest_Model(models.Model):
     )
     html = fields.Html()
     text = fields.Text()
-
-
-class Test_ConverterTest_ModelSub(models.Model):
-    _name = "test_converter.test_model.sub"
-    _description = "Subtraction For Test Model & Test Converter"
-    name = fields.Char()
-
-
-class Test_ConverterMonetary(models.Model):
-    _name = "test_converter.monetary"
-    _description = "Test Converter Monetary"
-    value = fields.Float(digits=(16, 55))
