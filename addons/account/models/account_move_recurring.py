@@ -37,7 +37,7 @@ class AccountMove(models.Model):
                 "invoice_user_id": self.invoice_user_id.id,
             }
         )
-        if self.invoice_date:
+        if self.invoice_date and self.auto_post_origin_id.invoice_date:
             values.update(
                 {
                     "invoice_date": self._apply_delta_recurring_entries(
