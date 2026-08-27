@@ -190,8 +190,10 @@ class AccountFiscalPosition(models.Model):
             return super().write({**vals, "zip_from": padded_from, "zip_to": padded_to})
 
         for rec in self:
+            effective_from = zip_from if "zip_from" in vals else rec.zip_from
+            effective_to = zip_to if "zip_to" in vals else rec.zip_to
             padded_from, padded_to = self._convert_zip_values(
-                zip_from or rec.zip_from, zip_to or rec.zip_to
+                effective_from, effective_to
             )
             super(AccountFiscalPosition, rec).write(
                 {**vals, "zip_from": padded_from, "zip_to": padded_to}
