@@ -3,20 +3,7 @@ from odoo.fields import Command
 
 
 class MixinCatalogChildLines(models.AbstractModel):
-    """Product-catalog editing for a record whose lines live in a named child field.
-
-    `mixin.product.catalog` leaves `_update_order_line_info` a `return 0` stub for
-    each consumer to implement, and the two manufacturing consumers implemented the
-    same thing: `mrp.bom` over `bom_line_ids` / `byproduct_ids`, `mrp.production`
-    over `move_raw_ids` / `move_byproduct_ids`. The bodies were the same shape down
-    to the `if not child_field: return 0` guard, differing only in which field
-    carries the quantity -- which is what the two hooks below name.
-
-    They are not folded into `mixin.product.catalog` itself: the other four
-    implementations in the tree (`base_order`, `account`, `repair`, and `delivery`'s
-    override) carry sections, editable-state rules and removed-line pricing that this
-    shape has no place for. This is the manufacturing pair, not a universal one.
-    """
+    """Product-catalog editing for a record whose lines live in a named child field."""
 
     _name = "mixin.catalog.child.lines"
     _description = "Catalog Lines Held In A Child Field"
