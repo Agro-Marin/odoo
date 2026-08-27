@@ -1,11 +1,10 @@
 import re
-import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import config
-from odoo.tools.assets.esbuild import _find_esbuild, has_nested_template_literal
+from odoo.tools.assets.esbuild import has_nested_template_literal
 from odoo.tools.assets.esm_graph import _MODULE_SYNTAX_RE
 from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.json import scriptsafe as json
@@ -318,7 +317,6 @@ class TestBacktickMinifyGate(BaseCase):
         self.assertEqual(rendered.count("\n"), JavascriptAsset._HEADER_LINE_COUNT)
 
 
-@unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
 class TestBacktickMinification(TransactionCase):
     BUNDLE = "test_assetsbundle.backtick"
 
