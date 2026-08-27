@@ -19,12 +19,8 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         [("change_period", "Change Period"), ("change_account", "Change Account")],
         required=True,
     )
-    move_data = fields.Text(
-        compute="_compute_move_data"
-    )
-    preview_move_data = fields.Text(
-        compute="_compute_preview_move_data"
-    )
+    move_data = fields.Text(compute="_compute_move_data")
+    preview_move_data = fields.Text(compute="_compute_preview_move_data")
     move_line_ids = fields.Many2many("account.move.line")
     date = fields.Date(required=True, default=fields.Date.context_today)
     company_id = fields.Many2one("res.company", required=True, readonly=True)
@@ -155,9 +151,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         for record in self:
             total = sum(record.move_line_ids.mapped("balance")) or record.total_amount
             if total != 0:
-                record.percentage = min(
-                    (record.total_amount / total) * 100, 100
-                )
+                record.percentage = min((record.total_amount / total) * 100, 100)
             else:
                 record.percentage = 100
 
@@ -784,9 +778,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 )
                 to_reconcile.reconcile()
 
-        acc_transfer_per_move = defaultdict(
-            lambda: defaultdict(lambda: 0)
-        )
+        acc_transfer_per_move = defaultdict(lambda: defaultdict(lambda: 0))
         for line in self.move_line_ids:
             acc_transfer_per_move[line.move_id][line.account_id] += line.balance
 
@@ -813,30 +805,24 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         transfer_format = Markup(
             "<li>%s, <strong>%%(account_source_name)s</strong></li>"
         ) % _("{amount} ({debit_credit}) from {link}")
-        return (
-            _(
-                "This entry transfers the following amounts to %(destination)s",
-                destination=Markup("<strong>%s</strong>")
-                % self.destination_account_id.display_name,
-            )
-            + Markup("<ul>%(transfer_logs)s</ul>")
-            % {
-                "transfer_logs": Markup().join(
-                    [
-                        self._format_strings(
-                            transfer_format
-                            % {"account_source_name": account.display_name},
-                            move,
-                            balance,
-                        )
-                        for move, balances_per_account in acc_transfer_per_move.items()
-                        for account, balance in balances_per_account.items()
-                        if account
-                        != self.destination_account_id
-                    ],
-                ),
-            }
-        )
+        return _(
+            "This entry transfers the following amounts to %(destination)s",
+            destination=Markup("<strong>%s</strong>")
+            % self.destination_account_id.display_name,
+        ) + Markup("<ul>%(transfer_logs)s</ul>") % {
+            "transfer_logs": Markup().join(
+                [
+                    self._format_strings(
+                        transfer_format % {"account_source_name": account.display_name},
+                        move,
+                        balance,
+                    )
+                    for move, balances_per_account in acc_transfer_per_move.items()
+                    for account, balance in balances_per_account.items()
+                    if account != self.destination_account_id
+                ],
+            ),
+        }
 
     def _format_transfer_source_log(self, balances_per_account, transfer_move):
         if not balances_per_account:
