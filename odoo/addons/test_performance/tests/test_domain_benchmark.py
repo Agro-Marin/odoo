@@ -98,6 +98,11 @@ DOMAIN_RELATIONAL = [
 
 @tagged("standard", "domain_benchmark")
 class TestDomainBenchmark(TransactionCase):
+    """Timing only: no test_* method here asserts on a measured value.
+
+    A failure here is an exception, never a performance regression.
+    """
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
