@@ -3795,7 +3795,7 @@ class AccountMove(models.Model):
         vals_list = super().copy_data(default)
         default_date = fields.Date.to_date(default.get("date"))
         for move, vals in zip(self, vals_list, strict=False):
-            if move.move_type in ("out_invoice", "in_invoice"):
+            if move.is_invoice(include_receipts=True):
                 vals["line_ids"] = [
                     (command, _id, line_vals)
                     for command, _id, line_vals in vals["line_ids"]
