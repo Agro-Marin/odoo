@@ -10,7 +10,7 @@ Reference for running targeted subsets of the `mail` module's tests — Python
 
 Almost every mail test class is decorated `@tagged("post_install", "-at_install", …)` — the
 suites need a fully-installed database (mail wires into `res.partner`, `res.users`, the bus,
-etc.). Of **89** tagged classes, **69** carry `post_install`/`-at_install`. Note both
+etc.). Of **90** tagged classes, **69** carry `post_install`/`-at_install`. Note both
 decorator spellings are in use (`@tagged(...)` and `@odoo.tests.tagged(...)`, the latter in
 e.g. `test_js.py` and `discuss/test_discuss_attachment_controller.py`) — grep for both or you
 will undercount. Topic tags on top of that are

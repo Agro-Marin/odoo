@@ -268,8 +268,28 @@ assert_eq "mixin_mail_thread.py defines _name mixin.mail.thread" \
     "$(grep -c '_name = .mixin.mail.thread.' "$MAIL/models/mixin_mail_thread.py")" "1"
 assert_eq "no models/mail_thread.py (pre-rename path)" \
     "$([ -e "$MAIL/models/mail_thread.py" ] && echo 1 || echo 0)" "0"
-assert_eq "models/ holds 14 mixin_*.py files" \
-    "$(find "$MAIL/models" -maxdepth 1 -name 'mixin_*.py' | wc -l)" "14"
+# A COUNT CANNOT SAY WHICH MIXIN IS UNDOCUMENTED. This was `models/ holds 14
+# mixin_*.py files`, a literal that went red the moment a fifteenth landed and
+# said nothing about the four that MODEL_MAP.md had no row for -- the "expected
+# values are a second copy of the tree" shape §1.4 exists to remove. Both
+# directions are checked, so a mixin added without a row fails here, and so does
+# a row naming a file that has been deleted.
+undocumented=""
+for f in "$MAIL"/models/mixin_*.py "$MAIL"/models/*/mixin_*.py; do
+    [ -e "$f" ] || continue
+    base="$(basename "$f")"
+    grep -qF "\`$base\`" "$DOC/MODEL_MAP.md" || undocumented="$undocumented $base"
+done
+assert_eq "MODEL_MAP.md has a row for every models/ mixin_*.py${undocumented:+ —$undocumented}" \
+    "$(printf '%s' "$undocumented" | wc -w)" "0"
+phantom=""
+while read -r cited; do
+    [ -z "$cited" ] && continue
+    [ -n "$(find "$MAIL/models" -name "$cited" -print -quit)" ] \
+        || phantom="$phantom $cited"
+done < <(grep -ohP '`\Kmixin_\w+\.py' "$DOC"/*.md | sort -u)
+assert_eq "MODEL_MAP.md cites no mixin_*.py that is gone${phantom:+ —$phantom}" \
+    "$(printf '%s' "$phantom" | wc -w)" "0"
 assert_eq "discuss/ holds mixin_bus_listener.py" \
     "$([ -f "$MAIL/models/discuss/mixin_bus_listener.py" ] && echo 1 || echo 0)" "1"
 assert_eq "no doc names a pre-rename mixin file path" \

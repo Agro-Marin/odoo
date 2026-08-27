@@ -99,8 +99,21 @@ assert_doc_cites "ARCHITECTURE File Counts row cites the real Python test count"
 
 # ------- ORM model class count (all ^class in models/ + wizard/, minus the two
 # non-ORM classes: PageCannotBeCached(Exception) + ModelConverter) -------
-assert_eq "ORM model classes (models/ + wizard/)" \
-    "$(grep -rhE '^class ' "$WEB"/models/*.py "$WEB"/wizard/*.py | grep -vcE 'Exception\)|ModelConverter\)')" "62"
+#
+# DERIVED, NOT DECLARED. This was a literal 62 in the script while three doc
+# sites restated the same 62, so the script was a fourth copy of the tree and
+# the only one that failed when the tree moved -- it went red at 61 saying
+# nothing about which of the three restatements was now wrong. The measurement
+# lives here once and the three sites are each pinned to it, the same shape
+# `PY_TESTS` already uses above.
+MODEL_CLASSES=$(grep -rhE '^class ' "$WEB"/models/*.py "$WEB"/wizard/*.py \
+    | grep -vcE 'Exception\)|ModelConverter\)')
+assert_doc_cites "MODEL_MAP cites the real ORM model-class count" \
+    "$MODEL_CLASSES" '\*\*%s model' MODEL_MAP.md
+assert_doc_cites "ARCHITECTURE models/ row cites the real model-class count" \
+    "$MODEL_CLASSES" '%s model classes \(website, mixins' ARCHITECTURE.md
+assert_doc_cites "ARCHITECTURE File Counts row cites the real model-class count" \
+    "$MODEL_CLASSES" '\| Python \(models\) \| 36 files \(%s model classes\) \|' ARCHITECTURE.md
 
 # ------- Signature model / methods exist -------
 assert_grep "website model _name" '_name = ["'\'']website["'\'']' "$WEB/models/website.py"

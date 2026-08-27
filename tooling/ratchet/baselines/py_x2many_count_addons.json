@@ -1,4 +1,4 @@
 {
-  "count": 23,
-  "note": "24 -> 23. The addons-wide aggregate of the same fix that took py_x2many_count_stock to 0: stock.move.move_lines_count is fields.Count(\"move_line_ids\") and its hand-written _compute_move_lines_count is gone. Banked late -- 647da3f3edd moved the stock scope and left this one one over, which an exact ratchet fails in the falling direction."
+  "count": 22,
+  "note": "23 -> 22, and the whole of the -1 is one compute.\n\nsurvey.quota._compute_quota_usage ran `search_count` once per record inside its\nloop; it now takes a single `_read_group` over survey.user_input.line keyed by\nsuggested_answer_id and reads each quota's count out of the result. Landed in\n8b936132f46 and left unbanked, which an exact ratchet fails on the same as a\nregression.\n\nOffender sets diffed name by name between a detached worktree at 765bc0c4761 --\nthe commit that set 23 -- and one at HEAD, with line numbers normalised out so a\nfile that merely moved does not read as two units:\n\n  removed  addons/survey/models/survey_quota.py  _compute_quota_usage\n  added    none\n\n`addons/web` contributes nothing to this gate and did not before."
 }

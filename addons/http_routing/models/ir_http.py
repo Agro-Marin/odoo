@@ -327,6 +327,7 @@ class IrHttp(models.AbstractModel):
         if hasattr(request, "is_frontend"):
             return super()._match(path)
 
+        # See /1, match a non website endpoint
         matched = None
         try:
             rule, args = cls._match_and_flag(path)
@@ -432,6 +433,7 @@ class IrHttp(models.AbstractModel):
     ) -> str:
         request_url_code = request.lang.url_code
 
+        # See /2, no lang in url and default website
         if not url_lang_str and request.lang == default_lang:
             _logger.debug(
                 "%r (lang: %r) no lang in url and default website, continue",
@@ -439,6 +441,7 @@ class IrHttp(models.AbstractModel):
                 request_url_code,
             )
 
+        # See /3, missing lang in url but user-agent is a bot
         elif not url_lang_str and request.env["ir.http"].is_a_bot():
             _logger.debug(
                 "%r (lang: %r) missing lang in url but user-agent is a bot, continue",
@@ -447,6 +450,7 @@ class IrHttp(models.AbstractModel):
             )
             request.lang = default_lang
 
+        # See /4, no lang in url and should not redirect (e.g. POST), continue
         elif not url_lang_str and not allow_redirect:
             _logger.debug(
                 "%r (lang: %r) no lang in url and should not redirect (e.g. POST), continue",
@@ -454,18 +458,21 @@ class IrHttp(models.AbstractModel):
                 request_url_code,
             )
 
+        # See /5, missing lang in url, /home -> /fr/home
         elif not url_lang_str:
             _logger.debug(
                 "%r (lang: %r) missing lang in url, redirect", path, request_url_code
             )
             cls._redirect_lang(cls._lang_url_prefix(path, request_url_code))
 
+        # See /6, default lang in url, /en/home -> /home
         elif url_lang_str == default_lang.url_code and allow_redirect:
             _logger.debug(
                 "%r (lang: %r) default lang in url, redirect", path, request_url_code
             )
             cls._redirect_lang(path_no_lang)
 
+        # See /7, lang alias in url, /fr_FR/home -> /fr/home
         elif url_lang_str != request_url_code and allow_redirect:
             _logger.debug(
                 "%r (lang: %r) lang alias in url, redirect", path, request_url_code
@@ -474,6 +481,7 @@ class IrHttp(models.AbstractModel):
                 cls._lang_url_prefix(path_no_lang, request_url_code), code=301
             )
 
+        # See /8, homepage with trailing slash, /fr_BE/ -> /fr_BE
         elif path == f"/{url_lang_str}/" and allow_redirect:
             _logger.debug(
                 "%r (lang: %r) homepage with trailing slash, redirect",
@@ -482,6 +490,7 @@ class IrHttp(models.AbstractModel):
             )
             cls._redirect_lang(path[:-1], code=301)
 
+        # See /9, valid lang in url
         elif url_lang_str == request_url_code or not allow_redirect:
             _logger.debug(
                 "%r (lang: %r) valid lang in url, rewrite url and continue",

@@ -1,7 +1,7 @@
 # Website Module Model Map
 
 Every Python model defined or extended by the `website` module, with the fields,
-methods, and invariants that matter for the multi-website CMS. **62 model
+methods, and invariants that matter for the multi-website CMS. **61 model
 classes** defined across `models/` (36 `.py` files) and `wizard/` (5 `.py`
 files, 4 of which define models).
 

@@ -38,6 +38,9 @@ has them (suggested-recipients, partner resolution, low-level tracking).
 | `mixin_mail_thread_blacklist.py` | `mixin.mail.thread.blacklist` (inh `mixin.mail.thread`) | A | Email blacklist + bounce management |
 | `mixin_mail_thread_cc.py` | `mixin.mail.thread.cc` (inh `mixin.mail.thread`) | A | Email CC (`email_cc`) tracking |
 | `mixin_mail_thread_main_attachment.py` | `mixin.mail.thread.main.attachment` (inh `mixin.mail.thread`) | A | "Main attachment" management |
+| `mixin_mail_gateway.py` | `mixin.mail.gateway` | A | Inbound-email routing: parse, match a thread, decide the route (`mixin.mail.thread` inherits it) |
+| `mixin_mail_attachment_owner.py` | `mixin.mail.attachment.owner` | A | Re-owns the attachments a create/write links, for `mail.template` and `mailing.mailing` |
+| `mixin_store_sync.py` | `mixin.store.sync` (inh `mixin.bus.listener`) | A | Broadcasts the store fields a write changed (`discuss.channel`, `discuss.channel.member`) |
 
 ### Data models
 
@@ -78,6 +81,7 @@ has them (suggested-recipients, partner resolution, low-level tracking).
 | `mail_activity_type.py` | `mail.activity.type` | M | Activity type configuration |
 | `mail_activity_plan.py` | `mail.activity.plan` | M | Activity plan (bundle of activities) |
 | `mail_activity_plan_template.py` | `mail.activity.plan.template` | M | Plan line template |
+| `mixin_delay.py` | `mixin.delay` | A | The "N time units" half of a scheduled offset, shared by `mail.activity.type` and `mail.activity.plan.template`; `delay_from` stays with the consumer |
 
 ## 4. Alias / mail gateway
 
