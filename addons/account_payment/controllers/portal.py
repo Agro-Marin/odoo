@@ -180,7 +180,7 @@ class PortalAccount(portal.PortalAccount, PaymentPortal):
             "expected_company": invoice_company,
         }
         payment_form_values = {
-            "show_tokenize_input_mapping": PaymentPortal._compute_show_tokenize_input_mapping(
+            "show_tokenize_input_mapping": self._compute_show_tokenize_input_mapping(
                 providers_sudo, **kwargs
             ),
         }
