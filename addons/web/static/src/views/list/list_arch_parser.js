@@ -5,7 +5,7 @@ import { getDecoration } from "@web/core/utils/decorations";
 import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { stringToOrderBy } from "@web/core/utils/order_by";
-import { combineModifiers } from "@web/model/relational_model/utils";
+import { combineModifiers } from "@web/model/relational_model";
 import { parseFieldNode } from "@web/views/field_arch";
 import { ViewArchParser } from "@web/views/view_arch_parser";
 import { processButton } from "@web/views/view_buttons";

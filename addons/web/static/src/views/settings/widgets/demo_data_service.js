@@ -3,25 +3,31 @@
 
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-export const demoDataService = {
-    /** @returns {Promise<{ isDemoDataActive: () => Promise<boolean> }>} */
-    async start() {
+
+class DemoDataService {
+    constructor() {
         /** @type {Promise<boolean> | undefined} */
-        let isDemoDataActiveProm;
-        return {
-            /**
-             * @returns {Promise<boolean>}
-             */
-            isDemoDataActive() {
-                isDemoDataActiveProm ??= rpc("/base_setup/demo_active").catch(
-                    (/** @type {any} */ error) => {
-                        isDemoDataActiveProm = undefined;
-                        throw error;
-                    },
-                );
-                return /** @type {Promise<boolean>} */ (isDemoDataActiveProm);
+        this.activeProm = undefined;
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    isDemoDataActive() {
+        this.activeProm ??= rpc("/base_setup/demo_active").catch(
+            (/** @type {any} */ error) => {
+                this.activeProm = undefined;
+                throw error;
             },
-        };
+        );
+        return /** @type {Promise<boolean>} */ (this.activeProm);
+    }
+}
+
+export const demoDataService = {
+    /** @returns {Promise<DemoDataService>} */
+    async start() {
+        return new DemoDataService();
     },
 };
 

@@ -68,7 +68,7 @@ export function getQueryGroups(query, searchItems) {
         }
         for (const activeItem of activeItems) {
             if ("intervalIds" in activeItem) {
-                activeItem.intervalIds.sort(
+                (activeItem.intervalIds ?? []).sort(
                     (/** @type {string} */ g1, /** @type {string} */ g2) =>
                         rankInterval(g1) - rankInterval(g2),
                 );
@@ -101,7 +101,7 @@ export function computeSearchItemGroupBys(activeItem, searchItems) {
     switch (searchItem.type) {
         case "dateGroupBy": {
             const { fieldName } = searchItem;
-            return activeItem.intervalIds.map(
+            return (activeItem.intervalIds ?? []).map(
                 (intervalId) => `${fieldName}:${intervalId}`,
             );
         }

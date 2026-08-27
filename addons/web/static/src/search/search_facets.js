@@ -50,19 +50,19 @@ function readGroupLabels(group, searchItems, getDateFilterDomain) {
             case "field": {
                 type = "field";
                 title = searchItem.description;
-                for (const autocompleteValue of activeItem.autocompleteValues) {
+                for (const autocompleteValue of activeItem.autocompleteValues ?? []) {
                     values.push(autocompleteValue.label);
                 }
                 break;
             }
             case "groupBy": {
                 type = "groupBy";
-                values.push(searchItem.description);
+                values.push(searchItem.description ?? "");
                 break;
             }
             case "dateGroupBy": {
                 type = "groupBy";
-                for (const intervalId of activeItem.intervalIds) {
+                for (const intervalId of activeItem.intervalIds ?? []) {
                     values.push(
                         `${searchItem.description}: ${intervalDescription(intervalId)}`,
                     );
@@ -81,7 +81,7 @@ function readGroupLabels(group, searchItems, getDateFilterDomain) {
             }
             default: {
                 type = searchItem.type;
-                values.push(searchItem.description);
+                values.push(searchItem.description ?? "");
             }
         }
     }
@@ -154,7 +154,7 @@ export function buildFacets({
         };
         if (type === "field") {
             facet.title = title;
-        } else {
+        } else if (type) {
             facet.icon = groupByIcon(type, orderByCount);
             facet.color = FACET_COLORS[type];
         }

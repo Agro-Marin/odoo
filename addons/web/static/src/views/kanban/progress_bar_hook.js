@@ -9,7 +9,7 @@ import { debounce } from "@web/core/utils/timing";
 import {
     extractAggregatesFromGroupData,
     getAggregateSpecifications,
-} from "@web/model/relational_model/utils";
+} from "@web/model/relational_model";
 
 /** @import { Group } from "@web/model/relational_model/group" */
 

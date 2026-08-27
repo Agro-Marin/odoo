@@ -16,7 +16,7 @@ import { RPCError } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
+import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { formView } from "@web/views/form/form_view";
 import { getDefaultConfig } from "@web/views/view";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";

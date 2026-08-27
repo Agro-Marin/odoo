@@ -226,9 +226,9 @@ export function computeSearchItemDomain(
     switch (searchItem.type) {
         case "field_property":
         case "field":
-            return getFieldDomain(searchItem, activeItem.autocompleteValues);
+            return getFieldDomain(searchItem, activeItem.autocompleteValues ?? []);
         case "dateFilter":
-            return getDateFilterDomain(searchItem, activeItem.generatorIds);
+            return getDateFilterDomain(searchItem, activeItem.generatorIds ?? []);
         case "filter":
         case "favorite":
             return searchItem.domain;

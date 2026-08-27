@@ -6,7 +6,7 @@ import { getCurrencyRates } from "@web/core/currency";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model/utils";
+import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 import { computeAggregatedValue } from "@web/views/view_measurements";
@@ -198,6 +198,7 @@ export function useListAggregates(ctx) {
             const { list } = getProps();
             const aggregates = {};
             /** @type {Record<string, any>[] | null} */
+            /** @type {Record<string, any>[] | null} */
             let values = null;
 
             for (const column of columns) {
@@ -221,9 +222,11 @@ export function useListAggregates(ctx) {
                 if (!func) {
                     continue;
                 }
-                values ??= getAggregationValues();
+                // The value of `??=` is the filled array, which is what the
+                // reads below want; `values` itself stays the lazy cache.
+                const rows = (values ??= getAggregationValues());
                 const fieldEntries = [];
-                for (const record of values) {
+                for (const record of rows) {
                     const value = record[fieldName];
                     if (value || value === 0) {
                         fieldEntries.push({ value, record });
@@ -244,12 +247,12 @@ export function useListAggregates(ctx) {
                             /** @type {any} */ (list).isGrouped &&
                             !list.selection.length;
                         if (isGroupedAggregation) {
-                            currencyId = values.find((v) => v[currencyField]?.length)?.[
+                            currencyId = rows.find((v) => v[currencyField]?.length)?.[
                                 currencyField
                             ][0];
                         } else {
                             currencyId =
-                                values[0][currencyField] && values[0][currencyField].id;
+                                rows[0][currencyField] && rows[0][currencyField].id;
                         }
                         if (func && type === "monetary") {
                             const currencies = self.getFieldCurrencies(fieldName);

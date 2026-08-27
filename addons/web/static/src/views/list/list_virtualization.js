@@ -54,16 +54,6 @@ function getScrollContainer(el) {
  * @property {number} [bufferCoef]
  */
 
-/**
- * @typedef ListVirtualization
- * @property {boolean} isActive
- * @property {FlatRow[]} visibleFlatRows
- * @property {number} topSpacerHeight
- * @property {number} bottomSpacerHeight
- * @property {(rowIndex: number) => void} ensureRowVisible
- * @property {() => void} refresh
- */
-
 export class ListVirtualization {
     /** @type {boolean} */
     active = false;

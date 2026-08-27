@@ -9,7 +9,7 @@ import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
-} from "@web/model/relational_model/utils";
+} from "@web/model/relational_model";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";

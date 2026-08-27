@@ -211,7 +211,7 @@ export const SearchQueryMixin = (Base) =>
         /**
          * @param {any} searchItem
          * @param {string} [generatorId]
-         * @param {any[] | null} [knownOptions]
+         * @param {readonly any[] | null} [knownOptions]
          * @returns {string[]}
          */
         _resolveDateGeneratorIds(searchItem, generatorId, knownOptions) {
@@ -299,13 +299,15 @@ export const SearchQueryMixin = (Base) =>
                         knownOptions &&
                         !yearSelected(this._getSelectedGeneratorIds(searchItemId))
                     ) {
-                        const { defaultYearId } = knownOptions.find(
+                        const knownOption = knownOptions.find(
                             (o) => o.id === generatorId,
                         );
-                        this.query.push({
-                            searchItemId,
-                            generatorId: defaultYearId,
-                        });
+                        if (knownOption) {
+                            this.query.push({
+                                searchItemId,
+                                generatorId: knownOption.defaultYearId,
+                            });
+                        }
                     }
                 }
             }

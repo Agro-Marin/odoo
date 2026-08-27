@@ -12,6 +12,7 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { loadBundle } from "@web/core/assets";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
 import { useDebounced } from "@web/core/utils/timing";
@@ -407,6 +408,7 @@ export class ProfilingQwebView extends Component {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const profilingQwebView = {
     component: ProfilingQwebView,
+    displayName: _t("Profiling QWeb View"),
     supportedTypes: ["text"],
 };
 

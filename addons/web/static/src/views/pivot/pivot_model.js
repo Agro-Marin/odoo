@@ -13,7 +13,8 @@ import {
     Mutex,
     SupersededError,
 } from "@web/core/utils/concurrency";
-import { addPropertyFieldDefs, Model } from "@web/model/model";
+import { Model } from "@web/model/model";
+import { addPropertyFieldDefs } from "@web/model/property_fields";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
 import { aggregateSubdivisions } from "@web/views/pivot/pivot_aggregation";
 import {

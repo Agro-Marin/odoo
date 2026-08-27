@@ -22,7 +22,7 @@
  */
 
 import { getPropertyFieldInfo } from "@web/fields/field";
-import { combineModifiers } from "@web/model/relational_model/utils";
+import { combineModifiers } from "@web/model/relational_model";
 
 /**
  * @type {WeakMap<object, { fields: any[], activeFields: any[], columns: Column[] }>}

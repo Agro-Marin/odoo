@@ -108,7 +108,7 @@ function domainIsInvalid(domain) {
 
 /**
  * @param {Record<string, any>} irFilter
- * @param {Record<string, any>} [fields=null]
+ * @param {Record<string, any> | null} [fields]
  * @returns {Record<string, any>}
  */
 export function irFilterToFavorite(irFilter, fields = null) {

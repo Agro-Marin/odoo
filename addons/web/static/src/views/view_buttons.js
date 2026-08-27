@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { combineModifiers } from "@web/model/relational_model/utils";
+import { combineModifiers } from "@web/model/relational_model";
 
 export const BUTTON_MODIFIERS = [
     "invisible",

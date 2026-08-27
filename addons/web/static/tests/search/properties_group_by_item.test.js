@@ -1,9 +1,11 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { click } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
+import { Component, useState, useSubEnv, xml } from "@odoo/owl";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
-
-describe.current.tags("headless");
 
 /**
  * @param {Record<string, any>[]} searchItems
@@ -38,6 +40,8 @@ const propertyGroupBy = (overrides = {}) => ({
 });
 
 describe("groupByItems", () => {
+    describe.current.tags("headless");
+
     test("is empty until the definitions have been loaded", () => {
         const component = makeItem([propertyGroupBy()]);
         expect(component.groupByItems).toEqual([]);
@@ -61,6 +65,8 @@ describe("groupByItems", () => {
 });
 
 describe("isActive", () => {
+    describe.current.tags("headless");
+
     test("an active property group-by shows the accordion as selected", () => {
         const component = makeItem([propertyGroupBy({ isActive: true })], {
             definitionsLoaded: true,
@@ -96,6 +102,8 @@ describe("isActive", () => {
 });
 
 describe("isSingleParent", () => {
+    describe.current.tags("headless");
+
     test("true when every property comes from one definition record", () => {
         const component = makeItem(
             [
@@ -120,6 +128,8 @@ describe("isSingleParent", () => {
 });
 
 describe("loadDefinitions", () => {
+    describe.current.tags("headless");
+
     test("fetches once and records that it has", async () => {
         let calls = 0;
         const component = makeItem([], {
@@ -164,5 +174,59 @@ describe("loadDefinitions", () => {
 
         await expect(component.loadDefinitions()).rejects.toThrow(/boom/);
         expect(calls).toBe(2);
+    });
+});
+
+describe("what triggers the fetch", () => {
+    /**
+     * The unit tests above drive `loadDefinitions` directly, which says nothing
+     * about *when* it runs. These mount the component so the accordion decides.
+     * @param {() => Promise<void>} fill
+     */
+    async function mountItem(fill) {
+        class Parent extends Component {
+            static components = { PropertiesGroupByItem };
+            static template = xml`
+                <t t-esc="state.tick"/>
+                <PropertiesGroupByItem item="item" onGroup="() => {}"/>`;
+            static props = ["*"];
+            setup() {
+                this.item = { fieldName: "props", description: "Properties" };
+                this.state = useState({ tick: 0 });
+                useSubEnv({
+                    searchModel: {
+                        getSearchItems: () => [],
+                        fillSearchViewItemsProperty: fill,
+                    },
+                });
+            }
+        }
+        return mountWithCleanup(Parent);
+    }
+
+    test("a render the accordion did not cause does not fetch", async () => {
+        const parent = await mountItem(async () => expect.step("fetch"));
+        expect(".o_accordion_toggle").toHaveCount(1);
+        expect.verifySteps([]);
+
+        parent.state.tick++;
+        await animationFrame();
+        expect.verifySteps([]);
+    });
+
+    test("expanding the accordion fetches once, collapsing it does not", async () => {
+        await mountItem(async () => expect.step("fetch"));
+
+        await click(".o_accordion_toggle");
+        await animationFrame();
+        expect.verifySteps(["fetch"]);
+
+        await click(".o_accordion_toggle");
+        await animationFrame();
+        expect.verifySteps([]);
+
+        await click(".o_accordion_toggle");
+        await animationFrame();
+        expect.verifySteps([]);
     });
 });

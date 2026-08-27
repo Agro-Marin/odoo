@@ -110,7 +110,7 @@ viewRegistry.addValidation({
 
 export function getDefaultConfig() {
     const breadcrumbReactive = reactive([{ name: undefined }]);
-    const config = {
+    return {
         actionId: false,
         actionType: false,
         cache: true,
@@ -129,7 +129,6 @@ export function getDefaultConfig() {
         viewSwitcherEntries: [],
         views: [],
     };
-    return config;
 }
 
 export class ViewNotFoundError extends Error {}

@@ -16,7 +16,7 @@ registry.category("group_config_items").addValidation({
     icon: { type: String, optional: true },
     "*": true,
 });
-import { isRelational } from "@web/model/relational_model/utils";
+import { isRelational } from "@web/model/relational_model";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 

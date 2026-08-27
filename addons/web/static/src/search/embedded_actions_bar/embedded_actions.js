@@ -160,16 +160,18 @@ export class EmbeddedActions {
      */
     constructor({ env, orm, notification, dialog, action }) {
         this.env = env;
+        // This bar is only ever built inside an action, so `env.config` is
+        // there. Bound once so the seven reads below do not each re-prove it.
+        const config = /** @type {NonNullable<typeof env.config>} */ (env.config);
         this.orm = orm;
         this.notificationService = notification;
         this.dialogService = dialog;
         this.actionService = action;
 
         /** @type {EmbeddedAction[]} */
-        this.defaultEmbeddedActions = env.config.embeddedActions;
-        if (env.config.embeddedActions?.length > 0 && !env.config.parentActionId) {
-            const { parent_res_model, parent_action_id } =
-                env.config.embeddedActions[0];
+        this.defaultEmbeddedActions = config.embeddedActions;
+        if (config.embeddedActions?.length > 0 && !config.parentActionId) {
+            const { parent_res_model, parent_action_id } = config.embeddedActions[0];
             this.defaultEmbeddedActions = [
                 {
                     id: false,
@@ -180,13 +182,13 @@ export class EmbeddedActions {
                     user_id: false,
                     context: {},
                 },
-                ...env.config.embeddedActions,
+                ...config.embeddedActions,
             ];
         }
 
         const parentActionId =
-            env.config.parentActionId ||
-            relationId(env.config.embeddedActions?.[0]?.parent_action_id) ||
+            config.parentActionId ||
+            relationId(config.embeddedActions?.[0]?.parent_action_id) ||
             "";
         const currentActiveId = env.searchModel?.globalContext.active_id || false;
         this.configHandler = new EmbeddedActionsConfigHandler(
@@ -304,7 +306,7 @@ export class EmbeddedActions {
                 });
             } else {
                 /** @type {{res_model: string, embedded_actions_visibility: (number|false)[], embedded_visibility: boolean, embedded_actions_order: (number|false)[]}} */
-                const config = {
+                const embeddedConfig = {
                     res_model:
                         this.embeddedInfos.currentEmbeddedAction.parent_res_model,
                     embedded_actions_visibility: [],
@@ -323,12 +325,12 @@ export class EmbeddedActions {
                             ...this.embeddedInfos.visibleEmbeddedActions,
                             embeddedActionKey,
                         ];
-                        config.embedded_actions_visibility = [
+                        embeddedConfig.embedded_actions_visibility = [
                             ...this.embeddedInfos.visibleEmbeddedActions,
                         ];
                     }
                 }
-                await this.configHandler.setEmbeddedActionsConfig(config);
+                await this.configHandler.setEmbeddedActionsConfig(embeddedConfig);
             }
         } else {
             await this.configHandler.setEmbeddedActionsConfig({
@@ -361,6 +363,10 @@ export class EmbeddedActions {
      * @returns {Promise<boolean>}
      */
     async saveNewAction() {
+        // Same reasoning as the constructor: a bar only exists inside an
+        // action. Bound locally rather than through an accessor, because this
+        // method is also exercised by calling it on a plain object.
+        const actionConfig = /** @type {any} */ (this.env.config);
         const {
             newActionName,
             newActionIsShared,
@@ -407,7 +413,7 @@ export class EmbeddedActions {
             parent_res_id: this.env.searchModel.globalContext.active_id,
             user_id: userId,
             is_deletable: true,
-            default_view_mode: this.env.config.viewType,
+            default_view_mode: actionConfig.viewType,
             domain,
             context,
             group_ids,
@@ -416,7 +422,7 @@ export class EmbeddedActions {
         if (python_method) {
             values.python_method = python_method;
         } else {
-            values.action_id = relationId(action_id) || this.env.config.actionId;
+            values.action_id = relationId(action_id) || actionConfig.actionId;
         }
         const [embeddedActionId] = await this.orm.create("ir.embedded.actions", [
             values,
@@ -585,7 +591,7 @@ export class EmbeddedActions {
         const previousId = previousIndex === -1 ? undefined : order[previousIndex];
         const previousActions = [...actions];
         order.splice(elementIndex, 1);
-        const insertAt = previousIndex === -1 ? 0 : order.indexOf(previousId) + 1;
+        const insertAt = previousId === undefined ? 0 : order.indexOf(previousId) + 1;
         order.splice(insertAt, 0, elementId);
         this.sortActions(order);
         const saved = await this.configHandler.setEmbeddedActionsConfig({

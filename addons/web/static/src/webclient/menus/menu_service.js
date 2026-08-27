@@ -137,7 +137,9 @@ class MenuTree {
         if (!apps?.length) {
             return undefined;
         }
-        return apps.includes(preferredAppId) ? preferredAppId : apps[0];
+        return preferredAppId !== undefined && apps.includes(preferredAppId)
+            ? preferredAppId
+            : apps[0];
     }
 }
 

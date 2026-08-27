@@ -21,11 +21,11 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
 import { Field } from "@web/fields/field";
 import { useModel } from "@web/model/model";
-import { FetchRecordError } from "@web/model/relational_model/errors";
 import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
-} from "@web/model/relational_model/utils";
+} from "@web/model/relational_model";
+import { FetchRecordError } from "@web/model/relational_model/errors";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";

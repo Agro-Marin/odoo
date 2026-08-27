@@ -21,7 +21,8 @@ export class PropertiesGroupByItem extends Component {
         this.state = useState({ definitionsLoaded: false });
         useChildSubEnv({
             [ACCORDION]: {
-                accordionStateChanged: () => this.loadDefinitions(),
+                accordionStateChanged: (/** @type {boolean} */ isOpen) =>
+                    isOpen ? this.loadDefinitions() : undefined,
             },
         });
     }

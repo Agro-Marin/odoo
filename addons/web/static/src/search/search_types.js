@@ -105,7 +105,18 @@
  * | FieldItem | FieldPropertyItem | FavoriteItem} SearchItem
  */
 
-/** @typedef {Record<number, SearchItem>} SearchItems */
+/**
+ * A search item as the model stores it.
+ *
+ * `id` and `groupId` are optional on `SearchItemCommon` because the arch parser
+ * produces items before either exists -- `search_model.js` assigns them when it
+ * takes the item in. Everything reached through `searchItems[id]` is past that
+ * point and has both, and saying so is what stops every reader re-proving it.
+ *
+ * @typedef {SearchItem & { id: number, groupId: number }} StoredSearchItem
+ */
+
+/** @typedef {Record<number, StoredSearchItem>} SearchItems */
 
 /**
  * @typedef {Object} PeriodWindow

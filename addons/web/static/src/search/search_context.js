@@ -29,7 +29,7 @@ export function computeSearchItemContext(activeItem, searchItems) {
             /** @type {Record<string, any>} */
             let context = {};
             if (searchItem.context) {
-                const self = activeItem.autocompleteValues.map(
+                const self = (activeItem.autocompleteValues ?? []).map(
                     (/** @type {AutocompleteValue} */ autocompleteValue) =>
                         autocompleteValue.value,
                 );
@@ -43,8 +43,10 @@ export function computeSearchItemContext(activeItem, searchItems) {
                 }
             }
             if (searchItem.isDefault && searchItem.fieldType === "many2one") {
-                context[`default_${searchItem.fieldName}`] =
-                    searchItem.defaultAutocompleteValue.value;
+                if (searchItem.defaultAutocompleteValue) {
+                    context[`default_${searchItem.fieldName}`] =
+                        searchItem.defaultAutocompleteValue.value;
+                }
             }
             return context;
         }

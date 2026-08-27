@@ -10,7 +10,7 @@ import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/translation";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
-import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
+import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { FormArchParser } from "@web/views/form/form_arch_parser";

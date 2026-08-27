@@ -64,12 +64,12 @@ test(`mount a CalendarYearRenderer`, async () => {
 
 test.tags("desktop");
 test(`display events`, async () => {
-    mockService("popover", () => ({
+    mockService("popover", {
         add(target, component, props) {
             expect.step(`${props.date.toISODate()} ${props.records[0].title}`);
             return async () => {};
         },
-    }));
+    });
 
     await start({
         createRecord(record) {

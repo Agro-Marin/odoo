@@ -310,7 +310,9 @@ export class ListGridState {
                     parentGroup,
                     depth,
                 );
-                this._rowByRecordId.set(recordRow.recordId, recordRow);
+                if (recordRow.recordId) {
+                    this._rowByRecordId.set(recordRow.recordId, recordRow);
+                }
             }
             if (parentGroup && this._showGroupAddLine) {
                 const addLineRow = this._emitRow("add-line", {

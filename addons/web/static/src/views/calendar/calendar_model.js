@@ -20,7 +20,7 @@ import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { useDebounced } from "@web/core/utils/timing";
 import { Model } from "@web/model/model";
-import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
+import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import {
     CLIENT_AGGREGATORS,
     computeAggregatedValue,
