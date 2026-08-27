@@ -52,6 +52,18 @@ class AccountPayment(models.Model):
     # === COMPUTE METHODS ===#
 
     def _compute_amount_available_for_refund(self):
+        # Only consider refund transactions that are confirmed by summing the amounts of
+        # payments linked to such refund transactions. Indeed, should a refund transaction
+        # be stuck forever in a transient state (due to webhook failure, for example), the
+        # user would never be allowed to refund the source transaction again.
+        rg_data = self.env["account.payment"]._read_group(
+            domain=[("source_payment_id", "in", self.ids)],
+            groupby=["source_payment_id"],
+            aggregates=["amount:sum"],
+        )
+        refunded_amount_per_payment = {
+            source_payment.id: amount_sum for source_payment, amount_sum in rg_data
+        }
         for payment in self:
             tx_sudo = payment.payment_transaction_id.sudo()
             payment_method = (
@@ -64,12 +76,7 @@ class AccountPayment(models.Model):
                 and payment_method.support_refund != "none"
                 and tx_sudo.operation != "refund"
             ):
-                # Only consider refund transactions that are confirmed by summing the amounts of
-                # payments linked to such refund transactions. Indeed, should a refund transaction
-                # be stuck forever in a transient state (due to webhook failure, for example), the
-                # user would never be allowed to refund the source transaction again.
-                refund_payments = self.search([("source_payment_id", "=", payment.id)])
-                refunded_amount = abs(sum(refund_payments.mapped("amount")))
+                refunded_amount = abs(refunded_amount_per_payment.get(payment.id, 0.0))
                 payment.amount_available_for_refund = payment.amount - refunded_amount
             else:
                 payment.amount_available_for_refund = 0
