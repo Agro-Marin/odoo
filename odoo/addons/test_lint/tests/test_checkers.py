@@ -1532,6 +1532,21 @@ class TestShadowedDefinitionLint(BaseCase):
         """)
         )
 
+    def test_an_unrelated_register_decorator_is_still_flagged(self):
+        self.assertTrue(
+            self._check("""
+        class A:
+            def f(self):
+                pass
+
+            @some_registry.register
+            def f(self):
+                pass
+        """),
+            "a `.register` decorator unrelated to singledispatchmethod must not"
+            " exempt a genuine shadowed definition",
+        )
+
     def test_definitions_in_different_branches_are_alternatives(self):
         self.assertFalse(
             self._check("""
