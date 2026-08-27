@@ -2,14 +2,7 @@ from odoo import api, fields, models
 
 
 class CrmMergeOpportunity(models.TransientModel):
-    """
-    Merge opportunities together.
-    If we're talking about opportunities, it's just because it makes more sense
-    to merge opps than leads, because the leads are more ephemeral objects.
-    But since opportunities are leads, it's also possible to merge leads
-    together (resulting in a new lead), or leads and opps together (resulting
-    in a new opp).
-    """
+    """Merge leads or opportunities into a single record."""
 
     _name = "crm.merge.opportunity"
     _description = "Merge Opportunities"
