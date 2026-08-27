@@ -708,23 +708,28 @@ class TestDomainEvaluatorParityGenerated(TransactionCase):
     def _domain(self, rng, specs, depth=0):
         if depth >= 2 or rng.random() < 0.5:
             return self._condition(rng, specs)
-        parts = [self._domain(rng, specs, depth + 1) for _ in range(rng.randint(2, 3))]
         roll = rng.random()
-        if roll < 0.4:
-            return Domain.AND(parts)
         if roll < 0.8:
-            return Domain.OR(parts)
-        return ~parts[0]
+            parts = [
+                self._domain(rng, specs, depth + 1) for _ in range(rng.randint(2, 3))
+            ]
+            return Domain.AND(parts) if roll < 0.4 else Domain.OR(parts)
+        # NOT only ever negates a single sub-domain, so generate exactly one
+        # instead of the 2-3 the AND/OR branches need.
+        return ~self._domain(rng, specs, depth + 1)
 
     def _evaluate(self, model, records, domain):
-        with self.env.cr.savepoint(flush=False):
-            try:
-                if model is not None:
+        try:
+            if model is not None:
+                # Only the SQL path can leave the cursor mid-statement on
+                # failure; the pure in-memory branch never touches the DB, so
+                # it doesn't need a savepoint to roll back to.
+                with self.env.cr.savepoint(flush=False):
                     scoped = Domain("id", "in", records.ids) & domain
                     return None, set(model.search(scoped).ids)
-                return None, set(records.filtered_domain(domain).ids)
-            except Exception as error:
-                return type(error).__name__, None
+            return None, set(records.filtered_domain(domain).ids)
+        except Exception as error:
+            return type(error).__name__, None
 
     def test_generated_domains_agree_between_evaluators(self):
         rng = random.Random(self.SEED)
