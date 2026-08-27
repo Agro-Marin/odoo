@@ -13,6 +13,11 @@ from odoo.addons.base.models.assetsbundle import AssetsBundle
 
 class TestEsmConfigValidation(TransactionCase):
     def test_live_registry_builds_and_validates(self):
+        # Smoke-tests validate_esm_config() against the whole live
+        # registry. See TestExternalLibsValidator.test_the_live_tables_
+        # satisfy_all_four below for the equivalent live-table smoke test
+        # of _check_external_libs() -- the two together are "is the real
+        # config internally consistent", kept adjacent on purpose.
         reg = esm_registry()
         self.assertIn("web.assets_web", reg.bundles)
         self.assertIn("point_of_sale._assets_pos", reg.bundles)
@@ -193,6 +198,10 @@ class TestExternalLibsValidator(BaseCase):
             )
 
     def test_the_live_tables_satisfy_all_four(self):
+        # Companion to TestEsmConfigValidation.test_live_registry_builds_
+        # and_validates above: that one smoke-tests validate_esm_config()
+        # against the live registry, this one smoke-tests
+        # _check_external_libs() against the live external-libs table.
         AssetsBundle._check_external_libs(external_libs())
 
 
