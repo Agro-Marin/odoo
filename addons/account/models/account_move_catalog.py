@@ -127,6 +127,13 @@ class AccountMove(models.Model):
                     "sequence": self._get_new_line_sequence(child_field, section_id),
                 }
             )
+        else:
+            # No existing line to update and nothing to create: explicit
+            # no-op. Return the same 0.0 an empty recordset's price_unit
+            # would give, matching the base mixin's no-op default (0),
+            # but as an intentional branch instead of an implicit
+            # empty-recordset field read.
+            return 0.0
         return move_line.price_unit
 
     def _is_readonly(self):
