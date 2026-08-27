@@ -15,6 +15,12 @@ WARMUP_ITERATIONS = 5
 
 @tagged("standard", "orm_benchmark")
 class TestORMBenchmark(BenchmarkCase, TransactionCase):
+    """Timing only: no test_* method here asserts on a measured value.
+
+    A failure here is an exception, never a performance regression — see
+    BenchmarkCase's own docstring (odoo/tests/benchmark.py).
+    """
+
     benchmark_log_prefix = "ORM_BENCHMARK"
     benchmark_iterations = DEFAULT_ITERATIONS
     benchmark_warmup = WARMUP_ITERATIONS
