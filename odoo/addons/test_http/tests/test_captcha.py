@@ -53,12 +53,11 @@ class TestCaptcha(HttpCase):
             self.assertEqual(res.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
             self.assertIn("CAPTCHA test", res.text)
 
-    def test_get_valid(self):
-        res = self.url_open("/web/login")
-        with self.patch_captcha_valid(True):
-            res.raise_for_status()
-
-    def test_get_invalid(self):
-        res = self.url_open("/web/login")
+    def test_get_ignores_captcha(self):
+        # GET /web/login never reaches the captcha check (it is gated
+        # behind method == "POST" in web/controllers/home.py), so the
+        # request must still succeed even with a patch that would raise
+        # if it were ever invoked.
         with self.patch_captcha_valid(False):
+            res = self.url_open("/web/login")
             res.raise_for_status()
