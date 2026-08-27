@@ -33,10 +33,10 @@ class TestCustomAuth(HttpCase):
             "POST",
             "json is always POST",
         )
-        self.assertNotIn(
-            "XYZ",
+        self.assertEqual(
             r.headers["Access-Control-Allow-Headers"],
-            "headers are ignored",
+            "XYZ",
+            "headers are echoed back, not filtered",
         )
 
     @odoo.tools.mute_logger("odoo.http")
@@ -62,8 +62,8 @@ class TestCustomAuth(HttpCase):
             "GET, OPTIONS",
             "http is whatever's on the endpoint",
         )
-        self.assertNotIn(
-            "XYZ",
+        self.assertEqual(
             r.headers["Access-Control-Allow-Headers"],
-            "headers are ignored",
+            "XYZ",
+            "headers are echoed back, not filtered",
         )
