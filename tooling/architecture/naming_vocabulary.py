@@ -192,6 +192,27 @@ def _always_raises(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     return bool(body) and isinstance(body[-1], ast.Raise)
 
 
+def _overrides_same_name(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """Does the body call ``super().<its own name>(...)``?
+
+    An override does not choose its name -- the base does. Counting one as its
+    own violation double-counts the debt (fixing the base fixes every override
+    with it) and, worse, invites a rename that silently unhooks the override:
+    the method keeps compiling, `super()` still resolves, and the behaviour just
+    stops being reached. Measured when this landed, 52 of 368 workspace-wide
+    definitions were of this shape, 15 of them inside the floored `odoo` count.
+    """
+    return any(
+        isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == node.name
+        and isinstance(n.func.value, ast.Call)
+        and isinstance(n.func.value.func, ast.Name)
+        and n.func.value.func.id == "super"
+        for n in ast.walk(node)
+    )
+
+
 def _performs_orm_write(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     return any(
         isinstance(n, ast.Call)
@@ -636,7 +657,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
                 if not isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
                     continue
                 hit = classify(item.name)
-                if hit is None:
+                if hit is None or _overrides_same_name(item):
                     continue
                 out.append(
                     Violation(

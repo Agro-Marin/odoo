@@ -6,10 +6,10 @@
 
 ## Running the checks
 
-The fifty-five blocking checkers do **not** share one CLI, and a loop that
+The fifty-six blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on sixteen of them.
 
-**Thirty-six are contract gates.** Each takes bare for a human-readable
+**Thirty-seven are contract gates.** Each takes bare for a human-readable
 report, `--check` for CI (exit 1 on a new violation), `--json` for a
 machine-readable one:
 
@@ -31,7 +31,7 @@ to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 drives them as ratchets, so they belong to this group. Run any of the nineteen bare
 and it reports without enforcing.
 
-Thirty-six plus nineteen is fifty-five. All three figures derive from the
+Thirty-seven plus nineteen is fifty-six. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) — an
 enumerated list is a gate only when something independently derives the
@@ -52,7 +52,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             js_layer_check js_cycle_check \
             js_deployment_layers named_export_coherence js_suite_parity \
             js_layer_cohesion js_import_resolution js_self_bridge \
-            js_component_face js_component_data_access \
+            js_component_face js_component_data_access js_shadow_root \
             js_patch_blind_facade js_public_surface js_extension_surface \
             js_env_config_surface js_arch_info_surface js_field_record_surface \
             js_action_surface js_template_binding \
@@ -109,7 +109,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **fifty-five** blocking checkers, after
+`Architecture Boundaries` workflow runs **fifty-six** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -136,6 +136,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `js_layer_cohesion.py` | each file filed with what it serves, not with what it resembles |
 | `js_import_resolution.py` | every first-party specifier naming a real file |
 | `js_self_bridge.py` | no source module resolving itself through the loader |
+| `js_shadow_root.py` | every shadow root attached through `attachShadowRoot`, so its host carries the mark that makes it findable by a selector — there is no `:has-shadow-root` and no event on attach, and a root-crossing helper steps over an unmarked tree in silence (ADR-0069) |
 | `js_component_face.py` | which directories under `components/` must HAVE a face — `js_face_boundary` refuses an import that reaches *past* one but a face is discovered rather than declared, so nothing said when a directory needs one (ADR-0047) |
 | `js_component_data_access.py` | no component acquiring data at runtime — `components-below-entity` argues components take their data as props and enforces it by forbidding one import prefix no component uses (ADR-0046) |
 | `js_forced_render.py` | web core not sweeping a subtree with `render(true)` — a forced render hides reads that subscribe to nothing |
@@ -156,7 +157,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `js_public_surface.py` | the web addon's published JS surface, as a ratchet |
 | `js_extension_surface.py` | the web addon's inheritance surface — the methods downstream subclasses override, as a ratchet |
 | `js_arch_info_surface.py` | the `archInfo` keys the view compiler writes into *generated template source*, where they are strings until OWL compiles them and no type, linter or member gate can follow them; plus each view type's parser against what its own directory reads |
-| `js_field_record_surface.py` | what field widgets reach through `props.record` — `standardFieldProps` hands all **82** members of a live `RelationalRecord` to **110** widgets in this checkout, and a prop read is neither an import nor a class member, so no other gate sees it. Both figures are this repository's, not the workspace's: the gate's block was pinned once at 155 widgets from an assembled workspace, and failed in the build and nowhere else |
+| `js_field_record_surface.py` | what field widgets reach through `props.record` — `standardFieldProps` hands all **85** members of a live `RelationalRecord` to **110** widgets in this checkout, and a prop read is neither an import nor a class member, so no other gate sees it. Both figures are this repository's, not the workspace's: the gate's block was pinned once at 155 widgets from an assembled workspace, and failed in the build and nowhere else |
 | `js_env_config_surface.py` | the keys read out of `env.config`, web's ambient per-action bag — inherited through the component tree, so it is neither an import nor a class member and the two surface gates above are blind to it |
 | `js_action_surface.py` | the members reached on the `ActionManager` instance behind `env.services.action` — handed out by name, so blind to the import and member gates for the same reason. It found the contract under-declaring by four members that consumers reached at 45 call sites |
 | `js_template_binding.py` | the names an OWL template calls against the component that owns it — ADR-0032's rule on a fourth string edge. It found `EmbeddedActionsBar` binding a handler its class had lost, which took the client down on every click for 48 commits |
@@ -233,7 +234,7 @@ real-tree test — `test_the_real_tree_holds_the_property_today`,
 `test_the_surface_matches_the_committed_baseline` — so a violation fails the
 self-test step, which is blocking.
 
-`cross_repo_coherence.py` is a fifty-sixth checker and the only one outside CI: it
+`cross_repo_coherence.py` is a fifty-seventh checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
@@ -246,7 +247,7 @@ Eleven and not eight, which is what counting only the table above would give:
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
 third.
 
-**Seventy-eight** is how many steps CI runs the fifty-five in, each step invoking
+**Seventy-nine** is how many steps CI runs the fifty-six in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
 `py_function_length` alone accounts for six.

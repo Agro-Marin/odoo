@@ -26,6 +26,7 @@ GATES = {
     "js_import_resolution": ["--check"],
     "js_patch_blind_facade": ["--check"],
     "js_self_bridge": ["--check"],
+    "js_shadow_root": ["--check"],
     "js_forced_render": ["--check"],
     "js_suite_parity": ["--check"],
     "named_export_coherence": ["--check"],
@@ -200,6 +201,5 @@ def test_the_crashing_list_shrinks_and_never_grows(tmp_path):
 def test_the_crashing_list_names_only_real_gates():
     ghosts = CRASHES_INSTEAD_OF_REFUSING - set(GATES)
     assert not ghosts, (
-        f"{sorted(ghosts)} are pinned as crashers but are not swept gates. "
-        f"Remove them."
+        f"{sorted(ghosts)} are pinned as crashers but are not swept gates. Remove them."
     )

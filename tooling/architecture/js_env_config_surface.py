@@ -43,7 +43,9 @@ READING SITES
 -------------
 
 ``env.config.key``, ``env.config?.key``, ``const {a, b} = env.config``, and one
-level of aliasing (``const config = this.env.config`` then ``config.key``).
+level of aliasing (``const config = this.env.config`` then ``config.key``),
+including the JSDoc-cast form the strict typecheck lock introduced
+(``const config = /** @type {…} */ (env.config)``).
 
 The alias form is why this is not a one-line grep. Two files fork-wide use it,
 and dropping them loses real keys — ``actionType`` is reached only that way. It
@@ -95,8 +97,32 @@ UNANALYSABLE_BUDGET = 0
 _DOT = re.compile(r"env\.config\??\.([A-Za-z_$][\w$]*)")
 _DESTRUCTURE = re.compile(r"\{([^}]*)\}\s*=\s*(?:this\.)?env\.config\s*[;,)\n]")
 _ALIAS = re.compile(
-    r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:this\.)?env\.config\s*[;,)\n]"
+    r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
+    r"(?:/\*\*.*?\*/\s*\(\s*)?"
+    r"(?:this\.)?env\.config\s*[;,)\n]"
 )
+# `const config = /** @type {…} */ (env.config)` binds the same alias as
+# `const config = env.config`. The strict typecheck lock introduced the cast
+# form and an alias pattern anchored on a bare right-hand side stopped seeing
+# the binding at all -- which this gate reports as surface GIVEN UP rather than
+# as a blind spot, because a key it cannot see is indistinguishable from a key
+# nobody reaches. e62fd30cc36 did exactly that to `parentActionId`: the key is
+# read twice, three lines apart, and the gate went red saying web had stopped
+# reading it.
+_CAST = re.compile(r"^/\*\*.*?\*/\s*\((.*)\)$", re.DOTALL)
+# The cast's parenthesised expression is routinely on the NEXT line, because
+# prettier wraps it there as soon as the annotation is long -- `view.js`'s
+# `loadView` is that shape. A right-hand side captured up to the first newline
+# therefore ends at the open paren, and the alias reads as rebound rather than
+# as a cast. Match the cast form explicitly, letting it span lines, before
+# falling back to the single-line form.
+_RHS = r"(/\*\*.*?\*/\s*\([^;]*?\)|[^;\n]*)"
+
+
+def _uncast(expression: str) -> str:
+    """Strip one leading JSDoc type cast from an assignment's right-hand side."""
+    match = _CAST.match(expression)
+    return match.group(1).strip() if match else expression
 _IDENT = re.compile(r"^[A-Za-z_$][\w$]*$")
 _ARRAY = r"export const {name} = \[(.*?)\];"
 
@@ -142,9 +168,11 @@ def _js_files(root: Path):
 def _alias_is_rebound(source: str, alias: str) -> bool:
 
     for match in re.finditer(
-        rf"(?:const|let|var)\s+{re.escape(alias)}\s*=\s*([^;\n]*)", source
+        rf"(?:const|let|var)\s+{re.escape(alias)}\s*=\s*{_RHS}", source
     ):
-        if not re.match(r"(?:this\.)?env\.config\b", match.group(1).strip()):
+        if not re.match(
+            r"(?:this\.)?env\.config\b", _uncast(match.group(1).strip())
+        ):
             return True
     return False
 

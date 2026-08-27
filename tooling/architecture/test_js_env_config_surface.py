@@ -65,6 +65,32 @@ class TestKeyExtraction:
         _, ok = gate.keys_in("const config = this.env.config;\nconfig.viewId;")
         assert ok, "the tree's two honest alias sites were both flagged by this bug"
 
+    def test_a_cast_alias_is_followed(self):
+        # e62fd30cc36 wrapped `env.config` in a JSDoc cast to satisfy the
+        # strict typecheck lock. The alias stopped being recognised, and the
+        # gate reported `parentActionId` as surface web had GIVEN UP -- three
+        # lines away from the two reads that still take it.
+        source = (
+            "const config = /** @type {NonNullable<typeof env.config>} */ "
+            "(env.config);\nif (!config.parentActionId) {}"
+        )
+        keys, ok = gate.keys_in(source)
+        assert ok and {"parentActionId"} <= keys
+
+    def test_a_cast_alias_wrapped_onto_the_next_line_is_followed(self):
+        # prettier moves the parenthesised expression down as soon as the
+        # annotation is long, which is `view.js::loadView`'s shape. A
+        # right-hand side that stops at the first newline ends at the open
+        # paren, and the cast then reads as a REBINDING.
+        source = (
+            "const config = /** @type {ViewConfig & Record<string, any>} */ (\n"
+            "    this.env.config\n"
+            ");\nconst views = config.views;"
+        )
+        keys, ok = gate.keys_in(source)
+        assert ok, "a wrapped cast is one binding, not a rebinding"
+        assert {"views"} <= keys
+
     def test_a_genuinely_rebound_alias_is_refused(self):
         source = (
             "const config = this.env.config;\n"

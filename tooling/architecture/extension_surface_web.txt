@@ -30,9 +30,8 @@ BadgeField.badgeClass  enterprise
 BinaryField.onFileDownload  odoo
 BinaryField.setup  odoo enterprise
 BinaryField.update  enterprise
-BooleanField.onChange  odoo
+BooleanField.onChange  odoo enterprise
 BooleanField.setup  odoo enterprise
-BooleanToggleField.onChange  odoo enterprise
 BurgerMenu.setup  odoo enterprise
 CalendarArchParser.parse  enterprise
 CalendarCommonPopover.hasFooter  odoo
@@ -119,12 +118,7 @@ CogMenu._registryItems  odoo
 CogMenu.cogItems  odoo
 CogMenu.setup  odoo
 Colibri.addListener  odoo
-Colibri.applyAttr  odoo
-Colibri.applyTOut  odoo
-Colibri.bindDeferred  odoo
-Colibri.destroyInteraction  odoo
 Colibri.setupInteraction  odoo
-Colibri.startInteraction  odoo
 CommandPalette.setCommands  enterprise
 ConfirmationDialog._cancel  odoo enterprise
 ConfirmationDialog._confirm  odoo enterprise
@@ -242,7 +236,7 @@ KanbanDropdownMenuWrapper.onClick  odoo
 KanbanMany2ManyTagsAvatarField.tags  odoo
 KanbanQuickCreateController.showFormDialogInError  enterprise
 KanbanRecord.getRecordClasses  odoo enterprise
-KanbanRecord.menuTemplate  enterprise
+KanbanRecord.menuTemplate  odoo enterprise
 KanbanRecord.onGlobalClick  odoo enterprise
 KanbanRecord.record  enterprise
 KanbanRecord.renderingContext  odoo
@@ -404,13 +398,15 @@ RadioField.setup  odoo enterprise
 ReferenceField.m2oProps  odoo
 ReferenceField.setup  odoo
 RelationalModel.DEFAULT_LIMIT  odoo
-RelationalModel.Record  odoo
+RelationalModel.DynamicGroupList  odoo
+RelationalModel.DynamicRecordList  odoo
+RelationalModel.Record  odoo enterprise
 RelationalModel._loadData  odoo
 RelationalModel._updateSimilarRecords  odoo
 RelationalModel.hasData  enterprise
 RelationalModel.load  odoo enterprise agromarin
 RelationalModel.loadGroupedList  odoo
-RelationalModel.services  odoo
+RelationalModel.services  odoo agromarin
 RelationalModel.setup  odoo enterprise agromarin
 RelationalModel.webReadGroup  odoo
 RelationalModel.withCache  odoo enterprise
@@ -479,6 +475,7 @@ ViewArchParser.processButton  enterprise
 ViewButton.getClassName  enterprise
 ViewButton.onClick  enterprise
 ViewButton.setup  enterprise
+ViewCompiler.OWL_DIRECTIVE_WHITELIST  odoo enterprise agromarin
 ViewCompiler.applyInvisible  enterprise
 ViewCompiler.compile  odoo enterprise
 ViewCompiler.compileField  odoo

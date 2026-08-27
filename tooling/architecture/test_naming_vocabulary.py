@@ -120,6 +120,61 @@ def test_measure_finds_a_planted_violation(tmp_path):
     assert found[0].canonical == "_check_"
 
 
+def test_measure_does_not_count_an_override(tmp_path):
+    """An override does not choose its name -- the base does."""
+    (tmp_path / "m.py").write_text(
+        textwrap.dedent(
+            """
+            from odoo import models
+
+            class M(models.Model):
+                _inherit = "some.model"
+
+                def _validate_leave_request(self):
+                    super()._validate_leave_request()
+                    return True
+            """
+        )
+    )
+    assert measure([tmp_path]) == []
+
+
+def test_measure_counts_the_same_name_when_it_is_not_an_override(tmp_path):
+    """The exemption is the `super()` call, not the name."""
+    (tmp_path / "m.py").write_text(
+        textwrap.dedent(
+            """
+            from odoo import models
+
+            class M(models.Model):
+                _name = "some.model"
+
+                def _validate_leave_request(self):
+                    return True
+            """
+        )
+    )
+    assert [v.name for v in measure([tmp_path])] == ["_validate_leave_request"]
+
+
+def test_measure_counts_an_override_of_a_DIFFERENT_method(tmp_path):
+    """Calling `super().write()` does not licence an abolished verb of its own."""
+    (tmp_path / "m.py").write_text(
+        textwrap.dedent(
+            """
+            from odoo import models
+
+            class M(models.Model):
+                _inherit = "some.model"
+
+                def _validate_amount(self):
+                    return super().write({})
+            """
+        )
+    )
+    assert [v.name for v in measure([tmp_path])] == ["_validate_amount"]
+
+
 def test_measure_skips_test_files(tmp_path):
     tests = tmp_path / "tests"
     tests.mkdir()

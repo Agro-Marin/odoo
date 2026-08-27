@@ -422,6 +422,84 @@ def test_patch_and_extends_land_on_one_key(tree):
     assert sum(sum(counts) for counts in detailed["Thing.go"].values()) == 2
 
 
+def test_a_member_set_after_the_class_body_is_an_override_point(tree):
+
+    root, web_src = tree
+    _write(
+        web_src,
+        "views/list.js",
+        'export class ListRenderer {\n    static rowsTemplate = "web.Rows";\n}\n',
+    )
+    _write(
+        root,
+        "addons/hr_skills/static/src/x.js",
+        'import { ListRenderer } from "@web/views/list";\n'
+        "export class SkillsRenderer extends ListRenderer {}\n"
+        'SkillsRenderer.rowsTemplate = "hr_skills.Rows";\n',
+    )
+    assert points(tree) == {"ListRenderer.rowsTemplate"}
+
+
+def test_a_member_set_on_the_prototype_after_the_class_body_is_a_point(tree):
+
+    root, web_src = tree
+    _write(web_src, "views/list.js", "export class ListRenderer {\n    add() {}\n}\n")
+    _write(
+        root,
+        "addons/stock/static/src/x.js",
+        'import { ListRenderer } from "@web/views/list";\n'
+        "export class MovesRenderer extends ListRenderer {}\n"
+        "MovesRenderer.prototype.add = function () {};\n",
+    )
+    assert points(tree) == {"ListRenderer.add"}
+
+
+def test_a_post_hoc_assignment_the_base_does_not_declare_is_not_a_point(tree):
+
+    root, web_src = tree
+    _write(web_src, "views/list.js", "export class ListRenderer {\n    add() {}\n}\n")
+    _write(
+        root,
+        "addons/stock/static/src/x.js",
+        'import { ListRenderer } from "@web/views/list";\n'
+        "export class MovesRenderer extends ListRenderer {}\n"
+        'MovesRenderer.somethingNew = "x";\n',
+    )
+    assert points(tree) == set()
+
+
+def test_a_post_hoc_assignment_on_a_non_class_target_is_ignored(tree):
+
+    root, web_src = tree
+    _write(web_src, "views/list.js", "export class ListRenderer {\n    add() {}\n}\n")
+    _write(
+        root,
+        "addons/stock/static/src/x.js",
+        'import { ListRenderer } from "@web/views/list";\n'
+        "export class MovesRenderer extends ListRenderer {}\n"
+        "someRegistry.add = 1;\n",
+    )
+    assert points(tree) == set()
+
+
+def test_a_post_hoc_assignment_of_owl_boilerplate_is_not_contract(tree):
+
+    root, web_src = tree
+    _write(
+        web_src,
+        "search.js",
+        'export class SearchBar {\n    static template = "web.SearchBar";\n}\n',
+    )
+    _write(
+        root,
+        "addons/mrp/static/src/x.js",
+        'import { SearchBar } from "@web/search";\n'
+        "export class MrpSearchBar extends SearchBar {}\n"
+        'MrpSearchBar.template = "mrp.SearchBar";\n',
+    )
+    assert points(tree) == set()
+
+
 def test_explain_names_the_overriding_files(tree):
     root, web_src = tree
     _write(
@@ -456,6 +534,23 @@ def test_explain_does_not_confuse_a_same_named_method_on_another_base(tree):
     )
     rows = jes.overriders("SearchModel._reset", (root,), web_src=web_src)
     assert [subclass for _s, _p, subclass in rows] == ["RealSearch"]
+
+
+def test_explain_names_a_patch_overrider(tree):
+
+    root, web_src = tree
+    _write(
+        web_src, "views/list.js", "export class ListRenderer {\n    getCols() {}\n}\n"
+    )
+    _write(
+        root,
+        "addons/mail/static/src/x.js",
+        'import { patch } from "@web/core/utils/patch";\n'
+        'import { ListRenderer } from "@web/views/list";\n'
+        "patch(ListRenderer.prototype, {\n    getCols() {},\n});\n",
+    )
+    rows = jes.overriders("ListRenderer.getCols", (root,), web_src=web_src)
+    assert [subclass for _s, _p, subclass in rows] == ["patch(ListRenderer)"]
 
 
 def test_the_real_scan_reaches_the_tree():
