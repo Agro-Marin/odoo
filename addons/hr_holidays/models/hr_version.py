@@ -6,19 +6,18 @@ from odoo.fields import Domain
 
 
 class HrVersion(models.Model):
-    """Write and Create:
-    Special case when setting a contract as running:
-    If there is already a validated time off over another contract
-    with a different schedule, split the time off, before the
-    _check_contracts raises an issue.
-    If there are existing leaves that are spanned by this new
-    contract, update their resource calendar to the current one.
-    """
+    """Employee Contract."""
 
     # TODO BIOUTIFY ME (the whole file :)
     _inherit = "hr.version"
     _description = "Employee Contract"
 
+    # Write and Create: special case when setting a contract as running.
+    # If there is already a validated time off over another contract
+    # with a different schedule, split the time off, before the
+    # _check_contracts raises an issue.
+    # If there are existing leaves that are spanned by this new
+    # contract, update their resource calendar to the current one.
     @api.constrains("contract_date_start", "contract_date_end")
     def _check_contracts(self):
         self._get_leaves()._check_contracts()
