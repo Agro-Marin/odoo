@@ -38,14 +38,12 @@ class GamificationKudosCategory(models.Model):
     kudos_count = fields.Count("kudos_ids", "# Kudos")
 
 
+# Kudos are lightweight, informal recognition acts. Unlike badges (which
+# have granting rules and scarcity), any employee can send kudos to any
+# other employee at any time. Kudos integrate with mixin.mail.thread so they
+# appear in the Discuss social feed.
 class GamificationKudos(models.Model):
-    """Peer-to-peer recognition message.
-
-    Kudos are lightweight, informal recognition acts. Unlike badges (which
-    have granting rules and scarcity), any employee can send kudos to any
-    other employee at any time. Kudos integrate with mixin.mail.thread so they
-    appear in the Discuss social feed.
-    """
+    """Peer-to-peer recognition message."""
 
     _name = "gamification.kudos"
     _description = "Peer Recognition"

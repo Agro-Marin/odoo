@@ -7,13 +7,11 @@ from odoo.tools.safe_eval import safe_eval
 DOMAIN_TEMPLATE = "[('store', '=', True), '|', ('model_id', '=', model_id), ('model_id', 'in', model_inherited_ids)%s]"
 
 
+# Each module wanting to define gamification objectives creates
+# ``gamification.goal.definition`` records specifying the computation
+# mode (count, sum, python, manual) and the target model/field/domain.
 class GamificationGoalDefinition(models.Model):
-    """Template that defines how a goal is evaluated.
-
-    Each module wanting to define gamification objectives creates
-    ``gamification.goal.definition`` records specifying the computation
-    mode (count, sum, python, manual) and the target model/field/domain.
-    """
+    """Template that defines how a goal is evaluated."""
 
     _name = "gamification.goal.definition"
     _description = "Gamification Goal Definition"

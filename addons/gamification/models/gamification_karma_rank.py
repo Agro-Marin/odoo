@@ -5,12 +5,10 @@ from odoo.models import ValuesType
 from odoo.tools.translate import html_translate
 
 
+# Ranks define thresholds in the karma XP curve.  When a user's karma
+# crosses a threshold, they level up and optionally receive badges.
 class GamificationKarmaRank(models.Model):
-    """Karma-based rank (level) in the gamification progression system.
-
-    Ranks define thresholds in the karma XP curve.  When a user's karma
-    crosses a threshold, they level up and optionally receive badges.
-    """
+    """Karma-based rank (level) in the gamification progression system."""
 
     _name = "gamification.karma.rank"
     _description = "Gamification Rank / Level"
