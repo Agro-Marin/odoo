@@ -81,8 +81,6 @@ class IrActionsReport(models.Model):
             articles = root.xpath(
                 "//div[contains(concat(' ', normalize-space(@class), ' '), ' article ')]"
             )
-            if not articles:
-                articles = root.xpath("//div[contains(@class, \"'article'\")]")
             result = {}
             for article in articles:
                 if article.get("data-oe-model") == report.model:
