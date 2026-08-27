@@ -124,10 +124,8 @@ class IrAttachment(models.Model):
                 zf_filelist = [
                     x for x in zf.namelist() if x.startswith("ppt/slides/slide")
                 ]
-                for i in range(1, len(zf_filelist) + 1):
-                    raw = self._read_zip_entry(
-                        zf, zf.getinfo("ppt/slides/slide%s.xml" % i)
-                    )
+                for name in zf_filelist:
+                    raw = self._read_zip_entry(zf, zf.getinfo(name))
                     if raw is None:
                         continue
                     content = defused_parse_string(raw)
