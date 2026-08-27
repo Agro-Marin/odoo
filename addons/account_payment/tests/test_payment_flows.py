@@ -15,6 +15,21 @@ from odoo.addons.portal.controllers.portal import CustomerPortal
 
 @tagged("post_install", "-at_install")
 class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
+    def _prepare_tx_route_values(self, tx_context, **overrides):
+        """Build the values passed to the transaction route, from a payment
+        context (as returned by _get_portal_pay_context/_get_payment_context),
+        with any field overridden or added via **overrides."""
+        return {
+            "provider_id": self.provider.id,
+            "payment_method_id": self.payment_method_id,
+            "token_id": None,
+            "amount": tx_context.get("amount"),
+            "flow": "direct",
+            "tokenization_requested": False,
+            "landing_route": tx_context["landing_route"],
+            **overrides,
+        }
+
     def test_invoice_payment_flow(self):
         """Test that paying an invoice through `/payment/pay` links the transaction to it."""
 
@@ -24,16 +39,9 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         tx_context = self._get_portal_pay_context(**route_values)
 
         # /invoice/transaction/<id>
-        tx_route_values = {
-            "provider_id": self.provider.id,
-            "payment_method_id": self.payment_method_id,
-            "token_id": None,
-            "amount": tx_context["amount"],
-            "flow": "direct",
-            "tokenization_requested": False,
-            "landing_route": tx_context["landing_route"],
-            "access_token": tx_context["access_token"],
-        }
+        tx_route_values = self._prepare_tx_route_values(
+            tx_context, access_token=tx_context["access_token"]
+        )
         with mute_logger("odoo.addons.payment.models.payment_transaction"):
             processing_values = self._get_processing_values(
                 tx_route=tx_context["transaction_route"], **tx_route_values
@@ -124,16 +132,9 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         route_values["invoice_id"] = invoice.id
         tx_context = self._get_portal_pay_context(**route_values)
 
-        tx_route_values = {
-            "provider_id": self.provider.id,
-            "payment_method_id": self.payment_method_id,
-            "token_id": None,
-            "amount": tx_context["amount"],
-            "flow": "direct",
-            "tokenization_requested": False,
-            "landing_route": tx_context["landing_route"],
-            "access_token": tx_context["access_token"],
-        }
+        tx_route_values = self._prepare_tx_route_values(
+            tx_context, access_token=tx_context["access_token"]
+        )
         with mute_logger("odoo.addons.payment.models.payment_transaction"):
             processing_values = self._get_processing_values(
                 tx_route=tx_context["transaction_route"], **tx_route_values
@@ -185,16 +186,9 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         self.assertEqual(tx_context.get("amount"), invoice.amount_total)
         self.assertEqual(tx_context["payment_reference"], invoice.payment_reference)
 
-        tx_route_values = {
-            "provider_id": self.provider.id,
-            "payment_method_id": self.payment_method_id,
-            "token_id": None,
-            "amount": tx_context.get("amount"),
-            "flow": "direct",
-            "tokenization_requested": False,
-            "landing_route": tx_context["landing_route"],
-            "payment_reference": tx_context["payment_reference"],
-        }
+        tx_route_values = self._prepare_tx_route_values(
+            tx_context, payment_reference=tx_context["payment_reference"]
+        )
         with mute_logger("odoo.addons.payment.models.payment_transaction"):
             processing_values = self._get_processing_values(
                 tx_route=tx_context["transaction_route"], **tx_route_values
