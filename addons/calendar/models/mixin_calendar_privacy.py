@@ -75,7 +75,9 @@ class MixinCalendarPrivacy(models.AbstractModel):
         # A record linked to no event at all protects nothing and is left alone;
         # otherwise it is hidden only when *every* event it hangs off is.
         return self.filtered(
-            lambda record: (linked := record[fname].ids) and not set(linked) - hidden_ids
+            lambda record: (
+                (linked := record[fname].ids) and not set(linked) - hidden_ids
+            )
         )
 
     def _search(
