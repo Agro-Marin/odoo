@@ -1,6 +1,7 @@
 import json
 
 import odoo.tests
+from odoo.exceptions import UserError
 
 from .common import SEARCH_PANEL_ERROR, strip_version
 
@@ -1072,3 +1073,11 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
                 },
             ],
         )
+
+    def test_unknown_field_raises_user_error(self):
+        with self.assertRaises(UserError):
+            self._select_multi_range("no_such_field")
+
+    def test_unsupported_type_raises_user_error(self):
+        with self.assertRaises(UserError):
+            self._select_multi_range("name")
