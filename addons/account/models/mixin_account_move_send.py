@@ -572,11 +572,18 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _hook_if_errors(self, moves_data, allow_raising=True):
+        if allow_raising:
+            error_messages = [
+                self._format_error_text(move_data["error"])
+                for move_data in moves_data.values()
+            ]
+            if error_messages:
+                raise UserError("\n".join(error_messages))
+            return
+
         group_by_partner = defaultdict(list)
         for move, move_data in moves_data.items():
             error = move_data["error"]
-            if allow_raising:
-                raise UserError(self._format_error_text(error))
             group_by_partner[move_data["author_partner_id"]].append(move.id)
             move.message_post(body=self._format_error_html(error))
         self._send_notifications_to_partners(group_by_partner, is_success=False)
