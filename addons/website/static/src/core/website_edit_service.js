@@ -153,97 +153,51 @@ export const websiteEditService = {
                 return;
             }
 
+            // Colibri's own DOM effects — setup, start, teardown, dynamic
+            // attributes, `t-out`, deferred callbacks and listener bodies —
+            // are the framework restoring a page, not the user editing it, so
+            // they must not land in the undo history. One scope replaces the
+            // five near-identical overrides this patch used to carry.
+            //
+            // `historyCallbacks.ignoreDOMMutations` is read per call, not
+            // captured: it is assigned by `handlePluginLoaded` immediately
+            // AFTER the synchronous `transfer_website_edit_service` dispatch
+            // that brought us here, so it is still unset at this line. It is
+            // set before anything can run an interaction, and deliberately not
+            // guarded — an unscoped effect would silently corrupt the history,
+            // which is far worse than throwing.
+            publicInteractions.domEffectScope = (fn) =>
+                historyCallbacks.ignoreDOMMutations(fn);
+            patches.push(() => {
+                // Unshadow rather than reassign, so the service goes back to
+                // the prototype's identity scope instead of carrying a copy.
+                delete publicInteractions.domEffectScope;
+            });
+
             // Patch Colibri.
 
             patches.push(
                 patch(Colibri.prototype, {
                     setupInteraction() {
-                        historyCallbacks.ignoreDOMMutations(() => {
-                            super.setupInteraction();
-                        });
+                        super.setupInteraction();
                         this.interaction.setupConfigurationSnapshot();
                     },
-                    destroyInteraction() {
-                        historyCallbacks.ignoreDOMMutations(() => {
-                            super.destroyInteraction();
-                        });
-                    },
-                    bindDeferred(interaction, fn) {
-                        fn = super.bindDeferred(interaction, fn);
-                        return (...args) =>
-                            historyCallbacks.ignoreDOMMutations(() => fn(...args));
-                    },
                     addListener(target, event, fn, options, sel) {
-                        // `Colibri.refreshNodes` re-registers, for newly matched
-                        // nodes, the very handler a previous `addListener` call
-                        // returned — Colibri marks it `isHandler` so its own
-                        // guard passes it through unchanged, which is what keeps
-                        // the listener's identity stable. Everything below
-                        // starts with `fn.bind(...)`, and `bind()` returns a new
-                        // function *without* custom properties: the flag was
-                        // lost, the handler was wrapped a second time, and the
-                        // resulting listener no longer matched the one
-                        // `refreshNodes` later hands to `removeEventListener`.
-                        // Those listeners could then never be detached — not on
-                        // refresh, and not on destroy either, since
-                        // `refreshNodes` drops their removers from `cleanups`
-                        // without calling them. Pass an already-built handler
-                        // straight through.
-                        if (fn.isHandler) {
-                            return super.addListener(target, event, fn, options, sel);
-                        }
-                        const boundFn = fn.bind(this.interaction);
                         if (event.startsWith("slide.bs.carousel")) {
                             // Never allow cancelling this event in edit mode.
-                            fn = (...args) => {
-                                const ev = args[0];
-                                ev.preventDefault = () => {};
-                                ev.stopPropagation = () => {};
-                                return boundFn(...args);
-                            };
-                        } else {
-                            fn = boundFn;
+                            // Declared with `function` so that Colibri still
+                            // calls it with the interaction as `this`.
+                            const inner = fn;
+                            fn = /** @type {any} */ (
+                                function (/** @type {any[]} */ ...args) {
+                                    const ev = args[0];
+                                    ev.preventDefault = () => {};
+                                    ev.stopPropagation = () => {};
+                                    return inner.call(this, ...args);
+                                }
+                            );
                         }
-                        let stealth = true;
-                        const parts = event.split(".");
-                        if (parts.includes("keepInHistory") || options?.keepInHistory) {
-                            stealth = false;
-                            event = parts
-                                .filter((part) => part !== "keepInHistory")
-                                .join(".");
-                            delete options?.keepInHistory;
-                        }
-                        let stealthFn = fn;
-                        if (
-                            historyCallbacks.ignoreDOMMutations &&
-                            !fn.isHandler &&
-                            stealth
-                        ) {
-                            stealthFn = (...args) =>
-                                historyCallbacks.ignoreDOMMutations(() => fn(...args));
-                        }
-                        return super.addListener(
-                            target,
-                            event,
-                            stealthFn,
-                            options,
-                            sel,
-                        );
-                    },
-                    applyAttr(...args) {
-                        historyCallbacks.ignoreDOMMutations(() =>
-                            super.applyAttr(...args),
-                        );
-                    },
-                    applyTOut(...args) {
-                        historyCallbacks.ignoreDOMMutations(() =>
-                            super.applyTOut(...args),
-                        );
-                    },
-                    startInteraction(...args) {
-                        historyCallbacks.ignoreDOMMutations(() =>
-                            super.startInteraction(...args),
-                        );
+                        return super.addListener(target, event, fn, options, sel);
                     },
                 }),
                 patch(Interaction.prototype, {

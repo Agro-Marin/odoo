@@ -207,15 +207,24 @@ export class WebsiteBuilderClientAction extends Component {
                     .querySelector("body")
                     .classList.toggle("o_builder_open", isEditing);
                 if (isEditing) {
-                    // When entering edit mode, the navbar animates upwards.
-                    // To avoid an abrupt disappearance, we delay adding the
-                    // 'd-none' class
+                    // Which systray items exist is application state: it
+                    // changes the moment edit mode does, mirroring the
+                    // `addSystrayItems()` on the way out, which was never
+                    // delayed. It used to ride inside the timer below, so for
+                    // 200ms after entering edit mode the systray still offered
+                    // the view-mode website item -- and a caller observing the
+                    // registry saw edit mode with the wrong items in it.
+                    websiteSystrayRegistry.remove("website.WebsiteSystrayItem");
+                    websiteSystrayRegistry.trigger("EDIT-WEBSITE");
+                    // Only the presentation waits: the navbar animates upwards
+                    // on entering edit mode, and `d-none` would cut the slide
+                    // short. Optional-chained like its sibling below — a fast
+                    // enter/exit clears the body class first, and the compound
+                    // selector then matches nothing.
                     this.navBarTimeout = setTimeout(() => {
-                        websiteSystrayRegistry.remove("website.WebsiteSystrayItem");
-                        websiteSystrayRegistry.trigger("EDIT-WEBSITE");
                         document
                             .querySelector(".o_builder_open .o_main_navbar")
-                            .classList.add("d-none");
+                            ?.classList.add("d-none");
                     }, 200);
                 } else {
                     document
@@ -259,8 +268,15 @@ export class WebsiteBuilderClientAction extends Component {
             isMobile: this.websiteContext.isMobile,
             config: {
                 initialTarget: this.target,
+                // `||` binds tighter than `?:`, so the parenthesis is what
+                // makes this "the tab that was asked for, else the default for
+                // the mode". Without it the condition was
+                // `(initialTab || translation)`, and `reloadEditor` always
+                // supplies `initialTab: state.activeTab` (builder.js) — a
+                // truthy string every time — so every reload landed on
+                // Customize and the tab it was preserving was discarded.
                 initialTab:
-                    this.initialTab || this.translation ? "customize" : "blocks",
+                    this.initialTab || (this.translation ? "customize" : "blocks"),
                 builderSidebar: {
                     withHiddenSidebar: async (cb) => {
                         try {

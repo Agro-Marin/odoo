@@ -1,6 +1,7 @@
 import { exampleContent, modifyText } from "@html_builder/../tests/helpers";
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, waitFor } from "@odoo/hoot-dom";
+import { advanceTime } from "@odoo/hoot-mock";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { WebsiteBuilder } from "@website/builder/website_builder";
 
@@ -59,6 +60,7 @@ test("Set and update the 'contenteditable' attribute on the editable elements", 
 test("Admin navbar is hidden in edit mode", async () => {
     await setupWebsiteBuilder("<section><p>TEST</p></section>");
     await waitFor(":iframe section");
+    await advanceTime(250);
     expect(".o_main_navbar").not.toBeVisible();
 });
 

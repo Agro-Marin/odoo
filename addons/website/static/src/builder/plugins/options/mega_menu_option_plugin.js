@@ -10,6 +10,19 @@ import { MegaMenuOption } from "@website/builder/plugins/options/mega_menu_optio
  * @property { MegaMenuOptionPlugin['getTemplatePrefix'] } getTemplatePrefix
  */
 
+// Part of the widget's structure rather than of the user's styling choices, so
+// never part of the stored value.
+const STRUCTURAL_CLASSES = ["dropdown-menu", "o_mega_menu", "o_editable"];
+
+// Editor state that happens to be spelled as a class. `save_plugin` strips
+// `o_dirty` from the CLONE it persists and deliberately leaves it on the live
+// element until that element's write has actually succeeded -- so anything
+// reading a live `classList` sees it. This writer does exactly that, from its
+// own `orm.write` outside the save pipeline, and was storing the editor's dirty
+// marker into `mega_menu_classes`: a class that then came back on the next
+// load, on a record the user never marked dirty.
+const EDITOR_STATE_CLASSES = ["o_dirty"];
+
 export class MegaMenuOptionPlugin extends Plugin {
     static id = "megaMenuOptionPlugin";
     static dependencies = [];
@@ -45,9 +58,8 @@ export class MegaMenuOptionPlugin extends Plugin {
             // menu itself.
             const classes = [...megaMenuEl.classList].filter(
                 (megaMenuClass) =>
-                    !["dropdown-menu", "o_mega_menu", "o_editable"].includes(
-                        megaMenuClass,
-                    ),
+                    !STRUCTURAL_CLASSES.includes(megaMenuClass) &&
+                    !EDITOR_STATE_CLASSES.includes(megaMenuClass),
             );
 
             proms.push(
