@@ -14,6 +14,8 @@ import logging
 from odoo.tests.benchmark import PerfTimer
 from odoo.tests.common import TransactionCase, tagged
 
+from ._perf_timer import run_perf_timer
+
 _logger = logging.getLogger(__name__)
 
 N = 2000
@@ -44,13 +46,7 @@ class TestPythonHotspots(TransactionCase):
         gc.collect()
 
     def _bench(self, name: str, func, n: int = N, warmup: int = WARMUP) -> dict:
-        timer = PerfTimer()
-        for _ in range(warmup):
-            func()
-        for _ in range(n):
-            timer.start()
-            func()
-            timer.stop()
+        timer = run_perf_timer(func, n, warmup)
         stats = _log_result(timer, name)
         self.all_stats.append(stats)
         return stats
