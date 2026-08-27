@@ -195,7 +195,7 @@ class ResGroups(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Override to invalidate `_get_lock_timeouts` cache if timeout fields are set on creation."""
+        """Override to clear the shared default ormcache group (including `_get_lock_timeouts`) if timeout fields are set on creation."""
         if any(
             field in vals for vals in vals_list for field in CACHE_INVALIDATE_FIELDS
         ):
@@ -203,13 +203,13 @@ class ResGroups(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        """Override to invalidate `_get_lock_timeouts` cache if timeout fields are updated."""
+        """Override to clear the shared default ormcache group (including `_get_lock_timeouts`) if timeout fields are updated."""
         if any(field in vals for field in CACHE_INVALIDATE_FIELDS):
             self.env.registry.clear_cache()
         return super().write(vals)
 
     def unlink(self):
-        """Override to invalidate `_get_lock_timeouts` cache if timeout fields exist on deleted records."""
+        """Override to clear the shared default ormcache group (including `_get_lock_timeouts`) if timeout fields exist on deleted records."""
         if self.filtered(lambda r: any(r[field] for field in CACHE_INVALIDATE_FIELDS)):
             self.env.registry.clear_cache()
         return super().unlink()
