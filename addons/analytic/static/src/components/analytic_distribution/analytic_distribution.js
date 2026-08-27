@@ -281,7 +281,7 @@ export class AnalyticDistribution extends Component {
                   .map((id) => parseInt(id))
             : [];
         const analyticAccountDict = analyticAccountIds.length
-            ? await this.fetchAnalyticAccounts(analyticAccountIds)
+            ? await this.fetchAnalyticAccounts([["id", "in", analyticAccountIds]])
             : [];
 
         const distribution = [];
@@ -479,12 +479,16 @@ export class AnalyticDistribution extends Component {
         }
     }
 
-    async fetchAnalyticAccounts(ids) {
-        const fields = ["id", "display_name", "root_plan_id", "color"];
+    async fetchAnalyticAccounts(domain) {
+        const args = {
+            domain: domain,
+            fields: ["id", "display_name", "root_plan_id", "color"],
+            context: [],
+        };
         const records = await this.batchedOrm.read(
             "account.analytic.account",
-            ids,
-            fields,
+            domain[0][2],
+            args.fields,
             {},
         );
         return Object.assign(
