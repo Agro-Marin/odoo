@@ -89,6 +89,10 @@ class TestFieldGroupsInSql(TransactionCase):
         )
 
     def test_order_by_restricted_field_emits_no_sql_for_it(self):
+        # Inspects Query/SQL internals (`.order.code`) deliberately: the
+        # claim under test is "no SQL for the restricted field", and there
+        # is no public-API way to observe the *absence* of a join/order
+        # term short of parsing the emitted SQL itself.
         join_alias = f"{self.model._table}__g_id"
         allowed = self.env["test_orm.model2.some_access"].sudo()
         self.assertIn(
