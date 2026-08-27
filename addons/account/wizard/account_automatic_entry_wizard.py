@@ -149,10 +149,15 @@ class AccountAutomaticEntryWizard(models.TransientModel):
     @api.depends("total_amount", "move_line_ids")
     def _compute_percentage(self):
         for record in self:
-            total = sum(record.move_line_ids.mapped("balance")) or record.total_amount
-            if total != 0:
-                record.percentage = min((record.total_amount / total) * 100, 100)
+            balance_total = sum(record.move_line_ids.mapped("balance"))
+            if balance_total:
+                record.percentage = min(
+                    (record.total_amount / balance_total) * 100, 100
+                )
             else:
+                # No reference amount to compute a ratio against: 100% is the
+                # explicit convention here, not a byproduct of dividing
+                # total_amount by itself.
                 record.percentage = 100
 
     @api.depends("move_line_ids")
