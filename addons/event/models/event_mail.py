@@ -20,9 +20,7 @@ _INTERVALS = {
 
 
 class EventMail(models.Model):
-    """Event automated mailing. This model replaces all existing fields and
-    configuration allowing to send emails on events since Odoo 9. A cron exists
-    that periodically checks for mailing to run."""
+    """Automated mailing scheduled on an event."""
 
     _name = "event.mail"
     _rec_name = "event_id"
