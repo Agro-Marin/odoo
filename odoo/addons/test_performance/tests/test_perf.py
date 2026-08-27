@@ -31,19 +31,74 @@ def _log_result(stats: dict):
     _logger.info("[ORM_PERF] %s", stats.get("summary", stats.get("name", "?")))
 
 
+# Populated by PerfTestCase.setUpClass, keyed by class name, so
+# TestFullPipeline's aggregate report can read every suite's results
+# without hardcoding each sibling class by name.
+_RESULTS_REGISTRY: dict[str, list[dict]] = {}
+
+
+class PerfTestCase(TransactionCase):
+    """Shared base factoring out what all the suites below duplicated.
+
+    setUp's gc.collect(), the _log helper, and test_99_summary (sort
+    self.results by p50_us, log) used to be repeated near-verbatim in
+    every one of the TestCase classes in this file. summary_title/
+    summary_sort/summary_limit capture the handful of ways their
+    test_99_summary actually differed; a subclass with a genuinely
+    different report (TestAccelClone's two-bucket grouping,
+    TestFullPipeline's aggregate section) overrides test_99_summary
+    normally instead of forcing a flag through this one.
+
+    odoo.tests.loader.get_module_test_cases only collects test_* methods
+    from a class's own __dict__ unless allow_inherited_tests_method is
+    set, precisely to let a shared base contribute a test method without
+    every subclass needing to redeclare it.
+    """
+
+    allow_inherited_tests_method = True
+
+    summary_title = "SUMMARY"
+    summary_sort = True
+    summary_limit: int | None = None
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.results: list[dict] = []
+        _RESULTS_REGISTRY[cls.__name__] = cls.results
+
+    def setUp(self):
+        super().setUp()
+        gc.collect()
+
+    def _log(self, stats):
+        _log_result(stats)
+        self.results.append(stats)
+
+    def test_99_summary(self):
+        if not self.results:
+            return
+        _logger.info("\n[ORM_PERF] === %s ===", self.summary_title)
+        results = self.results
+        if self.summary_sort:
+            results = sorted(results, key=lambda r: r.get("p50_us", 0), reverse=True)
+        if self.summary_limit:
+            results = results[: self.summary_limit]
+        for r in results:
+            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
+
+
 @tagged("-standard", "orm_perf")
-class TestFieldConversion(TransactionCase):
+class TestFieldConversion(PerfTestCase):
+    summary_title = "FIELD CONVERSION SUMMARY"
+    summary_limit = 20
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Model = cls.env["test_performance.all_types"]
         cls.record = cls.Model.create({"name": "bench_convert"})
         cls.partner = cls.env["res.partner"].search([], limit=1)
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
 
     def _bench_convert(self, field_name, value, name=None):
         field = self.Model._fields[field_name]
@@ -166,17 +221,11 @@ class TestFieldConversion(TransactionCase):
             _log_result(stats)
             self.results.append(stats)
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === FIELD CONVERSION SUMMARY ===")
-        by_time = sorted(self.results, key=lambda r: r.get("p50_us", 0), reverse=True)
-        for r in by_time[:20]:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "orm_perf", "field_get")
-class TestFieldGet(TransactionCase):
+class TestFieldGet(PerfTestCase):
+    summary_title = "FIELD __GET__ SUMMARY"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -200,15 +249,6 @@ class TestFieldGet(TransactionCase):
             }
         )
         cls.record.read(list(cls.Model._fields))
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def _bench_get(self, field_name, label=None, n=ITERATIONS):
         record = self.record
@@ -355,17 +395,11 @@ class TestFieldGet(TransactionCase):
             self.results.append(s_spec)
             self.results.append(s_base)
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === FIELD __GET__ SUMMARY ===")
-        by_time = sorted(self.results, key=lambda r: r.get("p50_us", 0), reverse=True)
-        for r in by_time:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "orm_perf")
-class TestIteration(TransactionCase):
+class TestIteration(PerfTestCase):
+    summary_title = "ITERATION SUMMARY"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -378,15 +412,6 @@ class TestIteration(TransactionCase):
                     for i in range(1000 - existing)
                 ]
             )
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_iter_sizes(self):
         for size in (1, 10, 100, 1000):
@@ -470,17 +495,11 @@ class TestIteration(TransactionCase):
         timer = _bench(lambda: r1 + r2)
         self._log(timer.stats("concat(50+50)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === ITERATION SUMMARY ===")
-        by_time = sorted(self.results, key=lambda r: r.get("p50_us", 0), reverse=True)
-        for r in by_time:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "orm_perf")
-class TestCacheInternals(TransactionCase):
+class TestCacheInternals(PerfTestCase):
+    summary_title = "CACHE INTERNALS SUMMARY"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -494,15 +513,6 @@ class TestCacheInternals(TransactionCase):
                     for i in range(100 - existing)
                 ]
             )
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_modified_simple(self):
         record = self.Model.search([], limit=1)
@@ -600,30 +610,16 @@ class TestCacheInternals(TransactionCase):
         timer = _bench(bench)
         self._log(timer.stats("Field._update_cache(1)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === CACHE INTERNALS SUMMARY ===")
-        by_time = sorted(self.results, key=lambda r: r.get("p50_us", 0), reverse=True)
-        for r in by_time:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "orm_perf")
-class TestUnlink(TransactionCase):
+class TestUnlink(PerfTestCase):
+    summary_title = "UNLINK SUMMARY"
+    summary_sort = False
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Model = cls.env["test_performance.base"]
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_unlink_single(self):
 
@@ -643,29 +639,15 @@ class TestUnlink(TransactionCase):
         timer = _bench(bench, n=30, warmup=3)
         self._log(timer.stats("unlink(batch_10)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === UNLINK SUMMARY ===")
-        for r in self.results:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "orm_perf")
-class TestDomainPerf(TransactionCase):
+class TestDomainPerf(PerfTestCase):
+    summary_title = "DOMAIN SUMMARY"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Model = cls.env["test_performance.base"]
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_domain_construct_simple(self):
         leaf = [("name", "=", "test")]
@@ -753,17 +735,12 @@ class TestDomainPerf(TransactionCase):
         timer = _bench(bench, n=100)
         self._log(timer.stats("_search(complex_domain)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === DOMAIN SUMMARY ===")
-        by_time = sorted(self.results, key=lambda r: r.get("p50_us", 0), reverse=True)
-        for r in by_time:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "orm_perf")
-class TestReadGroupPerf(TransactionCase):
+class TestReadGroupPerf(PerfTestCase):
+    summary_title = "READ GROUP SUMMARY"
+    summary_sort = False
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -776,15 +753,6 @@ class TestReadGroupPerf(TransactionCase):
                     for i in range(100 - existing)
                 ]
             )
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_read_group_simple(self):
         model = self.Model.sudo()
@@ -819,16 +787,11 @@ class TestReadGroupPerf(TransactionCase):
         timer = _bench(bench, n=50)
         self._log(timer.stats("_read_group(multi_agg)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === READ GROUP SUMMARY ===")
-        for r in self.results:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "orm_perf")
-class TestHotPaths(TransactionCase):
+class TestHotPaths(PerfTestCase):
+    summary_title = "HOT-PATH SUMMARY"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -839,15 +802,6 @@ class TestHotPaths(TransactionCase):
             cls.Model.create(
                 [{"name": f"hp_bench_{i}", "value": i} for i in range(200 - existing)]
             )
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_read_format_10_records(self):
         records = self.Model.search([], limit=10)
@@ -947,30 +901,15 @@ class TestHotPaths(TransactionCase):
         timer = _bench(bench, n=500, warmup=20)
         self._log(timer.stats("ensure_computed(non_stored)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === HOT-PATH SUMMARY ===")
-        by_time = sorted(self.results, key=lambda r: r.get("p50_us", 0), reverse=True)
-        for r in by_time:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "orm_perf")
-class TestFullPipeline(TransactionCase):
+class TestFullPipeline(PerfTestCase):
+    summary_title = "FULL PIPELINE SUMMARY"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Model = cls.env["test_performance.all_types"]
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_create_all_types(self):
         partner = self.env["res.partner"].search([], limit=1)
@@ -1064,27 +1003,34 @@ class TestFullPipeline(TransactionCase):
         timer = _bench(bench, n=50, warmup=5)
         self._log(timer.stats("search_fetch(3_fields)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === FULL PIPELINE SUMMARY ===")
-        by_time = sorted(self.results, key=lambda r: r.get("p50_us", 0), reverse=True)
-        for r in by_time:
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
+    #: The orm_perf suites this aggregate report covers -- deliberately
+    #: not the accel_baseline ones (TestAccelClone and friends), which
+    #: answer a different question and were never part of this report.
+    _AGGREGATE_CLASSES = (
+        "TestFieldConversion",
+        "TestFieldGet",
+        "TestIteration",
+        "TestCacheInternals",
+        "TestUnlink",
+        "TestDomainPerf",
+        "TestReadGroupPerf",
+        "TestHotPaths",
+        "TestFullPipeline",
+    )
 
+    def test_99_summary(self):
+        super().test_99_summary()
+
+        # _RESULTS_REGISTRY is populated by PerfTestCase.setUpClass for
+        # every suite that ran, so this reads it by name instead of
+        # getattr(SiblingClass, "results", []) on each class object --
+        # the same run-order/selection dependency remains (a class that
+        # never ran has nothing to read), but this no longer needs to
+        # import/name each sibling class object directly, or risk an
+        # AttributeError reaching into one that was never set up.
         all_results = []
-        for cls_results in [
-            getattr(TestFieldConversion, "results", []),
-            getattr(TestFieldGet, "results", []),
-            getattr(TestIteration, "results", []),
-            getattr(TestCacheInternals, "results", []),
-            getattr(TestUnlink, "results", []),
-            getattr(TestDomainPerf, "results", []),
-            getattr(TestReadGroupPerf, "results", []),
-            getattr(TestHotPaths, "results", []),
-            self.results,
-        ]:
-            all_results.extend(cls_results)
+        for cls_name in self._AGGREGATE_CLASSES:
+            all_results.extend(_RESULTS_REGISTRY.get(cls_name, []))
 
         if all_results:
             _logger.info(
@@ -1108,11 +1054,10 @@ class TestFullPipeline(TransactionCase):
 
 
 @tagged("-standard", "accel_baseline")
-class TestAccelClone(TransactionCase):
+class TestAccelClone(PerfTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.results: list[dict] = []
         cls.flat_small = {
             "id": 1,
             "name": "test",
@@ -1152,14 +1097,6 @@ class TestAccelClone(TransactionCase):
             ],
             "values": {f"prop_{i}": f"val_{i}" if i % 3 == 0 else i for i in range(20)},
         }
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_clone_flat_small(self):
         from odoo.libs.json import fast_clone
@@ -1237,7 +1174,9 @@ class TestAccelClone(TransactionCase):
 
 
 @tagged("-standard", "accel_baseline")
-class TestAccelMappedFiltered(TransactionCase):
+class TestAccelMappedFiltered(PerfTestCase):
+    summary_title = "MAPPED/FILTERED/SORTED BASELINE"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1247,15 +1186,6 @@ class TestAccelMappedFiltered(TransactionCase):
             cls.Model.create(
                 [{"name": f"mf_{i}", "value": i} for i in range(1000 - existing)]
             )
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_mapped_int_10(self):
         records = self.Model.search([], limit=10)
@@ -1335,28 +1265,14 @@ class TestAccelMappedFiltered(TransactionCase):
         timer = _bench(lambda: records.sorted(lambda r: r.value), n=100)
         self._log(timer.stats("sorted(lambda,100)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === MAPPED/FILTERED/SORTED BASELINE ===")
-        for r in sorted(self.results, key=lambda x: x.get("p50_us", 0), reverse=True):
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "accel_baseline")
-class TestAccelFieldCache(TransactionCase):
+class TestAccelFieldCache(PerfTestCase):
+    summary_title = "FIELDCACHE STANDALONE BASELINE"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def _make_cache(self, n_records=1000):
         from odoo.orm.components.cache import FieldCache
@@ -1458,28 +1374,14 @@ class TestAccelFieldCache(TransactionCase):
         timer = _bench(lambda: cache.mark_dirty(f, ids))
         self._log(timer.stats("cache.mark_dirty(100)", warmup=0))
 
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === FIELDCACHE STANDALONE BASELINE ===")
-        for r in sorted(self.results, key=lambda x: x.get("p50_us", 0), reverse=True):
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
 
 @tagged("-standard", "accel_baseline")
-class TestAccelPrimitives(TransactionCase):
+class TestAccelPrimitives(PerfTestCase):
+    summary_title = "PRIMITIVES BASELINE"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.results: list[dict] = []
-
-    def setUp(self):
-        super().setUp()
-        gc.collect()
-
-    def _log(self, stats):
-        _log_result(stats)
-        self.results.append(stats)
 
     def test_01_newid_create(self):
         from odoo.orm.primitives import NewId
@@ -1530,10 +1432,3 @@ class TestAccelPrimitives(TransactionCase):
         ids = tuple(NewId(origin=i) for i in range(1, 501))
         timer = _bench(lambda: _origin_ids(ids), n=ITERATIONS)
         self._log(timer.stats("origin_ids(500_newid)", warmup=0))
-
-    def test_99_summary(self):
-        if not self.results:
-            return
-        _logger.info("\n[ORM_PERF] === PRIMITIVES BASELINE ===")
-        for r in sorted(self.results, key=lambda x: x.get("p50_us", 0), reverse=True):
-            _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
