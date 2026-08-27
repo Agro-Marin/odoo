@@ -53,6 +53,10 @@ class PerfTestCase(TransactionCase):
     from a class's own __dict__ unless allow_inherited_tests_method is
     set, precisely to let a shared base contribute a test method without
     every subclass needing to redeclare it.
+
+    Timing only: no test_* method in any subclass here asserts on a
+    measured value. A failure is an exception, never a performance
+    regression.
     """
 
     allow_inherited_tests_method = True
