@@ -61,7 +61,9 @@ def _is_legitimate(definitions: list[ast.FunctionDef | ast.AsyncFunctionDef]) ->
     ):
         return True
     # a single-dispatch method and its registrations
-    return all(names & DISPATCH for names in decorators[1:])
+    return "singledispatchmethod" in decorators[0] and all(
+        names & DISPATCH for names in decorators[1:]
+    )
 
 
 def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
