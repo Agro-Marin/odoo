@@ -474,11 +474,20 @@ class One2manyCase(TransactionExpressionCase):
         self.assertEqual(member1.id, team1.id)
         self.assertEqual(member2.id, member2.team_id.parent_id.id)
 
-        Team.search([("member_ids", "child_of", member2.id)])
+        # member2 belongs to team3, so "child_of" through the member_ids
+        # one2many must resolve to team3 — and must do so via the actual
+        # team_id join, not by coincidence of team1.id == member1.id.
+        self.assertEqual(Team.search([("member_ids", "child_of", member2.id)]), team3)
 
         team1.parent_id = team1.id
-        self._search(Team, [("id", "parent_of", team1.id)])
-        self._search(Team, [("id", "child_of", team1.id)])
+        # team1 is its own parent (self-loop): parent_of/child_of must not
+        # infinite-loop on that cycle, and must still resolve the ordinary
+        # hierarchy correctly for the rest of the tree.
+        self.assertEqual(self._search(Team, [("id", "parent_of", team1.id)]), team1)
+        self.assertEqual(
+            self._search(Team, [("id", "child_of", team1.id)]),
+            team1 | team2 | team3,
+        )
 
     def test_create_one2many_with_unsearchable_field(self):
         unsearchableO2M = self.env["test_orm.unsearchable.o2m"]

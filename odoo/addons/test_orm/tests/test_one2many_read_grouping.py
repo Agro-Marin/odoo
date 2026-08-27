@@ -54,6 +54,8 @@ class One2manyReadGroupingCase(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertEqual(len(host.model_ids), 4)
+        self.env.invalidate_all()
+        self._assert_matches_the_descriptor(host, "model_ids")
 
     def test_a_non_stored_computed_inverse(self):
         user = self.env.user
@@ -80,6 +82,8 @@ class One2manyReadGroupingCase(TransactionCase):
         )
         self.env.invalidate_all()
         self.assertEqual(len(discussion.emails), 4)
+        self.env.invalidate_all()
+        self._assert_matches_the_descriptor(discussion, "emails")
 
     def test_lines_keep_their_order(self):
         parent = self.env["test_orm.multi"].create({})
