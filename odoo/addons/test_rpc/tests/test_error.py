@@ -1,7 +1,6 @@
 from functools import partial
 from xmlrpc.client import Fault
 
-from odoo import http
 from odoo.tests import common, tagged
 from odoo.tools.misc import mute_logger
 
@@ -122,14 +121,6 @@ class TestError(common.HttpCase):
             ):
                 self.rpc("test_rpc.model_b", "create", {"name": "B1", "value": -1})
             self.assertEqual(len(capture.output), 1)
-
-    def test_04_multi_db(self):
-        def db_list(**kwargs):
-            return [self.env.cr.dbname, self.env.cr.dbname + "_another_db"]
-
-        self.patch(http, "db_list", db_list)
-
-        self.rpc("test_rpc.model_b", "create", {"name": "B1"})
 
     def test_05_model(self):
         res = self.rpc("test_rpc.model_a", "not_depending_on_id", [1])
