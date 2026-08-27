@@ -3,13 +3,7 @@ from odoo.exceptions import ValidationError
 
 
 class MixinBand(models.AbstractModel):
-    """Half-open numeric bands ``[min_value, max_value)`` over one scale.
-
-    A scale is a set of sibling bands that together classify a number: a
-    production-size bucket derived from hectares, a commercial profile derived
-    from a score percentage. Consumers say which records are bands
-    (``_is_band``) and which bands share a scale (``_band_siblings``).
-    """
+    """Half-open numeric band ``[min_value, max_value)`` within a scale of sibling bands."""
 
     _name = "mixin.band"
     _description = "Numeric Band Mixin"
