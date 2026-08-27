@@ -2,8 +2,7 @@ from odoo import api, fields, models
 
 
 class EventTypeMail(models.Model):
-    """Template of event.mail to attach to event.type. Those will be copied
-    upon all events created in that type to ease event creation."""
+    """Template for event.mail, copied onto every event of the type."""
 
     _name = "event.type.mail"
     _description = "Mail Scheduling on Event Category"
