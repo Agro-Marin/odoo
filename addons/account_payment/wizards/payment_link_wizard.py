@@ -1,5 +1,5 @@
 from odoo import _, api, fields, models
-from odoo.tools import format_date, formatLang, str2bool
+from odoo.tools import float_compare, format_date, formatLang, str2bool
 
 from odoo.addons.payment import utils as payment_utils
 
@@ -67,7 +67,11 @@ class PaymentLinkWizard(models.TransientModel):
     def _compute_epd_info(self):
         for wizard in self:
             wizard.epd_info = ""
-            if wizard.has_eligible_epd and wizard.amount == wizard.invoice_amount_due:
+            if wizard.has_eligible_epd and not float_compare(
+                wizard.amount,
+                wizard.invoice_amount_due,
+                precision_rounding=wizard.currency_id.rounding,
+            ):
                 msg = _(
                     "A discount will be applied if the customer pays before %s included.",
                     format_date(wizard.env, wizard.discount_date),
