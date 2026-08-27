@@ -4,10 +4,7 @@ from odoo.tools.misc import formatLang
 
 
 class EventEventTicket(models.Model):
-    """Ticket model allowing to have different kind of registrations for a given
-    event. Ticket are based on ticket type as they share some common fields
-    and behavior. Those models come from <= v13 Odoo event.event.ticket that
-    modeled both concept: tickets for event templates, and tickets for events."""
+    """Registration ticket for a specific event, based on its event.type.ticket."""
 
     _name = "event.event.ticket"
     _inherit = ["event.type.ticket"]
