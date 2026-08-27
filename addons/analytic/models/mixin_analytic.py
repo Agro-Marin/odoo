@@ -425,6 +425,8 @@ class MixinAnalytic(models.AbstractModel):
             * old_val
             * new_val
             / non_changing_amount
+            if non_changing_amount
+            else 0
             for old_key, old_val in non_changing_values.items()
             for new_key, new_val in changing_values.items()
         } | additional_vals
