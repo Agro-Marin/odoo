@@ -412,7 +412,7 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <form>
-                    <field name="ab" readony="cd" groups="base.group_system" />
+                    <field name="ab" readonly="cd" groups="base.group_system" />
                     <field name="cd" readonly="ab" />
                     <field name="cd" readonly="ab" groups="base.group_system" />
                     <field name="cd" readonly="ab" groups="!base.group_system" />
@@ -426,21 +426,11 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <form>
-                    <field name="ab" readony="cd" groups="base.group_system" />
+                    <field name="ab" readonly="cd" groups="base.group_system" />
                     <field name="cd" readonly="ab" />
                     <field name="cd" readonly="ab" groups="base.group_system" />
                     <field name="cd" readonly="ab" groups="!base.group_system" />
                     <field name="ab" readonly="cd" />
-                </form>
-            </field>
-        </record>
-        <record id="view_model2_some_access" model="ir.ui.view">
-            <field name="name">Test attrs and groups_sub</field>
-            <field name="model">test_orm.model2.some_access</field>
-            <field name="mode">primary</field>
-            <field name="arch" type="xml">
-                <form>
-                    <field name="g_id" groups="base.group_erp_manager" />
                 </form>
             </field>
         </record>
