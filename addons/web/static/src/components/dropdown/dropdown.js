@@ -134,6 +134,11 @@ export class Dropdown extends Component {
         this._boundHandleClick = this.handleClick.bind(this);
         this._boundHandleMouseEnter = this.handleMouseEnter.bind(this);
 
+        // Read once, and it has to be: useDropdownNesting subscribes to this object
+        // and useDropdownGroup registers it, both in effects keyed on nothing. A
+        // caller that swaps the prop would keep driving a dropdown that no longer
+        // listens - silently, which is why the swap is refused below rather than
+        // ignored. search_panel.js memoises its per-section state for this reason.
         this.state = this.props.state || useDropdownState();
         this.nesting = useDropdownNesting(this.state);
         this.group = useDropdownGroup();
@@ -162,8 +167,17 @@ export class Dropdown extends Component {
         useChildSubEnv({ navigation: this.navigation });
 
         this.uiService = useService("ui");
+        this.setupPopover();
+        this.setupTargetBinding();
+    }
 
-        const getPosition = () => this.position;
+    /**
+     * The menu is a popover, and most of what it needs is only knowable at open
+     * time - the position depends on whether this dropdown has a parent, and the
+     * classes on whether it is rendering as a bottom sheet - so the options are
+     * getters rather than values.
+     */
+    setupPopover() {
         const self = this;
         /** @type {any} */
         const options = {
@@ -181,7 +195,7 @@ export class Dropdown extends Component {
             },
             id: this.menuId,
             get position() {
-                return getPosition();
+                return self.position;
             },
             ref: this.menuRef,
             setActiveElement: false,
@@ -198,9 +212,13 @@ export class Dropdown extends Component {
         };
         this.popover = usePopover(DropdownPopover, options);
 
-        onRendered(() =>
-            this.popoverRefresher ? this.popoverRefresher.token++ : null,
-        );
+        // The popover renders in its own subtree, so it does not re-render when
+        // this one does; bumping the token is how a render here reaches it.
+        onRendered(() => {
+            if (this.popoverRefresher) {
+                this.popoverRefresher.token++;
+            }
+        });
 
         onMounted(() => this.onStateChanged(this.state));
         const disposeEffect = disposableEffect(
@@ -208,7 +226,14 @@ export class Dropdown extends Component {
             [this.state],
         );
         onWillDestroy(disposeEffect);
+    }
 
+    /**
+     * The toggle is whatever the caller put in the default slot, so the classes
+     * and listeners that make it a toggle are applied to the element rather than
+     * declared in a template.
+     */
+    setupTargetBinding() {
         useEffect(
             (target) => this.setTargetElement(target),
             () => [this.target],
@@ -224,8 +249,15 @@ export class Dropdown extends Component {
             () => [this.menuRef.el, this.menuClassNames.join(" ")],
         );
 
-        onWillUpdateProps(({ disabled }) => {
-            if (disabled) {
+        onWillUpdateProps((nextProps) => {
+            if (nextProps.state && nextProps.state !== this.props.state) {
+                throw new Error(
+                    "Dropdown: the `state` prop is read once, in setup. Hold one " +
+                        "object for the life of the component instead of computing " +
+                        "a new one per render.",
+                );
+            }
+            if (nextProps.disabled) {
                 this.state.close();
                 this.closePopover();
             }

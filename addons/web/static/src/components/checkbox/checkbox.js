@@ -50,6 +50,9 @@ export class CheckBox extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
 
+    /** @type {() => boolean} */
+    syncWithValue;
+
     setup() {
         this.id = `checkbox-comp-${CheckBox.nextId++}`;
         this.rootRef = useRef("root");

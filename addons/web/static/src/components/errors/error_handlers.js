@@ -32,6 +32,10 @@ const errorHandlerRegistry = registry.category("error_handlers");
 const errorDialogRegistry = registry.category("error_dialogs");
 const errorNotificationRegistry = registry.category("error_notifications");
 
+// Declared before the entries below, not after: addValidation retro-validates and
+// REMOVES what fails, so a schema added last silently drops a handler instead of
+// rejecting it where the mistake is.
+errorHandlerRegistry.addValidation((v) => typeof v === "function");
 errorDialogRegistry.addValidation((entry) => typeof entry === "function");
 
 errorNotificationRegistry.addValidation({
@@ -257,5 +261,3 @@ export function defaultHandler(env, error) {
 errorHandlerRegistry.add("defaultHandler", /** @type {any} */ (defaultHandler), {
     sequence: 100,
 });
-
-errorHandlerRegistry.addValidation((v) => typeof v === "function");

@@ -112,9 +112,13 @@ test("a hosted component's close reason reaches onClose", async () => {
         }
     }
 
-    const popover = makePopover(getService("popover").add, Closer, {
-        onClose: (params) => (received = params),
-    });
+    const popover = makePopover(
+        (...args) => getService("popover").add(...args),
+        Closer,
+        {
+            onClose: (params) => (received = params),
+        },
+    );
     popover.open(getFixture(), {});
     await animationFrame();
     await animationFrame();
@@ -129,7 +133,7 @@ test("the owner's own close reason reaches onClose", async () => {
         static props = ["*"];
     }
 
-    const popover = makePopover(getService("popover").add, Comp, {
+    const popover = makePopover((...args) => getService("popover").add(...args), Comp, {
         onClose: (params) => (received = params),
     });
     popover.open(getFixture(), {});
@@ -153,7 +157,7 @@ test("an unknown option still warns through the hook's option bag", async () => 
     });
     patchWithCleanup(odoo, { debug: "1" });
 
-    const popover = makePopover(getService("popover").add, Comp, {
+    const popover = makePopover((...args) => getService("popover").add(...args), Comp, {
         totallyBogusOption: true,
     });
     popover.open(getFixture(), {});

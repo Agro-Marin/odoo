@@ -47,6 +47,9 @@ export class DomainSelector extends Component {
 
     /** @type {import("services").ServiceFactories["field"]} */
     fieldService;
+
+    /** @type {import("@web/core/utils/concurrency").KeepLast} */
+    keepLastTree;
     /** @type {{ includeArchived: boolean }} */
     state;
     /** @type {import("services").ServiceFactories["tree_processor"]} */

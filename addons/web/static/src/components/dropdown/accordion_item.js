@@ -3,6 +3,11 @@
 
 import { Component, onPatched, useState } from "@odoo/owl";
 
+/**
+ * @typedef AccordionParent
+ * @property {(isOpen: boolean) => any} [accordionStateChanged]
+ */
+
 export const ACCORDION = Symbol("Accordion");
 export class AccordionItem extends Component {
     static template = "web.AccordionItem";
@@ -28,13 +33,32 @@ export class AccordionItem extends Component {
         selected: false,
     };
 
+    /** @type {{ open: boolean }} */
+    state;
+    /** @type {AccordionParent | undefined} */
+    parentComponent;
+    /**
+     * The last openness the parent was told about. `onPatched` fires for every
+     * render, so without it the parent hears "state changed" when a sibling
+     * re-rendered and nothing here moved.
+     * @type {boolean}
+     */
+    _reportedOpen;
+
     setup() {
         this.state = useState({
             open: false,
         });
         this.parentComponent = /** @type {any} */ (this.env)[ACCORDION];
-        onPatched(() => {
-            this.parentComponent?.accordionStateChanged?.();
-        });
+        this._reportedOpen = this.state.open;
+        onPatched(() => this.reportStateChange());
+    }
+
+    reportStateChange() {
+        if (this.state.open === this._reportedOpen) {
+            return;
+        }
+        this._reportedOpen = this.state.open;
+        this.parentComponent?.accordionStateChanged?.(this.state.open);
     }
 }

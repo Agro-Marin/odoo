@@ -83,70 +83,98 @@ export class BarcodeVideoScanner extends Component {
             this.detector = new DetectorClass({ formats });
         });
 
-        onMounted(async () => {
-            const constraints = {
-                video: { facingMode: this.props.facingMode },
-                audio: false,
-            };
-
-            let stream;
-            try {
-                stream = await browser.navigator.mediaDevices.getUserMedia(constraints);
-            } catch (err) {
-                if (status(this) === "destroyed") {
-                    return;
-                }
-                const errors = {
-                    NotFoundError: _t("No device can be found."),
-                    NotAllowedError: _t("Odoo needs your authorization first."),
-                };
-                const errorMessage = _t("Could not start scanning. %(message)s", {
-                    message: errors[err.name] || err.message,
-                });
-                this.props.onError(new Error(errorMessage));
-                return;
-            }
-            this.stream = stream;
-            if (status(this) === "destroyed") {
-                this.cleanStreamAndTimeout();
-                return;
-            }
-            if (!this.videoPreviewRef.el) {
-                this.cleanStreamAndTimeout();
-                const errorMessage = _t(
-                    "Barcode Video Scanner could not be mounted properly.",
-                );
-                this.props.onError(new Error(errorMessage));
-                return;
-            }
-            /** @type {HTMLVideoElement} */ (this.videoPreviewRef.el).srcObject =
-                this.stream;
-            const ready = await this.isVideoReady();
-            if (!ready) {
-                return;
-            }
-            if (this.videoPreviewRef.el.paused) {
-                await this.videoPreviewRef.el.play();
-            }
-            const { height, width } = getComputedStyle(this.videoPreviewRef.el);
-            const divWidth = parseFloat(width);
-            const divHeight = parseFloat(height);
-            const [track] = stream.getVideoTracks();
-            const settings = track?.getSettings();
-            if (settings?.width && settings.height) {
-                this.zoomRatio = Math.min(
-                    divWidth / settings.width,
-                    divHeight / settings.height,
-                );
-                this.addZoomSlider(track, settings);
-            }
-            this.detectorTimeout = browser.setTimeout(
-                this.detectCode.bind(this),
-                DETECT_INTERVAL,
-            );
-        });
+        onMounted(() => this.startScanning());
 
         onWillUnmount(() => this.cleanStreamAndTimeout());
+    }
+
+    /**
+     * Acquires the camera and starts the detection loop. Every failure path here
+     * has to report through `props.onError` rather than throw: the caller renders
+     * a message beside the dead preview, and an unhandled rejection out of
+     * `onMounted` would leave it showing a black rectangle instead.
+     * @returns {Promise<void>}
+     */
+    async startScanning() {
+        const stream = await this.requestStream();
+        if (!stream) {
+            return;
+        }
+        this.stream = stream;
+        if (status(this) === "destroyed") {
+            this.cleanStreamAndTimeout();
+            return;
+        }
+        if (!this.videoPreviewRef.el) {
+            this.cleanStreamAndTimeout();
+            this.props.onError(
+                new Error(_t("Barcode Video Scanner could not be mounted properly.")),
+            );
+            return;
+        }
+        /** @type {HTMLVideoElement} */ (this.videoPreviewRef.el).srcObject =
+            this.stream;
+        if (!(await this.isVideoReady())) {
+            return;
+        }
+        if (this.videoPreviewRef.el.paused) {
+            await this.videoPreviewRef.el.play();
+        }
+        this.setUpZoom(stream);
+        this.detectorTimeout = browser.setTimeout(
+            this.detectCode.bind(this),
+            DETECT_INTERVAL,
+        );
+    }
+
+    /**
+     * @returns {Promise<MediaStream | null>} null once the error is reported
+     */
+    async requestStream() {
+        try {
+            return await browser.navigator.mediaDevices.getUserMedia({
+                video: { facingMode: this.props.facingMode },
+                audio: false,
+            });
+        } catch (err) {
+            if (status(this) === "destroyed") {
+                return null;
+            }
+            const errors = {
+                NotFoundError: _t("No device can be found."),
+                NotAllowedError: _t("Odoo needs your authorization first."),
+            };
+            this.props.onError(
+                new Error(
+                    _t("Could not start scanning. %(message)s", {
+                        message: errors[err.name] || err.message,
+                    }),
+                ),
+            );
+            return null;
+        }
+    }
+
+    /**
+     * The crop overlay works in displayed pixels and the detector in camera ones,
+     * so the ratio between them has to be known before either can be trusted.
+     * @param {MediaStream} stream
+     */
+    setUpZoom(stream) {
+        if (!this.videoPreviewRef.el) {
+            return;
+        }
+        const { height, width } = getComputedStyle(this.videoPreviewRef.el);
+        const [track] = stream.getVideoTracks();
+        const settings = track?.getSettings();
+        if (!settings?.width || !settings.height) {
+            return;
+        }
+        this.zoomRatio = Math.min(
+            parseFloat(width) / settings.width,
+            parseFloat(height) / settings.height,
+        );
+        this.addZoomSlider(track, settings);
     }
 
     cleanStreamAndTimeout() {

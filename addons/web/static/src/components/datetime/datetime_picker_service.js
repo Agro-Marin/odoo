@@ -129,7 +129,8 @@ export class DateTimePickerController {
             /** @type {(...args: any[]) => PopoverHookReturnType} */ (
                 (/** @type {any} */ component, /** @type {any} */ options) =>
                     makePopover(
-                        /** @type {any} */ (popoverService).add,
+                        (/** @type {any[]} */ ...args) =>
+                            /** @type {any} */ (popoverService).add(...args),
                         component,
                         options,
                     )
@@ -301,6 +302,14 @@ export class DateTimePickerController {
     };
 
     /**
+     * Which of the two inputs an event came from. Anything that is not the end
+     * input counts as the start one, which is what a single-input picker needs.
+     * @param {EventTarget | null} el
+     * @returns {0 | 1}
+     */
+    indexOfInput = (el) => (el === this.getInput(1) ? 1 : 0);
+
+    /**
      * @param {number} valueIndex
      * @returns {HTMLInputElement | null}
      */
@@ -352,8 +361,7 @@ export class DateTimePickerController {
      */
     onInputChange = (ev) => {
         this.updateValueFromInputs();
-        const inputTarget = /** @type {HTMLInputElement} */ (ev.target);
-        this.inputsChanged[inputTarget === this.getInput(1) ? 1 : 0] = true;
+        this.inputsChanged[this.indexOfInput(ev.target)] = true;
         if (!this.isOpen() || this.inputsChanged.every(Boolean)) {
             this.saveAndClose();
         }
@@ -363,8 +371,7 @@ export class DateTimePickerController {
      * @param {Event} ev
      */
     onInputClick = (ev) => {
-        const target = /** @type {HTMLInputElement} */ (ev.target);
-        this.open(target === this.getInput(1) ? 1 : 0);
+        this.open(this.indexOfInput(ev.target));
     };
 
     /**
@@ -372,7 +379,7 @@ export class DateTimePickerController {
      */
     onInputFocus = (ev) => {
         const target = /** @type {HTMLInputElement} */ (ev.target);
-        this.pickerProps.focusedDateIndex = target === this.getInput(1) ? 1 : 0;
+        this.pickerProps.focusedDateIndex = this.indexOfInput(target);
         this.setInputFocus(target);
     };
 
@@ -384,7 +391,7 @@ export class DateTimePickerController {
         if (ev.key === "Enter" && ev.ctrlKey) {
             ev.preventDefault();
             this.updateValueFromInputs();
-            return this.open(inputTarget === this.getInput(1) ? 1 : 0);
+            return this.open(this.indexOfInput(ev.target));
         }
         switch (ev.key) {
             case "Enter":
@@ -419,7 +426,7 @@ export class DateTimePickerController {
                 const { marginBottom } = popoverTarget.style;
                 popoverTarget.style.marginBottom = `100vh`;
                 popoverTarget.scrollIntoView(true);
-                this.restoreTargetMargin = async () => {
+                this.restoreTargetMargin = () => {
                     popoverTarget.style.marginBottom = marginBottom;
                 };
             }
@@ -600,44 +607,60 @@ export class DateTimePickerController {
     };
 }
 
+/**
+ * Hands out {@link DateTimePickerHandle}s and keeps the set of live ones, so that
+ * opening any picker closes the others.
+ */
+export class DateTimePickerService {
+    /**
+     * @param {any} env
+     * @param {any} popoverService
+     */
+    constructor(env, popoverService) {
+        this.env = env;
+        this.popoverService = popoverService;
+        /** @type {Set<DateTimePickerHandle>} */
+        this.dateTimePickerList = new Set();
+    }
+
+    /**
+     * @param {Partial<DateTimePickerServiceParams>} [params]
+     * @returns {DateTimePickerHandle}
+     */
+    create(params = {}) {
+        const controller = new DateTimePickerController(
+            params,
+            this.env,
+            this.popoverService,
+            this.dateTimePickerList,
+        );
+
+        if (params.useOwlHooks) {
+            onWillDestroy(() => controller.dispose());
+
+            if (typeof params.target === "string") {
+                controller.targetRef = useRef(params.target);
+            }
+
+            onWillRender(controller.computeBasePickerProps);
+
+            useEffect(controller.enable, controller.getInputs);
+
+            onPatched(controller.focusIfNeeded);
+        } else if (typeof params.target === "string") {
+            throw new Error(
+                `datetime picker service error: cannot use target as ref name when not using Owl hooks`,
+            );
+        }
+
+        return controller.picker;
+    }
+}
+
 const datetimePickerService = {
     dependencies: ["popover"],
     start(env, { popover: popoverService }) {
-        /** @type {Set<DateTimePickerHandle>} */
-        const dateTimePickerList = new Set();
-        return {
-            /**
-             * @param {Partial<DateTimePickerServiceParams>} [params]
-             */
-            create(params = {}) {
-                const controller = new DateTimePickerController(
-                    params,
-                    env,
-                    popoverService,
-                    dateTimePickerList,
-                );
-
-                if (params.useOwlHooks) {
-                    onWillDestroy(() => controller.dispose());
-
-                    if (typeof params.target === "string") {
-                        controller.targetRef = useRef(params.target);
-                    }
-
-                    onWillRender(controller.computeBasePickerProps);
-
-                    useEffect(controller.enable, controller.getInputs);
-
-                    onPatched(controller.focusIfNeeded);
-                } else if (typeof params.target === "string") {
-                    throw new Error(
-                        `datetime picker service error: cannot use target as ref name when not using Owl hooks`,
-                    );
-                }
-
-                return controller.picker;
-            },
-        };
+        return new DateTimePickerService(env, popoverService);
     },
 };
 

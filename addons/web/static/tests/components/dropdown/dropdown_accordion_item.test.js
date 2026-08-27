@@ -3,9 +3,9 @@
 import { expect, test } from "@odoo/hoot";
 import { click, press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
-import { Component, xml } from "@odoo/owl";
+import { Component, useChildSubEnv, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { AccordionItem } from "@web/components/dropdown/accordion_item";
+import { ACCORDION, AccordionItem } from "@web/components/dropdown/accordion_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 
@@ -83,4 +83,44 @@ test("dropdown with accordion keyboard navigation", async () => {
         await runAllTimers();
         expect(`.dropdown-menu .focus:contains(${step.expected})`).toBeFocused();
     }
+});
+
+test("the parent hears an accordion state change only when the state changed", async () => {
+    class Parent extends Component {
+        static template = xml`
+            <t t-esc="state.tick"/>
+            <AccordionItem description="'item'" selected="false">
+                <span>content</span>
+            </AccordionItem>`;
+        static components = { AccordionItem };
+        static props = ["*"];
+        setup() {
+            this.state = useState({ tick: 0 });
+            useChildSubEnv({
+                [ACCORDION]: {
+                    accordionStateChanged: (isOpen) => expect.step(`changed:${isOpen}`),
+                },
+            });
+        }
+    }
+
+    const parent = await mountWithCleanup(Parent);
+    expect.verifySteps([]);
+
+    // A render caused by anything else must not be reported as a state change.
+    parent.state.tick++;
+    await animationFrame();
+    expect.verifySteps([]);
+
+    await click("button.o_accordion_toggle");
+    await animationFrame();
+    expect.verifySteps(["changed:true"]);
+
+    parent.state.tick++;
+    await animationFrame();
+    expect.verifySteps([]);
+
+    await click("button.o_accordion_toggle");
+    await animationFrame();
+    expect.verifySteps(["changed:false"]);
 });

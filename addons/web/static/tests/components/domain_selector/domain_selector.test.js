@@ -1768,12 +1768,12 @@ test("many2many field and operator set/not set (edit)", async () => {
     await selectOperator("not set");
 
     expect(getCurrentOperator()).toBe(label("not set"));
-    expect(".o_ds_value_cell").toHaveCount(0);
+    expect(SELECTORS.valueEditor).toHaveCount(0);
     expect.verifySteps([`[("product_id", "=", False)]`]);
 
     await selectOperator("set");
     expect(getCurrentOperator()).toBe(label("set"));
-    expect(".o_ds_value_cell").toHaveCount(0);
+    expect(SELECTORS.valueEditor).toHaveCount(0);
     expect.verifySteps([`[("product_id", "!=", False)]`]);
 });
 
@@ -1790,7 +1790,7 @@ test("many2many field: clone a set/not set condition", async () => {
 
     await selectOperator("not set");
     expect(getCurrentOperator()).toBe(label("not set"));
-    expect(".o_ds_value_cell").toHaveCount(0);
+    expect(SELECTORS.valueEditor).toHaveCount(0);
     expect.verifySteps([`[("product_id", "=", False)]`]);
     expect(SELECTORS.condition).toHaveCount(1);
 
@@ -1841,7 +1841,7 @@ test("x2many field: operator switch (edit)", async () => {
     expect.verifySteps([`[("product_ids", "ilike", "")]`]);
 
     await selectOperator("not set");
-    expect(".o_ds_value_cell").toHaveCount(0);
+    expect(SELECTORS.valueEditor).toHaveCount(0);
     expect.verifySteps([`[("product_ids", "=", False)]`]);
 
     await selectOperator("not ilike");
@@ -1849,7 +1849,7 @@ test("x2many field: operator switch (edit)", async () => {
     expect.verifySteps([`[("product_ids", "not ilike", "")]`]);
 
     await selectOperator("set");
-    expect(".o_ds_value_cell").toHaveCount(0);
+    expect(SELECTORS.valueEditor).toHaveCount(0);
     expect.verifySteps([`[("product_ids", "!=", False)]`]);
 });
 
@@ -1921,12 +1921,12 @@ test("many2many field: operator set/not set (edit)", async () => {
         },
     });
     expect(getCurrentOperator()).toBe(label("not set"));
-    expect(".o_ds_value_cell").toHaveCount(0);
+    expect(SELECTORS.valueEditor).toHaveCount(0);
     expect.verifySteps([]);
 
     await selectOperator("set");
     expect(getCurrentOperator()).toBe(label("set"));
-    expect(".o_ds_value_cell").toHaveCount(0);
+    expect(SELECTORS.valueEditor).toHaveCount(0);
     expect.verifySteps([`[("product_ids", "!=", False)]`]);
 });
 

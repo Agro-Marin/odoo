@@ -1,14 +1,16 @@
 // @ts-check
 
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { beforeEach, expect, test } from "@odoo/hoot";
+import { animationFrame } from "@odoo/hoot-mock";
+import { Component, useState, xml } from "@odoo/owl";
 import {
     getService,
     makeMockEnv,
+    mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-
-describe.current.tags("headless");
+import { useService } from "@web/core/utils/hooks";
 
 const KEY = "web.emoji.frequent";
 
@@ -148,4 +150,31 @@ test("tracked emojis are capped, and a newly used one is never the eviction", as
     expect(kept).not.toInclude("e0");
     expect(kept).toInclude("newbie");
     expect(kept).toInclude("e199");
+});
+
+test("a cross-tab update reaches a component watching the service", async () => {
+    class Watcher extends Component {
+        static template = xml`<div class="revision" t-esc="emoji.revision"/>`;
+        static props = ["*"];
+        setup() {
+            this.emoji = useState(useService("web.frequent.emoji"));
+        }
+    }
+    await mountWithCleanup(Watcher);
+    expect(".revision").toHaveText("0");
+
+    // The service is handed out as a reactive proxy. If it subscribed to `storage`
+    // with a handler bound to the raw instance instead, this write would land but
+    // notify nobody, and the picker would keep showing the previous "frequently
+    // used" row until something else re-rendered it.
+    browser.dispatchEvent(
+        Object.assign(new Event("storage"), {
+            key: KEY,
+            newValue: JSON.stringify({ "😀": 3 }),
+        }),
+    );
+    await animationFrame();
+
+    expect(".revision").toHaveText("1");
+    expect(getService("web.frequent.emoji").getMostFrequent()).toEqual(["😀"]);
 });

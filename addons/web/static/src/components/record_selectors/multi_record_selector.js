@@ -4,15 +4,21 @@
 import { useState } from "@odoo/owl";
 import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { _t } from "@web/core/translation";
 import { isId } from "@web/core/tree/utils";
 import { imageUrl } from "@web/core/utils/urls";
 
-import { BaseRecordSelector } from "./base_record_selector.js";
+import { BaseRecordSelector, displayNameFor } from "./base_record_selector.js";
 import { RecordAutocomplete } from "./record_autocomplete.js";
 import { useTagNavigation } from "./tag_navigation_hook.js";
 
-/** @typedef {{ id: number, text: string, onDelete: Function, img: string | false }} RecordTag */
+/**
+ * A tag as `TagsList` renders it. `id` and `colorIndex` are the two halves of
+ * one distinction: a tag standing for a record has an id, and one standing for
+ * a domain-selector expression has no record to point at and carries a colour.
+ *
+ * @typedef {{ id?: number, text: string, onDelete: Function, img: string | false,
+ * colorIndex?: number }} RecordTag
+ */
 /** @typedef {{ resIds: number[], [key: string]: any }} MultiRecordSelectorProps */
 
 export class MultiRecordSelector extends BaseRecordSelector {
@@ -74,23 +80,14 @@ export class MultiRecordSelector extends BaseRecordSelector {
      */
     getTags(props, displayNames) {
         const withAvatar = isAvatarModel(props.resModel);
-        return props.resIds.map((id) => {
-            const text =
-                typeof displayNames[id] === "string"
-                    ? displayNames[id]
-                    : _t("Inaccessible/missing record ID: %s", id);
-            return {
-                id,
-                text,
-                onDelete: () => {
-                    this.deleteTag(id);
-                },
-                img:
-                    withAvatar &&
-                    isId(id) &&
-                    imageUrl(props.resModel, id, "avatar_128"),
-            };
-        });
+        return props.resIds.map((id) => ({
+            id,
+            text: displayNameFor(displayNames, id),
+            onDelete: () => {
+                this.deleteTag(id);
+            },
+            img: withAvatar && isId(id) && imageUrl(props.resModel, id, "avatar_128"),
+        }));
     }
 
     /**

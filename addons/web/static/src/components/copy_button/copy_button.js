@@ -22,6 +22,9 @@ export class CopyButton extends Component {
     /** @type {any} */
     popover;
 
+    /** @type {number | undefined} */
+    tooltipCloseTimer;
+
     setup() {
         /** @type {import("@odoo/owl").Ref<HTMLButtonElement>} */
         this.button = useRef("button");

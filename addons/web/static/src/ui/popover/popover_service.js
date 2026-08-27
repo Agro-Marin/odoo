@@ -25,20 +25,15 @@ import { Popover } from "@web/ui/popover/popover";
  * setActiveElement?: boolean;
  * sequence?: number;
  * }} PopoverServiceAddOptions
- * @typedef {ReturnType<popoverService["start"]>["add"]} PopoverServiceAddFunction
+ * @typedef {PopoverService["add"]} PopoverServiceAddFunction
  */
 
-export const popoverService = {
-    dependencies: ["overlay"],
+class PopoverService {
     /**
-     * @param {import("@web/env").OdooEnv} _
      * @param {{ overlay: any }} services
      */
-    start(_, { overlay }) {
-        /**
-         * @type {(target: HTMLElement, component: import("@odoo/owl").ComponentConstructor, props?: object, options?: PopoverServiceAddOptions) => (removeParams?: any) => Promise<void>}
-         */
-        const add = makeOverlayPresenter({
+    constructor({ overlay }) {
+        this.present = makeOverlayPresenter({
             overlay,
             component: Popover,
             scope: "popover",
@@ -53,8 +48,29 @@ export const popoverService = {
                 position: options.position,
             }),
         });
+    }
 
-        return { add };
+    /**
+     * @param {HTMLElement} target
+     * @param {import("@odoo/owl").ComponentConstructor} component
+     * @param {object} [props]
+     * @param {PopoverServiceAddOptions} [options]
+     * @returns {(removeParams?: any) => Promise<void>}
+     */
+    add(target, component, props = {}, options = {}) {
+        return this.present(target, component, props, options);
+    }
+}
+
+export const popoverService = {
+    dependencies: ["overlay"],
+    /**
+     * @param {import("@web/env").OdooEnv} _
+     * @param {{ overlay: any }} services
+     * @returns {PopoverService}
+     */
+    start(_, services) {
+        return new PopoverService(services);
     },
 };
 

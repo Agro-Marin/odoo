@@ -6,7 +6,9 @@ import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { FileModel } from "@web/components/file_viewer/file_model";
 import { FileViewer } from "@web/components/file_viewer/file_viewer";
+import { createFileViewer } from "@web/components/file_viewer/file_viewer_hook";
 import { browser } from "@web/core/browser/browser";
+import { registry } from "@web/core/registry";
 
 describe.current.tags("desktop");
 
@@ -263,4 +265,53 @@ test("printing closes the window when the job is handed off, not on a timer", as
 
     listeners.afterprint();
     expect(closed).toBe(true);
+});
+
+test("zoom is bounded at both ends", async () => {
+    const viewer = await mountWithCleanup(FileViewer, {
+        props: { files: [IMAGE_FILE], startIndex: 0, close: () => {} },
+    });
+
+    for (let i = 0; i < 40; i++) {
+        viewer.zoomOut({ scroll: true });
+    }
+    expect(viewer.state.scale).toBe(viewer.minScale);
+
+    // zoomOut has always clamped; without the matching ceiling a scroll wheel
+    // takes the image to a scale nothing can pan back from.
+    for (let i = 0; i < 400; i++) {
+        viewer.zoomIn({ scroll: true });
+    }
+    expect(viewer.state.scale).toBe(viewer.maxScale);
+
+    viewer.resetZoom();
+    expect(viewer.state.scale).toBe(1);
+});
+
+describe("createFileViewer", () => {
+    /** @returns {any} */
+    function registeredViewer() {
+        return registry
+            .category("main_components")
+            .getEntries()
+            .find(([key]) => key.startsWith("web.file_viewer"))?.[1];
+    }
+
+    test("a list with nothing viewable in it opens no viewer", () => {
+        const { open, close } = createFileViewer();
+        // `files` is non-empty, so guarding on its length says nothing about
+        // whether anything in it can be shown.
+        open(IMAGE_FILE, [{ name: "b.bin", isViewable: false }]);
+        expect(registeredViewer()).toBe(undefined);
+        close();
+    });
+
+    test("the viewable members of the list are what the viewer gets", () => {
+        const { open, close } = createFileViewer();
+        open(IMAGE_FILE, [{ name: "b.bin", isViewable: false }, IMAGE_FILE]);
+        expect(registeredViewer().props.files).toEqual([IMAGE_FILE]);
+        expect(registeredViewer().props.startIndex).toBe(0);
+        close();
+        expect(registeredViewer()).toBe(undefined);
+    });
 });

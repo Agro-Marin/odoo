@@ -115,16 +115,17 @@ export class ErrorDialog extends Component {
     }
 }
 
-export class ClientErrorDialog extends ErrorDialog {}
-ClientErrorDialog.title = _t("Odoo Client Error");
+export class ClientErrorDialog extends ErrorDialog {
+    static title = _t("Odoo Client Error");
+}
 
-export class NetworkErrorDialog extends ErrorDialog {}
-NetworkErrorDialog.title = _t("Odoo Network Error");
+export class NetworkErrorDialog extends ErrorDialog {
+    static title = _t("Odoo Network Error");
+}
 
-export class RequestEntityTooLargeErrorDialog extends ErrorDialog {}
-RequestEntityTooLargeErrorDialog.title = _t(
-    "The request sent to the server was too large",
-);
+export class RequestEntityTooLargeErrorDialog extends ErrorDialog {
+    static title = _t("The request sent to the server was too large");
+}
 
 export class RPCErrorDialog extends ErrorDialog {
     /** @returns {string} */

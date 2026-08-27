@@ -37,7 +37,14 @@ const PRINT_CLOSE_FALLBACK = 1000;
  */
 export class FileViewer extends Component {
     static template = "web.FileViewer";
-    static props = ["files", "startIndex", "close?", "modal?"];
+    static props = {
+        // Elements are duck-typed FileModel-likes - mail, html_editor and the
+        // attachment viewer each pass their own - so only the container is typed.
+        files: { type: Array },
+        startIndex: { type: Number },
+        close: { type: Function, optional: true },
+        modal: { type: Boolean, optional: true },
+    };
     static defaultProps = {
         modal: true,
     };
@@ -56,6 +63,7 @@ export class FileViewer extends Component {
         this.scrollZoomStep = 0.1;
         this.zoomStep = 0.5;
         this.minScale = 0.5;
+        this.maxScale = 10;
         this.translate = {
             dx: 0,
             dy: 0,
@@ -107,7 +115,7 @@ export class FileViewer extends Component {
     }
 
     close() {
-        this.props.close && this.props.close();
+        this.props.close?.();
     }
 
     next() {
@@ -274,8 +282,12 @@ export class FileViewer extends Component {
      * @param {{ scroll?: boolean }} options
      */
     zoomIn({ scroll = false } = {}) {
-        this.state.scale =
-            this.state.scale + (scroll ? this.scrollZoomStep : this.zoomStep);
+        // zoomOut has always clamped at minScale; without the matching ceiling a
+        // scroll wheel takes the image to a scale nothing can pan back from.
+        this.state.scale = Math.min(
+            this.maxScale,
+            this.state.scale + (scroll ? this.scrollZoomStep : this.zoomStep),
+        );
         this.updateZoomerStyle();
     }
 

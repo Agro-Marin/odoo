@@ -173,6 +173,10 @@ export class EmojiPicker extends Component {
     /** @type {Emoji[] | undefined} */
     _emojisCache;
     /** @type {Emoji[] | undefined} */
+    _recentEmojisCache;
+    /** @type {string | undefined} */
+    _recentEmojisCacheKey;
+    /** @type {Emoji[] | undefined} */
     _emojisFromSearch;
     /** @type {Emoji | undefined} */
     hoveredEmoji;
@@ -189,8 +193,14 @@ export class EmojiPicker extends Component {
     /** @type {string | undefined} */
     lastSearchTerm;
     keyboardNavigated = false;
-    /** @type {any[]} */
-    emojiMatrix;
+    /**
+     * Rows of emoji indices, rebuilt from the laid-out grid. Empty until
+     * `updateEmojiPickerRepr` has run, which it declines to do when the emoji
+     * bundle failed to load - `loadEmoji` swallows that and answers with no
+     * emojis at all, so keyboard navigation must survive the empty case.
+     * @type {number[][]}
+     */
+    emojiMatrix = [];
 
     setup() {
         this.gridRef = useRef("emoji-grid");
@@ -238,6 +248,16 @@ export class EmojiPicker extends Component {
                 this._emojisFromSearch = [...recentEmojis, ...emojis];
             }
         });
+        this.setupLayoutObservers();
+        this.setupCategoryScrolling();
+        this.setupKeyboardFollow();
+    }
+
+    /**
+     * The navbar pages its categories by measuring, and the grid's rows are read
+     * back out of the DOM, so both have to re-measure when their width changes.
+     */
+    setupLayoutObservers() {
         onMounted(() => {
             if (!this.emojis.length) {
                 return;
@@ -266,51 +286,42 @@ export class EmojiPicker extends Component {
             }
             this.setHoveredEmoji(this.activeEmoji);
         });
-        onPatched(() => {
-            if (!this.emojis.length) {
-                return;
-            }
-            if (this.shouldScrollElem) {
-                this.shouldScrollElem = false;
-                /** @returns {HTMLElement | null} */
-                const getElement = () =>
-                    this.gridRef.el?.querySelector(
-                        `.o-EmojiPicker-category[data-category="${this.state.categoryId}"]`,
-                    ) ?? null;
-                const elem = getElement();
-                if (elem) {
-                    elem.scrollIntoView();
-                } else {
-                    this.shouldScrollElem = getElement;
-                }
+        onWillUnmount(() => {
+            this.navbarResizeObserver?.disconnect();
+            this.gridResizeObserver?.disconnect();
+            if (this.props.storeScroll && this.gridRef.el) {
+                this.props.storeScroll.set(this.gridRef.el.scrollTop);
             }
         });
         useEffect(
             () => this.updateEmojiPickerRepr(),
             () => [this.state.categoryId, this.searchTerm, this._emojisFromSearch],
         );
-        useEffect(
-            (el) => {
-                const gridEl = this.gridRef.el;
-                const activeEl = gridEl?.querySelector(".o-Emoji.o-active");
-                if (!gridEl) {
-                    return;
-                }
-                if (
-                    activeEl &&
-                    this.keyboardNavigated &&
-                    !isElementVisible(activeEl, gridEl)
-                ) {
-                    activeEl.scrollIntoView({
-                        block: "center",
-                        behavior: "instant",
-                    });
-                    this.keyboardNavigated = false;
-                }
-                this.setHoveredEmoji(this.activeEmoji);
-            },
-            () => [this.state.activeEmojiIndex, this.gridRef.el],
-        );
+    }
+
+    /**
+     * Selecting a category scrolls to its heading - but the heading may not be in
+     * the DOM yet on the patch that selected it, so `shouldScrollElem` holds the
+     * lookup over to the next one rather than giving up.
+     */
+    setupCategoryScrolling() {
+        onPatched(() => {
+            if (!this.emojis.length || !this.shouldScrollElem) {
+                return;
+            }
+            this.shouldScrollElem = false;
+            /** @returns {HTMLElement | null} */
+            const getElement = () =>
+                this.gridRef.el?.querySelector(
+                    `.o-EmojiPicker-category[data-category="${this.state.categoryId}"]`,
+                ) ?? null;
+            const elem = getElement();
+            if (elem) {
+                elem.scrollIntoView();
+            } else {
+                this.shouldScrollElem = getElement;
+            }
+        });
         useEffect(
             () => {
                 if (this.searchTerm !== this.lastSearchTerm) {
@@ -332,16 +343,35 @@ export class EmojiPicker extends Component {
             },
             () => [this.searchTerm],
         );
-        onWillUnmount(() => {
-            this.navbarResizeObserver?.disconnect();
-            this.gridResizeObserver?.disconnect();
-            if (!this.gridRef.el) {
-                return;
-            }
-            if (this.props.storeScroll) {
-                this.props.storeScroll.set(this.gridRef.el.scrollTop);
-            }
-        });
+    }
+
+    /**
+     * Keep the active emoji in view, but only when the keyboard put it there -
+     * scrolling under the mouse fights the user.
+     */
+    setupKeyboardFollow() {
+        useEffect(
+            () => {
+                const gridEl = this.gridRef.el;
+                if (!gridEl) {
+                    return;
+                }
+                const activeEl = gridEl.querySelector(".o-Emoji.o-active");
+                if (
+                    activeEl &&
+                    this.keyboardNavigated &&
+                    !isElementVisible(activeEl, gridEl)
+                ) {
+                    activeEl.scrollIntoView({
+                        block: "center",
+                        behavior: "instant",
+                    });
+                    this.keyboardNavigated = false;
+                }
+                this.setHoveredEmoji(this.activeEmoji);
+            },
+            () => [this.state.activeEmojiIndex, this.gridRef.el],
+        );
     }
 
     adaptNavbar() {
@@ -681,6 +711,107 @@ export class EmojiPicker extends Component {
 }
 
 /**
+ * Shows a picker on a small screen, where there is nowhere to put a popover.
+ *
+ * Two ways, and the caller does not choose between them - having a toggler
+ * element to take over decides it. Mounted into that element it is a popout; with
+ * no element it is a dialog. Either way exactly one teardown is live at a time,
+ * which is what `close()` is for.
+ */
+class MobilePickerHost {
+    /**
+     * @param {{ PickerComponent: any, component: any, addDialog: Function,
+     *   state: { isOpen: boolean }, props: Record<string, any> }} deps
+     */
+    constructor({ PickerComponent, component, addDialog, state, props }) {
+        this.PickerComponent = PickerComponent;
+        this.component = component;
+        this.addDialog = addDialog;
+        this.state = state;
+        this.props = props;
+        /** @type {(() => void) | null} */
+        this.remove = null;
+    }
+
+    onGone() {
+        this.remove = null;
+        this.state.isOpen = false;
+        this.props.onClose?.();
+    }
+
+    close() {
+        this.remove?.();
+    }
+
+    /**
+     * @param {{ el: HTMLElement } | undefined} ref
+     * @param {Record<string, any>} [openProps]
+     * @returns {Deferred} resolves true if an emoji was picked, false if dismissed
+     */
+    open(ref, openProps) {
+        const def = new Deferred();
+        const pickerProps = {
+            PickerComponent: this.PickerComponent,
+            onSelect: (/** @type {any[]} */ ...args) => {
+                const onSelect = openProps?.onSelect ?? this.props?.onSelect;
+                const res = onSelect?.(...args);
+                def.resolve(true);
+                return res;
+            },
+        };
+        if (ref?.el) {
+            this.mountInto(ref.el, pickerProps);
+        } else {
+            this.openDialog(pickerProps, def);
+        }
+        return def;
+    }
+
+    /**
+     * @param {HTMLElement} el
+     * @param {Record<string, any>} pickerProps
+     */
+    mountInto(el, pickerProps) {
+        pickerProps.close = () => this.close();
+        const app = new App(
+            PickerMobile,
+            /** @type {any} */ ({
+                name: "Popout",
+                env: this.component.env,
+                props: pickerProps,
+                getTemplate,
+                translatableAttributes: ["data-tooltip"],
+                translateFn: appTranslateFn,
+            }),
+        );
+        app.mount(el);
+        this.remove = () => {
+            this.onGone();
+            app.destroy();
+        };
+    }
+
+    /**
+     * @param {Record<string, any>} pickerProps
+     * @param {Deferred} def
+     */
+    openDialog(pickerProps, def) {
+        const closeDialog = this.addDialog(
+            PickerMobileInDialog,
+            pickerProps,
+            /** @type {any} */ ({
+                context: this.component,
+                onClose: () => {
+                    this.onGone();
+                    return def.resolve(false);
+                },
+            }),
+        );
+        this.remove = () => closeDialog();
+    }
+}
+
+/**
  * @param {import("@odoo/owl").ComponentConstructor} PickerComponent
  * @param {{ el: HTMLElement | null }} ref
  * @param {Record<string, any>} props
@@ -691,7 +822,6 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
     const state = useState({ isOpen: false });
     const ui = useService("ui");
     const addDialog = useOwnedDialogs();
-    let remove;
     const newOptions = {
         ...options,
         onClose: () => {
@@ -712,64 +842,24 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
         get: () => storeScroll.scrollValue,
     };
 
+    const mobile = new MobilePickerHost({
+        PickerComponent,
+        component,
+        addDialog,
+        state,
+        props,
+    });
+
     function open(ref, openProps) {
         state.isOpen = true;
         if (ui.isSmall || isMobileOS()) {
-            const def = new Deferred();
-            const pickerMobileProps = {
-                PickerComponent,
-                onSelect: (...args) => {
-                    const func = openProps?.onSelect ?? props?.onSelect;
-                    const res = func?.(...args);
-                    def.resolve(true);
-                    return res;
-                },
-            };
-            if (ref?.el) {
-                pickerMobileProps.close = () => remove?.();
-                const app = new App(
-                    PickerMobile,
-                    /** @type {any} */ ({
-                        name: "Popout",
-                        env: component.env,
-                        props: pickerMobileProps,
-                        getTemplate,
-                        translatableAttributes: ["data-tooltip"],
-                        translateFn: appTranslateFn,
-                    }),
-                );
-                app.mount(ref.el);
-                remove = () => {
-                    remove = null;
-                    state.isOpen = false;
-                    props.onClose?.();
-                    app.destroy();
-                };
-            } else {
-                /** @type {any} */
-                const dialogOptions = {
-                    context: component,
-                    onClose: () => {
-                        remove = null;
-                        state.isOpen = false;
-                        props.onClose?.();
-                        return def.resolve(false);
-                    },
-                };
-                const closeDialog = addDialog(
-                    PickerMobileInDialog,
-                    pickerMobileProps,
-                    dialogOptions,
-                );
-                remove = () => closeDialog();
-            }
-            return def;
+            return mobile.open(ref, openProps);
         }
         return popover.open(ref.el, { ...props, storeScroll, ...openProps });
     }
 
     function close() {
-        remove?.();
+        mobile.close();
         popover.close?.();
     }
 
@@ -796,7 +886,7 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
         },
         () => [ref?.el],
     );
-    onWillDestroy(() => remove?.());
+    onWillDestroy(() => mobile.close());
     Object.assign(state, { open, close, toggle });
     return state;
 }

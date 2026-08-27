@@ -18,17 +18,21 @@ export function createFileViewer() {
         if (!file.isViewable) {
             return;
         }
-        if (files.length) {
-            const viewableFiles = files.filter((file) => file.isViewable);
-            const index = Math.max(0, viewableFiles.indexOf(file));
-            registry.category("main_components").add(
-                fileViewerId,
-                /** @type {any} */ ({
-                    Component: FileViewer,
-                    props: { files: viewableFiles, startIndex: index, close },
-                }),
-            );
+        // Guard the list that is actually handed over, not the one that came in:
+        // `files` may be non-empty and hold nothing viewable, and a FileViewer
+        // opened on an empty list renders a viewer with no file in it.
+        const viewableFiles = files.filter((candidate) => candidate.isViewable);
+        if (!viewableFiles.length) {
+            return;
         }
+        const index = Math.max(0, viewableFiles.indexOf(file));
+        registry.category("main_components").add(
+            fileViewerId,
+            /** @type {any} */ ({
+                Component: FileViewer,
+                props: { files: viewableFiles, startIndex: index, close },
+            }),
+        );
     }
 
     function close() {

@@ -10,27 +10,16 @@ import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
  * onBack?: () => void;
  * preventDismissOnContentScroll?: boolean;
  * }} BottomSheetServiceAddOptions
- * @typedef {ReturnType<bottomSheetService["start"]>["add"]} BottomSheetServiceAddFunction
+ * @typedef {BottomSheetService["add"]} BottomSheetServiceAddFunction
  */
 
-const bottomSheetService = {
-    dependencies: ["overlay"],
+class BottomSheetService {
     /**
-     * @param {import("@web/env").OdooEnv} _
      * @param {{ overlay: any }} services
      */
-    start(_, { overlay }) {
-        let openCount = 0;
-
-        const syncBodyClasses = () => {
-            document.body.classList.toggle("bottom-sheet-open", openCount > 0);
-            document.body.classList.toggle("bottom-sheet-open-multiple", openCount > 1);
-        };
-
-        /**
-         * @type {(target: HTMLElement, component: import("@odoo/owl").ComponentConstructor, props?: object, options?: BottomSheetServiceAddOptions) => () => void}
-         */
-        const add = makeOverlayPresenter({
+    constructor({ overlay }) {
+        this.openCount = 0;
+        this.present = makeOverlayPresenter({
             overlay,
             component: BottomSheet,
             scope: "bottom_sheet",
@@ -39,22 +28,50 @@ const bottomSheetService = {
                 preventDismissOnContentScroll: options.preventDismissOnContentScroll,
             }),
             onOpen: () => {
-                openCount++;
-                syncBodyClasses();
+                this.openCount++;
+                this.syncBodyClasses();
             },
             onClosed: () => {
-                openCount = Math.max(0, openCount - 1);
-                syncBodyClasses();
+                this.openCount = Math.max(0, this.openCount - 1);
+                this.syncBodyClasses();
             },
         });
+    }
 
-        return {
-            add,
-            destroy() {
-                openCount = 0;
-                syncBodyClasses();
-            },
-        };
+    syncBodyClasses() {
+        document.body.classList.toggle("bottom-sheet-open", this.openCount > 0);
+        document.body.classList.toggle(
+            "bottom-sheet-open-multiple",
+            this.openCount > 1,
+        );
+    }
+
+    /**
+     * @param {HTMLElement} target
+     * @param {import("@odoo/owl").ComponentConstructor} component
+     * @param {object} [props]
+     * @param {BottomSheetServiceAddOptions} [options]
+     * @returns {() => void}
+     */
+    add(target, component, props = {}, options = {}) {
+        return this.present(target, component, props, options);
+    }
+
+    destroy() {
+        this.openCount = 0;
+        this.syncBodyClasses();
+    }
+}
+
+const bottomSheetService = {
+    dependencies: ["overlay"],
+    /**
+     * @param {import("@web/env").OdooEnv} _
+     * @param {{ overlay: any }} services
+     * @returns {BottomSheetService}
+     */
+    start(_, services) {
+        return new BottomSheetService(services);
     },
 };
 

@@ -65,8 +65,30 @@ export class TreeEditor extends Component {
 
     /** @type {import("services").ServiceFactories["field"]} */
     fieldService;
+
+    /** @type {import("@web/core/utils/concurrency").KeepLast} */
+    keepLastInfo;
     /** @type {import("services").ServiceFactories["tree_processor"]} */
     treeProcessor;
+
+    /**
+     * The tree this component edits: a clone of `props.tree`, normalised to a
+     * connector at the root so that every edit has somewhere to attach.
+     * @type {Tree}
+     */
+    tree;
+    /**
+     * The previous clone, kept so an equivalent update can reuse it and leave the
+     * editor's node identities - and therefore its DOM - alone.
+     * @type {Tree | null}
+     */
+    previousTree;
+    /** @type {(path: any) => any} */
+    getFieldDef;
+    /** @type {((node: any) => string) | undefined} */
+    getConditionDescription;
+    /** @type {Condition} */
+    defaultCondition;
 
     setup() {
         this.isTree = isTree;
@@ -149,7 +171,7 @@ export class TreeEditor extends Component {
 
     /** @returns {string} */
     get className() {
-        return `${this.props.readonly ? "o_read_mode" : "o_edit_mode"}`;
+        return this.props.readonly ? "o_read_mode" : "o_edit_mode";
     }
 
     /** @returns {boolean} */
@@ -175,7 +197,7 @@ export class TreeEditor extends Component {
      * @param {Connector} node
      */
     updateConnector(node) {
-        this.updateNode(node, () => this._updateConnector(node));
+        return this.updateNode(node, () => this._updateConnector(node));
     }
 
     /**
@@ -197,10 +219,16 @@ export class TreeEditor extends Component {
      * @param {HTMLInputElement} [inputEl]
      */
     updateComplexCondition(node, value, inputEl) {
-        this.updateNode(node, () => this._updateComplexCondition(node, value));
+        // Not awaited: `_updateComplexCondition` is synchronous, so the node has
+        // already accepted or refused the expression by the time updateNode yields,
+        // and the box has to be corrected in the same tick as the change event.
+        const applied = this.updateNode(node, () =>
+            this._updateComplexCondition(node, value),
+        );
         if (inputEl && inputEl.value !== node.value) {
             inputEl.value = node.value;
         }
+        return applied;
     }
 
     /**
@@ -209,8 +237,10 @@ export class TreeEditor extends Component {
      * @returns {Tree}
      */
     makeCondition(parent, condition) {
-        condition ||= parent.children.findLast((c) => c.type === "condition");
-        return cloneTree(condition || this.defaultCondition);
+        condition ||=
+            parent.children.findLast((c) => c.type === "condition") ||
+            this.defaultCondition;
+        return cloneTree(condition);
     }
 
     /**
@@ -231,7 +261,7 @@ export class TreeEditor extends Component {
      * @param {Tree} [node]
      */
     addNewCondition(parent, node) {
-        this.updateNode(parent, () => this._addNewCondition(parent, node));
+        return this.updateNode(parent, () => this._addNewCondition(parent, node));
     }
 
     /**
@@ -256,7 +286,7 @@ export class TreeEditor extends Component {
      * @param {Tree} node
      */
     addNewConnector(parent, node) {
-        this.updateNode(parent, () => this._addNewConnector(parent, node));
+        return this.updateNode(parent, () => this._addNewConnector(parent, node));
     }
 
     /**
@@ -285,7 +315,7 @@ export class TreeEditor extends Component {
      */
     delete(ancestors, node) {
         const upperNode = ancestors[0] || node;
-        this.updateNode(upperNode, () => this._delete(ancestors, node));
+        return this.updateNode(upperNode, () => this._delete(ancestors, node));
     }
 
     /**
@@ -293,9 +323,7 @@ export class TreeEditor extends Component {
      * @returns {string|null}
      */
     getResModel(node) {
-        const fieldDef = this.getFieldDef(node.path);
-        const resModel = getResModel(fieldDef);
-        return resModel;
+        return getResModel(this.getFieldDef(node.path));
     }
 
     /** @returns {Object} */
@@ -363,7 +391,9 @@ export class TreeEditor extends Component {
      * @param {boolean} negate
      */
     updateLeafOperator(node, operator, negate) {
-        this.updateNode(node, () => this._updateLeafOperator(node, operator, negate));
+        return this.updateNode(node, () =>
+            this._updateLeafOperator(node, operator, negate),
+        );
     }
 
     /**
@@ -379,12 +409,17 @@ export class TreeEditor extends Component {
      * @param {any} value
      */
     updateLeafValue(node, value) {
-        this.updateNode(node, () => this._updateLeafValue(node, value));
+        return this.updateNode(node, () => this._updateLeafValue(node, value));
     }
 
     /**
+     * Applies one edit to the tree and reports it upward. Every public wrapper
+     * returns this: `_updatePath` awaits the field service, so a rejection there
+     * has nowhere to go if the promise is dropped.
+     *
      * @param {Tree} node
      * @param {() => void|Promise<void>} operation
+     * @returns {Promise<void>}
      */
     async updateNode(node, operation) {
         const previousNode = cloneTree(node);

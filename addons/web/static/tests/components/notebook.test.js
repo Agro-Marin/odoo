@@ -453,3 +453,25 @@ test("no isFieldInvalid prop means no page is flagged", async () => {
     expect(".o_notebook .nav-link").toHaveCount(1);
     expect(".o_notebook .nav-link.o_page_invalid").toHaveCount(0);
 });
+
+test("both class spellings reach the root, because both callers exist", async () => {
+    class Page extends Component {
+        static template = xml`<div class="page-a"/>`;
+        static props = ["*"];
+    }
+    class Parent extends Component {
+        static template = xml`<Notebook className="'from-template'" class="'from-compiler'" pages="pages"/>`;
+        static components = { Notebook };
+        static props = ["*"];
+        setup() {
+            this.pages = [{ Component: Page, title: "A", props: {} }];
+        }
+    }
+    await mountWithCleanup(Parent);
+    // `className` is what a hand-written template passes. `class` is what the view
+    // compiler sets on a component it emits into a group cell, and it used to be
+    // declared and read by nothing - so a <notebook> inside a <group> silently lost
+    // its cell layout classes.
+    expect("div.o_notebook").toHaveClass("from-template");
+    expect("div.o_notebook").toHaveClass("from-compiler");
+});

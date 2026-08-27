@@ -299,6 +299,13 @@ export class NameAndSignature extends Component {
             if (error instanceof SupersededError) {
                 return;
             }
+            // The upstream guard only inspects file.type, so bytes that are not a
+            // decodable image reach decode() and fail here. Reporting an empty
+            // signature and saying nothing leaves the user with a blank pad and no
+            // reason for it.
+            if (this.state.signMode === "load") {
+                this.state.loadIsInvalid = true;
+            }
             this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
             this.props.onSignatureChange(this.state.signMode);
             return;

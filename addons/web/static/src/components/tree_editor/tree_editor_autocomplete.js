@@ -38,6 +38,10 @@ const getFormat = (val, displayNames) => {
     return { text, colorIndex };
 };
 
+// The base declares `resIds` as `{ type: Array, element: Number }`; here it
+// also holds `Expression`s, which is what widening it to `true` says. Owl's
+// props schema is not a type, so the static sides genuinely differ and the
+// checker is right to say so.
 // @ts-expect-error - OWL Component static props typing
 export class DomainSelectorAutocomplete extends MultiRecordSelector {
     static props = {
@@ -56,7 +60,7 @@ export class DomainSelectorAutocomplete extends MultiRecordSelector {
     /**
      * @param {DomainSelectorMultiProps} props
      * @param {Record<number, string>} displayNames
-     * @returns {Array<{text: string, colorIndex: number, onDelete: Function, img: string|false}>}
+     * @returns {import("@web/components/record_selectors/multi_record_selector").RecordTag[]}
      */
     getTags(props, displayNames) {
         const withAvatar = isAvatarModel(props.resModel);

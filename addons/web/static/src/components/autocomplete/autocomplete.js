@@ -153,6 +153,29 @@ export class AutoComplete extends Component {
             onUpdated: () => this.onNavigationUpdated(),
         });
 
+        this.setupInputDebounce();
+        this.setupDismissal();
+
+        onWillUpdateProps((nextProps) => {
+            if (this.props.value !== nextProps.value || this.forceValFromProp) {
+                this.forceValFromProp = false;
+                if (!this.inEdition) {
+                    this.state.value = nextProps.value;
+                    this.inputRef.el.value = nextProps.value;
+                }
+                this.close();
+            }
+        });
+
+        this.setupPresentation();
+    }
+
+    /**
+     * Typing schedules one load. `pendingPromise` is what a keypress arriving
+     * mid-flight waits on - enter and tab both have to know whether the options
+     * on screen answer the text in the input.
+     */
+    setupInputDebounce() {
         this.debouncedProcessInput = useDebounced(
             async () => {
                 const currentPromise = this.pendingPromise;
@@ -173,7 +196,15 @@ export class AutoComplete extends Component {
             },
             () => this.timeout,
         );
+    }
 
+    /**
+     * Anything that closes the list from outside it: a click elsewhere, and a
+     * scroll of some container that would carry the input out from under the
+     * menu. The document's own scroll is not one of those - the menu is
+     * positioned against the input and follows it.
+     */
+    setupDismissal() {
         useClickAway((node) => this.externalClose(node), {
             getAnchor: () => this.root.el,
             getContentEl: () => this.listRef.el,
@@ -191,18 +222,14 @@ export class AutoComplete extends Component {
         };
         this._globalCleanups = [];
         onWillDestroy(() => this._removeGlobalListeners());
+    }
 
-        onWillUpdateProps((nextProps) => {
-            if (this.props.value !== nextProps.value || this.forceValFromProp) {
-                this.forceValFromProp = false;
-                if (!this.inEdition) {
-                    this.state.value = nextProps.value;
-                    this.inputRef.el.value = nextProps.value;
-                }
-                this.close();
-            }
-        });
-
+    /**
+     * Two shapes, and they are not variants of one: as a dropdown the list is a
+     * positioned menu that opens on demand, inline it is always open and loads
+     * its sources once at setup.
+     */
+    setupPresentation() {
         if (this.props.dropdown) {
             this._dropdownOptions = {};
             this.syncDropdownOptions();
@@ -212,15 +239,15 @@ export class AutoComplete extends Component {
                 () => this.targetDropdown,
                 this._dropdownOptions,
             );
-        } else {
-            this.state.open = true;
-            this.loadSources(false);
-            onMounted(() => {
-                if (this.state.open) {
-                    this._addGlobalListeners();
-                }
-            });
+            return;
         }
+        this.state.open = true;
+        this.loadSources(false);
+        onMounted(() => {
+            if (this.state.open) {
+                this._addGlobalListeners();
+            }
+        });
     }
 
     get targetDropdown() {
@@ -554,7 +581,7 @@ export class AutoComplete extends Component {
             isOptionSelected: this.ignoreBlur,
         });
     }
-    async onInput() {
+    onInput() {
         this.inEdition = true;
         if (!this.pendingPromise) {
             this.pendingPromise = new Deferred();

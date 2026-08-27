@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useRef, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { ExpressionEditor } from "@web/components/expression_editor/expression_editor";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
+import { useConfirmButton } from "@web/ui/dialog/confirm_button_hook";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 export class ExpressionEditorDialog extends Component {
@@ -20,8 +21,8 @@ export class ExpressionEditorDialog extends Component {
         onConfirm: Function,
     };
 
-    /** @type {import("@odoo/owl").Ref} */
-    confirmButtonRef;
+    /** @type {(disabled: boolean) => void} */
+    setConfirmDisabled;
     /** @type {import("services").ServiceFactories["notification"]} */
     notification;
     /** @type {{ expression: any }} */
@@ -32,8 +33,7 @@ export class ExpressionEditorDialog extends Component {
         this.state = useState({
             expression: this.props.expression,
         });
-        /** @type {{ el: HTMLButtonElement | null }} */
-        this.confirmButtonRef = useRef("confirm");
+        this.setConfirmDisabled = useConfirmButton();
     }
 
     get expressionEditorProps() {
@@ -67,17 +67,28 @@ export class ExpressionEditorDialog extends Component {
         return record;
     }
 
-    async onConfirm() {
-        /** @type {HTMLButtonElement} */ (this.confirmButtonRef.el).disabled = true;
-        const record = this.makeDefaultRecord();
-        const evalContext = { ...user.context, ...record };
+    /**
+     * One check, and it is local: an expression is valid if it evaluates against a
+     * record of the right shape. No server round trip, unlike the domain dialog -
+     * which is why this one is not async and the two confirm paths are not shared.
+     * @returns {boolean}
+     */
+    isExpressionValid() {
         try {
-            evaluateExpr(this.state.expression, evalContext);
+            evaluateExpr(this.state.expression, {
+                ...user.context,
+                ...this.makeDefaultRecord(),
+            });
+            return true;
         } catch {
-            if (this.confirmButtonRef.el) {
-                /** @type {HTMLButtonElement} */ (this.confirmButtonRef.el).disabled =
-                    false;
-            }
+            return false;
+        }
+    }
+
+    onConfirm() {
+        this.setConfirmDisabled(true);
+        if (!this.isExpressionValid()) {
+            this.setConfirmDisabled(false);
             this.notification.add(_t("Expression is invalid. Please correct it"), {
                 type: "danger",
             });

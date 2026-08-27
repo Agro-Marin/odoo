@@ -164,6 +164,10 @@ export class SelectMenu extends Component {
         this._sortedChoicesCache = new WeakMap();
         /** @type {{ revision: number, byValue: Map<any, any> } | null} */
         this._choiceIndex = null;
+        /** @type {string | null} */
+        this._derivedKey = null;
+        /** @type {Set<any> | null} */
+        this._selectedValueSet = null;
 
         onWillRender(() => {
             this._selectedValueSet = null;
@@ -529,10 +533,22 @@ export class SelectMenu extends Component {
     }
 
     /**
+     * What `state.choices` was derived from. `onWillRender` compares it against
+     * `_derivedKey` to decide whether to derive again, so the two must be the same
+     * string for the same inputs - spelling it twice is a cache that fails silently
+     * in whichever direction the two drift.
+     * @param {string} searchString
+     * @returns {string}
+     */
+    derivationKeyFor(searchString) {
+        return `${this.choicesRevision}\x00${searchString}`;
+    }
+
+    /**
      * @returns {string}
      */
     get derivationKey() {
-        return `${this.choicesRevision}\x00${this.state.appliedSearch}`;
+        return this.derivationKeyFor(this.state.appliedSearch);
     }
 
     /**
@@ -540,7 +556,7 @@ export class SelectMenu extends Component {
      */
     filterOptions(searchString = "") {
         this._selectedValueSet = null;
-        this._derivedKey = `${this.choicesRevision}\x00${searchString}`;
+        this._derivedKey = this.derivationKeyFor(searchString);
         const groupsList = [
             { choices: this.props.choices, section: "" },
             ...this.props.groups,
@@ -633,9 +649,7 @@ export class SelectMenu extends Component {
         if (!root || !sentinel) {
             return;
         }
-        const { distanceBeforeReload, increaseAmount } = /** @type {any} */ (
-            this.constructor
-        ).SCROLL_SETTINGS;
+        const { distanceBeforeReload, increaseAmount } = this.scrollSettings;
         this.loadMoreObserver = new IntersectionObserver(
             ([entry]) => {
                 if (!entry.isIntersecting) {

@@ -9,8 +9,16 @@ import {
     resolveInRangeProviderOption,
 } from "@web/core/tree/in_range_providers";
 export class Input extends Component {
-    static props = ["value", "update", "placeholder?", "startEmpty?"];
+    static props = {
+        value: true,
+        update: Function,
+        placeholder: { type: String, optional: true },
+        startEmpty: { type: Boolean, optional: true },
+    };
     static template = "web.TreeEditor.Input";
+
+    /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
+    inputRef;
 
     setup() {
         this.inputRef = useRef("input");
@@ -22,21 +30,22 @@ export class Input extends Component {
     async onChange(ev) {
         const el = /** @type {HTMLInputElement} */ (ev.target);
         await this.props.update(el.value);
-        if (!this.props.startEmpty && this.inputRef.el) {
-            this.inputRef.el.value = this.props.value;
+        const input = /** @type {HTMLInputElement | null} */ (this.inputRef.el);
+        if (!this.props.startEmpty && input) {
+            input.value = this.props.value;
         }
     }
 }
 
 export class Select extends Component {
-    static props = [
-        "value",
-        "update",
-        "options",
-        "placeholder?",
-        "addBlankOption?",
-        "optionGroups?",
-    ];
+    static props = {
+        value: true,
+        update: Function,
+        options: { type: Array },
+        placeholder: { type: String, optional: true },
+        addBlankOption: { type: Boolean, optional: true },
+        optionGroups: { type: Object, optional: true },
+    };
     static template = "web.TreeEditor.Select";
 
     /**
@@ -77,7 +86,11 @@ export class Select extends Component {
 }
 
 export class Range extends Component {
-    static props = ["value", "update", "editorInfo"];
+    static props = {
+        value: { type: Array },
+        update: Function,
+        editorInfo: Object,
+    };
     static template = "web.TreeEditor.Range";
 
     /**
@@ -92,7 +105,12 @@ export class Range extends Component {
 }
 
 export class InRange extends Component {
-    static props = ["value", "update", "valueTypeEditorInfo", "betweenEditorInfo"];
+    static props = {
+        value: { type: Array },
+        update: Function,
+        valueTypeEditorInfo: Object,
+        betweenEditorInfo: Object,
+    };
     static template = "web.TreeEditor.InRange";
     static options = IN_RANGE_OPTIONS;
 
@@ -136,7 +154,11 @@ export class InRange extends Component {
 
 export class List extends Component {
     static components = { TagsList };
-    static props = ["value", "update", "editorInfo"];
+    static props = {
+        value: { type: Array },
+        update: Function,
+        editorInfo: Object,
+    };
     static template = "web.TreeEditor.List";
 
     /** @returns {Array<{text: string, colorIndex: number, onDelete: Function}>} */

@@ -22,7 +22,14 @@ export class Notebook extends Component {
     static props = {
         slots: { type: Object, optional: true },
         pages: { type: Array, element: Object, optional: true },
-        class: { optional: true },
+        /**
+         * Two spellings because there are two callers. `className` is what a
+         * hand-written template passes; `class` is what the view compiler sets on
+         * every component it emits into a group cell (`compileGroup` in
+         * form_compiler.js, via `copyAttributes` elsewhere), and it carries the
+         * cell's layout classes. Both land on the root.
+         */
+        class: { type: String, optional: true },
         className: { type: String, optional: true },
         defaultPage: { type: String, optional: true },
         orientation: { type: String, optional: true },

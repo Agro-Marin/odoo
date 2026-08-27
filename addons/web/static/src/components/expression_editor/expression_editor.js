@@ -2,18 +2,13 @@
 /** @odoo-module native */
 
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { makeDefaultCondition } from "@web/components/domain_selector/utils";
 import { getExpressionDisplayedOperators } from "@web/components/expression_editor/expression_editor_operator_editor";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
-import {
-    getDefaultValue,
-    getOperatorEditorInfo,
-    TreeEditor,
-} from "@web/components/tree_editor";
+import { getOperatorEditorInfo, TreeEditor } from "@web/components/tree_editor";
 import { _t } from "@web/core/translation";
-import { condition } from "@web/core/tree/condition_tree";
 import { expressionFromTree } from "@web/core/tree/expression_from_tree";
 import { treeFromExpression } from "@web/core/tree/tree_from_expression";
-import { getDefaultPath } from "@web/core/tree/utils";
 export class ExpressionEditor extends Component {
     static template = "web.ExpressionEditor";
     static components = { TreeEditor };
@@ -72,11 +67,10 @@ export class ExpressionEditor extends Component {
      * @returns {Object}
      */
     getDefaultCondition() {
-        const defaultPath = getDefaultPath(this.filteredFields);
-        const fieldDef = this.filteredFields[defaultPath];
-        const operator = getExpressionDisplayedOperators(fieldDef)[0];
-        const value = getDefaultValue(fieldDef, operator);
-        return condition(fieldDef.name, operator, value);
+        return makeDefaultCondition(
+            this.filteredFields,
+            getExpressionDisplayedOperators,
+        );
     }
 
     /**

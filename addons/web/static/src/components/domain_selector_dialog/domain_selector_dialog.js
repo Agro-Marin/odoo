@@ -1,13 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useRef, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 import { Domain } from "@web/core/domain";
 import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
+import { useConfirmButton } from "@web/ui/dialog/confirm_button_hook";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 export class DomainSelectorDialog extends Component {
@@ -41,8 +42,8 @@ export class DomainSelectorDialog extends Component {
         context: {},
     };
 
-    /** @type {import("@odoo/owl").Ref} */
-    confirmButtonRef;
+    /** @type {(disabled: boolean) => void} */
+    setConfirmDisabled;
     /** @type {import("services").ServiceFactories["notification"]} */
     notification;
     /** @type {{ domain: any }} */
@@ -52,7 +53,7 @@ export class DomainSelectorDialog extends Component {
         this.notification = useService("notification");
         this.orm = useService("orm");
         this.state = useState({ domain: this.props.domain });
-        this.confirmButtonRef = useRef("confirm");
+        this.setConfirmDisabled = useConfirmButton();
     }
 
     get confirmButtonText() {
@@ -88,34 +89,40 @@ export class DomainSelectorDialog extends Component {
         };
     }
 
-    async onConfirm() {
-        /** @type {HTMLButtonElement} */ (this.confirmButtonRef.el).disabled = true;
+    /**
+     * Two checks, and the second needs the first: the domain has to parse here
+     * before the server can be asked whether it runs.
+     * @returns {Promise<boolean>}
+     */
+    async isDomainValid() {
         let domain;
-        let isValid;
         try {
-            try {
-                const evalContext = { ...user.context, ...this.props.context };
-                domain = new Domain(this.state.domain).toList(evalContext);
-            } catch {
-                isValid = false;
-            }
-            if (isValid === undefined) {
-                try {
-                    isValid = await rpc("/web/domain/validate", {
-                        model: this.props.resModel,
-                        domain,
-                    });
-                } catch {
-                    isValid = false;
-                }
-            }
-        } finally {
-            if (this.confirmButtonRef.el) {
-                /** @type {HTMLButtonElement} */ (this.confirmButtonRef.el).disabled =
-                    false;
-            }
+            domain = new Domain(this.state.domain).toList({
+                ...user.context,
+                ...this.props.context,
+            });
+        } catch {
+            return false;
         }
-        if (!isValid) {
+        try {
+            return await rpc("/web/domain/validate", {
+                model: this.props.resModel,
+                domain,
+            });
+        } catch {
+            return false;
+        }
+    }
+
+    async onConfirm() {
+        this.setConfirmDisabled(true);
+        let valid;
+        try {
+            valid = await this.isDomainValid();
+        } finally {
+            this.setConfirmDisabled(false);
+        }
+        if (!valid) {
             this.notification.add(_t("Domain is invalid. Please correct it"), {
                 type: "danger",
             });

@@ -1906,3 +1906,36 @@ test("an unrelated dropdown opening closes the open one", async () => {
         message: "neither is an ancestor of the other, so the first gives way",
     });
 });
+
+test("a swapped `state` prop is refused rather than silently ignored", async () => {
+    let parent;
+    class Parent extends Component {
+        static components = { Dropdown };
+        static props = [];
+        static template = xml`
+            <Dropdown state="state.which === 'a' ? stateA : stateB">
+                <button class="toggler">toggle</button>
+                <t t-set-slot="content"><div class="menu-body">menu</div></t>
+            </Dropdown>`;
+        setup() {
+            this.stateA = useDropdownState();
+            this.stateB = useDropdownState();
+            this.state = useState({ which: "a" });
+            parent = this;
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    parent.stateA.open();
+    await animationFrame();
+    expect(".menu-body").toHaveCount(1);
+    parent.stateA.close();
+    await animationFrame();
+
+    // The dropdown subscribed to stateA in setup and cannot be moved onto stateB.
+    // Left to itself it would keep obeying stateA while the caller drove stateB.
+    expect.errors(1);
+    parent.state.which = "b";
+    await animationFrame();
+    expect.verifyErrors([/the `state` prop is read once/]);
+});

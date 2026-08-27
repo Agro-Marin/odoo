@@ -132,7 +132,7 @@ test.tags("desktop");
 test("positioning", async () => {
     mockService("popover", (...kargs) => {
         const popover = popoverService.start(...kargs);
-        return {
+        patchWithCleanup(popover, {
             add(...args) {
                 const { position } = args[3];
                 if (position) {
@@ -140,9 +140,10 @@ test("positioning", async () => {
                 } else {
                     expect.step(`popover added with default positioning`);
                 }
-                return popover.add(...args);
+                return super.add(...args);
             },
-        };
+        });
+        return popover;
     });
 
     class MyComponent extends Component {

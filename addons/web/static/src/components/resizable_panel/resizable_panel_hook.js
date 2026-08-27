@@ -2,10 +2,10 @@
 /** @odoo-module native */
 
 import {
-    onMounted,
     onWillUnmount,
     onWillUpdateProps,
     useComponent,
+    useEffect,
     useExternalListener,
     useRef,
 } from "@odoo/owl";
@@ -23,6 +23,176 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  */
 
 /**
+ * Drags one panel edge.
+ *
+ * The measurements all read from the live element rather than from state,
+ * because the thing being resized is also being laid out by CSS: the offset
+ * parent decides the ceiling, the handle's own width decides how close to it the
+ * panel may get, and the container's `direction` decides which way a drag grows.
+ */
+class ResizeController {
+    /**
+     * @param {import("@odoo/owl").Ref<HTMLElement>} containerRef
+     * @param {import("@odoo/owl").Ref<HTMLElement>} handleRef
+     * @param {{ getMinWidth: Function, getResizeSide: Function, getInitialWidth: Function, onResize: Function }} params
+     * @param {Object} props
+     */
+    constructor(containerRef, handleRef, params, props) {
+        this.containerRef = containerRef;
+        this.handleRef = handleRef;
+        this.params = params;
+        this.minWidth = params.getMinWidth(props);
+        this.resizeSide = params.getResizeSide(props);
+        this.initialWidth = params.getInitialWidth(props);
+        this.isChangingSize = false;
+        /** @type {string | undefined} */
+        this.docDirection = undefined;
+        this.onPointerDown = this.onPointerDown.bind(this);
+        this.onPointerMove = this.onPointerMove.bind(this);
+        this.onPointerUp = this.onPointerUp.bind(this);
+    }
+
+    /**
+     * @param {Object} nextProps
+     */
+    applyProps(nextProps) {
+        const previousInitialWidth = this.initialWidth;
+        this.minWidth = this.params.getMinWidth(nextProps);
+        this.resizeSide = this.params.getResizeSide(nextProps);
+        this.initialWidth = this.params.getInitialWidth(nextProps);
+        const currentWidth = this.currentWidth();
+        // A changed initialWidth is an instruction; an unchanged one must not undo
+        // a width the user dragged to.
+        const nextWidth = this.clampWidth(
+            this.initialWidth !== previousInitialWidth
+                ? this.initialWidth
+                : currentWidth,
+        );
+        if (nextWidth !== currentWidth) {
+            this.resize(nextWidth);
+        }
+    }
+
+    /**
+     * @param {HTMLElement} handle
+     * @returns {() => void} teardown
+     */
+    attach(handle) {
+        this.resize(this.clampWidth(this.initialWidth));
+        handle.addEventListener("pointerdown", this.onPointerDown);
+        handle.style.touchAction = "none";
+        return () => handle.removeEventListener("pointerdown", this.onPointerDown);
+    }
+
+    /** @param {PointerEvent} ev */
+    onPointerDown(ev) {
+        this.isChangingSize = true;
+        if (this.containerRef.el) {
+            this.docDirection = getComputedStyle(this.containerRef.el).direction;
+        }
+        document.body.classList.add("pe-none", "user-select-none");
+        try {
+            this.handleRef.el?.setPointerCapture(ev.pointerId);
+        } catch {
+            // No capture is survivable: the document-level listeners still fire.
+        }
+        document.addEventListener("pointermove", this.onPointerMove);
+        document.addEventListener("pointerup", this.onPointerUp);
+        document.addEventListener("pointercancel", this.onPointerUp);
+    }
+
+    onPointerUp() {
+        this.isChangingSize = false;
+        document.body.classList.remove("pe-none", "user-select-none");
+        document.removeEventListener("pointermove", this.onPointerMove);
+        document.removeEventListener("pointerup", this.onPointerUp);
+        document.removeEventListener("pointercancel", this.onPointerUp);
+    }
+
+    /** @param {PointerEvent} ev */
+    onPointerMove(ev) {
+        if (!this.isChangingSize || !this.containerRef.el) {
+            return;
+        }
+        const direction =
+            (this.docDirection === "ltr" && this.resizeSide === "end") ||
+            (this.docDirection === "rtl" && this.resizeSide === "start")
+                ? 1
+                : -1;
+        const fixedSide = direction === 1 ? "left" : "right";
+        const newWidth = (ev.clientX - this.containerRect()[fixedSide]) * direction;
+        this.resize(this.finalWidth(newWidth));
+    }
+
+    onWindowResize() {
+        if (!this.containerRef.el) {
+            return;
+        }
+        const limit = this.limitWidth();
+        if (this.containerRect().width >= limit) {
+            this.resize(this.finalWidth(limit));
+        }
+    }
+
+    /** @returns {number} half the handle, so the panel stops short of the edge */
+    handlerSpacing() {
+        return this.handleRef.el ? this.handleRef.el.offsetWidth / 2 : 10;
+    }
+
+    /**
+     * @param {number} width
+     * @returns {number}
+     */
+    clampWidth(width) {
+        return Math.min(
+            Math.max(this.minWidth, width),
+            this.limitWidth() - this.handlerSpacing(),
+        );
+    }
+
+    /**
+     * @param {number} targetContainerWidth
+     * @returns {number}
+     */
+    finalWidth(targetContainerWidth) {
+        return this.clampWidth(targetContainerWidth + this.handlerSpacing());
+    }
+
+    /** @returns {{ left: number, right: number, width: number }} */
+    containerRect() {
+        return /** @type {HTMLElement} */ (
+            this.containerRef.el
+        ).getBoundingClientRect();
+    }
+
+    /** @returns {number} */
+    currentWidth() {
+        const styled = Number.parseFloat(this.containerRef.el?.style.width ?? "");
+        if (Number.isFinite(styled)) {
+            return styled;
+        }
+        return this.containerRef.el ? this.containerRect().width : this.initialWidth;
+    }
+
+    /** @returns {number} how wide the panel is allowed to get */
+    limitWidth() {
+        const offsetParent = /** @type {HTMLElement | null} */ (
+            this.containerRef.el?.offsetParent ?? null
+        );
+        return offsetParent ? offsetParent.offsetWidth : window.innerWidth;
+    }
+
+    /** @param {number} width */
+    resize(width) {
+        if (!this.containerRef.el) {
+            return;
+        }
+        this.containerRef.el.style.setProperty("width", `${width}px`);
+        this.params.onResize(width);
+    }
+}
+
+/**
  * @param {UseResizableParams} params
  */
 export function useResizable({
@@ -38,160 +208,33 @@ export function useResizable({
         typeof _containerRef == "string" ? useRef(_containerRef) : _containerRef;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     const handleRef = typeof _handleRef == "string" ? useRef(_handleRef) : _handleRef;
-    const props = useComponent().props;
+    const component = useComponent();
+    const controller = new ResizeController(
+        containerRef,
+        handleRef,
+        { getInitialWidth, getMinWidth, onResize, getResizeSide },
+        component.props,
+    );
 
-    let minWidth = getMinWidth(props);
-    let resizeSide = getResizeSide(props);
-    let initialWidth = getInitialWidth(props);
-    let isChangingSize = false;
+    useExternalListener(
+        window,
+        "resize",
+        useThrottleForAnimation(() => controller.onWindowResize()),
+    );
 
-    const onWindowResize = useThrottleForAnimation(() => {
-        if (!containerRef.el) {
-            return;
-        }
-        const limit = getLimitWidth();
-        if (getContainerRect().width >= limit) {
-            resize(computeFinalWidth(limit));
-        }
-    });
-    useExternalListener(window, "resize", onWindowResize);
+    // Keyed on the handle element, not on mount/unmount: bound in onMounted and
+    // released in onWillUnmount, a handle replaced in between keeps the old
+    // listener and the new one never gets one.
+    useEffect(
+        (el) => (el ? controller.attach(el) : undefined),
+        () => [handleRef.el],
+    );
 
-    let docDirection;
-
-    onMounted(() => {
-        if (handleRef.el) {
-            resize(clampWidth(initialWidth));
-            handleRef.el.addEventListener("pointerdown", onPointerDown);
-            handleRef.el.style.touchAction = "none";
-        }
-    });
-
-    onWillUpdateProps((nextProps) => {
-        const previousInitialWidth = initialWidth;
-        minWidth = getMinWidth(nextProps);
-        resizeSide = getResizeSide(nextProps);
-        initialWidth = getInitialWidth(nextProps);
-        const currentWidth = getCurrentWidth();
-        const nextWidth = clampWidth(
-            initialWidth !== previousInitialWidth ? initialWidth : currentWidth,
-        );
-        if (nextWidth !== currentWidth) {
-            resize(nextWidth);
-        }
-    });
+    onWillUpdateProps((nextProps) => controller.applyProps(nextProps));
 
     onWillUnmount(() => {
-        if (handleRef.el) {
-            handleRef.el.removeEventListener("pointerdown", onPointerDown);
-        }
-        if (isChangingSize) {
-            onPointerUp();
+        if (controller.isChangingSize) {
+            controller.onPointerUp();
         }
     });
-
-    /**
-     * @param {PointerEvent} ev
-     */
-    function onPointerDown(ev) {
-        isChangingSize = true;
-        if (containerRef.el) {
-            docDirection = getComputedStyle(containerRef.el).direction;
-        }
-        document.body.classList.add("pe-none", "user-select-none");
-        try {
-            handleRef.el?.setPointerCapture(ev.pointerId);
-        } catch {}
-        document.addEventListener("pointermove", onPointerMove);
-        document.addEventListener("pointerup", onPointerUp);
-        document.addEventListener("pointercancel", onPointerUp);
-    }
-
-    function onPointerUp() {
-        isChangingSize = false;
-        document.body.classList.remove("pe-none", "user-select-none");
-        document.removeEventListener("pointermove", onPointerMove);
-        document.removeEventListener("pointerup", onPointerUp);
-        document.removeEventListener("pointercancel", onPointerUp);
-    }
-
-    /**
-     * @param {PointerEvent} ev
-     */
-    function onPointerMove(ev) {
-        if (!isChangingSize || !containerRef.el) {
-            return;
-        }
-        const direction =
-            (docDirection === "ltr" && resizeSide === "end") ||
-            (docDirection === "rtl" && resizeSide === "start")
-                ? 1
-                : -1;
-        const fixedSide = direction === 1 ? "left" : "right";
-        const containerRect = getContainerRect();
-        const newWidth = (ev.clientX - containerRect[fixedSide]) * direction;
-        resize(computeFinalWidth(newWidth));
-    }
-
-    /** @returns {number} */
-    function getHandlerSpacing() {
-        return handleRef.el ? handleRef.el.offsetWidth / 2 : 10;
-    }
-
-    /**
-     * @param {number} width
-     * @returns {number}
-     */
-    function clampWidth(width) {
-        return Math.min(
-            Math.max(minWidth, width),
-            getLimitWidth() - getHandlerSpacing(),
-        );
-    }
-
-    /**
-     * @param {number} targetContainerWidth
-     * @returns {number}
-     */
-    function computeFinalWidth(targetContainerWidth) {
-        return clampWidth(targetContainerWidth + getHandlerSpacing());
-    }
-
-    /**
-     * @returns {{ left: number, right: number, width: number }}
-     */
-    function getContainerRect() {
-        return /** @type {HTMLElement} */ (containerRef.el).getBoundingClientRect();
-    }
-
-    /**
-     * @returns {number}
-     */
-    function getCurrentWidth() {
-        const styled = Number.parseFloat(containerRef.el?.style.width ?? "");
-        if (Number.isFinite(styled)) {
-            return styled;
-        }
-        return containerRef.el ? getContainerRect().width : initialWidth;
-    }
-
-    /**
-     * @returns {number}
-     */
-    function getLimitWidth() {
-        const offsetParent = /** @type {HTMLElement | null} */ (
-            containerRef.el?.offsetParent ?? null
-        );
-        return offsetParent ? offsetParent.offsetWidth : window.innerWidth;
-    }
-
-    /**
-     * @param {number} width
-     */
-    function resize(width) {
-        if (!containerRef.el) {
-            return;
-        }
-        containerRef.el.style.setProperty("width", `${width}px`);
-        onResize(width);
-    }
 }

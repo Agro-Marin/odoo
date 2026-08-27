@@ -2,10 +2,9 @@
 /** @odoo-module native */
 
 import { useState } from "@odoo/owl";
-import { _t } from "@web/core/translation";
 import { isId } from "@web/core/tree/utils";
 
-import { BaseRecordSelector } from "./base_record_selector.js";
+import { BaseRecordSelector, displayNameFor } from "./base_record_selector.js";
 import { RecordAutocomplete } from "./record_autocomplete.js";
 
 export class RecordSelector extends BaseRecordSelector {
@@ -53,14 +52,8 @@ export class RecordSelector extends BaseRecordSelector {
      * @returns {string}
      */
     getDisplayName(props, displayNames) {
-        props ??= this.props;
         const { resId } = props;
-        if (resId === false) {
-            return "";
-        }
-        return typeof displayNames[resId] === "string"
-            ? displayNames[resId]
-            : _t("Inaccessible/missing record ID: %s", resId);
+        return resId === false ? "" : displayNameFor(displayNames, resId);
     }
 
     /**

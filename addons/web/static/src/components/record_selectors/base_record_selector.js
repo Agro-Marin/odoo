@@ -3,8 +3,23 @@
 
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
+import { _t } from "@web/core/translation";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+
+/**
+ * The name service answers with nothing both for an id the reader cannot see and
+ * for one that no longer exists, and a selector has to render something either way.
+ * @param {Record<number, string>} displayNames
+ * @param {number} id
+ * @returns {string}
+ */
+export function displayNameFor(displayNames, id) {
+    return typeof displayNames[id] === "string"
+        ? displayNames[id]
+        : _t("Inaccessible/missing record ID: %s", id);
+}
+
 export class BaseRecordSelector extends Component {
     /** @type {KeepLast<any>} */
     keepLast;

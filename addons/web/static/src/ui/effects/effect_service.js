@@ -37,39 +37,51 @@ effectRegistry.add("rainbow_man", rainbowMan);
 
 effectRegistry.addValidation((v) => typeof v === "function");
 
+class EffectService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ overlay: any }} services
+     */
+    constructor(env, { overlay }) {
+        this.env = env;
+        this.overlay = overlay;
+    }
+
+    /**
+     * @param {{ type?: string, [key: string]: any }} [params]
+     * @returns {() => void}
+     */
+    add(params = {}) {
+        const type = params.type || "rainbow_man";
+        if (!effectRegistry.contains(type)) {
+            console.warn(`[effect] unknown effect type "${type}"; ignoring.`);
+            return () => {};
+        }
+        const effect = effectRegistry.get(type);
+        const { Component, props, remove: ownRemove } = effect(this.env, params) || {};
+        if (ownRemove) {
+            return ownRemove;
+        }
+        if (!Component) {
+            return () => {};
+        }
+        const remove = this.overlay.add(Component, {
+            ...props,
+            close: () => remove(),
+        });
+        return remove;
+    }
+}
+
 const effectService = {
     dependencies: ["notification", "overlay"],
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ overlay: any }} services
+     * @returns {EffectService}
      */
-    start(env, { overlay }) {
-        /**
-         * @param {{ type?: string, [key: string]: any }} [params]
-         * @returns {() => void}
-         */
-        const add = (params = {}) => {
-            const type = params.type || "rainbow_man";
-            if (!effectRegistry.contains(type)) {
-                console.warn(`[effect] unknown effect type "${type}"; ignoring.`);
-                return () => {};
-            }
-            const effect = effectRegistry.get(type);
-            const { Component, props, remove: ownRemove } = effect(env, params) || {};
-            if (ownRemove) {
-                return ownRemove;
-            }
-            if (!Component) {
-                return () => {};
-            }
-            const remove = overlay.add(Component, {
-                ...props,
-                close: () => remove(),
-            });
-            return remove;
-        };
-
-        return { add };
+    start(env, services) {
+        return new EffectService(env, services);
     },
 };
 

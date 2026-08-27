@@ -398,3 +398,22 @@ test("resetting the emoji data also drops what was derived from it", async () =>
     expect(loader.loaded).not.toBe(undefined);
     expect(loader.loaded).not.toBe(before);
 });
+
+test("keyboard navigation survives an emoji bundle that failed to load", async () => {
+    patchWithCleanup(loader, {
+        loadEmoji: () => Promise.reject(new Error("bundle load failure")),
+    });
+    const picker = await mountWithCleanup(EmojiPicker, {
+        props: { onSelect: () => {} },
+    });
+    expect(".o-EmojiPicker").toHaveCount(1);
+
+    // The empty picker renders nothing focusable, so this cannot be reached with a
+    // real keypress today. It is one `= []` away from being reachable by anything
+    // that leaves the grid unbuilt, and `loadEmoji` swallows every failure.
+    picker.handleNavigation("ArrowDown");
+    picker.handleNavigation("ArrowUp");
+    picker.handleNavigation("ArrowLeft");
+    picker.handleNavigation("ArrowRight");
+    expect(picker.state.activeEmojiIndex).toBe(0);
+});
