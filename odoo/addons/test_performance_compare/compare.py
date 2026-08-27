@@ -181,14 +181,6 @@ def main(argv=None):
         faster = sum(1 for s in speedups_all if s >= THRESHOLD)
         slower = sum(1 for s in speedups_all if s <= 1 / THRESHOLD)
         same = len(speedups_all) - faster - slower
-        print(f"  benchmarks compared : {len(speedups_all)}")
-        print(
-            f"  geomean (stable only): {_geo(speedups):.3f}x   over {len(speedups)} low-noise benchmarks"
-        )
-        print(
-            f"  geomean (all)        : {_geo(speedups_all):.3f}x   (includes noisy DB-bound ops)"
-        )
-        print(f"  candidate faster    : {faster}    slower: {slower}    ~equal: {same}")
         ranked = sorted(
             (
                 (bi[n]["value"] / ci[n]["value"], n)
@@ -200,28 +192,61 @@ def main(argv=None):
             ),
             reverse=True,
         )
-        print(
-            "  top wins            : "
-            + ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[:3])
-        )
-        print(
-            "  top regressions     : "
-            + ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[-3:])
-        )
+        top_wins = ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[:3])
+        top_regressions = ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[-3:])
+        if args.md:
+            print(f"- benchmarks compared: {len(speedups_all)}")
+            print(
+                f"- geomean (stable only): {_geo(speedups):.3f}x over {len(speedups)} low-noise benchmarks"
+            )
+            print(
+                f"- geomean (all): {_geo(speedups_all):.3f}x (includes noisy DB-bound ops)"
+            )
+            print(f"- candidate faster: {faster}, slower: {slower}, ~equal: {same}")
+            print(f"- top wins: {top_wins}")
+            print(f"- top regressions: {top_regressions}")
+        else:
+            print(f"  benchmarks compared : {len(speedups_all)}")
+            print(
+                f"  geomean (stable only): {_geo(speedups):.3f}x   over {len(speedups)} low-noise benchmarks"
+            )
+            print(
+                f"  geomean (all)        : {_geo(speedups_all):.3f}x   (includes noisy DB-bound ops)"
+            )
+            print(
+                f"  candidate faster    : {faster}    slower: {slower}    ~equal: {same}"
+            )
+            print(f"  top wins            : {top_wins}")
+            print(f"  top regressions     : {top_regressions}")
 
     if query_divergences:
-        print(
-            f"\n  ⚠ query-count divergences ({len(query_divergences)}) — NOT apples-to-apples:"
-        )
-        for name, bq, cq in query_divergences:
-            print(f"      {name:34} baseline={bq}  candidate={cq}")
+        if args.md:
+            print(
+                f"\n**⚠ query-count divergences ({len(query_divergences)})** — NOT apples-to-apples:"
+            )
+            for name, bq, cq in query_divergences:
+                print(f"- {name}: baseline={bq}, candidate={cq}")
+        else:
+            print(
+                f"\n  ⚠ query-count divergences ({len(query_divergences)}) — NOT apples-to-apples:"
+            )
+            for name, bq, cq in query_divergences:
+                print(f"      {name:34} baseline={bq}  candidate={cq}")
+    elif args.md:
+        print("\n✓ query counts identical on every shared benchmark")
     else:
         print("\n  ✓ query counts identical on every shared benchmark")
 
-    if only_base:
-        print(f"\n  only in baseline  : {', '.join(only_base)}")
-    if only_cand:
-        print(f"  only in candidate : {', '.join(only_cand)}")
+    if args.md:
+        if only_base:
+            print(f"\n- only in baseline: {', '.join(only_base)}")
+        if only_cand:
+            print(f"- only in candidate: {', '.join(only_cand)}")
+    else:
+        if only_base:
+            print(f"\n  only in baseline  : {', '.join(only_base)}")
+        if only_cand:
+            print(f"  only in candidate : {', '.join(only_cand)}")
 
 
 if __name__ == "__main__":
