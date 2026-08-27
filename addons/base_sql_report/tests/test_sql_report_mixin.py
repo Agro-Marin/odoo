@@ -34,7 +34,7 @@ class _Harness:
 
     def __call__(self):
         m = self._env["mixin.sql.report"]
-        # Patch the registry hooks in-place for this instance's method resolution
+        # Unused: registry patching now lives in _build_with_registries()
         return m, self
 
 
