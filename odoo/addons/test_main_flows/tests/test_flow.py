@@ -143,59 +143,7 @@ class TestUi(BaseTestUi):
     def test_01_main_flow_tour(self):
         self.main_flow_tour()
 
-    def test_company_switch_access_error(self):
-        company1 = self.env.company
-        company2 = self.env["res.company"].create({"name": "second company"})
-        self.env["res.users"].browse(2).write(
-            {
-                "company_ids": [
-                    Command.clear(),
-                    Command.link(company1.id),
-                    Command.link(company2.id),
-                ]
-            }
-        )
-
-        self.env["ir.rule"].create(
-            {
-                "name": "multiCompany rule",
-                "domain_force": '["|", ("company_id", "=", False), ("company_id", "in", company_ids)]',
-                "model_id": self.env["ir.model"]._get("test.model_multicompany").id,
-            }
-        )
-
-        self.env["test.model_multicompany"].create({"name": "p1"})
-        self.env["test.model_multicompany"].create(
-            {"name": "p2", "company_id": company2.id}
-        )
-
-        act_window = self.env["ir.actions.act_window"].create(
-            {
-                "name": "model_multicompany_action",
-                "res_model": "test.model_multicompany",
-                "view_ids": [
-                    Command.create({"view_mode": "list"}),
-                    Command.create({"view_mode": "form"}),
-                ],
-            }
-        )
-
-        self.env["ir.ui.menu"].create(
-            {
-                "name": "model_multicompany_menu",
-                "action": f"ir.actions.act_window,{act_window.id}",
-            }
-        )
-
-        with mute_logger("odoo.http"):
-            self.start_tour(
-                f"/odoo/action-{act_window.id}",
-                "test_company_switch_access_error",
-                login="admin",
-                cookies={"cids": f"{company1.id}-{company2.id}"},
-            )
-
-    def test_company_access_error_redirect(self):
+    def _setup_multicompany_access_error(self):
         company1 = self.env.company
         company2 = self.env["res.company"].create({"name": "second company"})
         self.env["res.users"].browse(2).write(
@@ -239,6 +187,26 @@ class TestUi(BaseTestUi):
             }
         )
 
+        return company1, company2, act_window, record_p2
+
+    def test_company_switch_access_error(self):
+        company1, company2, act_window, _record_p2 = (
+            self._setup_multicompany_access_error()
+        )
+
+        with mute_logger("odoo.http"):
+            self.start_tour(
+                f"/odoo/action-{act_window.id}",
+                "test_company_switch_access_error",
+                login="admin",
+                cookies={"cids": f"{company1.id}-{company2.id}"},
+            )
+
+    def test_company_access_error_redirect(self):
+        company1, _company2, act_window, record_p2 = (
+            self._setup_multicompany_access_error()
+        )
+
         with mute_logger("odoo.http"):
             self.start_tour(
                 f"/odoo/action-{act_window.id}/{record_p2.id}",
@@ -248,47 +216,8 @@ class TestUi(BaseTestUi):
             )
 
     def test_company_switch_access_error_debug(self):
-        company1 = self.env.company
-        company2 = self.env["res.company"].create({"name": "second company"})
-        self.env["res.users"].browse(2).write(
-            {
-                "company_ids": [
-                    Command.clear(),
-                    Command.link(company1.id),
-                    Command.link(company2.id),
-                ]
-            }
-        )
-
-        self.env["ir.rule"].create(
-            {
-                "name": "multiCompany rule",
-                "domain_force": '["|", ("company_id", "=", False), ("company_id", "in", company_ids)]',
-                "model_id": self.env["ir.model"]._get("test.model_multicompany").id,
-            }
-        )
-
-        self.env["test.model_multicompany"].create({"name": "p1"})
-        self.env["test.model_multicompany"].create(
-            {"name": "p2", "company_id": company2.id}
-        )
-
-        act_window = self.env["ir.actions.act_window"].create(
-            {
-                "name": "model_multicompany_action",
-                "res_model": "test.model_multicompany",
-                "view_ids": [
-                    Command.create({"view_mode": "list"}),
-                    Command.create({"view_mode": "form"}),
-                ],
-            }
-        )
-
-        self.env["ir.ui.menu"].create(
-            {
-                "name": "model_multicompany_menu",
-                "action": f"ir.actions.act_window,{act_window.id}",
-            }
+        company1, company2, act_window, _record_p2 = (
+            self._setup_multicompany_access_error()
         )
 
         current_companies = "%s-%s" % (company1.id, company2.id)
