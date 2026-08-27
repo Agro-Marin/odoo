@@ -244,6 +244,35 @@ class TestBinaryExport(TestBasicExport):
         with self.assertRaises(ValueError):
             converter.value_to_html(base64.b64encode(content), {})
 
+    def test_image_webp(self):
+        converter = self.env["ir.qweb.field.image"]
+
+        with file_open(str(Path(directory, "test_vectors", "image.webp")), "rb") as f:
+            content = f.read()
+
+        encoded_content = base64.b64encode(content)
+        value = converter.value_to_html(encoded_content, {})
+
+        self.assertEqual(
+            value,
+            '<img src="data:image/webp;base64,%s">' % encoded_content.decode("ascii"),
+        )
+
+    def test_image_svg(self):
+        converter = self.env["ir.qweb.field.image"]
+
+        with file_open(str(Path(directory, "test_vectors", "image.svg")), "rb") as f:
+            content = f.read()
+
+        encoded_content = base64.b64encode(content)
+        value = converter.value_to_html(encoded_content, {})
+
+        self.assertEqual(
+            value,
+            '<img src="data:image/svg+xml;base64,%s">'
+            % encoded_content.decode("ascii"),
+        )
+
 
 class TestSelectionExport(TestBasicExport):
     def test_selection(self):
