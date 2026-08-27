@@ -6,14 +6,12 @@ from odoo import api, fields, models
 _logger = logging.getLogger(__name__)
 
 
+# Recorded once per day by a cron job.  Stores aggregate statistics
+# that would be expensive to compute on the fly.  Enables trend
+# analysis: is gamification adoption growing?  Which mechanics are
+# sticky?  Where do users drop off?
 class GamificationEngagementSnapshot(models.Model):
-    """Daily snapshot of gamification engagement metrics.
-
-    Recorded once per day by a cron job.  Stores aggregate statistics
-    that would be expensive to compute on the fly.  Enables trend
-    analysis: is gamification adoption growing?  Which mechanics are
-    sticky?  Where do users drop off?
-    """
+    """Daily snapshot of gamification engagement metrics."""
 
     _name = "gamification.engagement.snapshot"
     _description = "Gamification Engagement Snapshot"

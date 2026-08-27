@@ -1,17 +1,15 @@
 from odoo import _, api, fields, models
 
 
+# Aggregates all notable gamification events into a single, time-ordered
+# stream.  This powers the company-wide social feed on the dashboard
+# and provides the visibility that drives Socializer player types.
+#
+# Activities are auto-created by source models (badges, kudos,
+# achievements, streaks, rank-ups) via helper methods -- never manually.
+# Inherits mixin.mail.thread so users can react to or discuss activities.
 class GamificationActivity(models.Model):
-    """Centralized social activity feed for gamification events.
-
-    Aggregates all notable gamification events into a single, time-ordered
-    stream.  This powers the company-wide social feed on the dashboard
-    and provides the visibility that drives Socializer player types.
-
-    Activities are auto-created by source models (badges, kudos,
-    achievements, streaks, rank-ups) via helper methods — never manually.
-    Inherits mixin.mail.thread so users can react to or discuss activities.
-    """
+    """Centralized social activity feed for gamification events."""
 
     _name = "gamification.activity"
     _description = "Gamification Activity Feed"
