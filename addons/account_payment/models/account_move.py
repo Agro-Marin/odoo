@@ -125,6 +125,7 @@ class AccountMove(models.Model):
 
     def payment_action_void(self):
         """Void all transactions linked to this invoice."""
+        self.ensure_one()
         payment_utils.check_rights_on_recordset(self)
 
         # In sudo mode to bypass the checks on the rights on the transactions.
