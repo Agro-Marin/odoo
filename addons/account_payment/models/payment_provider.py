@@ -41,6 +41,9 @@ class PaymentProvider(models.Model):
                 return
 
         if not pay_method_line:
+            # Only reuse a line already sitting on the provider's own journal:
+            # reusing one configured on a different journal would silently
+            # move it away from wherever a user had it configured.
             pay_method_line = self.env["account.payment.method.line"].search(
                 [
                     *self.env["account.payment.method.line"]._check_company_domain(
@@ -48,7 +51,7 @@ class PaymentProvider(models.Model):
                     ),
                     ("code", "=", self._get_code()),
                     ("payment_provider_id", "=", False),
-                    ("journal_id", "!=", False),
+                    ("journal_id", "=", self.journal_id.id),
                 ],
                 limit=1,
             )
