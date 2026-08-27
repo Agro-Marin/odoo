@@ -208,6 +208,12 @@ class AccountPayment(models.Model):
         payments_tx_done = payments_need_tx.filtered(
             lambda p: p.payment_transaction_id.state == "done"
         )
+        # Return value intentionally discarded: today every action_post()
+        # override in the MRO (account, account_check_printing,
+        # l10n_latam_check) returns None, so nothing is lost. If a future
+        # override starts returning a client action, it would be silently
+        # dropped here - only `res` from the first super() call above is
+        # returned.
         super(AccountPayment, payments_tx_done).action_post()
         payments_tx_not_done = payments_need_tx.filtered(
             lambda p: p.payment_transaction_id.state != "done"
