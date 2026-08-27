@@ -10,6 +10,7 @@ describe what it actually measures; extend it to compare against an
 
 import gc
 import logging
+import unittest
 
 from odoo.tests.benchmark import PerfTimer
 from odoo.tests.common import TransactionCase, tagged
@@ -379,6 +380,20 @@ class TestPythonHotspots(TransactionCase):
     def test_99_summary(self):
         if not self.all_stats:
             return
+
+        # Same reasoning as TestSQLBenchmark.test_99_generate_summary: the
+        # zero-results guard alone lets a partial selection silently print
+        # an incomplete summary as if it were complete.
+        expected = len(unittest.TestLoader().getTestCaseNames(type(self))) - 1
+        if len(self.all_stats) < expected:
+            _logger.warning(
+                "%s PARTIAL RESULTS: only %d/%d benchmark method(s) "
+                "recorded a result -- some tests were likely deselected "
+                "or failed before reaching this summary.",
+                TAG,
+                len(self.all_stats),
+                expected,
+            )
 
         _logger.info("\n%s", "=" * 110)
         _logger.info("%s SUMMARY — sorted by p50 (descending)", TAG)
