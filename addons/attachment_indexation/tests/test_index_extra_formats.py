@@ -55,6 +55,23 @@ class TestIndexExtraFormats(TransactionCase):
         """Non-zip bytes produce no pptx index (boundary)."""
         self.assertEqual(self.Attachment._index_pptx(b"not a zip"), "")
 
+    def test_index_pptx_non_contiguous_slides(self):
+        """Slide XML entries not numbered contiguously from 1 must all be
+        indexed, not just the ones before the first gap."""
+        slide = (
+            '<?xml version="1.0"?>'
+            '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+            ' xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+            "<a:t>{}</a:t></p:sld>"
+        )
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            zf.writestr("ppt/slides/slide1.xml", slide.format("FIRST_SLIDE_TEXT"))
+            zf.writestr("ppt/slides/slide3.xml", slide.format("THIRD_SLIDE_TEXT"))
+        result = self.Attachment._index_pptx(buffer.getvalue())
+        self.assertIn("FIRST_SLIDE_TEXT", result)
+        self.assertIn("THIRD_SLIDE_TEXT", result)
+
     def test_index_xlsx_extracts_cells(self):
         """A .xlsx payload yields its sheet name and cell values."""
         try:
