@@ -61,10 +61,16 @@ class TestPerformanceTimeit(TransactionCase):
 
     @classmethod
     def get_test_children(cls, *, max_size=10**6):
-        all_records = [p.child_ids for p in cls.get_parents()]
-        result = [recs for recs in all_records if len(recs) < max_size]
-        if bigger := next((recs for recs in all_records if len(recs) > max_size), None):
-            result.append(bigger[:max_size])
+        # Inclusive bound (a set whose size == max_size is kept, not
+        # dropped) and every oversized set is truncated in place, not just
+        # the first one found -- both while keeping get_parents()'s order,
+        # which relative_size (in launch_perf_set) is zipped against.
+        result = []
+        for parent in cls.get_parents():
+            recs = parent.child_ids
+            if len(recs) > max_size:
+                recs = recs[:max_size]
+            result.append(recs)
         return result
 
     def setUp(self):
