@@ -93,6 +93,8 @@ DOMAIN_DUPLICATES = [
     ("name", "=", "b"),
 ]
 
+DOMAIN_MANY_CHILDREN = ["|"] * 11 + [("value", "=", i) for i in range(12)]
+
 DOMAIN_RELATIONAL = [
     ("partner_id", "any", [("name", "ilike", "test"), ("active", "=", True)]),
 ]
@@ -201,9 +203,11 @@ class TestDomainBenchmark(TransactionCase):
         self._bench("sort_key: DomainAnd", lambda: _optimize_nary_sort_key(d))
 
     def test_21_sort_children(self):
-        d = Domain(DOMAIN_MEDIUM)
-        children = list(d.children) if hasattr(d, "children") else [d]
-        items = children * 3
+        # DOMAIN_MANY_CHILDREN is a flat OR of 12 distinct leaves, so
+        # `.children` is a genuinely larger/distinct set to sort — not the
+        # same 3-4 elements of a smaller domain repeated.
+        d = Domain(DOMAIN_MANY_CHILDREN)
+        items = list(d.children) if hasattr(d, "children") else [d]
         self._bench(
             "sort: 10+ children by sort_key",
             lambda: sorted(items, key=_optimize_nary_sort_key),
