@@ -71,7 +71,10 @@ class AccountPaymentMethodLine(models.Model):
 
                 candidates_provider_ids = provider_ids - protected_provider_ids
                 if candidates_provider_ids:
-                    line.payment_provider_id = next(iter(candidates_provider_ids))
+                    # Deterministic tie-break (lowest id) when several
+                    # providers share the same code for this company,
+                    # instead of relying on Python set iteration order.
+                    line.payment_provider_id = min(candidates_provider_ids)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_active_provider(self):
