@@ -492,6 +492,57 @@ class TestAccountPayment(AccountPaymentCommon):
             "as a side effect of processing an unrelated done transaction in the same batch.",
         )
 
+    def test_create_payment_no_forced_destination_account_when_invoices_differ(self):
+        """Test that `_create_payment` does not force `destination_account_id` to one
+        invoice's receivable account when the transaction's invoices don't all share the
+        same one, so it falls back to account.payment's own partner-based compute instead
+        of silently excluding the other invoice's lines from reconciliation."""
+        invoice_1 = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "line 1", "price_unit": 50.0}),
+                ],
+            }
+        )
+        invoice_2 = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "line 2", "price_unit": 50.0}),
+                ],
+            }
+        )
+        (invoice_1 + invoice_2).action_post()
+        # Both diverge from the partner's actual default receivable account,
+        # so an "arbitrary pick" (whichever invoice's line happens to be
+        # first) is distinguishable from the correct partner-based fallback.
+        other_receivable_1 = self.company_data["default_account_receivable"].copy()
+        other_receivable_2 = self.company_data["default_account_receivable"].copy()
+        invoice_1.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        ).account_id = other_receivable_1
+        invoice_2.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        ).account_id = other_receivable_2
+
+        tx = self._create_transaction(
+            "direct",
+            state="done",
+            amount=100.0,
+            invoice_ids=[invoice_1.id, invoice_2.id],
+        )
+        payment = tx._create_payment()
+        self.assertEqual(
+            payment.destination_account_id,
+            invoice_1.partner_id.property_account_receivable_id,
+            "With diverging invoice accounts, destination_account_id should fall back to "
+            "the partner's own receivable account (account.payment's default compute), "
+            "not be forced to whichever invoice happened to be first.",
+        )
+
     def test_payment_token_for_invoice_partner_is_available(self):
         """Test that the payment token of the invoice partner is available"""
         Wizard = self.env["account.payment.register"].with_context(
