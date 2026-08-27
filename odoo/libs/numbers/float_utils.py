@@ -123,9 +123,16 @@ def _round_r(
         msg = f"unknown rounding method: {rounding_method}"
         raise ValueError(msg)
 
-    if inverted:
-        return float(result / rounding_factor)
-    return float(result * rounding_factor)
+    rounded = float(result / rounding_factor if inverted else result * rounding_factor)
+    # Rounding to zero answers zero, never negative zero.  ``math.copysign``
+    # carries the operand's sign into the result, so the three HALF methods
+    # answered ``-0.0`` for every value that rounds to nothing while ``DOWN``
+    # answered ``0.0`` -- ``math.trunc`` returns a sign-free ``int`` -- and the
+    # two were inconsistent with each other.  A negative zero has no meaning in
+    # a quantity or an amount and compares equal to zero, so nothing downstream
+    # catches it; the JS mirror in ``web/core/utils/format/numbers.js`` makes
+    # the same normalisation.
+    return rounded or 0.0
 
 
 def _is_zero_r(value: float, epsilon: float) -> bool:

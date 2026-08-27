@@ -72,8 +72,6 @@ export const viewLog = _makeNamespacedLog("view", "view");
 
 export const fieldLog = _makeNamespacedLog("field", "field");
 
-export const mailLog = _makeNamespacedLog("mail", "mail");
-
 export const livechatLog = _makeNamespacedLog("livechat", "livechat");
 
 /**
@@ -159,6 +157,14 @@ export function makeViewLog(category) {
  */
 export function makeFieldLog(category) {
     return _bindCategory(fieldLog, category);
+}
+
+/**
+ * @param {string} category
+ * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
+ */
+export function makeLivechatLog(category) {
+    return _bindCategory(livechatLog, category);
 }
 
 /**

@@ -5,6 +5,7 @@ import { onWillDestroy, reactive, useEffect, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { deepMerge } from "@web/core/utils/collections/objects";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
+import { getActiveElement } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
 import { throttleForAnimation } from "@web/core/utils/timing";
 export const ACTIVE_ELEMENT_CLASS = "focus";
@@ -324,7 +325,22 @@ export class Navigator {
      * @type {boolean}
      */
     get isFocused() {
-        return this.items.some((item) => item.target.contains(document.activeElement));
+        const active = this._activeElement();
+        return (
+            Boolean(active) && this.items.some((item) => item.target.contains(active))
+        );
+    }
+
+    /**
+     * The focused element as seen from the navigated tree.
+     *
+     * @private
+     * @returns {Element | null}
+     */
+    _activeElement() {
+        return getActiveElement(
+            this._options.getContainer?.() ?? this.items[0]?.target ?? document,
+        );
     }
 
     /**
@@ -390,9 +406,11 @@ export class Navigator {
     update() {
         const oldItems = new Map(this.items.map((item) => [item.el, item]));
         const oldActiveItem = this.activeItem;
-        const activeElement = document.activeElement;
+        const activeElement = this._activeElement();
         const focusWasInMenu =
-            this.isFocused || !activeElement || activeElement === document.body;
+            this.isFocused ||
+            !activeElement ||
+            activeElement === activeElement.ownerDocument.body;
         const elements = this._options.getItems();
         this.items = [];
 
@@ -428,7 +446,7 @@ export class Navigator {
                 ? this.items.findIndex((item) => item.el === oldActiveItem.el)
                 : -1;
             const focusedElementIndex = this.items.findIndex(
-                (item) => item.el === document.activeElement,
+                (item) => item.el === activeElement,
             );
             if (activeItemIndex > -1) {
                 this._updateActiveItemIndex(activeItemIndex, focusWasInMenu);
@@ -543,8 +561,11 @@ export class Navigator {
             Boolean(el) &&
             ARIA_ACTIVEDESCENDANT_ROLES.has(el.getAttribute("role") ?? "");
         if (this._options.virtualFocus) {
+            // `ownerDocument.activeElement` is the shadow HOST for a container
+            // inside one, so the owner this hands `aria-activedescendant` to
+            // was the wrong node -- a screen reader told about the wrong item.
             const focused = /** @type {HTMLElement | null} */ (
-                container?.ownerDocument.activeElement ?? null
+                getActiveElement(container)
             );
             if (focused && focused !== container && hasCompositeRole(focused)) {
                 return focused;
@@ -597,9 +618,12 @@ export class Navigator {
      */
     _updateActiveItemIndex(index, mayFocus = true) {
         if (this.items[index]) {
+            // Resolved once, not per item: `.some()` scans the whole list
+            // whenever focus is outside the navigator, and `_activeElement()`
+            // costs a `getContainer()` plus a `getRootNode()` every call.
+            const active = mayFocus ? this._activeElement() : null;
             const shouldFocus =
-                mayFocus &&
-                !this.items.some((item) => item.target === document.activeElement);
+                mayFocus && !this.items.some((item) => item.target === active);
             this.items[index].setActive(shouldFocus);
         } else {
             this._setActiveItem(-1);

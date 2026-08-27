@@ -46,3 +46,15 @@ test("url query params of FileModel returns proper params", () => {
     const fileModel = Object.assign(new FileModel(), attachmentData);
     expect(fileModel.urlQueryParams).toEqual(expectedQueryParams);
 });
+
+test("isUrl distinguishes a link attachment from a binary one", () => {
+    // html_editor's StateFileModel overrides urlRoute on this getter and is its
+    // only consumer, so a scan of `components/` alone reads it as dead.
+    expect(
+        Object.assign(new FileModel(), { type: "url", url: "https://x" }).isUrl,
+    ).toBe(true);
+    expect(Object.assign(new FileModel(), { type: "url", url: "" }).isUrl).toBe(false);
+    expect(
+        Object.assign(new FileModel(), { type: "binary", url: "https://x" }).isUrl,
+    ).toBe(false);
+});

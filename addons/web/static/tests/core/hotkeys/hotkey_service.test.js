@@ -620,9 +620,10 @@ test("replace the overlayModifier for non-MacOs", async () => {
         }
     }
     await mountWithCleanup(MyComponent);
-    patchWithCleanup(hotkeyService, {
-        overlayModifier: "alt+shift",
-    });
+    // The modifier is instance state, so it is set on the running service --
+    // it used to be a read-through to the `hotkeyService` descriptor, which
+    // meant patching it here changed it for every instance at once.
+    getService("hotkey").overlayModifier = "alt+shift";
     const key = "b";
     await press(["alt", "shift", key]);
     await tick();
@@ -647,9 +648,10 @@ test("replace the overlayModifier for MacOs", async () => {
         }
     }
     await mountWithCleanup(MyComponent);
-    patchWithCleanup(hotkeyService, {
-        overlayModifier: "alt+shift",
-    });
+    // The modifier is instance state, so it is set on the running service --
+    // it used to be a read-through to the `hotkeyService` descriptor, which
+    // meant patching it here changed it for every instance at once.
+    getService("hotkey").overlayModifier = "alt+shift";
 
     const key = "b";
     await press(["ctrl", "shift", key]);

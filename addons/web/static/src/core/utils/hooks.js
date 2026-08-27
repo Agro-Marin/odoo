@@ -12,6 +12,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
+import { getActiveElement } from "@web/core/utils/dom/ui";
 
 /**
  * @typedef {{ readonly el: HTMLElement | null; }} Ref
@@ -241,8 +242,10 @@ function _useService(serviceName, optional) {
 export function useSpellCheck({ refName } = {}) {
     const ref = useRef(refName || "spellcheck");
     function toggleSpellcheck(/** @type {Event} */ ev) {
+        // Inside a shadow root `document.activeElement` is the host, so this
+        // never matched and spellcheck stayed off for good.
         /** @type {HTMLElement} */ (ev.target).spellcheck =
-            document.activeElement === ev.target;
+            getActiveElement(/** @type {Node} */ (ev.target)) === ev.target;
     }
     useEffect(
         (el) => {
@@ -275,7 +278,7 @@ export function useSpellCheck({ refName } = {}) {
 }
 
 /**
- * @typedef {Function} ForwardRef
+ * @typedef {((ref: Ref) => void) & { readonly el: HTMLElement | null }} ForwardRef
  * @property {HTMLElement | undefined} el
  */
 
@@ -296,7 +299,11 @@ export function useSyncedInputProperty(
         if (!element || value === undefined || element[property] === value) {
             return false;
         }
-        element[property] = value;
+        if (property === "checked") {
+            element.checked = Boolean(value);
+        } else {
+            element.value = value;
+        }
         return true;
     };
     onPatched(sync);
@@ -310,18 +317,20 @@ export function useChildRef() {
     let defined = false;
     /** @type {Ref} */
     let value;
-    return function ref(/** @type {Ref} */ v) {
-        value = v;
-        if (defined) {
-            return;
+    return /** @type {ForwardRef} */ (
+        function ref(/** @type {Ref} */ v) {
+            value = v;
+            if (defined) {
+                return;
+            }
+            Object.defineProperty(ref, "el", {
+                get() {
+                    return value.el;
+                },
+            });
+            defined = true;
         }
-        Object.defineProperty(ref, "el", {
-            get() {
-                return value.el;
-            },
-        });
-        defined = true;
-    };
+    );
 }
 /**
  * @param {string} refName

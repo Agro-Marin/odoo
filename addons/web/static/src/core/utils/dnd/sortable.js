@@ -6,6 +6,7 @@ import {
     DRAGGED_CLASS,
     makeNativeDraggableHook,
 } from "@web/core/utils/dnd/draggable_hook_builder";
+import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_utils";
 
 /** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
 /** @typedef {DraggableHandlerParams & { group: HTMLElement | null }} SortableHandlerParams */
@@ -76,12 +77,7 @@ const hookParams = {
             params,
         },
     ) {
-        ctx.groupSelector = params.groups || null;
-        if (ctx.groupSelector) {
-            ctx.fullSelector = [ctx.groupSelector, ctx.fullSelector].join(" ");
-        }
-
-        ctx.connectGroups = params.connectGroups;
+        applyGroupParams(ctx, params);
 
         ctx.placeholderClone = params.clone;
         ctx.placeholderClasses = params.placeholderClasses;

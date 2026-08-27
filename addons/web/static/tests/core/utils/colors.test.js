@@ -1,7 +1,12 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
-import { RGBA_REGEX, rgbaToHex, rgbToHex } from "@web/core/utils/format/colors";
+import { describe, expect, getFixture, test } from "@odoo/hoot";
+import {
+    blendColors,
+    RGBA_REGEX,
+    rgbaToHex,
+    rgbToHex,
+} from "@web/core/utils/format/colors";
 
 describe.current.tags("headless");
 
@@ -19,7 +24,23 @@ describe("RGBA_REGEX", () => {
 
 describe("rgbToHex", () => {
     test("blends a long alpha against the default white background", () => {
-        expect(rgbToHex("rgba(10, 20, 30, 0.12345)")).toBe("#e0e1e3");
+        // Rounded to nearest, as `blendColors` does -- this used to read
+        // "#e0e1e3", one step down on two channels, from a `Math.floor`.
+        expect(rgbToHex("rgba(10, 20, 30, 0.12345)")).toBe("#e1e2e3");
+    });
+
+    test("agrees with blendColors, which it now delegates to", () => {
+        const fixture = getFixture();
+        const node = document.createElement("div");
+        node.style.backgroundColor = "rgb(0, 0, 0)";
+        fixture.appendChild(node);
+        for (const color of [
+            "rgba(255, 255, 255, 0.5)",
+            "rgba(10, 20, 30, 0.12345)",
+            "rgba(1, 2, 3, 0.7)",
+        ]) {
+            expect(rgbToHex(color, node)).toBe(blendColors(color, node));
+        }
     });
 
     test("converts a plain rgb() color", () => {

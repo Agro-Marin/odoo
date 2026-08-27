@@ -120,12 +120,12 @@ test("button clipboard copy error traceback", async () => {
 
 test("Display a tooltip on clicking copy button", async () => {
     expect.assertions(1);
-    mockService("popover", () => ({
+    mockService("popover", {
         add(el, comp, params) {
             expect(params).toEqual({ tooltip: "Copied" });
             return async () => {};
         },
-    }));
+    });
 
     const env = await makeDialogMockEnv();
     await mountWithCleanup(ErrorDialog, {

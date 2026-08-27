@@ -3,6 +3,7 @@
 
 import { onMounted, onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { getActiveElement } from "@web/core/utils/dom/ui";
 
 /**
  * @param {EventTarget} target
@@ -74,7 +75,8 @@ export function useClickAway(callback, { getAnchor, getContentEl } = {}) {
 
     function blurHandler(/** @type {Event} */ ev) {
         const target =
-            /** @type {FocusEvent} */ (ev).relatedTarget || document.activeElement;
+            /** @type {FocusEvent} */ (ev).relatedTarget ||
+            getActiveElement(/** @type {Node} */ (ev.target));
         if (/** @type {Element} */ (target)?.tagName === "IFRAME") {
             scanIframes();
             return callback(/** @type {Node} */ (target));

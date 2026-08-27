@@ -257,6 +257,100 @@ export function loadCSS(url, options) {
 export class AssetsLoadingError extends Error {}
 
 /**
+ * Append an asset element, turning a failed append into a REJECTION.
+ *
+ * Five sites in this file mount with `head || documentElement`; two mounted on
+ * `targetDoc.head` alone, and `loadJS` did it AFTER caching its promise — so a
+ * throw there left an entry in the cache that could never settle, and every
+ * later `loadJS` of that url in that document waited on it forever. A hang is
+ * the one failure mode with no message and no stack. Callers pass live
+ * documents today, so this is a shape removed rather than a bug observed.
+ *
+ * `onError` is called SYNCHRONOUSLY, which is why it must not reach for the
+ * promise the caller is in the middle of building: both callers name that
+ * binding in their eviction closures, and on this path it is still in its
+ * temporal dead zone. `loadCSS` evicts from its own outer `.catch` instead.
+ *
+ * @param {Document} targetDoc
+ * @param {HTMLLinkElement | HTMLScriptElement} el
+ * @param {string} url
+ * @param {(reason: any) => void} onError
+ */
+function mountAsset(targetDoc, el, url, onError) {
+    try {
+        (targetDoc.head || targetDoc.documentElement).appendChild(el);
+    } catch (error) {
+        onError(
+            new AssetsLoadingError(
+                `The loading of ${url} failed: its target document could not take it`,
+                { cause: error },
+            ),
+        );
+    }
+}
+
+/**
+ * Read a bundle descriptor into the file lists the loaders consume.
+ *
+ * Two wire formats reach this: an ESM descriptor, which names its chunks under
+ * `files` and carries the specifiers and import map the module loader needs,
+ * and the classic one, which IS the file map. Neither is a variant of the
+ * other -- they disagree on where the files live and on whether there is an
+ * import map at all -- so the shape check and the two readings are one job,
+ * separate from fetching the descriptor and from caching its promise.
+ *
+ * @param {any} result the parsed descriptor
+ * @param {URL} url the descriptor's url, named in the error messages
+ * @returns {BundleFileNames}
+ */
+function readBundleDescriptor(result, url) {
+    if (!result || typeof result !== "object") {
+        throw new AssetsLoadingError(
+            `The loading of ${url} failed: unexpected bundle descriptor`,
+        );
+    }
+    const cssLibs = [];
+    const jsLibs = [];
+    if (result.is_esm) {
+        const esmSpecifiers = result.specifiers || [];
+        const esmImportMap = result.import_map || null;
+        if (result.template_url) {
+            esmSpecifiers.push(result.template_url);
+        }
+        for (const { src, type } of Object.values(result.files || {})) {
+            if (type === "link" && src) {
+                cssLibs.push(src);
+            } else if (type === "script" && src && !src.includes(".esm.")) {
+                jsLibs.push(src);
+            }
+        }
+        return { cssLibs, jsLibs, esmSpecifiers, esmImportMap };
+    }
+    let skippedEsm = 0;
+    for (const { src, type } of Object.values(result)) {
+        if (type === "link" && src) {
+            cssLibs.push(src);
+        } else if (type === "script" && src && !src.includes(".esm.")) {
+            jsLibs.push(src);
+        } else if (type === "script" && src) {
+            skippedEsm++;
+        }
+    }
+    // A classic descriptor naming an ESM chunk contradicts itself: the skip
+    // above exists so the ESM branch can own those files, and here that branch
+    // never ran. Silently, this yielded a bundle with stylesheets and no JS.
+    // Fail loudly instead -- the server decided the wrong format for this
+    // bundle.
+    if (skippedEsm && !jsLibs.length) {
+        throw new AssetsLoadingError(
+            `The loading of ${url} failed: a non-ESM descriptor named ` +
+                `${skippedEsm} ESM chunk(s) and no loadable script`,
+        );
+    }
+    return { cssLibs, jsLibs, esmSpecifiers: null, esmImportMap: null };
+}
+
+/**
  * @param {Map<string, Promise<any>>} cacheMap
  * @param {string} url
  * @param {() => Promise<any>} getOwn
@@ -323,47 +417,16 @@ export const assets = {
                     `The loading of ${url} failed with HTTP status ${response.status}`,
                 );
             }
-            const cssLibs = [];
-            const jsLibs = [];
-            let esmSpecifiers = null;
-            let esmImportMap = null;
-            const result = await response.json();
-            if (!result || typeof result !== "object") {
-                throw new AssetsLoadingError(
-                    `The loading of ${url} failed: unexpected bundle descriptor`,
-                );
-            }
-            if (result.is_esm) {
-                esmSpecifiers = result.specifiers || [];
-                esmImportMap = result.import_map || null;
-                if (result.template_url) {
-                    esmSpecifiers.push(result.template_url);
-                }
-                for (const { src, type } of Object.values(result.files || {})) {
-                    if (type === "link" && src) {
-                        cssLibs.push(src);
-                    } else if (type === "script" && src && !src.includes(".esm.")) {
-                        jsLibs.push(src);
-                    }
-                }
-            } else {
-                for (const { src, type } of Object.values(result)) {
-                    if (type === "link" && src) {
-                        cssLibs.push(src);
-                    } else if (type === "script" && src && !src.includes(".esm.")) {
-                        jsLibs.push(src);
-                    }
-                }
-            }
+            const files = readBundleDescriptor(await response.json(), url);
             log("getBundle:done", bundleName, {
-                cssLibs: cssLibs.length,
-                jsLibs: jsLibs.length,
-                esmSpecifiers: esmSpecifiers?.length ?? null,
-                importMapEntries: esmImportMap
-                    ? Object.keys(esmImportMap).length
+                cssLibs: files.cssLibs.length,
+                jsLibs: files.jsLibs.length,
+                esmSpecifiers: files.esmSpecifiers?.length ?? null,
+                importMapEntries: files.esmImportMap
+                    ? Object.keys(files.esmImportMap).length
                     : null,
             });
-            return { cssLibs, jsLibs, esmSpecifiers, esmImportMap };
+            return files;
         })().catch((reason) => {
             evictIfCurrent(cacheMap, bundleName, () => promise);
             log("getBundle:error", bundleName, reason);
@@ -692,10 +755,13 @@ export const assets = {
             linkEl.setAttribute("href", url);
             linkEl.type = "text/css";
             linkEl.rel = "stylesheet";
-            const attemptPromise = new Promise((resolve, reject) =>
-                onLoadAndError(
+            /** @type {(reason?: any) => void} */
+            let reject = () => {};
+            const attemptPromise = new Promise((res, rej) => {
+                reject = rej;
+                return onLoadAndError(
                     linkEl,
-                    resolve,
+                    res,
                     async (error) => {
                         linkEl.remove();
                         const retryable = !url.includes("/web/assets/");
@@ -704,9 +770,9 @@ export const assets = {
                                 assets.retries.delay +
                                 assets.retries.extraDelay * attempt;
                             await new Promise((res) => browser.setTimeout(res, delay));
-                            runAttempt(attempt + 1).then(resolve, reject);
+                            runAttempt(attempt + 1).then(res, rej);
                         } else {
-                            reject(
+                            rej(
                                 new AssetsLoadingError(`The loading of ${url} failed`, {
                                     cause: error,
                                 }),
@@ -714,10 +780,10 @@ export const assets = {
                         }
                     },
                     () => evictIfCurrent(cacheMap, url, () => promise),
-                    reject,
-                ),
-            );
-            targetDoc.head.appendChild(linkEl);
+                    rej,
+                );
+            });
+            mountAsset(targetDoc, linkEl, url, reject);
             return attemptPromise;
         };
         const promise = /** @type {Promise<void>} */ (
@@ -745,25 +811,27 @@ export const assets = {
         scriptEl.setAttribute("src", url);
         scriptEl.type = "text/javascript";
         scriptEl.async = false;
-        const promise = new Promise((resolve, reject) =>
-            onLoadAndError(
-                scriptEl,
-                resolve,
-                (error) => {
-                    scriptEl.remove();
-                    evictIfCurrent(cacheMap, url, () => promise);
-                    reject(
-                        new AssetsLoadingError(`The loading of ${url} failed`, {
-                            cause: error,
-                        }),
-                    );
-                },
-                () => evictIfCurrent(cacheMap, url, () => promise),
-                reject,
-            ),
+        const { promise, resolve, reject } = Promise.withResolvers();
+        onLoadAndError(
+            scriptEl,
+            resolve,
+            (error) => {
+                scriptEl.remove();
+                evictIfCurrent(cacheMap, url, () => promise);
+                reject(
+                    new AssetsLoadingError(`The loading of ${url} failed`, {
+                        cause: error,
+                    }),
+                );
+            },
+            () => evictIfCurrent(cacheMap, url, () => promise),
+            reject,
         );
         cacheMap.set(url, promise);
-        targetDoc.head.appendChild(scriptEl);
-        return promise;
+        mountAsset(targetDoc, scriptEl, url, (reason) => {
+            evictIfCurrent(cacheMap, url, () => promise);
+            reject(reason);
+        });
+        return /** @type {Promise<void>} */ (promise);
     },
 };

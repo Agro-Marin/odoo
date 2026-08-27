@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { localization } from "@web/core/l10n/localization";
+import { viewOf } from "@web/core/utils/dom/ui";
 
 /**
  * @typedef {"top" | "left" | "bottom" | "right" | "center"} Direction
@@ -132,10 +133,11 @@ function computePosition(
         const styleProperty = ["top", "bottom"].includes(direction)
             ? "width"
             : "height";
-        popper.style[styleProperty] = getComputedStyle(target)[styleProperty];
+        popper.style[styleProperty] =
+            viewOf(target).getComputedStyle(target)[styleProperty];
     }
 
-    const popperStyle = getComputedStyle(popper);
+    const popperStyle = viewOf(popper).getComputedStyle(popper);
     const { marginTop, marginLeft, marginRight, marginBottom } = popperStyle;
     const popMargins = {
         top: parseFloat(marginTop),
@@ -272,9 +274,6 @@ function computePosition(
             }
             matches.push(match);
         }
-        if (!flip) {
-            break;
-        }
     }
     return matches.sort((a, b) => a.malus - b.malus)[0].result;
 }
@@ -305,7 +304,7 @@ export function reposition(popper, target, options) {
     popper.style.top = `${top}px`;
     popper.style.left = `${left}px`;
     if (maxHeight !== undefined) {
-        const existingMaxHeight = getComputedStyle(popper).maxHeight;
+        const existingMaxHeight = viewOf(popper).getComputedStyle(popper).maxHeight;
         const applied =
             existingMaxHeight !== "none"
                 ? `min(${existingMaxHeight}, ${maxHeight}px)`

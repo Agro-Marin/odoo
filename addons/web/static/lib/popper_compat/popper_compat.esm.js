@@ -32,6 +32,32 @@ var localization = new Proxy(
   }
 );
 
+// addons/web/static/src/core/utils/dom/ui.js
+function viewOf(node) {
+  return node.ownerDocument?.defaultView ?? window;
+}
+var SHADOW_HOST_ATTRIBUTE = "data-shadow-host";
+var SHADOW_HOST_SELECTOR = `[${SHADOW_HOST_ATTRIBUTE}]`;
+var FOCUSABLE_SELECTORS = [
+  "[tabindex]",
+  "a[href]",
+  "area[href]",
+  "button",
+  "frame",
+  "iframe",
+  "input",
+  "object",
+  "select",
+  "textarea",
+  "details > summary:nth-child(1)"
+].map((sel) => `${sel}:not(:disabled)`);
+var TABABLE_SELECTORS = FOCUSABLE_SELECTORS.map(
+  (sel) => `${sel}:not([tabindex="-1"])`
+);
+var FOCUSABLE_SELECTOR = FOCUSABLE_SELECTORS.join(",");
+var TABABLE_SELECTOR = TABABLE_SELECTORS.join(",");
+var TABABLE_OR_HOST_SELECTOR = `${TABABLE_SELECTOR},${SHADOW_HOST_SELECTOR}`;
+
 // addons/web/static/src/core/position/utils.js
 var DEFAULTS = {
   flip: true,
@@ -108,9 +134,9 @@ function computePosition(popper, target, {
   );
   if (variant === "fit") {
     const styleProperty = ["top", "bottom"].includes(direction) ? "width" : "height";
-    popper.style[styleProperty] = getComputedStyle(target)[styleProperty];
+    popper.style[styleProperty] = viewOf(target).getComputedStyle(target)[styleProperty];
   }
-  const popperStyle = getComputedStyle(popper);
+  const popperStyle = viewOf(popper).getComputedStyle(popper);
   const { marginTop, marginLeft, marginRight, marginBottom } = popperStyle;
   const popMargins = {
     top: parseFloat(marginTop),
@@ -218,9 +244,6 @@ function computePosition(popper, target, {
       }
       matches.push(match);
     }
-    if (!flip) {
-      break;
-    }
   }
   return matches.sort((a, b) => a.malus - b.malus)[0].result;
 }
@@ -241,7 +264,7 @@ function reposition(popper, target, options) {
   popper.style.top = `${top}px`;
   popper.style.left = `${left}px`;
   if (maxHeight !== void 0) {
-    const existingMaxHeight = getComputedStyle(popper).maxHeight;
+    const existingMaxHeight = viewOf(popper).getComputedStyle(popper).maxHeight;
     const applied = existingMaxHeight !== "none" ? `min(${existingMaxHeight}, ${maxHeight}px)` : `${maxHeight}px`;
     popper.style.maxHeight = applied;
     popper.style.overflowY = "auto";

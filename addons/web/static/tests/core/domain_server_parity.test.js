@@ -3803,3 +3803,81 @@ test("the type-blindness gap has not grown or silently closed", () => {
     expect(appeared).toEqual([]);
     expect(fixed).toEqual([]);
 });
+
+describe("operand-shape rewrites the server applies before matching", () => {
+    // `orm/domain/optimizations.py` rewrites a condition whose value does not
+    // have the shape its operator expects, before any matching happens. The
+    // expectations below were taken from a real server: 60 res.partner records
+    // and 1200 generated domains, answered by `search()` against PostgreSQL on
+    // a scratch database. Before these rewrites landed client-side, 81 of the
+    // 1087 evaluable domains disagreed; after, 0. The 672 well-formed ones in
+    // that corpus agreed both before and after.
+    const RECS = [
+        { id: 1, type: "contact", n: 0, ref: "R1" },
+        { id: 2, type: "invoice", n: 5, ref: "R2" },
+        { id: 3, type: "other", n: 0, ref: false },
+    ];
+    const ids = (/** @type {any} */ d) => new Domain(d).filter(RECS).map((r) => r.id);
+
+    test("`=` / `!=` against a collection is `in` / `not in`", () => {
+        // _operator_equal_as_in, optimizations.py:177. This one inverted the
+        // answer: `=` matched nothing and `!=` matched everything.
+        expect(ids([["type", "=", ["contact", "invoice"]]])).toEqual([1, 2]);
+        expect(ids([["type", "!=", ["contact", "invoice"]]])).toEqual([3]);
+        expect(ids([["type", "==", ["other"]]])).toEqual([3]);
+        expect(ids([["type", "<>", ["other"]]])).toEqual([1, 2]);
+        // ...and an x2many reads as "holds any of these", not "holds exactly".
+        expect(
+            new Domain([["tag_ids", "=", [1, 2]]]).filter([
+                { id: 1, tag_ids: [1] },
+                { id: 2, tag_ids: [1, 2] },
+                { id: 3, tag_ids: [9] },
+            ]),
+        ).toHaveLength(2);
+    });
+
+    test("an empty collection compares with False", () => {
+        expect(ids([["ref", "=", []]])).toEqual([3]);
+        expect(ids([["ref", "!=", []]])).toEqual([1, 2]);
+    });
+
+    test("`in` / `not in` against a falsy value is a constant", () => {
+        // _optimize_in_set, optimizations.py:200 -- `if not value:` returns the
+        // FALSE domain for `in` and the TRUE domain for `not in`.
+        expect(ids([["n", "in", 0]])).toEqual([]);
+        expect(ids([["n", "not in", 0]])).toEqual([1, 2, 3]);
+        expect(ids([["ref", "in", ""]])).toEqual([]);
+        expect(ids([["ref", "not in", false]])).toEqual([1, 2, 3]);
+        // an empty ARRAY already behaved this way, and still does
+        expect(ids([["n", "in", []]])).toEqual([]);
+        expect(ids([["n", "not in", []]])).toEqual([1, 2, 3]);
+        // a TRUTHY scalar is a one-element list on both sides
+        expect(ids([["type", "in", "contact"]])).toEqual([1]);
+    });
+
+    test("the `like` family stringifies a non-string pattern as Python does", () => {
+        // _optimize_like_str, optimizations.py:305. `str(["R1"])` is "['R1']",
+        // where `String(["R1"])` is "R1" -- so the client used to match a row
+        // the server did not.
+        expect(ids([["ref", "like", ["R1"]]])).toEqual([]);
+        expect(ids([["ref", "like", "R1"]])).toEqual([1]);
+        // numbers and booleans stringify the same in both languages, except
+        // Python's capital: `str(True)` is "True".
+        expect(
+            new Domain([["ref", "like", true]]).filter([{ id: 1, ref: "isTrue" }]),
+        ).toHaveLength(1);
+        expect(
+            new Domain([["ref", "like", true]]).filter([{ id: 1, ref: "istrue" }]),
+        ).toHaveLength(0);
+    });
+
+    test("the anchored `like` operators reject a non-string pattern, as the server does", () => {
+        for (const operator of ["=like", "=ilike", "not =like", "not =ilike"]) {
+            expect(() => ids([["ref", operator, ["R1"]]])).toThrow(/must be a string/, {
+                message: operator,
+            });
+        }
+        // ...and the unanchored ones do not
+        expect(() => ids([["ref", "like", ["R1"]]])).not.toThrow();
+    });
+});

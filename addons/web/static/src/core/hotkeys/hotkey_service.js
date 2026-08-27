@@ -9,7 +9,11 @@ import {
     MODIFIERS,
 } from "@web/core/browser/hotkeys";
 import { registry } from "@web/core/registry";
-import { getVisibleElements } from "@web/core/utils/dom/ui";
+import {
+    getDeepActiveElement,
+    getVisibleElements,
+    viewOf,
+} from "@web/core/utils/dom/ui";
 
 export { getActiveHotkey };
 
@@ -33,25 +37,35 @@ export { getActiveHotkey };
 export class HotkeyService {
     /**
      * @param {{ ui: any }} services
+     * @param {{ overlayModifier?: string }} [options]
      */
-    constructor({ ui }) {
+    constructor({ ui }, { overlayModifier = hotkeyService.overlayModifier } = {}) {
         this.ui = ui;
+        /**
+         * Instance state, not a read-through to the service descriptor. The
+         * getter this replaced returned `hotkeyService.overlayModifier`, so two
+         * instances could not differ and anything that changed it changed it
+         * for every instance at once.
+         *
+         * @type {string}
+         */
+        this.overlayModifier = overlayModifier;
         /** @type {Map<number, HotkeyRegistration>} */
         this.registrations = new Map();
         /** @type {Map<string, Set<HotkeyRegistration>>} */
         this.registrationsByHotkey = new Map();
         this.nextToken = 0;
         this.overlaysVisible = false;
+        /**
+         * The overlays this service put in the DOM, so they can be taken back
+         * out of whichever tree they went into.
+         *
+         * @type {HTMLElement[]}
+         */
+        this.overlays = [];
         /** @type {Set<() => void>} */
         this.listenerRemovers = new Set();
         this.removeWindowListeners = this.addListeners(/** @type {any} */ (browser));
-    }
-
-    /**
-     * @returns {string}
-     */
-    get overlayModifier() {
-        return hotkeyService.overlayModifier;
     }
 
     /**
@@ -187,6 +201,10 @@ export class HotkeyService {
             );
 
         let winner = candidates.shift();
+        // A registration with no `area` is unscoped and wins outright: the
+        // innermost-area search below only runs when the first candidate is
+        // itself area-scoped. Stated because the guard reads like a defence
+        // against `undefined.contains` and is in fact the rule.
         if (winner?.area) {
             for (const candidate of candidates) {
                 if (candidate.area && winner.area.contains(candidate.area)) {
@@ -229,9 +247,7 @@ export class HotkeyService {
             getScope: () => activeElement,
             bypassEditableProtection: true,
             callback: () => {
-                if (document.activeElement) {
-                    /** @type {HTMLElement} */ (document.activeElement).blur();
-                }
+                /** @type {HTMLElement | null} */ (getDeepActiveElement(el))?.blur();
                 el.focus();
                 setTimeout(() => el.click());
             },
@@ -264,7 +280,8 @@ export class HotkeyService {
         const items = [...hotkeysFromDomToHighlight, ...hotkeysFromHookToHighlight];
         for (const item of items) {
             const hotkey = item.hotkey;
-            const overlay = document.createElement("div");
+            const doc = item.el.ownerDocument;
+            const overlay = doc.createElement("div");
             overlay.classList.add(
                 "o_web_hotkey_overlay",
                 "position-absolute",
@@ -280,9 +297,9 @@ export class HotkeyService {
                 "h6",
             );
             overlay.style.zIndex = "1";
-            const overlayKbd = document.createElement("kbd");
+            const overlayKbd = doc.createElement("kbd");
             overlayKbd.className = "small";
-            overlayKbd.appendChild(document.createTextNode(hotkey.toUpperCase()));
+            overlayKbd.appendChild(doc.createTextNode(hotkey.toUpperCase()));
             overlay.appendChild(overlayKbd);
 
             let overlayParent;
@@ -292,11 +309,15 @@ export class HotkeyService {
                 overlayParent = item.el;
             }
 
-            if (getComputedStyle(overlayParent).position === "static") {
+            if (
+                viewOf(overlayParent).getComputedStyle(overlayParent).position ===
+                "static"
+            ) {
                 overlayParent.dataset.hotkeyOrigPosition = overlayParent.style.position;
                 overlayParent.style.position = "relative";
             }
             overlayParent.appendChild(overlay);
+            this.overlays.push(overlay);
         }
         this.overlaysVisible = true;
     }
@@ -305,7 +326,14 @@ export class HotkeyService {
         if (!this.overlaysVisible) {
             return;
         }
-        for (const overlay of document.querySelectorAll(".o_web_hotkey_overlay")) {
+        // The overlays go into the active element's tree, which is not always
+        // the top-level document: a `document.querySelectorAll` misses every
+        // one raised inside a shadow root or an iframe, and leaves it on screen
+        // for good, since `overlaysVisible` goes false either way. Removing
+        // what was actually appended is both correct and cheaper.
+        const overlays = this.overlays;
+        this.overlays = [];
+        for (const overlay of overlays) {
             const parent = overlay.parentElement;
             overlay.remove();
             if (parent && "hotkeyOrigPosition" in parent.dataset) {
@@ -431,6 +459,7 @@ export class HotkeyService {
     }
 
     destroy() {
+        this.removeHotkeyOverlays();
         for (const remove of [...this.listenerRemovers]) {
             remove();
         }
@@ -447,7 +476,7 @@ export const hotkeyService = {
      * @returns {HotkeyService}
      */
     start(env, { ui }) {
-        return new HotkeyService({ ui });
+        return new HotkeyService({ ui }, { overlayModifier: this.overlayModifier });
     },
 };
 

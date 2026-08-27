@@ -2,10 +2,31 @@
 /** @odoo-module native */
 
 import { browser } from "@web/core/browser/browser";
+import { viewOf } from "@web/core/utils/dom/ui";
 
 const SCROLL_SETTLE_TIMEOUT = 1000;
 
 const SUPPORTS_SCROLLEND = "onscrollend" in window;
+
+/**
+ * The next node up, crossing out of a shadow root through its host.
+ *
+ * `parentElement` is null for the first child of a shadow root, so a plain
+ * upward walk stopped dead at the boundary: measured, a scrollable sitting
+ * immediately outside a host was found from the host and NOT from a node one
+ * level inside it. `scrollTo` -- which `navigation.js` calls to keep the active
+ * item in view -- therefore did nothing at all inside a shadow root.
+ *
+ * @param {Element} el
+ * @returns {HTMLElement | null}
+ */
+function parentAcrossRoots(el) {
+    if (el.parentElement) {
+        return el.parentElement;
+    }
+    const root = el.parentNode ?? el.getRootNode();
+    return /** @type {ShadowRoot} */ (root)?.host ?? null;
+}
 
 function isScrollableX(/** @type {Element} */ el) {
     if (el.scrollWidth > el.clientWidth && el.clientWidth > 0) {
@@ -16,7 +37,7 @@ function isScrollableX(/** @type {Element} */ el) {
 
 export function couldBeScrollableX(/** @type {Element | null} */ el) {
     if (el) {
-        const overflow = getComputedStyle(el).getPropertyValue("overflow-x");
+        const overflow = viewOf(el).getComputedStyle(el).getPropertyValue("overflow-x");
         if (/\bauto\b|\bscroll\b/.test(overflow)) {
             return true;
         }
@@ -33,7 +54,7 @@ export function closestScrollableX(el) {
         if (isScrollableX(el)) {
             return el;
         }
-        el = el.parentElement;
+        el = parentAcrossRoots(el);
     }
     return null;
 }
@@ -47,7 +68,7 @@ export function isScrollableY(/** @type {Element | null} */ el) {
 
 export function couldBeScrollableY(/** @type {Element | null} */ el) {
     if (el) {
-        const overflow = getComputedStyle(el).getPropertyValue("overflow-y");
+        const overflow = viewOf(el).getComputedStyle(el).getPropertyValue("overflow-y");
         if (/\bauto\b|\bscroll\b/.test(overflow)) {
             return true;
         }
@@ -64,7 +85,7 @@ export function closestScrollableY(el) {
         if (isScrollableY(el)) {
             return el;
         }
-        el = el.parentElement;
+        el = parentAcrossRoots(el);
     }
     return null;
 }
@@ -204,7 +225,7 @@ export function compensateScrollbar(
     if (!add) {
         return;
     }
-    const style = window.getComputedStyle(el);
+    const style = viewOf(el).getComputedStyle(el);
     const borderLeftWidth = Math.ceil(Number.parseFloat(style.borderLeftWidth));
     const borderRightWidth = Math.ceil(Number.parseFloat(style.borderRightWidth));
     const bordersWidth = borderLeftWidth + borderRightWidth;
@@ -216,13 +237,15 @@ export function compensateScrollbar(
     el.style.setProperty(cssProperty, `${newValue}px`, "important");
 }
 
-export function getScrollingElement(document = window.document) {
-    const baseScrollingElement = document.scrollingElement;
+export function getScrollingElement(doc = window.document) {
+    const baseScrollingElement = doc.scrollingElement;
     if (isScrollableY(baseScrollingElement)) {
         return baseScrollingElement;
     }
-    const bodyHeight = Number.parseFloat(window.getComputedStyle(document.body).height);
-    for (const el of document.body.children) {
+    const bodyHeight = Number.parseFloat(
+        viewOf(doc.body).getComputedStyle(doc.body).height,
+    );
+    for (const el of doc.body.children) {
         if (bodyHeight - el.scrollHeight > 1.5) {
             continue;
         }

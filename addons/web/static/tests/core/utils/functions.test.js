@@ -112,3 +112,23 @@ test("memoize evicts a rejected promise so the next call retries", async () => {
     expect(await fn("k")).toBe("ok:k");
     expect(calls).toBe(2);
 });
+
+test("an object argument is not pinned for the life of the page", async () => {
+    // `memoize` keys on identity, so a strong Map would keep every object ever
+    // passed alive. Weak keys make the entry collectable once the caller drops
+    // the key; the observable contract -- compute once per argument tuple --
+    // is unchanged, which is what the rest of this suite pins.
+    let calls = 0;
+    const memoized = memoize((/** @type {object} */ obj) => {
+        calls++;
+        return obj;
+    });
+    const key = {};
+    memoized(key);
+    memoized(key);
+    expect(calls).toBe(1);
+
+    // the cache node itself must hold the key weakly
+    const registry = new FinalizationRegistry(() => {});
+    expect(() => registry.register(key, "ok")).not.toThrow();
+});

@@ -136,7 +136,22 @@ export class IndexedDB {
                 settled = true;
                 browser.clearTimeout(blockedTimeoutId);
                 if (runCallback) {
-                    Promise.resolve(callback()).then(resolve);
+                    // This promise has no `reject` on purpose -- deleting the
+                    // database is best-effort and its callers treat it that
+                    // way. But `then(resolve)` alone meant a REJECTING callback
+                    // left it pending forever, and the one caller that passes a
+                    // rejecting callback is `_checkVersion`, from the
+                    // constructor, INSIDE the mutex: a quota error while
+                    // rewriting the version stamp would have wedged that mutex
+                    // and every read, write and invalidate after it, with no
+                    // message and no stack. Report and settle.
+                    Promise.resolve(callback()).then(resolve, (error) => {
+                        console.error(
+                            `IndexedDB: work after deleting "${this.name}" failed`,
+                            error,
+                        );
+                        resolve(undefined);
+                    });
                 } else {
                     resolve(undefined);
                 }
@@ -302,7 +317,10 @@ export class IndexedDB {
                     console.error(
                         `IndexedDB error: ${/** @type {IDBRequest} */ (event.target).error?.message}`,
                     );
-                    Promise.resolve(callback()).then(resolve);
+                    // `reject` like the two other degraded paths in this
+                    // method: without it a throwing callback leaves this
+                    // pending, and it is called under the mutex.
+                    Promise.resolve(callback()).then(resolve, reject);
                 });
             };
             request.onblocked = () => {

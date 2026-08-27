@@ -32,6 +32,26 @@ declare module "registries" {
         invisible?: boolean | string;
     }
 
+    /**
+     * A field a widget needs loaded alongside the one it renders.
+     *
+     * NOT a `Partial<StaticFieldInfo>`, which is what this used to say: the
+     * shape is the one `addFieldDependencies` consumes and
+     * `FIELD_DEPENDENCIES_VALIDATION` enforces at runtime, and the two
+     * disagreed. `optional` is the visible cost -- it is load-bearing (the
+     * dependency becomes a no-op on a model that lacks the field) and read as a
+     * misspelling of `options`.
+     */
+    interface FieldDependency extends Partial<StaticFieldInfo> {
+        name: string;
+        /** skip the dependency when the model has no such field */
+        optional?: boolean;
+        /** the widget writes it, which is what decides `readonly` */
+        written?: boolean;
+        readonly?: boolean | string;
+        [key: string]: any;
+    }
+
     type OptionType = "boolean" | "field" | "number" | "selection" | "string";
 
     interface IOption<T extends OptionType> {
@@ -95,7 +115,7 @@ declare module "registries" {
             staticInfo: StaticFieldInfo & ExtraFieldInfo,
             dynamicInfo: DynamicFieldInfo & Record<string, any>,
         ): Record<string, any>;
-        fieldDependencies?: Partial<StaticFieldInfo>[] | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);
+        fieldDependencies?: FieldDependency[] | ((baseInfo: StaticFieldInfo) => FieldDependency[]);
         listViewWidth?: number | number[] | ((param: { type: string; hasLabel: boolean; }) => number | false);
         relatedFields?: Partial<StaticFieldInfo>[] | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);
         isEmpty?(...args: any[]): boolean;

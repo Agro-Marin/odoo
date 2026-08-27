@@ -39,16 +39,61 @@ function checkResponseStatus(response, readMethod, { rejectHtml = false } = {}) 
     throw new NetworkError(`HTTP ${status} response at "${url}"`);
 }
 
+class HttpService {
+    /**
+     * @param {string} route
+     * @param {string} [readMethod="json"]
+     * @param {{ rejectHtml?: boolean }} [options]
+     * @returns {Promise<any>}
+     */
+    async get(route, readMethod = "json", options = {}) {
+        const response = await browser.fetch(route, { method: "GET" });
+        checkResponseStatus(response, readMethod, options);
+        return /** @type {any} */ (response)[readMethod]();
+    }
+
+    /**
+     * @param {string} route
+     * @param {Record<string, any> | FormData} [params={}]
+     * @param {string} [readMethod="json"]
+     * @param {{ rejectHtml?: boolean }} [options]
+     * @returns {Promise<any>}
+     */
+    async post(route, params = {}, readMethod = "json", options = {}) {
+        let formData = params;
+        if (!(formData instanceof FormData)) {
+            formData = new FormData();
+            for (const [key, value] of Object.entries(params)) {
+                if (Array.isArray(value)) {
+                    for (const val of value) {
+                        formData.append(key, val);
+                    }
+                } else {
+                    formData.append(key, value);
+                }
+            }
+        }
+        const response = await browser.fetch(route, {
+            body: /** @type {any} */ (formData),
+            method: "POST",
+        });
+        checkResponseStatus(response, readMethod, options);
+        return /** @type {any} */ (response)[readMethod]();
+    }
+}
+
+// The module-level API and the service facade share one prototype, so a patch
+// on HttpService reaches importers of get/post as well (ADR-0021).
+const http = new HttpService();
+
 /**
  * @param {string} route
  * @param {string} [readMethod="json"]
  * @param {{ rejectHtml?: boolean }} [options]
  * @returns {Promise<any>}
  */
-export async function get(route, readMethod = "json", options = {}) {
-    const response = await browser.fetch(route, { method: "GET" });
-    checkResponseStatus(response, readMethod, options);
-    return /** @type {any} */ (response)[readMethod]();
+export function get(route, readMethod = "json", options = {}) {
+    return http.get(route, readMethod, options);
 }
 
 /**
@@ -58,32 +103,15 @@ export async function get(route, readMethod = "json", options = {}) {
  * @param {{ rejectHtml?: boolean }} [options]
  * @returns {Promise<any>}
  */
-export async function post(route, params = {}, readMethod = "json", options = {}) {
-    let formData = params;
-    if (!(formData instanceof FormData)) {
-        formData = new FormData();
-        for (const [key, value] of Object.entries(params)) {
-            if (Array.isArray(value)) {
-                for (const val of value) {
-                    formData.append(key, val);
-                }
-            } else {
-                formData.append(key, value);
-            }
-        }
-    }
-    const response = await browser.fetch(route, {
-        body: /** @type {any} */ (formData),
-        method: "POST",
-    });
-    checkResponseStatus(response, readMethod, options);
-    return /** @type {any} */ (response)[readMethod]();
+export function post(route, params = {}, readMethod = "json", options = {}) {
+    return http.post(route, params, readMethod, options);
 }
 
 const httpService = {
     async: ["get", "post"],
+    /** @returns {HttpService} */
     start() {
-        return { get, post };
+        return new HttpService();
     },
 };
 

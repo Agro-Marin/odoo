@@ -589,3 +589,35 @@ describe("minDigits never exceeds the precision the value was rounded to", () =>
         expect(formatFloat(3.1, { minDigits: 3 })).toBe("3.100");
     });
 });
+
+describe("negative zero", () => {
+    // `toBe` is `===`, which cannot tell -0 from 0; `Object.is` can.
+    const signOf = (/** @type {number} */ v) => (Object.is(v, -0) ? "-0" : String(v));
+
+    test("rounding to zero answers +0, in every method", () => {
+        for (const method of /** @type {const} */ ([
+            "HALF-UP",
+            "HALF-DOWN",
+            "HALF-EVEN",
+            "UP",
+            "DOWN",
+        ])) {
+            for (const value of [-0.4, -0.0004, -0.5, -0.001]) {
+                const rounded = roundPrecision(value, 1, method);
+                if (rounded === 0) {
+                    expect(signOf(rounded)).toBe("0", {
+                        message: `roundPrecision(${value}, 1, "${method}")`,
+                    });
+                }
+            }
+        }
+        expect(signOf(roundDecimals(-0.0004, 3))).toBe("0");
+        expect(signOf(roundPrecision(-0.4, 1, "DOWN"))).toBe("0");
+    });
+
+    test("the sign is kept wherever it still means something", () => {
+        expect(roundPrecision(-0.5, 1, "HALF-UP")).toBe(-1);
+        expect(roundPrecision(-0.4, 1, "UP")).toBe(-1);
+        expect(roundDecimals(-0.145, 2)).toBe(-0.15);
+    });
+});

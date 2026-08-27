@@ -626,7 +626,8 @@ export class RPCCache {
         }
         const tableList = new Set(typeof tables === "string" ? [tables] : tables);
         for (const requestKey of Object.keys(this.pendingRequests)) {
-            if (tableList.has(this.pendingRequests[requestKey].table)) {
+            const { table } = this.pendingRequests[requestKey];
+            if (table && tableList.has(table)) {
                 this.pendingRequests[requestKey].invalidated = true;
                 delete this.pendingRequests[requestKey];
             }
@@ -644,7 +645,11 @@ export class RPCCache {
         const tableSet = new Set(tables);
         for (const requestKey of Object.keys(this.pendingRequests)) {
             const request = this.pendingRequests[requestKey];
-            if (request.model === model && tableSet.has(request.table)) {
+            if (
+                request.model === model &&
+                request.table &&
+                tableSet.has(request.table)
+            ) {
                 request.invalidated = true;
                 delete this.pendingRequests[requestKey];
             }

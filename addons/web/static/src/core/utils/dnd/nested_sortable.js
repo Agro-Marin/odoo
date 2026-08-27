@@ -3,6 +3,8 @@
 
 import { localization } from "@web/core/l10n/localization";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
+import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_utils";
+import { viewOf } from "@web/core/utils/dom/ui";
 
 /** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
 /**
@@ -76,11 +78,7 @@ export const useNestedSortable = /** @type {any} */ (
                     params,
                 },
             ) {
-                ctx.groupSelector = params.groups || null;
-                if (ctx.groupSelector) {
-                    ctx.fullSelector = [ctx.groupSelector, ctx.fullSelector].join(" ");
-                }
-                ctx.connectGroups = params.connectGroups;
+                applyGroupParams(ctx, params);
                 ctx.nest = params.nest;
                 ctx.listTagName = params.listTagName;
                 ctx.nestInterval = params.nestInterval;
@@ -111,9 +109,9 @@ export const useNestedSortable = /** @type {any} */ (
                 ctx.current.placeHolder.removeAttribute("id");
                 ctx.current.placeHolder.classList.add("w-100", "d-block");
                 if (ctx.useElementSize) {
-                    ctx.current.placeHolder.style.height = getComputedStyle(
+                    ctx.current.placeHolder.style.height = viewOf(
                         ctx.current.element,
-                    ).height;
+                    ).getComputedStyle(ctx.current.element).height;
                     ctx.current.placeHolder.classList.add(
                         "o_nested_sortable_placeholder_realsize",
                     );

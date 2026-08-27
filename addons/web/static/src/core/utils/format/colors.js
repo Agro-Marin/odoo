@@ -46,6 +46,10 @@ export function convertRgbToHsl(r, g, b) {
     let saturation = 0;
     const lightness = (maxColor + minColor) / 2;
     if (delta) {
+        // These three are NOT `else if`, and must not become one: when two
+        // channels tie for the maximum -- yellow, cyan, magenta -- both
+        // branches run and both assign the same hue, which is how those three
+        // land on 60, 180 and 300. Making them exclusive breaks yellow.
         if (maxColor === red) {
             hue = (green - blue) / delta;
         }
@@ -278,7 +282,11 @@ export function mixCssColors(cssColor1, cssColor2, weight) {
     const [r, g, b] = rgb1.map((_, idx) =>
         Math.round(rgb2[idx] + (rgb1[idx] - rgb2[idx]) * weight),
     );
-    return /** @type {string} */ (convertRgbaToCSSColor(r, g, b));
+    // Opacity is interpolated on the same weight as the channels. Reading only
+    // red/green/blue silently turned a mix of two translucent colours into an
+    // opaque one; two opaque inputs still give a 6-digit hex, unchanged.
+    const opacity = rgba2.opacity + (rgba1.opacity - rgba2.opacity) * weight;
+    return /** @type {string} */ (convertRgbaToCSSColor(r, g, b, opacity));
 }
 
 /**
@@ -312,48 +320,21 @@ export const RGBA_REGEX = /\d+(?:\.\d+)?/g;
 export function rgbToHex(rgb = "", node = null) {
     if (rgb.startsWith("#")) {
         return rgb;
-    } else if (rgb.startsWith("rgba")) {
-        const values = /** @type {string[]} */ (rgb.match(RGBA_REGEX) || []);
-        const alpha = Number.parseFloat(values.pop() ?? "");
-        /** @type {number[]} */
-        let bgRgbValues = [];
-        if (node) {
-            let bgColor = getComputedStyle(node).backgroundColor;
-            if (bgColor.startsWith("rgba")) {
-                bgColor = rgbToHex(bgColor, node.parentElement);
-            }
-            if (bgColor?.startsWith("#")) {
-                bgRgbValues = (bgColor.match(/[\da-f]{2}/gi) || []).map((val) =>
-                    Number.parseInt(val, 16),
-                );
-            } else if (bgColor?.startsWith("rgb")) {
-                bgRgbValues = (bgColor.match(RGBA_REGEX) || []).map((val) =>
-                    Number.parseInt(val, 10),
-                );
-            }
-        }
-        bgRgbValues = bgRgbValues.length ? bgRgbValues : [255, 255, 255];
-
-        return (
-            "#" +
-            values
-                .map((value, index) => {
-                    const converted = Math.floor(
-                        alpha * Number.parseInt(value, 10) +
-                            (1 - alpha) * bgRgbValues[index],
-                    );
-                    return converted.toString(16).padStart(2, "0");
-                })
-                .join("")
-        );
-    } else {
-        return (
-            "#" +
-            (rgb.match(/\d{1,3}/g) || [])
-                .map((x) => Number.parseInt(x, 10).toString(16).padStart(2, "0"))
-                .join("")
-        );
     }
+    if (rgb.startsWith("rgba")) {
+        // This used to be a second, hand-written copy of `blendColors`. The two
+        // differed in one character -- `Math.floor` against `Math.round` -- and
+        // so answered a different hex for about 85% of blends, `rgbToHex`
+        // biasing every channel down by up to 1/255. There is one compositing
+        // rule, and it rounds to nearest.
+        return blendColors(rgb, node);
+    }
+    return (
+        "#" +
+        (rgb.match(/\d{1,3}/g) || [])
+            .map((x) => Number.parseInt(x, 10).toString(16).padStart(2, "0"))
+            .join("")
+    );
 }
 
 /**
