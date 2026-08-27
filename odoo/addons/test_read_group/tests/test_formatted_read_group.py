@@ -1515,7 +1515,7 @@ class TestFormattedReadGroup(common.TransactionCase):
 
     def test_groupby_datetime_part_with_timezone(self):
         Model = self.env["test_read_group.fill_temporal"]
-        self.env["res.lang"]._activate_lang("NZ")
+        self.env["res.lang"]._activate_lang("en_NZ")
         Model.create({"value": 98, "datetime": "2023-02-05 23:55:00"})
         result = Model.with_context({"tz": "Pacific/Auckland"}).formatted_read_group(
             [],
@@ -1542,9 +1542,9 @@ class TestFormattedReadGroup(common.TransactionCase):
     def test_groupby_date_part_with_timezone(self):
         Model = self.env["test_read_group.fill_temporal"]
         Model.create({"value": 98, "date": "2023-02-05"})
-        self.env["res.lang"]._activate_lang("NZ")
+        self.env["res.lang"]._activate_lang("en_NZ")
         self.env["res.lang"]._activate_lang("fr_BE")
-        result = Model.with_context({"tz": "fr_BE"}).formatted_read_group(
+        result = Model.with_context({"tz": "Europe/Brussels"}).formatted_read_group(
             [],
             aggregates=["__count", "value:sum"],
             groupby=["date:day_of_week"],
@@ -1560,7 +1560,9 @@ class TestFormattedReadGroup(common.TransactionCase):
                 }
             ],
         )
-        res = Model.with_context({"tz": "fr_BE"}).search(result[0]["__extra_domain"])
+        res = Model.with_context({"tz": "Europe/Brussels"}).search(
+            result[0]["__extra_domain"]
+        )
         self.assertEqual(len(res), 1)
         self.assertEqual(res.mapped("value"), [98])
 
@@ -1586,6 +1588,11 @@ class TestFormattedReadGroup(common.TransactionCase):
         self.assertEqual(res.mapped("value"), [98])
 
     def test_groupby_day_of_week_ordered_with_user_lang(self):
+        # date:day_of_week's own numbering is locale-independent (0=Sunday),
+        # but its label/order under lang=fr_BE follows the fr_BE week start
+        # (Monday), which reverses the two buckets here relative to the
+        # default (no-lang-context) order. Parametrized over ascending vs
+        # descending order: both share the same fixture and reversal logic.
         Model = self.env["test_read_group.fill_temporal"]
         Model.create(
             [
@@ -1594,108 +1601,41 @@ class TestFormattedReadGroup(common.TransactionCase):
             ]
         )
         self.env["res.lang"]._activate_lang("fr_BE")
-        result = Model.formatted_read_group(
-            [],
-            aggregates=["__count", "value:sum"],
-            groupby=["date:day_of_week"],
-        )
-        self.assertEqual(
-            result,
-            [
-                {
-                    "date:day_of_week": 0,
-                    "__count": 1,
-                    "value:sum": 98,
-                    "__extra_domain": [("date.day_of_week", "=", 0)],
-                },
-                {
-                    "date:day_of_week": 1,
-                    "__count": 1,
-                    "value:sum": 99,
-                    "__extra_domain": [("date.day_of_week", "=", 1)],
-                },
-            ],
-        )
-        Model = Model.with_context(lang="fr_BE")
-        result = Model.formatted_read_group(
-            [],
-            aggregates=["__count", "value:sum"],
-            groupby=["date:day_of_week"],
-        )
-        self.assertEqual(
-            result,
-            [
-                {
-                    "date:day_of_week": 1,
-                    "__count": 1,
-                    "value:sum": 99,
-                    "__extra_domain": [("date.day_of_week", "=", 1)],
-                },
-                {
-                    "date:day_of_week": 0,
-                    "__count": 1,
-                    "value:sum": 98,
-                    "__extra_domain": [("date.day_of_week", "=", 0)],
-                },
-            ],
-        )
 
-    def test_groupby_day_of_week_descending_order_with_user_lang(self):
-        Model = self.env["test_read_group.fill_temporal"]
-        Model.create(
-            [
-                {"value": 98, "date": "2023-02-05"},
-                {"value": 99, "date": "2023-02-06"},
-            ]
-        )
-        self.env["res.lang"]._activate_lang("fr_BE")
-        result = Model.formatted_read_group(
-            [],
-            aggregates=["__count", "value:sum"],
-            groupby=["date:day_of_week"],
-            order="date:day_of_week DESC",
-        )
-        self.assertEqual(
-            result,
-            [
-                {
-                    "date:day_of_week": 1,
-                    "__count": 1,
-                    "value:sum": 99,
-                    "__extra_domain": [("date.day_of_week", "=", 1)],
-                },
-                {
-                    "date:day_of_week": 0,
-                    "__count": 1,
-                    "value:sum": 98,
-                    "__extra_domain": [("date.day_of_week", "=", 0)],
-                },
-            ],
-        )
-        Model = Model.with_context(lang="fr_BE")
-        result = Model.formatted_read_group(
-            [],
-            aggregates=["__count", "value:sum"],
-            groupby=["date:day_of_week"],
-            order="date:day_of_week DESC",
-        )
-        self.assertEqual(
-            result,
-            [
-                {
-                    "date:day_of_week": 0,
-                    "__count": 1,
-                    "value:sum": 98,
-                    "__extra_domain": [("date.day_of_week", "=", 0)],
-                },
-                {
-                    "date:day_of_week": 1,
-                    "__count": 1,
-                    "value:sum": 99,
-                    "__extra_domain": [("date.day_of_week", "=", 1)],
-                },
-            ],
-        )
+        day0 = {
+            "date:day_of_week": 0,
+            "__count": 1,
+            "value:sum": 98,
+            "__extra_domain": [("date.day_of_week", "=", 0)],
+        }
+        day1 = {
+            "date:day_of_week": 1,
+            "__count": 1,
+            "value:sum": 99,
+            "__extra_domain": [("date.day_of_week", "=", 1)],
+        }
+
+        for order, default_lang_expected, fr_be_expected in [
+            (None, [day0, day1], [day1, day0]),
+            ("date:day_of_week DESC", [day1, day0], [day0, day1]),
+        ]:
+            with self.subTest(order=order):
+                kwargs = {"order": order} if order else {}
+                result = Model.formatted_read_group(
+                    [],
+                    aggregates=["__count", "value:sum"],
+                    groupby=["date:day_of_week"],
+                    **kwargs,
+                )
+                self.assertEqual(result, default_lang_expected)
+
+                result = Model.with_context(lang="fr_BE").formatted_read_group(
+                    [],
+                    aggregates=["__count", "value:sum"],
+                    groupby=["date:day_of_week"],
+                    **kwargs,
+                )
+                self.assertEqual(result, fr_be_expected)
 
     def test_groupby_many2many(self):
         User = self.env["test_read_group.user"]
@@ -1872,6 +1812,11 @@ class TestFormattedReadGroup(common.TransactionCase):
             field_info["foo_id_bar_name_sudo"]["aggregator"], "count_distinct"
         )
 
+        # This call's result is intentionally discarded: it warms the ORM
+        # cache so the identical call right below - the one whose SQL/result
+        # is actually checked - reflects steady-state behavior rather than a
+        # cold cache. The same discard-then-recall pattern repeats several
+        # times further down this file for the same reason.
         RelatedBase.formatted_read_group([], ["foo_id_name_sudo"], ["__count"])
         self.assertEqual(
             RelatedBase.formatted_read_group([], ["foo_id_name_sudo"], ["__count"]),
