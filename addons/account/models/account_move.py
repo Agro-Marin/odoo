@@ -35,6 +35,10 @@ _logger = logging.getLogger(__name__)
 
 MAX_HASH_VERSION = 4
 
+# Shared with decimal_precision.py's get_precision() override, which reads
+# this same cursor-cache key written by _disable_recursion() below.
+DISABLE_RECURSION_STACK_CACHE_KEY = "account_disable_recursion_stack"
+
 PAYMENT_STATE_SELECTION = [
     ("not_paid", "Not Paid"),
     ("in_payment", "In Payment"),
@@ -6901,7 +6905,7 @@ class AccountMove(models.Model):
     @contextmanager
     def _disable_recursion(self, key, default=None, target=True):
         stack = self.env.cr.cache.setdefault(
-            "account_disable_recursion_stack", StackMap()
+            DISABLE_RECURSION_STACK_CACHE_KEY, StackMap()
         )
         try:
             current_val = stack[key]
