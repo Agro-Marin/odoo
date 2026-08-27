@@ -37,6 +37,8 @@ def get_iban_part(iban, number_kind):
         get_iban_part(partner.acc_number, "bank") == "05428"
         get_iban_part(partner.acc_number, "account") == "000000123456"
 
+    :param str iban: the IBAN to extract from
+    :param str number_kind: one of the keys in ``iban_part_map``
     :return: matched mask characters as a string, or ``False`` if number_kind is unrecognized
     """
     iban_part_map = {
@@ -70,6 +72,7 @@ def get_iban_part(iban, number_kind):
 
 
 def validate_iban(iban):
+    """Raise ValidationError if iban is not a well-formed, checksum-valid IBAN."""
     iban = normalize_iban(iban)
     if not iban:
         raise ValidationError(_lt("There is no IBAN code."))
