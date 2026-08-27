@@ -67,7 +67,9 @@ class AccountMove(models.Model):
             self.move_type,
         )
         if count:
-            taxes = self.env["account.tax"].browse(tax_ids)
+            taxes = self.fiscal_position_id.map_tax(
+                self.env["account.tax"].browse(tax_ids)
+            )
         else:
             account_id = self.journal_id.default_account_id.id
             if self.is_sale_document(include_receipts=True):
