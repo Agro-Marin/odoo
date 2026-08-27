@@ -539,9 +539,9 @@ class TestInboundAccessLog(TransactionCase):
         endpoint._check_inbound_request({}, remote_addr="203.0.113.12")
         self.assertTrue(self._rows(endpoint))
 
-        # -1 rather than 0: the transaction clock is frozen, so the row's
-        # timestamp and a cutoff of `now` are the same instant and `<` is false.
-        # The cron is being exercised, not the arithmetic of a real retention.
+        # -1 rather than 0, to be safely past the retention cutoff (Datetime
+        # fields truncate to the second, so 0 risks a tie with `now`) — the
+        # cron is being exercised, not the arithmetic of a real retention.
         self.logs.cron_gc_inbound_access_logs(retention_days=-1)
 
         self.assertFalse(self._rows(endpoint))
