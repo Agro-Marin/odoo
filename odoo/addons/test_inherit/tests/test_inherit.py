@@ -11,6 +11,12 @@ class test_inherits(common.TransactionCase):
 
         self.assertIn("field_in_mother", mother._fields)
         self.assertIn("field_in_mother", daughter._fields)
+        self.assertIn("field_in_mother_2", mother._fields)
+        self.assertIn("field_in_mother_2", daughter._fields)
+        self.assertIn("field_in_mother_3", mother._fields)
+        self.assertIn("field_in_mother_3", daughter._fields)
+        self.assertIn("field_in_mother_4", mother._fields)
+        self.assertIn("field_in_mother_4", daughter._fields)
 
     def test_20_field_extension(self):
         mother = self.env["test.inherit.mother"]
