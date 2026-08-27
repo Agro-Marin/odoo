@@ -1,6 +1,114 @@
 from odoo import Command
 from odoo.tests import common, new_test_user
 
+# Shared across TestPrivateReadGroupingSets._read_grouping_sets and
+# TestFormattedReadGroupingSets.formatted_read_grouping_sets: both exercise
+# the exact same grouping-set/order/query-count scenarios against their
+# respective entry point.
+GROUPING_SETS_CASES = [
+    {
+        "grouping_sets": [
+            ["user_ids", "customer_ids"],
+            ["key"],
+            ["user_ids"],
+            ["customer_ids"],
+            ["key", "customer_ids"],
+            [],
+        ],
+        "aggregates": ["__count", "integer:sum"],
+        "nb_queries": 4,
+    },
+    {
+        "grouping_sets": [
+            ["user_ids", "key"],
+            ["key"],
+            ["user_ids"],
+            [],
+        ],
+        "aggregates": ["__count"],
+        "nb_queries": 1,
+    },
+    {
+        "grouping_sets": [
+            ["user_ids", "customer_ids"],
+            ["key"],
+            ["user_ids"],
+            [],
+        ],
+        "read_group_orders": [
+            "__count, user_ids, customer_ids",
+            "__count, key",
+            "__count, user_ids",
+            "__count",
+        ],
+        "complete_order": "__count, user_ids, customer_ids, key",
+        "aggregates": [
+            "__count",
+            "integer:min",
+            "integer:max",
+            "integer:count_distinct",
+        ],
+        "nb_queries": 1,
+    },
+    {
+        "grouping_sets": [
+            ["user_ids", "customer_ids"],
+            ["key"],
+            ["integer"],
+            [],
+            ["customer_ids"],
+            ["key", "customer_ids"],
+            ["integer", "customer_ids"],
+        ],
+        "read_group_orders": [
+            "__count DESC, customer_ids DESC, user_ids",
+            "key, __count DESC",
+            "__count DESC, integer",
+            "__count DESC",
+            "__count DESC, customer_ids DESC",
+            "key, __count DESC, customer_ids DESC",
+            "__count DESC, customer_ids DESC, integer",
+        ],
+        "complete_order": "key, __count DESC, customer_ids DESC, integer, user_ids",
+        "aggregates": ["integer:sum", "__count"],
+        "nb_queries": 3,
+    },
+]
+
+
+def _create_mario_luigi_tasks(env):
+    """Shared fixture for the many2many grouping-set tests: two users
+    (Mario, Luigi) and four tasks exercising every combination of the
+    user_ids/customer_ids many2many fields."""
+    User = env["test_read_group.user"]
+    mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
+    tasks = env["test_read_group.task"].create(
+        [
+            {
+                "name": "Super Mario Bros.",
+                "user_ids": [Command.set((mario + luigi).ids)],
+                "integer": 1,
+            },
+            {
+                "name": "Paper Mario",
+                "user_ids": [Command.set(mario.ids)],
+                "customer_ids": [Command.set(luigi.ids)],
+                "integer": 2,
+            },
+            {
+                "name": "Luigi's Mansion",
+                "user_ids": [Command.set(luigi.ids)],
+                "customer_ids": [Command.set(mario.ids)],
+                "integer": 3,
+            },
+            {
+                "name": "Donkey Kong",
+                "customer_ids": [Command.set((mario + luigi).ids)],
+            },
+        ]
+    )
+    return mario, luigi, tasks
+
 
 class TestPrivateReadGroupingSets(common.TransactionCase):
     def test_simple_read_grouping_sets(self):
@@ -104,33 +212,7 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
             self.assertCountEqual(actual_result[3], expected_result[3])
 
     def test_many2many_read_grouping_sets(self):
-        User = self.env["test_read_group.user"]
-        mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
-        tasks = self.env["test_read_group.task"].create(
-            [
-                {
-                    "name": "Super Mario Bros.",
-                    "user_ids": [Command.set((mario + luigi).ids)],
-                    "integer": 1,
-                },
-                {
-                    "name": "Paper Mario",
-                    "user_ids": [Command.set(mario.ids)],
-                    "customer_ids": [Command.set(luigi.ids)],
-                    "integer": 2,
-                },
-                {
-                    "name": "Luigi's Mansion",
-                    "user_ids": [Command.set(luigi.ids)],
-                    "customer_ids": [Command.set(mario.ids)],
-                    "integer": 3,
-                },
-                {
-                    "name": "Donkey Kong",
-                    "customer_ids": [Command.set((mario + luigi).ids)],
-                },
-            ]
-        )
+        _mario, _luigi, tasks = _create_mario_luigi_tasks(self.env)
 
         domain = [("id", "in", tasks.ids)]
         grouping_sets = [["user_ids", "key"], ["key"], ["user_ids"], []]
@@ -230,77 +312,7 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 expected_result,
             )
 
-        cases = [
-            {
-                "grouping_sets": [
-                    ["user_ids", "customer_ids"],
-                    ["key"],
-                    ["user_ids"],
-                    ["customer_ids"],
-                    ["key", "customer_ids"],
-                    [],
-                ],
-                "aggregates": ["__count", "integer:sum"],
-                "nb_queries": 4,
-            },
-            {
-                "grouping_sets": [
-                    ["user_ids", "key"],
-                    ["key"],
-                    ["user_ids"],
-                    [],
-                ],
-                "aggregates": ["__count"],
-                "nb_queries": 1,
-            },
-            {
-                "grouping_sets": [
-                    ["user_ids", "customer_ids"],
-                    ["key"],
-                    ["user_ids"],
-                    [],
-                ],
-                "read_group_orders": [
-                    "__count, user_ids, customer_ids",
-                    "__count, key",
-                    "__count, user_ids",
-                    "__count",
-                ],
-                "complete_order": "__count, user_ids, customer_ids, key",
-                "aggregates": [
-                    "__count",
-                    "integer:min",
-                    "integer:max",
-                    "integer:count_distinct",
-                ],
-                "nb_queries": 1,
-            },
-            {
-                "grouping_sets": [
-                    ["user_ids", "customer_ids"],
-                    ["key"],
-                    ["integer"],
-                    [],
-                    ["customer_ids"],
-                    ["key", "customer_ids"],
-                    ["integer", "customer_ids"],
-                ],
-                "read_group_orders": [
-                    "__count DESC, customer_ids DESC, user_ids",
-                    "key, __count DESC",
-                    "__count DESC, integer",
-                    "__count DESC",
-                    "__count DESC, customer_ids DESC",
-                    "key, __count DESC, customer_ids DESC",
-                    "__count DESC, customer_ids DESC, integer",
-                ],
-                "complete_order": "key, __count DESC, customer_ids DESC, integer, user_ids",
-                "aggregates": ["integer:sum", "__count"],
-                "nb_queries": 3,
-            },
-        ]
-
-        for i, case in enumerate(cases):
+        for i, case in enumerate(GROUPING_SETS_CASES):
             nb_queries = case["nb_queries"]
             aggregates = case["aggregates"]
             grouping_sets = case["grouping_sets"]
@@ -391,33 +403,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             self.assertCountEqual(actual_result[3], expected_result[3])
 
     def test_many2many_formatted_read_grouping_sets(self):
-        User = self.env["test_read_group.user"]
-        mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
-        tasks = self.env["test_read_group.task"].create(
-            [
-                {
-                    "name": "Super Mario Bros.",
-                    "user_ids": [Command.set((mario + luigi).ids)],
-                    "integer": 1,
-                },
-                {
-                    "name": "Paper Mario",
-                    "user_ids": [Command.set(mario.ids)],
-                    "customer_ids": [Command.set(luigi.ids)],
-                    "integer": 2,
-                },
-                {
-                    "name": "Luigi's Mansion",
-                    "user_ids": [Command.set(luigi.ids)],
-                    "customer_ids": [Command.set(mario.ids)],
-                    "integer": 3,
-                },
-                {
-                    "name": "Donkey Kong",
-                    "customer_ids": [Command.set((mario + luigi).ids)],
-                },
-            ]
-        )
+        _mario, _luigi, tasks = _create_mario_luigi_tasks(self.env)
 
         domain = [("id", "in", tasks.ids)]
         grouping_sets = [["user_ids", "key"], ["key"], ["user_ids"], []]
@@ -448,77 +434,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             expected_result,
         )
 
-        cases = [
-            {
-                "grouping_sets": [
-                    ["user_ids", "customer_ids"],
-                    ["key"],
-                    ["user_ids"],
-                    ["customer_ids"],
-                    ["key", "customer_ids"],
-                    [],
-                ],
-                "aggregates": ["__count", "integer:sum"],
-                "nb_queries": 4,
-            },
-            {
-                "grouping_sets": [
-                    ["user_ids", "key"],
-                    ["key"],
-                    ["user_ids"],
-                    [],
-                ],
-                "aggregates": ["__count"],
-                "nb_queries": 1,
-            },
-            {
-                "grouping_sets": [
-                    ["user_ids", "customer_ids"],
-                    ["key"],
-                    ["user_ids"],
-                    [],
-                ],
-                "read_group_orders": [
-                    "__count, user_ids, customer_ids",
-                    "__count, key",
-                    "__count, user_ids",
-                    "__count",
-                ],
-                "complete_order": "__count, user_ids, customer_ids, key",
-                "aggregates": [
-                    "__count",
-                    "integer:min",
-                    "integer:max",
-                    "integer:count_distinct",
-                ],
-                "nb_queries": 1,
-            },
-            {
-                "grouping_sets": [
-                    ["user_ids", "customer_ids"],
-                    ["key"],
-                    ["integer"],
-                    [],
-                    ["customer_ids"],
-                    ["key", "customer_ids"],
-                    ["integer", "customer_ids"],
-                ],
-                "read_group_orders": [
-                    "__count DESC, customer_ids DESC, user_ids",
-                    "key, __count DESC",
-                    "__count DESC, integer",
-                    "__count DESC",
-                    "__count DESC, customer_ids DESC",
-                    "key, __count DESC, customer_ids DESC",
-                    "__count DESC, customer_ids DESC, integer",
-                ],
-                "complete_order": "key, __count DESC, customer_ids DESC, integer, user_ids",
-                "aggregates": ["integer:sum", "__count"],
-                "nb_queries": 3,
-            },
-        ]
-
-        for i, case in enumerate(cases):
+        for i, case in enumerate(GROUPING_SETS_CASES):
             nb_queries = case["nb_queries"]
             aggregates = case["aggregates"]
             grouping_sets = case["grouping_sets"]
@@ -591,7 +507,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             ],
         )
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "foo_names_sudo.*not a Many2one"):
             RelatedBar.formatted_read_grouping_sets(
                 [], [["foo_names_sudo"]], ["__count"]
             )
