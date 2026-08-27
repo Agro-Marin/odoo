@@ -15,8 +15,11 @@ NOISY_CV = 0.15
 
 
 def _load(path):
-    with Path(path).open(encoding="utf-8") as fh:
-        data = json.load(fh)
+    try:
+        with Path(path).open(encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        sys.exit(f"{path}: {exc}")
     if "results" not in data or "meta" not in data:
         sys.exit(f"{path}: not a perf_compare report")
     return data
