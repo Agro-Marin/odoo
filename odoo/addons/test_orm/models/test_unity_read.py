@@ -28,7 +28,9 @@ class TestOrmLesson(models.Model):
     name = fields.Char("Name")
     course_id = fields.Many2one("test_orm.course")
     attendee_ids = fields.Many2many(
-        "test_orm.person", "lesson_ids", context={"active_test": False}
+        "test_orm.person",
+        "test_orm_lesson_attendee_rel",
+        context={"active_test": False},
     )
     teacher_id = fields.Many2one("test_orm.person")
     teacher_birthdate = fields.Date(related="teacher_id.birthday")
@@ -47,7 +49,6 @@ class TestOrmPerson(models.Model):
     _description = "a person, can be an author, teacher or attendee of a lesson"
 
     name = fields.Char("Name")
-    lesson_ids = fields.Many2many("test_orm.lesson", "course_id")
     employer_id = fields.Many2one("test_orm.employer")
     birthday = fields.Date()
     active = fields.Boolean(default=True)
