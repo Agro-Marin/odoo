@@ -1007,6 +1007,13 @@ class TestGetTextLint(BaseCase):
         repr_violations = [v for v in violations if v.rule == "gettext-repr"]
         self.assertEqual(len(repr_violations), 2)
 
+    def test_gettext_repr_ignores_escaped_percent(self):
+        violations = self._check("""
+        _("100%%rare case")
+        """)
+        repr_violations = [v for v in violations if v.rule == "gettext-repr"]
+        self.assertFalse(repr_violations)
+
     def test_missing_gettext_no_errors(self):
         violations = self._check("""
         raise UserError(_('This is translated'))
