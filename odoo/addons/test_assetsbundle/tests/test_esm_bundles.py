@@ -847,31 +847,50 @@ class TestEsbuildCompilerAddonFlagsSeam(BaseCase):
         self.assertIs(compiler._addon_flags_provider, sentinel)
 
 
+def _build_probe_stub_mirror(tmp, files, stubs):
+    """Write {relpath: content} under a fake addon's static/src/, then
+    build an esbuild stub mirror over it via
+    EsbuildCompiler._write_stub_mirror(). Shared by
+    TestSecondaryStubMirror/TestDeepStubMirror/TestBarePackageStubMirror,
+    which otherwise each hand-rolled the same fixture-tree-plus-mirror
+    setup with only the tree shape and stub map differing.
+
+    Returns (stub_root, src_root, {flag: target}); `src_root` is
+    .../addons/probe/static/src -- callers index further into it
+    (e.g. `src_root / "core"`) for whichever subtree they assert on.
+    """
+    odoo_root = Path(tmp)
+    src_root = odoo_root / "addons" / "probe" / "static" / "src"
+    for relpath, content in files.items():
+        path = src_root / relpath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    stub_root = odoo_root / "stubs"
+    flags = EsbuildCompiler._write_stub_mirror(
+        stub_root, stubs, ["--alias:@probe=./addons/probe/static/src"], odoo_root
+    )
+    return stub_root, src_root, {f.split("=")[0]: f.split("=", 1)[1] for f in flags}
+
+
 class TestSecondaryStubMirror(BaseCase):
     FACE = "@probe/core/network"
     NESTED = "@probe/core/network/rpc"
     SIBLING = "@probe/core/network/model_mutation"
 
     def _build_mirror(self, tmp):
-        odoo_root = Path(tmp)
-        real = odoo_root / "addons" / "probe" / "static" / "src" / "core"
-        (real / "network").mkdir(parents=True)
-        (real / "network.js").write_text("export const face = 'REAL_FACE';")
-        (real / "network" / "rpc.js").write_text("export const rpc = 'REAL_RPC';")
-        (real / "network" / "model_mutation.js").write_text(
-            "export const sub = 'REAL_SUB';"
-        )
-        stub_root = odoo_root / "stubs"
-        flags = EsbuildCompiler._write_stub_mirror(
-            stub_root,
+        stub_root, src_root, targets = _build_probe_stub_mirror(
+            tmp,
+            {
+                "core/network.js": "export const face = 'REAL_FACE';",
+                "core/network/rpc.js": "export const rpc = 'REAL_RPC';",
+                "core/network/model_mutation.js": "export const sub = 'REAL_SUB';",
+            },
             {
                 self.FACE: "export const face = 'SHIM_FACE';",
                 self.NESTED: "export const rpc = 'SHIM_RPC';",
             },
-            ["--alias:@probe=./addons/probe/static/src"],
-            odoo_root,
         )
-        return stub_root, real, {f.split("=")[0]: f.split("=", 1)[1] for f in flags}
+        return stub_root, src_root / "core", targets
 
     def test_the_alias_target_leaves_room_for_submodules(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -945,28 +964,20 @@ class TestDeepStubMirror(BaseCase):
     DEEP = "@probe/core/network/plugins/core"
 
     def _build_mirror(self, tmp):
-        odoo_root = Path(tmp)
-        real = odoo_root / "addons" / "probe" / "static" / "src" / "core"
-        (real / "network" / "plugins").mkdir(parents=True)
-        (real / "network.js").write_text("export const face = 'REAL_FACE';")
-        (real / "network" / "rpc.js").write_text("export const rpc = 'REAL_RPC';")
-        (real / "network" / "plugins" / "core.js").write_text(
-            "export const core = 'REAL_DEEP';"
-        )
-        (real / "network" / "plugins" / "other.js").write_text(
-            "export const other = 'REAL_OTHER';"
-        )
-        stub_root = odoo_root / "stubs"
-        EsbuildCompiler._write_stub_mirror(
-            stub_root,
+        stub_root, src_root, _targets = _build_probe_stub_mirror(
+            tmp,
+            {
+                "core/network.js": "export const face = 'REAL_FACE';",
+                "core/network/rpc.js": "export const rpc = 'REAL_RPC';",
+                "core/network/plugins/core.js": "export const core = 'REAL_DEEP';",
+                "core/network/plugins/other.js": "export const other = 'REAL_OTHER';",
+            },
             {
                 self.FACE: "export const face = 'SHIM_FACE';",
                 self.DEEP: "export const core = 'SHIM_DEEP';",
             },
-            ["--alias:@probe=./addons/probe/static/src"],
-            odoo_root,
         )
-        return stub_root, real
+        return stub_root, src_root / "core"
 
     def test_a_deeply_nested_stub_does_not_overwrite_the_real_module(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1022,19 +1033,14 @@ class TestBarePackageStubMirror(BaseCase):
     ADDON_ALIAS = "--alias:@probe=./addons/probe/static/src"
 
     def _build_mirror(self, tmp, stubs=None):
-        odoo_root = Path(tmp)
-        real = odoo_root / "addons" / "probe" / "static" / "src"
-        (real / "core").mkdir(parents=True)
-        (real / "index.js").write_text("export const face = 'REAL_INDEX';")
-        (real / "core" / "network.js").write_text("export const net = 'REAL_NET';")
-        stub_root = odoo_root / "stubs"
-        flags = EsbuildCompiler._write_stub_mirror(
-            stub_root,
+        return _build_probe_stub_mirror(
+            tmp,
+            {
+                "index.js": "export const face = 'REAL_INDEX';",
+                "core/network.js": "export const net = 'REAL_NET';",
+            },
             stubs or {self.BARE: "export const face = 'SHIM_INDEX';"},
-            [self.ADDON_ALIAS],
-            odoo_root,
         )
-        return stub_root, real, {f.split("=")[0]: f.split("=", 1)[1] for f in flags}
 
     def test_the_bare_specifier_gets_a_shim_and_an_alias(self):
         with tempfile.TemporaryDirectory() as tmp:
