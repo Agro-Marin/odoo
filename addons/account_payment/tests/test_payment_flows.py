@@ -35,7 +35,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
 
         # Pay for this invoice (no impact even if amounts do not match)
         route_values = self._prepare_pay_values()
-        route_values["invoice_id"] = self.invoice.id
+        route_values["invoice_id"] = self.misc_entry.id
         tx_context = self._get_portal_pay_context(**route_values)
 
         # /invoice/transaction/<id>
@@ -49,8 +49,8 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         tx_sudo = self._get_tx(processing_values["reference"])
         # The transaction was created by the RPC call, in another environment, so the invoice's
         # cache must be invalidated before reading the link back.
-        self.invoice.invalidate_recordset(["transaction_ids"])
-        self.assertEqual(self.invoice.transaction_ids, tx_sudo)
+        self.misc_entry.invalidate_recordset(["transaction_ids"])
+        self.assertEqual(self.misc_entry.transaction_ids, tx_sudo)
 
     def test_check_portal_access_token_before_rerouting_flow(self):
         """Test that access to the provided invoice is checked against the portal access token
@@ -68,7 +68,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
             mock.reset_mock()
 
             payment_portal_controller._get_extra_payment_form_values(
-                invoice_id=self.invoice.id, access_token="whatever"
+                invoice_id=self.misc_entry.id, access_token="whatever"
             )
             self.assertEqual(
                 mock.call_count,
@@ -95,7 +95,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         ):
             with self.assertRaises(AccessError):
                 payment_portal_controller._get_extra_payment_form_values(
-                    invoice_id=self.invoice.id, access_token="whatever"
+                    invoice_id=self.misc_entry.id, access_token="whatever"
                 )
             self.assertEqual(
                 check_payment_access_token_mock.call_count,
@@ -106,9 +106,9 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
 
     @mute_logger("odoo.http")
     def test_transaction_route_rejects_unexpected_kwarg(self):
-        url = self._build_url(f"/invoice/transaction/{self.invoice.id}/")
+        url = self._build_url(f"/invoice/transaction/{self.misc_entry.id}/")
         route_kwargs = {
-            "access_token": self.invoice._portal_ensure_token(),
+            "access_token": self.misc_entry._portal_ensure_token(),
             "partner_id": self.partner.id,  # This should be rejected.
         }
         with self.assertRaises(JsonRpcException, msg="odoo.exceptions.ValidationError"):
