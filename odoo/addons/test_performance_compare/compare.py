@@ -13,6 +13,10 @@ THRESHOLD = 1.05
 
 NOISY_CV = 0.15
 
+# Below the timer's resolution (README "Reading the results — caveats"):
+# ratios of ops this cheap are noise, not signal, on both sides of a comparison.
+SUBMICRO_US = 1.0
+
 
 def _load(path):
     try:
@@ -59,7 +63,9 @@ def _fmt_speedup(s):
     return f"{s:6.2f}x"
 
 
-def _marker(s, base_cv, cand_cv):
+def _marker(s, base_cv, cand_cv, sub_micro=False):
+    if sub_micro:
+        return " µ"
     if s is None:
         return " "
     noisy = max(base_cv or 0, cand_cv or 0) > NOISY_CV
@@ -141,9 +147,10 @@ def main(argv=None):
             only_base.append(name)
             continue
         bv, cvv = b["value"], c["value"]
+        sub_micro = bv < SUBMICRO_US and cvv < SUBMICRO_US
         s = (bv / cvv) if cvv else None
         noisy = max(b["cv"], c["cv"]) > NOISY_CV
-        if s:
+        if s and not sub_micro:
             speedups_all.append(s)
             if not noisy:
                 speedups.append(s)
@@ -152,7 +159,7 @@ def main(argv=None):
         if bq != cq:
             qstr += " !!"
             query_divergences.append((name, bq, cq))
-        mark = _marker(s, b["cv"], c["cv"])
+        mark = _marker(s, b["cv"], c["cv"], sub_micro)
 
         if args.md:
             print(
@@ -186,7 +193,10 @@ def main(argv=None):
             (
                 (bi[n]["value"] / ci[n]["value"], n)
                 for n in names
-                if n in bi and n in ci and ci[n]["value"]
+                if n in bi
+                and n in ci
+                and ci[n]["value"]
+                and not (bi[n]["value"] < SUBMICRO_US and ci[n]["value"] < SUBMICRO_US)
             ),
             reverse=True,
         )
