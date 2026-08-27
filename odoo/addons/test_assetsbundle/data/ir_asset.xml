@@ -2,7 +2,7 @@
 <odoo>
 
     <data>
-        <asset id="test_assetsbundle.test_jsfile[!4]_js" name="Test jsfile[!4] JS">
+        <asset id="test_assetsbundle.test_jsfile_except_4_js" name="Test jsfile[!4] JS">
             <bundle>test_assetsbundle.bundle1</bundle>
             <path>test_assetsbundle/static/src/js/test_jsfile[!4].js</path>
         </asset>
