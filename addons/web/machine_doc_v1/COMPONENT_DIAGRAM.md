@@ -540,7 +540,6 @@ All 37 files under `static/src/model/relational_model/` are listed.
 | JS | `relational_model/resequence.js` | 135 | Handle field resequencing |
 | JS | `relational_model/special_data_cache.js` | 66 | Cache for widget-specific side data |
 | JS | `relational_model/errors.js` | 38 | Model-specific error classes |
-| JS | `relational_model/utils.js` | 31 | Internal utility functions |
 | JS | `sample_server.js` | 732 | Mock ORM for demos |
 
 **Key invariants to check**:

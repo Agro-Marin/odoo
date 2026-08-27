@@ -16,7 +16,7 @@ from odoo.db import db_connect
 from odoo.fields import Domain
 from odoo.libs.asset_log import ASSET_ROOT, get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
-from odoo.tests.common import TransactionCase, tagged
+from odoo.tests.common import HttpCase, TransactionCase, tagged
 from odoo.tools.assets import esm_bridges
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (
@@ -2586,3 +2586,71 @@ class TestAssetLinkCacheKey(TransactionCase):
             side_effect=AssertionError("no language lookup for a JS-only call"),
         ):
             IrQweb._get_asset_links("web.assets_web", css=False, js=True)
+
+
+@tagged("post_install", "-at_install", "web_assets")
+class TestBundleDescriptorFormat(HttpCase):
+    """`/web/bundle/<name>`'s envelope must follow how the bundle was built.
+
+    The controller used to key that on ``esm_registry().runtime_bundle_names``
+    -- ``esm.runtime_bundles`` plus dynamic children -- which is an intention
+    someone declares, not a property of the artefact. For an ESM bundle nobody
+    declared, the classic envelope was emitted instead, and it cannot carry
+    one: its inline ``<script>`` nodes have no ``src``, and its only real
+    script is the ``.esm.`` chunk that ``getBundle`` skips by design so the ESM
+    branch can own it. ``loadBundle()`` therefore resolved with stylesheets and
+    silently no JS.
+    """
+
+    def _descriptor(self, bundle_name):
+        response = self.url_open(f"/web/bundle/{bundle_name}")
+        self.assertEqual(response.status_code, 200, bundle_name)
+        return response.json()
+
+    def test_an_esm_bundle_is_served_in_the_esm_envelope(self):
+        registry = esm_registry()
+        for name in ("web.assets_frontend", "web.assets_frontend_lazy"):
+            self.assertIn(
+                name,
+                registry.bundles,
+                "fixture assumption: this bundle has an ESM build",
+            )
+            self.assertNotIn(
+                name,
+                registry.runtime_bundle_names,
+                "fixture assumption: and nobody declared it a runtime bundle — "
+                "which is exactly the case the old predicate got wrong",
+            )
+            payload = self._descriptor(name)
+            self.assertIsInstance(
+                payload, dict, f"{name} was served in the classic (list) envelope"
+            )
+            self.assertTrue(payload.get("is_esm"), name)
+            self.assertTrue(payload.get("specifiers"), name)
+
+    def test_no_bundle_is_served_classic_while_naming_an_esm_chunk(self):
+        """The contradiction itself, over every ESM bundle this install has.
+
+        A classic descriptor whose only script is a ``.esm.`` chunk yields zero
+        loadable scripts on the client, with no error anywhere.
+        """
+        installed = set(
+            self.env["ir.module.module"]
+            .search([("state", "=", "installed")])
+            .mapped("name")
+        )
+        offenders = []
+        for name in sorted(esm_registry().bundles):
+            if name.split(".", 1)[0] not in installed:
+                continue
+            payload = self._descriptor(name)
+            if isinstance(payload, dict):
+                continue
+            scripts = [e for e in payload if e.get("type") == "script"]
+            loadable = [e for e in scripts if e.get("src") and ".esm." not in e["src"]]
+            if scripts and not loadable:
+                offenders.append(name)
+        self.assertFalse(
+            offenders,
+            f"served in the classic envelope with no loadable script: {offenders}",
+        )

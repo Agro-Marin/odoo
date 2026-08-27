@@ -5020,3 +5020,233 @@ describe("selectors sharing an event", () => {
         expect(core.interactions[0].listenerRecords).toHaveLength(1);
     });
 });
+
+describe("DOM effect scope", () => {
+    test("setup and start run inside the scope", async () => {
+        /** @type {string[]} */
+        const order = [];
+        patchWithCleanup(InteractionService.prototype, {
+            domEffectScope(fn) {
+                order.push("enter");
+                try {
+                    return super.domEffectScope(fn);
+                } finally {
+                    order.push("leave");
+                }
+            },
+        });
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                order.push("setup");
+            }
+            start() {
+                order.push("start");
+            }
+        }
+        await startInteraction(Test, TemplateTest);
+        expect(order.slice(0, 3)).toEqual(["enter", "setup", "leave"]);
+        expect(order).toInclude("start");
+        // every `setup`/`start` is bracketed — none escaped the scope
+        expect(order.filter((s) => s === "enter").length).toBe(
+            order.filter((s) => s === "leave").length,
+        );
+    });
+
+    test("teardown runs inside the scope", async () => {
+        let destroyedInside = false;
+        let inScope = 0;
+        patchWithCleanup(InteractionService.prototype, {
+            domEffectScope(fn) {
+                inScope++;
+                try {
+                    return super.domEffectScope(fn);
+                } finally {
+                    inScope--;
+                }
+            },
+        });
+        class Test extends Interaction {
+            static selector = ".test";
+            destroy() {
+                destroyedInside = inScope > 0;
+            }
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        core.stopInteractions();
+        expect(destroyedInside).toBe(true);
+    });
+
+    test("a listener body runs inside the scope", async () => {
+        let inScope = 0;
+        let handlerInScope = null;
+        patchWithCleanup(InteractionService.prototype, {
+            domEffectScope(fn) {
+                inScope++;
+                try {
+                    return super.domEffectScope(fn);
+                } finally {
+                    inScope--;
+                }
+            },
+        });
+        class Test extends Interaction {
+            static selector = ".test";
+            count = 0;
+            dynamicContent = {
+                span: {
+                    "t-on-click": () => {
+                        handlerInScope = inScope > 0;
+                        this.count++;
+                    },
+                    "t-att-data-count": () => String(this.count),
+                },
+            };
+        }
+        await startInteraction(Test, TemplateTest);
+        await click("span");
+        expect(handlerInScope).toBe(true);
+        expect("span").toHaveAttribute("data-count", "1");
+    });
+
+    test("writing a dynamic attribute or a t-out enters the scope", async () => {
+        let entered = 0;
+        patchWithCleanup(InteractionService.prototype, {
+            domEffectScope(fn) {
+                entered++;
+                return super.domEffectScope(fn);
+            },
+        });
+        class Test extends Interaction {
+            static selector = ".test";
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        const colibri = core.interactions[0];
+        const el = queryOne("span");
+
+        // Each DOM write is scoped on its own, so that a caller reaching one
+        // of them directly is covered without also scoping its own work.
+        let before = entered;
+        colibri.applyAttr(el, "data-x", "1", {});
+        expect(entered).toBe(before + 1);
+        expect(el).toHaveAttribute("data-x", "1");
+
+        before = entered;
+        colibri.applyTOut(el, "hello", null);
+        expect(entered).toBe(before + 1);
+        expect(el).toHaveText("hello");
+    });
+
+    test("keepInHistory as a suffix opts the listener out", async () => {
+        let inScope = 0;
+        let handlerInScope = null;
+        patchWithCleanup(InteractionService.prototype, {
+            domEffectScope(fn) {
+                inScope++;
+                try {
+                    return super.domEffectScope(fn);
+                } finally {
+                    inScope--;
+                }
+            },
+        });
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                span: {
+                    "t-on-click.keepInHistory": () => {
+                        handlerInScope = inScope > 0;
+                    },
+                },
+            };
+        }
+        await startInteraction(Test, TemplateTest);
+        await click("span");
+        expect(handlerInScope).toBe(false);
+    });
+
+    test("keepInHistory composes with another modifier and is stripped from the event", async () => {
+        let inScope = 0;
+        let handlerInScope = null;
+        let defaultPrevented = null;
+        patchWithCleanup(InteractionService.prototype, {
+            domEffectScope(fn) {
+                inScope++;
+                try {
+                    return super.domEffectScope(fn);
+                } finally {
+                    inScope--;
+                }
+            },
+        });
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                span: {
+                    "t-on-click.prevent.keepInHistory": (ev) => {
+                        handlerInScope = inScope > 0;
+                        defaultPrevented = ev.defaultPrevented;
+                    },
+                },
+            };
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        await click("span");
+        expect(handlerInScope).toBe(false);
+        expect(defaultPrevented).toBe(true);
+        // the suffixes are consumed, not passed through to addEventListener
+        expect(core.interactions[0].listenerRecords[0].event).toBe("click");
+    });
+
+    test("a decorator wraps the scope rather than sitting inside it", async () => {
+        /** @type {string[]} */
+        const order = [];
+        patchWithCleanup(InteractionService.prototype, {
+            domEffectScope(fn) {
+                order.push("enter");
+                try {
+                    return super.domEffectScope(fn);
+                } finally {
+                    order.push("leave");
+                }
+            },
+        });
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                span: {
+                    "t-on-click.prevent": () => order.push("body"),
+                },
+            };
+        }
+        await startInteraction(Test, TemplateTest);
+        order.length = 0;
+        await click("span");
+        // `prevent` runs before the scope is entered: decorator outside, scope in
+        expect(order.slice(0, 3)).toEqual(["enter", "body", "leave"]);
+    });
+
+    test("keepInHistory passed as an option does not reach addEventListener", async () => {
+        const seen = [];
+        const target = document.createElement("div");
+        patchWithCleanup(target, {
+            addEventListener(event, handler, options) {
+                seen.push(options);
+                return super.addEventListener(event, handler, options);
+            },
+        });
+        const options = { keepInHistory: true, capture: true };
+        class Test extends Interaction {
+            static selector = ".test";
+            start() {
+                this.addListener(target, "click", () => {}, options);
+            }
+        }
+        await startInteraction(Test, TemplateTest);
+        expect(seen).toHaveLength(1);
+        expect("keepInHistory" in seen[0]).toBe(false);
+        expect(seen[0].capture).toBe(true);
+        // the caller's own object is untouched
+        expect(options.keepInHistory).toBe(true);
+    });
+});

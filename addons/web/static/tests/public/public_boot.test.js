@@ -4,7 +4,8 @@ import { after, describe, expect, getFixture, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { setupGlobalPageBehaviors } from "@web/public/public_boot";
+import lazyloader from "@web/public/lazyloader";
+import { setupGlobalPageBehaviors, startPublicApp } from "@web/public/public_boot";
 
 describe.current.tags("headless");
 
@@ -162,5 +163,33 @@ describe("scrollTop hash", () => {
 
     test("ignores a non-numeric offset rather than scrolling to NaN", () => {
         expect(scrollsFor("#scrollTop=abc")).toEqual([]);
+    });
+});
+
+describe("page readiness", () => {
+    test("the page is marked ready even when the boot fails before mounting", async () => {
+        // `is-ready` is what the website builder's iframe observer, the
+        // add-page dialog and every tour block on. A boot that dies in
+        // `lazyloader`, `whenReady` or `startServices` must still release
+        // them — otherwise the reader waits for a page that will never come.
+        const body = document.body;
+        const had = body.getAttribute("is-ready");
+        after(() => {
+            if (had === null) {
+                body.removeAttribute("is-ready");
+            } else {
+                body.setAttribute("is-ready", had);
+            }
+        });
+        body.removeAttribute("is-ready");
+
+        const boom = new Error("boot failed before the mount");
+        patchWithCleanup(lazyloader, {
+            allScriptsLoaded: Promise.reject(boom),
+        });
+        // the rejection is the point; swallow it the way public_boot_instance does
+        await expect(startPublicApp()).rejects.toThrow(boom.message);
+        await Promise.resolve();
+        expect(body).toHaveAttribute("is-ready", "true");
     });
 });

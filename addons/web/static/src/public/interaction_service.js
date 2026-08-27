@@ -63,6 +63,27 @@ export class InteractionService {
     }
 
     /**
+     * Ambient scope for the DOM effects Colibri performs on an interaction's
+     * behalf — setup, start, teardown, dynamic attribute and `t-out`
+     * application, deferred callbacks, and listener bodies.
+     *
+     * The default runs the effect directly. The website editor shadows this
+     * with an own property that keeps those mutations out of the undo
+     * history, so restarting an interaction is not recorded as something the
+     * user did; a single listener opts back in with the `keepInHistory` event
+     * modifier (see `Colibri.addListener`). It is a seam rather than six
+     * override points because every one of those sites wants the same answer
+     * to the same question, and only the host knows it.
+     *
+     * @template T
+     * @param {() => T} fn
+     * @returns {T}
+     */
+    domEffectScope(fn) {
+        return fn();
+    }
+
+    /**
      * @param {Array<typeof import("@web/public/interaction").Interaction>} Interactions
      * @param {HTMLElement} [target]
      * @returns {void}

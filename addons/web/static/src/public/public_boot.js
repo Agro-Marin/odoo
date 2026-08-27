@@ -101,30 +101,41 @@ export function setupGlobalPageBehaviors() {
  */
 export async function startPublicApp() {
     /** @type {any} */ (odoo).isReady = false;
-    await lazyloader.allScriptsLoaded;
-    await whenReady();
-    const env = makeEnv();
-    await startServices(env);
-
-    Component.env = env;
-    const app = new App(/** @type {any} */ (MainComponentsContainer), {
-        getTemplate,
-        env,
-        dev: /** @type {any} */ (env.debug),
-        translateFn: appTranslateFn,
-        translatableAttributes: ["data-tooltip"],
-    });
-    setupGlobalPageBehaviors();
+    /** @type {import("@web/env").OdooEnv | undefined} */
+    let env;
     try {
+        await lazyloader.allScriptsLoaded;
+        await whenReady();
+        env = makeEnv();
+        await startServices(env);
+
+        Component.env = env;
+        const app = new App(/** @type {any} */ (MainComponentsContainer), {
+            getTemplate,
+            env,
+            dev: /** @type {any} */ (env.debug),
+            translateFn: appTranslateFn,
+            translatableAttributes: ["data-tooltip"],
+        });
+        setupGlobalPageBehaviors();
         const root = await app.mount(document.body);
         // @ts-expect-error -- debug property assigned to odoo global at runtime
         odoo.__WOWL_DEBUG__ = { root };
         /** @type {any} */ (odoo).isReady = true;
+        return env;
     } finally {
+        // `is-ready` says the boot has FINISHED, not that it succeeded, and it
+        // is the only thing that says so: the builder's iframe observer
+        // (`website_builder_action.js`), `add_page_dialog` and every tour block
+        // on it. It used to be set in a `finally` guarding the mount alone,
+        // with three awaits ahead of it — so a boot that died in `lazyloader`,
+        // `whenReady` or `startServices` never reached it and left every reader
+        // waiting for a page that was never going to arrive. Widened to guard
+        // the whole boot; `odoo.isReady` stays the flag that means "and it
+        // worked".
         const settled = (/** @type {Promise<any>} */ prom) => prom.then(noop, noop);
-        settled(env.services["public.interactions"].isReady).then(() =>
-            document.body.setAttribute("is-ready", "true"),
+        settled(Promise.resolve(env?.services["public.interactions"]?.isReady)).then(
+            () => document.body?.setAttribute("is-ready", "true"),
         );
     }
-    return env;
 }

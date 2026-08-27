@@ -16,12 +16,12 @@
 | `@types/models/` | misc | 0 | Model-layer ambient types (`_runtime.d.ts`) |
 | `@types/registries/` | misc | 0 | Registry ambient types (fields, services, views, command, debug, view_widgets) |
 | `boot/` | misc | 2 | `main.js` / `start.js` — backend entry points that build the env and mount `WebClient` |
-| `components/` | features | 29 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
+| `components/` | features | 32 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
 | `components/action_swiper/` | features | 1 | Touch swipe component that triggers actions on left/right swipe gestures |
 | `components/autocomplete/` | features | 2 | Generic autocomplete dropdown with multi-source results and keyboard navigation, plus the shared quick-search core (`name_search.js`) both record autocompletes consume |
 | `components/barcode/` | features | 4 | Camera barcode scanning: video scanner, its dialog, a draggable crop overlay, and a ZXing `BarcodeDetector` polyfill |
 | `components/checkbox/` | features | 1 | Accessible checkbox component with label slot and hotkey support |
-| `components/code_editor/` | features | 1 | Ace-based code editor component with syntax highlighting and theme support |
+| `components/code_editor/` | features | 2 | Ace-based code editor component with syntax highlighting and theme support |
 | `components/color_picker/` | features | 1 | Color picker shell hosting the tabs registered in `color_picker_tabs` |
 | `components/color_picker/custom_color_picker/` | features | 1 | HSL/RGB picker with canvas gradient, sliders, and hex input |
 | `components/color_picker/tabs/` | features | 2 | The two registered tabs: a solid palette and a custom colour input |
@@ -70,7 +70,7 @@
 | `core/position/` | shared | 2 | Hook and geometry utilities for repositioning a popper element against a target |
 | `core/py_js/` | shared | 16 | Python expression tokenizer, parser and interpreter used by `domain=` / `context=` evaluation |
 | `core/tree/` | shared | 17 | Data-only condition-tree primitives: AST, domain ↔ tree ↔ Python-expression conversions, virtual operators, and the `tree_processor` service |
-| `core/utils/` | shared | 26 | Cross-cutting utilities: reactivity (`SignalStore`, `effect`, `derived`), `patch`, concurrency, hooks, timing, IndexedDB, URLs, macros, PDF.js loader, render instrumentation |
+| `core/utils/` | shared | 27 | Cross-cutting utilities: reactivity (`SignalStore`, `effect`, `derived`), `patch`, concurrency, hooks, timing, IndexedDB, URLs, macros, PDF.js loader, render instrumentation |
 | `core/utils/collections/` | shared | 3 | Array/object helpers: groupBy, sortBy, unique, intersection, cartesian, zip |
 | `core/utils/dnd/` | shared | 11 | Drag-and-drop hook builders (`useDraggable`, `useSortable`, nested sortable) and the `sortable` service. The builder is split by what each part must know: `drag_session.js` holds the pointer state machine, `drag_geometry.js` the pure rect/pointer maths, `draggable_hook_params.js` parameter validation and context construction; only `draggable_hook_builder.js` touches OWL |
 | `core/utils/dom/` | shared | 9 | DOM helpers: autoresize, class names, click-away, viewport units, events, HTML/Markup sanitisation, scrolling, XML |
@@ -157,8 +157,8 @@
 | `libs/fontawesome7/` | misc | 0 | Vendored FontAwesome 7 — icon CSS + webfonts |
 | `libs/fontawesome7/css/` | misc | 0 | FontAwesome 7 stylesheets |
 | `libs/fontawesome7/webfonts/` | misc | 0 | FontAwesome 7 webfont files |
-| `model/` | entities | 9 | `Model` base + `useReactiveModel`, the sample-data server/generators/coordinator, search-param schema, shared model types |
-| `model/relational_model/` | entities | 42 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership |
+| `model/` | entities | 10 | `Model` base + `useReactiveModel`, the sample-data server/generators/coordinator, search-param schema, shared model types |
+| `model/relational_model/` | entities | 41 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership |
 | `public/` | pages | 17 | Public (anonymous) page runtime: the `public.interactions` service, `Interaction`/`Colibri`, frontend boot (`public_boot.js`, `public_boot_instance.js`), early-boot `lazyloader.js` / `minimal_dom.js`, login-page interactions, database manager |
 | `scss/` | misc | 0 | Shared SCSS base (variables, mixins, backend styles) — 32 `.scss`, no JS |
 | `search/` | widgets | 17 | Search model and its mixins (domain, group-by, favorites, properties, query, split-domain), search facets/state/context, arch parser, layout, pager hook |
@@ -182,11 +182,11 @@
 | `ui/carousel/` | shared | 1 | Hook wrapping Bootstrap's carousel lifecycle for OWL components |
 | `ui/collapse/` | shared | 1 | Animated expand/collapse panel component |
 | `ui/commands/` | shared | 5 | Command palette (Ctrl+K): the `command` service, palette component, registration hook, categories, default providers |
-| `ui/dialog/` | shared | 3 | `dialog` service, the `Dialog` component, and the standard confirmation dialog |
+| `ui/dialog/` | shared | 4 | `dialog` service, the `Dialog` component, and the standard confirmation dialog |
 | `ui/effects/` | shared | 2 | `effect` service and the rainbow-man effect |
 | `ui/notification/` | shared | 3 | `notification` service, the toast component, and its container |
 | `ui/offcanvas/` | shared | 1 | Slide-in off-canvas panel component |
-| `ui/overlay/` | shared | 3 | `overlay` service, the overlay container, and the presenter that renders entries with nested click-away |
+| `ui/overlay/` | shared | 4 | `overlay` service, the overlay container, and the presenter that renders entries with nested click-away |
 | `ui/popover/` | shared | 4 | `popover` service, the component, its hook, and the detached-target watcher |
 | `ui/pwa/` | shared | 2 | `pwa` service (install prompt) and the Safari install-instructions dialog |
 | `ui/tooltip/` | shared | 2 | `tooltip` service driven by `data-tooltip` attributes, and its component |

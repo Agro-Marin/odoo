@@ -263,10 +263,23 @@ SIGNALSTORE_PATTERN='^(\s*export\s+)?class\s+\w+\s+extends\s+SignalStore\b'
 # the assertion ran and answered confidently with two thirds of its scope
 # missing. Same answer in a workspace and in a worktree rig, or the gate is only
 # trustworthy in one of them.
+# `--include` and the `--exclude-dir` list are not an optimisation, they are what
+# makes this runnable at all. The scope is the WORKSPACE, which holds the
+# checkouts but also the `data_dir` and the venv: measured here, 888165 files
+# under `.data/` against 157211 across all four checkouts, and 884241 of those
+# -- 99.6% -- are attachment blobs under a `filestore/` directory that cannot
+# contain a JS class. Walking them took this function past THIRTY MINUTES per
+# call while CI, whose checkout has neither beside it, ran in seconds; the same
+# "green in CI, unusable in the workspace" shape the roots above were written to
+# avoid. Pruned, and restricted to the files the pattern is about, the same call
+# answers in 0.4s with the same counts (SignalStore 25, Reactive 0).
 count_prod_decls() {
     local pattern="$1"
     local files
-    files=$(grep -REl "$pattern" "$ADDONS/" 2>/dev/null \
+    files=$(grep -REl --include='*.js' \
+        --exclude-dir=filestore --exclude-dir=sessions \
+        --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=__pycache__ \
+        "$pattern" "$ADDONS/" 2>/dev/null \
         | grep -v "machine_doc\|\.test\.js\|\.md$")
     if [ -z "$files" ]; then
         echo 0
@@ -1325,8 +1338,13 @@ assert_eq "STATE_MANAGEMENT typed-events table has the 4 SearchModelEvent rows" 
 #     field_service's fields_get disk cache.
 assert_eq "rpc_cache.js implements the immutable option (deepFreeze)" \
     "$(grep -c 'immutable ? deepFreeze : deepCopy' "$WEB/static/src/core/network/rpc_cache.js")" "1"
+# Counts the CALL, not the phrase. `grep -c 'immutable: true'` also matched the
+# JSDoc that explains what the option does to the payload, so the assertion read
+# 2 the moment the contract was documented -- and, worse, would have read 1 and
+# passed with the call deleted and only the prose left.
 assert_eq "field_service uses cache({type:'disk', immutable:true})" \
-    "$(grep -c 'immutable: true' "$WEB/static/src/core/field_service.js")" "1"
+    "$(grep -cE '\.cache\(\{ *type: *"disk", *immutable: *true *\}\)' \
+        "$WEB/static/src/core/field_service.js")" "1"
 
 # 31. EmbeddedActionsBar extracted out of ControlPanel.
 assert_eq "embedded_actions_bar component exists" \

@@ -11,7 +11,7 @@ export const INITIAL_VALUE = Symbol("initial value");
 export const SKIP_IMPLICIT_UPDATE = Symbol();
 
 const EVENT_MODIFIER_RE =
-    /^(?<event>.*)\.(?<suffix>prevent|stop|capture|once|noUpdate|withTarget)$/;
+    /^(?<event>.*)\.(?<suffix>prevent|stop|capture|once|noUpdate|withTarget|keepInHistory)$/;
 
 /**
  * @type {Record<string, (fn: Function, colibri: Colibri) => (...args: any[]) => any>}
@@ -243,7 +243,7 @@ export class Colibri {
 
     /** @returns {void} */
     setupInteraction() {
-        this.interaction.setup();
+        this.core.domEffectScope(() => this.interaction.setup());
     }
 
     /**
@@ -281,12 +281,15 @@ export class Colibri {
      * @returns {void}
      */
     destroyInteraction() {
-        const errors = this.runCleanups();
-        try {
-            this.interaction.destroy();
-        } catch (error) {
-            errors.push(error);
-        }
+        const errors = this.core.domEffectScope(() => {
+            const errors = this.runCleanups();
+            try {
+                this.interaction.destroy();
+            } catch (error) {
+                errors.push(error);
+            }
+            return errors;
+        });
         if (errors.length === 1) {
             throw errors[0];
         }
@@ -303,15 +306,17 @@ export class Colibri {
      * @returns {void}
      */
     startInteraction(content) {
-        if (content) {
-            this.processContent(content);
-            this.updateContent();
-        }
-        const started = /** @type {unknown} */ (this.interaction.start());
-        if (started instanceof Promise) {
-            const reported = started.catch((error) => this.core.reportError(error));
-            this.core.trackProm(Promise.race([reported, this.tornDown]));
-        }
+        this.core.domEffectScope(() => {
+            if (content) {
+                this.processContent(content);
+                this.updateContent();
+            }
+            const started = /** @type {unknown} */ (this.interaction.start());
+            if (started instanceof Promise) {
+                const reported = started.catch((error) => this.core.reportError(error));
+                this.core.trackProm(Promise.race([reported, this.tornDown]));
+            }
+        });
         this.hasStarted = true;
     }
 
@@ -391,32 +396,69 @@ export class Colibri {
     }
 
     /**
-     * @param {Iterable<EventTarget>} nodes
+     * Read the modifier suffixes off an event name.
+     *
+     * `keepInHistory` is the one modifier that decorates nothing: it opts the
+     * listener out of `domEffectScope`, so its DOM changes count as the user's
+     * own. Accepted as a suffix and as an option, and stripped from `options`
+     * by copy -- `addEventListener` must not receive it, and the caller's
+     * object is not ours to mutate.
+     *
+     * The decorators are returned rather than applied, so the caller can
+     * install the scope UNDER them: `prevent`/`stop`/`noUpdate` must wrap the
+     * scope, not sit inside it, which is where they were when the editor
+     * wrapped the callback and handed the result to `addListener`.
+     *
      * @param {string} event
-     * @param {Function} fn
      * @param {AddEventListenerOptions} [options]
-     * @param {string} [sel]
-     * @returns {{ event: string, handler: EventListener, options: AddEventListenerOptions | undefined, remove: () => void }}
+     * @returns {{ event: string, options: AddEventListenerOptions | undefined, keepInHistory: boolean, decorators: string[] }}
      */
-    addListener(nodes, event, fn, options, sel) {
-        if (typeof fn !== "function") {
-            throw new Error(`Invalid listener for event '${event}' (not a function)`);
+    _readEventModifiers(event, options) {
+        let keepInHistory = false;
+        if (options && "keepInHistory" in options) {
+            const { keepInHistory: keep, ...rest } = /** @type {any} */ (options);
+            keepInHistory = !!keep;
+            options = rest;
         }
-        if (!this.isReady) {
-            throw new Error(
-                "this.addListener can only be called after the interaction is started. Maybe move the call in the start method.",
-            );
-        }
+        const decorators = [];
         let groups = EVENT_MODIFIER_RE.exec(event)?.groups;
         while (groups) {
             const { suffix } = groups;
             if (suffix === "capture" || suffix === "once") {
                 options = { ...options, [suffix]: true };
+            } else if (suffix === "keepInHistory") {
+                keepInHistory = true;
             } else {
-                fn = EVENT_MODIFIERS[suffix](fn, this);
+                decorators.push(suffix);
             }
             event = groups.event;
             groups = EVENT_MODIFIER_RE.exec(event)?.groups;
+        }
+        return { event, options, keepInHistory, decorators };
+    }
+
+    /**
+     * Wrap a listener callback into the handler that is actually registered.
+     *
+     * @param {Function} fn
+     * @param {boolean} keepInHistory
+     * @param {string[]} decorators
+     * @returns {EventListener}
+     */
+    _buildEventHandler(fn, keepInHistory, decorators) {
+        // Scope the interaction's own callback, NOT the handler built below:
+        // the implicit `updateContent()` that follows it must stay outside,
+        // exactly as it was when the editor wrapped the callback itself. An
+        // already-built handler was scoped when it was first registered --
+        // `refreshNodes` re-registers it verbatim, and wrapping twice would
+        // change its identity and leak the listener.
+        if (!(/** @type {any} */ (fn).isHandler) && !keepInHistory) {
+            const effect = fn;
+            fn = (/** @type {any[]} */ ...args) =>
+                this.core.domEffectScope(() => effect.call(this.interaction, ...args));
+        }
+        for (const suffix of decorators) {
+            fn = EVENT_MODIFIERS[suffix](fn, this);
         }
         const fnAny = /** @type {any} */ (fn);
         const handler = fnAny.isHandler
@@ -436,7 +478,32 @@ export class Colibri {
                   return done;
               };
         /** @type {any} */ (handler).isHandler = true;
-        const eventListener = /** @type {EventListener} */ (handler);
+        return /** @type {EventListener} */ (handler);
+    }
+
+    /**
+     * @param {Iterable<EventTarget>} nodes
+     * @param {string} event
+     * @param {Function} fn
+     * @param {AddEventListenerOptions} [options]
+     * @param {string} [sel]
+     * @returns {{ event: string, handler: EventListener, options: AddEventListenerOptions | undefined, remove: () => void }}
+     */
+    addListener(nodes, event, fn, options, sel) {
+        if (typeof fn !== "function") {
+            throw new Error(`Invalid listener for event '${event}' (not a function)`);
+        }
+        if (!this.isReady) {
+            throw new Error(
+                "this.addListener can only be called after the interaction is started. Maybe move the call in the start method.",
+            );
+        }
+        let keepInHistory, decorators;
+        ({ event, options, keepInHistory, decorators } = this._readEventModifiers(
+            event,
+            options,
+        ));
+        const eventListener = this._buildEventHandler(fn, keepInHistory, decorators);
         /** @type {Set<ListenerRecord>} */
         const records = new Set();
         const targets = [...nodes];
@@ -619,48 +686,53 @@ export class Colibri {
      * @returns {void}
      */
     applyTOut(el, value, initialValue, restoring = false) {
-        if (value === INITIAL_VALUE) {
-            value = initialValue;
-        }
-        const html = value instanceof Markup ? value.toString() : null;
-        if (html === null) {
-            if (isSameTextContent(el, value)) {
-                return;
+        return this.core.domEffectScope(() => {
+            if (value === INITIAL_VALUE) {
+                value = initialValue;
             }
-        } else {
-            const applied = this.appliedMarkup.get(el);
-            if (applied?.source === html && isSameNodes(el.childNodes, applied.nodes)) {
-                return;
+            const html = value instanceof Markup ? value.toString() : null;
+            if (html === null) {
+                if (isSameTextContent(el, value)) {
+                    return;
+                }
+            } else {
+                const applied = this.appliedMarkup.get(el);
+                if (
+                    applied?.source === html &&
+                    isSameNodes(el.childNodes, applied.nodes)
+                ) {
+                    return;
+                }
+                if (el.innerHTML === html) {
+                    this.appliedMarkup.set(el, {
+                        source: html,
+                        nodes: [...el.childNodes],
+                    });
+                    return;
+                }
             }
-            if (el.innerHTML === html) {
-                this.appliedMarkup.set(el, {
-                    source: html,
-                    nodes: [...el.childNodes],
-                });
-                return;
-            }
-        }
-        const interactions = this.core;
-        const stopTargets = () => {
-            for (const node of [...el.children]) {
-                interactions.stopInteractions(/** @type {HTMLElement} */ (node));
-            }
-        };
-        if (html !== null) {
-            stopTargets();
-            el.innerHTML = html;
-            this.appliedMarkup.set(el, { source: html, nodes: [...el.childNodes] });
-            if (!restoring) {
-                interactions.startInteractions(el);
-                this.refreshNodes();
-            }
-        } else {
-            this.appliedMarkup.delete(el);
-            if (el.children.length) {
+            const interactions = this.core;
+            const stopTargets = () => {
+                for (const node of [...el.children]) {
+                    interactions.stopInteractions(/** @type {HTMLElement} */ (node));
+                }
+            };
+            if (html !== null) {
                 stopTargets();
+                el.innerHTML = html;
+                this.appliedMarkup.set(el, { source: html, nodes: [...el.childNodes] });
+                if (!restoring) {
+                    interactions.startInteractions(el);
+                    this.refreshNodes();
+                }
+            } else {
+                this.appliedMarkup.delete(el);
+                if (el.children.length) {
+                    stopTargets();
+                }
+                el.textContent = value;
             }
-            el.textContent = value;
-        }
+        });
     }
 
     /**
@@ -671,48 +743,55 @@ export class Colibri {
      * @returns {void}
      */
     applyAttr(el, attr, value, initialValue) {
-        if (attr === "class") {
-            assertAttrObject(attr, value);
-            for (const cl of Object.keys(value)) {
-                const toApply = value[cl];
-                for (const c of splitClassNames(cl)) {
-                    const apply = toApply === INITIAL_VALUE ? initialValue[c] : toApply;
-                    el.classList.toggle(c, apply || false);
+        return this.core.domEffectScope(() => {
+            if (attr === "class") {
+                assertAttrObject(attr, value);
+                for (const cl of Object.keys(value)) {
+                    const toApply = value[cl];
+                    for (const c of splitClassNames(cl)) {
+                        const apply =
+                            toApply === INITIAL_VALUE ? initialValue[c] : toApply;
+                        el.classList.toggle(c, apply || false);
+                    }
                 }
-            }
-        } else if (attr === "style") {
-            assertAttrObject(attr, value);
-            for (const prop of Object.keys(value)) {
-                let style = value[prop];
-                if (style === INITIAL_VALUE) {
-                    style = initialValue[prop];
-                }
-                if (style === undefined) {
-                    el.style.removeProperty(prop);
-                } else {
-                    style = String(style);
-                    if (style.endsWith(" !important")) {
-                        el.style.setProperty(prop, style.slice(0, -11), "important");
+            } else if (attr === "style") {
+                assertAttrObject(attr, value);
+                for (const prop of Object.keys(value)) {
+                    let style = value[prop];
+                    if (style === INITIAL_VALUE) {
+                        style = initialValue[prop];
+                    }
+                    if (style === undefined) {
+                        el.style.removeProperty(prop);
                     } else {
-                        el.style.setProperty(prop, style);
+                        style = String(style);
+                        if (style.endsWith(" !important")) {
+                            el.style.setProperty(
+                                prop,
+                                style.slice(0, -11),
+                                "important",
+                            );
+                        } else {
+                            el.style.setProperty(prop, style);
+                        }
+                    }
+                }
+            } else {
+                if (value === INITIAL_VALUE) {
+                    value = initialValue;
+                }
+                if (value === false || value === undefined || value === null) {
+                    if (el.hasAttribute(attr)) {
+                        el.removeAttribute(attr);
+                    }
+                } else {
+                    const next = value === true ? attr : String(value);
+                    if (el.getAttribute(attr) !== next) {
+                        el.setAttribute(attr, next);
                     }
                 }
             }
-        } else {
-            if (value === INITIAL_VALUE) {
-                value = initialValue;
-            }
-            if (value === false || value === undefined || value === null) {
-                if (el.hasAttribute(attr)) {
-                    el.removeAttribute(attr);
-                }
-            } else {
-                const next = value === true ? attr : String(value);
-                if (el.getAttribute(attr) !== next) {
-                    el.setAttribute(attr, next);
-                }
-            }
-        }
+        });
     }
 
     /**
@@ -987,6 +1066,8 @@ export class Colibri {
      * @returns {Function}
      */
     bindDeferred(interaction, fn) {
-        return fn.bind(interaction);
+        const bound = fn.bind(interaction);
+        return (/** @type {any[]} */ ...args) =>
+            this.core.domEffectScope(() => bound(...args));
     }
 }

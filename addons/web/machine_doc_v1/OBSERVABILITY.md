@@ -29,12 +29,12 @@ they answer different questions.
 **`?debug=<namespace>` does not work and never did — except for `assets`.** The server normalises the
 debug parameter against an allowlist in `web/models/ir_http.py`:
 `ALLOWED_DEBUG_MODES = ["", "1", "assets", "tests"]`
-— and rewrites anything else to `"1"` before the page is built. Of the nine namespaces only `assets` survives
+— and rewrites anything else to `"1"` before the page is built. Of the ten namespaces only `assets` survives
 that filter, so `?debug=rpc` has never reached `rpcLog`. `localStorage` is the
 route for the console gate. `ESM_BUNDLING.md`'s "Debug toggles" section is
 correct and should not be "fixed" to match this one: it documents `?debug=assets`
 only, which is the single namespace that survives the filter. The gap is that the
-eight namespaces added since have no URL route, not that its instructions are
+nine namespaces added since have no URL route, not that its instructions are
 wrong. The sink reads `location.search` **directly**, which
 nothing normalises, so it needs no change to a production allowlist for a
 surface that is deleted at the end of the campaign.
@@ -83,7 +83,7 @@ mount produced, which is what makes it dangerous: it looks like a plausible
 answer rather than a missing one. Mount once per test, or the count is of the
 first arch.
 
-**HOOT cannot see one of the nine namespaces.**
+**HOOT cannot see one of the ten namespaces.**
 
 | Namespace | In HOOT | Why |
 |---|---|---|
@@ -106,7 +106,7 @@ zero is a claim about the probe until the guard has been checked.
 
 ## The namespaces
 
-9 namespaces, each with its own flag and its own `make<Name>Log(category)`
+10 namespaces, each with its own flag and its own `make<Name>Log(category)`
 factory.
 
 | Namespace | Flag substring | Wired at | Answers |
@@ -120,6 +120,7 @@ factory.
 | `service` | `service` | `env.js` (`_startServices`) | Start order, dependencies, failures |
 | `view` | `view` | `views/view.js` | Which view types load, and which hit the server |
 | `field` | `field` | `fields/field.js` (`getFieldFromRegistry`) | Which field widget every arch node resolves to |
+| `livechat` | `livechat` | `im_livechat/static/src/embed/cors/boot.js` (`cors`), `im_livechat/static/src/embed/common/livechat_service.js` (`service`) | The CORS URL rewrite, and the embed's init and persist paths |
 
 The last four were added by this campaign. `component`, `service`, `view` and
 `field` are **choke points**: every module in the tree flows through them, so
@@ -146,7 +147,7 @@ Four properties make it safe to run against a shared tree:
 
 1. **Reversible exactly.** Every inserted line carries a `// trace-stamp`
    trailing comment; `--revert` removes lines carrying it and nothing else. An
-   apply/revert cycle over `addons/web/static/src` returns all 807 files
+   apply/revert cycle over `addons/web/static/src` returns all 814 files
    byte-identical.
 2. **Idempotent.** A second `--apply` stamps 0 lines.
 3. **Lint-clean on arrival — and `--fix` must NOT be run.** A stamped tree
