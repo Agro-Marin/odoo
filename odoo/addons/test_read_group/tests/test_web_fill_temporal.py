@@ -8,6 +8,12 @@ class TestFillTemporal(common.TransactionCase):
         super().setUp()
         self.Model = self.env["test_read_group.fill_temporal"]
 
+    @staticmethod
+    def _non_empty(expected):
+        """Derive the expected no-fill_temporal result (empty buckets
+        dropped) from the expected fill_temporal=True result."""
+        return [group for group in expected if group["__count"]]
+
     def test_date_range_and_flag(self):
         self.Model.create({"date": "1916-08-18", "value": 2})
         self.Model.create({"date": "1916-10-19", "value": 3})
@@ -70,7 +76,7 @@ class TestFillTemporal(common.TransactionCase):
             [], groupby=["date:month"], aggregates=["__count", "value:sum"]
         )
 
-        self.assertEqual(groups, [group for group in expected if group["__count"]])
+        self.assertEqual(groups, self._non_empty(expected))
 
         groups = self.Model.with_context(fill_temporal=True).formatted_read_group(
             [],
@@ -317,7 +323,7 @@ class TestFillTemporal(common.TransactionCase):
         groups = self.Model.formatted_read_group(
             [], groupby=["date:month"], aggregates=["__count", "value:sum"]
         )
-        self.assertEqual(groups, [group for group in expected if group["__count"]])
+        self.assertEqual(groups, self._non_empty(expected))
 
         groups = self.Model.with_context(fill_temporal=True).formatted_read_group(
             [], groupby=["date:month"], aggregates=["__count", "value:sum"]
@@ -505,10 +511,54 @@ class TestFillTemporal(common.TransactionCase):
             [], ["date:week"], ["__count", "value:sum"]
         )
 
-        self.assertEqual(groups, [group for group in expected if group["__count"]])
+        self.assertEqual(groups, self._non_empty(expected))
 
         groups = self.Model.with_context(fill_temporal=True).formatted_read_group(
             [], ["date:week"], ["__count", "value:sum"]
+        )
+
+        self.assertEqual(groups, expected)
+
+    def test_date_range_groupby_week_across_year_boundary(self):
+        # Regression coverage for the week/year boundary around Dec 31 - Jan
+        # 1, a classic off-by-one class for calendar-week bucketing: a week
+        # can straddle two calendar years, and the label's year must follow
+        # the bucket's own start, not the record's date.
+        self.Model.create(
+            [
+                {"date": "2020-12-30", "value": 4},
+                {"date": "2021-01-02", "value": 5},
+                {"date": "2021-01-05", "value": 9},
+            ]
+        )
+
+        expected = [
+            {
+                "__extra_domain": [
+                    "&",
+                    ("date", ">=", "2020-12-27"),
+                    ("date", "<", "2021-01-03"),
+                ],
+                "date:week": ("2020-12-27", "W1 2021"),
+                "__count": 2,
+                "value:sum": 9,
+            },
+            {
+                "__extra_domain": [
+                    "&",
+                    ("date", ">=", "2021-01-03"),
+                    ("date", "<", "2021-01-10"),
+                ],
+                "date:week": ("2021-01-03", "W2 2021"),
+                "__count": 1,
+                "value:sum": 9,
+            },
+        ]
+
+        groups = self.Model.with_context(fill_temporal=True).formatted_read_group(
+            [("date", ">=", "2020-12-20"), ("date", "<", "2021-01-20")],
+            ["date:week"],
+            ["__count", "value:sum"],
         )
 
         self.assertEqual(groups, expected)
@@ -556,7 +606,7 @@ class TestFillTemporal(common.TransactionCase):
         groups = self.Model.formatted_read_group(
             [], ["date:month"], ["__count", "value:sum"]
         )
-        self.assertEqual(groups, [group for group in expected if group["__count"]])
+        self.assertEqual(groups, self._non_empty(expected))
 
         groups = self.Model.with_context(fill_temporal=True).formatted_read_group(
             [], ["date:month"], ["__count", "value:sum"]
@@ -614,7 +664,7 @@ class TestFillTemporal(common.TransactionCase):
         groups = self.Model.formatted_read_group(
             [], ["datetime:month"], ["__count", "value:sum"]
         )
-        self.assertEqual(groups, [group for group in expected if group["__count"]])
+        self.assertEqual(groups, self._non_empty(expected))
 
         groups = self.Model.with_context(fill_temporal=True).formatted_read_group(
             [], ["datetime:month"], ["__count", "value:sum"]
@@ -866,7 +916,7 @@ class TestFillTemporal(common.TransactionCase):
         )
         self.assertEqual(groups, expected)
 
-    def test_hour_with_timezones(self):
+    def test_hour_with_timezone(self):
         self.Model.create({"datetime": "1915-12-31 22:30:00", "value": 2})
         self.Model.create({"datetime": "1916-01-01 03:30:00", "value": 3})
 
@@ -939,10 +989,16 @@ class TestFillTemporal(common.TransactionCase):
         )
         self.assertEqual(groups, expected)
 
-    def test_quarter_with_timezones(self):
+    def test_quarter_with_timezone(self):
         self.Model.create({"datetime": "2016-01-01 03:30:00", "value": 2})
         self.Model.create({"datetime": "2016-12-30 22:30:00", "value": 3})
 
+        # NOTE: the UTC offsets baked into __extra_domain/labels below are
+        # derived from Asia/Hovd's historical DST rules for 2015-2016 as
+        # currently published by tzdata. Mongolia's DST rules have been
+        # revised by tzdata more than once; a future tzdata correction to
+        # this historical period could shift these boundaries with no code
+        # change here.
         expected = [
             {
                 "__extra_domain": [
@@ -992,9 +1048,11 @@ class TestFillTemporal(common.TransactionCase):
         )
         self.assertEqual(groups, expected)
 
-    def test_edge_fx_tz(self):
+    def test_month_boundary_crosses_dst_offset(self):
         self.Model.create({"datetime": "2017-12-31 21:00:00", "value": 42})
 
+        # See the tzdata-snapshot note in test_quarter_with_timezone above:
+        # this offset is likewise derived from Asia/Hovd's historical rules.
         expected = [
             {
                 "__extra_domain": [
@@ -1098,9 +1156,51 @@ class TestFillTemporal(common.TransactionCase):
             },
         ).formatted_read_group([], ["datetime:month"], ["__count", "value:sum"])
 
-        self.assertEqual(len(groups), 4)
-        self.assertEqual(sum(g["value:sum"] or 0 for g in groups), 7)
-        self.assertEqual([g["__count"] for g in groups], [0, 0, 0, 1])
+        self.assertEqual(
+            groups,
+            [
+                {
+                    "__extra_domain": [
+                        "&",
+                        ("datetime", ">=", "1916-01-31 23:00:00"),
+                        ("datetime", "<", "1916-02-29 23:00:00"),
+                    ],
+                    "datetime:month": ("1916-01-31 23:00:00", "February 1916"),
+                    "__count": 0,
+                    "value:sum": False,
+                },
+                {
+                    "__extra_domain": [
+                        "&",
+                        ("datetime", ">=", "1916-02-29 23:00:00"),
+                        ("datetime", "<", "1916-03-31 23:00:00"),
+                    ],
+                    "datetime:month": ("1916-02-29 23:00:00", "March 1916"),
+                    "__count": 0,
+                    "value:sum": False,
+                },
+                {
+                    "__extra_domain": [
+                        "&",
+                        ("datetime", ">=", "1916-03-31 23:00:00"),
+                        ("datetime", "<", "1916-04-30 23:00:00"),
+                    ],
+                    "datetime:month": ("1916-03-31 23:00:00", "April 1916"),
+                    "__count": 0,
+                    "value:sum": False,
+                },
+                {
+                    "__extra_domain": [
+                        "&",
+                        ("datetime", ">=", "1916-05-31 22:00:00"),
+                        ("datetime", "<", "1916-06-30 22:00:00"),
+                    ],
+                    "datetime:month": ("1916-05-31 22:00:00", "June 1916"),
+                    "__count": 1,
+                    "value:sum": 7,
+                },
+            ],
+        )
 
     def test_with_bounds_groupby_week(self):
         self.Model.create(
