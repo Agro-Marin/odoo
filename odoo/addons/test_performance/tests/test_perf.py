@@ -637,21 +637,29 @@ class TestUnlink(PerfTestCase):
         cls.Model = cls.env["test_performance.base"]
 
     def test_01_unlink_single(self):
-
-        def bench():
+        # create() used to sit inside the timed closure alongside
+        # unlink(), so "unlink(single)" measured create+unlink together.
+        # Pre-create the record (untimed) and time only the unlink() call.
+        timer = PerfTimer()
+        for _ in range(5):
+            self.Model.create({"name": "unlinkme"}).unlink()
+        for _ in range(50):
             rec = self.Model.create({"name": "unlinkme"})
+            timer.start()
             rec.unlink()
-
-        timer = _bench(bench, n=50, warmup=5)
+            timer.stop()
         self._log(timer.stats("unlink(single)", warmup=0))
 
     def test_02_unlink_batch(self):
-
-        def bench():
+        # Same reasoning as test_01_unlink_single.
+        timer = PerfTimer()
+        for _ in range(3):
+            self.Model.create([{"name": f"unlinkme_{i}"} for i in range(10)]).unlink()
+        for _ in range(30):
             recs = self.Model.create([{"name": f"unlinkme_{i}"} for i in range(10)])
+            timer.start()
             recs.unlink()
-
-        timer = _bench(bench, n=30, warmup=3)
+            timer.stop()
         self._log(timer.stats("unlink(batch_10)", warmup=0))
 
 
