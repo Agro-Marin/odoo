@@ -3,14 +3,12 @@ from typing import Any
 from odoo import _, api, exceptions, fields, models
 
 
+# Creates a structured relationship where experienced users guide
+# newcomers.  Mentors earn karma when their mentee hits milestones,
+# creating a win-win dynamic (Octalysis drives 1 + 5: Epic Meaning
+# + Social Influence).
 class GamificationMentorship(models.Model):
-    """Mentor-mentee pairing for guided gamification progression.
-
-    Creates a structured relationship where experienced users guide
-    newcomers.  Mentors earn karma when their mentee hits milestones,
-    creating a win-win dynamic (Octalysis drives 1 + 5: Epic Meaning
-    + Social Influence).
-    """
+    """Mentor-mentee pairing for guided gamification progression."""
 
     _name = "gamification.mentorship"
     _description = "Gamification Mentorship"

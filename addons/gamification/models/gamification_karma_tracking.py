@@ -11,14 +11,12 @@ from odoo.tools import date_utils
 KARMA_VALUE_FIELDS = frozenset({"gain", "new_value", "old_value", "user_id"})
 
 
+# Each record represents a single karma change event.  The ``new_value``
+# field is the user's karma *after* the change; ``gain`` is computed as
+# ``new_value - old_value``.  Monthly consolidation compresses old records
+# into one-per-user-per-month summaries.
 class GamificationKarmaTracking(models.Model):
-    """Audit log of all karma changes with source attribution.
-
-    Each record represents a single karma change event.  The ``new_value``
-    field is the user's karma *after* the change; ``gain`` is computed as
-    ``new_value - old_value``.  Monthly consolidation compresses old records
-    into one-per-user-per-month summaries.
-    """
+    """Audit log of all karma changes with source attribution."""
 
     _name = "gamification.karma.tracking"
     _description = "Track Karma Changes"
