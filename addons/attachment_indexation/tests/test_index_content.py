@@ -5,7 +5,10 @@ import zipfile
 
 from odoo.tests import TransactionCase, tagged
 
-from odoo.addons.attachment_indexation.models.ir_attachment import _csv_escape
+from odoo.addons.attachment_indexation.models.ir_attachment import (
+    _csv_escape,
+    index_content_cache,
+)
 
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -62,3 +65,21 @@ class TestIndexContent(TransactionCase):
     def test_index_read_size_bounded_for_plain_text(self):
         """Plain text defers to the base bounded prefix (not None)."""
         self.assertIsNotNone(self.Attachment._get_index_read_size("text/plain"))
+
+    def test_copy_cache_retains_every_checksum_in_batch(self):
+        """copy()'s pre-warm must not evict all but the last checksum from a
+        multi-record batch (LRU(1) self-defeat)."""
+        self.env["ir.config_parameter"].sudo().set_param("ir_attachment.location", "db")
+        attachments = self.Attachment.create(
+            [{"name": f"f{i}.txt", "raw": f"content {i}".encode()} for i in range(5)]
+        )
+        self.assertFalse(
+            attachments[0].store_fname, "must be db_datas-backed for this test"
+        )
+        attachments.copy()
+        for attachment in attachments:
+            self.assertIn(
+                attachment.checksum,
+                index_content_cache,
+                "every checksum in the batch must survive the pre-warm",
+            )

@@ -390,6 +390,12 @@ class IrAttachment(models.Model):
         return super()._get_index_read_size(mimetype)
 
     def copy(self, default=None):
+        # LRU(1) can only ever retain the last entry written to it: pre-warming
+        # it one checksum at a time for a multi-record `self` evicts every
+        # entry but the last before super().copy() ever reads it back. Grow
+        # the cache to fit this batch (never shrink it back down) so every
+        # checksum survives until it's consumed.
+        index_content_cache.count = max(index_content_cache.count, len(self))
         for attachment in self:
             index_content_cache[attachment.checksum] = attachment.index_content
         return super().copy(default=default)
