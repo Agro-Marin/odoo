@@ -83,9 +83,19 @@ class AccountPayment(models.Model):
 
     @api.depends("payment_method_line_id")
     def _compute_suitable_payment_token_ids(self):
-        for payment in self:
-            if payment.use_electronic_payment_method:
-                payment.suitable_payment_token_ids = (
+        electronic_payments = self.filtered("use_electronic_payment_method")
+        # One search per distinct (company, partner, provider) group instead of
+        # one per record: this compute typically runs over few distinct groups
+        # even when self holds many payments.
+        tokens_per_group = {}
+        for payment in electronic_payments:
+            group_key = (
+                payment.company_id.id,
+                payment.partner_id.id,
+                payment.payment_method_line_id.payment_provider_id.id,
+            )
+            if group_key not in tokens_per_group:
+                tokens_per_group[group_key] = (
                     self.env["payment.token"]
                     .sudo()
                     .search(
@@ -103,8 +113,9 @@ class AccountPayment(models.Model):
                         ]
                     )
                 )
-            else:
-                payment.suitable_payment_token_ids = [Command.clear()]
+            payment.suitable_payment_token_ids = tokens_per_group[group_key]
+        for payment in self - electronic_payments:
+            payment.suitable_payment_token_ids = [Command.clear()]
 
     @api.depends("payment_method_line_id")
     def _compute_use_electronic_payment_method(self):
