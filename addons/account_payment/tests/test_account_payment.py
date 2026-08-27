@@ -170,6 +170,57 @@ class TestAccountPayment(AccountPaymentCommon):
             payment_with_token.action_post()
             patched.assert_called_once()
 
+    def test_suitable_payment_token_ids_grouped_by_company_partner_provider(self):
+        """Test that _compute_suitable_payment_token_ids returns the right tokens for
+        each distinct (company, partner, provider) group when computed on a batch of
+        several account.payment records sharing the same group."""
+        provider_method_line = (
+            self.provider.journal_id.inbound_payment_method_line_ids.filtered(
+                lambda l: l.payment_provider_id == self.provider
+            )
+        )
+        token = self._create_token()
+        other_partner = self.partner.copy()
+        other_token = self._create_token(partner_id=other_partner.id)
+        payments = self.env["account.payment"].create(
+            [
+                {
+                    "payment_type": "inbound",
+                    "partner_type": "customer",
+                    "amount": 100.0,
+                    "date": "2019-01-01",
+                    "currency_id": self.currency.id,
+                    "partner_id": self.partner.id,
+                    "journal_id": self.provider.journal_id.id,
+                    "payment_method_line_id": provider_method_line.id,
+                },
+                {
+                    "payment_type": "inbound",
+                    "partner_type": "customer",
+                    "amount": 200.0,
+                    "date": "2019-01-01",
+                    "currency_id": self.currency.id,
+                    "partner_id": self.partner.id,
+                    "journal_id": self.provider.journal_id.id,
+                    "payment_method_line_id": provider_method_line.id,
+                },
+                {
+                    "payment_type": "inbound",
+                    "partner_type": "customer",
+                    "amount": 300.0,
+                    "date": "2019-01-01",
+                    "currency_id": self.currency.id,
+                    "partner_id": other_partner.id,
+                    "journal_id": self.provider.journal_id.id,
+                    "payment_method_line_id": provider_method_line.id,
+                },
+            ]
+        )
+        same_group_1, same_group_2, other_group = payments
+        self.assertEqual(same_group_1.suitable_payment_token_ids, token)
+        self.assertEqual(same_group_2.suitable_payment_token_ids, token)
+        self.assertEqual(other_group.suitable_payment_token_ids, other_token)
+
     def test_no_payment_for_validations(self):
         tx = self._create_transaction(
             flow="dummy", operation="validation"
