@@ -98,7 +98,7 @@ class AccountMove(models.Model):
         errors = []
         if not enabled_feature:
             errors.append(_("This invoice cannot be paid online."))
-        if transactions or self.currency_id.is_zero(self.amount_residual):
+        if transactions and not self.currency_id.is_zero(self.amount_residual):
             errors.append(_("There is no amount to be paid."))
         if self.state != "posted":
             errors.append(_("This invoice isn't posted."))

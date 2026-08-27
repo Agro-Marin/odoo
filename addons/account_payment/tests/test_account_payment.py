@@ -170,6 +170,34 @@ class TestAccountPayment(AccountPaymentCommon):
             payment_with_token.action_post()
             patched.assert_called_once()
 
+    def test_online_payment_error_no_duplicate_message_when_fully_paid(self):
+        """Test that _get_online_payment_error does not emit both 'There is no amount
+        to be paid.' and 'This invoice has already been paid.' for the same
+        zero-residual cause."""
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "invoice_line_ids": [
+                    Command.create({"name": "test line", "price_unit": 100.0}),
+                ],
+            }
+        )
+        invoice.action_post()
+        errors_before_payment = invoice._get_online_payment_error()
+        self.assertNotIn("This invoice has already been paid.", errors_before_payment)
+
+        self._register_payment(invoice)
+        self.assertTrue(invoice.currency_id.is_zero(invoice.amount_residual))
+        errors_after_payment = invoice._get_online_payment_error()
+        self.assertIn("This invoice has already been paid.", errors_after_payment)
+        self.assertEqual(
+            errors_after_payment.count("There is no amount to be paid."),
+            0,
+            "The zero-residual cause should only produce one message ('already paid'), "
+            "not two overlapping ones.",
+        )
+
     def test_suitable_payment_token_ids_grouped_by_company_partner_provider(self):
         """Test that _compute_suitable_payment_token_ids returns the right tokens for
         each distinct (company, partner, provider) group when computed on a batch of
