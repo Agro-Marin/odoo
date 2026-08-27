@@ -196,6 +196,7 @@ class ResPartner(models.Model):
         invalidated as soon as the user logs in.
         """
         self.ensure_one()
+        self = self.sudo()
         if not expiration:
             if self.signup_type == "reset":
                 expiration = int(
@@ -210,9 +211,7 @@ class ResPartner(models.Model):
                     )
                 )
         plist = [self.id, self.user_ids.ids, self._get_login_date(), self.signup_type]
-        return tools.hash_sign(
-            self.sudo().env, "signup", plist, expiration_hours=expiration
-        )
+        return tools.hash_sign(self.env, "signup", plist, expiration_hours=expiration)
 
     @api.model
     def _get_partner_from_token(self, token):
