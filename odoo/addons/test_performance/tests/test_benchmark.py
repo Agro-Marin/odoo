@@ -513,8 +513,8 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
         The slowest-operations listing below used to be reimplemented here;
         it is exactly what log_benchmark_summary() already provides, so this
         now calls it and only adds the breakdowns that method doesn't have:
-        ranking by overhead ratio, the zero-query/pure-Python bucket, and
-        the aggregate/JSON export.
+        ranking by absolute overhead, the zero-query/pure-Python bucket,
+        and the aggregate/JSON export.
         """
         if not self.all_results:
             _logger.info("[ORM_BENCHMARK] No results to summarize.")
@@ -524,8 +524,12 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
         _logger.info("[ORM_BENCHMARK] FINAL SUMMARY")
         _logger.info("=" * 80)
 
+        # Ranked by python_time_us, the absolute overhead: python_ratio is
+        # a fraction (1 - db_ratio), so a zero-query benchmark trivially
+        # scores 1.0 and would dominate this ranking regardless of its
+        # actual magnitude.
         sorted_by_overhead = sorted(
-            self.all_results, key=lambda x: x.python_ratio, reverse=True
+            self.all_results, key=lambda x: x.python_time_us, reverse=True
         )
 
         _logger.info("\n[ORM_BENCHMARK] HIGHEST ORM OVERHEAD:")
