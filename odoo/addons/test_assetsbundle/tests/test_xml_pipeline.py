@@ -7,7 +7,7 @@ from odoo.tools import mute_logger
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path
 
-from .common import FileTouchable, asset_file
+from .common import FileTouchable, asset_file, make_bundle
 from odoo.addons.base.models.assetsbundle import (
     AssetsBundle,
     XMLAsset,
@@ -279,10 +279,10 @@ class TestTemplateBlockFollowsModuleCode(BaseCase):
 
 class TestTemplateInheritance(TransactionCase):
     def _bundle(self, *templates):
-        return AssetsBundle(
+        return make_bundle(
+            self,
             "test_assetsbundle.inherit",
-            [asset_file(f"/m/static/src/t{i}.xml", t) for i, t in enumerate(templates)],
-            env=self.env,
+            *((f"/m/static/src/t{i}.xml", t) for i, t in enumerate(templates)),
             css=False,
         )
 

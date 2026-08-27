@@ -1,6 +1,7 @@
 import os
 import pathlib
 import time
+from itertools import starmap
 from unittest.mock import patch
 
 import odoo.modules
@@ -16,6 +17,22 @@ def asset_file(url, content, last_modified=1.0):
         "content": content,
         "last_modified": last_modified,
     }
+
+
+def make_bundle(case, name, *file_specs, **kwargs):
+    """Build a real AssetsBundle from synthetic (url, content[, last_modified])
+    file specs, against `case.env`.
+
+    This only covers tests that hand-build their own in-memory files - not
+    tests that need the real qweb/manifest asset-discovery machinery (e.g.
+    `TestXMLAssetsBundle._get_asset`, which resolves files through
+    `ir.qweb._get_asset_content`).
+    """
+    from odoo.addons.base.models.assetsbundle import AssetsBundle
+
+    return AssetsBundle(
+        name, list(starmap(asset_file, file_specs)), env=case.env, **kwargs
+    )
 
 
 def make_cursor_readonly(case):
