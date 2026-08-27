@@ -24,19 +24,7 @@ COMPARATORS = {
 
 
 class ResourceReservation(models.Model):
-    """Concrete booking record for any resource over a time window.
-
-    Holds canonical scheduling data (``date_start``, ``date_end``,
-    ``resource_id``, ``resource_calendar_id``) locally and an origin
-    reference (``res_model`` / ``res_id``) back to the consumer that
-    created it (``project.task``, ``room.booking``, ``mrp.workorder``, ...).
-
-    Consumer models own :class:`mixin.resource.scheduling` for the O2M
-    linkage and the ``_sync_reservations`` lifecycle; this model stays
-    standalone so that all reservations live in one table, enabling
-    cross-module conflict detection (e.g. a person double-booked across
-    a task and a room).
-    """
+    """Concrete booking record for any resource over a time window."""
 
     _name = "resource.reservation"
     _description = "Resource Reservation"

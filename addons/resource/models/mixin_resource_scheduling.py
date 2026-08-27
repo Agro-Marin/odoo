@@ -2,35 +2,7 @@ from odoo import api, fields, models
 
 
 class MixinResourceScheduling(models.AbstractModel):
-    """Projects a consumer's schedule into the shared ``resource.reservation`` ledger.
-
-    This mixin is a *projection*, not a base class.  It owns the mapping from
-    consumer state to ledger rows — reconciliation, archive mirroring, orphan
-    cleanup — and the read-only query surface over the result.  It owns no
-    business field, and deliberately says nothing about what allocation means.
-
-    Provides:
-    - Reverse One2many to ``resource.reservation`` via ``(res_model, res_id)``
-    - Computed ``schedule_overlap_count``, saved and unsaved records alike
-    - CRUD hooks that reconcile reservations via ``_sync_reservations``
-    - Contracts consumers override: ``_get_fields_reservation_date``,
-      ``_get_reservation_vals_list``, ``_get_fields_sync_trigger``
-    - Utility methods (``_scheduling_get_work_hours``,
-      ``_scheduling_plan_hours``, ``_scheduling_snap_to_calendar``,
-      ``_scheduling_resolve_calendar``) for calendar-aware computations
-      independent of field-name conventions
-
-    **Why no allocation fields here.**  Field dependencies *union* along the
-    MRO (``odoo/orm/fields/base.py``, ``get_depends``): a consumer that
-    overrides a compute inherited from a mixin keeps the mixin's dependency
-    edges as well as its own, permanently and invisibly.  A mixin field is
-    therefore only safe when no consumer will ever want different semantics.
-    ``allocated_hours`` failed that test — task hours are a sum over
-    assignees, work-order time is workcenter capacity in minutes, a shift's
-    hours invert into a percentage that may exceed 100 — so they live in the
-    opt-in :class:`mixin.resource.allocation` instead.
-    ``schedule_overlap_count`` passes it: it is derived from the ledger alone.
-    """
+    """Projects a consumer's schedule into the shared ``resource.reservation`` ledger."""
 
     _name = "mixin.resource.scheduling"
     _description = "Resource Scheduling Mixin"

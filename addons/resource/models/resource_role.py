@@ -4,25 +4,7 @@ from odoo import fields, models
 
 
 class ResourceRole(models.Model):
-    """A capability a resource can be asked to fulfil.
-
-    Chef, Bartender, Developer, Reviewer: a named, colour-coded, orderable
-    tag that answers "what can this person do" and "what does this piece of
-    work need". It lives here because that question belongs to the resource,
-    not to whichever app is asking -- ``project`` and ``planning`` each grew
-    their own copy of this model, field for field, and a role defined in one
-    was invisible to the other even when both meant the same person.
-
-    Deliberately *not* ``res.role`` (``mail``), which looks like the same
-    thing and is not: that one is a mention group, a set of users an ``@role``
-    notifies, with a unique name and no notion of capacity, colour or order.
-
-    Uniqueness is not enforced. Neither predecessor enforced it, and live data
-    is free to hold two roles of the same name; adopting ``mixin.catalog``
-    (which would supply ``name``/``active`` and a uniqueness index that has to
-    be explicitly declined) is a reasonable follow-up, not something to fold
-    into a data migration.
-    """
+    """A capability a resource can be asked to fulfil."""
 
     _name = "resource.role"
     _description = "Resource Role"
