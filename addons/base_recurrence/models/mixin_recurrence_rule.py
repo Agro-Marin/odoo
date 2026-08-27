@@ -3,44 +3,41 @@ from odoo.exceptions import ValidationError
 from odoo.tools.date_utils import get_timedelta
 
 
+# Two models had grown this same rule independently -- ``project.task.recurrence``
+# and ``planning.recurrency`` -- down to the same four unit values, the same two
+# policy values, the same ``default=1`` and the same "the interval must be
+# positive" rule written twice, once as a Python constraint and once as a SQL
+# ``CHECK``. The vocabulary is what matters here: a fifth consumer should not
+# get to invent a *fifth* spelling of "week".
+#
+# What this mixin does *not* own is as deliberate as what it does.
+#
+# ``repeat_until`` stays with the consumer, and so does its rule.
+# ``project.task.recurrence`` declares it a ``Date`` and ``planning.recurrency``
+# a ``Datetime``, and that is a real difference rather than an accident: a task
+# recurs until the end of a day the user picks, a shift until an instant. A
+# field can only have one type, so owning it here would force one of them to
+# change its stored data and its widget to suit the other. The "an 'until'
+# recurrence must name a date" rule follows the field: see
+# ``_check_repeat_interval`` for why a shared SQL CHECK would have been the
+# wrong shape for it.
+#
+# The occurrence generator stays with the consumer too. The two are not
+# variations on a theme: project copies a task and postpones its dates, while
+# planning walks a resource's working intervals and availability to decide
+# both whether a slot may be generated and whether it may keep its resource.
+# Only ``_get_recurrence_delta`` -- the step from one occurrence to the next --
+# is common, and it is here.
+#
+# ``repeat_type`` is extensible, not fixed. ``forever`` and ``until`` are the
+# two every consumer needs; planning adds ``x_times`` through
+# ``selection_add``. Consumers that add a value must give it an ``ondelete``
+# policy, because a selection value is stored data.
+#
+# A consumer therefore declares: ``repeat_until``, whatever extra policy
+# values it needs, and how it turns a rule into records.
 class MixinRecurrenceRule(models.AbstractModel):
-    """The "every N units, until ..." half of a recurrence.
-
-    Two models had grown this same rule independently --
-    ``project.task.recurrence`` and ``planning.recurrency`` -- down to the same
-    four unit values, the same two policy values, the same ``default=1`` and
-    the same "the interval must be positive" rule written twice, once as a
-    Python constraint and once as a SQL ``CHECK``. The vocabulary is what
-    matters here: a fifth consumer should not get to invent a *fifth* spelling
-    of "week".
-
-    What this mixin does **not** own is as deliberate as what it does.
-
-    **``repeat_until`` stays with the consumer, and so does its rule.**
-    ``project.task.recurrence`` declares it a ``Date`` and
-    ``planning.recurrency`` a ``Datetime``, and that is a real difference
-    rather than an accident: a task recurs until the end of a day the user
-    picks, a shift until an instant. A field can only have one type, so owning
-    it here would force one of them to change its stored data and its widget to
-    suit the other. The "an 'until' recurrence must name a date" rule follows
-    the field: see :meth:`_check_repeat_interval` for why a shared SQL CHECK
-    would have been the wrong shape for it.
-
-    **The occurrence generator stays with the consumer too.** The two are not
-    variations on a theme: project copies a task and postpones its dates, while
-    planning walks a resource's working intervals and availability to decide
-    both whether a slot may be generated and whether it may keep its resource.
-    Only :meth:`_get_recurrence_delta` -- the step from one occurrence to the
-    next -- is common, and it is here.
-
-    **``repeat_type`` is extensible, not fixed.** ``forever`` and ``until`` are
-    the two every consumer needs; planning adds ``x_times`` through
-    ``selection_add``. Consumers that add a value must give it an ``ondelete``
-    policy, because a selection value is stored data.
-
-    A consumer therefore declares: ``repeat_until``, whatever extra policy
-    values it needs, and how it turns a rule into records.
-    """
+    """The "every N units, until ..." half of a recurrence."""
 
     _name = "mixin.recurrence.rule"
     _description = "Recurrence Rule Mixin"
