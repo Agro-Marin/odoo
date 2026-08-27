@@ -28,7 +28,7 @@ class Test_Search_PanelCategory_Target_Model(models.Model):
 class Test_Search_PanelCategory_Target_Model_No_Parent_Name(models.Model):
     _name = "test_search_panel.category_target_model_no_parent_name"
     _order = "id desc"
-    _description = "Category target model"
+    _description = "Category target model (no parent name)"
 
     name = fields.Char("Name", required=True)
 
