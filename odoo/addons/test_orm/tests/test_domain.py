@@ -6,6 +6,7 @@ from freezegun import freeze_time
 
 from odoo.fields import Command, Domain
 from odoo.tests import TransactionCase, users
+from odoo.tests.common import new_test_user
 from odoo.tools import SQL, OrderedSet
 
 from odoo.addons.base.tests.test_expression import TransactionExpressionCase
@@ -400,15 +401,45 @@ class TestDomain(TransactionExpressionCase):
         self.patch(Child._fields["link_sibling_id"], "bypass_search_access", True)
         self.assertTrue(Child._fields["link_sibling_id"].bypass_search_access)
 
-        res_search = self._search(
-            Child, [("link_sibling_id", "any", [("quantity", ">", 5)])]
+        # Toggling the flag under a superuser env is a no-op:
+        # _optimize_any_with_rights short-circuits on `model.env.su` before it
+        # ever consults the flag. Rerun the same search under a non-superuser
+        # env, with a rule restricting test_orm.any.child, so the flag
+        # actually has something to bypass.
+        all_children = parent_1.child_ids | parent_2.child_ids
+        self.env["ir.rule"].sudo().create(
+            {
+                "name": "only quantity < 10",
+                "model_id": self.env["ir.model"]._get("test_orm.any.child").id,
+                "domain_force": [("quantity", "<", 10)],
+            }
         )
-        self.assertEqual(res_search, parent_1.child_ids[0])
+        user = new_test_user(self.env, login="domain_any_bypass_user")
+        Child_restricted = Child.with_user(user)
 
-        res_search = self._search(
-            Child, [("link_sibling_id", "not any", [("quantity", ">", 5)])]
+        # Plain .search() here, not self._search(): the rule also restricts
+        # the outer model.search(Domain.TRUE) that self._search's own
+        # filtered_domain cross-check relies on, which would conflate two
+        # different rule-application paths. The flag under test only
+        # concerns the *inner* any-subquery join, isolated below.
+        any_domain = [
+            ("id", "in", all_children.ids),
+            ("link_sibling_id", "any", [("quantity", ">", 5)]),
+        ]
+        self.assertEqual(
+            Child_restricted.search(any_domain),
+            parent_1.child_ids[0],
+            "bypass_search_access=True ignores the rule entirely — same "
+            "result as with no rule at all",
         )
-        self.assertEqual(res_search, parent_1.child_ids[1] + parent_2.child_ids)
+
+        self.patch(Child._fields["link_sibling_id"], "bypass_search_access", False)
+        self.assertFalse(
+            Child_restricted.search(any_domain),
+            "bypass_search_access=False must respect the rule: the only "
+            "sibling matching 'quantity > 5' has quantity=10, excluded by "
+            "'quantity < 10', so no child's sibling passes both",
+        )
 
         res_search = self._search(
             Child, [("parent_id", "any", [("name", "=", "Jean")])]
@@ -492,6 +523,41 @@ class TestDomain(TransactionExpressionCase):
             Parent, [("child_ids", "not any", [("quantity", "=", 1)])]
         )
         self.assertEqual(res_search, parent_2 + parent_3)
+
+        # Toggling the flag under a superuser env is a no-op:
+        # _optimize_any_with_rights short-circuits on `model.env.su` before
+        # it ever consults the flag. Rerun the "any" search under a
+        # non-superuser env, with a rule excluding the one matching child
+        # (quantity=1), so the flag has something to bypass. Parent's own
+        # visibility is unaffected — the rule only targets the comodel being
+        # traversed (test_orm.any.child), not test_orm.any.parent.
+        self.env["ir.rule"].sudo().create(
+            {
+                "name": "quantity=1 is invisible",
+                "model_id": self.env["ir.model"]._get("test_orm.any.child").id,
+                "domain_force": [("quantity", "!=", 1)],
+            }
+        )
+        user = new_test_user(self.env, login="domain_o2m_bypass_user")
+        Parent_restricted = Parent.with_user(user)
+        any_domain = [
+            ("id", "in", (parent_1 + parent_2 + parent_3).ids),
+            ("child_ids", "any", [("quantity", "=", 1)]),
+        ]
+        self.assertEqual(
+            Parent_restricted.search(any_domain),
+            parent_1,
+            "bypass_search_access=True ignores the rule entirely — same "
+            "result as with no rule at all",
+        )
+
+        self.patch(Parent._fields["child_ids"], "bypass_search_access", False)
+        self.assertFalse(
+            Parent_restricted.search(any_domain),
+            "bypass_search_access=False must respect the rule: the only "
+            "child with quantity=1 is excluded by 'quantity != 1', so no "
+            "parent's child passes both",
+        )
 
     def test_anys_many2many(self):
         Child = self.env["test_orm.any.child"]
