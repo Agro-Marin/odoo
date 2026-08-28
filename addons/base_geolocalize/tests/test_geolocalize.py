@@ -108,6 +108,7 @@ class TestGeocoderRequestsTimeout(TransactionCase):
         )
         geocoder = self.env["base.geocoder"]
         with patch("requests.get") as mock_get:
+            mock_get.return_value.status_code = 200
             mock_get.return_value.json.return_value = {
                 "status": "OK",
                 "results": [{"geometry": {"location": {"lat": 10.0, "lng": 20.0}}}],

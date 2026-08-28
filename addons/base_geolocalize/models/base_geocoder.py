@@ -187,7 +187,15 @@ class BaseGeocoder(models.AbstractModel):
         import requests
 
         try:
-            result = requests.get(url, params, timeout=10).json()
+            response = requests.get(url, params, timeout=10)
+            if response.status_code != 200:
+                _logger.warning(
+                    "Request to Google Maps failed.\nCode: %s\nContent: %s",
+                    response.status_code,
+                    response.content,
+                )
+                raise ValueError("Google Maps returned HTTP %s" % response.status_code)
+            result = response.json()
         except Exception as e:
             self._raise_query_error(e)
 
@@ -211,7 +219,7 @@ class BaseGeocoder(models.AbstractModel):
                 raise UserError(error_msg)
             geo = result["results"][0]["geometry"]["location"]
             return float(geo["lat"]), float(geo["lng"])
-        except KeyError, ValueError:
+        except KeyError, IndexError, ValueError:
             _logger.debug(
                 "Unexpected Gmaps API answer %s", result.get("error_message", "")
             )
