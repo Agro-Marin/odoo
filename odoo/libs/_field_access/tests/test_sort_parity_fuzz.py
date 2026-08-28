@@ -135,6 +135,52 @@ def test_fuzz_parity_by_kind(kind):
                 ), tag
 
 
+def test_temporal_extremes_survive_the_packed_representation():
+    """`date`/`datetime` sort as one packed `i64`, not a component array.
+
+    Each component gets a power-of-two field wider than its range, so the
+    packing is monotone — but only if every field really is wide enough. These
+    are the values that would expose a field that is not: the first and last
+    representable instants, a leap day, and a leap second, which `datetime`
+    itself cannot hold but `time.struct_time` can and which the packing budgets
+    for anyway.
+    """
+    moments = [
+        datetime(1, 1, 1, 0, 0, 0, 0),
+        datetime(1, 1, 1, 0, 0, 0, 1),
+        datetime(2020, 2, 29, 12, 0, 0, 0),
+        datetime(2020, 12, 31, 23, 59, 59, 999_999),
+        datetime(9999, 12, 31, 23, 59, 59, 999_998),
+        datetime(9999, 12, 31, 23, 59, 59, 999_999),
+    ]
+    ids = tuple(range(1, len(moments) + 1))
+    shuffled = list(moments)
+    random.Random(4).shuffle(shuffled)
+    order = {m: i for i, m in enumerate(moments)}
+    expected = tuple(
+        i for _, i in sorted(zip(shuffled, ids, strict=True), key=lambda p: order[p[0]])
+    )
+    assert sort_ids_by_values(ids, list(shuffled), False) == expected
+    assert sort_ids_by_values_py(ids, list(shuffled), False) == expected
+
+
+def test_a_date_sorts_at_midnight_of_its_day():
+    """A `date` packs with its four time fields at zero.
+
+    Nothing may sort between it and a midnight `datetime` on the same day —
+    they are the same instant. The two cannot appear in one column (Python
+    refuses to compare them), so this pins each against its own kind.
+    """
+    day = date(2026, 8, 28)
+    ids = (1, 2, 3)
+    dates = [date(2026, 8, 29), day, date(2026, 8, 27)]
+    assert sort_ids_by_values(ids, dates, False) == (3, 2, 1)
+
+    midnight = datetime(2026, 8, 28, 0, 0, 0, 0)
+    times = [datetime(2026, 8, 28, 0, 0, 0, 1), midnight, datetime(2026, 8, 27, 23, 59)]
+    assert sort_ids_by_values(ids, times, False) == (3, 2, 1)
+
+
 def test_incomparable_column_raises_like_python():
     ids = (0, 1)
     values = [1, "a"]

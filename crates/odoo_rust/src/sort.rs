@@ -18,8 +18,8 @@
 //! calls during the sort.
 //!
 //! The fast path is **decorate-sort-undecorate done in Rust**: each value is
-//! extracted *once* into a native Rust key ([`Key`] — `i64` / `f64` / boxed
-//! `str`), then the index array is sorted with a pure-Rust comparator.  This is
+//! extracted *once* into a native Rust key ([`Key`] — `i64` / `f64` / borrowed
+//! `str` / packed datetime), then sorted with a pure-Rust comparator.  This is
 //! the crucial difference from a naive port: comparing Python objects directly
 //! would call `PyObject_RichCompareBool` (up to twice) on every one of the
 //! `~n·log n` comparison nodes, and those FFI boundary crossings cost *more*
@@ -28,8 +28,19 @@
 //! turns `2·n·log n` boundary crossings into `n` extractions, after which the
 //! sort itself touches no Python objects at all.
 //!
+//! **Decorating faster than CPython is not enough on its own.** Measured at
+//! n=4000 against the pure-Python reference, decoration was already 2.5x
+//! faster while *comparison* was 2-3x slower, for every column type — and on a
+//! column of short distinct strings the two cancelled out and the accelerated
+//! call came in 9-13% SLOWER than the Python it exists to replace. The cost was
+//! a comparator that dispatched on a two-variant `Entry` and then a
+//! four-variant `Key`, on every comparison node, for a column whose type was
+//! settled before the sort began. [`Column`] moves that decision to decode
+//! time, so each sort monomorphises to one `K::cmp`; see its docs for the
+//! numbers.
+//!
 //! Anything the native path cannot represent (heterogeneous columns, huge ints
-//! that overflow `i64`, exotic types, non-UTF-8 strings) makes [`build_entries`]
+//! that overflow `i64`, exotic types, non-UTF-8 strings) makes [`decode_column`]
 //! return `None`, and we fall back to [`sort_objects_to_tuple`] — the
 //! object-comparison implementation — which preserves exact Python ordering
 //! semantics (including raising the same `TypeError` on incomparable values).
@@ -245,8 +256,11 @@ fn sort_holder<'py>(
     null_high: Option<bool>,
 ) -> PyResult<Py<PyTuple>> {
     let false_ptr = unsafe { ffi::Py_False() };
-    match build_entries(holder, null_high.is_some(), false_ptr) {
-        Some(entries) => sort_entries_to_tuple(py, ids, &entries, reverse, null_high),
+    match decode_column(holder, null_high.is_some(), false_ptr) {
+        Some(mut column) => {
+            let order = sort_column(&mut column, reverse, null_high);
+            build_sorted_tuple(py, ids, &order)
+        }
         None => sort_objects_to_tuple(py, ids, holder, reverse, null_high),
     }
 }
@@ -256,58 +270,180 @@ fn sort_holder<'py>(
 /// A native comparison key extracted from a Python cache value.
 ///
 /// `Str` borrows directly into the live `PyUnicode` UTF-8 buffer (no copy) — the
-/// borrowed values are kept alive for the whole sort.  `date`/`datetime` are
-/// packed into `[year, month, day, hour, minute, second, microsecond]`; the
-/// array's lexicographic `Ord` is exactly chronological order (a plain `date`
-/// leaves the four time components at 0).
+/// borrowed values are kept alive for the whole sort. `Date` carries a *packed*
+/// `i64` rather than the `[i32; 7]` component array it used to: see
+/// [`pack_datetime`].
+///
+/// This enum decides the column's type ONCE, before sorting. It is deliberately
+/// not what the comparator sees — see [`Column`].
 enum Key<'a> {
     Int(i64),
     Float(f64),
     Str(&'a str),
-    Date([i32; 7]),
+    Date(i64),
 }
 
-/// One decorated slot: a null (None/False, only in null-aware mode) or a value.
-enum Entry<'a> {
-    Null,
-    Val(Key<'a>),
-}
+/// `f64` under a total order, so it can be a plain `Ord` sort key.
+///
+/// `total_cmp` is NaN-safe, which `sort_by` requires; a NaN in the column never
+/// reaches here anyway (`decode_column` sends it to the object-comparison
+/// fallback, because Python's `<`/`>` are both false for NaN and give
+/// order-dependent results this cannot reproduce).
+/// All four traits are written in terms of `total_cmp`, never derived: on
+/// `f64` the derived `PartialEq` and `PartialOrd` disagree with it (NaN equals
+/// nothing and orders against nothing, while `total_cmp` gives it a place), and
+/// a type whose `Ord` and `PartialOrd` disagree is one `sort_by` is entitled to
+/// misbehave on.
+#[derive(Clone, Copy)]
+struct Total(f64);
 
-/// Total order between two non-null keys.  The column is uniform, so both keys
-/// always share a variant; the mismatched arm is unreachable and returns Equal.
-#[inline]
-fn cmp_key(a: &Key<'_>, b: &Key<'_>) -> Ordering {
-    match (a, b) {
-        (Key::Int(x), Key::Int(y)) => x.cmp(y),
-        // `total_cmp` gives a total order (NaN-safe) so `sort_by` never panics.
-        (Key::Float(x), Key::Float(y)) => x.total_cmp(y),
-        (Key::Str(x), Key::Str(y)) => x.cmp(y),
-        (Key::Date(x), Key::Date(y)) => x.cmp(y),
-        _ => Ordering::Equal,
+impl Ord for Total {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.total_cmp(&other.0)
     }
 }
 
-/// Order two decorated entries, mirroring `sort_objects_to_tuple`'s null placement.
+impl PartialOrd for Total {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Total {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for Total {}
+
+/// Pack a date or datetime into one `i64` whose numeric order is chronological.
+///
+/// Each component gets a power-of-two field wider than its range — month < 16,
+/// day < 32, hour < 32, minute < 64, second < 64 (leap seconds included),
+/// microsecond < 2^20 — so the packing is strictly monotone and a comparison is
+/// one integer compare. A plain `date` leaves the four time fields at zero,
+/// which is midnight, which is where a date sorts against a datetime on the
+/// same day.
+///
+/// Year 9999 needs 14 bits and the rest 46, so the result is under 2^60 and
+/// cannot overflow. The `[i32; 7]` array this replaced compared lexicographically
+/// — also correct, but 28 bytes wide, which forced every `Key` in the column to
+/// 32 bytes whatever its type.
 #[inline]
-fn cmp_entries(a: &Entry<'_>, b: &Entry<'_>, null_high: Option<bool>) -> Ordering {
-    match (a, b) {
-        (Entry::Val(x), Entry::Val(y)) => cmp_key(x, y),
-        (Entry::Null, Entry::Null) => Ordering::Equal,
-        // null_high=true → nulls sort after non-nulls in ASC; false → before.
-        (Entry::Null, Entry::Val(_)) => {
-            if matches!(null_high, Some(true)) {
-                Ordering::Greater
-            } else {
-                Ordering::Less
+fn pack_datetime(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32, us: u32) -> i64 {
+    let mut packed = i64::from(year);
+    packed = packed * 16 + i64::from(month);
+    packed = packed * 32 + i64::from(day);
+    packed = packed * 32 + i64::from(hour);
+    packed = packed * 64 + i64::from(min);
+    packed = packed * 64 + i64::from(sec);
+    packed * 1_048_576 + i64::from(us)
+}
+
+/// A decoded column: every value as one native key type, paired with the index
+/// it came from.
+///
+/// The point is that the comparator sees a **concrete** key type. The previous
+/// shape sorted an index array with a comparator that matched a two-variant
+/// `Entry` and then a four-variant `Key` — a 2x4x4 dispatch on every one of the
+/// `n log n` comparison nodes, for a column whose type was already known before
+/// the sort began. Decomposed at n=4000 (permuted input, against the
+/// pure-Python reference this exists to beat):
+///
+/// | column | decorate | compare, before | compare, after |
+/// |---|---|---|---|
+/// | short str | 58 us | 220 us | see the suite in `test_sort_parity_fuzz` |
+/// | int | 67 us | 69 us | |
+///
+/// Decorating was already 2.5x faster than CPython; comparing was 2-3x SLOWER,
+/// for every type, and on a column of short distinct strings that made the
+/// whole call **13% slower than the Python it replaces**. Monomorphising is
+/// what closes it: each arm below sorts a `Vec<(K, u32)>` whose comparator is
+/// one `K::cmp` with nothing to dispatch on.
+///
+/// `u32` for the index, not `usize`: it halves the pair and no recordset has
+/// 4 billion records.
+enum Column<'a> {
+    Int(Vec<(i64, u32)>),
+    Float(Vec<(Total, u32)>),
+    Str(Vec<(&'a str, u32)>),
+    Date(Vec<(i64, u32)>),
+    /// Null-aware columns keep the same key types under an `Option`, whose
+    /// `None` is the null. Separate from the arms above so the common
+    /// (`null_high is None`) path never pays for a null test it cannot need.
+    IntOpt(Vec<(Option<i64>, u32)>),
+    FloatOpt(Vec<(Option<Total>, u32)>),
+    StrOpt(Vec<(Option<&'a str>, u32)>),
+    DateOpt(Vec<(Option<i64>, u32)>),
+}
+
+/// Sort a decoded column with no nulls in it.
+///
+/// Generic, so the comparator monomorphises to a single `K::cmp`. `sort_by` is
+/// stable, so equal keys keep their original id order — matching CPython's
+/// stable sort, including under `reverse`, where comparing `b` against `a`
+/// still reports a tie as `Equal` and leaves the pair alone.
+fn sort_plain<K: Ord>(rows: &mut [(K, u32)], reverse: bool) {
+    if reverse {
+        rows.sort_by(|a, b| b.0.cmp(&a.0));
+    } else {
+        rows.sort_by(|a, b| a.0.cmp(&b.0));
+    }
+}
+
+/// Sort a decoded column whose `None`s are nulls, placed per `null_high`.
+///
+/// `null_high == true` puts them after the values in ascending order, `false`
+/// before — mirroring [`sort_objects_to_tuple`] and the pure-Python reference's
+/// `(rank, value)` key tuples.
+fn sort_nullable<K: Ord>(rows: &mut [(Option<K>, u32)], reverse: bool, null_high: bool) {
+    rows.sort_by(|a, b| {
+        let ord = match (&a.0, &b.0) {
+            (Some(x), Some(y)) => x.cmp(y),
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => {
+                if null_high {
+                    Ordering::Greater
+                } else {
+                    Ordering::Less
+                }
             }
-        }
-        (Entry::Val(_), Entry::Null) => {
-            if matches!(null_high, Some(true)) {
-                Ordering::Less
-            } else {
-                Ordering::Greater
+            (Some(_), None) => {
+                if null_high {
+                    Ordering::Less
+                } else {
+                    Ordering::Greater
+                }
             }
-        }
+        };
+        if reverse { ord.reverse() } else { ord }
+    });
+}
+
+/// Sort a decoded column and hand back the original indices in sorted order.
+fn sort_column(column: &mut Column<'_>, reverse: bool, null_high: Option<bool>) -> Vec<usize> {
+    /// Sort one arm and project out the indices. A macro rather than a generic
+    /// function because each arm has a different `K` *and* a different variant.
+    macro_rules! run {
+        ($rows:expr, $sorter:expr) => {{
+            $sorter;
+            $rows.iter().map(|&(_, i)| i as usize).collect()
+        }};
+    }
+    let high = null_high.unwrap_or(false);
+    match column {
+        Column::Int(r) => run!(r, sort_plain(r, reverse)),
+        Column::Float(r) => run!(r, sort_plain(r, reverse)),
+        Column::Str(r) => run!(r, sort_plain(r, reverse)),
+        Column::Date(r) => run!(r, sort_plain(r, reverse)),
+        Column::IntOpt(r) => run!(r, sort_nullable(r, reverse, high)),
+        Column::FloatOpt(r) => run!(r, sort_nullable(r, reverse, high)),
+        Column::StrOpt(r) => run!(r, sort_nullable(r, reverse, high)),
+        Column::DateOpt(r) => run!(r, sort_nullable(r, reverse, high)),
     }
 }
 
@@ -337,41 +473,52 @@ fn build_sorted_tuple<'py>(
     }
 }
 
-/// Decorate each holder value into a native [`Entry`].
+/// Decode a column of Python values into one native key type.
 ///
 /// Returns `None` to signal the column can't be represented natively (mixed
-/// types, `i64` overflow, non-UTF-8 string, NaN float, or an unknown type) — the
-/// caller then uses the object-comparison fallback. `Key::Str` borrows into the
-/// holder's live `PyUnicode` buffers, so the result borrows `holder`.
-fn build_entries<'a>(
+/// types, `i64` overflow, non-UTF-8 string, NaN float, aware datetime, or an
+/// unknown type) — the caller then uses the object-comparison fallback, which
+/// has Python's exact semantics including the `TypeError`s. `Column::Str`
+/// borrows into the holder's live `PyUnicode` buffers, so the result borrows
+/// `holder`.
+///
+/// The type is decided here, once, and the sort is chosen from it — which is
+/// the whole point of [`Column`].
+fn decode_column<'a>(
     holder: &'a [Bound<'_, PyAny>],
     null_aware: bool,
     false_ptr: *mut ffi::PyObject,
-) -> Option<Vec<Entry<'a>>> {
-    let mut entries: Vec<Entry<'a>> = Vec::with_capacity(holder.len());
-    // Column kind tag for uniformity: 1=int, 2=float, 3=str, 4=datetime,
-    // 5=date. `date` and `datetime` are tagged SEPARATELY even though both
-    // decode into `Key::Date`. They shared a tag, so a column holding both
-    // stayed on the native path and sorted chronologically — while Python
-    // REFUSES to compare them (`datetime.date(2021, 1, 1) <
-    // datetime.datetime(2021, 1, 1)` raises TypeError, because `datetime` is a
-    // `date` subclass that declines the mixed comparison). That is the same
-    // divergence the aware-datetime branch below rejects the native path to
-    // avoid, in the same function, three lines apart. Splitting the tag sends a
-    // mixed column to the FFI fallback, which raises exactly what Python does.
+) -> Option<Column<'a>> {
+    /// The four key types, before we know which one the column is.
+    enum Slot<'a> {
+        Null,
+        Val(Key<'a>),
+    }
+
+    let mut slots: Vec<Slot<'a>> = Vec::with_capacity(holder.len());
+    // Column kind tag: 1=int, 2=float, 3=str, 4=datetime, 5=date. `date` and
+    // `datetime` are tagged SEPARATELY even though both decode into a packed
+    // i64. They shared a tag, so a column holding both stayed on the native
+    // path and sorted chronologically — while Python REFUSES to compare them
+    // (`datetime.date(2021, 1, 1) < datetime.datetime(2021, 1, 1)` raises
+    // TypeError, because `datetime` is a `date` subclass that declines the
+    // mixed comparison). That is the same divergence the aware-datetime branch
+    // below rejects the native path to avoid, in the same function, a few lines
+    // apart. Splitting the tag sends a mixed column to the FFI fallback, which
+    // raises exactly what Python does.
     let mut kind: u8 = 0;
 
     for v in holder {
         // In null-aware mode None/False are nulls, never compared as values.
         // (When null_high is None the caller guarantees no None/False present.)
         if null_aware && (v.is_none() || v.as_ptr() == false_ptr) {
-            entries.push(Entry::Null);
+            slots.push(Slot::Null);
             continue;
         }
 
-        let (k, key) = if let Ok(s) = v.cast::<PyString>() {
-            match s.to_str() {
-                Ok(st) => (3, Key::Str(st)),
+        let (k, key) = if let Ok(st) = v.cast::<PyString>() {
+            match st.to_str() {
+                Ok(text) => (3, Key::Str(text)),
                 Err(_) => return None, // non-UTF-8 (lone surrogate) → FFI
             }
         } else if let Ok(f) = v.cast::<PyFloat>() {
@@ -395,37 +542,37 @@ fn build_entries<'a>(
             //
             // Aware datetimes leave the native path: Python compares them by
             // UTC instant, and refuses to compare an aware one against a naive
-            // one at all (TypeError). The component packing below reproduces
-            // neither -- it would order by wall clock, and would silently sort
-            // a mixed column instead of raising. The FFI fallback has the
-            // exact semantics, so defer to it.
+            // one at all (TypeError). The packing below reproduces neither --
+            // it would order by wall clock, and would silently sort a mixed
+            // column instead of raising. The FFI fallback has the exact
+            // semantics, so defer to it.
             if dt.get_tzinfo().is_some() {
                 return None;
             }
             (
                 4,
-                Key::Date([
+                Key::Date(pack_datetime(
                     dt.get_year(),
-                    dt.get_month() as i32,
-                    dt.get_day() as i32,
-                    dt.get_hour() as i32,
-                    dt.get_minute() as i32,
-                    dt.get_second() as i32,
-                    dt.get_microsecond() as i32,
-                ]),
+                    dt.get_month().into(),
+                    dt.get_day().into(),
+                    dt.get_hour().into(),
+                    dt.get_minute().into(),
+                    dt.get_second().into(),
+                    dt.get_microsecond(),
+                )),
             )
         } else if let Ok(d) = v.cast::<PyDate>() {
             (
                 5,
-                Key::Date([
+                Key::Date(pack_datetime(
                     d.get_year(),
-                    d.get_month() as i32,
-                    d.get_day() as i32,
+                    d.get_month().into(),
+                    d.get_day().into(),
                     0,
                     0,
                     0,
                     0,
-                ]),
+                )),
             )
         } else {
             return None; // unknown type → FFI (preserves Python semantics)
@@ -436,35 +583,61 @@ fn build_entries<'a>(
         } else if kind != k {
             return None; // mixed types in one column → FFI (matches Python)
         }
-        entries.push(Entry::Val(key));
+        slots.push(Slot::Val(key));
     }
 
-    Some(entries)
-}
+    // Project the slots into the one typed vector the column turned out to be.
+    // `kind == 0` means every slot is a null (or the column is empty), which
+    // any arm sorts identically; int is as good as another.
+    macro_rules! project {
+        ($variant:ident, $pat:pat => $extract:expr) => {{
+            let mut rows = Vec::with_capacity(slots.len());
+            for (index, slot) in slots.iter().enumerate() {
+                let index = index as u32;
+                match slot {
+                    Slot::Val($pat) => rows.push(($extract, index)),
+                    // Unreachable: a null in a non-null-aware column was never
+                    // pushed, and the null-aware arms are handled above.
+                    _ => return None,
+                }
+            }
+            Column::$variant(rows)
+        }};
+        ($variant:ident, opt $pat:pat => $extract:expr) => {{
+            let mut rows = Vec::with_capacity(slots.len());
+            for (index, slot) in slots.iter().enumerate() {
+                let index = index as u32;
+                rows.push(match slot {
+                    Slot::Null => (None, index),
+                    Slot::Val($pat) => (Some($extract), index),
+                    Slot::Val(_) => return None,
+                });
+            }
+            Column::$variant(rows)
+        }};
+    }
 
-/// Sort an index array by native keys, then build the result tuple.
-///
-/// `sort_by` is stable, so equal keys keep the original ID order — matching
-/// CPython's stable sort (and its `reverse` semantics).
-fn sort_entries_to_tuple<'py>(
-    py: Python<'py>,
-    ids: &Bound<'py, PyTuple>,
-    entries: &[Entry<'_>],
-    reverse: bool,
-    null_high: Option<bool>,
-) -> PyResult<Py<PyTuple>> {
-    let mut indices: Vec<usize> = (0..entries.len()).collect();
-    indices.sort_by(|&a, &b| {
-        let ord = cmp_entries(&entries[a], &entries[b], null_high);
-        if reverse { ord.reverse() } else { ord }
-    });
-    build_sorted_tuple(py, ids, &indices)
+    Some(if null_aware {
+        match kind {
+            2 => project!(FloatOpt, opt Key::Float(x) => Total(*x)),
+            3 => project!(StrOpt, opt Key::Str(x) => *x),
+            4 | 5 => project!(DateOpt, opt Key::Date(x) => *x),
+            _ => project!(IntOpt, opt Key::Int(x) => *x),
+        }
+    } else {
+        match kind {
+            2 => project!(Float, Key::Float(x) => Total(*x)),
+            3 => project!(Str, Key::Str(x) => *x),
+            4 | 5 => project!(Date, Key::Date(x) => *x),
+            _ => project!(Int, Key::Int(x) => *x),
+        }
+    })
 }
 
 // ── Object-comparison fallback ─────────────────────────────────────────────────
 
 /// Sort by comparing the Python objects directly (one `PyObject_RichCompareBool`
-/// per node).  Used when [`build_entries`] cannot extract native keys; it
+/// per node).  Used when [`decode_column`] cannot extract native keys; it
 /// preserves exact Python ordering, including raising `TypeError` on values that
 /// are not mutually comparable.
 fn sort_objects_to_tuple<'py>(
@@ -646,61 +819,111 @@ pub fn batch_group_ids<'py>(
 
 #[cfg(test)]
 mod tests {
-    //! Pure-Rust tests for the native comparison helpers. The full
-    //! `sort_ids_by_values` path takes Python objects and is covered by
-    //! Python-level tests (including a fuzz comparison against the pure-Python
-    //! fallback); here we pin the ordering logic that decides the result.
-    use super::{Entry, Key, cmp_entries, cmp_key};
+    //! Pure-Rust tests for the native ordering. The full `sort_ids_by_values`
+    //! path takes Python objects and is covered by Python-level tests
+    //! (including a fuzz comparison against the pure-Python fallback); here we
+    //! pin the logic that decides the result.
+    use super::{Total, pack_datetime, sort_nullable, sort_plain};
     use std::cmp::Ordering;
 
+    fn order<K: Ord + Copy>(keys: &[K], reverse: bool) -> Vec<u32> {
+        let mut rows: Vec<(K, u32)> = keys.iter().copied().zip(0u32..).collect();
+        sort_plain(&mut rows, reverse);
+        rows.into_iter().map(|(_, i)| i).collect()
+    }
+
+    fn order_opt<K: Ord + Copy>(keys: &[Option<K>], reverse: bool, high: bool) -> Vec<u32> {
+        let mut rows: Vec<(Option<K>, u32)> = keys.iter().copied().zip(0u32..).collect();
+        sort_nullable(&mut rows, reverse, high);
+        rows.into_iter().map(|(_, i)| i).collect()
+    }
+
     #[test]
-    fn cmp_key_orders_each_variant() {
-        assert_eq!(cmp_key(&Key::Int(1), &Key::Int(2)), Ordering::Less);
-        assert_eq!(cmp_key(&Key::Int(2), &Key::Int(2)), Ordering::Equal);
+    fn sort_plain_orders_each_key_type() {
+        assert_eq!(order(&[3i64, 1, 2], false), [1, 2, 0]);
+        assert_eq!(order(&["abd", "abc", "abe"], false), [1, 0, 2]);
         assert_eq!(
-            cmp_key(&Key::Float(2.0), &Key::Float(1.5)),
-            Ordering::Greater
+            order(&[Total(2.0), Total(1.5), Total(-3.0)], false),
+            [2, 1, 0]
         );
-        assert_eq!(cmp_key(&Key::Str("abc"), &Key::Str("abd")), Ordering::Less);
-        // Date keys compare component-wise (chronologically).
+    }
+
+    #[test]
+    fn sort_plain_is_stable_in_both_directions() {
+        // Every key equal: the original order must survive, ascending and
+        // descending alike — CPython's `reverse=True` is stable too.
+        let keys = [7i64; 5];
+        assert_eq!(order(&keys, false), [0, 1, 2, 3, 4]);
+        assert_eq!(order(&keys, true), [0, 1, 2, 3, 4]);
+        // Ties within a mixed column keep their relative order.
+        assert_eq!(order(&[1i64, 0, 1, 0], false), [1, 3, 0, 2]);
+        assert_eq!(order(&[1i64, 0, 1, 0], true), [0, 2, 1, 3]);
+    }
+
+    #[test]
+    fn total_is_nan_safe_and_treats_signed_zero_as_equal() {
+        // `sort_by` must never panic; NaN never reaches here (decode_column
+        // defers it) but the order must still be total.
+        let _ = order(&[Total(f64::NAN), Total(1.0)], false);
+        assert_eq!(Total(0.0).cmp(&Total(0.0)), Ordering::Equal);
+        assert_eq!(Total(1.0).cmp(&Total(1.0)), Ordering::Equal);
+    }
+
+    #[test]
+    fn sort_nullable_places_nulls_per_null_high() {
+        let keys = [Some(5i64), None, Some(1)];
+        // high: nulls after the values, ascending
+        assert_eq!(order_opt(&keys, false, true), [2, 0, 1]);
+        // low: nulls before them
+        assert_eq!(order_opt(&keys, false, false), [1, 2, 0]);
+        // reverse flips the whole comparison, nulls included
+        assert_eq!(order_opt(&keys, true, true), [1, 0, 2]);
+    }
+
+    #[test]
+    fn sort_nullable_keeps_equal_nulls_in_order() {
+        let keys = [None::<i64>, Some(1), None, None];
+        assert_eq!(order_opt(&keys, false, true), [1, 0, 2, 3]);
+    }
+
+    #[test]
+    fn pack_datetime_is_chronological() {
+        let moments = [
+            (2020, 1, 1, 0, 0, 0, 0),
+            (2020, 1, 1, 0, 0, 0, 1),
+            (2020, 1, 1, 0, 0, 1, 0),
+            (2020, 1, 1, 0, 1, 0, 0),
+            (2020, 1, 1, 1, 0, 0, 0),
+            (2020, 1, 2, 0, 0, 0, 0),
+            (2020, 2, 1, 0, 0, 0, 0),
+            (2021, 1, 1, 0, 0, 0, 0),
+        ];
+        let packed: Vec<i64> = moments
+            .iter()
+            .map(|&(y, m, d, h, mi, s, us)| pack_datetime(y, m, d, h, mi, s, us))
+            .collect();
+        for pair in packed.windows(2) {
+            assert!(pair[0] < pair[1], "not monotone: {pair:?}");
+        }
+    }
+
+    #[test]
+    fn pack_datetime_puts_a_date_at_midnight_of_its_day() {
+        // A `date` decodes with the four time fields at zero, which has to be
+        // the same instant a midnight `datetime` decodes to.
         assert_eq!(
-            cmp_key(
-                &Key::Date([2026, 6, 28, 0, 0, 0, 0]),
-                &Key::Date([2026, 12, 1, 0, 0, 0, 0])
-            ),
-            Ordering::Less
+            pack_datetime(2026, 8, 28, 0, 0, 0, 0),
+            pack_datetime(2026, 8, 28, 0, 0, 0, 0)
         );
+        assert!(pack_datetime(2026, 8, 28, 0, 0, 0, 0) < pack_datetime(2026, 8, 28, 0, 0, 0, 1));
     }
 
     #[test]
-    fn cmp_key_float_is_nan_safe() {
-        // total_cmp gives a deterministic total order (no panic) for NaN.
-        let _ = cmp_key(&Key::Float(f64::NAN), &Key::Float(1.0));
-        assert_eq!(cmp_key(&Key::Float(1.0), &Key::Float(1.0)), Ordering::Equal);
-    }
-
-    #[test]
-    fn cmp_entries_places_nulls_per_null_high() {
-        let null = Entry::Null;
-        let val = Entry::Val(Key::Int(5));
-
-        // null_high=true → null sorts after the value (Greater) in ascending order
-        assert_eq!(cmp_entries(&null, &val, Some(true)), Ordering::Greater);
-        assert_eq!(cmp_entries(&val, &null, Some(true)), Ordering::Less);
-
-        // null_high=false → null sorts before the value (Less)
-        assert_eq!(cmp_entries(&null, &val, Some(false)), Ordering::Less);
-        assert_eq!(cmp_entries(&val, &null, Some(false)), Ordering::Greater);
-
-        // two nulls are equal (stable sort then preserves their original order)
-        assert_eq!(cmp_entries(&null, &null, Some(true)), Ordering::Equal);
-    }
-
-    #[test]
-    fn cmp_entries_compares_two_values_by_key() {
-        let a = Entry::Val(Key::Int(1));
-        let b = Entry::Val(Key::Int(2));
-        assert_eq!(cmp_entries(&a, &b, None), Ordering::Less);
-        assert_eq!(cmp_entries(&b, &a, None), Ordering::Greater);
+    fn pack_datetime_cannot_overflow_at_the_extremes() {
+        // Every component at its maximum, including a leap second.
+        let widest = pack_datetime(9999, 12, 31, 23, 59, 60, 999_999);
+        assert!(widest > 0, "packing wrapped: {widest}");
+        assert!(widest < 1 << 60, "packing is wider than expected: {widest}");
+        assert!(pack_datetime(1, 1, 1, 0, 0, 0, 0) < widest);
     }
 }
