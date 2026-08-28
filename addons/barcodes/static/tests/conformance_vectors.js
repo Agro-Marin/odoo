@@ -458,6 +458,35 @@ export const VECTORS = JSON.parse(`
             ]
         },
         {
+            "name": "alternation nested inside a group before trailing pattern",
+            "nomenclature": {
+                "upc_ean_conv": "none"
+            },
+            "rules": [
+                {
+                    "encoding": "any",
+                    "pattern": "21(a|b)3",
+                    "type": "product"
+                }
+            ],
+            "expected": [
+                {
+                    "barcode": "21a3",
+                    "type": "product",
+                    "encoding": "any",
+                    "base_code": "21a3",
+                    "value": 0
+                },
+                {
+                    "barcode": "21b3",
+                    "type": "product",
+                    "encoding": "any",
+                    "base_code": "21b3",
+                    "value": 0
+                }
+            ]
+        },
+        {
             "name": "no rule matches",
             "nomenclature": {
                 "upc_ean_conv": "none"
