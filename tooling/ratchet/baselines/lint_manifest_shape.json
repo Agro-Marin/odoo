@@ -1,4 +1,4 @@
 {
-  "count": 622,
-  "note": "623 -> 622: odoo/addons/base/__manifest__.py had 'assets' before 'demo' rather than after it.\n\nProduced by `_sort_manifests.py odoo/addons/base`, not by hand -- the fixer the\ngate's own advice names. It is the only manifest in the tree the fixer would\nchange, and the only one this commit touches.\n\nControl run at 3bbd93238b3 with none of my files applied passes ManifestLinter,\nso HEAD is 623 and the whole unit is this change."
+  "count": 620,
+  "note": "Rebase onto origin/19.0-marin. 622 -> 620: origin has since canonicalised two manifests. Banked because the floor is exact and fails downward."
 }

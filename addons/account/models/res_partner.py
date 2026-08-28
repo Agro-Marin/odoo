@@ -363,7 +363,7 @@ class ResPartner(models.Model):
             account_type=account_type,
             root_id=self.env.company.root_id.id,
             sign=-1 if account_type == "liability_payable" else 1,
-            operator=SQL(operator),  # caller whitelists the operator
+            operator=SQL(operator),  # noqa: E8501  caller whitelists the operator
             operand=operand,
         )
 

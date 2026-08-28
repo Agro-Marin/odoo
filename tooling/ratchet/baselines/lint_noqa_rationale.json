@@ -1,4 +1,4 @@
 {
-  "count": 60,
-  "note": "63 -> 60, and every unit is base's: the module's three bare `# noqa` directives now say why.\n\n  ir_model_common.py:10   F401  re-exported downstream (ir_model_data, ir_module and\n                                test_orm all import MODULE_UNINSTALL_FLAG from here)\n  ir_qweb.py:2714         T100  entering the debugger is what t-debug is for\n  tests/test_qweb.py:3903 B009  the constant name is the subject of the test\n\nControl run at 3bbd93238b3 with none of my files applied reports 63."
+  "count": 59,
+  "note": "Rebase onto origin/19.0-marin. 60 before, 59 after. Verified this is origin fixing one rather than the rebase dropping a suppression: every one of the 242 noqa lines on the pre-rebase tip is present on the rebased tip, compared line by line (one had been lost, res_partner.py E8501, and is restored in this same change)."
 }
