@@ -64,7 +64,7 @@ class ResPartner(models.Model):
             self.city = self.city_id.name
             self.zip = self.city_id.zipcode
             self.state_id = self.city_id.state_id
-        elif self._origin:
+        else:
             self.city = False
             self.zip = False
             self.state_id = False
