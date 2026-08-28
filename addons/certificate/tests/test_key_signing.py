@@ -177,3 +177,74 @@ class TestKeyCryptoOperations(TransactionCase):
             self.rsa_private._decrypt(b"x", hashing_algorithm="md5")
         with self.assertRaises(UserError):
             self.ed_private._decrypt(b"x")
+
+
+@tagged("post_install", "-at_install")
+class TestKeyDerLoading(TransactionCase):
+    """_load_pem_key's DER branches had zero test coverage: PEM- and
+    PKCS12-shaped fixtures exercised the loader everywhere else, but
+    never a raw DER private or public key."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Key = cls.env["certificate.key"]
+        cls.crypto_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    def test_der_private_key_is_loaded_as_private(self):
+        key = self.Key.create(
+            {
+                "name": "DER private",
+                "content": base64.b64encode(
+                    self.crypto_key.private_bytes(
+                        encoding=serialization.Encoding.DER,
+                        format=serialization.PrivateFormat.PKCS8,
+                        encryption_algorithm=serialization.NoEncryption(),
+                    )
+                ),
+            }
+        )
+        self.assertFalse(key.public)
+        self.assertFalse(key.loading_error)
+
+    def test_der_public_key_is_loaded_as_public(self):
+        key = self.Key.create(
+            {
+                "name": "DER public",
+                "content": base64.b64encode(
+                    self.crypto_key.public_key().public_bytes(
+                        encoding=serialization.Encoding.DER,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                    )
+                ),
+            }
+        )
+        self.assertTrue(key.public)
+        self.assertFalse(key.loading_error)
+
+    def test_der_private_key_sign_verify_round_trip(self):
+        private_key = self.Key.create(
+            {
+                "name": "DER private (sign)",
+                "content": base64.b64encode(
+                    self.crypto_key.private_bytes(
+                        encoding=serialization.Encoding.DER,
+                        format=serialization.PrivateFormat.PKCS8,
+                        encryption_algorithm=serialization.NoEncryption(),
+                    )
+                ),
+            }
+        )
+        public_key = self.Key.create(
+            {
+                "name": "DER public (verify)",
+                "content": base64.b64encode(
+                    self.crypto_key.public_key().public_bytes(
+                        encoding=serialization.Encoding.DER,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                    )
+                ),
+            }
+        )
+        signature = base64.b64decode(private_key._sign("payload", formatting="base64"))
+        self.assertTrue(public_key._verify("payload", signature))
