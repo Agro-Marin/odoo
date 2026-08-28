@@ -163,18 +163,6 @@ class StockLandedCost(models.Model):
                 remaining_qty = line.move_id.remaining_qty
                 move_vals["line_ids"] += line._create_accounting_entries(remaining_qty)
 
-            # batch standard price computation avoid recompute quantity_svl at each iteration
-
-            # products = self.env['product.product'].browse(p.id for p in cost_to_add_byproduct.keys()).with_company(cost.company_id)
-            # for product in products:  # iterate on recordset to prefetch efficiently quantity_svl
-            #     if not product.uom_id.is_zero(product.quantity_svl):
-            #         product.sudo().with_context(disable_auto_svl=True).standard_price += cost_to_add_byproduct[product] / product.quantity_svl
-            #     if product.lot_valuated:
-            #         for lot, value in cost_to_add_bylot[product].items():
-            #             if product.uom_id.is_zero(lot.quantity_svl):
-            #                 continue
-            #             lot.sudo().with_context(disable_auto_svl=True).standard_price += value / lot.quantity_svl
-
             # We will only create the accounting entry when there are defined lines (the lines will be those linked to products of real_time valuation category).
             cost_vals = {"state": "done"}
             if move_vals.get("line_ids"):
@@ -316,8 +304,11 @@ class StockLandedCost(models.Model):
                 )
 
     def _check_sum(self):
-        """Check if each cost line its valuation lines sum to the correct amount
-        and if the overall total amount is correct also"""
+        """Check that valuation adjustment lines sum to the cost lines and total amount.
+
+        :return: whether cost lines and valuation lines are consistent
+        :rtype: bool
+        """
         for landed_cost in self:
             total_amount = sum(
                 landed_cost.valuation_adjustment_lines.mapped("additional_landed_cost")
@@ -457,6 +448,12 @@ class StockValuationAdjustmentLines(models.Model):
     ):
         """In real time the vendor bill for landed costs only balance the COGS account.
         We should credit what remains in stock and debit the stock valuation account.
+
+        :param int credit_account_id: account to credit
+        :param int debit_account_id: account to debit
+        :param float remaining_qty: quantity of the move still in stock
+        :return: account.move.line command tuples
+        :rtype: list
         """
         AccountMoveLine = []
         if not remaining_qty:
