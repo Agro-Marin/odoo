@@ -1,4 +1,4 @@
 {
-  "count": 364,
-  "note": "Rebase onto origin/19.0-marin. 367 on this branch before the rebase against a floor of 366, 364 after: origin has since batched several of the loops this rule counts. Banked because an exact floor fails downward as well as up. Measured with tooling/lint/py_lint.py odoo addons --count on the rebased tip and on the pre-rebase tip 9d9e3141ca5."
+  "count": 362,
+  "note": "event: 364 -> 362, both in odoo/addons/event. event.registration._check_seats_availability grouped its records in Python and issued a _read_group per distinct event; one grouped read on (event_id, event_slot_id, event_ticket_id) now covers the batch. res.partner._compute_event_count ran a child_of search_count per record -- 2 queries per partner, 80 for 40 -- and is one grouped read plus one query per level of the contact hierarchy, res.partner not being a _parent_store. Measured with tooling/lint/py_lint.py odoo addons --count at c038f33392e and at its parent."
 }
