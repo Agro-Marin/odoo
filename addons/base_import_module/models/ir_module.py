@@ -457,7 +457,9 @@ class IrModuleModule(models.Model):
                     path = z.extract(zip_info, module_dir)
                     extracted_total_size += Path(path).stat().st_size
                     if extracted_total_size > MAX_TOTAL_EXTRACTED_SIZE:
-                        raise UserError(_("The module archive is too large once extracted."))
+                        raise UserError(
+                            _("The module archive is too large once extracted.")
+                        )
                     return path
 
                 manifest_files = sorted(
@@ -531,7 +533,9 @@ class IrModuleModule(models.Model):
                         # embedding traceback.format_exc() verbatim, surfaced
                         # as-is in both the wizard's error dialog and the CLI
                         # deploy endpoint's HTTP 500 body).
-                        _logger.exception("Error while importing module %r from zip", mod_name)
+                        _logger.exception(
+                            "Error while importing module %r from zip", mod_name
+                        )
                         raise UserError(
                             _(
                                 "Error while importing module '%(module)s'.\n\n%(error_message)s",
@@ -608,7 +612,7 @@ class IrModuleModule(models.Model):
         self, fields, module_type, module_name, domain=None, limit=None, offset=None
     ):
         if "name" not in fields:
-            fields = fields + ["name"]
+            fields = [*fields, "name"]
         payload = {
             "params": {
                 "series": major_version,
