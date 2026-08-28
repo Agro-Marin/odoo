@@ -166,7 +166,9 @@ class MixinOrderLineAmount(models.AbstractModel):
             )["total_void"]
             price_unit /= qty
         if self.product_uom_id.id != self.product_id.uom_id.id:
-            price_unit *= self.product_id.uom_id.factor / self.product_uom_id.factor
+            price_unit = self.product_uom_id._compute_price(
+                price_unit, self.product_id.uom_id
+            )
         return price_unit
 
     @api.depends("product_id", "product_uom_id", "product_qty", "display_type")
