@@ -357,3 +357,49 @@ class TestClocFields(test_cloc.TestClocCustomization):
             and irmodeldata.res_id == self.env.ref("base.view_company_form").id,
             "Only base form view should remain excluded",
         )
+
+    def test_count_attachment_binary_and_bad_encoding_do_not_crash(self):
+        """t27114 audit: every CLOC test fixture was well-formed, clean
+        UTF-8 text — none exercised a binary blob or a non-UTF-8-encoded
+        text file reaching the same attachment-scanning path
+        (odoo/tools/cloc.py: count_customization() ->
+        attach.raw.decode("latin1")) that counts an imported module's
+        static assets. `latin1` never raises on arbitrary bytes and the
+        .js/.xml counters are naive regex/string counters rather than real
+        parsers, so this is expected to degrade gracefully rather than
+        raise — pin that down instead of leaving it assumed.
+
+        An empty (0-byte) file is deliberately NOT covered here:
+        ir.attachment.raw returns False (not b"") for an empty file, which
+        crashes odoo/tools/cloc.py's `attach.raw.decode("latin1")` with
+        AttributeError — a real bug, but in odoo/tools/cloc.py, outside
+        this audit's scope (core/addons/base_import_module). Filed as
+        t27148; not fixed or asserted-as-correct here."""
+        manifest_content = json.dumps(
+            {
+                "name": "test_imported_module",
+                "description": "Test",
+                "license": "LGPL-3",
+                "author": "Odoo S.A.",
+            }
+        )
+        stream = BytesIO()
+        with ZipFile(stream, "w") as archive:
+            archive.writestr("test_imported_module/__manifest__.py", manifest_content)
+            archive.writestr(
+                "test_imported_module/static/src/js/binary.js", bytes(range(256))
+            )
+            archive.writestr(
+                "test_imported_module/static/src/js/bad_encoding.js",
+                b"<odoo>\xe9\xe8\xff</odoo>",
+            )
+        self.env["ir.module.module"]._import_zipfile(stream)
+
+        cl = cloc.Cloc()
+        cl.count_customization(self.env)
+        self.assertFalse(
+            cl.errors.get("test_imported_module"),
+            "binary/non-UTF-8 assets should degrade gracefully, not raise "
+            "a counting error",
+        )
+        self.assertIn("test_imported_module", cl.code)
