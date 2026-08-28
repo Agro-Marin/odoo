@@ -113,7 +113,7 @@ class PaymentCommon(BaseCommon):
     def setUp(self):
         super().setUp()
         if self.account_payment_installed and self.enable_post_process_patcher:
-            # disable account payment generation if account_payment is installed
+            # disable account payment generation if account_payment_provider is installed
             # because the accounting setup of providers is not managed in this common
             self.post_process_patcher = patch(
                 "odoo.addons.account_payment_provider.models.payment_transaction.PaymentTransaction._post_process",
@@ -273,6 +273,6 @@ class PaymentCommon(BaseCommon):
             pass  # Any exception whose class is not monitored is caught and ignored.
 
     def _skip_if_account_payment_is_not_installed(self):
-        """Skip current test if `account_payment` module is not installed."""
+        """Skip current test if `account_payment_provider` module is not installed."""
         if not self.account_payment_installed:
             self.skipTest("account_payment module is not installed")

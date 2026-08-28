@@ -30,7 +30,7 @@ class TestResCompany(PaymentCommon):
         """Company creation must not require payment_custom's custom_mode field.
 
         payment can be installed without payment_custom (e.g. pulled in as a
-        dependency of account_payment): provider duplication must then skip
+        dependency of account_payment_provider): provider duplication must then skip
         the custom-mode filtering instead of raising KeyError. Only a registry
         without payment_custom exercises the absent-field branch — the
         payment-only test database does; a full database does not.
