@@ -21,7 +21,7 @@ declare module "services" {
         multi_tab: typeof multiTabService,
         presence: typeof presenceService,
         worker_service: typeof workerService,
-        assetsWatchdog: typeof assetsWatchdogService,
+        "bus.assets_watchdog": typeof assetsWatchdogService,
         simple_notification: typeof simpleNotificationService,
     }
 }
