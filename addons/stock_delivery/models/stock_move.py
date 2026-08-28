@@ -109,12 +109,11 @@ class StockMoveLine(models.Model):
         super()._compute_sale_price()
 
     def _get_aggregated_product_quantities(self, **kwargs):
-        """Returns dictionary of products and corresponding values of interest + hs_code
+        """Return aggregated product quantities extended with hs_code.
 
-        Unfortunately because we are working with aggregated data, we have to loop through the
-        aggregation to add more values to each datum. This extension adds on the hs_code value.
-
-        returns: dictionary {same_key_as_super: {same_values_as_super, hs_code}, ...}
+        :param kwargs: forwarded to the parent aggregation method
+        :return: mapping of aggregation key to values dict (parent's values plus hs_code)
+        :rtype: dict
         """
         aggregated_move_lines = super()._get_aggregated_product_quantities(**kwargs)
         for aggregated_move_line in aggregated_move_lines:
