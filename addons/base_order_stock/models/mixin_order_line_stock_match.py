@@ -203,8 +203,14 @@ class MixinOrderLineStockMatch(models.AbstractModel):
             order_line.product_uom_id,
             rounding_method="HALF-UP",
         )
+        if float_is_zero(residual, precision_digits=precision):
+            move[self._link_column] = order_line.id
+            if not float_is_zero(move_qty, precision_digits=precision):
+                over_transferred.append((order_line, move, move_qty))
+            return move.browse()
+
         excess = float_compare(move_qty, residual, precision_digits=precision)
-        if excess <= 0 or float_is_zero(residual, precision_digits=precision):
+        if excess <= 0:
             move[self._link_column] = order_line.id
             return move.browse()
 
