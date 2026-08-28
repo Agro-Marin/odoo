@@ -330,7 +330,7 @@ class ResPartner(models.Model):
         if (
             country_code
             and company.country_id
-            and country_code == company.country_id.code.lower()
+            and country_code == company.country_id.code
             and company.country_id.vat_label
         ):
             vat_label = company.country_id.vat_label
