@@ -15,11 +15,10 @@ class ResPartner(models.Model):
         ) and not all(
             "partner_%s" % field in vals for field in ["latitude", "longitude"]
         ):
-            vals.update(
-                {
-                    "partner_latitude": 0.0,
-                    "partner_longitude": 0.0,
-                }
+            vals = dict(
+                vals,
+                partner_latitude=0.0,
+                partner_longitude=0.0,
             )
         return super().write(vals)
 
