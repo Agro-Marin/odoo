@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.6
-:Date: 2026-08-26
+:Version: 6.7
+:Date: 2026-08-27
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -33,7 +33,7 @@ Each rule carries a bracketed label naming what catches it.
    * - ``[ruff CODE]``
      - ``ruff check`` reports it.
    * - ``[test_lint CODE]``
-     - A ``test_lint`` checker fails on it. ``E8501``--``E8507`` are the AST
+     - A ``test_lint`` rule fails on it. ``E8501``--``E8513`` are the AST
        checkers; other ``test_lint`` gates have no code and are named by test.
    * - ``[fixer NAME]``
      - A behaviour-preserving fixer owns the formatting. Run it; do not hand-edit.
@@ -68,9 +68,14 @@ same PR:
 carries baseline findings can repair unrelated ones and drop the count. A green
 local commit is not a green CI run unless the floor moved with it.
 
-``pyfunclen_addons`` is the one exception, at ``--mode no-increase``: it measures
-the whole bundled-addons tree, which moves both ways continuously. Prefer
-``exact`` for every new floor, and record the argument here if you cannot have it.
+``pyfunclen_addons`` is this repository's one ``--mode no-increase`` floor: it
+measures the whole bundled-addons tree, which moves both ways continuously. The
+siblings' cross-repo floors take that mode for a different reason -- an exact
+floor across a repository boundary is red on every fix until ``odoo`` banks the
+new number. Prefer ``exact`` for a new floor here, and put the argument in the
+baseline note if you cannot have it.
+
+Thirteen of the floors, to fix the shape of the set:
 
 .. list-table::
    :header-rows: 1
@@ -133,6 +138,9 @@ the whole bundled-addons tree, which moves both ways continuously. Prefer
      - ``web`` JS
      - ``architecture.yml``
 
+The directory holds many more, including per-addon scopes of the same script
+(``jsfunclen_mail``, ``py_x2many_count_stock``) and per-repository scopes the
+siblings' own workflows run (``naming_enterprise``).
 ``tooling/ratchet/baselines/`` is the authoritative list -- one JSON per gate, and
 the directory is the count. No number is written here on purpose:
 
@@ -159,8 +167,9 @@ Consequences:
 * **The architecture gate is not a ratchet.** Layer crossings and JS import
   cycles are held at zero (``tooling/architecture/js_cycle_check.py``, ADR-0019;
   ADR-0034 is the Python counterpart), with pre-existing ones pinned in
-  ``KNOWN_CYCLES`` / ``KNOWN_VIOLATIONS`` with a rationale. ``test_lint``
-  ratchets are counted inside the module's own ``assert_ratchet``.
+  ``KNOWN_CYCLES`` / ``KNOWN_VIOLATIONS`` with a rationale. ``test_lint``'s own
+  floors are in ``baselines/`` too, read by ``assert_ratchet`` and named
+  ``lint_<rule>``; a baseline that is absent means a floor of zero.
 
 Each gate runs on ``pull_request`` and on ``push`` to ``19.0-marin`` / ``19.0``.
 
@@ -168,106 +177,138 @@ The ``test_lint`` module
 ------------------------
 
 ``odoo/addons/test_lint`` holds AST checkers and registry-level tests encoding
-Odoo-specific rules no general linter knows. Every rule is an exact-match ratchet
-(``LintCase.assert_ratchet``): the count may not rise, and may not fall silently.
+Odoo-specific rules no general linter knows. **Every rule is an exact-match
+ratchet** (``LintCase.assert_ratchet``, floors in ``tooling/ratchet/baselines/``
+like every other gate): the count may not rise, and may not fall silently. No
+rule is advisory and none fails outright -- the floor is what decides.
 
 Two CI lanes. ``test_lint.yml`` installs ``base`` + ``test_lint`` and runs
 ``/test_lint`` on every PR with no ``paths:`` filter, because these gates scan the
 whole tree; ``asset_lint.yml`` covers the classes needing a real registry
 (bundles, dark siblings, ESM specifiers). ``integration_tests.yml`` runs neither.
 
-Run it before opening a PR touching Python, XML or manifests:
+**Harvest a floor at the CI scope**, ``--addons-path=odoo/addons,addons`` with
+only ``test_lint`` installed. A gate reading the installed registry measures a
+different tree on a fuller install, and a floor taken there cannot pass in CI:
 
 .. code-block:: bash
 
-   odoo-bin -d <db> -i test_lint --test-enable --stop-after-init
+   odoo-bin --addons-path=odoo/addons,addons -d <db> -i test_lint \
+       --test-enable --test-tags /test_lint --stop-after-init --no-http
+
+The AST rules. ``_rules.RULES`` is the registry; ``_py_scan`` is the engine.
 
 .. list-table::
    :header-rows: 1
-   :widths: 26 12 62
+   :widths: 30 10 60
 
-   * - Gate
+   * - Rule
      - Code
-     - Rule
-   * - ``_checker_sql``
+     - Catches
+   * - ``sql-injection``
      - ``E8501``
-     - Dynamic SQL built by interpolation (§10.4). **Fails the build.**
-   * - ``_checker_gettext``
+     - Dynamic SQL built by interpolation (§10.4)
+   * - ``gettext-variable``
      - ``E8502``
-     - ``_()`` / ``_lt()`` called with a non-literal first argument (§8.1)
-   * -
+     - ``_()`` called with a non-literal first argument (§8.1)
+   * - ``gettext-placeholders``
      - ``E8503``
      - Two or more *unnamed* placeholders in a translated string (§8.1)
-   * -
+   * - ``gettext-repr``
      - ``E8504``
      - ``%r`` inside a translated string (§8.1)
-   * -
+   * - ``missing-gettext``
      - ``E8505``
      - Raw string literal passed to a user-facing exception (§2.7)
-   * - ``_checker_unlink``
+   * - ``raise-unlink-override``
      - ``E8506``
      - ``raise`` inside an ``unlink()`` override (§2.6)
-   * - ``_checker_batch``
+   * - ``n-plus-one-query``
      - ``E8507``
-     - Query call inside a ``for`` loop (§11.1). **Advisory** -- logs at WARNING,
-       does not fail; no escalation mechanism exists.
-   * - ``_checker_noqa_rationale``
+     - Query call inside a ``for`` loop (§11.1)
+   * - ``orm-import``
+     - ``E8508``
+     - Addon runtime code importing ``odoo.orm`` directly (§2.1)
+   * - ``onchange-domain``
+     - ``E8509``
+     - Domain returned from an ``@api.onchange`` (§2.9.9)
+   * - ``config-chainmap-patch``
+     - ``E8510``
+     - ``patch.dict`` over the config options ChainMap -- it flattens every
+       lower layer into ``_override_options`` and the damage lands on the next
+       test. Use ``config.patch(**values)``
+   * - ``gettext-developer-error``
+     - ``E8511``
+     - ``_()`` around a builtin exception's message: a traceback is not
+       user-facing, and translating it books a diagnostic into the catalogue
+   * - ``unique-over-translated-column``
+     - ``E8512``
+     - ``UNIQUE`` declared over a ``translate=True`` column (§2.9.8)
+   * - ``shadowed-definition``
+     - ``E8513``
+     - A class body defining the same member twice (ADR-0062)
+   * - ``noqa-rationale``
      - --
      - ``# noqa`` without a written rationale (§*Suppressing a rule*)
+   * - ``unreadable-source``
+     - --
+     - A file the scan cannot parse, so every other rule skipped it in silence
+
+``noqa-rationale`` and ``unreadable-source`` are unsuppressable, and the second
+is held at zero rather than ratcheted.
+
+The registry and tree gates carry no code and are named by test.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Test
+     - Rule
    * - ``test_index``
-     - --
      - Stored One2many inverse not indexed (§11.5)
-   * - ``test_onchange_domains``
-     - --
-     - Domain returned from an ``@api.onchange`` (§2.9.9)
    * - ``test_naming``
-     - --
-     - Public method with an ``ids`` or ``context`` parameter (§2.4)
+     - Public method with an ``ids`` or ``context`` parameter (§2.4.15)
    * - ``test_override_signatures``
-     - --
-     - Override whose signature diverges from its parent (§2.4)
-   * - ``test_orm_import``
-     - --
-     - Addon runtime code importing ``odoo.orm`` directly (§2.1)
+     - Override whose signature diverges from its parent (§2.4.15)
    * - ``test_manifests``
-     - --
      - Unknown or misordered ``__manifest__.py`` key (§1.2)
    * - ``test_test_holes``
-     - --
      - Test file not imported exactly once in ``tests/__init__.py`` (§6.1)
    * - ``test_docstring``
-     - --
      - Docstring fields disagreeing with the signature (§2.5)
    * - ``test_routes``
-     - --
      - Inherited route restating an unchanged attribute (§2.8)
    * - ``test_l10n``
-     - --
      - Mis-tagged localisation test (§6.7)
-   * - ``test_xml_records``
-     - --
-     - ``<field>`` child order / element attribute order (§3.1)
-   * - ``test_pretty_xml``
-     - --
-     - XML formatting (§3.1)
-   * - ``test_dunderinit``
-     - --
-     - Module without an ``__init__.py``
-   * - ``test_markers``
-     - --
-     - Version-control conflict markers left in a file
+   * - ``test_group_refs``
+     - ``groups=`` naming a group the module never defines (§10.8)
+   * - ``test_xml_records`` / ``test_pretty_xml``
+     - ``<field>`` child order, attribute order, XML formatting (§3.1)
+   * - ``test_view_hygiene`` / ``test_menu_parents``
+     - View-attribute vocabulary, kanban template scope, a group-by filter
+       carrying a domain, orphan labels, ``act_window`` view order, a
+       ``menuitem`` whose parent no module defines
+   * - ``test_esm_specifiers`` / ``test_esm_bundles``
+     - Unresolvable ``@addon/…`` import; ES-module bundle undeclared (§4.1)
+   * - ``test_scheme_duplication`` / ``test_dark_sibling_scope``
+     - Rules restated per colour scheme; dark-sibling placement (§5.3, §5.5)
+   * - ``test_asset_paths_exist`` / ``test_bundles_assemble``
+     - An ``assets`` glob matching no file; a bundle that does not assemble
    * - ``test_pofile``
-     - --
      - Duplicate entries in a ``.pot`` file (§8.3)
    * - ``test_i18n`` / ``test_jstranslate``
-     - --
      - Untranslatable static strings in templates and JS (§8.2)
-   * - ``test_eslint``
-     - --
-     - ESLint over JS (skipped when ``eslint`` is absent)
+   * - ``test_dunderinit`` / ``test_markers``
+     - Module without an ``__init__.py``; conflict markers or NUL bytes
    * - ``test_pep649``
-     - --
      - Annotations that fail to resolve under PEP 649
+
+``test_docstring`` and ``TestSchemeDuplication`` read the installed registry, so
+the narrow lane cannot grade them: the first measures 1 there against 32 on a
+fuller install, and the second **skips** rather than passing. ``asset_lint.yml``
+is their lane.
+
 
 Suppressing a rule
 ------------------
@@ -429,7 +470,8 @@ Keys come from the known set, in the canonical order
 ``name``, ``version``, ``category``, ``sequence``, ``summary``, ``description``,
 ``author``, ``contributors``, ``website``, ``icon``, ``images``, ``license``,
 ``depends``, ``external_dependencies``, ``countries``, ``data``, ``demo``,
-``assets``, ``installable``, ``application``, ``auto_install``, ``post_load``,
+``assets``, ``esm``, ``installable``, ``application``, ``auto_install``,
+``post_load``,
 ``pre_init_hook``, ``post_init_hook``, ``uninstall_hook``.
 
 .. code-block:: python
@@ -534,9 +576,9 @@ Adoption is partial. Apply the rule to files you create or substantially rework.
 --------------------------------------
 
 A module may carry a ``machine_doc_v<N>/`` directory: the machine-readable map of
-its routes, models, architecture, conventions and test tags. ``CLAUDE.md`` makes
-it the first thing read before touching the module, so its figures are adopted as
-premises. **A wrong number here is worse than no number.** Rationale: ADR-0043.
+its routes, models, architecture, conventions and test tags. It is the first thing
+read before touching the module, so its figures are adopted as premises. **A wrong
+number here is worse than no number.** Rationale: ADR-0043.
 
 **Every figure is gated or frozen. A bare figure is a defect** ``[review]``.
 
@@ -552,9 +594,8 @@ premises. **A wrong number here is worse than no number.** Rationale: ADR-0043.
 Gating governs *measurements*, not *invariants*.
 ``assert_eq "$(grep -c 'export class Foo' …)" "1"`` is correct -- the literal is
 the claim, and it should fail the day the symbol is renamed. Test: would the
-number change under ordinary growth? Pin the invariant, not its incidental shape:
-``export class Foo extends Bar`` breaks on an inserted intermediate class while
-every claim about ``Foo`` stays true.
+number change under ordinary growth? Pin the invariant, not its incidental shape
+(``export class Foo extends Bar`` breaks on an inserted intermediate class).
 
 * **Pin every restatement, not just the first.** Prefer not restating it at all.
 * **Prefer omitting an incidental figure to gating it.** A number that shapes no
@@ -600,11 +641,10 @@ are exempt by location. ADR-0008 argues the boundary; ADR-0009 records how its
 scope was closed.
 
 **Format what you write, not the file around it** ``[review]``. Every repo's
-``.pre-commit-config.yaml`` runs ``ruff-format`` after ``ruff-check --fix``, and
-those config files are the authority on the hook set; this repository has no CI
-gate for formatting, so the hook reaches only contributors who installed it.
-Formatting is whole-file, and reformatting a file you did not otherwise change
-costs twice:
+``.pre-commit-config.yaml`` runs ``ruff-format`` after ``ruff-check --fix`` and is
+the authority on the hook set; there is no CI gate for formatting, so the hook
+reaches only contributors who installed it. Reformatting a file you did not
+otherwise change costs twice:
 
 * ``# noqa`` is anchored to a **line**. Reflowing moves the diagnostic off the
   directive: the suppressed finding goes live and the orphaned directive is
@@ -845,8 +885,6 @@ field: ``_<attr>_<field>``, spelled in full -- ``_default_category_id``, not
 ``search()`` and a field's ``domain=``, never ``create()``/``write()``. Bound:
 ``_domain_<field>``. Free-standing: ``_get_domain_<what>``. ``_search_*`` is
 exempt -- a domain is a search hook's contract. ADR-0054, superseding ADR-0050.
-**When an ordering or vocabulary rule lands, check it first against the families a
-record already fixes** -- the check is the record, not the tree.
 
 **A hook does one job** ``[ratchet hookpurity]``. 24 are not hooks at all: the
 declaring model also calls them on ``self`` (calls from tests do not count). Split
@@ -856,9 +894,9 @@ it -- the hook keeps the name and delegates to a helper. ADR-0051, ADR-0049.
 ``_search_``, ``_inverse_``, ``_default_``, ``_onchange_``, ``_domain_`` and
 ``_selection_`` belong to methods a field declaration points at; a body several
 hooks share is named for what it does. Neither field-hook gate sees this, and it
-is worst when the field exists -- ``ir_cron``'s ``_compute_next_call``, a
-``@staticmethod`` no declaration named on a model carrying a stored ``nextcall``,
-is ``_get_next_call``.
+is worst when the field exists: ``ir_cron``'s ``_compute_next_call`` was a
+``@staticmethod`` no declaration named, on a model carrying a stored
+``nextcall``; it is ``_get_next_call``.
 
 **A ``_selection_*`` method with a parameter is not a hook**: ``selection=`` calls
 it with nothing to pass. There are **0** left.
@@ -878,15 +916,12 @@ Two readings of the gate itself:
 * **Its dedication test is per definition, not per name.** A ``default=`` may
   point at any callable, so the gate reaches one only when the method is
   *dedicated* to the field; counted against raw occurrences, a hook copy-pasted
-  into eighteen classes would exempt itself. *Frozen reading* (§1.4) at
-  ``24880109a03``, before the repair: **25 hooks, 15 of them that one name** were
-  hidden. Do not update those two digits. **1** hook is exempt today,
+  into eighteen classes would exempt itself. **1** hook is exempt today,
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
   ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **166**
   names, at **241** definitions, wear one while no field declaration and no
-  binding decorator names them (``_compute_`` leads at 72 names, ``_search_`` at
-  49). A candidate population, not a violation count.
+  binding decorator names them. A candidate population, not a violation count.
 
 2.4.2 Decorator-bound families the gate cannot reach
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -901,19 +936,17 @@ measured by nothing.
 for their field. Four of the rest carry the **pre-9.0 public spelling**
 (``on_change_login``, ``onchange_parent_id``), reachable over RPC by accident.
 
-**``@api.depends``'s callable form** ``[review]``.
-``@api.depends(lambda self: self._get_fields_warning_depends())`` hides the name
-twice, on a decorator and inside a lambda. Such a method returns field names:
-``_get_fields_<field>_depends``. A lambda in an attribute the gate *does* read
-(``domain=lambda self: …``) is itself the hook, so the method takes the
+**``@api.depends``'s callable form** ``[review]``. Such a method returns field
+names: ``_get_fields_<field>_depends``. A lambda in an attribute the gate *does*
+read (``domain=lambda self: …``) is itself the hook, so the method takes the
 free-standing form.
 
 **``@api.ondelete``** ``[review]`` binds to no field and its first token is the
 *reserved* ``unlink``, so three checkers have no opinion, over **166** methods.
 
-* ``unlink`` is the right verb: ``_remove_*`` names a business method that deletes
-  records, while an ``@api.ondelete`` hook deletes nothing -- it *guards* the ORM
-  operation named ``unlink``. Do not "correct" one to ``_remove_``.
+* ``unlink`` is the right verb: an ``@api.ondelete`` hook deletes nothing, it
+  *guards* the ORM operation named ``unlink``. Do not "correct" one to
+  ``_remove_``, which names a business method that deletes records.
 * **The canonical is ``_unlink_except_<the case that raises>``**, at **106** of
   the 163 already. Name the case that raises and take the wording from the error:
   ``_unlink_except_master_data`` raises **when** the record is master data, while
@@ -952,9 +985,8 @@ and 105 groups of methods share a byte-identical body under different names.
 **Every figure in this section is measured, not stated**
 ``[gate doc_restated_counts]``. The population is the 24,704 non-test methods
 declared on a model class **in this repository** -- the population
-``naming_vocabulary.py`` ratchets. Semantic families are read off the table
-below, so the justification is computed from the rule it justifies. Census and
-ratchet both stop at this repository (ADR-0033), so every figure is a floor.
+``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
+figure is a floor.
 
 .. list-table::
    :header-rows: 1
@@ -1036,14 +1068,13 @@ meanings -- a business method that deletes records is ``_remove_*``, never
 
 **Before claiming ``_append_``, check both halves**: a receiver that is a
 sequence, and an addition that lands at its end. ``naming_vocabulary.py`` keeps
-``append`` in ``ABOLISHED`` unconditionally, since it reads a name and not a
-receiver, so the reservation is ``[review]`` and widens no gate.
+``append`` in ``ABOLISHED`` unconditionally -- it reads a name, not a receiver --
+so the reservation is ``[review]`` and widens no gate.
 
-**The reservation binds public names too.** ``ir.actions.server``'s
-``create_action`` and ``unlink_action`` perform neither operation they name, and
-``ir.cron``'s ``method_direct_trigger`` has no verb anywhere; all three are left
-as found, since renaming them is owed ADR-0053's weighing and one change across
-every repository.
+**The reservation binds public names too**, and three are left as found because
+renaming them is owed ADR-0053's weighing and one change across every repository:
+``ir.actions.server``'s ``create_action`` and ``unlink_action``, which perform
+neither operation they name, and ``ir.cron``'s ``method_direct_trigger``.
 
 2.4.4 Ordering
 ~~~~~~~~~~~~~~
@@ -1060,23 +1091,23 @@ those tokens belong to a noun or a field name.
   ``_portal_*``), never as a per-model tidy-up. **The test is not size: ask
   whether the prefix would survive being moved to another model.**
 * **A name with no verb at all is the same blind spot with nothing behind it.**
-  ``_root_model_names`` scores as the verb ``root``. Repair is mechanical -- verb,
-  object, qualifier: ``_get_model_names_in_root_table``.
+  Repair is mechanical -- verb, object, qualifier: ``_root_model_names`` is
+  ``_get_model_names_in_root_table``.
 * **A namespace has to be a namespace in every name that wears it.**
   ``_gc_file_store`` reads *gc the file store* while ``_gc_checklist`` reads *the
-  gc checklist*, and is ``_get_gc_checklist``. Before choosing a spelling, look
-  for the member that already has one.
+  gc checklist*, and is ``_get_gc_checklist``. Look for the member that already
+  has a spelling before choosing one.
 * **Layer the namespaces in the order the calls nest.** ``_esm_run_esbuild``
   wrapping ``_esbuild_invoke`` put each prefix on the other's operation; the pair
   is ``_compile_with_esbuild`` and ``_compile_with_esbuild_locked``.
 
 **A public method drops the underscore, not the verb** ``[review]``. The public
 form of a getter is ``get_*``, of a payload builder ``prepare_*``, down the table
-(ADR-0053). **A public rename is weighed differently**: callers may sit outside
-this workspace and an RPC caller leaves no trace in any tree a gate can scan, so
-weigh it as a public-surface change, give it the record ``doc/adr/README.md`` asks
-for, and rewrite every repository in one change or none. **A rename that cannot be
-completed inside the workspace is not begun.**
+(ADR-0053). **A public rename is weighed differently**: an RPC caller leaves no
+trace in any tree a gate can scan, so weigh it as a public-surface change, give it
+the record ``doc/adr/README.md`` asks for, and rewrite every repository in one
+change or none. **A rename that cannot be completed inside the workspace is not
+begun.**
 
 **The signature can prove the public spelling was an accident** ``[review]``. A
 return of recordsets, callables or exceptions -- anything that does not survive
@@ -1120,8 +1151,8 @@ is measured by nothing; and ``ids`` is deliberately absent, because
 Three checks when renaming ``[review]``:
 
 * **A body that reports what it did in one vocabulary and is named in another is a
-  cheap place to look.** ``_esbuild_circuit_record_failure`` logged
-  ``circuit_open``; it is ``_open_esbuild_circuit``.
+  cheap place to look** -- ``_esbuild_circuit_record_failure`` logged
+  ``circuit_open``, and is ``_open_esbuild_circuit``.
 * **A ratcheted figure moving the wrong way is an objection.** That pair was first
   renamed to ``_run_esbuild``, breaking §2.4.9 in the commit that quotes it.
 * **A rename is workspace-wide and a name is not unique.** A substitution on a
@@ -1144,11 +1175,8 @@ one class. Repair by reading the return, not by flipping the arrow.
 Four limits:
 
 * **A converter returns the representation its name promises**, so a strict-shape
-  name annotated ``-> None`` is not one -- 8 of the 99 are, and not all are
-  defects (``mail``'s ``_thread_to_store`` serialises into an accumulator it is
-  handed). The reading generalises: excluding hook prefixes, 7 model methods open
-  with ``_get_``, ``_prepare_``, ``_count_``, ``_resolve_``, ``_find_``,
-  ``_list_`` or ``_collect_`` and are annotated ``-> None``.
+  name annotated ``-> None`` is not one -- though not every such case is a defect
+  (``mail``'s ``_thread_to_store`` serialises into an accumulator it is handed).
 * **The idiom holds only while the conversion is total in one operand.** An
   operand that steers the result leaves no pair to name: ``_paperformat_to_css``,
   taking a landscape flag and template overrides, is ``_prepare_paperformat_css``.
@@ -1231,9 +1259,7 @@ new ones this way; do not rename the bound ones.
   belongs to its caller** ``[review]``. ``_reflect_model_params`` returns the
   ``ir_model`` column values ``_reflect_models`` consumes: it is
   ``_prepare_model_vals``. **Ask whether the name already belongs to a method one
-  frame up.** Converse halves of one mechanism wearing two unrelated verbs is the
-  same defect as a duplicate: the spelling that hides a duplicate hides a
-  counterpart.
+  frame up.**
 * **A canonical verb can be wrong too** ``[review]``.
   ``_prepare_local_attachments`` migrated remote attachments and returned the
   local ones -- a write, then a filter, with no consumer anywhere. It is
@@ -1250,10 +1276,9 @@ more than half its floor, and is owed its own record.
 **The assemble verbs are abolished on paper and enforced for one shape**
 ``[review]``: ``naming_vocabulary.py`` reports one only when the name also ends in
 a payload suffix. **14** model methods open with one of those four verbs and the
-ratchet flags **4**. Two things hide in that gap -- the suffix list is short
-(``_build_pdf_options`` is invisible because ``_options`` is not one of the nine),
-and *object construction takes ``_prepare_`` too*, since a factory has a consumer
-like anything else.
+ratchet flags **4**. The gap hides two things -- the suffix list is short, and
+*object construction takes ``_prepare_`` too*, a factory having a consumer like
+anything else.
 
 Backlog: **34** of this repository's **726** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
@@ -1281,11 +1306,10 @@ names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
 * **A predicate prefix is a contract, and a raising body breaks it** ``[review]``,
   with nothing enforcing that direction. ``_can_execute_action_on_records``
   returned ``None`` and raised ``AccessError``, so ``if not action._can_…():
-  return`` guarded exactly when access was **granted**. It is
+  return`` guarded exactly when access was **granted**; it is
   ``_check_access_to_run``.
-* **A predicate may log, and the log's wording is not a side effect**
-  ``[review]``. **The tell that reporting has become the contract is a parameter
-  only the log reads.**
+* **A predicate may log** ``[review]``. **The tell that reporting has become the
+  contract is a parameter only the log reads.**
 * **A ``_check_`` bound to ``@api.constrains`` that never raises cannot be
   repaired by renaming** ``[review]``. Either it is a constraint and owes a
   ``ValidationError``, or it is advisory and owes a ``_warn_*`` helper called from
@@ -1323,10 +1347,9 @@ definitions) describe execution rather than behaviour; every method executes. Na
 the domain operation: ``_post_entries``, not ``_do_posting``. No mechanical
 rewrite exists.
 
-* **A callback is a role, not an operation** ``[review]``.
-  ``_callback(cron_name, server_action_id)`` names the fact that something calls
-  it back, which every method in a dispatch chain does. It is
-  ``_run_server_action``.
+* **A callback is a role, not an operation** ``[review]``. ``_callback`` names
+  the fact that something calls it back, which every method in a dispatch chain
+  does; it is ``_run_server_action``.
 * **Where the operation is what the model is about, the verb is a domain verb.**
   ``ir.cron`` exists to run scheduled jobs; ``_eval_`` is what ``safe_eval`` does;
   rendering is a reporting engine's domain operation. The test: could the name be
@@ -1335,11 +1358,11 @@ rewrite exists.
   object separate the scopes -- ``_run_jobs_until_deadline``, ``_run_job``,
   ``_run_job_within_budget`` -- so the grep for the descent is ``_run_``.
 * **A count of spellings is not a count of violations, and this rule raises it**
-  ``[review]``. Moving a chain onto one verb **adds** a definition to the census.
-  Those six verbs are a *sample*: a verb naming *the walk* is the same defect
-  under a word nobody listed (``_traverse_path`` → ``_get_update_path_target``).
-  Do not read the number as debt to drive to zero, and do not avoid a correct
-  ``_run_`` to keep it still.
+  ``[review]``. Moving a chain onto one verb **adds** a definition to the census,
+  and those six verbs are a *sample* -- a verb naming *the walk* is the same
+  defect under a word nobody listed (``_traverse_path`` →
+  ``_get_update_path_target``). Do not avoid a correct ``_run_`` to keep the
+  number still.
 * **The tuple return is the tell.** A method returning two products either names
   both or splits, and the **call sites** say which: same consumer → name both
   (``_prepare_body_and_stylesheets``); different consumers → split. **"Unused
@@ -1366,9 +1389,7 @@ moment the raise moves into the caller's own ``except``.
 
 * **The larger half says no verb at all** ``[review]``: a builder that already
   returns the exception is invisible to both mechanisms when its name is a noun
-  phrase. 13 model methods are annotated to return exactly an exception type, of
-  which 9 spell ``_prepare_*_error`` -- a floor, since the complete test is a body
-  whose every ``return`` is an exception constructor.
+  phrase.
 * **A method that raises only sometimes is a different family** ``[review]``. The
   rule above reaches the unconditional raiser, **15** of those **23**; the rest
   spell ``_raise_if_*`` or ``_raise_for_*``, have nothing to return when the
@@ -1385,14 +1406,11 @@ moment the raise moves into the caller's own ``except``.
   *when* a body runs and nothing else: a ``dict``-backed memo over
   ``_resolve_path_def`` is ``_resolve_paths``, not ``_get_paths``. **The memo
   follows the body, never the reverse**;
-* a **substitute** keeps the promise the default's name made: a callback slot
-  whose implementations disagree about whether control returns becomes a slot that
-  **returns the error to abort with, or ``None`` to carry on**;
+* a **substitute** keeps the promise the default's name made;
 * a **slot** and the method that fills it are one contract under two names. A
   sweep driven by definitions reads ``def``; a slot is a **parameter**. **Read the
   parameter list of every callback-taking constructor in a file you are
-  sweeping** -- the slot is the name the call site sees, and it outlives any one
-  implementation.
+  sweeping**.
 
 2.4.11 Partial producers and the ``_find_`` family
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1413,10 +1431,10 @@ on the name scored both survivors as pure reads, and a check for ``create`` /
 ``write`` / ``unlink`` / ``copy`` moved them out.
 
 **Read the caller too, because an extension point's body is the least informative
-in the tree** ``[review]``. ``_migrate_remote_to_local`` is
-``return self.type == "binary"`` -- the Predicate row exactly -- while its caller
-discards the return inside ``except (ValidationError, RequestException)``, so the
-contract is *fetch the remote bytes and store them locally*.
+in the tree** ``[review]``. ``_migrate_remote_to_local`` reads as the Predicate
+row -- ``return self.type == "binary"`` -- while its caller discards the return
+inside ``except (ValidationError, RequestException)``: the contract is *fetch the
+remote bytes and store them locally*.
 
 **``_resolve_`` is the verb to keep** ``[review]``, at **38** definitions here
 against the size of ``_find_`` -- **29**. It is a **partial** producer, returning
@@ -1441,13 +1459,11 @@ alone** ``[review]``. A pair split across two spellings is worse than a pair
 uniformly wrong. **Rename the pair or neither**, and where the public half needs
 an ADR, the private half waits for it.
 
-**A context manager is named for the scope it opens** ``[review]``. What the
-caller receives is a context manager, and the teardown after the ``yield`` is half
-the contract, so a name promising a return states the half that is least true.
-Name the scope in the imperative -- ``_staged_filestore_temp`` →
-``_stage_temp_file``, on the model of ``borrow_request``, ``savepoint``,
-``ignore_indexes``. *Frozen reading* (§1.4) at ``216b5a03021``: 21 methods on model
-classes carry the decorator and agree on nothing.
+**A context manager is named for the scope it opens** ``[review]``. The teardown
+after the ``yield`` is half the contract, so a name promising a return states the
+half that is least true. Name the scope in the imperative --
+``_staged_filestore_temp`` → ``_stage_temp_file``, on the model of
+``borrow_request``, ``savepoint``, ``ignore_indexes``.
 
 2.4.12 Mutation, sync and overloaded verbs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1480,9 +1496,8 @@ every ``_synchronize_`` is this operation.
 **A name that announces one branch of three is wrong in the same way as a hook
 named for one of its fields** ``[review]``. ``_reserve_paths`` reserved a path,
 moved one whose path had changed, and **deleted** a reservation whose path was
-cleared; it is ``_sync_path_reservations``. Its own test was named
-``test_the_reservation_follows_the_path``: **where a test and the method it covers
-disagree about what the operation is, prefer the test's word.**
+cleared; it is ``_sync_path_reservations``. **Where a test and the method it
+covers disagree about what the operation is, prefer the test's word.**
 
 **``_post_`` is overloaded** ``[review]``. 136 definitions carry three unrelated
 meanings -- ``account.move._post`` (accounting), ``message_post`` (mail) and HTTP
@@ -1507,16 +1522,18 @@ method on a **plain class** declared in the same file, of which there are **377*
 across **144** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
 
-**A file can be sixteen names wrong and green.** Three sweeps
-(``ir_actions_report.py``, ``ir_asset_paths.py``, ``ir_asset.py``) left the ratchet
-reporting the same count before and after -- the argument for the ``[review]``
-tier, stated as a measurement. **The one that was already right is worth as much
-as the ten that were not**: read the body of every name in an ungated file.
+**A file can be sixteen names wrong and green** -- three sweeps left the ratchet
+reporting the same count before and after, which is the argument for the
+``[review]`` tier. Read the body of every name in an ungated file.
 
 **Adoption** ``[ratchet naming]``. As with §2.2, apply the vocabulary to methods
 you create or substantially rework. ``naming_vocabulary.py`` counts definitions
 still using an abolished verb and feeds the shared ratchet; ADR-0033 argues why
-this section is counted rather than blocked::
+this section is counted rather than blocked. The sibling repositories carry their
+own floors (``naming_enterprise``, ``naming_agromarin``,
+``naming_design-themes``), measured with ``--roots`` from their cross-repo
+``architecture.yml`` and held ``--mode no-increase``; the census figures in this
+section still stop at this repository, so every one of them is a floor::
 
     python tooling/architecture/naming_vocabulary.py --count \
         | xargs python tooling/ratchet/ratchet.py naming --count
@@ -1532,8 +1549,7 @@ learn to ignore.
 **A rename carries its bindings, and that is the whole of the constraint**
 ``[review]``. *Inherited* is not a property of a name but a statement about who
 else holds it, and ``git grep -ln '<name>' 19.0`` answers it against the pristine
-mirror. That buys an estimate of the work, not a veto: a rule freezing every name
-the baseline picked is *increases divergence* wearing a safety rule's clothes.
+mirror. That buys an estimate of the work, not a veto.
 
 * **Greppable, inside the workspace** -- an XML ``name="..."``, a JS reference, an
   override in a sibling checkout. **Cost, not a veto**: rewrite them in the same
@@ -1595,9 +1611,8 @@ Three consequences, in ascending expense:
 definitions begin ``_render_qweb_``; exactly **3** are keys, because ``_render``
 builds its target from ``report_type``, whose Selection offers three values. **The
 set of keys is the enumerable domain of the variable half, never the set of names
-beginning with the literal half.** *Nothing in the ``_render_`` family needs
-renaming* -- **a campaign that cannot return "this one is already right" is not
-measuring, it is churning.**
+beginning with the literal half** -- so a sweep must be able to return "this one
+is already right".
 
 Adding a dispatch table is a design decision: it creates a naming contract this
 section cannot check. Prefer a registry keyed on data you can enumerate; if you
@@ -1734,14 +1749,14 @@ would honestly need two of them is doing two things.
 * **The verb governs whatever is named after the operation, not only the method
   that performs it** ``[review]``. ``_cache_invalidating_fields`` and
   ``_unconditional_clear_fields`` fed one decision through a local called
-  ``clear``: one operation, two of the three verbs, in a file that caches nothing.
-  They are ``_get_fields_invalidating_always`` and
+  ``clear`` -- one operation, two of the three verbs, in a file that caches
+  nothing. They are ``_get_fields_invalidating_always`` and
   ``_get_fields_invalidating_when_cached``.
 * **A name in adjective position needs a participle** ``[review]``. The canonical
-  read verb has no participle anybody writes -- ``got_bundles`` is not a name --
-  so the abolished ``fetched_bundles`` survived where the table cannot serve.
-  **Name the state, not the operation**: ``loaded_bundles``, on the model of
-  ``BundleWalk.walked``. A **method** performing the read is still ``_get_*``.
+  read verb has no participle anybody writes, so ``fetched_bundles`` survived
+  where the table cannot serve. **Name the state, not the operation**:
+  ``loaded_bundles``, on the model of ``BundleWalk.walked``. A **method**
+  performing the read is still ``_get_*``.
 * **A memoised read is three methods** ``[review]``: an **entry** deciding which
   path to take, a **memoised** wrapper carrying ``@tools.ormcache``, and the
   **body** both reach. The only thing separating them is the caching:
@@ -1768,14 +1783,14 @@ the signature ``[test_lint test_docstring]``. Nothing obliges you to write one;
 writing a wrong one still fails.
 
 **Two bodies of docstrings are load-bearing and must not be removed.**
-``odoo/cli/`` docstrings are the CLI's user-facing help text -- ``help.py``
-renders ``cmd.__doc__``, ``command.py`` feeds it to argparse, and
-``upgrade_code.py`` calls ``__doc__.replace()``, which raises ``AttributeError``
-the moment it becomes ``None``; eight ``base`` tests gate them. A handful more are
-machine-checked contracts read by ``tooling/architecture/`` and
-``tests/service/``: ``orm/__init__.py``, ``orm/models/mixins/_metadata.py``,
-``service/__init__.py``, ``service/db.py``, ``http/tests/test_openapi.py``.
-Deleting either kind breaks a test, not a style gate.
+``odoo/cli/`` docstrings are the CLI's user-facing help text, rendered by
+``help.py``, fed to argparse by ``command.py`` and string-replaced by
+``upgrade_code.py``, which raises ``AttributeError`` the moment one becomes
+``None``. A handful more are machine-checked contracts read by
+``tooling/architecture/`` and ``tests/service/``: ``orm/__init__.py``,
+``orm/models/mixins/_metadata.py``, ``service/__init__.py``, ``service/db/``,
+``http/tests/test_openapi.py``. Deleting either kind breaks a test, not a style
+gate.
 
 Use Sphinx fields:
 
@@ -2160,8 +2175,8 @@ tail -- the tree spells that tail ``_uniq`` **79** times against ``_unique``'s
 ``[review]``. ``_reflect_constraints`` registers each constraint as module data
 under ``{module}.constraint_{conname}``; on the next upgrade the old xmlid is
 absent from ``loaded_xmlids``, ``ir.model.data._process_end`` unlinks the orphan,
-and ``IrModelConstraint.unlink`` drops the constraint it names. **Check this
-before writing a migration for a rename in this family.**
+and ``IrModelConstraint.unlink`` drops the constraint it names. Do not write a
+migration for one.
 
 **What the rename does break is the translations, and that binding is invisible**
 ``[review]``. ``message`` is a translated field on a *record*, so its translations
@@ -2173,15 +2188,14 @@ nothing, in silence, and the message reverts to English. ``_obj_name_uniq`` was
 named in **64** of ``base``'s catalogues, the ``.pot`` template among them -- miss
 that one and the next export puts the stale reference back.
 
-**Never declare UNIQUE over a translated column**
-``[test_lint test_translated_unique]``. A ``translate=True`` field is stored as
+**Never declare UNIQUE over a translated column** ``[test_lint E8512]``. A ``translate=True`` field is stored as
 ``jsonb``, so the constraint compares whole translation *documents* rather than
 values: two rows stop colliding the moment one carries a language the other does
 not. That is the next create, not a later translation step, because Odoo writes
 the active language alongside the source term -- so the rule enforces nothing,
 silently, and only in databases with a second language.
 
-Use ``name_uniq_index()`` from ``odoo/addons/base/models/catalog_mixin.py``, which
+Use ``name_uniq_index()`` from ``odoo/addons/base/models/mixin_catalog.py``, which
 indexes the source term. It is a ``models.UniqueIndex`` rather than a
 ``Constraint`` because the comparison is an expression, which PostgreSQL does not
 allow in a UNIQUE constraint:
@@ -2520,8 +2534,9 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
 
 **Search** -- inside a ``<search>``, ``<group>`` no longer accepts ``string`` or
 ``expand``; both are rejected by view validation, while ``name``, ``invisible``,
-``groups``, ``colspan`` and ``col`` remain valid. Every group and every filter
-needs a ``name``, so inheritance can reach it by XPath:
+``groups`` and ``colspan`` remain valid (the RNG is
+``odoo/addons/base/rng/common.rng``). Every group and every filter needs a
+``name``, so inheritance can reach it by XPath:
 
 .. code-block:: xml
 
@@ -2640,7 +2655,7 @@ This fork renders ``qweb-pdf`` with **WeasyPrint** and real CSS Paged Media;
 wkhtmltopdf is gone, and so is its folklore. The engine is ``WeasyPrintEngine`` in
 ``odoo/addons/base/models/ir_actions_report.py``; the paged-media CSS is
 ``addons/web/static/src/webclient/actions/reports/report_paged_media.css`` and
-``report_pdf_layout.css``, both with substantial header comments.
+``report_pdf_layout.css``.
 
 **Layout**
 
@@ -2785,9 +2800,9 @@ module's own test suite:
   ``[test_lint test_esm_specifiers]``. esbuild fails the *entire bundle* on one
   unresolvable specifier, and a failed build is served as an empty one -- so a
   module moved inside ``web`` blanks the web client of every database carrying an
-  addon that still imports the old path, including addons not installed. ADR-0023
-  records the second half: a specifier that does not resolve in a *test* file
-  registers no suite at all, so the run reports fewer tests rather than an error.
+  addon that still imports the old path. In a *test* file the same specifier
+  registers no suite at all, so the run reports fewer tests rather than an error
+  (ADR-0023).
 * **A bundle rendered by ``t-call-assets`` must be declared under the manifest's
   ``esm`` key if it carries ES-module sources** ``[test_lint test_esm_bundles]``.
   Undeclared, it is concatenated as legacy JS and every module-syntax file in it
@@ -3062,8 +3077,8 @@ the plain rule (0,2,0) against (0,1,0). ``scheme_rules.scss`` and
   unconditionally, so an unscoped block answers the attribute in print.
 * **Not where it cannot apply.** A file riding ``assets_frontend`` should not
   carry the dark half, since nothing there sets the attribute. Split it into a
-  sibling declared in the backend bundle alone -- ``html_editor.scheme_rules.scss``
-  exists because emitting it from the shared file put 24 KB on every public page.
+  sibling declared in the backend bundle alone, as
+  ``html_editor.scheme_rules.scss`` is.
 * **Never call ``tint-color()`` or ``shade-color()`` from a scoped block.** The
   dark bundle carries ``bs_functions_overridden.dark.scss``, which redefines both
   -- in dark, tint mixes with *black* -- so calling Bootstrap's own function from
@@ -3078,11 +3093,11 @@ the plain rule (0,2,0) against (0,1,0). ``scheme_rules.scss`` and
 -------------------------
 
 **Weigh the bytes.** A ``var(--name, <fallback>)`` is longer than the colour it
-replaces, once per use. Converting ``$focus-ring-color`` added 34 KB to every
-backend bundle and answered nothing, because ``$focus-ring-box-shadow`` had
-flattened the composed shadow into a string before the token reached it. Read the
-compiled size alongside ``TestSchemeDuplication``'s count; a conversion that moves
-neither is a conversion to drop.
+replaces, once per use, and a variable already flattened into a string by the time
+the token reaches it buys nothing -- ``$focus-ring-color`` cost 34 KB on every
+backend bundle for that reason. Read the compiled size alongside
+``TestSchemeDuplication``'s count; a conversion that moves neither is one to
+drop.
 
 ----
 
@@ -3137,19 +3152,19 @@ packages themselves -- that every public facade declares ``__all__``, and that
 every monkeypatch is applied whatever the import order. They cannot be Tier 1:
 the stubs would replace the objects under test.
 
-Two further suites sit outside the tiers because they need real resources:
+Three further suites sit outside the tiers because they need real resources:
 
 .. code-block:: bash
 
    pytest tests/contract   # needs PostgreSQL + psql/pg_dump on PATH; <1s
    pytest tests/process    # boots real odoo-bin processes; POSIX + PostgreSQL; ~20s
+   pytest tests/loading    # installs base into a scratch DB; the slowest
 
 **Contract tests** pin the behaviour of our *dependencies* -- psycopg's exception
 hierarchy, what ``pg_dump`` emits, how ``psql`` lexes a meta-command, whether
-``Popen`` closes its pipes -- not our own logic. Every defect in the July 2026
-service-layer audit was an assumption mismatch rather than a logic error: the
-mocks were internally consistent and encoded the wrong external behaviour. Write
-one whenever code branches on how a dependency behaves, and assert the dependency
+``Popen`` closes its pipes -- not our own logic. A mock encodes the same belief as
+the code it stands in for, so it cannot catch a wrong one. Write a contract test
+whenever code branches on how a dependency behaves, and assert the dependency
 directly, so a version bump fails in a test that *names the assumption*. The suite
 skips when a dependency is missing, so a green local run may have compared
 nothing; CI sets ``ODOO_CONTRACT_REQUIRE_DEPS=1``.
@@ -3301,15 +3316,17 @@ The ORM defers writes, so flush before asserting on database state:
 6.6 Lint relaxations in tests
 -----------------------------
 
-``**/tests/**`` suppresses these ``ruff`` rules; keep the list in sync with
-``ruff.toml``: ``B017`` (broad ``assertRaises``), ``RUF015``, ``PLW0603``
-(fixtures), ``T201`` (``print``), ``PLR6201``, ``S110``, ``S113`` (HTTP without
-timeout), ``TRY002``, ``TRY203``, ``EM101``, ``PLR0124`` (self-comparison),
-``A001`` / ``A002`` (builtin shadowing), and ``RUF069`` -- exact float assertions
-of deterministic values are legitimate in a test.
+``ruff.toml``'s ``**/tests/**`` entry is the authority; read it rather than this
+list. It suppresses ``B017`` (broad ``assertRaises``), ``RUF015``, ``PLW0603``,
+``T201`` (``print``), ``PLR6201``, ``S110``, ``S113`` (HTTP without timeout),
+``TRY002``, ``TRY203``, ``EM101``, ``PLR0124`` (self-comparison), ``A001`` /
+``A002`` (builtin shadowing), ``RUF069`` (exact float assertions of deterministic
+values), ``FURB152`` (fixture data that looks like a maths constant), ``B018`` and
+``B015`` (a field touch or an ``in`` under ``assertRaises`` *is* the assertion),
+and ``RUF075`` (post-``yield`` code is the assertion).
 
-``D`` and ``ANN`` are also exempt inside ``odoo/libs/`` and
-``odoo/orm/components/`` tests.
+``ANN``, ``ARG``, ``FBT003``, ``RUF012`` and ``S301`` are also exempt inside
+``odoo/libs/`` and ``odoo/orm/components/`` tests.
 
 6.7 Tagging
 -----------
@@ -3377,14 +3394,13 @@ Two rules the tool exists to enforce, both measured rather than assumed:
 
 - **Never count failures by grepping for** ``ERROR``. PostgreSQL error text is
   embedded verbatim in log records of *passing* tests, so a test that provokes a
-  bad ``COPY`` contributes a line reading ``ERROR: ...``. Measured on the ``/base``
-  log taken at ``ca4ee2ddd79`` on 2026-08-22, that grep answers 14 and the truth is
-  3 -- a frozen reading of one run, not a tree census. Anchor on the structured record
+  bad ``COPY`` contributes a line reading ``ERROR: ...``; on one ``/base`` log that
+  grep answered 14 against a truth of 3. Anchor on the structured record
   ``<ts> <pid> ERROR uid:... <logger>: FAIL|ERROR: <Class.method>``, or on the
   server's own ``N failed, M error(s) of T tests`` summary.
 - **Diff failure names, never counts.** ``quality_control`` held at two failures
-  across a day in which one recorded test was fixed and an unrecorded one broke.
-  A matching count reads as "both known" and ships the regression.
+  across a day in which one recorded test was fixed and an unrecorded one broke:
+  a matching count reads as "both known" and ships the regression.
 
 A suite with no baseline gets no verdict rather than a guess. ``tooling/testbaseline/README.md``
 carries the measurement behind each choice.
@@ -3472,9 +3488,7 @@ directory pathspec sweeps in every deletion under it:
    git commit -m A -- research/keep.md    # note.md survives
    git commit -m B -- research            # note.md deleted, unmentioned
 
-Branch B is how a 567-line note was removed by a commit whose message described
-only an edit to its sibling. Name the files, and read ``git status`` for ``D``
-lines before committing.
+Name the files, and read ``git status`` for ``D`` lines before committing.
 
 7.2 Branches and task IDs
 -------------------------
@@ -3837,22 +3851,16 @@ Every new model ships explicit access rules ``[review]``. A model with no
   refuses ``create`` as well as ``write``, and ``create`` checks ``default_*``
   context keys too, so a field every creator must supply -- a price, a category,
   a type, a company -- stops ordinary object creation the moment it is gated,
-  including from a view whose action merely *defaults* it. Measured: gating
-  ``product.template.list_price`` broke 24 test classes in one run, all of them
-  ``ProductCommon`` building a product with a price as a non-sales user, and
-  gating ``categ_id`` breaks ``product.view_product_category_form``'s Products
-  button, which passes ``default_categ_id``. A field whose value is a *decision*
-  reserved to a group -- a cost, a published flag, a customer flag -- is the case
-  this is for; leave the rest a view-level ``readonly``.
-* **Spell a group reference so it resolves** ``[test_lint group-reference]``. An
+  including from a view whose action merely *defaults* it. A field whose value is
+  a *decision* reserved to a group -- a cost, a published flag, a customer flag --
+  is the case this is for; leave the rest a view-level ``readonly``.
+* **Spell a group reference so it resolves** ``[test_lint test_group_refs]``. An
   external id no group answers to is not an error at runtime: ``_has_group``
   reads it as "not a member", so ``groups="module.group_typo"`` hides the node
   from everyone and ``groups="!module.group_typo"`` shows it to everyone, in
-  silence. The gate holds this at zero over the checkout's own modules and says
-  nothing about a reference into a module this checkout does not carry, because
-  that is the optional-dependency idiom -- ``portal`` asking about
-  ``website.group_website_restricted_editor`` is correct, and answers ``False``
-  when ``website`` is absent. ADR-0068.
+  silence. The gate holds this at zero over the checkout's own modules and leaves
+  a reference into a module this checkout does not carry alone -- that is the
+  optional-dependency idiom. ADR-0068.
 
 10.9 Configuration and secrets
 ------------------------------
@@ -3894,9 +3902,9 @@ Every new model ships explicit access rules ``[review]``. A model with no
 ----------------
 
 A ``search()``, ``search_count()``, ``search_fetch()`` or ``_read_group()`` call
-inside a ``for`` loop over a recordset is a violation ``[test_lint E8507]``. The
-checker is advisory today -- it logs at WARNING rather than failing. Treat a
-warning as a finding, not as noise.
+inside a ``for`` loop over a recordset is a violation ``[test_lint E8507]``. Like
+every ``test_lint`` rule it is an exact ratchet, so a new one fails the build and
+a fix that is not banked fails it too.
 
 Aggregate outside the loop and index the result:
 
@@ -4275,10 +4283,9 @@ human committed to has a single name across order types:
    * - ``date_planned``
      - ``date_commitment``
 
-``sale.order.date_commitment`` already carried that meaning -- the delivery date
-promised to the customer -- while purchase spelled the vendor's promised arrival
-``date_planned``. Shared code in ``base_order`` now names it once:
-``mixin.order``'s ``is_late`` domain reads ``date_commitment`` on both.
+``sale.order.date_commitment`` already carried that meaning, so shared code in
+``base_order`` now names it once: ``mixin.order``'s ``is_late`` domain reads
+``date_commitment`` on both.
 
 **``date_planned`` still exists, and still means something else**: a *derived,
 unstored* estimate on ``sale.order`` (and on ``sale.order.line`` under
@@ -4311,25 +4318,19 @@ both carry the *other* one's upstream meaning. ``mixin.order.line.amount``
 **Writing ``product_uom_qty`` does not raise; it silently does the wrong
 thing.** In ``create`` the value is discarded and ``product_qty`` falls back to
 its default of 1 — a test that orders 10 orders 1 and usually still passes. In
-``write`` the value lands in the stored column while ``product_qty`` keeps its
-old value, so the two disagree until something recomputes: a line reading 1 in
-its own unit and 3 in the reference unit, for a product whose two units are the
-same. Both shapes were found across the mrp ring, in tests and in model code
-(``sale_mrp`` and ``purchase_mrp`` fed ``product_uom_qty`` to a conversion that
-declares its input to be in ``product_uom_id``).
+``write`` it lands in the stored column while ``product_qty`` keeps its old
+value, so the two disagree until something recomputes.
 
 So: **write ``product_qty``**, and read it wherever the quantity is about to be
-converted from ``product_uom_id`` or compared with a BoM's ``product_qty``.
-Read ``product_uom_qty`` only where the reference unit is what is wanted — for
-example comparing a line against free stock. ``stock.move.product_uom_qty`` is
-unrelated and unchanged: it is a real, writable field there.
+converted from ``product_uom_id`` or compared with a BoM's ``product_qty``. Read
+``product_uom_qty`` only where the reference unit is the point -- comparing a
+line against free stock. ``stock.move.product_uom_qty`` is unrelated and
+unchanged: a real, writable field there.
 
 Counted by ``tooling/architecture/order_line_qty.py`` and ratcheted as
-``orderlineqty``. A count rather than a raise on the field, on ADR-0033's
-argument: the tree opens with well over a hundred of these, so the floor is
-frozen first and driven down module by module. The raise is where it ends —
-that is what every other rename here does, and a write that silently half-lands
-is the failure mode the raise exists to prevent.
+``orderlineqty`` rather than made to raise, on ADR-0033's argument: the floor is
+frozen where it stands and driven down module by module. A raise is where it
+ends.
 
 Appendix B — References
 ========================
@@ -4411,7 +4412,7 @@ file.
 Appendix D — Document history
 ==============================
 
-One row per change, saying what moved. The argument lives in the section it moved.
+One row per change, one clause. The argument lives in the section it moved.
 
 .. list-table::
    :header-rows: 1
@@ -4420,65 +4421,46 @@ One row per change, saying what moved. The argument lives in the section it move
    * - Version
      - Date
      - Summary
+   * - 6.7
+     - 2026-08-27
+     - Fact-check against the tree and a further narration cut. Corrections:
+       every ``test_lint`` rule is an exact ratchet, so ``E8501`` does not "fail
+       the build" and ``E8507`` is not advisory; the AST codes run to ``E8513``
+       and six were undocumented; ``test_eslint`` does not exist; the manifest
+       key order carries ``esm``; ``name_uniq_index`` is in ``mixin_catalog.py``;
+       ``service/db.py`` is a package; the ratchet table is 13 of ~94 floors and
+       the siblings carry ``naming_*`` scopes of their own; ``tests/loading`` is
+       a third real-resource suite; §6.6's relaxation list had drifted from
+       ``ruff.toml``; ``<group>`` in a search view takes no ``col``.
    * - 6.6
      - 2026-08-26
-     - **§10.8 gains a rule on group references.** An external id no group
-       answers to reads as "not a member", so a typo hides a node from everyone
-       and a negated typo shows it to everyone, silently. ``test_lint`` now holds
-       unresolvable references at zero for the checkout's own modules and leaves
-       cross-module ones alone. ADR-0068.
+     - §10.8: a group reference must resolve -- an external id no group answers
+       to reads as "not a member", so a typo hides a node from everyone and a
+       negated typo shows it to everyone. ADR-0068.
    * - 6.5
      - 2026-08-25
-     - **§10.8 gains** ``write_groups``. ``Field.groups`` was the only
-       field-level declaration and gates read and write together, so a field
-       everyone reads and only some may change had no spelling; five places
-       across this fork and upstream had independently reached for a computed
-       boolean feeding ``readonly="not flag"`` in the arch, which enforces
-       nothing and costs a field per group per model on the wire.
-       ``write_groups`` takes a group spec or a callable over the records being
-       written, raises on ``write`` and ``create``, and reaches the client
-       through the ``readonly`` that ``fields_get`` already derives from
-       ``_has_field_access(field, "write")``. ADR-0065.
+     - §10.8 gains ``write_groups``: a field everyone reads and only some may
+       change had no spelling, and the computed boolean feeding
+       ``readonly="not flag"`` that five places reached for enforces nothing.
+       ADR-0065.
    * - 6.4
      - 2026-08-25
-     - **A fourth Tier-2 path, ``tests/framework``.** The facade ``__all__`` gate
-       and the monkeypatch suite moved there out of ``base/tests``, where they
-       subclassed the framework test case and so needed a database plus a full
-       ``base`` install to check pure imports. §6.0's "pass all N paths" warning
-       now reads four.
+     - A fourth Tier-2 path, ``tests/framework``: the facade ``__all__`` gate and
+       the monkeypatch suite needed no database and now need no install.
    * - 6.3
      - 2026-08-23
-     - **Appendix A gains the order-line quantity swap.** ``product_qty`` and
-       ``product_uom_qty`` both exist on ``sale.order.line`` and
-       ``purchase.order.line`` and each carries the other's upstream meaning:
-       ``product_qty`` is the quantity in the line's own unit and is the
-       writable one, ``product_uom_qty`` is that quantity in the product's
-       reference unit and is ``readonly``. Writing ``product_uom_qty`` does not
-       raise — in ``create`` it is discarded and the line silently becomes
-       quantity 1, in ``write`` it lands in the column while ``product_qty``
-       keeps its old value and the two disagree. Both shapes were live across
-       the mrp ring: six ``sale.order.line`` creates and three
-       ``purchase.order.line`` creates ordering 1 instead of the quantity they
-       named, seven ``write`` calls desynchronising a rental line, and model
-       code in ``sale_mrp`` and ``purchase_mrp`` feeding the reference-unit
-       number to a conversion that declares its input to be in the line's unit.
-       Nothing is retired: the field names are unchanged, only their meanings,
-       and the appendix now says which is which. Counted by
-       ``tooling/architecture/order_line_qty.py`` and ratcheted as
-       ``orderlineqty``, on ADR-0033's argument — a rule this size is frozen
-       where it stands and driven down, not blocked on day one.
+     - Appendix A gains the order-line quantity swap: ``product_qty`` and
+       ``product_uom_qty`` each carry the other's upstream meaning, writing the
+       stored one silently half-lands, and the tree is ratcheted as
+       ``orderlineqty`` rather than made to raise on day one.
    * - 6.2
      - 2026-08-22
      - §6.9 added: diff a run against its recorded failure set rather than
-       re-running the suite to learn whether a red test was already red; never
-       count failures by grepping ``ERROR``; diff names, not counts.
+       re-running the suite; never count failures by grepping ``ERROR``; diff
+       names, not counts.
    * - 6.1
      - 2026-08-22
-     - Narration cut throughout. No rule added, removed or changed: every
-       ``[label]``, table, code block and gated figure is carried over, and every
-       sentence ``doc_restated_counts`` pins is re-anchored in the same commit.
-       Worked examples keep the rename pair and drop the story around it;
-       Appendix D's rows are condensed to one clause each.
+     - Narration cut throughout, no rule changed.
    * - 6.0
      - 2026-08-22
      - Full rewrite into a direct, rule-first style; §2.4 gains numbered
@@ -4486,18 +4468,17 @@ One row per change, saying what moved. The argument lives in the section it move
    * - 5.42
      - 2026-08-22
      - §2.9.8: the constraint attribute names the columns; a rename is carried by
-       module-data cleanup, not a migration; the rename breaks the translations.
+       module-data cleanup, not a migration, and it breaks the translations.
    * - 5.41
      - 2026-08-22
      - §2.4: a payload builder named for the operation it feeds borrows its
-       caller's verb; the ``@api.constrains`` family, named for the condition it
-       enforces rather than its triggers; a ``Protocol`` declaration is a binding.
+       caller's verb; the ``@api.constrains`` family is named for the condition
+       it enforces; a ``Protocol`` declaration is a binding.
    * - 5.40
      - 2026-08-22
-     - §2.4: running is the domain operation of a scheduler; a callback is a role;
-       a count of spellings is not a count of violations; it is worse when the
-       field exists; provenance separates artifacts, not arithmetic; the cache
-       verbs are reserved for caches.
+     - §2.4: running is a scheduler's domain operation; a callback is a role; a
+       count of spellings is not a count of violations; provenance separates
+       artifacts from arithmetic; the cache verbs are reserved for caches.
    * - 5.39
      - 2026-08-21
      - §2.4: a trailing preposition is an operand; the tail says which
@@ -4506,8 +4487,7 @@ One row per change, saying what moved. The argument lives in the section it move
      - 2026-08-21
      - §2.4: head-first is a test as well as an ordering; a memo takes the
        spelling of what it memoizes; a slot and its implementation are one
-       contract; a shape suffix binds every override; the never-raising
-       ``@api.constrains``-bound ``_check_``.
+       contract; a shape suffix binds every override.
    * - 5.37
      - 2026-08-21
      - §2.2.1: mixins are named ``mixin.<what they add>`` -- prefix, not suffix.
@@ -4518,12 +4498,10 @@ One row per change, saying what moved. The argument lives in the section it move
    * - 5.35
      - 2026-08-20
      - §2.4: an error is built here and raised there; a canonical verb can be
-       wrong; an addition's tail names what is added; the signature can prove a
-       public spelling was an accident.
+       wrong; an addition's tail names what is added.
    * - 5.34
      - 2026-08-20
-     - §2.4: the execution-verb rule gains worked examples and its first
-       principled exception.
+     - §2.4: the execution-verb rule gains its first principled exception.
    * - 5.33
      - 2026-08-20
      - §2.4: wearing a dispatch prefix does not make a name a key.
@@ -4533,42 +4511,38 @@ One row per change, saying what moved. The argument lives in the section it move
        list is a search; object construction takes ``_prepare_``.
    * - 5.31
      - 2026-08-20
-     - §2.4: what "name the domain operation" looks like, worked. Corrects 5.29's
-       helper-class figure.
+     - §2.4: what "name the domain operation" looks like, worked.
    * - 5.30
      - 2026-08-20
      - §2.4: ``exists`` joins the reserved verbs; the pure ORM reads move to
        ``_get_``.
    * - 5.29
      - 2026-08-20
-     - §2.4: ``_find_`` is three operations wearing one verb; the class-membership
-       blind spot covers module-level helpers and plain classes both.
+     - §2.4: ``_find_`` is three operations wearing one verb; the
+       class-membership blind spot covers module-level helpers and plain classes.
    * - 5.28
      - 2026-08-20
-     - §2.4: a signature does not identify a family; the abolished table maps
-       spellings, not methods.
+     - §2.4: the abolished table maps spellings, not methods.
    * - 5.27
      - 2026-08-20
-     - §2.4: the scope test is class membership, so a module's own helpers are
-       ungoverned; the object rule widens past collections; a provider noun is a
-       namespace.
+     - §2.4: a module's own helpers are ungoverned; the object rule widens past
+       collections; a provider noun is a namespace.
    * - 5.26
      - 2026-08-19
-     - §2.4: the object leads its qualifier; the public form drops the underscore,
-       not the verb.
+     - §2.4: the object leads its qualifier; the public form drops the
+       underscore, not the verb.
    * - 5.25
      - 2026-08-19
      - §2.4: ``@api.ondelete`` gains a row; canonical
        ``_unlink_except_<case that raises>``.
    * - 5.24
      - 2026-08-19
-     - §2.4: the field-hook rule reaches five attributes and there are six; a
-       decorator binding is out of reach by construction; a hook may hold two
-       bindings.
+     - §2.4: a decorator binding is out of the field-hook gate's reach by
+       construction; a hook may hold two bindings.
    * - 5.23
      - 2026-08-19
-     - §2.4: four rules from ``avatar.mixin`` -- a hook's prefix is reserved for
-       hooks, the verb leads, ``_generate_``, provenance as tiebreak.
+     - §2.4: a hook's prefix is reserved for hooks; the verb leads;
+       ``_generate_``; provenance as tiebreak.
    * - 5.22
      - 2026-08-18
      - §2.4's figures are derived rather than stated, through
@@ -4590,12 +4564,11 @@ One row per change, saying what moved. The argument lives in the section it move
    * - 5.17
      - 2026-08-17
      - The ratchets: adds ``pyfunclen_addons``, the first ``--mode no-increase``
-       floor, for excess extracted out of ``odoo/`` into an addon.
+       floor.
    * - 5.16
      - 2026-08-14
      - Change protocol: cite the record, and write one where a rule is a
-       decision. ADR-0007 (the CI integration lane) and ADR-0021 (*service*
-       facades) were checked and deliberately not cited.
+       decision.
    * - 5.15
      - 2026-08-15
      - §7.1 requires a pathspec to name files, not a directory.
@@ -4642,33 +4615,33 @@ One row per change, saying what moved. The argument lives in the section it move
      - ``test_lint`` runs in CI; ratchets table completed.
    * - 5.2
      - 2026-08-06
-     - §2.4 gains the verb vocabulary: canonical verb per operation, the abolished
-       table, the reserved verbs, the *provisional* rules.
+     - §2.4 gains the verb vocabulary: canonical verb per operation, the
+       abolished table, the reserved verbs, the *provisional* rules.
    * - 5.1
      - 2026-07-30
      - Corrections: ``force_company`` does not raise; ``<group>`` does carry
        attributes in search views; ratchets fail both ways; the
-       ``at_install``/``post_install`` XOR is warned, not enforced; E8507 has no
-       escalation; §2.9.4 and §12.1 corrected.
+       ``at_install``/``post_install`` XOR is warned, not enforced; §2.9.4 and
+       §12.1 corrected.
    * - 5.0
      - 2026-07-30
-     - Full fact-check and rewrite. The countable gates are *ratchets* over
-       committed floors, not blocking lint; ``[label]`` markers replace 🔧/👁;
-       the ``test_lint`` layer documented; roughly a quarter of the length cut.
+     - Full fact-check and rewrite. Countable gates become *ratchets* over
+       committed floors; ``[label]`` markers replace 🔧/👁; the ``test_lint``
+       layer documented.
    * - 4.2
      - 2026-06-30
      - XML IDs reversed from suffix back to prefix; the XML fixers, the
-       single-line ``domain``/``context`` rule, and sorter-then-formatter order.
+       single-line ``domain``/``context`` rule, sorter-then-formatter order.
    * - 4.1
      - 2026-06-23
      - §2.4 expanded: mail and framework-hook rows, naming-determines-section,
        field wiring, the class-eval ``default=`` note.
    * - 4.0
      - 2026-06-22
-     - Linter claims reconciled with ``ruff.toml``; broken examples fixed; markers,
-       TL;DR and glossary introduced; rules added for ``Command``,
-       ``models.Constraint``, ``@api.model_create_multi``, multi-company, float
-       comparison and modern typing.
+     - Linter claims reconciled with ``ruff.toml``; markers, TL;DR and glossary
+       introduced; rules added for ``Command``, ``models.Constraint``,
+       ``@api.model_create_multi``, multi-company, float comparison and modern
+       typing.
    * - 3.0
      - 2026-04-20
      - Prior canonical revision (suffix XML IDs, 16-section model layout, Sphinx

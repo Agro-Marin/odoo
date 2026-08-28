@@ -270,9 +270,9 @@ Related:
   the argument is in *The ratchets*. Ruff is one of several ratcheted gates; **the
   baselines directory is the list and `tooling/ratchet/ratchet.py --list` is the
   reading — no file states how many there are or what they hold**, because a
-  restated floor is a second copy that drifts, and this line said "eleven" against
-  thirteen baseline files. Per-gate scope, commands and the `--update` recipe are
-  *The ratchets* in the guide, the canonical account; it also covers the trap that
+  restated floor is a second copy that drifts. The guide's table is a deliberate
+  sample of the set, not its membership. Per-gate scope, commands and the
+  `--update` recipe are *The ratchets* in the guide, the canonical account; it also covers the trap that
   the ruff floor measures `odoo/` and not `addons/`. One thing the guide does not:
   `.github/workflows/ruff.yml` lints **`tooling/` and `tests/` at a hard zero** in
   a separate blocking step, with no floor to absorb a new finding.
@@ -283,7 +283,8 @@ Related:
   exact-match ratchet, so an undone fix fails as loudly as a new offence. CI runs
   it in `.github/workflows/test_lint.yml` (whole module, every PR, no `paths:`
   filter) and `.github/workflows/asset_lint.yml` (the registry-dependent
-  classes).
+  classes). The AST rules run `E8501`–`E8513`; none is advisory and none fails
+  outright — the floor is what decides.
 
   **The floors are defined at the CI scope**, which is
   `--addons-path=odoo/addons,addons` with only `test_lint` installed. Harvest
