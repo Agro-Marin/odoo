@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
+import { makeCompositionDouble } from "@web/../tests/search/search_doubles";
 import { Mutex } from "@web/core/utils/concurrency";
 import { SearchPanelMixin } from "@web/search/search_panel/search_panel_mixin";
 import { hasValues } from "@web/search/search_state";
@@ -13,20 +14,14 @@ const PanelModel = SearchPanelMixin(class {});
  * @param {Object} [overrides]
  */
 function makeSearchModel(sections, overrides = {}) {
-    /** @type {string[]} */
-    const notifications = [];
     const model = new PanelModel();
-    Object.assign(model, {
-        sections,
-        categories: [],
-        filters: [],
-        searchDomain: [],
-        _notify() {
-            notifications.push("notify");
-        },
-        _notifications: notifications,
-        ...overrides,
-    });
+    Object.assign(
+        model,
+        makeCompositionDouble("search/search_panel/search_panel_mixin.js", {
+            sections,
+            ...overrides,
+        }),
+    );
     return model;
 }
 

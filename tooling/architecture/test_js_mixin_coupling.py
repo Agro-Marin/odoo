@@ -1,5 +1,6 @@
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -293,6 +294,51 @@ def test_every_declared_composition_module_is_on_disk():
     for base, mixins in jmc.COMPOSITIONS.items():
         for module in (base, *mixins):
             assert (jmc.WEB_SRC / module).is_file(), module
+
+
+def test_a_single_line_declaration_does_not_swallow_the_next_one():
+    # Prettier collapses a one-element array onto a single line. A terminator
+    # that assumes a multi-line array reads that as unterminated and runs on to
+    # the NEXT array's close, merging two declarations -- a false pass, not a
+    # crash, so it needs a test of its own.
+    source = (
+        'export const X_PUBLISHED = ["only"];\n'
+        "\n"
+        "export const X_REQUIRES = [\n"
+        '    "first",\n'
+        '    "second",\n'
+        "];\n"
+    )
+    published = jmc._array_literal(source, "export const X_PUBLISHED = [")
+    assert re.findall(r'"([^"]+)"', published) == ["only"]
+    requires = jmc._array_literal(source, "export const X_REQUIRES = [")
+    assert re.findall(r'"([^"]+)"', requires) == ["first", "second"]
+
+
+def test_a_missing_declaration_is_none_rather_than_a_wrong_answer():
+    assert jmc._array_literal("const other = [1];", "export const X_A = [") is None
+
+
+def test_every_contract_file_and_its_covered_modules_are_on_disk():
+    for contract, prefixes in jmc.CONTRACT_FILES.items():
+        assert (jmc.WEB_SRC / contract).is_file(), contract
+        for module in prefixes:
+            assert (jmc.WEB_SRC / module).is_file(), module
+
+
+def test_the_contract_covers_only_modules_the_gate_measures():
+    measured = set(jmc.modules())
+    for contract, prefixes in jmc.CONTRACT_FILES.items():
+        unmeasured = sorted(set(prefixes) - measured)
+        assert not unmeasured, f"{contract} declares unmeasured module(s): {unmeasured}"
+
+
+def test_the_declared_contract_parses_to_three_non_empty_kinds():
+    declared = jmc.declared_contracts()
+    assert declared, "no contract parsed"
+    for module, kinds in declared.items():
+        assert set(kinds) == {"PUBLISHED", "REQUIRES", "SHARED_STATE"}, module
+        assert any(kinds.values()), f"{module} declared nothing at all"
 
 
 if __name__ == "__main__":

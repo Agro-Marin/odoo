@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { makeCompositionDouble } from "@web/../tests/search/search_doubles";
 import { SearchFavoritesMixin } from "@web/search/search_favorites_mixin";
 import {
     FAVORITE_PRIVATE_GROUP,
@@ -12,43 +13,24 @@ describe.current.tags("headless");
 const FavoritesModel = SearchFavoritesMixin(class {});
 
 /**
- * @param {Object} [overrides]
+ * @param {Record<string, any>} [overrides]
+ * @returns {any}
  */
 function makeSearchModel(overrides = {}) {
-    const notifications = [];
     const model = new FavoritesModel();
-    Object.assign(model, {
-        searchItems: {},
-        query: [],
-        nextId: 1,
-        nextGroupId: 1,
-        blockNotification: false,
-        _notify() {
-            if (this.blockNotification) {
-                return;
-            }
-            notifications.push("notify");
-        },
-        clearQuery() {
-            this.query = [];
-        },
-        _withNotificationsBlocked(fn) {
-            const wasBlocked = this.blockNotification;
-            this.blockNotification = true;
-            try {
-                fn();
-            } finally {
-                this.blockNotification = wasBlocked;
-            }
-        },
-        _createIrFilters: async () => 42,
-        _getIrFilterDescription: () => ({
-            preFavorite: { userIds: [1], domain: "[]", context: {}, orderedBy: [] },
-            irFilter: { name: "My Fav", domain: "[]", context: {} },
+    Object.assign(
+        model,
+        makeCompositionDouble("search/search_favorites_mixin.js", {
+            // The two the favorites mixin owns that would otherwise reach the
+            // ORM; the substrate comes from the shared, contract-checked double.
+            _createIrFilters: async () => 42,
+            _getIrFilterDescription: () => ({
+                preFavorite: { userIds: [1], domain: "[]", context: {}, orderedBy: [] },
+                irFilter: { name: "My Fav", domain: "[]", context: {} },
+            }),
+            ...overrides,
         }),
-        _notifications: notifications,
-        ...overrides,
-    });
+    );
     return model;
 }
 

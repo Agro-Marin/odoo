@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { makeCompositionDouble } from "@web/../tests/search/search_doubles";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { luxon } from "@web/core/l10n/luxon";
 import { SearchQueryMixin } from "@web/search/search_query_mixin";
@@ -15,34 +16,16 @@ const QueryModel = SearchQueryMixin(class {});
  * @returns {any}
  */
 function makeSearchModel(overrides = {}) {
-    /** @type {string[]} */
-    const notifications = [];
     const model = new QueryModel();
-    Object.assign(model, {
-        query: [],
-        searchItems: {},
-        orderByCount: false,
-        blockNotification: false,
-        nextId: 1,
-        nextGroupId: 1,
-        nextGroupNumber: 1,
-        searchViewFields: {},
-        facets: [],
-
-        _notify() {
-            if (this.blockNotification) {
-                return;
-            }
-            notifications.push("notify");
-        },
-        _getSelectedGeneratorIds(/** @type {any} */ searchItemId) {
-            return this.query
-                .filter((q) => q.searchItemId === searchItemId && "generatorId" in q)
-                .map((q) => q.generatorId);
-        },
-        _notifications: notifications,
-        ...overrides,
-    });
+    Object.assign(
+        model,
+        makeCompositionDouble("search/search_query_mixin.js", {
+            // `facets` is read by these suites but declared by no unit, so it
+            // stays here rather than in the shared double.
+            facets: [],
+            ...overrides,
+        }),
+    );
     return model;
 }
 
