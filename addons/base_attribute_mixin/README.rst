@@ -103,6 +103,13 @@ click; ``product`` exposes it over RPC as ``check_is_used_on_products``.
 The guards are inert until ``_attribute_line_model`` is set -- with no line
 model there is nothing to be in use *by*.
 
+Both guards are all-or-nothing over the whole call: archiving or deleting a
+multi-record recordset where even one record is in use refuses the entire
+batch, including the records that are not in use and would otherwise be safe
+on their own. This is deliberate -- a partial success (some records archived,
+others rejected) has its own surprise potential for a multi-select UI action --
+not a per-record filter that was forgotten.
+
 Name uniqueness
 ===============
 
