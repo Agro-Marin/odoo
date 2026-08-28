@@ -75,7 +75,7 @@ class TestCustomProviderFlows(PaymentCustomCommon):
             self.provider.custom_mode = False
 
     def test_recompute_pending_msg_degrades_without_account_payment(self):
-        """Without account_payment the recompute leaves pending_msg intact."""
+        """Without account_payment_provider the recompute leaves pending_msg intact."""
         if (
             self.env["ir.module.module"]._get("account_payment_provider").state
             == "installed"
@@ -93,7 +93,7 @@ class TestCustomProviderFlows(PaymentCustomCommon):
 
         self.provider._transfer_ensure_pending_msg_is_set()
 
-        # Without account_payment the delegated recompute is a no-op, so the
+        # Without account_payment_provider the delegated recompute is a no-op, so the
         # observable contract here is "selected and delegated without error".
         self.assertFalse(self.provider.pending_msg)
 
