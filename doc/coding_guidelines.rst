@@ -950,7 +950,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,574 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,583 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1189,12 +1189,12 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,429 definitions it is 22.1 % of every method
+**``_get_`` is not a default.** At 5,434 definitions it is 22.1 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
 computing. The split that matters is against ``_prepare_``: 687 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 717 already spelled ``_prepare_*``.
+spelled ``get_*``, against 718 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1255,7 +1255,7 @@ ratchet flags **4**. Two things hide in that gap -- the suffix list is short
 and *object construction takes ``_prepare_`` too*, since a factory has a consumer
 like anything else.
 
-Backlog: **33** of this repository's **717** ``_prepare_*`` definitions call
+Backlog: **34** of this repository's **718** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1502,7 +1502,7 @@ may not borrow that vocabulary, whether or not it is indented under a class.
 **It governs the module's own helpers too, and no gate sees them** ``[review]``.
 ``naming_vocabulary.py`` implements the scope as a *class-membership* test, so two
 populations in the same files are counted by nothing: a function declared at
-**module level** -- **308** of them under ``models/`` and ``wizard/`` -- and a
+**module level** -- **309** of them under ``models/`` and ``wizard/`` -- and a
 method on a **plain class** declared in the same file, of which there are **369**
 across **144** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
