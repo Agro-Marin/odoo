@@ -9,10 +9,16 @@ class ResCity(models.Model):
     _order = "name"
     _rec_names_search = ["name", "zipcode"]
 
-    name = fields.Char("Name", required=True, translate=True)
+    name = fields.Char(
+        "Name",
+        required=True,
+        translate=True,
+    )
     zipcode = fields.Char("Zip")
     country_id = fields.Many2one(
-        comodel_name="res.country", string="Country", required=True
+        comodel_name="res.country",
+        string="Country",
+        required=True,
     )
     state_id = fields.Many2one(
         comodel_name="res.country.state",
@@ -20,10 +26,11 @@ class ResCity(models.Model):
         domain="[('country_id', '=', country_id)]",
     )
 
-    _name_zipcode_country_uniq = name_uniq_index(
+    _name_zipcode_state_country_uniq = name_uniq_index(
         "zipcode",
+        "state_id",
         "country_id",
-        message="A city with this name, zip code and country already exists.",
+        message="A city with this name, zip code, state and country already exists.",
     )
 
     @api.depends("zipcode")

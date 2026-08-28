@@ -2,7 +2,7 @@
     'name': 'Extended Addresses',
     'summary': 'Add extra fields on addresses',
     'sequence': 19,
-    'version': '1.1',
+    'version': '1.2',
     'category': 'Sales/Sales',
     'description': """
 Extended Addresses Management
@@ -14,11 +14,11 @@ It is primarily used for EDIs that might need a special city code.
         """,
     'data': [
         'security/ir.model.access.csv',
-        'views/base_address_extended.xml',
+        'views/partner_address_extended.xml',
         'views/res_city_view.xml',
         'views/res_country_view.xml',
     ],
-    'depends': ['contacts'],
+    'depends': ['partner'],
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
 }

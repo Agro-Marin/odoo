@@ -67,16 +67,25 @@ class ProductCommon(UomCommon):
 
     @classmethod
     def _create_product(cls, **create_vals):
-        return cls.env["product.product"].create(
-            {
-                "name": "Test Product",
-                "type": "consu",
-                "list_price": 100.0,
-                "standard_price": 50.0,
-                "uom_id": cls.uom_unit.id,
-                "categ_id": cls.product_category.id,
-                **create_vals,
-            }
+        # sudo: this builds a fixture, it does not exercise access. Suites that
+        # deliberately run as an under-privileged user (AccountTestInvoicingCommon
+        # among them) would otherwise be hostage to any field-level write_groups a
+        # fork puts on a product field -- marin gates standard_price that way, and
+        # every such suite died in setUpClass on a database where it is installed.
+        return (
+            cls.env["product.product"]
+            .sudo()
+            .create(
+                {
+                    "name": "Test Product",
+                    "type": "consu",
+                    "list_price": 100.0,
+                    "standard_price": 50.0,
+                    "uom_id": cls.uom_unit.id,
+                    "categ_id": cls.product_category.id,
+                    **create_vals,
+                }
+            )
         )
 
 

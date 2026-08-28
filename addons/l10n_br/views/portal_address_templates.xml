@@ -24,7 +24,7 @@
                 </select>
             </div>
         </input>
-        <!-- put base_address_extended fields separately to be more user-friendly -->
+        <!-- put partner_address_extended fields separately to be more user-friendly -->
         <div id="div_street" position="attributes">
             <attribute name="class" separator=" " add="o_standard_address"/>
         </div>

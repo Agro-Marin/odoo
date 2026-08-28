@@ -8,8 +8,8 @@
     'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/peru.html',
     'license': 'LGPL-3',
     'depends': [
-        'base_vat',
-        'base_address_extended',
+        'account_vat',
+        'partner_address_extended',
         'l10n_latam_base',
         'l10n_latam_invoice_document',
         'account_debit_note',

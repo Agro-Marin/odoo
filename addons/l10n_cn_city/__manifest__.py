@@ -14,7 +14,7 @@ Includes the following data for the Chinese localization
 City Data/城市数据
 
     """,
-    'depends': ['l10n_cn', 'base_address_extended'],
+    'depends': ['l10n_cn', 'partner_address_extended'],
     'data': [
         'data/res_city_data.xml',
         'data/res_country_data.xml',
