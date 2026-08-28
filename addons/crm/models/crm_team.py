@@ -155,6 +155,33 @@ class CrmTeam(models.Model):
         return values
 
     # ------------------------------------------------------------
+    # TEAM RESOLUTION
+    # ------------------------------------------------------------
+
+    @api.model
+    def _get_team_for_user(self, user, current_team=None, domain=None):
+        """ The team to propose for ``user``, keeping ``current_team`` if it is
+        already theirs.
+
+        Four places phrased this rule with cosmetic differences -- crm.lead and
+        the three convert/merge wizards -- and the fourth, crm.merge.opportunity,
+        reimplemented it with a `search_count` plus a `search` instead of calling
+        `_get_default_team_id`, which is two queries per record and skipped that
+        method's company fallback. One spelling makes the four visibly the same
+        thing, which is the point of naming it.
+
+        :param user: res.users the team is for; falsy means no proposal
+        :param current_team: kept as-is when the user leads or belongs to it
+        :param domain: extra restriction on the candidate teams, e.g. use_leads
+        :return: crm.team, empty when there is nothing to propose
+        """
+        if not user:
+            return self.browse()
+        if current_team and user in (current_team.member_ids | current_team.user_id):
+            return current_team
+        return self._get_default_team_id(user_id=user.id, domain=domain or ())
+
+    # ------------------------------------------------------------
     # LEAD ASSIGNMENT
     # ------------------------------------------------------------
 
@@ -235,7 +262,7 @@ class CrmTeam(models.Model):
         :returns: 2-elements tuple (teams_data, members_data) as a
           structure-based result of assignment process. For more details
           about data see :meth:`CrmTeam._allocate_leads` and
-          :meth:`CrmTeam._assign_and_convert_leads`;
+          :meth:`CrmTeam._update_members_with_leads`;
         """
         if not (self.env.user.has_group('sales_team.group_sale_manager') or self.env.is_system()):
             raise exceptions.UserError(_('Lead/Opportunities automatic assignment is limited to managers or administrators'))
@@ -247,7 +274,7 @@ class CrmTeam(models.Model):
             "ON" if force_quota else "OFF")
         teams_data = self._allocate_leads(creation_delta_days=creation_delta_days)
         _logger.info('### Team repartition done. Starting salesmen assignment.')
-        members_data = self._assign_and_convert_leads(force_quota=force_quota)
+        members_data = self._update_members_with_leads(force_quota=force_quota)
         _logger.info('### END Lead Assignment')
         return teams_data, members_data
 
@@ -255,7 +282,7 @@ class CrmTeam(models.Model):
         """ Tool method to prepare notification about assignment process result.
 
         :param teams_data: see ``CrmTeam._allocate_leads()``;
-        :param members_data: see ``CrmTeam._assign_and_convert_leads()``;
+        :param members_data: see ``CrmTeam._update_members_with_leads()``;
 
         :returns: list of formatted logs, ready to be formatted into a nice
         plaintext or html message at caller's will
@@ -561,7 +588,7 @@ class CrmTeam(models.Model):
             ('team_id', 'in', self.ids),
         ]
 
-    def _assign_and_convert_leads(self, force_quota=False):
+    def _update_members_with_leads(self, force_quota=False):
         """ Main processing method to assign leads to sales team members. It also
         converts them into opportunities. This method should be called after
         ``_allocate_leads`` as this method assigns leads already allocated to

@@ -53,24 +53,7 @@ class CrmMergeOpportunity(models.TransientModel):
     def _compute_team_id(self):
         """When changing the user, also set a team_id or restrict team id
         to the ones user_id is member of."""
+        Team = self.env["crm.team"]
         for wizard in self:
             if wizard.user_id:
-                user_in_team = False
-                if wizard.team_id:
-                    user_in_team = wizard.env["crm.team"].search_count(
-                        [
-                            ("id", "=", wizard.team_id.id),
-                            "|",
-                            ("user_id", "=", wizard.user_id.id),
-                            ("member_ids", "=", wizard.user_id.id),
-                        ]
-                    )
-                if not user_in_team:
-                    wizard.team_id = wizard.env["crm.team"].search(
-                        [
-                            "|",
-                            ("user_id", "=", wizard.user_id.id),
-                            ("member_ids", "=", wizard.user_id.id),
-                        ],
-                        limit=1,
-                    )
+                wizard.team_id = Team._get_team_for_user(wizard.user_id, wizard.team_id)

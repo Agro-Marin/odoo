@@ -106,15 +106,12 @@ class CrmLead2opportunityPartner(models.TransientModel):
     def _compute_team_id(self):
         """ When changing the user, also set a team_id or restrict team id
         to the ones user_id is member of. """
+        Team = self.env['crm.team']
         for convert in self:
             # setting user as void should not trigger a new team computation
             if not convert.user_id:
                 continue
-            user = convert.user_id
-            if convert.team_id and user in convert.team_id.member_ids | convert.team_id.user_id:
-                continue
-            team = self.env['crm.team']._get_default_team_id(user_id=user.id, domain=None)
-            convert.team_id = team.id
+            convert.team_id = Team._get_team_for_user(convert.user_id, convert.team_id).id
 
     def action_apply(self):
         if self.name == 'merge':

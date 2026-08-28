@@ -77,7 +77,7 @@ class ResPartner(models.Model):
             )
 
     def _get_contact_opportunities_domain(self):
-        all_partners = self._fetch_children_partners_for_hierarchy().ids
+        all_partners = self._get_children_partners_for_hierarchy().ids
         return [
             "|",
             ("partner_assigned_id", "in", all_partners),

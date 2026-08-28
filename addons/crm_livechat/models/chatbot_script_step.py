@@ -76,7 +76,7 @@ class ChatbotScriptStep(models.Model):
         create_values.update(self._chatbot_crm_prepare_lead_values(
             discuss_channel, customer_values['description']))
         new_leads = self.env["crm.lead"].create(create_values)
-        new_leads._assign_userless_lead_in_team(_('livechat discussion'))
+        new_leads._update_userless_leads_with_team_leader(_('livechat discussion'))
         return new_leads
 
     def _process_step_create_lead_and_forward(self, discuss_channel):

@@ -45,7 +45,7 @@ export class CrmPlsTooltipButton extends Component {
             // This recomputes probability, and returns all tooltip data
             const tooltipData = await this.orm.call(
                 "crm.lead",
-                "prepare_pls_tooltip_data",
+                "update_and_get_pls_tooltip_data",
                 [this.props.record.resId],
             );
             // Update the form

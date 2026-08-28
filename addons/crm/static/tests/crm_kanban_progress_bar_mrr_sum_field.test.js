@@ -10,8 +10,14 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { getRainbowmanMessage } from "@crm/../tests/crm_mock_server";
 import { user } from "@web/core/user";
 import { AnimatedNumber } from "@web/views/kanban";
+
+// Dropping a card into a won stage asks the server for a rainbowman message.
+// This used to arrive through a side-effect import in the sibling test file,
+// which is a dependency this file never declared and could not see break.
+onRpc("crm.lead", "get_rainbowman_message", getRainbowmanMessage);
 
 class Users extends models.Model {
     name = fields.Char();
@@ -41,7 +47,11 @@ class Lead extends models.Model {
     name = fields.Char();
     bar = fields.Boolean();
     activity_state = fields.Char({ string: "Activity State" });
-    expected_revenue = fields.Integer({ string: "Revenue", sortable: true, aggregator: "sum" });
+    expected_revenue = fields.Integer({
+        string: "Revenue",
+        sortable: true,
+        aggregator: "sum",
+    });
     recurring_revenue_monthly = fields.Integer({
         string: "Recurring Revenue",
         sortable: true,
@@ -116,7 +126,9 @@ defineModels([Lead, Users, Stage]);
 defineMailModels();
 beforeEach(() => {
     patchWithCleanup(AnimatedNumber, { enableAnimations: false });
-    patchWithCleanup(user, { hasGroup: (group) => group === "crm.group_use_recurring_revenues" });
+    patchWithCleanup(user, {
+        hasGroup: (group) => group === "crm.group_use_recurring_revenues",
+    });
 });
 test("Progressbar: do not show sum of MRR if recurring revenues is not enabled", async () => {
     patchWithCleanup(user, { hasGroup: () => false });
@@ -188,36 +200,33 @@ test("Progressbar: ensure correct MRR updation after state change", async () => 
     });
 
     //MRR before state change
-    expect(queryAllTexts(".o_animated_number[data-tooltip='Recurring Revenue']")).toEqual(
-        ["+30", "+35"],
-        {
-            message: "counter should display the sum of recurring_revenue_monthly values",
-        }
-    );
+    expect(
+        queryAllTexts(".o_animated_number[data-tooltip='Recurring Revenue']"),
+    ).toEqual(["+30", "+35"], {
+        message: "counter should display the sum of recurring_revenue_monthly values",
+    });
 
     // Drag the first kanban record from 1st column to the top of the last column
     await contains(".o_kanban_record:first").dragAndDrop(".o_kanban_record:last");
 
     //check MRR after drag&drop
-    expect(queryAllTexts(".o_animated_number[data-tooltip='Recurring Revenue']")).toEqual(
-        ["+25", "+40"],
-        {
-            message:
-                "counter should display the sum of recurring_revenue_monthly correctly after drag and drop",
-        }
-    );
+    expect(
+        queryAllTexts(".o_animated_number[data-tooltip='Recurring Revenue']"),
+    ).toEqual(["+25", "+40"], {
+        message:
+            "counter should display the sum of recurring_revenue_monthly correctly after drag and drop",
+    });
 
     //Activate "planned" filter on first column
     await contains('.o_kanban_group:eq(1) .progress-bar[aria-valuenow="2"]').click();
 
     //check MRR after applying filter
-    expect(queryAllTexts(".o_animated_number[data-tooltip='Recurring Revenue']")).toEqual(
-        ["+25", "+25"],
-        {
-            message:
-                "counter should display the sum of recurring_revenue_monthly only of overdue filter in 1st column",
-        }
-    );
+    expect(
+        queryAllTexts(".o_animated_number[data-tooltip='Recurring Revenue']"),
+    ).toEqual(["+25", "+25"], {
+        message:
+            "counter should display the sum of recurring_revenue_monthly only of overdue filter in 1st column",
+    });
 });
 
 test.tags("desktop");
@@ -251,7 +260,7 @@ test("Quickly drag&drop records when grouped by stage_id", async () => {
 
     // drag the first record of the first column on top of the second column
     await contains(".o_kanban_group:eq(0) .o_kanban_record").dragAndDrop(
-        ".o_kanban_group:eq(1) .o_kanban_record"
+        ".o_kanban_group:eq(1) .o_kanban_record",
     );
 
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(1);
@@ -261,7 +270,7 @@ test("Quickly drag&drop records when grouped by stage_id", async () => {
     // drag that same record to the third column -> should have no effect as save still pending
     // (but mostly, should not crash)
     await contains(".o_kanban_group:eq(1) .o_kanban_record").dragAndDrop(
-        ".o_kanban_group:eq(2) .o_kanban_record"
+        ".o_kanban_group:eq(2) .o_kanban_record",
     );
 
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(1);
@@ -273,7 +282,7 @@ test("Quickly drag&drop records when grouped by stage_id", async () => {
 
     // drag that same record to the third column
     await contains(".o_kanban_group:eq(1) .o_kanban_record").dragAndDrop(
-        ".o_kanban_group:eq(2) .o_kanban_record"
+        ".o_kanban_group:eq(2) .o_kanban_record",
     );
 
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(1);

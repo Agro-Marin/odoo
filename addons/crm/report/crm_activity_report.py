@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models, tools
+from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import SQL
 
 
 class CrmActivityReport(models.Model):
@@ -88,15 +89,16 @@ class CrmActivityReport(models.Model):
         """
 
     def init(self):
+        # `%`-formatted DDL is the shape that hides an injection even when this
+        # particular one cannot: every fragment is a method other modules
+        # override. `SQL` keeps the identifier an identifier and the fragments
+        # composable.
         drop_view_if_exists(self.env.cr, self._table)
-        self.env.cr.execute(
-            """
-            CREATE OR REPLACE VIEW %s AS (
-                %s
-                %s
-                %s
-                %s
-            )
-        """
-            % (self._table, self._select(), self._from(), self._join(), self._where())
-        )
+        self.env.cr.execute(SQL(
+            "CREATE OR REPLACE VIEW %s AS (%s %s %s %s)",
+            SQL.identifier(self._table),
+            SQL(self._select()),
+            SQL(self._from()),
+            SQL(self._join()),
+            SQL(self._where()),
+        ))

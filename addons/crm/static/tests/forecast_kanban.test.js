@@ -230,7 +230,7 @@ test("Forecast on months, until the end of the year of the latest data", async (
                 },
                 granularity: "month",
             })
-            .end.toFormat("yyyy-MM-dd")
+            .end.toFormat("yyyy-MM-dd"),
     ).toBe("2022-02-01");
 });
 
@@ -289,7 +289,7 @@ test("Forecast on years, until the end of the year of the latest data", async ()
                 },
                 granularity: "year",
             })
-            .end.toFormat("yyyy-MM-dd")
+            .end.toFormat("yyyy-MM-dd"),
     ).toBe("2023-01-01");
 });
 
@@ -299,9 +299,27 @@ test("Forecast drag&drop and add column", async () => {
     Lead._fields.color = fields.Char();
     Lead._fields.int_field = fields.Integer({ string: "Value" });
     Lead._records = [
-        { id: 1, int_field: 7, color: "d", name: "Lead 1", date_deadline: "2023-09-03" },
-        { id: 2, int_field: 20, color: "w", name: "Lead 2", date_deadline: "2023-09-05" },
-        { id: 3, int_field: 300, color: "s", name: "Lead 3", date_deadline: "2023-10-10" },
+        {
+            id: 1,
+            int_field: 7,
+            color: "d",
+            name: "Lead 1",
+            date_deadline: "2023-09-03",
+        },
+        {
+            id: 2,
+            int_field: 20,
+            color: "w",
+            name: "Lead 2",
+            date_deadline: "2023-09-05",
+        },
+        {
+            id: 3,
+            int_field: 300,
+            color: "s",
+            name: "Lead 3",
+            date_deadline: "2023-10-10",
+        },
     ];
 
     onRpc(({ route, method }) => {
@@ -335,24 +353,37 @@ test("Forecast drag&drop and add column", async () => {
     const getProgressBarsColors = () =>
         queryAll(".o_column_progress").map((columnProgressEl) =>
             queryAll(".progress-bar", { root: columnProgressEl }).map((progressBarEl) =>
-                [...progressBarEl.classList].find((htmlClass) => htmlClass.startsWith("bg-"))
-            )
+                [...progressBarEl.classList].find((htmlClass) =>
+                    htmlClass.startsWith("bg-"),
+                ),
+            ),
         );
 
     expect(queryAllTexts(".o_animated_number")).toEqual(["27", "300"]);
-    expect(getProgressBarsColors()).toEqual([["bg-warning", "bg-danger"], ["bg-success"]]);
+    expect(getProgressBarsColors()).toEqual([
+        ["bg-warning", "bg-danger"],
+        ["bg-success"],
+    ]);
 
-    await contains(".o_kanban_group:first .o_kanban_record").dragAndDrop(".o_kanban_group:eq(1)");
+    await contains(".o_kanban_group:first .o_kanban_record").dragAndDrop(
+        ".o_kanban_group:eq(1)",
+    );
     await runAllTimers();
 
     expect(queryAllTexts(".o_animated_number")).toEqual(["20", "307"]);
-    expect(getProgressBarsColors()).toEqual([["bg-warning"], ["bg-success", "bg-danger"]]);
+    expect(getProgressBarsColors()).toEqual([
+        ["bg-warning"],
+        ["bg-success", "bg-danger"],
+    ]);
 
     await quickCreateKanbanColumn();
 
     // Counters and progressbars should be unchanged after adding a column.
     expect(queryAllTexts(".o_animated_number")).toEqual(["20", "307"]);
-    expect(getProgressBarsColors()).toEqual([["bg-warning"], ["bg-success", "bg-danger"]]);
+    expect(getProgressBarsColors()).toEqual([
+        ["bg-warning"],
+        ["bg-success", "bg-danger"],
+    ]);
 
     expect.verifySteps([
         // mountView

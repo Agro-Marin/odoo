@@ -334,15 +334,13 @@ class CrmLead(models.Model):
     def _compute_team_id(self):
         """ When changing the user, also set a team_id or restrict team id
         to the ones user_id is member of. """
+        Team = self.env['crm.team']
         for lead in self:
             # setting user as void should not trigger a new team computation
             if not lead.user_id:
                 continue
-            user = lead.user_id
-            if lead.team_id and user in (lead.team_id.member_ids | lead.team_id.user_id):
-                continue
             team_domain = [('use_leads', '=', True)] if lead.type == 'lead' else [('use_opportunities', '=', True)]
-            team = self.env['crm.team']._get_default_team_id(user_id=user.id, domain=team_domain)
+            team = Team._get_team_for_user(lead.user_id, lead.team_id, domain=team_domain)
             if lead.team_id != team:
                 lead.team_id = team.id
 
@@ -1175,12 +1173,18 @@ class CrmLead(models.Model):
         if len(self.message_ids) >= 25:
             return _('Phew, that took some effort — but you nailed it. Good job!')
 
-        team_condition = f'team_id = {self.team_id.id}' if self.team_id else 'team_id IS NULL'
-        source_case = f'source_id = {self.source_id.id} AND {team_condition}' if self.source_id else 'false'
-        country_case = f'country_id = {self.country_id.id} AND {team_condition}' if self.country_id else 'false'
         tz_midnight = fields.Datetime.now().astimezone(timezone(self.env.user.tz or self.user_id.tz or 'UTC')).replace(hour=0, minute=0, second=0)
         tz_midnight_in_utc = tz_midnight.astimezone(UTC).replace(tzinfo=None)
-        query = f"""
+        # The two team-scoped cases used to be f-strings spliced into the query
+        # text beside %(name)s params -- two interpolation styles in one
+        # statement, and values that are only safe because the ORM types them as
+        # ints. `SQL` composes them as parameters like everything else.
+        team_condition = SQL("team_id = %s", self.team_id.id) if self.team_id else SQL("team_id IS NULL")
+        source_case = SQL("source_id = %s AND %s", self.source_id.id, team_condition) if self.source_id else SQL("false")
+        country_case = SQL("country_id = %s AND %s", self.country_id.id, team_condition) if self.country_id else SQL("false")
+        user_id, team_id, lead_id = self.env.user.id, self.team_id.id or -1, self.id
+        self.env.cr.execute(SQL(
+            """
         SELECT
             MAX(CASE WHEN team_id = %(team_id)s AND COALESCE(date_closed, create_date) >= %(tz_midnight)s - INTERVAL '31 days' AND id <> %(lead_id)s THEN expected_revenue ELSE 0 END) AS max_team_31,
             MAX(CASE WHEN team_id = %(team_id)s AND COALESCE(date_closed, create_date) >= %(tz_midnight)s - INTERVAL '7 days'  AND id <> %(lead_id)s THEN expected_revenue ELSE 0 END) AS max_team_7,
@@ -1192,8 +1196,8 @@ class CrmLead(models.Model):
             COUNT(CASE WHEN user_id = %(user_id)s AND COALESCE(date_closed, create_date) >= %(tz_midnight)s - INTERVAL '2 days' AND COALESCE(date_closed, create_date) < %(tz_midnight)s - INTERVAL '1 days' THEN 1 ELSE NULL END) AS count_user_closed_minus2day,
             COUNT(CASE WHEN user_id = %(user_id)s AND COALESCE(date_closed, create_date) >= %(tz_midnight)s - INTERVAL '1 days' AND COALESCE(date_closed, create_date) < %(tz_midnight)s THEN 1 ELSE NULL END) AS count_user_closed_yesterday,
             COUNT(CASE WHEN user_id = %(user_id)s AND COALESCE(date_closed, create_date) >= %(tz_midnight)s THEN 1 ELSE NULL END) AS count_user_closed_today,
-            COUNT(CASE WHEN {source_case} THEN 1 ELSE NULL END) AS count_source_closed_year,
-            COUNT(CASE WHEN {country_case} THEN 1 ELSE NULL END) AS count_country_closed_year
+            COUNT(CASE WHEN %(source_case)s THEN 1 ELSE NULL END) AS count_source_closed_year,
+            COUNT(CASE WHEN %(country_case)s THEN 1 ELSE NULL END) AS count_country_closed_year
             FROM crm_lead
             WHERE
                 type = 'opportunity'
@@ -1205,13 +1209,14 @@ class CrmLead(models.Model):
                 DATE_TRUNC('year', COALESCE(date_closed, create_date)) = DATE_TRUNC('year', %(tz_midnight)s)
             AND
                 (user_id = %(user_id)s OR team_id = %(team_id)s)
-        """
-        self.env.cr.execute(query, {
-            'user_id': self.env.user.id,
-            'team_id': self.team_id.id or -1,
-            'lead_id': self.id,
-            'tz_midnight': tz_midnight_in_utc,
-        })
+            """,
+            country_case=country_case,
+            lead_id=lead_id,
+            source_case=source_case,
+            team_id=team_id,
+            tz_midnight=tz_midnight_in_utc,
+            user_id=user_id,
+        ))
         query_result = self.env.cr.dictfetchone()
 
         if query_result['count_user_closed_year'] == 1:
@@ -1423,7 +1428,7 @@ class CrmLead(models.Model):
     # BUSINESS
     # ------------------------------------------------------------
 
-    def _assign_userless_lead_in_team(self, creation_source: str):
+    def _update_userless_leads_with_team_leader(self, creation_source: str):
         """ Assign userless leads to their team's leader. """
         if not self._is_rule_based_assignment_activated() and self.team_id:
             for team_id, leads in self.filtered(lambda lead: not lead.user_id).grouped('team_id').items():
@@ -2199,7 +2204,7 @@ class CrmLead(models.Model):
         defaults.update(custom_values)
 
         new_lead = super().message_new(msg_dict, custom_values=defaults)
-        new_lead._assign_userless_lead_in_team(_('incoming email'))
+        new_lead._update_userless_leads_with_team_leader(_('incoming email'))
         return new_lead
 
     def _message_post_after_hook(self, message, msg_vals):
@@ -2275,7 +2280,7 @@ class CrmLead(models.Model):
         :param bool is_tooltip: If true, method recomputes the probability of self, that should be a singleton, and
             also returns a dict containing probability, and a list of all (score, field, value) triplets for all value of
             PLS fields that impact the computation of the probability. Score is a simple value that indicates whether the
-            impact is positive (>.5) or negative (<.5). See method prepare_pls_tooltip_data, or test_pls_tooltip_data for
+            impact is positive (>.5) or negative (<.5). See method update_and_get_pls_tooltip_data, or test_pls_tooltip_data for
             more details
 
         :return: 2-tuple ``(probabilities_by_lead_id, tooltip_data)``. Both early
@@ -2890,7 +2895,7 @@ class CrmLead(models.Model):
 
     # PLS Backend Tooltip
     # -------------------
-    def prepare_pls_tooltip_data(self):
+    def update_and_get_pls_tooltip_data(self):
         """
         Compute and return all necessary information to render CrmPlsTooltip, displayed when
         pressing the small AI button, located next to the label of probability when automated,

@@ -643,7 +643,7 @@ class TestCrmPls(CrmPlsCommon):
         expected_low_3 = ['source_id', 'country_id']
         expected_top_3 = ['state_id', 'phone_state', 'stage_id']
 
-        tooltip_data = leads[5].prepare_pls_tooltip_data()
+        tooltip_data = leads[5].update_and_get_pls_tooltip_data()
         self.assertEqual('Team Tooltip', tooltip_data['team_name'])
         self.assertEqual(tools.float_compare(tooltip_data['probability'], 74.30, 2), 0)
 
@@ -666,7 +666,7 @@ class TestCrmPls(CrmPlsCommon):
 
         # phone_state: pW = 2.1/2.2  pL = 0.1/3.2            -> Score = 0.968
         # email_state: pW = 2.1/2.2  pL = 0.1/3.2            -> Score = 0.968
-        tooltip_data = leads[5].prepare_pls_tooltip_data()
+        tooltip_data = leads[5].update_and_get_pls_tooltip_data()
         self.assertEqual(['stage_id'], [entry['field'] for entry in tooltip_data['top_3_data']])
         self.assertFalse(tooltip_data['low_3_data'])
 
@@ -678,7 +678,7 @@ class TestCrmPls(CrmPlsCommon):
 
         # phone_state: pW = 2.1/2.2  pL = 0.1/3.2            -> Score = 0.968
         # email_state: pW = 0.1/2.2  pL = 3.1/3.2            -> Score = 0.045
-        tooltip_data = leads[5].prepare_pls_tooltip_data()
+        tooltip_data = leads[5].update_and_get_pls_tooltip_data()
         self.assertEqual(['stage_id'], [entry['field'] for entry in tooltip_data['top_3_data']])
         self.assertFalse(tooltip_data['low_3_data'])
 

@@ -37,18 +37,20 @@ patch(ActivityMenu.prototype, {
             // Necessary because activity_ids of mixin.mail.activity has auto_join
             // So, duplicates are faking the count and "Load more" doesn't show up
             context["force_search_count"] = 1;
-            this.action.loadAction("crm.crm_lead_action_my_activities").then((action) => {
-                // to show lost leads in the activity
-                action.domain = Domain.and([
-                    action.domain || [],
-                    [["active", "in", [true, false]]],
-                ]).toList();
-                this.action.doAction(action, {
-                    newWindow,
-                    additionalContext: context,
-                    clearBreadcrumbs: true,
+            this.action
+                .loadAction("crm.crm_lead_action_my_activities")
+                .then((action) => {
+                    // to show lost leads in the activity
+                    action.domain = Domain.and([
+                        action.domain || [],
+                        [["active", "in", [true, false]]],
+                    ]).toList();
+                    this.action.doAction(action, {
+                        newWindow,
+                        additionalContext: context,
+                        clearBreadcrumbs: true,
+                    });
                 });
-            });
         } else {
             return super.openActivityGroup(...arguments);
         }

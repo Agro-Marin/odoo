@@ -10,8 +10,7 @@ import {
     onRpc,
 } from "@web/../tests/web_test_helpers";
 import { serializeDateTime } from "@web/core/l10n/dates";
-// Side-effect import: registers the get_rainbowman_message mock route.
-import "@crm/../tests/crm_mock_server";
+import { getRainbowmanMessage } from "@crm/../tests/crm_mock_server";
 
 const now = luxon.DateTime.now();
 class Users extends models.Model {
@@ -187,8 +186,11 @@ const testKanbanView = {
     groupBy: ["stage_id"],
 };
 
-onRpc("crm.lead", "get_rainbowman_message", ({ parent }) => {
-    const result = parent();
+// One handler: compute the message and record it. Chaining a step recorder on
+// top of a separately-registered mock through `parent()` made the assertions
+// depend on which module registered last, and they lost.
+onRpc("crm.lead", "get_rainbowman_message", function (params) {
+    const result = getRainbowmanMessage.call(this, params);
     expect.step(result || "no rainbowman");
     return result;
 });
@@ -374,7 +376,9 @@ test("first lead won, drag & drop kanban", async () => {
         ...testKanbanView,
     });
 
-    await contains(".o_kanban_record:contains(Lead 6):eq(0)").dragAndDrop(".o_kanban_group:eq(2)");
+    await contains(".o_kanban_record:contains(Lead 6):eq(0)").dragAndDrop(
+        ".o_kanban_group:eq(2)",
+    );
     expect(".o_reward svg.o_reward_rainbow_man").toHaveCount(1);
     expect.verifySteps(["Go, go, go! Congrats for your first deal."]);
 });
@@ -385,7 +389,9 @@ test("team record 30 days, drag & drop kanban", async () => {
         ...testKanbanView,
     });
 
-    await contains(".o_kanban_record:contains(Lead 2):eq(0)").dragAndDrop(".o_kanban_group:eq(2)");
+    await contains(".o_kanban_record:contains(Lead 2):eq(0)").dragAndDrop(
+        ".o_kanban_group:eq(2)",
+    );
     expect(".o_reward svg.o_reward_rainbow_man").toHaveCount(1);
     expect.verifySteps(["Boom! Team record for the past 30 days."]);
 });
@@ -396,7 +402,9 @@ test("team record 7 days, drag & drop kanban", async () => {
         ...testKanbanView,
     });
 
-    await contains(".o_kanban_record:contains(Lead 1):eq(0)").dragAndDrop(".o_kanban_group:eq(2)");
+    await contains(".o_kanban_record:contains(Lead 1):eq(0)").dragAndDrop(
+        ".o_kanban_group:eq(2)",
+    );
     expect(".o_reward svg.o_reward_rainbow_man").toHaveCount(1);
     expect.verifySteps(["Yeah! Best deal out of the last 7 days for the team."]);
 });
@@ -407,7 +415,9 @@ test("user record 30 days, drag & drop kanban", async () => {
         ...testKanbanView,
     });
 
-    await contains(".o_kanban_record:contains(Lead 8):eq(0)").dragAndDrop(".o_kanban_group:eq(2)");
+    await contains(".o_kanban_record:contains(Lead 8):eq(0)").dragAndDrop(
+        ".o_kanban_group:eq(2)",
+    );
     expect(".o_reward svg.o_reward_rainbow_man").toHaveCount(1);
     expect.verifySteps(["You just beat your personal record for the past 30 days."]);
 });
@@ -418,7 +428,9 @@ test("user record 7 days, drag & drop kanban", async () => {
         ...testKanbanView,
     });
 
-    await contains(".o_kanban_record:contains(Lead 10):eq(0)").dragAndDrop(".o_kanban_group:eq(2)");
+    await contains(".o_kanban_record:contains(Lead 10):eq(0)").dragAndDrop(
+        ".o_kanban_group:eq(2)",
+    );
     expect(".o_reward svg.o_reward_rainbow_man").toHaveCount(1);
     expect.verifySteps(["You just beat your personal record for the past 7 days."]);
 });
@@ -429,7 +441,9 @@ test("drag & drop record kanban in stage not won", async () => {
         ...testKanbanView,
     });
 
-    await contains(".o_kanban_record:contains(Lead 8):eq(0)").dragAndDrop(".o_kanban_group:eq(1)");
+    await contains(".o_kanban_record:contains(Lead 8):eq(0)").dragAndDrop(
+        ".o_kanban_group:eq(1)",
+    );
     expect(".o_reward svg.o_reward_rainbow_man").toHaveCount(0);
     expect.verifySteps(["no rainbowman"]);
 });

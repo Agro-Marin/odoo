@@ -11,7 +11,7 @@ class ResPartner(models.Model):
         compute='_compute_opportunity_count',
     )
 
-    def _fetch_children_partners_for_hierarchy(self):
+    def _get_children_partners_for_hierarchy(self):
         # retrieve all children partners and prefetch 'parent_id' on them, saving
         # queries for recursive parent_id browse
         return self.with_context(active_test=False).search_fetch(
@@ -19,7 +19,7 @@ class ResPartner(models.Model):
         )
 
     def _get_contact_opportunities_domain(self):
-        return [('partner_id', 'in', self._fetch_children_partners_for_hierarchy().ids)]
+        return [('partner_id', 'in', self._get_children_partners_for_hierarchy().ids)]
 
     def _compute_opportunity_count(self):
         self.opportunity_count = 0

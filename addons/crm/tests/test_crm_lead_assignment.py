@@ -614,6 +614,6 @@ class TestLeadAssign(TestLeadAssignCommon):
         sales_team_4_m1.lead_day_count = 2
         leads.team_id = sales_team_4.id
 
-        members_data = sales_team_4._assign_and_convert_leads()
+        members_data = sales_team_4._update_members_with_leads()
         self.assertFalse(members_data,
             "If team member has lead count greater than max assign,then do not assign any more")

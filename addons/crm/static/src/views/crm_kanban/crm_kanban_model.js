@@ -27,7 +27,11 @@ export class CrmKanbanDynamicGroupList extends RelationalModel.DynamicGroupList 
             sourceGroup.groupByField.name === "stage_id"
         ) {
             const record = targetGroup.list.records.find((r) => r.id === dataRecordId);
-            await checkRainbowmanMessage(this.model.orm, this.model.effect, record.resId);
+            await checkRainbowmanMessage(
+                this.model.orm,
+                this.model.effect,
+                record.resId,
+            );
         }
     }
 }
