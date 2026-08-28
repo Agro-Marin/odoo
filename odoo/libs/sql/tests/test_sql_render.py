@@ -1,6 +1,6 @@
 import unittest
 
-from odoo.libs.sql import SQL
+from odoo.libs.sql.builder import SQL
 
 
 class TestSqlRenderPercentEscaping(unittest.TestCase):

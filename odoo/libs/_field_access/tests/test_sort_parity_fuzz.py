@@ -3,7 +3,12 @@ from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 
-from odoo.libs._field_access import sort_ids_by_cache, sort_ids_by_values
+# From `odoo_rust`, not from `odoo.libs._field_access`, and that is the Tier-1
+# rule rather than a style choice: `_testing_bootstrap` stubs the package a
+# named suite lives under, so `from <package> import <name>` resolves against a
+# module whose `__init__.py` never ran. `test_field_access.py` beside this one
+# already imports this way. See `odoo/tools/tests/test_suite_collects_standalone.py`.
+from odoo_rust import sort_ids_by_cache, sort_ids_by_values
 from odoo.libs._field_access._fallback import (
     sort_ids_by_cache as sort_ids_by_cache_py,
 )
