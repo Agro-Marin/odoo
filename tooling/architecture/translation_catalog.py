@@ -24,7 +24,7 @@ literal onto one line. The test guarding that behaviour asserted only that the
 
 The exposure is the whole tree, and it tracks how much a module has been
 rewritten — which in this fork is the point of the fork. See the MEASURED block
-below for the current figures; when this landed, `base_automation` could not
+below for the current figures; when this landed, `automation` could not
 resolve 82% of its strings and `gamification` 66%.
 
 WHAT THIS GATE IS NOT. It does not check that a translation *exists* — an

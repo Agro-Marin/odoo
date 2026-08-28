@@ -118,7 +118,7 @@ is broken; `continue-on-error` hides it.
 - `mail` is quarantined at adoption. Leaving the list means converting its
   literals to the derive-and-cite form, not bumping them.
 - Four modules carry a harness; four more machine docs (`odoo/tests`,
-  `odoo/addons/base`, `addons/gamification`, `addons/base_automation`) carry
+  `odoo/addons/base`, `addons/gamification`, `addons/automation`) carry
   none, so their figures are held by nothing. The lane discovers harnesses, not
   machine docs, so this is a gap it reports by silence.
 
@@ -135,3 +135,13 @@ is whether a figure carrying no assertion *should* have one — a document stati
 a bare number that no assertion mentions is invisible to it. That is a review
 responsibility, and the reason §1.4 is written as a rule rather than left to the
 gate.
+
+## Amendments
+
+### 2026-08-28 — citation follows the `automation` rename
+
+Base migration 1.17 renamed the module *base_automation* to `automation`. **The
+one path this record cites of it is corrected in place** to `addons/automation`;
+the old spelling is left unbackticked here, because a backticked path asserts it
+resolves against the tree. The list it appears in is an example of which addons
+carried a machine doc on that record's date, and that claim is unchanged.

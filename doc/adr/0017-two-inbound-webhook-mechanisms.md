@@ -162,7 +162,7 @@ hook and an explicit strict-mode flag, and loses nothing.
 unchanged. The device fleet loses duplicate detection, the async queue and its
 half of `api.event.log`. The first is not cosmetic: a GPS unit on a flaky link
 retries, and a rule-based endpoint would process the same fix twice. Rebuilding
-them on `base.automation` reinvents the deleted model one server action at a
+them on `automation.rule` reinvents the deleted model one server action at a
 time.
 
 **Collapse onto `api.endpoint.inbound` and drop the webhook trigger.** Rejected,
@@ -188,7 +188,7 @@ measured on 2026-08-14.
 
 **The ordering question gets an answer, and it is not one of the two in the
 tree.** Both comments arguing it — in
-`addons/base_automation/models/base_automation.py` and in the inbound controller
+`addons/automation/models/automation_rule.py` and in the inbound controller
 — stop being contradictory once the two limits are distinguished.
 
 **A gate serving two dispatchers can be pulled toward the lowest common
@@ -226,9 +226,9 @@ The 2026-08-12 record decided "keep both, share nothing further" at `Accepted`.
 Revised rather than superseded because it was still a working draft. It sat at
 `Proposed` while the gate did not exist and returned to `Accepted` the same day
 once it did: `mixin.credential.auth` and `mixin.inbound.gate` are in
-`base_credential_manager`, `api.endpoint.inbound` and `base.automation` both
+`base_credential_manager`, `api.endpoint.inbound` and `automation.rule` both
 inherit the gate, and the `webhook_`-prefixed field set is gone from
-`base.automation` bar a deprecated alias for each.
+`automation.rule` bar a deprecated alias for each.
 
 Two things found in the building:
 
@@ -262,3 +262,23 @@ The trigger was not a re-reading but three measurements on 2026-08-14: the
 100-call ceiling, `check_inbound_auth` ignoring `auth_type`, and the
 four-not-two shapes of inbound identity. The first is a live defect in a shipped
 module, and it exists because one security check has two implementations.
+
+### 2026-08-28 — citations follow the `automation` rename
+
+Base migration 1.17 renamed the module *base_automation* to `automation`, and
+the model it carried — spelled *base.automation* before that date — to
+`automation.rule`. **The four citations this record made of those two names are
+corrected in place**, as this section is entitled to do: three of the model, and
+one source path, now *addons/automation/models/automation_rule.py*.
+
+The old spellings are deliberately not backticked anywhere in this amendment. A
+backticked path or dotted model name asserts to a reader that it resolves
+against the tree, and `TestReferencedNamesExist` holds the record to that
+promise; a name that has been renamed away can only be named as prose.
+
+Nothing above changes in substance. The decision, the rejected alternatives and
+the consequences are the ones taken on 2026-08-14, against a module that carried
+the older name on that date; only the spelling a reader would have to resolve
+against today's tree does. The prose naming the *module* is left as written,
+because those sentences are about what that module did at the time, and module
+names are not resolved by the gate.

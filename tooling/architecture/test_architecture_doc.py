@@ -2526,8 +2526,25 @@ class TestTheEnforcedClaimIsBounded(unittest.TestCase):
     def test_the_stated_suite_count_matches_the_lane(self) -> None:
 
         yaml = self.INTEGRATION.read_text(encoding="utf-8")
-        words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven"}
+        words = {
+            2: "two",
+            3: "three",
+            4: "four",
+            5: "five",
+            6: "six",
+            7: "seven",
+            8: "eight",
+            9: "nine",
+            10: "ten",
+            11: "eleven",
+            12: "twelve",
+        }
         n = len(re.findall(r"^  (?:\w+_)?INSTALL: (.+)$", yaml, re.MULTILINE))
+        # A lane grown past the table crashed this check with KeyError, which
+        # reads as a broken test rather than as the page being out of date.
+        self.assertIn(
+            n, words, f"the lane runs {n} suites; extend `words` to spell it"
+        )
         self.assertIn(
             f"runs {words[n]} suites, **each against its own database**",
             DOC_FLAT,

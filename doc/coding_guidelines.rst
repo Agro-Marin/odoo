@@ -955,15 +955,15 @@ free-standing form.
   ``_except_`` is a guard and returns, anything else under ``_unlink_`` deletes.
   An ORM-invoked hook is private.
 
-**``@api.constrains``** ``[review]`` is the fourth and largest, at **617** hooks.
-The Validation row governs the spelling and **546** already carry ``_check_``. The
+**``@api.constrains``** ``[review]`` is the fourth and largest, at **618** hooks.
+The Validation row governs the spelling and **547** already carry ``_check_``. The
 rest are names the ratchet counts (``_validate_``, ``_ensure_``, ``_verify_``) and
 the localisation namespace with the verb behind it
 (``_l10n_se_check_payment_reference``). That leaves **47** spelled with a first
 token carrying no rule anywhere: ``_constrains_``, ``_constraint_``,
 ``_limit_available_currency_ids``, and twice the misspelling ``_contrains_``.
 
-**The field-hook rule must not be extended to it** ``[review]``. **300** bind
+**The field-hook rule must not be extended to it** ``[review]``. **301** bind
 exactly one field and only **129** are ``_check_<field>`` -- that gap is the rule
 working. A ``compute=`` names a subject; a ``@api.constrains`` argument names a
 **trigger**, and a constraint is named for the **condition it enforces**
@@ -980,7 +980,7 @@ Do not read a prefix as a claim that no other binding exists.
 carrying an ORM role; every other method opens with a free verb. The abolished
 spellings are wrong, not lesser-preferred. The tree spells single operations many
 ways: 6 stems are written with two or more verbs drawn from one semantic family,
-and 105 groups of methods share a byte-identical body under different names.
+and 104 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
 ``[gate doc_restated_counts]``. The population is the 24,709 non-test methods
@@ -1082,7 +1082,7 @@ neither operation they name, and ``ir.cron``'s ``method_direct_trigger``.
 **The verb leads** ``[review]``. ``naming_vocabulary.classify`` partitions on the
 first token and stops, so a noun in front of the verb hides the verb from the rule
 *and* from its enforcement: ``_import_retrieve_customer`` scores as the verb
-``import``, which carries no rule. Backlog: **151** model methods put an abolished
+``import``, which carries no rule. Backlog: **152** model methods put an abolished
 verb somewhere the ratchet cannot read it -- a candidate population, since some of
 those tokens belong to a noun or a field name.
 
@@ -1139,10 +1139,10 @@ and **read the result**:
   deleting it: ``_get_related_bundle`` → ``_get_bundle_containing_path``.
 
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
-**200** definitions under **98** names in this repository spell it head-first and
+**206** definitions under **98** names in this repository spell it head-first and
 **17** spell it the other way. **The rule is general; the conversion reached one
 family** -- across **19** of them this repository spells **65** definitions
-head-first against **178** the other way. A name in the second count is a backlog
+head-first against **181** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
 is measured by nothing; and ``ids`` is deliberately absent, because
@@ -1217,9 +1217,9 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,459 definitions it is 22.1 % of every method
+**``_get_`` is not a default.** At 5,487 definitions it is 22.1 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
-computing. The split that matters is against ``_prepare_``: 687 definitions are
+computing. The split that matters is against ``_prepare_``: 686 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
 spelled ``get_*``, against 725 already spelled ``_prepare_*``.
@@ -1266,7 +1266,7 @@ new ones this way; do not rename the bound ones.
   ``_migrate_attachments_to_local``.
 
 **``_generate_`` is the largest member of the payload family and is not in the
-table** ``[review]``. The four verbs the Payload row abolishes come to **14**
+table** ``[review]``. The four verbs the Payload row abolishes come to **22**
 definitions between them; ``_generate_`` alone is **134**. It carries two meanings
 -- ``_generate_access_token`` builds a value and takes the payload canonical,
 while ``_generate_consume_moves`` **creates records** and takes the domain
@@ -1288,8 +1288,8 @@ assembles is in the wrong family.
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **374** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **193**
+**A ``bool`` return does not make a predicate** ``[review]``. **372** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **195**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1299,7 +1299,7 @@ converter where a type would.
 
 **Validation raises; predicates return.** ``_check_*`` (1,047 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (29) plus ``_verify_``,
-``_ensure_`` and ``_control_`` (50 together) are the same operation under four
+``_ensure_`` and ``_control_`` (49 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
 ``_can_*`` and must not raise.
 
@@ -1487,7 +1487,7 @@ the duplicate report this section exists to produce.
 ``[gate doc_restated_counts]``. Making one table **agree with** another takes a
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
-for it this section had never named: **59** definitions spell it ``_sync_*`` and
+for it this section had never named: **60** definitions spell it ``_sync_*`` and
 **13** spell it ``_synchronize_*``, against ``_update_*``'s **266**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
@@ -1517,9 +1517,9 @@ may not borrow that vocabulary, whether or not it is indented under a class.
 **It governs the module's own helpers too, and no gate sees them** ``[review]``.
 ``naming_vocabulary.py`` implements the scope as a *class-membership* test, so two
 populations in the same files are counted by nothing: a function declared at
-**module level** -- **309** of them under ``models/`` and ``wizard/`` -- and a
-method on a **plain class** declared in the same file, of which there are **377**
-across **144** classes. Counted over the addon trees only, since a directory test
+**module level** -- **311** of them under ``models/`` and ``wizard/`` -- and a
+method on a **plain class** declared in the same file, of which there are **381**
+across **145** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
 
 **A file can be sixteen names wrong and green** -- three sweeps left the ratchet
@@ -1622,7 +1622,7 @@ evidence the targets are not free to be renamed.
 **Bound by name, not by inheritance** ``[review]``. The framework calls a method on
 a model it resolved at runtime, and any model defining that name answers.
 ``ir.actions.report`` calls ``_get_report_values`` on a model looked up from the
-report's record: 20 classes in this repository implement it, related to each other
+report's record: 19 classes in this repository implement it, related to each other
 and to the caller by nothing but the spelling. ``res.config.settings`` does the
 same to ``get_values`` and ``set_values``, at 13 and 22. None is declared as an
 interface, and all three counts stop at this repository (ADR-0033) while the

@@ -6,7 +6,7 @@
 ## Context
 
 ADR-0017 consolidated inbound authentication into `mixin.inbound.gate`, shared
-by `api.endpoint.inbound` and `base.automation`. Its claim that the divided
+by `api.endpoint.inbound` and `automation.rule`. Its claim that the divided
 audit trail closed was withdrawn the same day: the gate lives in
 `base_credential_manager` precisely so `base_automation` can reach it without
 depending on `api_transport`, and `api.event.log` belongs to `api_transport`.
@@ -22,7 +22,7 @@ disagree about where. Neither does.
 The gate answers `(allowed, status, reason)`. Both callers branch on `allowed`
 and drop `reason` into a log line:
 
-- `base_automation/controllers/main.py` returns a JSON error on refusal and
+- `automation/controllers/main.py` returns a JSON error on refusal and
   writes nothing. Its `log_webhook_calls` flag governs `ir.logging` rows written
   by `_execute_webhook` — *after* admission — so it does not cover a request
   that never got that far.
@@ -151,8 +151,8 @@ the ordinary success the opt-in keeps out of the table. The skip is keyed on the
 
 ## Enforcement
 
-`base_automation/tests/test_inbound_access_log.py` — thirteen tests, driven
-through `base.automation` because it is the concrete implementer that had no
+`automation/tests/test_inbound_access_log.py` — thirteen tests, driven
+through `automation.rule` because it is the concrete implementer that had no
 structured record at all (`api.endpoint.inbound` is an `AbstractModel` with no
 table, and its concrete implementers live in a sibling repo). They pin the two
 halves that are decisions rather than mechanism: that an ordinary success writes
@@ -171,3 +171,25 @@ callers are `_check_inbound_request` and the tests.
 Retention is a cron rather than a gate, and an operator who disables it gets an
 unbounded table — the same contract `credential.access.log` beside it has, so a
 property of this module rather than of this decision.
+
+## Amendments
+
+### 2026-08-28 — citations follow the `automation` rename
+
+Base migration 1.17 renamed the module *base_automation* to `automation`, and
+the model it carried — spelled *base.automation* before that date — to
+`automation.rule`. **The citations this record made of those names are corrected
+in place**: the model becomes `automation.rule`, and the two source paths become
+`automation/controllers/main.py` and
+`automation/tests/test_inbound_access_log.py`.
+
+The old spellings are deliberately not backticked here. A backticked path or
+dotted model name asserts to a reader that it resolves against the tree, and
+`TestReferencedNamesExist` holds the record to that promise; a name renamed away
+can only be named as prose.
+
+Nothing above changes in substance. The decision and its enforcement are the
+ones taken on that record's date, against a module carrying the older name; only
+the spelling a reader resolves against today's tree does. Sentences naming the
+*module* are left as written — they describe what that module did at the time,
+and module names are not resolved by the gate.
