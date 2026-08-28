@@ -17,7 +17,7 @@ export class IbanWidget extends CharField {
             const iban = ev.target.value;
             if (!iban) {
                 this.state.isValidIBAN = null;
-            } else if (!/[A-Za-z]{2}.{3,}/.test(iban)) {
+            } else if (!/^[A-Za-z]{2}.{3,}/.test(iban)) {
                 this.state.isValidIBAN = false;
             } else {
                 this.state.isValidIBAN = await this.orm.call("res.partner.bank", "check_iban", [[], iban]);
