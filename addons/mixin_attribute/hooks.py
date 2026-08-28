@@ -52,19 +52,19 @@ def adopt_renamed_module(cr) -> int:
     cr.execute(
         """
         DELETE FROM ir_model_data
-         WHERE module = 'base_attribute_mixin'
+         WHERE module = 'mixin_attribute'
            AND name IN (SELECT name FROM ir_model_data WHERE module = %s)
         """,
         (_RENAMED_FROM,),
     )
     cr.execute(
-        "UPDATE ir_model_data SET module = 'base_attribute_mixin' WHERE module = %s",
+        "UPDATE ir_model_data SET module = 'mixin_attribute' WHERE module = %s",
         (_RENAMED_FROM,),
     )
     adopted = cr.rowcount
 
     cr.execute(
-        "UPDATE ir_module_module_dependency SET name = 'base_attribute_mixin' "
+        "UPDATE ir_module_module_dependency SET name = 'mixin_attribute' "
         "WHERE name = %s",
         (_RENAMED_FROM,),
     )
@@ -76,7 +76,7 @@ def adopt_renamed_module(cr) -> int:
     )
 
     _logger.info(
-        "base_attribute_mixin: adopted %s record(s) and %s dependency row(s) "
+        "mixin_attribute: adopted %s record(s) and %s dependency row(s) "
         "from the pre-rename %s module, which is now retired",
         adopted,
         repointed,

@@ -60,7 +60,7 @@ class TestEncryptionMixin(TransactionCase):
         self.assertFalse(self.mixin._encrypt_value(""))
         self.assertFalse(self.mixin._decrypt_value(b""))
 
-    @mute_logger("odoo.addons.base_encryption_mixin.models.mixin_encryption")
+    @mute_logger("odoo.addons.mixin_encryption.models.mixin_encryption")
     def test_a_malformed_token_reports_itself(self):
         with self.assertRaises(ValidationError) as caught:
             self.mixin._coerce_fernet_token(b"not base64 at all!!")

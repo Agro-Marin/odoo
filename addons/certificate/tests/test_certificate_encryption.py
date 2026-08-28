@@ -7,7 +7,7 @@ from cryptography.fernet import Fernet
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import file_open
 
-from odoo.addons.base_encryption_mixin.models import (
+from odoo.addons.mixin_encryption.models import (
     mixin_encryption as mixin_mod,
 )
 

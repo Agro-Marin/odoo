@@ -12,7 +12,7 @@ from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.api_transport.tools.api_client import _MAX_LOGGED_PAYLOAD
 from odoo.addons.api_transport.tools.exceptions import ClientError, CommError
-from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 SECRET_KEY = "-----BEGIN PRIVATE KEY-----MIIEvQIBADANBg"
 

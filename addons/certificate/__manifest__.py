@@ -12,7 +12,7 @@
         "views/action_menus.xml",
         "views/res_config_settings_view.xml",
     ],
-    "depends": ["web", "base_encryption_mixin"],
+    "depends": ["web", "mixin_encryption"],
     "author": "Odoo S.A.",
     "license": "AGPL-3",
 }

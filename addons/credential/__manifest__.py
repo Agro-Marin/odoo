@@ -56,7 +56,7 @@ Other modules build on this module in two ways:
   absorbed both ``api_communication`` and ``api_gateway``.
 * Import the shared primitives from ``tools/`` (authentication/signature
   verification, endpoint + credential rate limiters, session cache,
-  connection manager) — see ``base_automation`` webhooks, ``telegram_bot``
+  connection manager) — see ``automation`` webhooks, ``telegram_bot``
   and ``remote``.
 
 Requires the ``ODOO_API_ENCRYPTION_KEY`` environment variable (a Fernet key);
@@ -68,7 +68,7 @@ rotation.
     "license": "LGPL-3",
     "depends": [
         "base",
-        "base_encryption_mixin",
+        "mixin_encryption",
     ],
     "data": [
         "security/credential_security.xml",

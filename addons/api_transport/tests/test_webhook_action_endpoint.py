@@ -4,7 +4,7 @@ from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.api_transport.models.ir_actions_server import _EndpointDelivery
-from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 _MODULE = "odoo.addons.api_transport.models.ir_actions_server"
 

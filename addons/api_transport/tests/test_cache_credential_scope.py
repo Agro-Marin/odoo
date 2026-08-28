@@ -3,7 +3,7 @@ from unittest.mock import patch
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.api_transport.tools import get_api_client
-from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 class _FakeResponse:

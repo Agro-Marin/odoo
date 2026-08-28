@@ -946,6 +946,8 @@ class _ModuleLoader:
                     model,
                 )
 
+        self._reflect_inherits_across_the_whole_registry()
+
         env["ir.model.data"]._process_end(self.registry.updated_modules)
         vacuum_cron = env.ref("base.autovacuum_job", raise_if_not_found=False)
         if vacuum_cron:
@@ -955,6 +957,34 @@ class _ModuleLoader:
             vacuum_cron._trigger(at=trigger_at)
 
         env.flush_all()
+
+    def _reflect_inherits_across_the_whole_registry(self) -> None:
+        """Re-register the inherit xmlids an updated module owns on someone else's model.
+
+        ``_reflect_inherits`` writes one xmlid per module in the child model's
+        MRO, so a module that only *declares a mixin* owns rows keyed on models
+        it does not extend: ``base.model_inherit__mail_guest__mixin_image``
+        exists because ``mixin.avatar`` is base's, not because base knows what
+        ``mail.guest`` is.
+
+        ``_PackageLoader.load_models`` cannot register those. It widens its scope
+        with ``descendants``, but modules load in graph order and base loads
+        first, when ``mail.guest`` is not in the registry to be found; and the
+        pass that would catch it later, ``models_to_check``, intersects with
+        models base had already updated, which for the same reason it is not in.
+        So on a plain ``-u base`` the row is never re-reflected, never re-enters
+        ``loaded_xmlids``, and ``_process_end`` reaps it as an orphan -- deleting
+        a live inheritance link, at INFO level, exit 0.
+
+        The closure is only knowable here, once every module has contributed its
+        models, and it has to run before ``_process_end`` rather than alongside
+        the other late model work in ``reinit_models_to_check``, which runs after
+        the reap. Reflecting the whole registry is idempotent: every row it
+        upserts is one the tree already describes.
+        """
+        if not self.registry.updated_modules:
+            return
+        self.env["ir.model.inherit"]._reflect_inherits(list(self.registry.models))
 
     def uninstall_removed_modules(self) -> None:
         if not self.update_module:

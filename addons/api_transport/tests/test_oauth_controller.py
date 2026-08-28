@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.api_transport.controllers.oauth import OAuthController
-from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 class TestOAuthTokenExchange(EncryptionKeyCase, TransactionCase):
