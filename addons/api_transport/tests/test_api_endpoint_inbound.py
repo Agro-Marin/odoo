@@ -342,14 +342,6 @@ class TestRateLimitStrictPosture(TransactionCase):
 
 
 class TestPayloadLogLimit(TransactionCase):
-    """A body an endpoint declines to store in full (ADR-0066).
-
-    `api.endpoint.inbound` is abstract -- it has no table, and the concrete
-    endpoints that inherit it live in other modules -- so these exercise the
-    policy on an in-memory record. `remote_mobile` covers the same setting on a
-    stored `remote.device` and over a real request.
-    """
-
     def _endpoint(self, **overrides):
         vals = {"processing_mode": "sync", "log_request_payload_max_bytes": 64}
         vals.update(overrides)
@@ -367,8 +359,6 @@ class TestPayloadLogLimit(TransactionCase):
         )
 
     def test_an_async_endpoint_ignores_the_limit(self):
-        """The stored body is what `_run_queued_event` replays, so shortening it
-        would discard the work rather than shorten a log."""
         endpoint = self._endpoint(processing_mode="async")
 
         self.assertEqual(endpoint.log_request_payload_max_bytes, 64)
@@ -381,10 +371,6 @@ class TestPayloadLogLimit(TransactionCase):
 
 
 class TestPayloadHashOverride(APITransportTestCase):
-    """Duplicate detection compares a hash the caller computed from the request
-    against a column derived from the stored body. When the two are not the same
-    text, the override is what keeps them the same value (ADR-0066)."""
-
     def _log(self, **vals):
         base = {
             "direction": "outbound",

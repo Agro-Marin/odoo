@@ -4,16 +4,6 @@ MOVES = (("account_tax", "account_tax_res_company_rel", "account_tax_id"),)
 
 
 def migrate(cr, version):
-    """Carry ``account.tax.company_id`` into the ``company_ids`` relation.
-
-    Post, for the same reason as the tax group's own migration one version back:
-    the many2many table is created by the registry update, so a pre-migrate has
-    nothing to insert into, while the old column survives that update untouched.
-
-    ``account.tax.repartition.line.company_id`` was a *stored related* of the
-    tax's column. It carries no information the tax does not, so it is dropped
-    rather than migrated -- ``company_ids`` there is an unstored related now.
-    """
     if not version:
         return
 

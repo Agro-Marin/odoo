@@ -13,8 +13,6 @@ from odoo.addons.api_transport.tools import (
 
 _logger = logging.getLogger(__name__)
 
-#: Enough of the body to recognise what was posted, without the payload that
-#: made it too large to keep.
 _OMITTED_PAYLOAD_HEAD_CHARS = 512
 
 
@@ -48,24 +46,6 @@ class InboundController(BaseCommController):
         check_duplicates: bool = True,
         create_event_log: bool = True,
     ) -> ValidationResult:
-        """Admit or refuse a request, and open an event log for it.
-
-        **A caller that receives an event log owns closing it.** The row is
-        created ``pending``, and ``pending`` on an inbound event does not mean
-        "recorded, awaiting nothing" -- it means queued work.
-        ``api.event.log._cron_retry_failed_events`` runs every minute, selects
-        inbound events in that state and replays them through the channel's
-        ``_process_queued_event``. A route that stores the payload itself and
-        then leaves the row alone therefore has every request processed a second
-        time, by a handler that is not its own.
-
-        Call ``mark_success()`` when the payload was stored and
-        ``mark_failed(reason, schedule_retry=False)`` when it was not, unless
-        the channel's own ``_process_queued_event`` really is the right handler
-        for a retry. Passing ``create_event_log=False`` also closes the
-        question, at the cost of the audit trail and of duplicate detection,
-        which needs the row.
-        """
         start_time = fields.Datetime.now()
         remote_addr = self._get_remote_address()
 
@@ -283,14 +263,6 @@ class InboundController(BaseCommController):
     def _payload_log_vals(
         self, endpoint: Any, body_str: str, payload_hash: str | None
     ) -> dict:
-        """Keep a body the endpoint does not want stored in full out of the row.
-
-        The placeholder is JSON so a reader still gets a dict rather than a
-        parse warning, and the hash of the body as received is carried across
-        explicitly -- the duplicate check that runs immediately after this
-        compares against that column, and deriving it from the placeholder would
-        stop matching anything without failing.
-        """
         limit = endpoint._payload_log_limit()
         size = len(body_str.encode("utf-8"))
         if not limit or size <= limit:

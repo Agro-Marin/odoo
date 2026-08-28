@@ -15,12 +15,11 @@ from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
 
 
 class ReadonlyDictSubclass(ReadonlyDict):
-    """Stand-in for res.lang's LangData, which reaches the wire the same way."""
+    pass
 
 
 class TestExternalAPI(SavepointCaseWithUserDemo):
     def test_call_kw(self):
-        """kwargs is not modified by the execution of the call"""
         partner = self.env["res.partner"].create({"name": "MyPartner1"})
         args = (partner.ids, ["name"])
         kwargs = {"context": {"test": True}}
@@ -48,13 +47,11 @@ class TestXMLRPC(common.HttpCase):
         )
 
     def test_01_xmlrpc_login(self):
-        """Try to login on the common service."""
         db_name = common.get_db_name()
         uid = self.xmlrpc_common.login(db_name, "admin", "admin")
         self.assertEqual(uid, self.admin_uid)
 
     def test_xmlrpc_ir_model_search(self):
-        """Try a search on the object service."""
         o = self.xmlrpc_object
         db_name = common.get_db_name()
         ids = o.execute(db_name, self.admin_uid, "admin", "ir.model", "search", [])
@@ -63,7 +60,6 @@ class TestXMLRPC(common.HttpCase):
         self.assertIsInstance(ids, list)
 
     def test_xmlrpc_datetime(self):
-        """Test that native datetime can be sent over xmlrpc"""
         m = self.env.ref("base.model_res_device_log")
         self.env["ir.model.access"].create(
             {
@@ -120,7 +116,6 @@ class TestXMLRPC(common.HttpCase):
         self.assertEqual(x["signature"], sig)
 
     def test_xmlrpc_frozendict_marshalling(self):
-        """Test that the marshalling of a frozendict object works properly over XMLRPC"""
         self.env.ref("base.user_admin").tz = "Europe/Brussels"
         ctx = self.xmlrpc_object.execute(
             common.get_db_name(),
@@ -133,9 +128,6 @@ class TestXMLRPC(common.HttpCase):
         self.assertEqual(ctx["tz"], "Europe/Brussels")
 
     def test_xmlrpc_fields_get_marshalling(self):
-        """A relational field's `context` defaults to a ReadonlyDict, which is
-        not a dict and so has no marshaller of its own.
-        """
         fields = self.xmlrpc(
             "res.partner", "fields_get", ["parent_id"], ["type", "context"]
         )
@@ -143,7 +135,6 @@ class TestXMLRPC(common.HttpCase):
         self.assertEqual(fields["parent_id"]["context"], {})
 
     def test_xmlrpc_readonly_dict_subclass_marshalling(self):
-        """Dispatch is by exact type, so a ReadonlyDict subclass is a miss too."""
         self.patch(
             self.registry["res.users"],
             "context_get",
@@ -152,10 +143,6 @@ class TestXMLRPC(common.HttpCase):
         self.assertEqual(self.xmlrpc("res.users", "context_get"), {"lang": "en_US"})
 
     def test_xmlrpc_defaultdict_marshalling(self):
-        """
-        Test that the marshalling of a collections.defaultdict object
-        works properly over XMLRPC
-        """
         self.patch(
             self.registry["res.users"],
             "context_get",
@@ -187,7 +174,6 @@ class TestXMLRPC(common.HttpCase):
         )
 
     def test_jsonrpc_name_search(self):
-        # well that's some sexy sexy call right there
         self._json_call(
             common.get_db_name(),
             self.admin_uid,
@@ -226,7 +212,6 @@ class TestXMLRPC(common.HttpCase):
         )
 
 
-# really just for the test cursor
 @common.tagged("post_install", "-at_install")
 class TestAPIKeys(common.HttpCase):
     @classmethod
@@ -247,11 +232,9 @@ class TestAPIKeys(common.HttpCase):
         def get_json_data():
             raise ValueError("There is no json here")
 
-        # needs a fake request in order to call methods protected with check_identity
         self.http_request_key = self.canonical_tag
         fake_req = DotDict(
             {
-                # various things go and access request items
                 "httprequest": DotDict(
                     {
                         "environ": {"REMOTE_ADDR": "localhost"},
@@ -260,7 +243,6 @@ class TestAPIKeys(common.HttpCase):
                     }
                 ),
                 "cookies": {common.TEST_CURSOR_COOKIE_NAME: self.canonical_tag},
-                # bypass check_identity flow
                 "session": {"identity-check-last": time.time()},
                 "geoip": {},
                 "get_json_data": get_json_data,
@@ -282,7 +264,6 @@ class TestAPIKeys(common.HttpCase):
         self.assertEqual(ctx["tz"], "Australia/Eucla")
 
     def test_wrongpw(self):
-        # User.authenticate raises but RPC.authenticate returns False
         uid = auth.dispatch("authenticate", [self.env.cr.dbname, "byl", "aws", {}])
         self.assertFalse(uid)
         with self.assertRaises(AccessDenied):
@@ -351,15 +332,12 @@ class TestAPIKeys(common.HttpCase):
         ).make_key()
         k0, k1, k2 = env["res.users.apikeys"].search([])
 
-        # user can remove their own keys
         k0.remove()
         self.assertFalse(k0.exists())
 
-        # admin can remove user keys
         k1.with_user(self.env.ref("base.user_admin")).remove()
         self.assertFalse(k1.exists())
 
-        # other user can't remove user keys
         u = self.env["res.users"].create(
             {
                 "name": "a",

@@ -4,8 +4,6 @@ from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class AccountAccountTag(models.Model):
-    """Tag for categorizing accounts, taxes, and products."""
-
     _name = "account.account.tag"
     _description = "Account Tag"
 

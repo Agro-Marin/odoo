@@ -1,5 +1,3 @@
-"""Tests for the XML-RPC exception-to-fault serialization contract."""
-
 import xmlrpc.client
 
 from markupsafe import Markup
@@ -22,13 +20,11 @@ from odoo.addons.rpc.controllers.xmlrpc import (
 @tagged("post_install", "-at_install")
 class TestFaultSerialization(TransactionCase):
     def _fault_from(self, payload):
-        """Unmarshal a serialized fault and return the Fault exception."""
         with self.assertRaises(xmlrpc.client.Fault) as capture:
             xmlrpc.client.loads(payload)
         return capture.exception
 
     def test_int_fault_codes_per_exception_type(self):
-        """Each Odoo exception maps to its documented integer fault code."""
         cases = [
             (exceptions.AccessError("no access"), RPC_FAULT_CODE_ACCESS_ERROR),
             (exceptions.AccessDenied(), RPC_FAULT_CODE_ACCESS_DENIED),
@@ -43,7 +39,6 @@ class TestFaultSerialization(TransactionCase):
             self.assertEqual(fault.faultCode, expected_code)
 
     def test_int_fault_generic_exception_carries_traceback(self):
-        """Unknown exceptions map to APPLICATION_ERROR with the traceback."""
         try:
             raise ValueError("boom in rpc")
         except ValueError as error:
@@ -52,14 +47,12 @@ class TestFaultSerialization(TransactionCase):
         self.assertIn("boom in rpc", fault.faultString)
 
     def test_string_fault_access_denied_is_bare(self):
-        """The legacy string protocol keeps AccessDenied terse."""
         fault = self._fault_from(
             xmlrpc_handle_exception_string(exceptions.AccessDenied())
         )
         self.assertEqual(fault.faultCode, "AccessDenied")
 
     def test_string_fault_user_error_is_prefixed(self):
-        """The legacy string protocol prefixes warnings with their type."""
         fault = self._fault_from(
             xmlrpc_handle_exception_string(exceptions.UserError("user oops"))
         )
@@ -69,17 +62,6 @@ class TestFaultSerialization(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestFaultCarriesItsOwnException(TransactionCase):
-    """The handlers take the exception; they must not read ambient state.
-
-    Both read `sys.exc_info()` for the generic branch, which is whatever the
-    *caller's* `except` block is handling rather than the argument. Inside the
-    two controllers those coincide, so the bug was invisible there and showed
-    up the moment the mapping was called anywhere else: outside an `except`,
-    `sys.exc_info()` is `(None, None, None)` and `traceback.format_exception`
-    renders the string "NoneType: None" into the fault, losing the error
-    entirely.
-    """
-
     def _fault_from(self, payload):
         with self.assertRaises(xmlrpc.client.Fault) as capture:
             xmlrpc.client.loads(payload)
@@ -94,8 +76,6 @@ class TestFaultCarriesItsOwnException(TransactionCase):
                 self.assertNotIn("NoneType: None", rendered)
 
     def test_the_exception_passed_wins_over_the_one_in_flight(self):
-        """A handler called while another exception is being handled must
-        serialize its argument, not the one `sys.exc_info()` happens to hold."""
         try:
             raise KeyError("the ambient one")
         except KeyError:
@@ -116,30 +96,12 @@ class TestFaultCarriesItsOwnException(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMarkupMarshalling(TransactionCase):
-    """`Markup` must reach the marshaller as a plain `str`.
-
-    `OdooMarshaller.dispatch[Markup]` converts before dumping, which reads like
-    a redundant cast over a `str` subclass and is not: `Markup.replace` escapes
-    its replacement, so `xmlrpc.client.escape` -- three `str.replace` calls --
-    turns "&" into "&amp;amp;" when handed one. Marshalling a Markup as itself
-    double-escapes every rendered HTML field on the wire.
-    """
-
     def test_markup_is_escaped_exactly_once(self):
         payload = dumps((Markup("<b>a &amp; b</b>"),))
         (value,), _method = xmlrpc.client.loads(payload)
         self.assertEqual(value, "<b>a &amp; b</b>")
 
     def test_the_dispatch_override_keeps_the_interpreter_fallbacks(self):
-        """Widening the lookup for one hierarchy must not cost the others.
-
-        `__missing__` intercepts every dispatch miss, so the two fallbacks
-        `xmlrpc.client` relies on have to survive it: marshalling an arbitrary
-        instance through its `_arbitrary_instance` handler, and refusing a
-        `ReadonlyDict` that stock `Marshaller` renders as an EMPTY struct
-        because its `__slots__` leave nothing in `__dict__` to read.
-        """
-
         class Arbitrary:
             def __init__(self):
                 self.a = 1
@@ -154,7 +116,6 @@ class TestMarkupMarshalling(TransactionCase):
             )
 
     def test_the_conversion_is_what_makes_it_so(self):
-        """Pin the premise: dumping the Markup unconverted really does break."""
         self.assertNotEqual(
             xmlrpc.client.escape(Markup("a & b")),
             xmlrpc.client.escape("a & b"),

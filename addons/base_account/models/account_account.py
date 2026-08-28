@@ -15,17 +15,11 @@ ACCOUNT_CODE_NUMBER_REGEX = re.compile(r"(.*?)(\d*)(\D*?)$")
 
 
 class AccountAccount(models.Model):
-    """Chart of Accounts foundation: code, type, tags, and multi-company support."""
-
     _name = "account.account"
     _description = "Account"
     _order = "code, placeholder_code"
     _check_company_auto = True
     _check_company_domain = models.check_companies_domain_parent_of
-
-    # ------------------------------------------------------------------
-    # Fields
-    # ------------------------------------------------------------------
 
     name = fields.Char(
         string="Account Name",
@@ -137,9 +131,6 @@ class AccountAccount(models.Model):
         comodel_name="account.code.mapping",
         inverse_name="account_id",
     )
-    # Ensure code_mapping_ids is written before company_ids so we don't
-    # trigger the _ensure_code_is_unique constraint when writing multiple
-    # code mappings and multiple companies in the same call to write().
     code_mapping_ids.write_sequence = 19
     tag_ids = fields.Many2many(
         comodel_name="account.account.tag",
@@ -164,15 +155,10 @@ class AccountAccount(models.Model):
         "If not, this account will belong to Trade "
         "Receivable/Payable in reports and filters.",
     )
-    # Form view: show code mapping tab or not
     display_mapping_tab = fields.Boolean(
         default=lambda self: len(self.env.user.company_ids) > 1,
         store=False,
     )
-
-    # ------------------------------------------------------------------
-    # SQL helpers
-    # ------------------------------------------------------------------
 
     def _field_to_sql(
         self, alias: str, field_expr: str, query: Query | None = None
@@ -183,17 +169,6 @@ class AccountAccount(models.Model):
                 self._field_to_sql(alias, "account_type", query),
             )
         if field_expr == "code":
-            # `code` is the current (root) company's value of the company-dependent
-            # `code_store`. The generic company-dependent read binds the company id
-            # and the fallback as parameters; when that expression is reused in both
-            # the GROUP BY and the ORDER BY of a hand-built report query (e.g. the
-            # general ledger / trial balance CSV export, which group by the code
-            # rather than by the account PK), PostgreSQL sees the two copies as
-            # distinct parameter nodes, fails to unify them, and rejects the ORDER BY
-            # term ("code_store must appear in the GROUP BY clause"). Spell the read
-            # out with the root company id inlined as a literal so every copy is
-            # byte-identical and unifies. code_store carries no company-dependent
-            # default, so the fallback is simply NULL.
             return SQL(
                 "(COALESCE(%(code_store)s->%(root_company_id)s, to_jsonb(NULL::varchar))->>0)::varchar",
                 code_store=SQL.identifier(
@@ -239,15 +214,6 @@ class AccountAccount(models.Model):
                     )
                 """,
                 code_store=SQL.identifier(alias, "code_store"),
-                # Inline the active company's root id as a SQL *literal*, never a
-                # bound parameter. This expression is reused verbatim in the GROUP BY,
-                # ORDER BY and SELECT of reporting queries (e.g. the general ledger).
-                # PostgreSQL only accepts an ORDER BY/SELECT term as "grouped" when it
-                # is parse-tree-identical to a GROUP BY term, and it treats two bind
-                # parameters as distinct nodes even when they carry the same value. A
-                # parameter here breaks that match, leaving the account_first_company.*
-                # join columns ungrouped -> GroupingError. A constant id is safe to
-                # inline and keeps every copy of the expression identical.
                 active_company_root_id=SQL(f"'{int(self.env.company.root_id.id)}'"),
                 account_first_company_name=SQL.identifier(
                     "account_first_company",
@@ -270,10 +236,6 @@ class AccountAccount(models.Model):
             )
 
         return super()._field_to_sql(alias, field_expr, query)
-
-    # ------------------------------------------------------------------
-    # Constraints
-    # ------------------------------------------------------------------
 
     @api.constrains("account_type", "reconcile")
     def _check_reconcile(self):
@@ -311,7 +273,6 @@ class AccountAccount(models.Model):
 
     @api.constrains("company_ids")
     def _check_company_consistency(self):
-        # Need to invalidate the sudo cache as we might have just written on `company_ids`
         self.invalidate_recordset(fnames=["company_ids"])
         if accounts_without_company := self.filtered(
             lambda a: not a.sudo().company_ids
@@ -332,10 +293,6 @@ class AccountAccount(models.Model):
             raise ValidationError(
                 _("Bank & Cash accounts cannot be shared between companies."),
             )
-
-    # ------------------------------------------------------------------
-    # Computed fields
-    # ------------------------------------------------------------------
 
     @api.depends_context("company")
     @api.depends("code_store")
@@ -367,18 +324,9 @@ class AccountAccount(models.Model):
         ):
             record_root.code_store = record.code
 
-        # Changing the code for one company should also change it for all
-        # companies sharing the same root_id.
         self.invalidate_recordset(fnames=["code"], flush=False)
         self._compute_code()
 
-    # `uid` as well as `company`: the fallback below reads
-    # `self.env.user._get_company_ids()`, so the answer is the acting user's.
-    # Declaring only `company` gives the whole transaction ONE cache entry per
-    # company value, and the first reader's placeholder is then served to every
-    # user after it -- including one with no access to the company whose code it
-    # names. See TestAccountAccount.test_placeholder_code, which had to
-    # invalidate the field by hand to ask a second user.
     @api.depends_context("company", "uid")
     @api.depends("code")
     def _compute_placeholder_code(self):
@@ -490,12 +438,6 @@ class AccountAccount(models.Model):
 
     @api.depends("code")
     def _compute_account_type_and_tags(self):
-        """Default ``account_type`` and ``tag_ids`` from the closest parent.
-
-        Computed together, sharing one fetch of the chart of accounts,
-        instead of as two independent computes each re-scanning the whole
-        company on their own.
-        """
         accounts_to_process = self.filtered(
             lambda account: (
                 account.code and (not account.account_type or not account.tag_ids)
@@ -507,15 +449,6 @@ class AccountAccount(models.Model):
         )
 
     def _get_closest_parent_account(self, accounts_to_process, field_defaults):
-        """Retrieve the closest parent account by code prefix.
-
-        Assigns the value of the parent's field(s), named by the keys of
-        *field_defaults*, to each account in *accounts_to_process* --
-        defaulting to the matching value in *field_defaults* when there is
-        no parent. All requested fields are fetched in a single query, so
-        the chart of accounts is scanned once regardless of how many fields
-        need defaulting.
-        """
         field_names = list(field_defaults)
         assert all(field_name in self._fields for field_name in field_names)
 
@@ -529,9 +462,6 @@ class AccountAccount(models.Model):
             accounts_with_values[account["code"]] = {
                 field_name: account[field_name] for field_name in field_names
             }
-        # ``all_accounts`` is fetched ordered by ``code``, so the dict keys are
-        # already sorted -- build the bisect list once instead of rebuilding it
-        # for every account to process.
         codes_list = list(accounts_with_values.keys())
         for account in accounts_to_process:
             closest_index = bisect_left(codes_list, account.code) - 1
@@ -564,7 +494,6 @@ class AccountAccount(models.Model):
         ]
 
     def _get_internal_group(self, account_type):
-        """Extract the internal group from an account type key."""
         return account_type.split("_", maxsplit=1)[0]
 
     @api.depends("account_type")
@@ -612,13 +541,9 @@ class AccountAccount(models.Model):
                 f"{account.code} {account.name}" if account.code else account.name
             )
 
-    # ------------------------------------------------------------------
-    # Onchange
-    # ------------------------------------------------------------------
-
     @api.onchange("account_type")
     def _onchange_account_type(self):
-        pass  # Extended by account to clear tax_ids for off_balance
+        pass
 
     @api.onchange("name")
     def _onchange_name(self):
@@ -627,12 +552,7 @@ class AccountAccount(models.Model):
             self.name = name
             self.code = code
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def _split_code_name(self, code_name):
-        """Split a string like '101000 Cash' into ('101000', 'Cash')."""
         code, name = ACCOUNT_REGEX.match(code_name or "").groups()
         return code, name.strip()
 
@@ -659,11 +579,6 @@ class AccountAccount(models.Model):
 
     @api.model
     def _search_new_account_code(self, start_code, cache=None):
-        """Find the next available account code starting from *start_code*.
-
-        Returns a code that is unique within the current company's parent/
-        child hierarchy.
-        """
         if cache is None:
             cache = {start_code}
 
@@ -691,10 +606,6 @@ class AccountAccount(models.Model):
         if digits_str != "":
             d, n = len(digits_str), int(digits_str)
             code_len = len(start_str) + d + len(end_str)
-            # A single bulk fetch of every occupied code for this company's
-            # parent/child hierarchy, instead of one ``search_count`` round
-            # trip per candidate digit -- the first free numeric gap is then
-            # found in Python from that one query.
             existing_codes = (
                 self.with_context(active_test=False)
                 .sudo()
@@ -727,22 +638,13 @@ class AccountAccount(models.Model):
 
         raise UserError(_("Cannot generate an unused account code."))
 
-    # ------------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------------
-
     @api.model
     def default_get(self, fields):
-        """If creating via a many2one, swap code/name when appropriate."""
         context = {}
         if "name" in fields or "code" in fields:
             default_name = self.env.context.get("default_name")
             default_code = self.env.context.get("default_code")
             if default_name and not default_code:
-                # A fully-numeric name (e.g. typed into a many2one quick-create)
-                # is really a code.  Keep the *string* form -- ``int()`` would
-                # drop leading zeros, and "0001" is a different account code from
-                # "1".  ``int()`` is only used to test that the name is numeric.
                 is_numeric_code = False
                 with contextlib.suppress(ValueError):
                     is_numeric_code = bool(int(default_name))
@@ -768,7 +670,6 @@ class AccountAccount(models.Model):
 
     @api.model
     def name_create(self, name):
-        """Split code and name when importing accounts."""
         if "import_file" in self.env.context:
             code, name = self._split_code_name(name)
             record = self.create({"code": code, "name": name})
@@ -778,17 +679,6 @@ class AccountAccount(models.Model):
         )
 
     def _sort_vals_for_company_grouping(self, vals_list):
-        """Order `vals_list` so grouping by ``company_ids`` merges every row.
-
-        ``itertools.groupby`` only merges *consecutive* equal keys, so a
-        ``vals_list`` where the same ``company_ids`` recurs non-contiguously
-        (e.g. built by interleaving rows from several companies) would
-        silently split into one extra group per interleaving instead of
-        merging. Sort by each key's first-occurrence position first: groups
-        already contiguous are left untouched, and a scattered one is
-        brought together at the position it first appeared, with a stable
-        sort keeping same-key rows in their original relative order.
-        """
         first_seen = {}
         for index, vals in enumerate(vals_list):
             first_seen.setdefault(repr(vals.get("company_ids", [])), index)
@@ -798,13 +688,6 @@ class AccountAccount(models.Model):
         )
 
     def _update_vals_with_code(self, vals, companies, cache):
-        """Fill ``vals['code']`` from a prefix, or from a company's mapping.
-
-        A ``prefix`` asks for the next free code under it, and `cache` carries
-        the codes already handed out in this create so two rows of one batch
-        cannot be given the same one. Failing that, an explicit mapping for
-        the leading company supplies the code.
-        """
         if "prefix" in vals:
             prefix = vals.pop("prefix") or ""
             digits = vals.pop("code_digits")
@@ -832,7 +715,6 @@ class AccountAccount(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Create accounts, auto-generating codes when needed."""
         records_list = []
         vals_list = self._sort_vals_for_company_grouping(vals_list)
 
@@ -869,15 +751,12 @@ class AccountAccount(models.Model):
             records_list.append(new_accounts)
 
         records = self.env["account.account"].union(*records_list)
-        # Flush and invalidate to ensure code_mapping inverse writes are
-        # reflected when validating code uniqueness across all companies.
         records.flush_recordset()
         records.invalidate_recordset(fnames=["code", "code_store"])
         records._ensure_code_is_unique()
         return records
 
     def write(self, vals):
-        """Write with deferred code uniqueness check."""
         res = super(
             AccountAccount,
             self.with_context(
@@ -899,8 +778,6 @@ class AccountAccount(models.Model):
         return res
 
     def _ensure_code_is_unique(self):
-        """Verify account code uniqueness across parent/child companies."""
-        # Check 1: Code must be set for every company.
         for account in self.sudo():
             for company in account.company_ids.root_id:
                 acc_co = account.with_company(company)
@@ -913,7 +790,6 @@ class AccountAccount(models.Model):
                         )
                     )
 
-        # Check 2: No child or parent companies share the same code.
         account_ids_to_check_by_company = defaultdict(list)
         for account in self.sudo():
             for company in account.company_ids:
@@ -961,7 +837,6 @@ class AccountAccount(models.Model):
         super()._load_records_write(values)
 
     def copy_data(self, default=None):
-        """Generate new codes for copied accounts."""
         vals_list = super().copy_data(default)
         default = default or {}
         cache = defaultdict(set)
@@ -1013,9 +888,6 @@ class AccountAccount(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` suffixes ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source account's exact
-        # name in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new,

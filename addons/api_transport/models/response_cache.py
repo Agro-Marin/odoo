@@ -260,15 +260,6 @@ class ResponseCache(models.Model):
         params: dict[str, Any] | None = None,
         credential_id: int | None = None,
     ) -> str:
-        # The credential belongs in the key. `company_id` used to be the only
-        # isolating dimension, but a credential resolves PER USER when the
-        # endpoint sets `allow_user_credentials`, so two users of one company
-        # calling the same endpoint/url/params collided on a single row and the
-        # second was served the first one's body.
-        #
-        # Keying on the credential keeps sharing exactly where sharing is safe:
-        # an endpoint with one company-wide credential yields the same key for
-        # every caller, so the cache behaves as before.
         content = f"{endpoint_code}:{credential_id or 0}:{url}"
 
         if params:

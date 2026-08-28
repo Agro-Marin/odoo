@@ -1,11 +1,3 @@
-"""Regression tests for the ``base_tax`` tax-totals summary.
-
-The existing suite only builds single-tax-group summaries, so the multi-group
-aggregation in ``_get_tax_totals_summary`` and the whole
-``_exclude_tax_groups_from_tax_totals_summary`` post-processing were uncovered
-standalone.
-"""
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -35,7 +27,6 @@ class TestBaseTaxTotalsSummary(BaseTaxCommon):
         )
 
     def test_summary_aggregates_two_tax_groups(self):
-        """Two taxes in distinct groups both surface in the totals summary."""
         group_b = self._second_group("group B")
         tax_a = self._tax(21.0)
         tax_b = self._tax(10.0, tax_group_id=group_b.id)
@@ -51,7 +42,6 @@ class TestBaseTaxTotalsSummary(BaseTaxCommon):
         self.assertEqual(group_ids, {self.tax_group.id, group_b.id})
 
     def test_exclude_tax_group_folds_amount_into_base(self):
-        """Excluding a tax group moves its tax into the base and drops the group."""
         group_b = self._second_group("group B excl")
         tax_a = self._tax(21.0)
         tax_b = self._tax(10.0, tax_group_id=group_b.id)
@@ -75,7 +65,6 @@ class TestBaseTaxTotalsSummary(BaseTaxCommon):
         self.assertEqual(remaining, {self.tax_group.id})
 
     def test_exclude_all_tax_groups_collapses_subtotals(self):
-        """Excluding every tax group empties subtotals and zeroes the tax amount."""
         group_b = self._second_group("group B exclude all")
         tax_a = self._tax(21.0)
         tax_b = self._tax(10.0, tax_group_id=group_b.id)

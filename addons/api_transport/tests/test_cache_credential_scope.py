@@ -7,8 +7,6 @@ from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 
 
 class _FakeResponse:
-    """Minimal stand-in for a requests.Response with a JSON body."""
-
     status_code = 200
     headers = {"Content-Type": "application/json"}
 
@@ -26,14 +24,6 @@ class _FakeResponse:
 
 @tagged("post_install", "-at_install")
 class TestCacheIsScopedByCredential(EncryptionKeyCase, TransactionCase):
-    """The response cache must not carry a body across credentials.
-
-    `company_id` used to be the only isolating dimension, while a credential
-    resolves per user whenever the endpoint sets `allow_user_credentials`. Two
-    users of one company therefore collided on a single cache row and the
-    second was served the first one's body.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -116,7 +106,6 @@ class TestCacheIsScopedByCredential(EncryptionKeyCase, TransactionCase):
         self.assertEqual(bob_body["body"]["secret"], "BOB-ONLY")
 
     def test_one_shared_credential_still_shares_the_cache(self):
-        """The fix must not disable caching where sharing is safe."""
         endpoint = self._endpoint("cache_scope_shared", allow_user=False)
         self._credential(endpoint, "company")
         self.env.flush_all()

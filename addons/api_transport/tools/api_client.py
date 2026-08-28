@@ -445,9 +445,6 @@ class OutboundAPIClient:
                     url=url,
                     params=kwargs.get("params"),
                     company_id=self.company_id,
-                    # Scoped by credential, like the session pool above: the
-                    # credential resolves per user, so without it one user's
-                    # cached body was served to another in the same company.
                     credential_id=self.credential.id,
                 )
             )

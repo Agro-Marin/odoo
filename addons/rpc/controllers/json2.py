@@ -21,13 +21,6 @@ _logger = logging.getLogger(__name__)
 
 @functools.lru_cache(maxsize=4096)
 def _signature(func):
-    """The signature of a public model method, computed once per registry class.
-
-    `get_public_method` returns the unbound class function, which is stable for
-    the life of a registry, so this caches cleanly. FORWARDREF is not optional:
-    the annotations name types the ORM only imports under TYPE_CHECKING, and
-    plain `inspect.signature` raises trying to evaluate them.
-    """
     return inspect.signature(func, annotation_format=annotationlib.Format.FORWARDREF)
 
 
@@ -38,7 +31,6 @@ class WebJson2Controller(http.Controller):
             method_name = args["__method__"]
             Model = request.registry[model_name]
         except KeyError:
-            # no need of a read/write cursor to send a 404 http error
             return True
         for cls in Model.mro():
             method = getattr(cls, method_name, None)
@@ -46,7 +38,6 @@ class WebJson2Controller(http.Controller):
                 return method._readonly
         return False
 
-    # Take over /json/<path:subpath>
     @http.route(
         ["/json/2", "/json/2/<path:subpath>"],
         auth="public",
@@ -89,8 +80,6 @@ class WebJson2Controller(http.Controller):
             raise UnprocessableEntity(e)
 
         records = Model.browse(ids)
-        # Bind before calling so a caller's own argument mistake is a 422 and
-        # not confused with a TypeError raised inside the method itself.
         try:
             _signature(func).bind(records, **kwargs)
         except TypeError as exc:

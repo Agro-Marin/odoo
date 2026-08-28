@@ -3,17 +3,10 @@ from odoo.tests import TransactionCase
 
 
 class BaseTaxCommon(TransactionCase):
-    """Company, country and tax-group scaffolding shared by base_tax tests."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.company = cls.env.company
-        # A tax needs a (non-null) country and tax group; base_tax ships
-        # neither. Derive the country from the company (US only as fallback)
-        # and pin it explicitly on the group: hardcoding a country breaks on
-        # databases whose company already has one (the group defaults to it
-        # and the country-consistency constraint rejects the mismatch).
         cls.country = cls.company.country_id or cls.env.ref("base.us")
         if not cls.company.country_id:
             cls.company.country_id = cls.country
@@ -29,9 +22,6 @@ class BaseTaxCommon(TransactionCase):
             "tax_calculation_rounding_method" in cls.env["res.company"]._fields
         )
 
-    # ------------------------------------------------------------------
-    # helpers
-    # ------------------------------------------------------------------
     _seq = 0
 
     @classmethod

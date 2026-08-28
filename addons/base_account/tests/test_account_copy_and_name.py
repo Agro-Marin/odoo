@@ -1,10 +1,3 @@
-"""Tests for account.account copy, name_create and display-name search.
-
-``copy_data`` (new code + "(copy)" name), ``name_create`` (import-only, else a
-guard) and ``_search_display_name`` (code/name/description matching) were
-uncovered by the base_account suite.
-"""
-
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
@@ -17,24 +10,19 @@ class TestAccountCopyAndName(TransactionCase):
         cls.Account = cls.env["account.account"]
 
     def test_copy_generates_new_code_and_copy_name(self):
-        """Copying an account yields a fresh code and a ``(copy)`` name."""
         account = self.Account.create(
             {"code": "203000", "name": "Seed", "account_type": "asset_current"}
         )
         copy = account.copy()
         self.assertNotEqual(copy.code, account.code)
         self.assertTrue(copy.code)
-        # ``name`` is a translated field that may come back resolved or as raw
-        # jsonb; stringify so the "(copy)" suffix check holds either way.
         self.assertIn("Seed (copy)", str(copy.name))
 
     def test_name_create_outside_import_is_blocked(self):
-        """Creating an account from a free-text name is refused outside import."""
         with self.assertRaises(ValidationError):
             self.Account.name_create("300000 Something")
 
     def test_name_create_on_import_splits_code_and_name(self):
-        """During import, name_create splits the leading code from the name."""
         _id, _display = self.Account.with_context(import_file=True).name_create(
             "400000 Imported Account"
         )
@@ -43,7 +31,6 @@ class TestAccountCopyAndName(TransactionCase):
         self.assertEqual(account.name, "Imported Account")
 
     def test_search_display_name_matches_code_prefix(self):
-        """Searching display_name resolves an account by its leading code."""
         account = self.Account.create(
             {"code": "700000", "name": "Revenue", "account_type": "income"}
         )
@@ -51,7 +38,6 @@ class TestAccountCopyAndName(TransactionCase):
         self.assertIn(account, found)
 
     def test_search_display_name_in_operator(self):
-        """The ``in`` operator matches accounts by name."""
         account = self.Account.create(
             {"code": "710000", "name": "OtherRevenue", "account_type": "income"}
         )

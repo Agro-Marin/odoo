@@ -45,12 +45,6 @@ class ApiEndpointInbound(models.AbstractModel):
                 )
 
     def _payload_log_limit(self) -> int:
-        """Bytes of body to store, or 0 for all of it.
-
-        An asynchronous endpoint replays what was stored -- `_run_queued_event`
-        reads the row back through `get_payload_dict` -- so a limit there would
-        not shorten a log, it would discard the work.
-        """
         self.ensure_one()
         if self.processing_mode == "async":
             return 0

@@ -6,10 +6,6 @@ from odoo.tools import Query
 
 
 class AccountRoot(models.Model):
-    """Virtual model for the first two characters of an account code."""
-
-    # Backs the Chart of Accounts list-view search panel for quick prefix-based
-    # navigation; not a real table (``_auto = False``).
     _name = "account.root"
     _description = "Account codes first 2 digits"
     _auto = False
@@ -36,7 +32,6 @@ class AccountRoot(models.Model):
 
     @api.model
     def _from_account_code(self, code):
-        """Return the root record for the given account code."""
         return self.browse(code and code[:2])
 
     def _compute_root(self):

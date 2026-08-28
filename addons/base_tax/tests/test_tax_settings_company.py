@@ -1,17 +1,3 @@
-"""The company whose settings govern a tax is resolved through one seam.
-
-``account.tax`` and ``account.tax.group`` read company-level settings -- the
-fiscal country, and (once ``account`` is installed) the price-include default.
-Each used to spell ``record.company_id`` inline, so changing what "the governing
-company" means would have meant changing four expressions in two modules.
-
-They now all go through ``_get_settings_company()``. These tests pin that: they
-override the seam and assert the computes follow it, which is the contract a
-move to ``company_ids`` depends on. A green run against the inline spelling is
-not evidence -- the override is what discriminates, and each case is built so
-that reading ``company_id`` gives the *other* answer.
-"""
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -34,11 +20,6 @@ class TestTaxSettingsCompany(BaseTaxCommon):
         )
         if "account_fiscal_country_id" in cls.env["res.company"]._fields:
             cls.other_company.account_fiscal_country_id = cls.other_country
-        # A group of `cls.company` whose country is the *other* one. Legitimate
-        # on its own (a company registered for foreign VAT files taxes of a
-        # country that is not its own) and required here: the tax under test
-        # stays on `cls.company` while its country comes from the seam, and the
-        # group has to satisfy both.
         cls.cross_country_group = cls.env["account.tax.group"].create(
             {
                 "name": "base_tax cross-country group",
@@ -65,9 +46,6 @@ class TestTaxSettingsCompany(BaseTaxCommon):
             }
         )
 
-    # ------------------------------------------------------------------
-    # the seam itself
-    # ------------------------------------------------------------------
     def test_settings_company_is_the_acting_company(self):
         tax = self._tax(10)
         self.assertEqual(tax._get_settings_company(), self.env.company)
@@ -77,9 +55,6 @@ class TestTaxSettingsCompany(BaseTaxCommon):
         )
 
     def test_group_settings_company_is_the_acting_company(self):
-        # The group has no company_id left to return, so its seam answers with
-        # the acting company -- which is the whole point of the many2many, and
-        # the shape account.tax takes next.
         self.assertEqual(
             self.tax_group._get_settings_company(),
             self.env.company,
@@ -89,9 +64,6 @@ class TestTaxSettingsCompany(BaseTaxCommon):
             self.other_company,
         )
 
-    # ------------------------------------------------------------------
-    # _compute_country_id, on both models
-    # ------------------------------------------------------------------
     def test_tax_country_follows_the_seam(self):
         baseline = self._tax_without_country(self.tax_group)
         self.assertEqual(baseline.company_ids, self.company)
@@ -121,9 +93,6 @@ class TestTaxSettingsCompany(BaseTaxCommon):
             "_compute_country_id must read the seam, not company_id",
         )
 
-    # ------------------------------------------------------------------
-    # _compute_company_price_include -- only exists once `account` is in
-    # ------------------------------------------------------------------
     def test_company_price_include_follows_the_seam(self):
         if not self.account_installed:
             self.skipTest("account_price_include is contributed by `account`")

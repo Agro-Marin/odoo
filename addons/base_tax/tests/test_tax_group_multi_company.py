@@ -1,16 +1,3 @@
-"""One ``account.tax.group`` record can serve several companies.
-
-The group used to carry a ``company_id`` many2one, so two companies wanting the
-same grouping ("VAT 16%", "IEPS") held two rows that nothing kept in step. It
-now carries ``company_ids``, matching ``account.account``.
-
-What these tests pin is the part a schema change alone does not give you: that
-the record rule and ``_check_company_domain`` agree with the new field, that a
-tax of either member company can point at the shared group, and that a company
-outside the set is refused. The last one is the discriminating case -- a
-membership check that accepts everyone would pass every other assertion here.
-"""
-
 from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
@@ -36,9 +23,6 @@ class TestTaxGroupMultiCompany(BaseTaxCommon):
                 "country_id": cls.country.id,
             }
         )
-        # C needs a group of its own, or the picker finds nothing for it and the
-        # required `tax_group_id` fails on a NOT NULL rather than on membership --
-        # which would make the outsider assertion pass for the wrong reason.
         cls.own_group_c = cls.env["account.tax.group"].create(
             {
                 "name": "base_tax company C group",
@@ -64,9 +48,6 @@ class TestTaxGroupMultiCompany(BaseTaxCommon):
         )
 
     def _tax_without_group(self, company):
-        # `tax_group_id` omitted on purpose: it is `precompute=True`, so leaving
-        # it out is what runs `_compute_tax_group_id`. Passing False suppresses
-        # the compute and dies on the required constraint instead.
         return (
             self.env["account.tax"]
             .with_company(company)
@@ -91,11 +72,6 @@ class TestTaxGroupMultiCompany(BaseTaxCommon):
             self.assertEqual(tax.tax_group_id, self.shared_group)
 
     def test_the_group_picker_respects_membership(self):
-        # `tax_group_id` carries no `check_company=True`, so nothing *rejects* a
-        # tax pointing at a group that does not cover its company -- true before
-        # this change as much as after, and out of scope here. What the model
-        # does promise is that the automatic pick covers the tax's company, and
-        # that is what this asserts, in both directions.
         picked_for_member = self._tax_without_group(self.company)
         self.assertIn(
             self.company,

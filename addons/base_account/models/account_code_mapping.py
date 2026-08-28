@@ -3,18 +3,10 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import Query
 
-# A code-mapping record has no table of its own; its virtual id packs the pair
-# (account_id, company_id) as ``account_id * COMPANY_OFFSET + company_id``.  For
-# the pair to round-trip, ``company_id`` must stay strictly below the offset --
-# otherwise it overflows into the account_id part and silently decodes to the
-# wrong account *and* the wrong company.  10**6 comfortably clears any realistic
-# ``res.company`` id; 10**4 would be too small for a long-lived DB whose company
-# sequence has climbed past 10k through creations + deletions.
 COMPANY_OFFSET = 10**6
 
 
 def _pack_mapping_id(account_id, company_id):
-    """Encode an (account, company) pair into a virtual code-mapping id."""
     if not 0 <= company_id < COMPANY_OFFSET:
         raise ValueError(
             f"Company id {company_id} does not fit the code-mapping id encoding "
@@ -24,10 +16,6 @@ def _pack_mapping_id(account_id, company_id):
 
 
 class AccountCodeMapping(models.Model):
-    """Virtual mapping of account codes per company, shown in the account form."""
-
-    # Not stored in DB (``_auto = False``); records are populated in cache by the
-    # ``_search`` override when accessing the One2many on ``account.account``.
     _name = "account.code.mapping"
     _description = "Mapping of account codes per company"
     _auto = False
@@ -37,8 +25,6 @@ class AccountCodeMapping(models.Model):
         comodel_name="account.account",
         string="Account",
         compute="_compute_account_id",
-        # suppress warning about field not being searchable (due to being
-        # used in depends); searching is implemented in the _search override.
         search=True,
     )
     company_id = fields.Many2one(
@@ -54,11 +40,6 @@ class AccountCodeMapping(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Create virtual mappings by computing IDs from account+company."""
-        # Deduplicate by ``(account_id, company_id)``: when multiple commands target
-        # the same pair (e.g. from Form onchange + defaults), entries with a truthy
-        # ``code`` take precedence so user-edited values are not overwritten by empty
-        # defaults.
         by_key: dict[tuple[int, int], dict] = {}
         for vals in vals_list:
             key = (vals.get("account_id", 0), vals["company_id"])

@@ -1,25 +1,3 @@
-"""
-Tax Computation Engine
-======================
-
-Canonical tax computation models providing the core computation pipeline.
-The ``account`` module inherits from these models to add accounting-specific
-fields (accounts, tags, exigibility) and methods (journal items, tax lines,
-grouping keys, EDI helpers).
-
-Models:
-    AccountTaxGroup             — tax grouping for display and reporting
-    AccountTax                  — tax definition, rate computation, base line preparation
-    AccountTaxRepartitionLine   — tax distribution factors
-
-Key API:
-    _prepare_base_line_for_taxes_computation()
-    _add_tax_details_in_base_lines()
-    _round_base_lines_tax_details()
-    _get_tax_totals_summary()
-    compute_all()
-"""
-
 import copy
 import math
 import re
@@ -46,17 +24,12 @@ TYPE_TAX_USE = [
 ]
 
 
-# ════════════════════════════════════════════════════════════════════════
-# TAX GROUP
 def _group_everything_together(base_line, tax_data):
     return True
 
 
 def _group_by_tax(base_line, tax_data):
     return str(tax_data["tax"].id) if tax_data else None
-
-
-# ════════════════════════════════════════════════════════════════════════
 
 
 class AccountTaxGroup(models.Model):
@@ -102,9 +75,6 @@ class AccountTaxGroup(models.Model):
 
     @api.constrains("company_ids")
     def _check_company_ids_not_empty(self):
-        # `required=True` on a many2many is not enforced by the ORM -- there is
-        # no NOT NULL to hang it on -- so the rule needs stating. Same shape as
-        # account.account's own company_ids constraint.
         self.invalidate_recordset(fnames=["company_ids"])
         if groups := self.filtered(lambda g: not g.sudo().company_ids):
             raise ValidationError(
@@ -115,11 +85,6 @@ class AccountTaxGroup(models.Model):
                 ),
             )
 
-    # No `@api.depends`, deliberately. The country is a precomputed default
-    # taken from the acting company and then owned by the user (`readonly=False`,
-    # stored). It used to depend on `company_id`; making it depend on
-    # `company_ids` would be wrong -- adding a second company to a shared group
-    # must not flip the group's jurisdiction.
     @api.depends_context("company")
     def _compute_country_id(self):
         for group in self:
@@ -132,11 +97,6 @@ class AccountTaxGroup(models.Model):
                 group.country_id = company.country_id
 
 
-# ════════════════════════════════════════════════════════════════════════
-# TAX
-# ════════════════════════════════════════════════════════════════════════
-
-
 class AccountTax(models.Model):
     _name = "account.tax"
     _inherit = ["mixin.mail.thread"]
@@ -145,8 +105,6 @@ class AccountTax(models.Model):
     _check_company_auto = True
     _rec_names_search = ["name", "description", "invoice_label"]
     _check_company_domain = models.check_companies_domain_parent_of
-
-    # ─── Core Fields ──────────────────────────────────────────────────
 
     name = fields.Char(
         string="Tax Name",
@@ -220,8 +178,6 @@ class AccountTax(models.Model):
     invoice_label = fields.Char(string="Label on Invoices", translate=True)
     tax_label = fields.Char(compute="_compute_tax_label")
 
-    # ─── Price Include ────────────────────────────────────────────────
-
     price_include = fields.Boolean(
         compute="_compute_price_include",
         search="_search_price_include",
@@ -252,8 +208,6 @@ class AccountTax(models.Model):
         tracking=True,
         help="If set, taxes with a lower sequence might affect this one, provided they try to do it.",
     )
-
-    # ─── Tax Group & Repartition ──────────────────────────────────────
 
     tax_group_id = fields.Many2one(
         comodel_name="account.tax.group",
@@ -292,8 +246,6 @@ class AccountTax(models.Model):
         copy=True,
     )
 
-    # ─── Country ──────────────────────────────────────────────────────
-
     country_id = fields.Many2one(
         string="Country",
         comodel_name="res.country",
@@ -306,35 +258,16 @@ class AccountTax(models.Model):
     )
     country_code = fields.Char(related="country_id.code", readonly=True)
 
-    # ─── Reverse Charge Detection ─────────────────────────────────────
-
     has_negative_factor = fields.Boolean(compute="_compute_has_negative_factor")
-
-    # ─── Company Resolution ───────────────────────────────────────────
 
     def _get_settings_company(self):
         return self.env.company
 
     def _serves_company(self, company):
-        """Whether this tax is available to ``company``.
-
-        Reads membership through sudo on purpose. It is metadata about the tax,
-        not data about the companies: anyone entitled to read a tax is entitled
-        to know which companies it serves. Without this the many2many is read
-        under res.company's own rules, so a narrowed ``allowed_company_ids``
-        empties it and every membership test silently answers False -- with no
-        error, and only for restricted users in a branch context.
-
-        The many2one this replaced had the property for free: reading an m2o's
-        id never needed access to its target.
-        """
         return company.id in self.sudo().company_ids.ids
-
-    # ─── Constraints ──────────────────────────────────────────────────
 
     @api.constrains("company_ids")
     def _check_company_ids_not_empty(self):
-        # `required=True` on a many2many is not enforced by the ORM; state it.
         self.invalidate_recordset(fnames=["company_ids"])
         if taxes := self.filtered(lambda t: not t.sudo().company_ids):
             raise ValidationError(
@@ -350,10 +283,6 @@ class AccountTax(models.Model):
         for taxes in map(self.browse, batched(self.ids, 100, strict=False)):
             domains = [
                 [
-                    # The rule was "one tax of this name per accounting group",
-                    # expressed as child_of the owning company's root. With
-                    # membership as a set it is stated directly: no other tax of
-                    # this name may share a company with this one.
                     ("company_ids", "in", tax.company_ids.ids),
                     ("name", "=", tax.name),
                     ("type_tax_use", "=", tax.type_tax_use),
@@ -399,7 +328,6 @@ class AccountTax(models.Model):
     )
     def _check_repartition_line_ids(self):
         for record in self:
-            # if the tax is an aggregation of its sub-taxes (group) it can have no repartition lines
             if (
                 record.amount_type == "group"
                 and not record.invoice_repartition_line_ids
@@ -501,27 +429,13 @@ class AccountTax(models.Model):
             if any(child.amount_type == "group" for child in tax.children_tax_ids):
                 raise ValidationError(_("Nested group of taxes are not allowed."))
 
-    # ─── Name Search ──────────────────────────────────────────────────
-
     @api.model
     @api.readonly
     def name_search(self, name="", domain=None, operator="ilike", limit=100):
-        # Simplified version without fiscal position filtering (available in account module).
         return super().name_search(name, domain or Domain.TRUE, operator, limit)
 
     @staticmethod
     def _parse_name_search(name):
-        """
-        Parse the name to search the taxes faster.
-        Technical:  0EUM      => 0%E%U%M
-                    21M       => 2%1%M%   where the % represents 0, 1 or multiple characters in a SQL 'LIKE' search.
-                    21" M"    => 2%1% M%
-                    21" M"co  => 2%1% M%c%o%
-        Examples:   0EUM      => VAT 0% EU M.
-                    21M       => 21% M , 21% EU M, 21% M.Cocont and 21% EX M.
-                    21" M"    => 21% M and 21% M.Cocont.
-                    21" M"co  => 21% M.Cocont.
-        """
         regex = r"(\"[^\"]*\")"
         list_name = re.split(regex, name)
         for i, part in enumerate(list_name.copy()):
@@ -535,11 +449,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _search(self, domain, *args, **kwargs):
-        """
-        Intercept the search on `name` to allow searching more freely on taxes
-        when using `like` or `ilike`.
-        """
-
         def preprocess_name(cond):
             if (
                 cond.field_expr in ("name", "display_name")
@@ -555,8 +464,6 @@ class AccountTax(models.Model):
 
         domain = Domain(domain).map_conditions(preprocess_name)
         return super()._search(domain, *args, **kwargs)
-
-    # ─── Compute Methods ──────────────────────────────────────────────
 
     @api.depends_context("company")
     def _compute_country_id(self):
@@ -620,10 +527,6 @@ class AccountTax(models.Model):
         if operator not in ("in", "not in"):
             return NotImplemented
         if list(value) != [True]:
-            # `assert` is stripped under `-O`; a malformed direct domain call
-            # (e.g. `('price_include', 'in', [True, False])`) would otherwise
-            # silently fall through to the wrong domain below instead of
-            # failing loudly (t24068).
             raise ValueError(
                 f"_search_price_include only supports boolean-normalized "
                 f"domains, got {operator!r} {value!r}"
@@ -631,11 +534,6 @@ class AccountTax(models.Model):
         tax_value = "tax_included" if operator == "in" else "tax_excluded"
         if "account_price_include" not in self.env["res.company"]._fields:
             return [("price_include_override", "=", tax_value)]
-        # The relational spelling this used to carry -- company_id.account_price_include
-        # -- has no honest translation to a many2many: ("company_ids....") asks
-        # whether ANY of a tax's companies includes tax in price, and the question
-        # is whether the ACTING one does. Resolve it here; the domain is then a
-        # plain test on the tax's own override.
         if self._get_settings_company().account_price_include == tax_value:
             return [
                 "|",
@@ -707,7 +605,6 @@ class AccountTax(models.Model):
                     )
                 if needs_markdown and (scope := scopes.get(record.tax_scope)):
                     name += wrapper % scope
-                # Check fiscal country (falls back to company country without account module)
                 branch = record._get_settings_company()._accessible_branches()[:1]
                 fiscal_country = (
                     branch.account_fiscal_country_id
@@ -724,20 +621,14 @@ class AccountTax(models.Model):
         for tax in self:
             tax.tax_label = tax.invoice_label or tax.name
 
-    # ─── CRUD ─────────────────────────────────────────────────────────
-
     def _sanitize_vals(self, vals):
-        """Normalize the create/write values."""
         sanitized = vals.copy()
 
-        # Wrap plain text in <div> if description has no HTML tags to avoid the padding with automatically added <p>
         if sanitized.get("description") and not re.search(
             r"<[^>]+>", sanitized["description"]
         ):
             sanitized["description"] = f"<div>{sanitized['description']}</div>"
 
-        # Allow to provide invoice_repartition_line_ids and refund_repartition_line_ids by dispatching them
-        # correctly in the repartition_line_ids
         if "repartition_line_ids" in sanitized and (
             "invoice_repartition_line_ids" in sanitized
             or "refund_repartition_line_ids" in sanitized
@@ -764,12 +655,6 @@ class AccountTax(models.Model):
                             )
                         )
                     case Command.CLEAR | Command.SET:
-                        # `repartition_line_ids` carries both document types, so
-                        # a CLEAR/SET meant for one of the two views has to be
-                        # narrowed to that view's own lines. Forwarded as-is it
-                        # empties the other document type as well: replacing the
-                        # invoice distribution wiped the refund one, and writing
-                        # both in a single call left only the second.
                         keep = (
                             set(command_vals[2])
                             if command_vals[0] == Command.SET
@@ -794,7 +679,7 @@ class AccountTax(models.Model):
                 "mail_create_nosubscribe": True,
                 "mail_auto_subscribe_no_notify": True,
                 "mail_create_nolog": True,
-                "from_account_tax_creation": True,  # At create,
+                "from_account_tax_creation": True,
             }
         )
         taxes = super(AccountTax, self.with_context(context)).create(
@@ -814,15 +699,10 @@ class AccountTax(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
-
-    # ─── Onchanges ────────────────────────────────────────────────────
 
     @api.onchange("amount")
     def onchange_amount(self):
@@ -845,41 +725,11 @@ class AccountTax(models.Model):
         if self.price_include:
             self.include_base_amount = True
 
-    # -------------------------------------------------------------------------
-    # HELPERS IN BOTH PYTHON/JAVASCRIPT (account_tax.js / account_tax.py)
-
-    # TAXES COMPUTATION
-    # -------------------------------------------------------------------------
-
     def _eval_taxes_computation_prepare_product_fields(self):
-        """Get the fields to create the evaluation context from the product for the taxes computation.
-
-        This method is not there in the javascript code.
-        Anybody wanted to use the product during the taxes computation js-side needs to preload the product fields
-        using this method.
-
-        [!] Only added python-side.
-
-        :return: A set of fields to be extracted from the product to evaluate the taxes computation.
-        """
         return set()
 
     @api.model
     def _eval_taxes_computation_prepare_product_default_values(self, field_names):
-        """Prepare the default values for the product according the fields passed as parameter.
-        The dictionary contains the default values to be considered if there is no product at all.
-
-        This method is not there in the javascript code.
-        Anybody wanted to use the product during the taxes computation js-side needs to preload the default product fields
-        using this method.
-
-        [!] Only added python-side.
-
-        :param field_names: A set of fields returned by '_eval_taxes_computation_prepare_product_fields'.
-        :return: A mapping <field_name> => <field_info> where field_info is a dict containing:
-            * type: the type of the field.
-            * default_value: the default value in case there is no product.
-        """
         default_value_map = {
             "integer": 0,
             "float": 0.0,
@@ -898,21 +748,7 @@ class AccountTax(models.Model):
     def _eval_taxes_computation_prepare_product_values(
         self, default_product_values, product=None
     ):
-        """Convert the product passed as parameter to a dictionary to be passed to the taxes computation evaluation context.
-
-        Note: In javascript, this method is not available. You have to ensure the necessary product fields are well
-        loaded to not break the management of taxes with custom formula byt using
-        '_eval_taxes_computation_prepare_product_fields'.
-
-        [!] Only added python-side.
-
-        :param default_product_values:  The default product values generated by '_eval_taxes_computation_prepare_product_default_values'.
-        :param product:                 An optional product.product record.
-        :return:                        The values representing the product.
-        """
-        product = (
-            product and product.sudo()
-        )  # tax computation may depend on restricted fields
+        product = product and product.sudo()
         product_values = {}
         for field_name, field_info in default_product_values.items():
             product_values[field_name] = (
@@ -921,17 +757,6 @@ class AccountTax(models.Model):
         return product_values
 
     def _eval_taxes_computation_turn_to_product_values(self, product=None):
-        """Helper purely in Python to call:
-            '_eval_taxes_computation_prepare_product_fields'
-            '_eval_taxes_computation_prepare_product_default_values'
-            '_eval_taxes_computation_prepare_product_values'
-        all at once.
-
-        [!] Only added python-side.
-
-        :param product: An optional product.product record.
-        :return:        The values representing the product.
-        """
         product_fields = self._eval_taxes_computation_prepare_product_fields()
         default_product_values = (
             self._eval_taxes_computation_prepare_product_default_values(product_fields)
@@ -942,34 +767,10 @@ class AccountTax(models.Model):
         )
 
     def _eval_taxes_computation_prepare_product_uom_fields(self):
-        """Get the fields to create the evaluation context from the product uom for the taxes computation.
-
-        This method is not there in the javascript code.
-        Anybody wanted to use the product during the taxes computation js-side needs to preload the product uom fields
-        using this method.
-
-        [!] Only added python-side.
-
-        :return: A set of fields to be extracted from the product to evaluate the taxes computation.
-        """
         return set()
 
     @api.model
     def _eval_taxes_computation_prepare_product_uom_default_values(self, field_names):
-        """Prepare the default values for the product uom according the fields passed as parameter.
-        The dictionary contains the default values to be considered if there is no product uom at all.
-
-        This method is not there in the javascript code.
-        Anybody wanted to use the product uom during the taxes computation js-side needs to preload the default
-        product uom fields using this method.
-
-        [!] Only added python-side.
-
-        :param field_names: A set of fields returned by '_eval_taxes_computation_prepare_product_uom_fields'.
-        :return: A mapping <field_name> => <field_info> where field_info is a dict containing:
-            * type: the type of the field.
-            * default_value: the default value in case there is no product.
-        """
         default_value_map = {
             "integer": 0,
             "float": 0.0,
@@ -988,21 +789,7 @@ class AccountTax(models.Model):
     def _eval_taxes_computation_prepare_product_uom_values(
         self, default_product_uom_values, product_uom_id=None
     ):
-        """Convert the product uom passed as parameter to a dictionary to be passed to the taxes computation evaluation context.
-
-        Note: In javascript, this method takes an additional parameter being the results of the
-        '_eval_taxes_computation_prepare_product_uom_default_values' method because this method is not callable in javascript but must
-        be passed to the client instead.
-
-        [!] Only added python-side.
-
-        :param default_product_uom_values:  The default product values generated by '_eval_taxes_computation_prepare_product_uom_default_values'.
-        :param product_uom_id:                 An optional product.uom record.
-        :return:                            The values representing the product uom.
-        """
-        product_uom_id = (
-            product_uom_id and product_uom_id.sudo()
-        )  # tax computation may depend on restricted fields
+        product_uom_id = product_uom_id and product_uom_id.sudo()
         product_uom_values = {}
         for field_name, field_info in default_product_uom_values.items():
             product_uom_values[field_name] = (
@@ -1011,17 +798,6 @@ class AccountTax(models.Model):
         return product_uom_values
 
     def _eval_taxes_computation_turn_to_product_uom_values(self, product_uom_id=None):
-        """Helper purely in Python to call:
-            '_eval_taxes_computation_prepare_product_uom_fields'
-            '_eval_taxes_computation_prepare_product_uom_default_values'
-            '_eval_taxes_computation_prepare_product_uom_values'
-        all at once.
-
-        [!] Only added python-side.
-
-        :param product_uom_id: An optional product.uom record.
-        :return:            The values representing the product uom.
-        """
         product_uom_fields = self._eval_taxes_computation_prepare_product_uom_fields()
         default_product_uom_values = (
             self._eval_taxes_computation_prepare_product_uom_default_values(
@@ -1033,24 +809,7 @@ class AccountTax(models.Model):
             product_uom_id=product_uom_id,
         )
 
-    # -------------------------------------------------------------------------
-    # TAX FLATTENING & BATCHING
-    # -------------------------------------------------------------------------
-
     def _flatten_taxes_and_sort_them(self):
-        """Flattens the taxes contained in this recordset, returning all the
-        children at the bottom of the hierarchy, in a recordset, ordered by sequence.
-          Eg. considering letters as taxes and alphabetic order as sequence :
-          [G, B([A, D, F]), E, C] will be computed as [A, D, F, C, E, G]
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :return: A tuple <sorted_taxes, group_per_tax> where:
-            - sorted_taxes is a recordset of taxes.
-            - group_per_tax maps each tax to its parent group of taxes if exists.
-        """
-
         def sort_key(tax):
             return tax.sequence, tax.id or None
 
@@ -1069,21 +828,6 @@ class AccountTax(models.Model):
     def _batch_for_taxes_computation(
         self, special_mode=False, filter_tax_function=None
     ):
-        """Group the current taxes all together like price-included percent taxes or division taxes.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param special_mode:        The special mode of the taxes computation: False, 'total_excluded' or 'total_included'.
-        :param filter_tax_function: Optional function to filter out some taxes from the computation.
-        :return: A dictionary containing:
-            * batch_per_tax: A mapping of each tax to its batch.
-            * group_per_tax: A mapping of each tax retrieved from a group of taxes.
-            * sorted_taxes: A recordset of all taxes in the order on which they need to be evaluated.
-                            We consider the sequence of the parent for group of taxes.
-                            Eg. considering letters as taxes and alphabetic order as sequence :
-                            [G, B([A, D, F]), E, C] will be computed as [A, D, F, C, E, G]
-        """
         sorted_taxes, group_per_tax = self._flatten_taxes_and_sort_them()
         if filter_tax_function:
             sorted_taxes = sorted_taxes.filtered(filter_tax_function)
@@ -1094,7 +838,6 @@ class AccountTax(models.Model):
             "sorted_taxes": sorted_taxes,
         }
 
-        # Group them per batch.
         batch = self.env["account.tax"]
         is_base_affected = False
         for tax in reversed(results["sorted_taxes"]):
@@ -1121,24 +864,7 @@ class AccountTax(models.Model):
                 results["batch_per_tax"][batch_tax.id] = batch
         return results
 
-    # -------------------------------------------------------------------------
-    # TAX AMOUNT EVALUATION
-    # -------------------------------------------------------------------------
-
     def _propagate_extra_taxes_base(self, tax, taxes_data, special_mode=False):
-        """In some cases, depending the computation order of taxes, the special_mode or the configuration
-        of taxes (price included, affect base of subsequent taxes, etc), some taxes need to affect the base and
-        the tax amount of the others. That's the purpose of this method: adding which tax need to be added as
-        an 'extra_base' to the others.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param tax:             The tax for which we need to propagate the tax.
-        :param taxes_data:      The computed values for taxes so far.
-        :param special_mode:    The special mode of the taxes computation: False, 'total_excluded' or 'total_included'.
-        """
-
         def get_tax_before():
             for tax_before in self:
                 if tax_before in taxes_data[tax.id]["batch"]:
@@ -1158,17 +884,6 @@ class AccountTax(models.Model):
             taxes_data[other_tax.id]["extra_base_for_base"] += sign * tax_amount
 
         if tax.price_include:
-            # Suppose:
-            # 1.
-            # t1: price-excluded fixed tax of 1, include_base_amount
-            # t2: price-included 10% tax
-            # On a price unit of 120, t1 is computed first since the tax amount affects the price unit.
-            # Then, t2 can be computed on 120 + 1 = 121.
-            # However, since t1 is not price-included, its base amount is computed by removing first the tax amount of t2.
-            # 2.
-            # t1: price-included fixed tax of 1
-            # t2: price-included 10% tax
-            # On a price unit of 122, base amount of t2 is computed as 122 - 1 = 121
             if special_mode in (False, "total_included"):
                 if tax.include_base_amount:
                     for other_tax in get_tax_after():
@@ -1180,49 +895,19 @@ class AccountTax(models.Model):
                 for other_tax in get_tax_before():
                     add_extra_base(other_tax, -1)
 
-            # Suppose:
-            # 1.
-            # t1: price-included 10% tax
-            # t2: price-excluded 10% tax
-            # If the price unit is 121, the base amount of t1 is computed as 121 / 1.1 = 110
-            # With special_mode = 'total_excluded', 110 is provided as price unit.
-            # To compute the base amount of t2, we need to add back the tax amount of t1.
-            # 2.
-            # t1: price-included fixed tax of 1, include_base_amount
-            # t2: price-included 10% tax
-            # On a price unit of 121, with t1 being include_base_amount, the base amount of t2 is 121
-            # With special_mode = 'total_excluded' 109 is provided as price unit.
-            # To compute the base amount of t2, we need to add the tax amount of t1 first
             elif tax.include_base_amount:
                 for other_tax in get_tax_after():
                     if other_tax.is_base_affected:
                         add_extra_base(other_tax, 1)
 
         elif not tax.price_include:
-            # Case of a tax affecting the base of the subsequent ones, no price included taxes.
             if special_mode in (False, "total_excluded"):
                 if tax.include_base_amount:
                     for other_tax in get_tax_after():
                         if other_tax.is_base_affected:
                             add_extra_base(other_tax, 1)
 
-            # Suppose:
-            # 1.
-            # t1: price-excluded 10% tax, include base amount
-            # t2: price-excluded 10% tax
-            # On a price unit of 100,
-            # The tax of t1 is 100 * 1.1 = 110.
-            # The tax of t2 is 110 * 1.1 = 121.
-            # With special_mode = 'total_included', 121 is provided as price unit.
-            # The tax amount of t2 is computed like a price-included tax: 121 / 1.1 = 110.
-            # Since t1 is 'include base amount', t2 has already been subtracted from the price unit.
-            # 2.
-            # t1: price-excluded fixed tax of 1
-            # t2: price-excluded 10% tax
-            # On a price unit of 110, the tax of t2 is 110 * 1.1 = 121
-            # With special_mode = 'total_included', 122 is provided as price unit.
-            # The base amount of t2 should be computed by removing the tax amount of t1 first
-            else:  # special_mode == 'total_included'
+            else:
                 if not tax.include_base_amount:
                     for other_tax in get_tax_after():
                         add_extra_base(other_tax, -1)
@@ -1230,32 +915,12 @@ class AccountTax(models.Model):
                     add_extra_base(other_tax, -1)
 
     def _eval_tax_amount_fixed_amount(self, batch, raw_base, evaluation_context):
-        """Eval the tax amount for a single tax during the first ascending order for fixed taxes.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param batch:               The batch of taxes containing this tax.
-        :param raw_base:            The base on which the tax should be computed.
-        :param evaluation_context:  The context containing all relevant info to compute the tax.
-        :return:                    The tax amount or None if it has be evaluated later.
-        """
         if self.amount_type == "fixed":
             sign = -1 if evaluation_context["price_unit"] < 0.0 else 1
             return sign * evaluation_context["quantity"] * self.amount
         return None
 
     def _eval_tax_amount_price_included(self, batch, raw_base, evaluation_context):
-        """Eval the tax amount for a single tax during the descending order for price-included taxes.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param batch:               The batch of taxes containing this tax.
-        :param raw_base:            The base on which the tax should be computed.
-        :param evaluation_context:  The context containing all relevant info to compute the tax.
-        :return:                    The tax amount or None if it has be evaluated later.
-        """
         self.ensure_one()
         if self.amount_type == "percent":
             total_percentage = sum(tax.amount for tax in batch) / 100.0
@@ -1271,16 +936,6 @@ class AccountTax(models.Model):
         return None
 
     def _eval_tax_amount_price_excluded(self, batch, raw_base, evaluation_context):
-        """Eval the tax amount for a single tax during the second ascending order for price-excluded taxes.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param batch:               The batch of taxes containing this tax.
-        :param raw_base:            The base on which the tax should be computed.
-        :param evaluation_context:  The context containing all relevant info to compute the tax.
-        :return:                    The tax amount or None if it has be evaluated later.
-        """
         self.ensure_one()
         if self.amount_type == "percent":
             return raw_base * self.amount / 100.0
@@ -1288,11 +943,6 @@ class AccountTax(models.Model):
         if self.amount_type == "division":
             total_percentage = sum(tax.amount for tax in batch) / 100.0
             if float_compare(total_percentage, 1.0, precision_digits=10) > 0:
-                # A price-excluded division batch summing to > 100% leaves a
-                # negative base: `1 - total_percentage < 0` would silently flip
-                # the tax sign and produce a negative total. Reject the
-                # configuration instead of returning garbage. (The valid 100%
-                # price-*included* case goes through the sibling method above.)
                 raise ValidationError(
                     _(
                         "Division taxes applied together cannot exceed 100%% "
@@ -1308,10 +958,6 @@ class AccountTax(models.Model):
             return raw_base * self.amount / 100.0 / incl_base_multiplicator
         return None
 
-    # -------------------------------------------------------------------------
-    # PRIMARY TAX COMPUTATION: _get_tax_details
-    # -------------------------------------------------------------------------
-
     def _get_tax_details(
         self,
         price_unit,
@@ -1323,36 +969,6 @@ class AccountTax(models.Model):
         special_mode=False,
         filter_tax_function=None,
     ):
-        """Compute the tax/base amounts for the current taxes.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param price_unit:          The price unit of the line.
-        :param quantity:            The quantity of the line.
-        :param precision_rounding:  The rounding precision for the 'round_per_line' method.
-        :param rounding_method:     'round_per_line' or 'round_globally'.
-        :param product:             The product of the line.
-        :param product_uom_id:         The product uom of the line.
-        :param special_mode:        Indicate a special mode for the taxes computation.
-                            * total_excluded: The initial base of computation excludes all price-included taxes.
-                            Suppose a tax of 21% price included. Giving 100 with special_mode = 'total_excluded'
-                            will give you the same as 121 without any special_mode.
-                            * total_included: The initial base of computation is the total with taxes.
-                            Suppose a tax of 21% price excluded. Giving 121 with special_mode = 'total_included'
-                            will give you the same as 100 without any special_mode.
-                            Note: You can only expect accurate symmetrical taxes computation with not rounded price_unit
-                            as input and 'round_globally' computation. Otherwise, it's not guaranteed.
-        :param filter_tax_function: Optional function to filter out some taxes from the computation.
-        :return: A dict containing:
-            'taxes_data':               A list of dictionaries, one per tax containing:
-                'tax':                      The tax record.
-                'base_amount':              The base amount of this tax.
-                'tax_amount':               The tax amount of this tax.
-            'total_excluded':           The total without tax.
-            'total_included':           The total with tax.
-        """
-
         def add_tax_amount_to_results(tax, tax_amount):
             taxes_data[tax.id]["tax_amount"] = tax_amount
             if rounding_method == "round_per_line":
@@ -1398,7 +1014,6 @@ class AccountTax(models.Model):
                 "extra_base_for_base": 0.0,
             }
 
-        # Flatten the taxes, order them and filter them if necessary.
         batching_results = self._batch_for_taxes_computation(
             special_mode=special_mode, filter_tax_function=filter_tax_function
         )
@@ -1434,36 +1049,23 @@ class AccountTax(models.Model):
             "special_mode": special_mode,
         }
 
-        # Define the order in which the taxes must be evaluated.
-        # Fixed taxes are computed directly because they could affect the base of a price included batch right after.
-        # Suppose:
-        # t1: fixed tax of 1, include base amount
-        # t2: 21% price included tax
-        # If the price unit is 121, the base amount of t1 is computed as 121 / 1.1 = 110
-        # With special_mode = 'total_excluded', 110 is provided as price unit.
-        # To compute the base amount of t2, we need to add back the tax amount of t1.
         for tax in reversed(sorted_taxes):
             eval_tax_amount(tax._eval_tax_amount_fixed_amount, tax)
 
-        # Then, let's travel the batches in the reverse order and process the price-included taxes.
         for tax in reversed(sorted_taxes):
             if taxes_data[tax.id]["price_include"]:
                 eval_tax_amount(tax._eval_tax_amount_price_included, tax)
 
-        # Then, let's travel the batches in the normal order and process the price-excluded taxes.
         for tax in sorted_taxes:
             if not taxes_data[tax.id]["price_include"]:
                 eval_tax_amount(tax._eval_tax_amount_price_excluded, tax)
 
-        # Mark the base to be computed in the descending order. The order doesn't matter for no special mode or 'total_excluded' but
-        # it must be in the reverse order when special_mode is 'total_included'.
         subsequent_taxes = self.env["account.tax"]
         for tax in reversed(sorted_taxes):
             tax_data = taxes_data[tax.id]
             if "tax_amount" not in tax_data:
                 continue
 
-            # Base amount.
             total_tax_amount = sum(
                 taxes_data[other_tax.id]["tax_amount"]
                 for other_tax in tax_data["batch"]
@@ -1478,12 +1080,10 @@ class AccountTax(models.Model):
                 base -= total_tax_amount
             tax_data["base"] = base
 
-            # Subsequent taxes.
             tax_data["taxes"] = self.env["account.tax"]
             if tax.include_base_amount:
                 tax_data["taxes"] |= subsequent_taxes
 
-            # Reverse charge.
             if tax.has_negative_factor:
                 reverse_charge_tax_data = reverse_charge_taxes_data[tax.id]
                 reverse_charge_tax_data["base"] = base
@@ -1526,42 +1126,15 @@ class AccountTax(models.Model):
             ],
         }
 
-    # -------------------------------------------------------------------------
-    # MAPPING PRICE_UNIT
-    # -------------------------------------------------------------------------
-
     @api.model
     def _adapt_price_unit_to_another_taxes(
         self, price_unit, product, original_taxes, new_taxes, product_uom_id=None
     ):
-        """From the price unit and taxes given as parameter, compute a new price unit corresponding to the
-        new taxes.
-
-        For example, from price_unit=106 and taxes=[6% tax-included], this method can compute a price_unit=121
-        if new_taxes=[21% tax-included].
-
-        The price_unit is only adapted when all taxes in 'original_taxes' are price-included even when
-        'new_taxes' contains price-included taxes. This is made that way for the following example:
-
-        Suppose a fiscal position B2C mapping 15% tax-excluded => 6% tax-included.
-        If price_unit=100 with [15% tax-excluded], the price_unit is computed as 100 / 1.06 instead of becoming 106.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param price_unit:      The original price_unit.
-        :param product:         The product.
-        :param original_taxes:  A recordset of taxes from where you come from.
-        :param new_taxes:       A recordset of the taxes you are mapping the price unit to.
-        :param product_uom_id:     The product uom.
-        :return:                The price_unit after mapping of taxes.
-        """
         if original_taxes == new_taxes or False in original_taxes.mapped(
             "price_include"
         ):
             return price_unit
 
-        # Find the price unit without tax.
         taxes_computation = original_taxes._get_tax_details(
             price_unit,
             1.0,
@@ -1571,7 +1144,6 @@ class AccountTax(models.Model):
         )
         price_unit = taxes_computation["total_excluded"]
 
-        # Find the new price unit after applying the price included taxes.
         taxes_computation = new_taxes._get_tax_details(
             price_unit,
             1.0,
@@ -1587,20 +1159,8 @@ class AccountTax(models.Model):
         )
         return price_unit + delta
 
-    # -------------------------------------------------------------------------
-    # GENERIC REPRESENTATION OF BUSINESS OBJECTS & METHODS
-    # -------------------------------------------------------------------------
-
     @api.model
     def _export_base_line_extra_tax_data(self, base_line):
-        """Export the extra values about the taxes engine into the extra_tax_data json field.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_line: A base line generated by '_prepare_base_line_for_taxes_computation'.
-        :return: A dictionary to be stored into the 'extra_tax_data' field.
-        """
         results = {}
         if base_line["computation_key"]:
             results["computation_key"] = base_line["computation_key"]
@@ -1632,17 +1192,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _import_base_line_extra_tax_data(self, base_line, extra_tax_data):
-        """Import the 'extra_tax_data' json value into the base line passed as parameter.
-        For 'manual_tax_amounts', if the setup of the base line has been manually edited, we don't import the custom tax amounts from
-        'extra_tax_data.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_line:       A base line generated by '_prepare_base_line_for_taxes_computation'.
-        :param extra_tax_data:  The value stored in one of the 'extra_tax_data' field.
-        :return:                The values to be added into the base line.
-        """
         results = {}
         if extra_tax_data and extra_tax_data.get("computation_key"):
             results["computation_key"] = extra_tax_data["computation_key"]
@@ -1654,12 +1203,6 @@ class AccountTax(models.Model):
         sorted_taxes = base_line["tax_ids"]._flatten_taxes_and_sort_them()[0]
         if (
             extra_tax_data
-            # Gate on 'currency_id', the sentinel '_export_base_line_extra_tax_data'
-            # writes whenever it stored source data (price_unit/quantity/rate and
-            # any manual amount). Gating on 'manual_tax_amounts' instead would drop
-            # a stored 'manual_total_excluded' on a line that has no per-tax manual
-            # amounts (e.g. an untaxed global-discount/down-payment delta line),
-            # diverging from account_tax.js which gates on 'currency_id'.
             and extra_tax_data.get("currency_id")
             and base_line["currency_id"].id == extra_tax_data["currency_id"]
             and base_line["currency_id"].compare_amounts(
@@ -1710,13 +1253,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _reverse_quantity_base_line_extra_tax_data(self, extra_tax_data):
-        """Reverse all sign in extra_tax_data using the quantity.
-
-        [!] Only added python-side.
-
-        :param extra_tax_data: The manual taxes data stored on records.
-        :return: The extra_tax_data but reversed.
-        """
         if not extra_tax_data:
             return None
 
@@ -1740,13 +1276,6 @@ class AccountTax(models.Model):
         return new_extra_tax_data
 
     def _turn_base_line_is_refund_flag_off(self, base_line):
-        """Reverse the sign of the quantity plus all data in tax details.
-
-        [!] Only added python-side.
-
-        :param base_line: The base_line.
-        :return: The base_line that is no longer a refund line.
-        """
         if not base_line["is_refund"]:
             return base_line
 
@@ -1780,44 +1309,15 @@ class AccountTax(models.Model):
 
     @api.model
     def _turn_base_lines_is_refund_flag_off(self, base_lines):
-        """Reverse the sign of the quantity plus all data in tax details.
-
-        [!] Only added python-side.
-
-        :param base_lines: The base_lines.
-        :return: The base_lines that is no longer a refund lines.
-        """
         return [
             self._turn_base_line_is_refund_flag_off(base_line)
             for base_line in base_lines
         ]
 
-    # -------------------------------------------------------------------------
-    # BASE LINE PREPARATION
-    # -------------------------------------------------------------------------
-
     @api.model
     def _get_base_line_field_value_from_record(
         self, record, field, extra_values, fallback, from_base_line=False
     ):
-        """Helper to extract a default value for a record or something looking like a record.
-
-        Suppose field is 'product_id' and fallback is 'self.env['product.product']'
-
-        if record is an account.move.line, the returned product_id will be `record.product_id._origin`.
-        if record is a dict, the returned product_id will be `record.get('product_id', fallback)`.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param record:          A record or a dict or a falsy value.
-        :param field:           The name of the field to extract.
-        :param extra_values:    The extra kwargs passed in addition of 'record'.
-        :param fallback:        The value to return if not found in record or extra_values.
-        :param from_base_line:  Indicate if the value has to be retrieved automatically from the base_line and not the record.
-                                False by default.
-        :return:                The field value corresponding to 'field'.
-        """
         need_origin = isinstance(fallback, models.Model)
         if field in extra_values:
             value = extra_values[field] or fallback
@@ -1837,22 +1337,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _prepare_base_line_for_taxes_computation(self, record, **kwargs):
-        """Convert any representation of a business object ('record') into a base line being a python
-        dictionary that will be used to use the generic helpers for the taxes computation.
-
-        The whole method is designed to ease the conversion from a business record.
-        For example, when passing either account.move.line, either sale.order.line or purchase.order.line,
-        providing explicitely a 'product_id' in kwargs is not necessary since all those records already have
-        an `product_id` field.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param record:  A representation of a business object a.k.a a record or a dictionary.
-        :param kwargs:  The extra values to override some values that will be taken from the record.
-        :return:        A dictionary representing a base line.
-        """
-
         def load(field, fallback):
             return self._get_base_line_field_value_from_record(
                 record, field, kwargs, fallback
@@ -1869,7 +1353,6 @@ class AccountTax(models.Model):
             **kwargs,
             "record": record,
             "id": load("id", 0),
-            # Basic fields:
             "product_id": load("product_id", self.env["product.product"]),
             "product_uom_id": load("product_uom_id", self.env["uom.uom"]),
             "tax_ids": load("tax_ids", self.env["account.tax"]),
@@ -1877,29 +1360,12 @@ class AccountTax(models.Model):
             "quantity": load("quantity", 0.0),
             "discount": load("discount", 0.0),
             "currency_id": currency,
-            # The special_mode for the taxes computation:
-            # - False for the normal behavior.
-            # - total_included to force all taxes to be price included.
-            # - total_excluded to force all taxes to be price excluded.
             "special_mode": kwargs.get("special_mode") or False,
-            # A special typing of base line for some custom behavior:
-            # - False for the normal behavior.
-            # - early_payment if the base line represent an early payment in mixed mode.
-            # - cash_rounding if the base line is a delta to round the business object for the cash rounding feature.
-            # - non_deductible if the base line is used to compute non deductible amounts in bills.
             "special_type": kwargs.get("special_type") or False,
-            # All computation are managing the foreign currency and the local one.
-            # This is the rate to be applied when generating the tax details (see '_add_tax_details_in_base_line').
             "rate": load("rate", 1.0),
-            # Add a function allowing to filter out some taxes during the evaluation. Those taxes can't be removed from the base_line
-            # when dealing with group of taxes to maintain a correct link between the child tax and its parent.
             "filter_tax_function": kwargs.get("filter_tax_function") or None,
-            # ===== Accounting stuff =====
-            # The sign of the business object regarding its accounting balance.
             "sign": load("sign", 1.0),
-            # If the document is a refund or not to know which repartition lines must be used.
             "is_refund": load("is_refund", False),
-            # Extra fields for tax lines generation (account_id=False when account module not installed):
             "partner_id": load("partner_id", self.env["res.partner"]),
             "account_id": load("account_id", False),
             "analytic_distribution": load("analytic_distribution", None),
@@ -1910,14 +1376,8 @@ class AccountTax(models.Model):
         )
         base_line.update(
             {
-                # Allow to split the computation of taxes on subset of lines. For example with a down payment of 300 on a sale order of 1000,
-                # the last invoice will have an amount of 1000 - 300 = 700. However, the taxes should be computed in 2 subsets of lines:
-                # - the original lines for a total of 1000.0
-                # - the previous down payment lines for a total of -300.0
                 "computation_key": kwargs.get("computation_key")
                 or extra_tax_data.get("computation_key"),
-                # For all computation that are inferring a base amount in order to reach a total you know in advance, you have to force some
-                # base/tax amounts for the computation (E.g. down payment, combo products, global discounts etc).
                 "manual_total_excluded_currency": kwargs.get(
                     "manual_total_excluded_currency"
                 )
@@ -1931,7 +1391,6 @@ class AccountTax(models.Model):
         if "price_unit" in extra_tax_data:
             base_line["price_unit"] = extra_tax_data["price_unit"]
 
-        # Propagate custom values.
         if record and isinstance(record, dict):
             for k, v in record.items():
                 if k.startswith("_") and k not in base_line:
@@ -1939,36 +1398,8 @@ class AccountTax(models.Model):
 
         return base_line
 
-    # -------------------------------------------------------------------------
-    # ADD TAX DETAILS TO BASE LINES
-    # -------------------------------------------------------------------------
-
     @api.model
     def _add_tax_details_in_base_line(self, base_line, company, rounding_method=None):
-        """Perform the taxes computation for the base line and add it to the base line under
-        the 'tax_details' key. Those values are rounded or not depending of the tax calculation method.
-        If you need to compute monetary fields with that, you probably need to call
-        '_round_base_lines_tax_details' after this method.
-
-        The added tax_details is a dictionary containing:
-        raw_total_excluded_currency:    The total without tax expressed in foreign currency.
-        raw_total_excluded:             The total without tax expressed in local currency.
-        raw_total_included_currency:    The total tax included expressed in foreign currency.
-        raw_total_included:             The total tax included expressed in local currency.
-        taxes_data:                     A list of python dictionary containing the taxes_data returned by '_get_tax_details' but
-                                        with the amounts expressed in both currencies:
-            raw_tax_amount_currency         The tax amount expressed in foreign currency.
-            raw_tax_amount                  The tax amount expressed in local currency.
-            raw_base_amount_currency        The tax base amount expressed in foreign currency.
-            raw_base_amount                 The tax base amount expressed in local currency.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_line:       A base line generated by '_prepare_base_line_for_taxes_computation'.
-        :param company:         The company owning the base line.
-        :param rounding_method: The rounding method to be used. If not specified, it will be taken from the company.
-        """
         rounding_method = rounding_method or (
             company.tax_calculation_rounding_method
             if "tax_calculation_rounding_method" in company._fields
@@ -1988,7 +1419,6 @@ class AccountTax(models.Model):
             filter_tax_function=base_line["filter_tax_function"],
         )
 
-        # Only python side for professional with reverse charge
         if base_line["special_type"] == "non_deductible":
             taxes_data = taxes_computation["taxes_data"]
             taxes_computation["taxes_data"] = []
@@ -2035,32 +1465,11 @@ class AccountTax(models.Model):
 
     @api.model
     def _add_tax_details_in_base_lines(self, base_lines, company):
-        """Shortcut to call '_add_tax_details_in_base_line' on multiple base lines at once.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_lines:  A list of base lines.
-        :param company:     The company owning the base lines.
-        """
         for base_line in base_lines:
             self._add_tax_details_in_base_line(base_line, company)
 
-    # -------------------------------------------------------------------------
-    # ROUNDING & DISTRIBUTION
-    # -------------------------------------------------------------------------
-
     @api.model
     def _normalize_target_factors(self, target_factors):
-        """Normalize the factors passed as parameter to have a distribution having a sum of 1.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param target_factors:      A list of dictionary containing at least 'factor' being the weight
-                                    defining how much delta will be allocated to this factor.
-        :return:                    A list of tuple <index, normalized_factor> for each 'target_factors' passed as parameter.
-        """
         factors = [
             (i, abs(target_factor["factor"]))
             for i, target_factor in enumerate(target_factors)
@@ -2076,27 +1485,6 @@ class AccountTax(models.Model):
     def _distribute_delta_amount_smoothly(
         self, precision_digits, delta_amount, target_factors
     ):
-        """Distribute 'delta_amount' across the factors passed as parameter.
-
-        For example, if 'delta_amount' = 0.03 and precision_digits is 3 and target factors is a list of 3 factors:
-        a) {'factor': 0.4}
-        b) {'factor': 0.3}
-        c) {'factor': 0.3}
-        ... it means the delta will be distributed first on a) then b) then c).
-        Since precision_digits = 3, it means we have a delta of "30" tenth of a hundred to be distributed.
-        a) will take 30 * 0.4 = 12 units.
-        b & c) will take 30 * 0.3 = 9 units each.
-        The result of this method will be [0.012, 0.009, 0.009].
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param precision_digits:    The decimal places of the delta.
-        :param delta_amount:        The delta amount to be distributed.
-        :param target_factors:      A list of dictionary containing at least 'factor' being the weight
-                                    defining how much delta will be allocated to this factor.
-        :return:                    A list of floats, one per element in 'target_factors'.
-        """
         precision_rounding = float(f"1e-{precision_digits}")
         amounts_to_distribute = [0.0] * len(target_factors)
         if float_is_zero(delta_amount, precision_digits=precision_digits):
@@ -2106,7 +1494,6 @@ class AccountTax(models.Model):
         nb_of_errors = round(abs(delta_amount / precision_rounding))
         remaining_errors = nb_of_errors
 
-        # Distribute using the factor first.
         factors = self._normalize_target_factors(target_factors)
         for i, factor in factors:
             if not remaining_errors:
@@ -2122,9 +1509,6 @@ class AccountTax(models.Model):
             )
             amounts_to_distribute[i] += amount_to_distribute
 
-        # Distribute the remaining cents across the factors.
-        # There are sorted by the biggest first.
-        # Since the factors are normalized, the residual number of cents can't be higher than the number of factors.
         for i in range(remaining_errors):
             amounts_to_distribute[factors[i][0]] += sign * precision_rounding
 
@@ -2132,25 +1516,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _round_tax_details_tax_amounts(self, base_lines, company, mode="mixed"):
-        """Dispatch the delta in term of tax amounts across the tax details when dealing with the 'round_globally' method.
-        Suppose 2 lines:
-        - quantity=12.12, price_unit=12.12, tax=23%
-        - quantity=12.12, price_unit=12.12, tax=23%
-        The tax of each line is computed as round(12.12 * 12.12 * 0.23) = 33.79
-        The expected tax amount of the whole document is round(12.12 * 12.12 * 0.23 * 2) = 67.57
-        The delta in term of tax amount is 67.57 - 33.79 - 33.79 = -0.01
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_lines:          A list of base lines generated using the '_prepare_base_line_for_taxes_computation' method.
-        :param company:             The company owning the base lines.
-        :param mode:                The mode to round taxes:
-            * excluded:                 Round base and tax independently.
-            * included:                 Round base + tax, then subtract the tax and round the base according the remaining amount.
-            * mixed:                    Round 'excluded' or 'included' depending if the tax is price-included or not.
-        """
-
         def grouping_function(base_line, tax_data):
             if not tax_data:
                 return None
@@ -2179,7 +1544,6 @@ class AccountTax(models.Model):
                 ("_currency", currency),
                 ("", company.currency_id),
             ):
-                # Tax amount.
                 raw_total_tax_amount = values[
                     f"target_tax_amount{delta_currency_indicator}"
                 ]
@@ -2213,7 +1577,6 @@ class AccountTax(models.Model):
                             amount_to_distribute
                         )
 
-                # Base amount.
                 raw_total_base_amount = values[
                     f"target_base_amount{delta_currency_indicator}"
                 ]
@@ -2261,38 +1624,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _round_tax_details_base_lines(self, base_lines, company, mode="mixed"):
-        """Additional global rounding depending on if the taxes are included or excluded in price.
-
-        This method does not modify the rounding in `taxes_data`, rather it computes an adjustment
-        for `tax_details['total_excluded{_currency}']` and stores it as `tax_details['delta_total_excluded{_currency}']`.
-
-        Suppose all taxes are price-included.
-        Suppose two price-included taxes of 10%.
-        Suppose a line having price_unit=100.0.
-        The tax amount is computed as 100.0 / 1.2 * 0.1 = 8.333333333
-        The base amount is computed as 100.0 - (2 * 8.333333333) = 83.333333334
-        Without doing anything, we end up with a base of 83.33 and 2 * 8.33 as tax amounts.
-        83.33 + 8.33 + 8.33 = 99.99.
-        However, since all tax are price-included, we expect a base amount of 83.34 to reach the
-        original 100.0.
-
-        Manage price-excluded taxes.
-        Suppose 2 lines, both having quantity=12.12, price_unit=12.12, tax=23%
-        The base amount of each line is computed as round(12.12 * 12.12) = 146.89
-        The expected base amount of the whole document is round(12.12 * 12.12 * 2) = 293.79
-        The delta in term of base amount is 293.79 - 146.89 - 146.89 = 0.01
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_lines:          A list of base lines generated using the '_prepare_base_line_for_taxes_computation' method.
-        :param company:             The company owning the base lines.
-        :param mode:                The mode to round taxes:
-            * excluded:                 Round base and tax independently.
-            * included:                 Round base + tax, then subtract the tax and round the base according the remaining amount.
-            * mixed:                    Round 'excluded' or 'included' depending if the tax is price-included or not.
-        """
-
         def grouping_function(base_line, tax_data):
             return {
                 "currency": base_line["currency_id"],
@@ -2330,7 +1661,6 @@ class AccountTax(models.Model):
                 ("", company.currency_id),
             ):
                 if current_mode == "excluded":
-                    # Price-excluded rounding.
                     raw_total_excluded = values[
                         f"target_total_excluded{delta_currency_indicator}"
                     ]
@@ -2352,7 +1682,6 @@ class AccountTax(models.Model):
                         for base_line, _taxes_data in values["base_line_x_taxes_data"]
                     ]
                 else:
-                    # Price-included rounding.
                     raw_total_included = (
                         values[f"target_total_excluded{delta_currency_indicator}"]
                         + values[f"target_tax_amount{delta_currency_indicator}"]
@@ -2395,14 +1724,6 @@ class AccountTax(models.Model):
     def _round_tax_details_tax_amounts_from_tax_lines(
         self, base_lines, company, tax_lines
     ):
-        """If tax lines are provided, the totals will be aggregated according them.
-
-        [!] Only added python-side.
-
-        :param base_lines:  A list of base lines.
-        :param company:     The company owning the base lines.
-        :param tax_lines:   An optional list of tax lines. No-op if None.
-        """
         if not tax_lines:
             return
 
@@ -2495,64 +1816,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _round_base_lines_tax_details(self, base_lines, company, tax_lines=None):
-        """Round the 'tax_details' added to base_lines with the '_add_tax_details_in_base_line'.
-        This method performs all the rounding and take care of rounding issues that could appear when using the
-        'round_globally' tax computation method, specially if some price included taxes are involved.
-
-        This method copies all float prefixed with 'raw_' in the tax_details to the corresponding float without 'raw_'.
-        In almost all countries, the round globally should be the tax computation method.
-        When there is an EDI, we need the raw amounts to be reported with more decimals (usually 6 to 8).
-        So if you need to report the price excluded amount for a single line, you need to use
-        'raw_total_excluded_currency' / 'raw_total_excluded' instead of 'total_excluded_currency' / 'total_excluded' because
-        the latest are rounded. In short, rounding yourself the amounts is probably a mistake and you are probably adding some
-        rounding issues in your code.
-
-        The rounding is made by aggregating the raw amounts per tax first.
-        Then we round the total amount per tax, same for each tax amount in each base lines.
-        Finally, we distribute the delta on each base lines.
-        The delta is available in 'delta_total_excluded_currency' / 'delta_total_excluded' in each base line.
-
-        Let's take an example using round globally.
-        Suppose two lines:
-        l1: price_unit = 21.53, tax = 21% incl
-        l2: price_unit = 21.53, tax = 21% incl
-
-        The raw_total_excluded is computed as 21.53 / 1.21 = 17.79338843
-        The total_excluded is computed as round(17.79338843) = 17.79
-        The total raw_base_amount for 21% incl is computed as 17.79338843 * 2 = 35.58677686
-        The total base_amount for 21% incl is round(35.58677686) = 35.59
-        The delta_base_amount is computed as 35.59 - 17.79 - 17.79 = 0.01 and will be added on l1.
-
-        For the tax amounts:
-        The raw_tax_amount is computed as 21.53 / 1.21 * 0.21 = 3.73661157
-        The tax_amount is computed as round(3.73661157) = 3.74
-        The total raw_tax_amount for 21% incl is computed as 3.73661157 * 2 = 7.473223141
-        The total tax_amount for 21% incl is computed as round(7.473223141) = 7.47
-        The delta amount for 21% incl is computed as 7.47 - 3.74 - 3.74 = -0.01 and will be added to the corresponding
-        tax_data in l1.
-
-        If l1 and l2 are invoice lines, the result will be:
-        l1: price_unit = 21.53, tax = 21% incl, price_subtotal = 17.79, price_total = 21.53, balance = 17.80
-        l2: price_unit = 21.53, tax = 21% incl, price_subtotal = 17.79, price_total = 21.53, balance = 17.79
-        To compute the tax lines, we use the tax details in base_line['tax_details']['taxes_data'] that contain
-        respectively 3.73 + 3.74 = 7.47.
-        Since the untaxed amount of the invoice is computed based on the accounting balance:
-        amount_untaxed = 17.80 + 17.79 = 35.59
-        amount_tax = 7.47
-        amount_total = 21.53 + 21.53 = 43.06
-
-        The amounts are globally correct because 35.59 * 0.21 = 7.4739 ~= 7.47.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_lines:          A list of base lines generated using the '_prepare_base_line_for_taxes_computation' method.
-        :param company:             The company owning the base lines.
-        :param tax_lines:           A optional list of base lines generated using the '_prepare_tax_line_for_taxes_computation'
-                                    method. If specified, the tax amounts will be computed based on those existing tax lines.
-                                    It's used to keep the manual tax amounts set by the user.
-        """
-        # Raw rounding.
         for base_line in base_lines:
             tax_details = base_line["tax_details"]
 
@@ -2570,7 +1833,6 @@ class AccountTax(models.Model):
                         field = f"{prefix}_amount{suffix}"
                         tax_data[field] = currency.round(tax_data[f"raw_{field}"])
 
-        # Apply 'manual_tax_amounts'.
         for base_line in base_lines:
             manual_tax_amounts = base_line["manual_tax_amounts"]
             rate = base_line["rate"]
@@ -2606,7 +1868,6 @@ class AccountTax(models.Model):
                                     company.currency_id.round(tax_data[field] / rate)
                                 )
 
-        # Compute 'total_included' & add 'delta_total_excluded'.
         for base_line in base_lines:
             tax_details = base_line["tax_details"]
 
@@ -2627,36 +1888,13 @@ class AccountTax(models.Model):
             base_lines, company, tax_lines
         )
 
-    # -------------------------------------------------------------------------
-    # AGGREGATOR OF TAX DETAILS
-    # -------------------------------------------------------------------------
-
     @api.model
     def _aggregate_base_line_tax_details(self, base_line, grouping_function):
-        """Aggregate the tax details for a single line according a custom grouping function passed as parameter.
-        This method is mainly use for EDI to report some data per line. Most of the time, having the amounts grouped
-        by tax is not enough because some details should be excluded, aggregated together or just moved into a separated section
-        having another grouping key.
-
-        In case the base_line has no tax, the grouping_function is called with an empty tax_data to get the grouping key for the line.
-
-        Don't forget to call '_add_tax_details_in_base_lines' and '_round_base_lines_tax_details' before calling this method.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_line:           A base line generated by '_prepare_base_line_for_taxes_computation'.
-        :param grouping_function:   A function taking <base_line, tax_data> as parameter and returning anything
-                                    that could be used as key in a dictionary.
-                                    Note: you must never return None (explanation in the docstring above).
-        :return: A mapping <grouping_key, amounts>.
-        """
         values_per_grouping_key = {}
         tax_details = base_line["tax_details"]
         taxes_data = tax_details["taxes_data"]
         manual_tax_amounts = base_line["manual_tax_amounts"]
 
-        # If there are no taxes, we pass None to the grouping function.
         for tax_data in taxes_data or [None]:
             current_manual_tax_amounts = (
                 manual_tax_amounts
@@ -2668,7 +1906,6 @@ class AccountTax(models.Model):
             if isinstance(grouping_key, dict):
                 grouping_key = frozendict(grouping_key)
 
-            # Base amount.
             if grouping_key not in values_per_grouping_key:
                 values = values_per_grouping_key[grouping_key] = {
                     "grouping_key": grouping_key,
@@ -2731,7 +1968,6 @@ class AccountTax(models.Model):
                     values[tax_raw_field] = 0.0
                     values[tax_target_field] = 0.0
 
-            # Tax amount.
             if tax_data:
                 reverse_charge_sign = -1 if tax_data["is_reverse_charge"] else 1
                 values = values_per_grouping_key[grouping_key]
@@ -2759,15 +1995,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _aggregate_base_lines_tax_details(self, base_lines, grouping_function):
-        """Shortcut to call '_aggregate_base_line_tax_details' on multiple base lines at once.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_lines:          A list of base lines.
-        :param grouping_function:   See '_aggregate_base_line_tax_details'.
-        :return: A list of tuple <base_line, results>.
-        """
         return [
             (
                 base_line,
@@ -2778,14 +2005,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _aggregate_base_lines_aggregated_values(self, base_lines_aggregated_values):
-        """Aggregate the values returned by '_aggregate_base_lines_tax_details' for the whole document.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_lines_aggregated_values: The result of '_aggregate_base_lines_tax_details'.
-        :return: A mapping <grouping_key, amounts>.
-        """
         default_float_fields = set()
         for prefix in ("", "raw_", "target_"):
             for suffix in ("_currency", ""):
@@ -2811,30 +2030,10 @@ class AccountTax(models.Model):
                 )
         return values_per_grouping_key
 
-    # -------------------------------------------------------------------------
-    # TAX TOTALS SUMMARY
-    # -------------------------------------------------------------------------
-
     @api.model
     def _get_tax_totals_summary(
         self, base_lines, currency, company, cash_rounding=None
     ):
-        """Compute the tax totals details for the business documents.
-
-        Don't forget to call '_add_tax_details_in_base_lines' and '_round_base_lines_tax_details' before calling this method.
-
-        [!] Mirror of the same method in account_tax.js.
-        PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
-
-        :param base_lines:          A list of base lines generated using the '_prepare_base_line_for_taxes_computation' method.
-        :param currency:            The tax totals is only available when all base lines share the same currency.
-                                    Since the tax totals can be computed when there is no base line at all, a currency must be
-                                    specified explicitely for that case.
-        :param company:             The company owning the base lines.
-        :param cash_rounding:       A optional account.cash.rounding object. When specified, the delta base amount added
-                                    to perform the cash rounding is specified in the results.
-        :return: A dictionary with tax totals.
-        """
         tax_totals_summary = {
             "currency_id": currency.id,
             "currency_pd": currency.rounding,
@@ -2848,7 +2047,6 @@ class AccountTax(models.Model):
             "tax_amount": 0.0,
         }
 
-        # Global tax values.
         def global_grouping_function(base_line, tax_data):
             return True if tax_data else None
 
@@ -2868,7 +2066,6 @@ class AccountTax(models.Model):
             tax_totals_summary["tax_amount_currency"] += values["tax_amount_currency"]
             tax_totals_summary["tax_amount"] += values["tax_amount"]
 
-        # Tax groups.
         untaxed_amount_subtotal_label = _("Untaxed Amount")
         subtotals = defaultdict(
             lambda: {
@@ -2906,13 +2103,11 @@ class AccountTax(models.Model):
         for order, values in enumerate(sorted_total_per_tax_group):
             tax_group = values["grouping_key"]
 
-            # Get all involved taxes in the tax group.
             involved_taxes = self.env["account.tax"]
             for _base_line, taxes_data in values["base_line_x_taxes_data"]:
                 for tax_data in taxes_data:
                     involved_taxes |= tax_data["tax"]
 
-            # Compute the display base amounts.
             if set(involved_taxes.mapped("amount_type")) == {"fixed"}:
                 display_base_amount = False
                 display_base_amount_currency = False
@@ -2946,7 +2141,6 @@ class AccountTax(models.Model):
                     float_repr(display_base_amount_currency, currency.decimal_places)
                 )
 
-            # Order of the subtotals.
             preceding_subtotal = (
                 tax_group.preceding_subtotal or untaxed_amount_subtotal_label
             )
@@ -2968,7 +2162,6 @@ class AccountTax(models.Model):
                 }
             )
 
-        # Subtotals.
         if not subtotals:
             subtotals[untaxed_amount_subtotal_label]
 
@@ -2993,7 +2186,6 @@ class AccountTax(models.Model):
                 accumulated_tax_amount += tax_group["tax_amount"]
             tax_totals_summary["subtotals"].append(subtotal)
 
-        # Cash rounding
         cash_rounding_lines = [
             base_line
             for base_line in base_lines
@@ -3081,7 +2273,6 @@ class AccountTax(models.Model):
                         cash_rounding_base_amount_currency = 0.0
                         cash_rounding_base_amount = 0.0
 
-        # Subtract the cash rounding from the untaxed amounts.
         cash_rounding_base_amount_currency = tax_totals_summary.get(
             "cash_rounding_base_amount_currency", 0.0
         )
@@ -3100,7 +2291,6 @@ class AccountTax(models.Model):
         )
         tax_totals_summary["same_tax_base"] = len(encountered_base_amounts) == 1
 
-        # Non deductible lines (not implemented in JS)
         taxed_non_deductible_lines = [
             base_line
             for base_line in base_lines
@@ -3140,7 +2330,6 @@ class AccountTax(models.Model):
                         "tax_amount_currency"
                     ]
 
-        # Total amount.
         tax_totals_summary["total_amount_currency"] = (
             tax_totals_summary["base_amount_currency"]
             + tax_totals_summary["tax_amount_currency"]
@@ -3156,14 +2345,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _exclude_tax_groups_from_tax_totals_summary(self, tax_totals, ids_to_exclude):
-        """Post-process the tax totals and wrap some tax groups into the base amount.
-
-        [!] Only added python-side.
-
-        :param tax_totals:      The tax totals generated by '_get_tax_totals_summary'.
-        :param ids_to_exclude:  The ids of the tax groups to exclude.
-        :return:                A new tax totals without the excluded ids.
-        """
         tax_totals = copy.deepcopy(tax_totals)
         ids_to_exclude = set(ids_to_exclude)
 
@@ -3193,10 +2374,6 @@ class AccountTax(models.Model):
 
         tax_totals["subtotals"] = subtotals
         return tax_totals
-
-    # -------------------------------------------------------------------------
-    # TRANSFORMING BASE LINES
-    # -------------------------------------------------------------------------
 
     def _can_be_discounted(self):
         self.ensure_one()
@@ -3932,10 +3109,6 @@ class AccountTax(models.Model):
                     "base_amount": tax_data["base_amount"],
                 }
 
-    # -------------------------------------------------------------------------
-    # GLOBAL DISCOUNTS, DOWN PAYMENTS AND RETURNS
-    # -------------------------------------------------------------------------
-
     @api.model
     def _prepare_discountable_base_lines(
         self, base_lines, company, exclude_function=None
@@ -4228,10 +3401,6 @@ class AccountTax(models.Model):
             ],
             company=company,
         )
-
-    # -------------------------------------------------------------------------
-    # RAW-AMOUNT ROUNDING AND TOLERANCE
-    # -------------------------------------------------------------------------
 
     @api.model
     def _get_delta_amount_to_reach_target(
@@ -4714,10 +3883,6 @@ class AccountTax(models.Model):
             return "total_excluded"
         return False
 
-    # -------------------------------------------------------------------------
-    # PUBLIC API
-    # -------------------------------------------------------------------------
-
     def flatten_taxes_hierarchy(self):
         return self._flatten_taxes_and_sort_them()[0]
 
@@ -4732,21 +3897,6 @@ class AccountTax(models.Model):
         handle_price_include=True,
         rounding_method=None,
     ):
-        """Compute tax amounts for the given price_unit and quantity.
-
-        Simplified version without accounting data (accounts, tags).
-        For the full version with accounting data, use the ``account`` module.
-
-        :param price_unit: The unit price.
-        :param currency: The currency (defaults to company currency).
-        :param quantity: The quantity.
-        :param product: The product.
-        :param partner: The partner (used for lang).
-        :param is_refund: Whether this is a refund.
-        :param handle_price_include: If False, ignore price-included taxes.
-        :param rounding_method: Override rounding method.
-        :returns: A dict with 'total_excluded', 'total_included', 'taxes'.
-        """
         company = self._get_settings_company()
         company = company._accessible_branches()[:1] or company
 
@@ -4800,7 +3950,6 @@ class AccountTax(models.Model):
         }
 
     def _filter_taxes_by_company(self, company_id):
-        """Filter taxes by the given company, walking up the company hierarchy."""
         if not self:
             return self
         taxes, company = self.env["account.tax"], company_id
@@ -4811,7 +3960,6 @@ class AccountTax(models.Model):
 
     @api.model
     def _fix_tax_included_price(self, price, prod_taxes, line_taxes):
-        """Subtract tax amount from price when corresponding "price included" taxes do not apply."""
         prod_taxes = prod_taxes._origin
         line_taxes = line_taxes._origin
         incl_tax = prod_taxes.filtered(
@@ -4826,7 +3974,6 @@ class AccountTax(models.Model):
         self, price, prod_taxes, line_taxes, company_id
     ):
         if company_id:
-            # To keep the same behavior as in _compute_tax_id
             prod_taxes = prod_taxes.filtered(
                 lambda tax: tax._serves_company(company_id)
             )
@@ -4840,11 +3987,6 @@ class AccountTax(models.Model):
         if is_html_empty(self.description):
             return ""
         return html2plaintext(self.description)
-
-
-# ════════════════════════════════════════════════════════════════════════
-# TAX REPARTITION LINE
-# ════════════════════════════════════════════════════════════════════════
 
 
 class AccountTaxRepartitionLine(models.Model):

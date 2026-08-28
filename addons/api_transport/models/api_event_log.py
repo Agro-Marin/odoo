@@ -337,15 +337,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("request_payload", "request_payload_hash_override")
     def _compute_payload_hash(self):
-        """Hash the body as received, which is not always the body as stored.
-
-        The normalisation lives in ``tools.compute_payload_hash``, which is what
-        the inbound controller hashes the incoming request with. This used to
-        restate it, as does ``check_duplicate_before_create``: three copies that
-        had to agree exactly, because duplicate detection compares a hash one of
-        them produced against a column another one filled in, and a divergence
-        would not fail -- it would quietly stop matching.
-        """
         for record in self:
             if record.request_payload_hash_override:
                 record.request_payload_hash = record.request_payload_hash_override
@@ -598,11 +589,6 @@ class ApiEventLog(models.Model):
                 if event.state == "pending" and (
                     getattr(channel, "processing_mode", None) == "sync"
                 ):
-                    # Not queued work: a synchronous route opened this row and
-                    # never closed it. Replaying it hands the payload to
-                    # _process_queued_event, which is not the handler that route
-                    # used -- so the request is processed twice, by two
-                    # different handlers, a minute apart.
                     _logger.warning(
                         "Replaying event %d, which endpoint %s left pending "
                         "after handling it synchronously; the route should "

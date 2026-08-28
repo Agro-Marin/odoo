@@ -1,10 +1,3 @@
-"""Fast, self-contained tests for the ``base_account`` foundation.
-
-Exercise the extracted chart-of-accounts logic without pulling in the heavy
-``account`` accounting stack (journals, taxes, moves); the downstream
-``account`` module has its own ``post_install`` suite.
-"""
-
 from odoo import Command
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
@@ -15,29 +8,15 @@ class TestBaseAccount(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # These tests own their account codes, but run post_install -- so any
-        # chart of accounts installed alongside (the generic one, a
-        # localization) already occupies codes like 400000/500000 and collides
-        # on create. Account codes are company-scoped, so a dedicated company
-        # with no chart loaded gives the suite the clean slate its docstring
-        # describes, whatever else the database happens to carry.
         cls.company = cls.env["res.company"].create({"name": "Base Account Test Co"})
         cls.env.user.company_ids = [Command.link(cls.company.id)]
         cls.Account = cls.env["account.account"].with_company(cls.company)
 
-        # account/ overrides display_name to hide the code from users without
-        # accounting read access; grant it so the assertion is about the
-        # formatting, not about the ambient user's groups. The group only
-        # exists once account/ is installed on top of this foundation.
         readonly_group = cls.env.ref(
             "account.group_account_readonly", raise_if_not_found=False
         )
         if readonly_group:
             cls.env.user.group_ids = [Command.link(readonly_group.id)]
-
-    # ------------------------------------------------------------------
-    # _split_code_name
-    # ------------------------------------------------------------------
 
     def test_split_code_name(self):
         cases = [
@@ -50,10 +29,6 @@ class TestBaseAccount(TransactionCase):
         for value, expected in cases:
             with self.subTest(value=value):
                 self.assertEqual(self.Account._split_code_name(value), expected)
-
-    # ------------------------------------------------------------------
-    # Code validation
-    # ------------------------------------------------------------------
 
     def test_code_regex_rejects_invalid_chars(self):
         for bad in ("10 00", "10#0", "abc$"):
@@ -68,10 +43,6 @@ class TestBaseAccount(TransactionCase):
         )
         self.assertEqual(acc.code, "10.01-A/B")
 
-    # ------------------------------------------------------------------
-    # _search_new_account_code
-    # ------------------------------------------------------------------
-
     def test_search_new_account_code(self):
         self.Account.create(
             {"code": "203000", "name": "Seed", "account_type": "asset_current"}
@@ -83,10 +54,6 @@ class TestBaseAccount(TransactionCase):
             {"code": "hello", "name": "Seed", "account_type": "asset_current"}
         )
         self.assertEqual(self.Account._search_new_account_code("hello"), "hello.copy")
-
-    # ------------------------------------------------------------------
-    # _get_closest_parent_account (the method optimised in this change)
-    # ------------------------------------------------------------------
 
     def test_closest_parent_inherits_type_and_tags(self):
         self.Account.create(
@@ -102,12 +69,10 @@ class TestBaseAccount(TransactionCase):
         self.assertEqual(child.tag_ids.name, "ClosestParentTag")
 
     def test_closest_parent_default_when_no_parent(self):
-        # A code that sorts before every existing account falls back to default.
         child = self.Account.create({"code": "000001", "name": "Orphan"})
         self.assertEqual(child.account_type, "asset_current")
 
     def test_closest_parent_batch_consistency(self):
-        """Optimised bisect list must give the same result as per-row lookup."""
         self.Account.create({"code": "500000", "name": "A", "account_type": "income"})
         self.Account.create({"code": "600000", "name": "B", "account_type": "expense"})
         children = self.Account.create(
@@ -120,10 +85,6 @@ class TestBaseAccount(TransactionCase):
         self.assertEqual(
             children.mapped("account_type"), ["income", "expense", "income"]
         )
-
-    # ------------------------------------------------------------------
-    # Reconcile constraints
-    # ------------------------------------------------------------------
 
     def test_receivable_must_be_reconcilable(self):
         acc = self.Account.create(
@@ -143,10 +104,6 @@ class TestBaseAccount(TransactionCase):
                     "reconcile": True,
                 }
             )
-
-    # ------------------------------------------------------------------
-    # Derived fields
-    # ------------------------------------------------------------------
 
     def test_internal_group_and_initial_balance(self):
         income = self.Account.create(
@@ -168,8 +125,6 @@ class TestBaseAccount(TransactionCase):
         self.assertEqual(acc.display_name, "160000 Widget")
 
     def test_default_get_preserves_leading_zeros(self):
-        # A fully-numeric quick-create name is treated as a code; leading zeros
-        # must survive ("0001" is a different account code from "1").
         for name, expected_code in [
             ("0001", "0001"),
             ("007", "007"),
@@ -202,16 +157,10 @@ class TestAccountRoot(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestAccountCodeMapping(TransactionCase):
     def test_direct_access_is_blocked(self):
-        # The mapping is virtual; it may only be reached through an account.
         with self.assertRaises(UserError):
             self.env["account.code.mapping"].search([])
 
     def test_offset_roundtrip(self):
-        # The virtual mapping id encodes (account_id, company_id); check both the
-        # ``_search`` path and the ``code_mapping_ids`` One2many decode back to the
-        # right account/company/code.  The One2many is cached empty right
-        # after create() until invalidated (it is populated lazily by _search),
-        # so invalidate before reading it.
         acc = self.env["account.account"].create(
             {"code": "170000", "name": "Map", "account_type": "asset_current"}
         )
@@ -228,8 +177,6 @@ class TestAccountCodeMapping(TransactionCase):
             self.assertEqual(m.code, acc.with_company(m.company_id).code)
 
     def test_pack_mapping_id_encoding(self):
-        # The virtual id must round-trip (account_id, company_id) even for a
-        # company id that would have overflowed the old 10**4 offset.
         from odoo.addons.base_account.models.account_code_mapping import (
             COMPANY_OFFSET,
             _pack_mapping_id,
@@ -252,14 +199,6 @@ class TestAccountCodeMapping(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAccountNameDuplication(TransactionCase):
-    """`copy_translations` patches the "<name> (copy)" suffix into every stored
-    translation.  It used to route that per-language dict through
-    `cache.update_raw`, which -- for a `translate=True` field, whose cache is
-    split per language -- stored the whole dict as the value of the *current*
-    language: a Spanish user duplicating an account got a stringified dict as
-    the account name, and the en_US name became the Spanish term.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
