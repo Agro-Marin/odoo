@@ -1587,7 +1587,6 @@ class CredentialCredential(models.Model):
         if not isinstance(data_dict, dict):
             raise ValidationError(self.env._("Credential data must be a dictionary"))
 
-        self._log_access("write")
         json_str = json.dumps(data_dict)
 
         data_size = len(json_str.encode("utf-8"))
@@ -1613,3 +1612,4 @@ class CredentialCredential(models.Model):
             self.credential_value_encrypted = self._encrypt_value(json_str)
         else:
             self.credential_value_encrypted = False
+        self._log_access("write")
