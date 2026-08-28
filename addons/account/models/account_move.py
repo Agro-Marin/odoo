@@ -732,6 +732,10 @@ class AccountMove(models.Model):
         check_company=True,
     )
     reversal_move_ids = fields.One2many("account.move", "reversed_entry_id")
+    reversal_move_count = fields.Count(
+        "reversal_move_ids",
+        string="Reversal Moves Count",
+    )
 
     invoice_vendor_bill_id = fields.Many2one(
         "account.move",
@@ -1265,7 +1269,6 @@ class AccountMove(models.Model):
 
     @api.depends("needed_terms")
     def _compute_invoice_date_due(self):
-        today = fields.Date.context_today(self)
         for move in self:
             move.invoice_date_due = (
                 (
@@ -1280,7 +1283,7 @@ class AccountMove(models.Model):
                     )
                 )
                 or move.invoice_date_due
-                or today
+                or move.invoice_date
             )
 
     def _compute_delivery_date(self):
@@ -4961,6 +4964,119 @@ class AccountMove(models.Model):
                 exchange_diff_moves.append(partial.exchange_move_id.id)
         return invoice_partials, exchange_diff_moves
 
+    def _get_payment_term_epd_info(self):
+        """Payment term line and cash discount account driving EPD detection."""
+        self.ensure_one()
+        if not self.invoice_payment_term_id.early_discount:
+            return self.env["account.move.line"], self.env["account.account"]
+        payment_term_line = self.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )
+        if self.is_inbound(include_receipts=True):
+            cash_discount_account = (
+                self.company_id.account_journal_early_pay_discount_loss_account_id
+            )
+        else:
+            cash_discount_account = (
+                self.company_id.account_journal_early_pay_discount_gain_account_id
+            )
+        return payment_term_line, cash_discount_account
+
+    def _is_early_payment_discount_applied(
+        self, payment_move, amount, payment_term_line, cash_discount_account
+    ):
+        """Whether ``payment_move`` settled this invoice by taking the discount."""
+        self.ensure_one()
+        total_discount = sum(
+            line.amount_currency
+            for line in payment_move.line_ids
+            # tax_repartition_line_id catches the tax share of the discount when
+            # early_pay_discount_computation splits it out
+            if line.account_id == cash_discount_account or line.tax_repartition_line_id
+        )
+        epd_discount = (
+            payment_term_line.amount_currency
+            - payment_term_line.discount_amount_currency
+        )
+        return bool(
+            payment_term_line.discount_date
+            and cash_discount_account
+            and payment_move.date <= payment_term_line.discount_date
+            # a write-off booked to the cash discount account is not an EPD
+            and self.currency_id.compare_amounts(total_discount, epd_discount) == 0
+            # an EPD only applies to a payment settling the invoice in full
+            and self.currency_id.compare_amounts(amount, self.amount_total) == 0
+        )
+
+    def _get_reconciled_invoices_partials_for_receipt(self):
+        """Rows for the payment receipt, splitting discounts and write-offs out.
+
+        A payment that took an early payment discount, or that closed the
+        balance with a write-off, otherwise prints the gross amount it
+        reconciled: a 900 payment on a 1000 invoice shows as 1000, and the
+        receipt contradicts the amount in its own header. Each such payment
+        becomes two rows -- what was actually settled, and the adjustment that
+        closed the rest -- so the rows still add up to the residual printed
+        underneath them.
+        """
+        self.ensure_one()
+        invoice_partials, _exchange_diff_moves = (
+            self._get_reconciled_invoices_partials()
+        )
+        sign = 1 if self.is_inbound(include_receipts=True) else -1
+        payment_term_line, cash_discount_account = self._get_payment_term_epd_info()
+
+        rows = []
+        for partial, amount, counterpart_line in invoice_partials:
+            payment_move = counterpart_line.move_id
+            counterpart_amount = (
+                partial.debit_amount_currency
+                if counterpart_line == partial.debit_move_id
+                else partial.credit_amount_currency
+            )
+            # Rows reduce the invoice total printed above them, hence negative.
+            payment_row = {
+                "date": payment_move.date,
+                "name": payment_move.name,
+                "ref": counterpart_line.payment_id.memo,
+                "amount_invoice": -amount,
+                "amount_payment": -counterpart_amount,
+                "currency_invoice": self.currency_id,
+                "currency_payment": counterpart_line.currency_id,
+            }
+
+            if self._is_early_payment_discount_applied(
+                payment_move, amount, payment_term_line, cash_discount_account
+            ):
+                # sign normalises the payment term line, whose amounts are
+                # negative on a bill, into the invoice's own positive space.
+                settled = sign * payment_term_line.discount_amount_currency
+                payment_row["amount_invoice"] = -settled
+                rows.append(payment_row)
+                rows.append(
+                    self._prepare_receipt_adjustment_row(
+                        self.env._("Early Payment Discount"), -(amount - settled)
+                    )
+                )
+                continue
+
+            rows.append(payment_row)
+
+        return rows
+
+    def _prepare_receipt_adjustment_row(self, name, amount_invoice):
+        """A receipt row carrying no payment of its own: a discount or write-off."""
+        self.ensure_one()
+        return {
+            "date": False,
+            "name": name,
+            "ref": False,
+            "amount_invoice": amount_invoice,
+            "amount_payment": False,
+            "currency_invoice": self.currency_id,
+            "currency_payment": False,
+        }
+
     def _reconcile_reversed_moves(self, reverse_moves, move_reverse_cancel):
         for reverse_move in reverse_moves:
             move = reverse_move.reversed_entry_id
@@ -5835,6 +5951,22 @@ class AccountMove(models.Model):
                 (False, "form"),
             ],
         }
+
+    def open_reversal_moves(self):
+        self.ensure_one()
+        return self.reversal_move_ids._get_records_action(
+            name=self.env._("Credit Notes")
+            if self.is_sale_document(include_receipts=True)
+            else self.env._("Refunds"),
+        )
+
+    def open_reversed_entry(self):
+        self.ensure_one()
+        return self.reversed_entry_id._get_records_action(
+            name=self.env._("Vendor Bills")
+            if self.is_purchase_document(include_receipts=True)
+            else self.env._("Invoices"),
+        )
 
     def open_adjusting_entries(self):
         self.ensure_one()

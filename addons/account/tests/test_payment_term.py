@@ -1416,3 +1416,32 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 rendered,
                 f"the {scheme} preview must quote what the invoice posts",
             )
+
+    def test_due_date_without_payment_term_follows_the_document_date(self):
+        """A bill with no payment term is due on its own date, not on today."""
+        bill_date = fields.Date.from_string("2021-01-15")
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": bill_date,
+                "invoice_payment_term_id": False,
+                "invoice_line_ids": [
+                    Command.create({"name": "late bill", "price_unit": 100.0}),
+                ],
+            }
+        )
+
+        self.assertFalse(bill.invoice_payment_term_id)
+        self.assertNotEqual(
+            bill_date,
+            fields.Date.context_today(bill),
+            "fixture is wrong: the bill date must differ from today for this"
+            " assertion to distinguish the two fallbacks",
+        )
+        self.assertEqual(
+            bill.invoice_date_due,
+            bill_date,
+            "a bill entered late must be due on its bill date; falling back to"
+            " today makes an already-overdue bill look current in aging",
+        )

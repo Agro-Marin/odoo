@@ -756,9 +756,7 @@ class AccountPayment(models.Model):
     @api.depends("journal_id.currency_id", "company_id.currency_id")
     def _compute_currency_id(self):
         for pay in self:
-            pay.currency_id = (
-                pay.journal_id.currency_id or pay.company_id.currency_id
-            )
+            pay.currency_id = pay.journal_id.currency_id or pay.company_id.currency_id
 
     @api.depends("payment_method_line_id")
     def _compute_outstanding_account_id(self):
@@ -944,8 +942,17 @@ class AccountPayment(models.Model):
             else:
                 pay.reconciled_invoices_type = "invoice"
 
+    @api.depends("payment_type", "partner_type")
     def _compute_payment_receipt_title(self):
-        self.payment_receipt_title = _("Payment Receipt")
+        for pay in self:
+            if pay.payment_type == "outbound" and pay.partner_type == "supplier":
+                pay.payment_receipt_title = _("Remittance Advice")
+            elif (
+                pay.payment_type == "outbound" and pay.partner_type == "customer"
+            ) or (pay.payment_type == "inbound" and pay.partner_type == "supplier"):
+                pay.payment_receipt_title = _("Refund Confirmation")
+            else:
+                pay.payment_receipt_title = _("Payment Receipt")
 
     @api.depends(
         "partner_id",
@@ -1397,9 +1404,7 @@ class AccountPayment(models.Model):
 
     def button_open_bills(self):
         self.ensure_one()
-        return self.reconciled_bill_ids.with_context(
-            create=False
-        )._get_records_action(
+        return self.reconciled_bill_ids.with_context(create=False)._get_records_action(
             name=_("Paid Bills"),
         )
 

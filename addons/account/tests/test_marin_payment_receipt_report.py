@@ -89,3 +89,97 @@ class TestPaymentReceiptReport(AccountTestInvoicingCommon):
         payment.action_post()
         html = self._render(payment)
         self.assertIn(self.partner_a.name, html)
+
+    def test_receipt_title_names_the_kind_of_document(self):
+        """The receipt heading must name the document, not always "Payment Receipt"."""
+        cases = {
+            ("inbound", "customer"): "Payment Receipt",
+            ("outbound", "supplier"): "Remittance Advice",
+            ("outbound", "customer"): "Refund Confirmation",
+            ("inbound", "supplier"): "Refund Confirmation",
+        }
+        for (payment_type, partner_type), expected in cases.items():
+            with self.subTest(payment_type=payment_type, partner_type=partner_type):
+                payment = self.env["account.payment"].create(
+                    {
+                        "payment_type": payment_type,
+                        "partner_type": partner_type,
+                        "partner_id": self.partner_a.id,
+                        "amount": 100.0,
+                    }
+                )
+                self.assertEqual(payment.payment_receipt_title, expected)
+
+    def _epd_invoice(self, amount=1000.0, percentage=10, days=10):
+        term = self.env["account.payment.term"].create(
+            {
+                "name": "10% within 10 days",
+                "early_discount": True,
+                "discount_percentage": percentage,
+                "discount_days": days,
+                "early_pay_discount_computation": "excluded",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "nb_days": 0, "value_amount": 100}
+                    )
+                ],
+            }
+        )
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-06-01",
+                "invoice_payment_term_id": term.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "line",
+                            "price_unit": amount,
+                            "tax_ids": [Command.clear()],
+                        }
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+        return invoice
+
+    def test_receipt_shows_the_early_payment_discount_on_its_own_line(self):
+        """A discounted payment must not read as if it settled the full invoice."""
+        invoice = self._epd_invoice(amount=1000.0, percentage=10)
+        payment_term_line = invoice.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )
+        discounted = payment_term_line.discount_amount_currency
+
+        wizard = (
+            self.env["account.payment.register"]
+            .with_context(active_model="account.move", active_ids=invoice.ids)
+            .create({"payment_date": "2026-06-05"})
+        )
+        payment = wizard._create_payments()
+
+        rows = invoice._get_reconciled_invoices_partials_for_receipt()
+        self.assertEqual(
+            len(rows), 2, "the payment and its discount must be two separate rows"
+        )
+        payment_row, discount_row = rows
+        self.assertEqual(
+            payment_row["amount_invoice"],
+            -discounted,
+            "the payment row must show what was actually settled, not the gross",
+        )
+        self.assertEqual(discount_row["name"], "Early Payment Discount")
+        self.assertEqual(discount_row["amount_invoice"], -100.0)
+        self.assertEqual(
+            invoice.amount_total
+            + payment_row["amount_invoice"]
+            + discount_row["amount_invoice"],
+            invoice.amount_residual,
+            "the rows must reduce the invoice total to the residual printed"
+            " underneath them, otherwise the receipt contradicts itself",
+        )
+
+        html = self._render(payment)
+        self.assertIn("Early Payment Discount", html)
