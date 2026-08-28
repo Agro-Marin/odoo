@@ -732,6 +732,10 @@ class AccountMove(models.Model):
         check_company=True,
     )
     reversal_move_ids = fields.One2many("account.move", "reversed_entry_id")
+    reversal_move_count = fields.Count(
+        "reversal_move_ids",
+        string="Reversal Moves Count",
+    )
 
     invoice_vendor_bill_id = fields.Many2one(
         "account.move",
@@ -5834,6 +5838,22 @@ class AccountMove(models.Model):
                 (False, "form"),
             ],
         }
+
+    def open_reversal_moves(self):
+        self.ensure_one()
+        return self.reversal_move_ids._get_records_action(
+            name=self.env._("Credit Notes")
+            if self.is_sale_document(include_receipts=True)
+            else self.env._("Refunds"),
+        )
+
+    def open_reversed_entry(self):
+        self.ensure_one()
+        return self.reversed_entry_id._get_records_action(
+            name=self.env._("Vendor Bills")
+            if self.is_purchase_document(include_receipts=True)
+            else self.env._("Invoices"),
+        )
 
     def open_adjusting_entries(self):
         self.ensure_one()

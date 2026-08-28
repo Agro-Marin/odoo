@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo import Command, fields
 from odoo.tests import tagged
 
@@ -61,3 +63,43 @@ class TestAccountMoveReversal(AccountTestInvoicingCommon):
             "the chatter of a reversed entry must name the entry that reversed it,"
             " otherwise the only way to find it is a filtered search",
         )
+
+    def test_invoice_and_its_credit_notes_reach_each_other(self):
+        """Both ends of a reversal must be one click away on the form."""
+        invoice = self.init_invoice("out_invoice", products=self.product_a, post=True)
+
+        wizard = self.env["account.move.reversal"].create(
+            {
+                "move_ids": invoice.ids,
+                "date": invoice.date,
+                "journal_id": invoice.journal_id.id,
+            }
+        )
+        credit_note = self.env["account.move"].browse(wizard.refund_moves()["res_id"])
+
+        self.assertEqual(invoice.reversal_move_count, 1)
+        self.assertEqual(
+            self.env["account.move"].browse(invoice.open_reversal_moves()["res_id"]),
+            credit_note,
+            "the invoice must offer its credit note",
+        )
+        self.assertEqual(
+            self.env["account.move"].browse(
+                credit_note.open_reversed_entry()["res_id"]
+            ),
+            invoice,
+            "the credit note must offer the invoice it reverses",
+        )
+
+    def test_reversal_stat_buttons_are_on_the_move_form(self):
+        """The actions are unreachable unless the form actually carries them."""
+        arch = etree.fromstring(
+            self.env["account.move"].get_view(
+                self.env.ref("account.view_move_form").id, "form"
+            )["arch"]
+        )
+        for action in ("open_reversal_moves", "open_reversed_entry"):
+            self.assertTrue(
+                arch.xpath(f"//button[@name='{action}']"),
+                f"{action} must be reachable from the move form",
+            )

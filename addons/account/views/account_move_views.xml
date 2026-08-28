@@ -807,6 +807,30 @@
                                 invisible="adjusting_entry_origin_moves_count == 1"
                                 string="Invoices" widget="statinfo" />
                         </button>
+                        <button name="open_reversal_moves"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-pencil-square-o"
+                            invisible="not reversal_move_count">
+                            <field name="reversal_move_count" string="Credit Notes"
+                                widget="statinfo"
+                                invisible="move_type not in ('out_invoice', 'out_receipt')" />
+                            <field name="reversal_move_count" string="Refunds"
+                                widget="statinfo"
+                                invisible="move_type in ('out_invoice', 'out_receipt')" />
+                        </button>
+                        <button name="open_reversed_entry"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-pencil-square-o"
+                            invisible="not reversed_entry_id or move_type == 'entry'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text"
+                                    invisible="move_type in ('in_refund', 'in_receipt')">Invoice</span>
+                                <span class="o_stat_text"
+                                    invisible="move_type not in ('in_refund', 'in_receipt')">Vendor Bill</span>
+                            </div>
+                        </button>
                     </div>
 
                     <widget name="web_ribbon" title="Sent"
