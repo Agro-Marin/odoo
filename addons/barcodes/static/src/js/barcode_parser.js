@@ -184,12 +184,12 @@ export class BarcodeParser {
                 pattern.substr(start + numericGroup[0].length);
         }
 
-        // `String.match` is unanchored where Python's `re.match` is not, so
-        // every alternation branch gets its own '^'.
-        const anchored = pattern
-            .split("|")
-            .map((part) => (part.startsWith("^") ? part : "^" + part))
-            .join("|");
+        // `String.match` is unanchored where Python's `re.match` is not.
+        // Wrap the whole pattern once instead of splitting on every `|`:
+        // splitting cuts through alternation nested inside a group (e.g.
+        // "21(a|b)3" -> "^21(a|^b)3"), stitching a stray '^' into the middle
+        // of the group and making the second branch unmatchable.
+        const anchored = "^(?:" + pattern + ")";
         match.match = Boolean(match.base_code.match(anchored));
 
         return match;
