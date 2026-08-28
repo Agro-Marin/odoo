@@ -76,6 +76,55 @@ class TestEncryptionMixin(TransactionCase):
     def test_the_key_version_resolves_on_a_bare_install(self):
         self.assertIsInstance(self.mixin._get_current_encryption_key_version(), int)
 
+    @mute_logger("odoo.addons.base_encryption_mixin.models.mixin_encryption")
+    def test_a_malformed_current_key_still_falls_back_to_an_old_one(self):
+        old_key = Fernet.generate_key().decode()
+        with patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": old_key}):
+            self.mixin._invalidate_key_version_cache()
+            token = self.mixin._encrypt_value("rotated-secret")
+
+        with patch.dict(
+            os.environ,
+            {
+                "ODOO_API_ENCRYPTION_KEY": "not-a-valid-fernet-key",
+                "ODOO_API_ENCRYPTION_KEY_V1": old_key,
+            },
+        ):
+            self.mixin._invalidate_key_version_cache()
+            # A malformed *current* key says nothing about old keys, so the
+            # fallback loop must still run and succeed.
+            self.assertEqual(self.mixin._decrypt_value(token), "rotated-secret")
+        self.mixin._invalidate_key_version_cache()
+
+    @mute_logger("odoo.addons.base_encryption_mixin.models.mixin_encryption")
+    def test_a_malformed_current_key_raises_when_no_old_key_works(self):
+        token = self.mixin._encrypt_value("no-fallback-available")
+        with patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": "still-not-valid"}):
+            self.mixin._invalidate_key_version_cache()
+            with self.assertRaises(ValidationError):
+                self.mixin._decrypt_value(token)
+        self.mixin._invalidate_key_version_cache()
+
+    @mute_logger("odoo.addons.base_encryption_mixin.models.mixin_encryption")
+    def test_a_malformed_current_key_honours_fallback_disabled(self):
+        token = self.mixin._encrypt_value("fallback-disabled-secret")
+        with (
+            patch.object(type(self.mixin), "_allow_key_fallback", return_value=False),
+            patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": "still-not-valid"}),
+        ):
+            self.mixin._invalidate_key_version_cache()
+            with self.assertRaises(ValidationError) as caught:
+                self.mixin._decrypt_value(token)
+            self.assertIn("fallback disabled", str(caught.exception))
+        self.mixin._invalidate_key_version_cache()
+
+    def test_an_absent_current_key_still_returns_false_quietly(self):
+        with patch.dict(os.environ, clear=False) as env:
+            env.pop("ODOO_API_ENCRYPTION_KEY", None)
+            self.mixin._invalidate_key_version_cache()
+            self.assertFalse(self.mixin._decrypt_value(b"gAAAAA-anything"))
+        self.mixin._invalidate_key_version_cache()
+
     def test_the_walker_reports_consumers_never_the_mixin(self):
         discovered = self.mixin._get_encryption_migration_models()
         self.assertNotIn("mixin.encryption", discovered)
