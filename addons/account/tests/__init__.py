@@ -83,6 +83,7 @@ from . import test_res_partner_merge
 from . import test_account_merge_wizard
 from . import test_account_move_attachment
 from . import test_account_move_view
+from . import test_inactive_account_ui
 from . import test_account_bill_deductibility
 from . import test_duplicate_res_partner_bank
 from . import test_res_partner_bank_trust

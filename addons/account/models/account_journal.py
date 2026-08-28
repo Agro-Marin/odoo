@@ -194,6 +194,10 @@ class AccountJournal(models.Model):
         string="Default Account",
         domain=_domain_default_account_id,
     )
+    default_account_active = fields.Boolean(
+        related="default_account_id.active",
+        string="Default Account Active",
+    )
     suspense_account_id = fields.Many2one(
         comodel_name="account.account",
         check_company=True,
@@ -206,6 +210,10 @@ class AccountJournal(models.Model):
         string="Suspense Account",
         domain="[('account_type', '=', 'asset_current')]",
     )
+    suspense_account_active = fields.Boolean(
+        related="suspense_account_id.active",
+        string="Suspense Account Active",
+    )
     non_deductible_account_id = fields.Many2one(
         comodel_name="account.account",
         check_company=True,
@@ -213,6 +221,10 @@ class AccountJournal(models.Model):
         readonly=False,
         store=True,
         help="Account used to register the private part of mixed expenses.",
+    )
+    non_deductible_account_active = fields.Boolean(
+        related="non_deductible_account_id.active",
+        string="Private Share Account Active",
     )
     restrict_mode_hash_table = fields.Boolean(
         string="Secure Posted Entries with Hash",
@@ -331,12 +343,20 @@ class AccountJournal(models.Model):
         string="Profit Account",
         domain="[('account_type', 'in', ('income', 'income_other'))]",
     )
+    profit_account_active = fields.Boolean(
+        related="profit_account_id.active",
+        string="Profit Account Active",
+    )
     loss_account_id = fields.Many2one(
         comodel_name="account.account",
         check_company=True,
         help="Used to register a loss when the ending balance of a cash register differs from what the system computes",
         string="Loss Account",
         domain="[('account_type', '=', 'expense')]",
+    )
+    loss_account_active = fields.Boolean(
+        related="loss_account_id.active",
+        string="Loss Account Active",
     )
 
     company_partner_id = fields.Many2one(
@@ -910,9 +930,7 @@ class AccountJournal(models.Model):
                     )
                 )
 
-    @api.constrains(
-        "inbound_payment_channel_ids", "outbound_payment_channel_ids"
-    )
+    @api.constrains("inbound_payment_channel_ids", "outbound_payment_channel_ids")
     def _check_payment_channel_ids_multiplicity(self):
         (
             pay_methods,

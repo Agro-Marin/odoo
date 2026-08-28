@@ -34,6 +34,10 @@ class ResConfigSettings(models.TransientModel):
         check_company=True,
         domain="[('internal_group', '=', 'income')]",
     )
+    income_currency_exchange_account_active = fields.Boolean(
+        related="income_currency_exchange_account_id.active",
+        string="Gain Exchange Rate Account Active",
+    )
     expense_currency_exchange_account_id = fields.Many2one(
         comodel_name="account.account",
         related="company_id.expense_currency_exchange_account_id",
@@ -41,6 +45,10 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
         check_company=True,
         domain="[('account_type', 'in', ('expense', 'expense_other'))]",
+    )
+    expense_currency_exchange_account_active = fields.Boolean(
+        related="expense_currency_exchange_account_id.active",
+        string="Loss Exchange Rate Account Active",
     )
     has_chart_of_accounts = fields.Boolean(
         compute="_compute_accounting_presence",
@@ -88,6 +96,10 @@ class ResConfigSettings(models.TransientModel):
         "Their counterparty is the bank suspense account.\n"
         "Reconciliation replaces the latter by the definitive account(s).",
     )
+    account_journal_suspense_account_active = fields.Boolean(
+        related="account_journal_suspense_account_id.active",
+        string="Bank Suspense Account Active",
+    )
     transfer_account_id = fields.Many2one(
         "account.account",
         string="Internal Transfer",
@@ -99,6 +111,10 @@ class ResConfigSettings(models.TransientModel):
             ("account_type", "=", "asset_current"),
         ],
         help="Intermediary account used when moving from a liquidity account to another.",
+    )
+    transfer_account_active = fields.Boolean(
+        related="transfer_account_id.active",
+        string="Internal Transfer Account Active",
     )
     module_account_accountant = fields.Boolean(string="Accounting")
     group_cash_rounding = fields.Boolean(
@@ -157,6 +173,10 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
         check_company=True,
         related="company_id.account_cash_basis_base_account_id",
+    )
+    account_cash_basis_base_account_active = fields.Boolean(
+        related="account_cash_basis_base_account_id.active",
+        string="Base Tax Received Account Active",
     )
     account_fiscal_country_id = fields.Many2one(
         string="Fiscal Country Code",
@@ -263,6 +283,10 @@ class ResConfigSettings(models.TransientModel):
         check_company=True,
         domain="[('account_type', 'in', ('expense', 'expense_other', 'income', 'income_other'))]",
     )
+    account_journal_early_pay_discount_loss_account_active = fields.Boolean(
+        related="account_journal_early_pay_discount_loss_account_id.active",
+        string="Early Discount Loss Account Active",
+    )
     account_journal_early_pay_discount_gain_account_id = fields.Many2one(
         comodel_name="account.account",
         string="Early Discount Gain",
@@ -272,6 +296,10 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.account_journal_early_pay_discount_gain_account_id",
         domain="[('account_type', 'in', ('income', 'income_other', 'expense', 'expense_other'))]",
     )
+    account_journal_early_pay_discount_gain_account_active = fields.Boolean(
+        related="account_journal_early_pay_discount_gain_account_id.active",
+        string="Early Discount Gain Account Active",
+    )
 
     account_discount_income_allocation_id = fields.Many2one(
         comodel_name="account.account",
@@ -280,12 +308,20 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.account_discount_income_allocation_id",
         domain="[('account_type', 'in', ('income', 'income_other', 'expense', 'expense_other'))]",
     )
+    account_discount_income_allocation_active = fields.Boolean(
+        related="account_discount_income_allocation_id.active",
+        string="Vendor Bills Discounts Account Active",
+    )
     account_discount_expense_allocation_id = fields.Many2one(
         comodel_name="account.account",
         string="Customer Invoices Discounts Account",
         readonly=False,
         related="company_id.account_discount_expense_allocation_id",
         domain="[('account_type', 'in', ('income', 'income_other', 'expense', 'expense_other'))]",
+    )
+    account_discount_expense_allocation_active = fields.Boolean(
+        related="account_discount_expense_allocation_id.active",
+        string="Customer Invoices Discounts Account Active",
     )
 
     is_account_peppol_eligible = fields.Boolean(
@@ -310,10 +346,18 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
         check_company=True,
     )
+    income_account_active = fields.Boolean(
+        related="income_account_id.active",
+        string="Income Account Active",
+    )
     expense_account_id = fields.Many2one(
         related="company_id.expense_account_id",
         readonly=False,
         check_company=True,
+    )
+    expense_account_active = fields.Boolean(
+        related="expense_account_id.active",
+        string="Expense Account Active",
     )
 
     @api.depends("country_code")
