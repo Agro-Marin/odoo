@@ -1265,7 +1265,6 @@ class AccountMove(models.Model):
 
     @api.depends("needed_terms")
     def _compute_invoice_date_due(self):
-        today = fields.Date.context_today(self)
         for move in self:
             move.invoice_date_due = (
                 (
@@ -1280,7 +1279,7 @@ class AccountMove(models.Model):
                     )
                 )
                 or move.invoice_date_due
-                or today
+                or move.invoice_date
             )
 
     def _compute_delivery_date(self):
