@@ -84,15 +84,21 @@ class TestGeocoderEdges(TransactionCase):
         super().setUpClass()
         cls.Geocoder = cls.env["base.geocoder"]
 
-    def test_googlemap_query_reorders_comma_of_countries(self):
-        """'X, Republic of'-style countries are flipped for Google queries."""
+    def test_googlemap_query_passes_country_through_unchanged(self):
+        """Google query building is a plain passthrough to the default join.
+
+        No `res.country.name` in this fork's data ever has the comma+"of"
+        shape the old special-case handled (see audit finding GEO-11), so the
+        method behaves identically to `_geo_query_address_default`.
+        """
         query = self.Geocoder._geo_query_address_googlemap(
             city="Kinshasa", country="Congo, Democratic Republic of the"
         )
-        self.assertIn("Democratic Republic of the Congo", query)
-        self.assertNotIn("Congo,", query)
-        self.assertNotIn(
-            "  ", query, "flipped country name must not leave a double space"
+        self.assertEqual(
+            query,
+            self.Geocoder._geo_query_address_default(
+                city="Kinshasa", country="Congo, Democratic Republic of the"
+            ),
         )
 
     def test_googlemap_force_country_resolves_to_iso_code(self):
