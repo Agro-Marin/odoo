@@ -649,6 +649,33 @@ class IrModuleModule(models.Model):
                     mod["website"] = (
                         f"{APPS_URL}/apps/modules/{major_version}/{module_name}/"
                     )
+            if domain:
+                # t27114: `domain` is forwarded to apps.odoo.com above, but
+                # fields computed only locally (e.g. `state`, just set from
+                # local install status) can never be filtered by the remote
+                # server. Re-apply the domain locally against those
+                # now-known values before returning. `category_id` is
+                # excluded: it does not exist on these modules and was
+                # already applied server-side (same caveat as upstream).
+                domain_without_category = Domain(domain).map_conditions(
+                    lambda c: Domain.TRUE if c.field_expr == "category_id" else c
+                )
+                new_records = self.browse()
+                for mod in modules_list:
+                    new_records += self.new(
+                        {k: v for k, v in mod.items() if k in self._fields}
+                    )
+                # `.ids` resolves to real/origin ids and is empty for pure
+                # `.new()` records (no origin) — use the raw `._ids` tuple
+                # (NewId objects) to match filtered_domain()'s own result.
+                kept_ids = set(
+                    new_records.filtered_domain(domain_without_category)._ids
+                )
+                modules_list = [
+                    mod
+                    for mod, rec_id in zip(modules_list, new_records._ids, strict=True)
+                    if rec_id in kept_ids
+                ]
             return modules_list
         except requests.exceptions.HTTPError:
             raise UserError(
