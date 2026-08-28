@@ -8,7 +8,6 @@
         <field name="provider">Custom</field>
         <field name="endpoint_url">https://api.example.com</field>
         <field name="auth_type">bearer</field>
-        <field name="request_format">json</field>
         <field name="health_check_enabled" eval="False" />
         <field name="description">Generic service for custom API integrations</field>
     </record>
@@ -23,7 +22,6 @@
         <field name="endpoint_url">https://api.stripe.com</field>
         <field name="endpoint_url_test">https://api.stripe.com</field>
         <field name="auth_type">bearer</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_requests">100</field>
         <field name="rate_limit_period">second</field>
     </record>
@@ -37,7 +35,6 @@
         <field name="documentation_url">https://www.twilio.com/docs/sms/api</field>
         <field name="endpoint_url">https://api.twilio.com</field>
         <field name="auth_type">basic</field>
-        <field name="request_format">form</field>
     </record>
 
 </odoo>

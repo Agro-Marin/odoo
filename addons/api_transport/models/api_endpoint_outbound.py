@@ -79,15 +79,6 @@ class ApiEndpointOutbound(models.Model):
         "way — in the URL path, or in a header of its own name — where the "
         "generic pair is at best ignored and at worst rejected.",
     )
-    request_format = fields.Selection(
-        selection=[
-            ("json", "JSON"),
-            ("form", "Form-encoded"),
-            ("xml", "XML"),
-            ("graphql", "GraphQL"),
-        ],
-        default="json",
-    )
     auth_type = fields.Selection(
         selection_add=[
             ("basic", "Basic Authentication"),

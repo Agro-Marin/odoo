@@ -77,7 +77,6 @@ Real-World Use Cases:
         <field name="api_version_header">anthropic-version</field>
         <field name="auth_type">api_key</field>
         <field name="api_key_header">x-api-key</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="50" />
         <field name="rate_limit_period">minute</field>
@@ -175,7 +174,6 @@ Limitations:
         <field name="endpoint_url">https://api.deepseek.com/v1</field>
         <field name="api_version">v1</field>
         <field name="auth_type">bearer</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="60" />
         <field name="rate_limit_period">minute</field>
@@ -231,7 +229,6 @@ Use Cases:
         <field name="endpoint_url">https://api.openai.com/v1</field>
         <field name="api_version">v1</field>
         <field name="auth_type">bearer</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="60" />
         <field name="rate_limit_period">minute</field>
@@ -291,7 +288,6 @@ Use Cases:
         <field name="send_version_headers" eval="False" />
         <field name="auth_type">api_key</field>
         <field name="api_key_header">x-goog-api-key</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="60" />
         <field name="rate_limit_period">minute</field>
@@ -344,7 +340,6 @@ API Documentation: https://developers.deepgram.com/docs</field>
         <field name="endpoint_url">https://api.deepgram.com/v1</field>
         <field name="api_version">v1</field>
         <field name="auth_type">api_key</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="100" />
         <field name="rate_limit_period">minute</field>
@@ -369,7 +364,6 @@ API Documentation: https://developers.deepgram.com/docs</field>
         <field name="documentation_url">https://console.groq.com/docs</field>
         <field name="endpoint_url">https://api.groq.com/openai/v1</field>
         <field name="auth_type">bearer</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="60" />
         <field name="rate_limit_period">minute</field>
@@ -393,7 +387,6 @@ API Documentation: https://developers.deepgram.com/docs</field>
         <field name="documentation_url">https://platform.moonshot.ai/docs</field>
         <field name="endpoint_url">https://api.moonshot.ai/v1</field>
         <field name="auth_type">bearer</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="60" />
         <field name="rate_limit_period">minute</field>
@@ -419,7 +412,6 @@ API Documentation: https://developers.deepgram.com/docs</field>
         <field
             name="endpoint_url">https://generativelanguage.googleapis.com/v1beta/openai</field>
         <field name="auth_type">bearer</field>
-        <field name="request_format">json</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="60" />
         <field name="rate_limit_period">minute</field>

@@ -5,7 +5,7 @@ from odoo.libs.logging import mute_logger
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.api_transport.tools.exceptions import CommError
-from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 class TestApiEndpointOutbound(TransactionCase):
@@ -113,17 +113,6 @@ class TestApiEndpointOutbound(TransactionCase):
                 environment=env,
             )
             self.assertEqual(service.environment, env)
-
-    def test_request_format_selection(self):
-        formats = ["json", "form", "xml", "graphql"]
-
-        for i, fmt in enumerate(formats):
-            service = self._create_service(
-                code=f"format_service_{i}",
-                name=f"Service {i}",
-                request_format=fmt,
-            )
-            self.assertEqual(service.request_format, fmt)
 
     def test_timeout_defaults(self):
         service = self._create_service(code="timeout_test")
