@@ -56,13 +56,6 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
         "it against the python-magic path, so it must name the implementation.",
     ),
     Known(
-        "odoo/addons/test_http/utils.py",
-        "odoo.libs._vendor.sessions",
-        "SessionStore from the vendored werkzeug session code. _vendor is "
-        "third-party source kept verbatim; giving it a curated façade would "
-        "imply a stability promise the vendor makes, not us.",
-    ),
-    Known(
         "odoo/tools/sass_embedded.py",
         "odoo.libs._vendor.embedded_sass_pb2",
         "Generated protobuf bindings for the Dart Sass embedded protocol. Same "
@@ -105,8 +98,9 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
         "odoo/http/tests/test_session_store.py",
         "odoo.libs._vendor.sessions",
         "_fs_transaction_suffix from the vendored werkzeug session store, needed "
-        "to assert the tmp-file vacuum reaps orphans. Same _vendor reasoning as "
-        "test_http/utils.py: the vendored source has no curated area façade.",
+        "to assert the tmp-file vacuum reaps orphans. _vendor is third-party "
+        "source kept verbatim; giving it a curated façade would imply a "
+        "stability promise the vendor makes, not us.",
     ),
 )
 

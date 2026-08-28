@@ -379,7 +379,7 @@ Adding `mrp` repaired a suite nobody ran: `3bcf5d144f9` deleted
 missed `addons/mrp/tests/test_order.py`, which asserts on it, and left that test
 erroring — every assertion after the failing line unexecuted.
 
-Still outside the lane, in the order worth taking: `test_read_group` (122 test
+Still outside the lane, in the order worth taking: `test_read_group` (123 test
 methods, the only coverage of the five `read_group/` units) and
 `test_access_rights` (54, record rules and ACLs).
 

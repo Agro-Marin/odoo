@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0+e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-24 08:20+0000\n"
-"PO-Revision-Date: 2026-08-24 08:20+0000\n"
+"POT-Creation-Date: 2026-08-27 21:59+0000\n"
+"PO-Revision-Date: 2026-08-27 21:59+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -140,6 +140,40 @@ msgstr ""
 
 #. module: account
 #. odoo-python
+#: code:addons/account/models/account_reconcile_model.py:0
+msgid ""
+"%(model)s: %(value)s is not a valid amount. Write a finite number, for "
+"example 100 or 12,5."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_reconcile_model.py:0
+msgid "%(model)s: the amount of a %(kind)s line cannot be zero."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_reconcile_model.py:0
+msgid "%(model)s: the amount regex is not valid."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_reconcile_model.py:0
+msgid ""
+"%(model)s: the label filter is set to %(mode)s but no text was given, so the"
+" model would never match anything."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_reconcile_model.py:0
+msgid "%(model)s: the label regex is not valid."
+msgstr ""
+
+#. module: account
+#. odoo-python
 #: code:addons/account/models/account_bank_statement_line.py:0
 msgid ""
 "%(move)s reached an invalid state regarding its related statement line.\n"
@@ -178,6 +212,14 @@ msgstr ""
 #. odoo-python
 #: code:addons/account/models/account_move.py:0
 msgid "%(partner_name)s has reached its credit limit of: %(credit_limit)s"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/product.py:0
+msgid ""
+"%(product)s is already used on posted journal entries.\n"
+"To change its Unit of Measure, archive it and create a new product."
 msgstr ""
 
 #. module: account
@@ -3542,12 +3584,6 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_reconcile_model.py:0
-msgid "Balance percentage can't be 0"
-msgstr ""
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_journal.py:0
 #: code:addons/account/models/chart_template.py:0
 #: model:account.account,name:account.1_bank_journal_default_account_47
@@ -3951,6 +3987,11 @@ msgstr ""
 #: model:account.account,name:account.1_to_receive_pay
 #: model:account.account,name:account.2_account_account_us_to_receive_pay
 msgid "Bills to receive"
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,help:account.field_account_payment__reconciled_bill_ids
+msgid "Bills whose journal items have been reconciled with these payments."
 msgstr ""
 
 #. module: account
@@ -4370,7 +4411,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_partial_reconcile.py:0
+#: code:addons/account/models/account_partial_reconcile_cash_basis.py:0
 msgid ""
 "Cash-basis taxes cannot be allocated for %(move)s because its company-"
 "currency payment total is zero."
@@ -4378,7 +4419,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_partial_reconcile.py:0
+#: code:addons/account/models/account_partial_reconcile_cash_basis.py:0
 msgid ""
 "Cash-basis taxes cannot be allocated for %(move)s because its foreign-"
 "currency payment total is zero."
@@ -4756,11 +4797,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_account__company_fiscal_country_code
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__fiscal_country_codes
 msgid "Company Fiscal Country Code"
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_res_company__company_registry_placeholder
-msgid "Company Registry Placeholder"
 msgstr ""
 
 #. module: account
@@ -6516,6 +6552,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_mixin_account_document_import__display_name
 #: model:ir.model.fields,field_description:account.field_mixin_account_move_send__display_name
 #: model:ir.model.fields,field_description:account.field_mixin_default_read_fields__display_name
+#: model:ir.model.fields,field_description:account.field_mixin_fiscal_country_codes__display_name
+#: model:ir.model.fields,field_description:account.field_mixin_payment_qr_code__display_name
 #: model:ir.model.fields,field_description:account.field_mixin_product_catalog__display_name
 #: model:ir.model.fields,field_description:account.field_mixin_sequence__display_name
 #: model:ir.model.fields,field_description:account.field_onboarding_onboarding_step__display_name
@@ -7279,11 +7317,6 @@ msgid "Example Amount"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_invalid
-msgid "Example Invalid"
-msgstr ""
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_payment_term__example_preview
 msgid "Example Preview"
 msgstr ""
@@ -7618,7 +7651,9 @@ msgid "Fiscal Country Code"
 msgstr ""
 
 #. module: account
+#: model:ir.model,name:account.model_mixin_fiscal_country_codes
 #: model:ir.model.fields,field_description:account.field_account_payment_term__fiscal_country_codes
+#: model:ir.model.fields,field_description:account.field_mixin_fiscal_country_codes__fiscal_country_codes
 #: model:ir.model.fields,field_description:account.field_product_product__fiscal_country_codes
 #: model:ir.model.fields,field_description:account.field_product_template__fiscal_country_codes
 #: model:ir.model.fields,field_description:account.field_res_currency__fiscal_country_codes
@@ -8455,6 +8490,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_mixin_account_document_import__id
 #: model:ir.model.fields,field_description:account.field_mixin_account_move_send__id
 #: model:ir.model.fields,field_description:account.field_mixin_default_read_fields__id
+#: model:ir.model.fields,field_description:account.field_mixin_fiscal_country_codes__id
+#: model:ir.model.fields,field_description:account.field_mixin_payment_qr_code__id
 #: model:ir.model.fields,field_description:account.field_mixin_product_catalog__id
 #: model:ir.model.fields,field_description:account.field_mixin_sequence__id
 #: model:ir.model.fields,field_description:account.field_onboarding_onboarding_step__id
@@ -9124,8 +9161,8 @@ msgstr ""
 #. odoo-python
 #: code:addons/account/models/account_report.py:0
 msgid ""
-"Invalid domain formula %(formula)r on report line %(line)r. Expected the "
-"form 'sum(<domain>)' (optionally '-sum(<domain>)')."
+"Invalid domain formula '%(formula)s' on report line '%(line)s'. Expected the"
+" form 'sum(<domain>)' (optionally '-sum(<domain>)')."
 msgstr ""
 
 #. module: account
@@ -9464,7 +9501,6 @@ msgid "Invoices to Validate"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment__reconciled_bill_ids
 #: model:ir.model.fields,help:account.field_account_payment__reconciled_invoice_ids
 msgid "Invoices whose journal items have been reconciled with these payments."
 msgstr ""
@@ -9602,6 +9638,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__is_move_sent
 #: model:ir.model.fields,field_description:account.field_account_move__is_move_sent
 msgid "Is Move Sent"
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__is_purchase
+msgid "Is Purchase"
 msgstr ""
 
 #. module: account
@@ -9819,6 +9860,24 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account.view_account_move_line_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_move_line_payment_filter
 msgid "Journal Item"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_move_line.py:0
+msgid "Journal Item %s created"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_move_line.py:0
+msgid "Journal Item %s deleted"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_move_line.py:0
+msgid "Journal Item %s updated"
 msgstr ""
 
 #. module: account
@@ -11185,7 +11244,7 @@ msgstr ""
 #. module: account
 #. odoo-python
 #: code:addons/account/models/account_journal.py:0
-msgid "No default account can be created for a journal of type %r."
+msgid "No default account can be created for a journal of type %s."
 msgstr ""
 
 #. module: account
@@ -12172,12 +12231,6 @@ msgid "Partner"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_res_partner__partner_company_registry_placeholder
-#: model:ir.model.fields,field_description:account.field_res_users__partner_company_registry_placeholder
-msgid "Partner Company Registry Placeholder"
-msgstr ""
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_partner__contract_ids
 #: model:ir.model.fields,field_description:account.field_res_users__contract_ids
 msgid "Partner Contracts"
@@ -12385,6 +12438,11 @@ msgstr ""
 #: model:ir.model,name:account.model_account_payment_method_line
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
 msgid "Payment Methods"
+msgstr ""
+
+#. module: account
+#: model:ir.model,name:account.model_mixin_payment_qr_code
+msgid "Payment QR Code Rendering"
 msgstr ""
 
 #. module: account
@@ -13632,6 +13690,16 @@ msgid "Require Partner Bank Account"
 msgstr ""
 
 #. module: account
+#: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__res_ids
+msgid "Res"
+msgstr ""
+
+#. module: account
+#: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__res_model
+msgid "Res Model"
+msgstr ""
+
+#. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__res_partner_bank_id
 msgid "Res Partner Bank"
 msgstr ""
@@ -14101,8 +14169,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_payment.py:0
-#: code:addons/account/wizard/account_payment_register.py:0
+#: code:addons/account/models/mixin_payment_qr_code.py:0
 msgid "Scan me with your banking app."
 msgstr ""
 
@@ -14288,6 +14355,12 @@ msgstr ""
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Select specific invoice and delivery addresses"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/wizard/accrued_orders.py:0
+msgid "Select the orders to accrue first."
 msgstr ""
 
 #. module: account
@@ -14500,6 +14573,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_move_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_payment_term__sequence
+#: model:ir.model.fields,field_description:account.field_account_payment_term_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__sequence
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_report__sequence
@@ -14965,12 +15039,6 @@ msgstr ""
 #. module: account
 #: model:ir.ui.menu,name:account.menu_account_reports_statements
 msgid "Statement Reports"
-msgstr ""
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_reconcile_model.py:0
-msgid "Statement line percentage can't be 0"
 msgstr ""
 
 #. module: account
@@ -15587,6 +15655,11 @@ msgid ""
 msgstr ""
 
 #. module: account
+#: model:ir.model.fields,field_description:account.field_account_payment_term__example_tax_amount
+msgid "Tax in the example"
+msgstr ""
+
+#. module: account
 #: model:ir.model.fields,field_description:account.field_account_tax__is_used
 msgid "Tax used"
 msgstr ""
@@ -15969,12 +16042,6 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_reconcile_model.py:0
-msgid "The amount is not a number"
-msgstr ""
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_journal.py:0
 msgid ""
 "The bank account of a bank journal must belong to the same company (%s)."
@@ -16148,12 +16215,6 @@ msgstr ""
 #. module: account
 #. odoo-python
 #: code:addons/account/models/account_payment_term.py:0
-msgid "The days added must be a number and has to be between 0 and 31."
-msgstr ""
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
 msgid "The days added must be between 0 and 31."
 msgstr ""
 
@@ -16258,6 +16319,14 @@ msgstr ""
 msgid ""
 "The following entries are unbalanced:\n"
 "\n"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/wizard/account_validate_account_move.py:0
+msgid ""
+"The following entries were not posted because they are hash-restricted: "
+"%(moves)s. Check the 'Force' option to post them anyway."
 msgstr ""
 
 #. module: account
@@ -16459,7 +16528,7 @@ msgstr ""
 #: model:ir.model.fields,help:account.field_account_reconcile_model__match_label
 msgid ""
 "The reconciliation model will only be applied when either the statement line label, the transaction details or the note matches the following:\n"
-"        * Contains: The statement line must contains this string (case insensitive).\n"
+"        * Contains: The statement line must contains this string (case insensitive). It is matched literally, so % and _ carry no special meaning.\n"
 "        * Not Contains: Negation of \"Contains\".\n"
 "        * Match Regex: Define your own regular expression."
 msgstr ""
@@ -16481,12 +16550,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/account/models/account_move.py:0
 msgid "The recurrence will end on %s (included)."
-msgstr ""
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_reconcile_model.py:0
-msgid "The regex is not valid"
 msgstr ""
 
 #. module: account
@@ -16778,7 +16841,7 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_partial_reconcile.py:0
+#: code:addons/account/models/account_partial_reconcile_cash_basis.py:0
 msgid ""
 "There is no tax cash basis journal defined for the '%s' company.\n"
 "Configure it in Accounting/Configuration/Settings"
@@ -17080,14 +17143,6 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/product.py:0
-msgid ""
-"This product is already being used in posted Journal Entries.\n"
-"If you want to change its Unit of Measure, please archive this product and create a new one."
-msgstr ""
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_reconcile_model.py:0
 msgid "This reconciliation model has created no entry so far"
 msgstr ""
@@ -17320,14 +17375,6 @@ msgid "Total Receivable"
 msgstr ""
 
 #. module: account
-#. odoo-python
-#: code:addons/account/models/res_partner.py:0
-msgid ""
-"Total Receivable/Payable can only be filtered with a numeric comparison (<, "
-"<=, =, >, >=) against an amount."
-msgstr ""
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_move_line_list
 #: model_terms:ir.ui.view,arch_db:account.view_move_line_payment_tree
 msgid "Total Residual"
@@ -17530,8 +17577,8 @@ msgstr ""
 #. module: account
 #: model:ir.model.fields,help:account.field_account_payment_term__is_immediate
 msgid ""
-"True when the payment term has a single line requiring 100% payment with 0 "
-"days due."
+"True when the whole amount falls due on the invoice date itself: a single "
+"100% line, no delay, counted from the invoice date."
 msgstr ""
 
 #. module: account
@@ -17656,7 +17703,7 @@ msgstr ""
 #. module: account
 #. odoo-python
 #: code:addons/account/models/account_journal.py:0
-msgid "Unknown journal type %r, cannot generate a default code."
+msgid "Unknown journal type '%s', cannot generate a default code."
 msgstr ""
 
 #. module: account
@@ -18073,7 +18120,7 @@ msgstr ""
 #: model:ir.model.fields,help:account.field_account_reconcile_model_line__amount_string
 msgid ""
 "Value for the amount of the writeoff line\n"
-"    * Percentage: Percentage of the balance, between 0 and 100.\n"
+"    * Percentage: Percentage of the balance. Either separator convention is accepted, so 12,5 and 12.5 both read as 12.5.\n"
 "    * Fixed: The fixed value of the writeoff. The amount will count as a debit if it is negative, as a credit if it is positive.\n"
 "    * From Label: There is no need for regex delimiter, only the regex is needed. For instance if you want to extract the amount from\n"
 "R:9672938 10/07 AX 9415126318 T:5L:NA BRT: 3358,07 C:\n"
@@ -19422,6 +19469,11 @@ msgid ""
 msgstr ""
 
 #. module: account
+#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
+msgid "including"
+msgstr ""
+
+#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/account_batch_sending_summary/account_batch_sending_summary.xml:0
 msgid "invoice(s)"
@@ -19558,6 +19610,11 @@ msgstr ""
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_tax_repartition_line__tag_ids_domain
 msgid "tag domain"
+msgstr ""
+
+#. module: account
+#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
+msgid "tax"
 msgstr ""
 
 #. module: account

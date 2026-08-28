@@ -883,8 +883,8 @@ Two readings of the gate itself:
   hidden. Do not update those two digits. **1** hook is exempt today,
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
-  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **154**
-  names, at **229** definitions, wear one while no field declaration and no
+  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **165**
+  names, at **240** definitions, wear one while no field declaration and no
   binding decorator names them (``_compute_`` leads at 72 names, ``_search_`` at
   49). A candidate population, not a violation count.
 
@@ -947,10 +947,10 @@ Do not read a prefix as a claim that no other binding exists.
 carrying an ORM role; every other method opens with a free verb. The abolished
 spellings are wrong, not lesser-preferred. The tree spells single operations many
 ways: 6 stems are written with two or more verbs drawn from one semantic family,
-and 102 groups of methods share a byte-identical body under different names.
+and 103 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,542 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,564 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1189,7 +1189,7 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,424 definitions it is 22.1 % of every method
+**``_get_`` is not a default.** At 5,425 definitions it is 22.1 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
 computing. The split that matters is against ``_prepare_``: 686 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
@@ -1636,8 +1636,8 @@ to a field name and a registry string.
 
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
-call sites ever see. **83** parameters annotated ``field_name`` are ``str`` and
-**0** are a ``Field``, against ``field``'s **101** ``Field`` and **16** ``str``.
+call sites ever see. **89** parameters annotated ``field_name`` are ``str`` and
+**0** are a ``Field``, against ``field``'s **101** ``Field`` and **17** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s
 ``_get_placeholder_filename(self, field: str)`` is *bound by name*, so its
