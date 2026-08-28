@@ -1,18 +1,26 @@
 import ast
+import logging
 from collections import defaultdict
 from itertools import batched
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models, modules
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import _
 
-# When recycle_mode = automatic, _recycle_records calls action_validate.
-# This is quite slow so requires smaller batch size.
-DR_CREATE_STEP_AUTO = 5000
-DR_CREATE_STEP_MANUAL = 50000
+_logger = logging.getLogger(__name__)
+
+# `automatic` mode acts on every batch as it is queued -- archiving or deleting
+# the target records -- which is far slower than the plain create the `manual`
+# mode does, so the two run on different batch sizes.
+RECYCLE_BATCH_AUTOMATIC = 5000
+RECYCLE_BATCH_MANUAL = 50000
+
+# Both selections spell their values as `relativedelta` keyword arguments, which
+# is what lets a period become a delta without a branch per period.
+DELTA_PERIODS = [('days', 'Days'), ('weeks', 'Weeks'), ('months', 'Months'), ('years', 'Years')]
+NOTIFY_PERIODS = [('days', 'Days'), ('weeks', 'Weeks'), ('months', 'Months')]
 
 
 class Data_RecycleModel(models.Model):
@@ -20,14 +28,16 @@ class Data_RecycleModel(models.Model):
     _description = 'Recycling Model'
     _order = 'name'
 
+    # Core identification
     active = fields.Boolean(default=True)
-    name = fields.Char(
-        compute='_compute_name', string='Name', readonly=False, store=True, required=True, copy=True)
+    name = fields.Char(compute='_compute_name', readonly=False, store=True, required=True, copy=True)
 
+    # Target block
     res_model_id = fields.Many2one('ir.model', string='Model', required=True, ondelete='cascade')
-    res_model_name = fields.Char(
-        related='res_model_id.model', string='Model Name', readonly=True, store=True)
+    res_model_name = fields.Char(related='res_model_id.model', string='Model Name', store=True)
     recycle_record_ids = fields.One2many('data_recycle.record', 'recycle_model_id')
+    records_to_recycle_count = fields.Integer(
+        'Records To Recycle', compute='_compute_records_to_recycle_count')
 
     recycle_mode = fields.Selection([
         ('manual', 'Manual'),
@@ -38,34 +48,26 @@ class Data_RecycleModel(models.Model):
         ('unlink', 'Delete'),
     ], string="Recycle Action", default='unlink', required=True)
 
-    # Rule
+    # Rule block
     domain = fields.Char(string="Filter", compute='_compute_domain', readonly=False, store=True)
     time_field_id = fields.Many2one(
         'ir.model.fields', string='Time Field',
         domain="[('model_id', '=', res_model_id), ('ttype', 'in', ('date', 'datetime')), ('store', '=', True)]",
         ondelete='cascade')
     time_field_delta = fields.Integer(string='Delta', default=1)
-    time_field_delta_unit = fields.Selection([
-        ('days', 'Days'),
-        ('weeks', 'Weeks'),
-        ('months', 'Months'),
-        ('years', 'Years')], string='Delta Unit', default='months')
-    include_archived = fields.Boolean()
+    time_field_delta_unit = fields.Selection(DELTA_PERIODS, string='Delta Unit', default='months')
+    include_archived = fields.Boolean(
+        help='Propose archived records for deletion as well. Ignored when the action is Archive, '
+             'where an already archived record has nothing left to recycle.')
 
-    records_to_recycle_count = fields.Integer(
-        'Records To Recycle', compute='_compute_records_to_recycle_count')
-
-    # User Notifications for Manual clean
+    # Notification block -- manual mode only
     notify_user_ids = fields.Many2many(
         'res.users', string='Notify Users',
-        domain=lambda self: [('all_group_ids', 'in', self.env.ref('base.group_system').id)],
+        domain=lambda self: self._domain_notify_user_ids(),
         default=lambda self: self.env.user,
         help='List of users to notify when there are new records to recycle')
     notify_frequency = fields.Integer(string='Notify', default=1)
-    notify_frequency_period = fields.Selection([
-        ('days', 'Days'),
-        ('weeks', 'Weeks'),
-        ('months', 'Months')], string='Notify Frequency Period', default='weeks')
+    notify_frequency_period = fields.Selection(NOTIFY_PERIODS, string='Notify Frequency Period', default='weeks')
     last_notification = fields.Datetime(readonly=True)
 
     _check_notif_freq = models.Constraint(
@@ -73,11 +75,50 @@ class Data_RecycleModel(models.Model):
         'The notification frequency should be greater than 0',
     )
 
-    @api.constrains('recycle_action')
+    def _domain_notify_user_ids(self):
+        # Only a system user can reach the queue the notification links to.
+        return [('all_group_ids', 'in', self.env.ref('base.group_system').id)]
+
+    @api.constrains('recycle_action', 'res_model_id')
     def _check_recycle_action(self):
-        for model in self:
-            if model.recycle_action == 'archive' and 'active' not in self.env[model.res_model_name]:
-                raise UserError(_("This model doesn't manage archived records. Only deletion is possible."))
+        for recycle_model in self:
+            model = recycle_model._get_model_target()
+            if recycle_model.recycle_action == 'archive' and model is not None and not model._active_name:
+                raise ValidationError(self.env._(
+                    "%(model)s does not manage archived records. Only deletion is possible.",
+                    model=recycle_model.res_model_id.display_name,
+                ))
+
+    @api.constrains('time_field_id', 'time_field_delta', 'time_field_delta_unit')
+    def _check_time_field_delta(self):
+        for recycle_model in self:
+            if not recycle_model.time_field_id or recycle_model._is_time_rule_usable():
+                continue
+            # A non-positive or unit-less delta used to make the whole time
+            # condition vanish, turning "records older than X" into "every record".
+            raise ValidationError(self.env._(
+                "Rule %(rule)s uses a time field, so its delta must be a positive "
+                "number of days, weeks, months or years.",
+                rule=recycle_model.display_name,
+            ))
+
+    @api.constrains('domain', 'res_model_id', 'time_field_id')
+    def _check_domain(self):
+        for recycle_model in self:
+            model = recycle_model._get_model_target()
+            if model is None:
+                continue
+            if recycle_model.time_field_id and not recycle_model._is_time_rule_usable():
+                continue  # `_check_time_field_delta` owns that error
+            try:
+                recycle_model._get_domain_candidates().validate(model)
+            except (ValueError, SyntaxError, TypeError) as error:
+                raise ValidationError(self.env._(
+                    "The filter of rule %(rule)s is not a valid domain for %(model)s: %(error)s",
+                    rule=recycle_model.display_name,
+                    model=recycle_model.res_model_id.display_name,
+                    error=error,
+                )) from error
 
     @api.depends('res_model_id')
     def _compute_domain(self):
@@ -85,123 +126,201 @@ class Data_RecycleModel(models.Model):
 
     @api.depends('res_model_id')
     def _compute_name(self):
-        for model in self:
-            if model.name:
+        for recycle_model in self:
+            if recycle_model.name:
                 continue
-            model.name = model.res_model_id.name if model.res_model_id else ''
+            recycle_model.name = recycle_model.res_model_id.name if recycle_model.res_model_id else ''
 
+    @api.depends('recycle_record_ids')
     def _compute_records_to_recycle_count(self):
         count_data = self.env['data_recycle.record']._read_group(
             [('recycle_model_id', 'in', self.ids)],
             ['recycle_model_id'],
             ['__count'])
         counts = {recycle_model.id: count for recycle_model, count in count_data}
-        for model in self:
-            model.records_to_recycle_count = counts.get(model.id, 0)
+        for recycle_model in self:
+            recycle_model.records_to_recycle_count = counts.get(recycle_model.id, 0)
+
+    def _get_model_target(self):
+        """The model this rule recycles, or None when it is not in the registry.
+
+        `res_model_id` points at an `ir.model` row, which outlives an uninstalled
+        module: reading `self.env[name]` unguarded turns that into a `KeyError`
+        in the middle of a cron run.
+        """
+        self.ensure_one()
+        name = self.res_model_name
+        return self.env[name] if name and name in self.env else None
+
+    def _is_time_rule_usable(self):
+        """Whether the time field actually narrows anything down."""
+        self.ensure_one()
+        return bool(self.time_field_id and self.time_field_delta > 0 and self.time_field_delta_unit)
+
+    def _get_domain_candidates(self):
+        """The domain selecting the records this rule proposes for recycling."""
+        self.ensure_one()
+        domain = Domain(ast.literal_eval(self.domain or '[]'))
+        if self._is_time_rule_usable():
+            if self.time_field_id.ttype == 'date':
+                now = fields.Date.today()
+            else:
+                now = fields.Datetime.now()
+            delta = relativedelta(**{self.time_field_delta_unit: self.time_field_delta})
+            domain &= Domain(self.time_field_id.name, '<=', now - delta)
+        return domain
 
     def _cron_recycle_records(self):
-        self.sudo().search([])._recycle_records(batch_commits=True)
-        self.sudo()._notify_records_to_recycle()
+        # One misconfigured or failing rule must not cost every other rule its
+        # nightly run, which is what a single unguarded pass over `self` did.
+        recycle_models = self.sudo().search([])
+        for recycle_model in recycle_models:
+            try:
+                recycle_model._recycle_records(batch_commits=True)
+            except UserError as error:
+                # `_recycle_records` raises this from its guards only, before it
+                # writes anything: there is nothing to roll back.
+                _logger.warning(
+                    "Data recycle: rule %r (id=%s) skipped: %s",
+                    recycle_model.name, recycle_model.id, error)
+            except Exception:
+                if not modules.module.current_test:
+                    # Drop what this rule left behind; the rules that already
+                    # committed keep theirs.
+                    self.env.cr.rollback()
+                _logger.exception(
+                    "Data recycle: rule %r (id=%s) failed, the other rules still run",
+                    recycle_model.name, recycle_model.id)
+        recycle_models._notify_records_to_recycle()
 
     def _recycle_records(self, batch_commits=False):
-        self.env.flush_all()
-        records_to_clean = []
-        is_test = modules.module.current_test
+        """Make the queue of each rule equal to what the rule currently selects.
 
-        existing_recycle_records = self.env['data_recycle.record'].with_context(
-            active_test=False).search([('recycle_model_id', 'in', self.ids)])
-        mapped_existing_records = defaultdict(list)
-        for recycle_record in existing_recycle_records:
-            mapped_existing_records[recycle_record.recycle_model_id].append(recycle_record.res_id)
+        The queue is derived data: a proposal whose record no longer matches the
+        rule -- because the filter was tightened, the model was changed or the
+        record was deleted elsewhere -- is dropped rather than left to be acted
+        on later against a target that no longer qualifies.
+        """
+        commit = batch_commits and not modules.module.current_test
+        Record = self.env['data_recycle.record']
+        # One query for every rule's queue, not one per rule. `active_test=False`:
+        # a discarded proposal still counts as queued, or the next run would
+        # propose the record the user just refused again.
+        queued_per_model = defaultdict(dict)
+        for queued in Record.with_context(active_test=False).search_fetch(
+                [('recycle_model_id', 'in', self.ids)], ['res_id', 'recycle_model_id']):
+            queued_per_model[queued.recycle_model_id.id][queued.res_id] = queued.id
 
         for recycle_model in self:
-            rule_domain = Domain(ast.literal_eval(recycle_model.domain)) if recycle_model.domain and recycle_model.domain != '[]' else Domain.TRUE
-            if recycle_model.time_field_id and recycle_model.time_field_delta and recycle_model.time_field_delta_unit:
-                if recycle_model.time_field_id.ttype == 'date':
-                    now = fields.Date.today()
-                else:
-                    now = fields.Datetime.now()
-                delta = relativedelta(**{recycle_model.time_field_delta_unit: recycle_model.time_field_delta})
-                rule_domain &= Domain(recycle_model.time_field_id.name, '<=', now - delta)
-            model = self.env[recycle_model.res_model_name]
-            if recycle_model.include_archived:
+            model = recycle_model._get_model_target()
+            if model is None:
+                raise UserError(self.env._(
+                    "Rule %(rule)s targets %(model)s, which is not installed.",
+                    rule=recycle_model.display_name,
+                    model=recycle_model.res_model_id.display_name,
+                ))
+            if recycle_model.time_field_id and not recycle_model._is_time_rule_usable():
+                raise UserError(self.env._(
+                    "Rule %(rule)s uses a time field with no usable delta, so the age "
+                    "condition it is named for would simply not apply.",
+                    rule=recycle_model.display_name,
+                ))
+            domain = recycle_model._get_domain_candidates()
+            if domain.is_true():
+                # An empty filter and an explicit `[(1, '=', 1)]` are the same domain
+                # once parsed, so the message has to name a way through for someone
+                # who really does mean every record.
+                raise UserError(self.env._(
+                    "Rule %(rule)s selects every %(model)s record: its filter matches "
+                    "everything and it has no time field. Narrow it down, or -- if every "
+                    "record really is the target -- say so explicitly with a filter such "
+                    "as [('id', '>', 0)].",
+                    rule=recycle_model.display_name,
+                    model=recycle_model.res_model_id.display_name,
+                ))
+            if recycle_model.include_archived and recycle_model.recycle_action == 'unlink':
                 model = model.with_context(active_test=False)
-            records_to_recycle = model.search(rule_domain)
-            records_to_create = [{
-                'res_id': record.id,
-                'recycle_model_id': recycle_model.id,
-            } for record in records_to_recycle if record.id not in mapped_existing_records[recycle_model]]
 
-            if recycle_model.recycle_mode == 'automatic':
-                for records_to_create_batch in batched(records_to_create, DR_CREATE_STEP_AUTO, strict=False):
-                    self.env['data_recycle.record'].create(records_to_create_batch).action_validate()
-                    if batch_commits and not is_test:
-                        # Commit after each batch iteration to avoid complete rollback on timeout as
-                        # this can create lots of new records.
-                        self.env.cr.commit()
-            else:
-                records_to_clean = records_to_clean + records_to_create
-        for records_to_clean_batch in batched(records_to_clean, DR_CREATE_STEP_MANUAL, strict=False):
-            self.env['data_recycle.record'].create(records_to_clean_batch)
-            if batch_commits and not is_test:
-                self.env.cr.commit()
+            queued_res_ids = queued_per_model[recycle_model.id]
+            candidate_ids = model.search(domain).ids
+            candidate_res_ids = set(candidate_ids)
 
-    @api.model
+            stale_ids = [rec_id for res_id, rec_id in queued_res_ids.items() if res_id not in candidate_res_ids]
+            Record.browse(stale_ids).unlink()
+
+            new_res_ids = [res_id for res_id in candidate_ids if res_id not in queued_res_ids]
+            is_automatic = recycle_model.recycle_mode == 'automatic'
+            batch_size = RECYCLE_BATCH_AUTOMATIC if is_automatic else RECYCLE_BATCH_MANUAL
+            for res_id_batch in batched(new_res_ids, batch_size, strict=False):
+                records = Record.create([
+                    {'res_id': res_id, 'recycle_model_id': recycle_model.id}
+                    for res_id in res_id_batch
+                ])
+                if is_automatic:
+                    records.action_validate()
+                if commit:
+                    # Commit after each batch to avoid a complete rollback on timeout,
+                    # as a run can create a lot of records.
+                    self.env.cr.commit()
+
     def _notify_records_to_recycle(self):
-        for recycle in self.search([('recycle_mode', '=', 'manual')]):
-            if not recycle.notify_user_ids or not recycle.notify_frequency:
+        for recycle_model in self.filtered(lambda m: m.recycle_mode == 'manual'):
+            if not recycle_model.notify_user_ids or not recycle_model.notify_frequency:
                 continue
+            delta = relativedelta(**{
+                recycle_model.notify_frequency_period: recycle_model.notify_frequency})
+            if recycle_model.last_notification and recycle_model.last_notification + delta >= fields.Datetime.now():
+                continue
+            # Stamp only on a notification that went out: stamping on a silent run
+            # consumes the period and the users are never told about the backlog.
+            if recycle_model._send_notification():
+                recycle_model.last_notification = fields.Datetime.now()
 
-            if recycle.notify_frequency_period == 'days':
-                delta = relativedelta(days=recycle.notify_frequency)
-            elif recycle.notify_frequency_period == 'weeks':
-                delta = relativedelta(weeks=recycle.notify_frequency)
-            else:
-                delta = relativedelta(months=recycle.notify_frequency)
-
-            if not recycle.last_notification or\
-                    (recycle.last_notification + delta) < fields.Datetime.now():
-                recycle.last_notification = fields.Datetime.now()
-                recycle._send_notification(delta)
-
-    def _send_notification(self, delta):
+    def _send_notification(self):
+        """Tell the rule's users about its pending records. False when there are none."""
         self.ensure_one()
-        last_date = fields.Date.today() - delta
         records_count = self.env['data_recycle.record'].search_count([
             ('recycle_model_id', '=', self.id),
-            ('create_date', '>=', last_date)
         ])
-        partner_ids = self.notify_user_ids.partner_id.ids if records_count else []
-        if partner_ids:
-            menu_id = self.env.ref('data_recycle.menu_data_cleaning_root').id
-            self.env['mixin.mail.thread'].message_notify(
-                body=self.env['ir.qweb']._render(
-                    'data_recycle.notification',
-                    {
-                        'records_count': records_count,
-                        'res_model_label': self.res_model_id.name,
-                        'recycle_model_id': self.id,
-                        'menu_id': menu_id
-                    }
-                ),
-                model=self._name,
-                partner_ids=partner_ids,
-                res_id=self.id,
-                subject=_('Data to Recycle'),
-            )
+        partner_ids = self.notify_user_ids.partner_id.ids
+        if not records_count or not partner_ids:
+            return False
+        self.env['mixin.mail.thread'].message_notify(
+            body=self.env['ir.qweb']._render(
+                'data_recycle.notification',
+                {
+                    'records_count': records_count,
+                    'res_model_label': self.res_model_id.name,
+                    'recycle_model_id': self.id,
+                    'menu_id': self.env.ref('data_recycle.menu_data_cleaning_root').id,
+                }
+            ),
+            model=self._name,
+            partner_ids=partner_ids,
+            res_id=self.id,
+            subject=self.env._('Data to Recycle'),
+        )
+        return True
 
     def write(self, vals):
         if 'active' in vals and not vals['active']:
-            self.env['data_recycle.record'].search([('recycle_model_id', 'in', self.ids)]).unlink()
+            # `active_test=False`, or the proposals the user discarded survive the
+            # rule they belong to and come back when it is unarchived.
+            self.env['data_recycle.record'].with_context(active_test=False).search([
+                ('recycle_model_id', 'in', self.ids),
+            ]).unlink()
         return super().write(vals)
 
     def open_records(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("data_recycle.action_data_recycle_record")
-        action['context'] = dict(self.env["ir.actions.actions"]._eval_action_context(action.get('context')), searchpanel_default_recycle_model_id=self.id)
+        action['context'] = dict(
+            self.env["ir.actions.actions"]._eval_action_context(action.get('context')),
+            searchpanel_default_recycle_model_id=self.id)
         return action
 
     def action_recycle_records(self):
+        self.ensure_one()
         self.sudo()._recycle_records()
         if self.recycle_mode == 'manual':
             return self.open_records()

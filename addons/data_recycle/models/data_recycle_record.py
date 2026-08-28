@@ -1,84 +1,138 @@
+import logging
 from collections import defaultdict
+from itertools import batched
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
+from odoo.db.errors import PG_USER_FAULT_EXCEPTIONS
+from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
+
+# A batch that fails is retried one record at a time, so the size trades the cost
+# of that fallback against the number of round trips on the happy path.
+VALIDATE_BATCH = 1000
+
+# Anything a target model can legitimately raise to refuse being recycled. A
+# serialization failure or a lost connection is NOT in here: those must reach the
+# cron's retry instead of being recorded as "this record cannot be recycled".
+RECYCLE_REFUSALS = (UserError, ValidationError, *PG_USER_FAULT_EXCEPTIONS)
+
+RECYCLE_METHODS = {'archive': 'action_archive', 'unlink': 'unlink'}
 
 
 class Data_RecycleRecord(models.Model):
     _name = 'data_recycle.record'
     _description = 'Recycling Record'
 
-    active = fields.Boolean('Active', default=True)
+    active = fields.Boolean(default=True)
     name = fields.Char('Record Name', compute='_compute_name', compute_sudo=True)
-    recycle_model_id = fields.Many2one('data_recycle.model', string='Recycle Model', index='btree_not_null', ondelete='cascade')
+    recycle_model_id = fields.Many2one(
+        'data_recycle.model', string='Recycle Model', index='btree_not_null', ondelete='cascade')
 
+    # `index=True` stays: the list view sorts on this column, and measured over
+    # 200k rows a `(recycle_model_id, res_id)` composite put in its place cost that
+    # sort 0.03ms -> 17.5ms while the planner ignored it for every lookup -- the
+    # partial index on `recycle_model_id` already serves those.
     res_id = fields.Integer('Record ID', index=True)
-    res_model_id = fields.Many2one(related='recycle_model_id.res_model_id', store=True, readonly=True)
-    res_model_name = fields.Char(related='recycle_model_id.res_model_name', store=True, readonly=True)
+    res_model_id = fields.Many2one(related='recycle_model_id.res_model_id', store=True)
+    res_model_name = fields.Char(related='recycle_model_id.res_model_name', store=True)
 
     company_id = fields.Many2one('res.company', compute='_compute_company_id', store=True)
 
     @api.model
     def _get_company_id(self, record):
-        company_id = self.env['res.company']
-        if 'company_id' in self.env[record._name]:
-            company_id = record.company_id
-        return company_id
+        company_field = record._fields.get('company_id')
+        if company_field is not None and company_field.comodel_name == 'res.company':
+            return record.company_id
+        return self.env['res.company']
 
-    @api.depends('res_id')
+    @api.depends('res_id', 'res_model_name')
     def _compute_name(self):
-        original_records = {(r._name, r.id): r for r in self._original_records()}
+        original_records = self._original_records()
         for record in self:
             original_record = original_records.get((record.res_model_name, record.res_id))
             if original_record:
-                record.name = original_record.display_name or _('Undefined Name')
+                record.name = original_record.display_name or self.env._('Undefined Name')
             else:
-                record.name = _('**Record Deleted**')
+                record.name = self.env._('**Record Deleted**')
 
-    @api.depends('res_id')
+    @api.depends('res_id', 'res_model_name')
     def _compute_company_id(self):
-        original_records = {(r._name, r.id): r for r in self._original_records()}
+        original_records = self._original_records()
         for record in self:
             original_record = original_records.get((record.res_model_name, record.res_id))
-            if original_record:
-                record.company_id = self._get_company_id(original_record)
-            else:
-                record.company_id = self.env['res.company']
+            record.company_id = self._get_company_id(original_record) if original_record else False
 
     def _original_records(self):
-        if not self:
-            return []
+        """The live records the queue points at, keyed by ``(model name, id)``.
 
-        records = []
-        records_per_model = {}
-        for record in self.filtered(lambda r: r.res_model_name):
-            ids = records_per_model.get(record.res_model_name, [])
-            ids.append(record.res_id)
-            records_per_model[record.res_model_name] = ids
+        One mapping with one key shape: every caller needs exactly this lookup, and
+        the two that built it themselves used two different keys for the same thing.
+        """
+        res_ids_per_model = defaultdict(list)
+        for record in self:
+            if record.res_model_name:
+                res_ids_per_model[record.res_model_name].append(record.res_id)
 
-        for model, record_ids in records_per_model.items():
-            recs = self.env[model].with_context(active_test=False).sudo().browse(record_ids).exists()
-            records += list(recs)
-        return records
+        original_records = {}
+        for model_name, res_ids in res_ids_per_model.items():
+            if model_name not in self.env:
+                # `ir.model` outlives the module that declared the model.
+                continue
+            records = self.env[model_name].with_context(active_test=False).sudo().browse(res_ids)
+            for original_record in records.exists():
+                original_records[model_name, original_record.id] = original_record
+        return original_records
 
     def action_validate(self):
-        records_done = self.env['data_recycle.record']
-        record_ids_to_archive = defaultdict(list)
-        record_ids_to_unlink = defaultdict(list)
-        original_records = {'%s_%s' % (r._name, r.id): r for r in self._original_records()}
+        original_records = self._original_records()
+        res_ids_per_action = defaultdict(list)
         for record in self:
-            original_record = original_records.get('%s_%s' % (record.res_model_name, record.res_id))
-            records_done |= record
-            if not original_record:
+            key = (record.res_model_name, record.res_id)
+            if key in original_records:
+                res_ids_per_action[record.recycle_model_id.recycle_action, record.res_model_name].append(record.res_id)
+
+        refused = set()
+        for (recycle_action, model_name), res_ids in res_ids_per_action.items():
+            refused |= {
+                (model_name, res_id)
+                for res_id in self._recycle_originals(model_name, res_ids, recycle_action)
+            }
+
+        # A proposal whose record refused to go stays in the queue: dropping it would
+        # hide the failure, and validating it again once the obstacle is gone is the
+        # whole point of keeping it.
+        self.filtered(lambda r: (r.res_model_name, r.res_id) not in refused).unlink()
+
+    def _recycle_originals(self, model_name, res_ids, recycle_action):
+        """Archive or delete `res_ids` of `model_name`; return those that refused.
+
+        A single record the database or a business rule will not let go used to
+        abort the whole call -- and, in automatic mode, the whole nightly run for
+        every other rule. Each batch is tried under a savepoint and, when it fails,
+        retried record by record so the failure costs only itself.
+        """
+        model = self.env[model_name].sudo()
+        method = RECYCLE_METHODS[recycle_action]
+        refused = set()
+        for res_id_batch in batched(res_ids, VALIDATE_BATCH, strict=False):
+            try:
+                with self.env.cr.savepoint():
+                    getattr(model.browse(res_id_batch), method)()
                 continue
-            if record.recycle_model_id.recycle_action == "archive":
-                record_ids_to_archive[original_record._name].append(original_record.id)
-            elif record.recycle_model_id.recycle_action == "unlink":
-                record_ids_to_unlink[original_record._name].append(original_record.id)
-        for model_name, ids in record_ids_to_archive.items():
-            self.env[model_name].sudo().browse(ids).action_archive()
-        for model_name, ids in record_ids_to_unlink.items():
-            self.env[model_name].sudo().browse(ids).unlink()
-        records_done.unlink()
+            except RECYCLE_REFUSALS:
+                _logger.info(
+                    "Data recycle: a batch of %d %s refused to be recycled, retrying one by one",
+                    len(res_id_batch), model_name)
+            for res_id in res_id_batch:
+                try:
+                    with self.env.cr.savepoint():
+                        getattr(model.browse(res_id), method)()
+                except RECYCLE_REFUSALS as error:
+                    refused.add(res_id)
+                    _logger.warning(
+                        "Data recycle: %s(%s) cannot be recycled: %s", model_name, res_id, error)
+        return refused
 
     def action_discard(self):
         self.write({'active': False})

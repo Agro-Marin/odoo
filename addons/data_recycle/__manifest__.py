@@ -12,6 +12,7 @@
         'views/data_cleaning_menu.xml',
         'views/data_recycle_templates.xml',
         'security/ir.model.access.csv',
+        'security/ir_rule.xml',
     ],
     'installable': True,
     'application': True,
@@ -19,6 +20,9 @@
         'web.assets_backend': [
             'data_recycle/static/src/views/*.js',
             'data_recycle/static/src/views/*.xml',
+        ],
+        'web.assets_tests': [
+            'data_recycle/static/tests/tours/*.js',
         ],
     },
     'author': 'Odoo S.A.',

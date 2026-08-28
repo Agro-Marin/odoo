@@ -49,7 +49,7 @@
                                 <!-- Manual cleaning -->
                                 <label for="notify_user_ids" invisible="recycle_mode == 'automatic'" />
                                 <div invisible="recycle_mode == 'automatic'">
-                                    <field name="notify_user_ids" widget="many2many_tags"  options="{'no_create': True, 'no_edit': True}" domain="[('share', '=', False)]" nolabel="1"/>
+                                    <field name="notify_user_ids" widget="many2many_tags" options="{'no_create': True, 'no_edit': True}" nolabel="1"/>
                                     <div class="d-flex w-50" invisible="not notify_user_ids">
                                         <span class="me-1">Every</span>
                                         <field name="notify_frequency" required="notify_user_ids" />
@@ -66,6 +66,11 @@
                             </group>
                         </group>
                         <group invisible="not res_model_id">
+                            <div class="alert alert-warning" role="alert" colspan="2"
+                                 invisible="time_field_id or (domain and domain != '[]')">
+                                This rule has no filter and no time field, so it selects every record
+                                of the model. Add one before running it.
+                            </div>
                             <field name="domain" widget="domain" options="{'model': 'res_model_name'}"/>
                             <field name="time_field_id"/>
                             <field name="time_field_delta"/>
