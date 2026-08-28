@@ -2,7 +2,7 @@ from odoo import api, fields, models
 
 
 class BoardBoard(models.AbstractModel):
-    _name = 'board.board'
+    _name = "board.board"
     _description = "Board"
     _auto = False
 
@@ -17,7 +17,7 @@ class BoardBoard(models.AbstractModel):
         return self
 
     @api.model
-    def get_view(self, view_id=None, view_type='form', **options):
+    def get_view(self, view_id=None, view_type="form", **options):
         """Override ``get_view`` to merge the user's saved dashboard layout and preprocess the arch.
 
         :return: view dict (fields, arch, toolbar)
@@ -25,11 +25,14 @@ class BoardBoard(models.AbstractModel):
 
         res = super().get_view(view_id, view_type, **options)
 
-        custom_view = self.env['ir.ui.view.custom'].sudo().search([('user_id', '=', self.env.uid), ('ref_id', '=', view_id)], limit=1)
+        custom_view = (
+            self.env["ir.ui.view.custom"]
+            .sudo()
+            .search([("user_id", "=", self.env.uid), ("ref_id", "=", view_id)], limit=1)
+        )
         if custom_view:
-            res.update({'custom_view_id': custom_view.id,
-                        'arch': custom_view.arch})
-        res['arch'] = self._arch_preprocessing(res['arch'])
+            res.update({"custom_view_id": custom_view.id, "arch": custom_view.arch})
+        res["arch"] = self._arch_preprocessing(res["arch"])
         return res
 
     @api.model
@@ -38,7 +41,7 @@ class BoardBoard(models.AbstractModel):
 
         def remove_unauthorized_children(node):
             for child in node.iterchildren():
-                if child.tag == 'action' and child.get('invisible'):
+                if child.tag == "action" and child.get("invisible"):
                     node.remove(child)
                 else:
                     remove_unauthorized_children(child)
@@ -47,5 +50,9 @@ class BoardBoard(models.AbstractModel):
         archnode = etree.fromstring(arch)
         # add the js_class 'board' on the fly to force the webclient to
         # instantiate a BoardView instead of FormView
-        archnode.set('js_class', 'board')
-        return etree.tostring(remove_unauthorized_children(archnode), pretty_print=True, encoding='unicode')
+        archnode.set("js_class", "board")
+        return etree.tostring(
+            remove_unauthorized_children(archnode),
+            pretty_print=True,
+            encoding="unicode",
+        )
