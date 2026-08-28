@@ -6,10 +6,10 @@
 
 ## Running the checks
 
-The fifty-seven blocking checkers do **not** share one CLI, and a loop that
+The fifty-eight blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on sixteen of them.
 
-**Thirty-eight are contract gates.** Each takes bare for a human-readable
+**Thirty-nine are contract gates.** Each takes bare for a human-readable
 report, `--check` for CI (exit 1 on a new violation), `--json` for a
 machine-readable one:
 
@@ -31,7 +31,7 @@ to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 drives them as ratchets, so they belong to this group. Run any of the nineteen bare
 and it reports without enforcing.
 
-Thirty-eight plus nineteen is fifty-seven. All three figures derive from the
+Thirty-nine plus nineteen is fifty-eight. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) — an
 enumerated list is a gate only when something independently derives the
@@ -58,6 +58,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             js_action_surface js_template_binding \
             xml_reference_coherence js_mixin_coupling edi_vocabulary \
             payment_vocabulary \
+            py_addon_imports \
             sql_placeholder module_depends_installable \
             external_dependency_pins; do
     python "tooling/architecture/$gate.py" --check || echo "FAILED: $gate"
@@ -110,7 +111,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **fifty-seven** blocking checkers, after
+`Architecture Boundaries` workflow runs **fifty-eight** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -168,6 +169,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `order_line_qty.py` | writes of `product_uom_qty` on a sale or purchase order line — the field swapped meaning with `product_qty` in this fork (Appendix A) and both names survived, so writing the readonly one does not raise: `create` discards the value and the line silently becomes quantity 1, `write` lands it in the column while `product_qty` keeps its old value |
 | `edi_vocabulary.py` | module names carrying `edi`, default-deny against ADR-0048's allowlist — the word names fiscal clearance, partner interchange and document import alike, and the collision has already produced a refactor proposal that would have made fifteen modules depend on a queue they do not use |
 | `payment_vocabulary.py` | model names carrying `payment`, default-deny against ADR-0070's allowlist, plus the `_description` strings of those models against each other — the word names a settlement, a provider transaction, a method, a channel, a due schedule and more alike, and `account.payment.method` and `account.payment.method.line` shipped the same description, so the capability and its journal binding were one word and one sentence in the UI |
+| `py_addon_imports.py` | every `odoo.addons.<addon>` import a module makes at import time resolves to an addon some checked-out repository provides — the Python twin of `named_export_coherence.py`, and the half nothing asked: `agromarin/mcp_server` imported `odoo.addons.rpc.tools.preflight` when no published repository carried it, so the module could not be imported against the published fork, and both repositories' CI stayed green because each sees only its own tree |
 | `sql_placeholder.py` | `IN %s`, which psycopg 3 binds as `IN $1` and Postgres refuses — moved out of `test_lint` so it can see the tooling half of the tree and every repo, not only installed addons |
 | `translation_catalog.py` | every `_()` literal against the msgids its module's `.pot` actually carries — a reflowed string still renders, in English, for every reader who asked for another language, and nothing else in the tree can see it |
 | `compute_context_deps.py` | computes resolving the acting user (`env.user`, `env.uid`, `_get_guest_from_context`) without declaring the context key that keys their cache — the ORM cannot see that a method read `env`, and a test transaction has one uid, so six `mail`/`sms` fields shipped it and `discuss.channel._broadcast` sent every member the first member's unread count |
@@ -236,7 +238,7 @@ real-tree test — `test_the_real_tree_holds_the_property_today`,
 `test_the_surface_matches_the_committed_baseline` — so a violation fails the
 self-test step, which is blocking.
 
-`cross_repo_coherence.py` is a fifty-eighth checker and the only one outside CI: it
+`cross_repo_coherence.py` is a fifty-ninth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
@@ -249,7 +251,7 @@ Eleven and not eight, which is what counting only the table above would give:
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
 third.
 
-**Eighty** is how many steps CI runs the fifty-seven in, each step invoking
+**Eighty-one** is how many steps CI runs the fifty-eight in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
 `py_function_length` alone accounts for six.

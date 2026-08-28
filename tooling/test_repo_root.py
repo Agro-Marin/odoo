@@ -149,6 +149,7 @@ class TestEveryToolAgrees:
         ("architecture", "compute_context_deps"): "ROOT",
         ("architecture", "edi_vocabulary"): "ROOT",
         ("architecture", "payment_vocabulary"): "ROOT",
+        ("architecture", "py_addon_imports"): "ROOT",
         ("architecture", "env_surface_check"): "REPO_ROOT",
         ("architecture", "external_dependency_pins"): "ROOT",
         ("architecture", "field_hook_naming"): "ROOT",
