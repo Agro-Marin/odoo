@@ -395,7 +395,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.ensure_one()
         model_mapping = self._compute_models()
 
-        self.env.cr.execute(query)  # noqa: E8501  built by _generate_query
+        self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query or parent_migration_process_cb, not from user input
 
         groups = self.env.cr.fetchall()
         all_ids = [pid for _, aggr_ids in groups for pid in aggr_ids]
