@@ -857,7 +857,7 @@ class HrExpense(models.Model):
                     "account.payment.channel"
                 ].search(
                     [
-                        # The journal is the source of the payment method line company
+                        # The journal is the source of the payment channel's company
                         *self.env["account.journal"]._check_company_domain(
                             expense.company_id
                         ),
