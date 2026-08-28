@@ -684,6 +684,103 @@ class TestCrmPls(CrmPlsCommon):
 
 
 @tagged('post_install', '-at_install', 'crm_lead_pls')
+class TestCrmPlsTeamPriors(CrmPlsCommon):
+    """The per-team priors must not leak from one team to the next."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env['ir.config_parameter'].sudo().set_param('crm.pls_start_date', '2000-01-01')
+        cls.env['ir.config_parameter'].sudo().set_param('crm.pls_fields', 'country_id')
+        cls.env.registry._setup_models__(cls.env.cr, ['crm.lead'])
+        cls.country = cls.env.ref('base.be')
+
+        # Reference stage: the first TEAM-AGNOSTIC one, which is what
+        # `_pls_first_stage` resolves. Both teams below own stages that sort
+        # BELOW it, so a lost lead -- which increments only the stages at or
+        # under its own sequence -- never produces a row for it.
+        cls.env['crm.stage'].search([]).write({'sequence': 9999})
+        cls.stage_generic = cls.env['crm.stage'].create({
+            'name': 'Generic New', 'sequence': 50, 'team_ids': False,
+        })
+        cls.team_healthy, cls.team_unscoreable = cls.env['crm.team'].create([
+            {'name': 'Healthy Team'}, {'name': 'Unscoreable Team'},
+        ])
+        cls.stage_healthy, cls.stage_healthy_won, cls.stage_unscoreable = cls.env['crm.stage'].create([
+            {'name': 'H New', 'sequence': 1, 'team_ids': [cls.team_healthy.id]},
+            {'name': 'H Won', 'sequence': 10, 'team_ids': [cls.team_healthy.id], 'is_won': True},
+            {'name': 'U New', 'sequence': 1, 'team_ids': [cls.team_unscoreable.id]},
+        ])
+
+    def _new_lead(self, team, stage, name):
+        return self.env['crm.lead'].create({
+            'country_id': self.country.id,
+            'name': name,
+            'stage_id': stage.id,
+            'team_id': team.id,
+            'type': 'opportunity',
+        })
+
+    @users('user_sales_manager')
+    def test_pls_unscoreable_team_does_not_inherit_another_team_prior(self):
+        """A team with no won lead scores nothing -- not the neighbour's odds.
+
+        The scoring loop used to cache the team priors across iterations and
+        advance the cache key BEFORE the guard that skips an unscoreable team,
+        so the SECOND lead of such a team took the `same team` fast path and
+        multiplied the PREVIOUS team's priors. Measured on the code this test
+        was written against: a team with four lost leads and no won one put its
+        opportunities at 98.39%, and the same record scored 0 / 50 / 98.39
+        depending only on which leads shared the recordset.
+
+        Both orderings are asserted on purpose: a single-recordset test passes
+        on the broken code.
+        """
+        for index in range(6):
+            self._new_lead(self.team_healthy, self.stage_healthy, f'won_{index}').action_set_won()
+        self._new_lead(self.team_healthy, self.stage_healthy, 'lost').action_set_lost()
+        for index in range(4):
+            self._new_lead(self.team_unscoreable, self.stage_unscoreable, f'lost_{index}').action_set_lost()
+        self.env.flush_all()
+
+        frequencies = self.env['crm.lead.scoring.frequency'].search([
+            ('team_id', '=', self.team_unscoreable.id),
+            ('value', '=', str(self.stage_generic.id)),
+            ('variable', '=', 'stage_id'),
+        ])
+        self.assertFalse(
+            frequencies,
+            'Precondition: the unscoreable team has no row for the reference stage')
+
+        healthy = self._new_lead(self.team_healthy, self.stage_healthy, 'probe_healthy')
+        first, second = (
+            self._new_lead(self.team_unscoreable, self.stage_unscoreable, 'probe_1'),
+            self._new_lead(self.team_unscoreable, self.stage_unscoreable, 'probe_2'),
+        )
+        self.env.flush_all()
+
+        for label, leads in (
+            ('alone', first),
+            ('after a scoreable team', healthy + first + second),
+            ('among themselves', first + second),
+        ):
+            with self.subTest(order=label):
+                self.env.invalidate_all()
+                probabilities, _tooltip = leads._pls_get_naive_bayes_probabilities()
+                for lead in leads & (first + second):
+                    self.assertNotIn(
+                        lead.id, probabilities,
+                        f'{lead.name} belongs to a team PLS cannot score, so it must be '
+                        f'left alone whatever else is in the recordset ({label})')
+
+    @users('user_sales_manager')
+    def test_pls_probabilities_of_an_empty_recordset(self):
+        """The early exits return the 2-tuple every caller unpacks."""
+        probabilities, tooltip = self.env['crm.lead'].browse()._pls_get_naive_bayes_probabilities()
+        self.assertEqual(probabilities, {})
+        self.assertEqual(tooltip, {})
+
+
 class TestCrmPlsSides(CrmPlsCommon):
 
     @classmethod

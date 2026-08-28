@@ -2,6 +2,7 @@
 import base64
 from datetime import timedelta
 
+from odoo import exceptions
 from odoo.addons.crm.tests.common import TestLeadConvertMassCommon
 from odoo.fields import Datetime
 from odoo.tests.common import tagged, users
@@ -575,3 +576,40 @@ class TestLeadMerge(TestLeadMergeCommon):
                          'The partner was not active on the lead')
         self.assertIn(self.contact_1, master_lead.message_follower_ids.partner_id,
                       'Should not have removed follower of the destination lead')
+
+
+@tagged('lead_manage', 'crm_access')
+class TestLeadMergeAccess(TestLeadMergeCommon):
+    """Merging consolidates; it neither hands out nor demands delete rights."""
+
+    @users('user_sales_salesman')
+    def test_merge_stays_available_to_a_salesperson(self):
+        """A salesperson may merge their own duplicates, and may not delete leads.
+
+        Both halves matter. `ir.model.access` denies `unlink` on crm.lead to
+        group_sale_salesman while `_merge_opportunity` drops the tail under
+        sudo, so the access check there is the one deciding whether merge stays
+        a salesperson workflow. It asserts `write`, not `unlink`: by that point
+        `_merge_dependences` has moved the messages, attachments, activities and
+        meetings onto the head, so what is dropped is an empty husk, and
+        `perm_unlink` gates outright deletion, which merge is not. Asserting
+        `unlink` there instead takes merge away from every non-manager, which is
+        what this test exists to catch.
+        """
+        self.assertFalse(
+            self.env['crm.lead'].browse().has_access('unlink'),
+            'Precondition: a salesperson may not delete leads')
+
+        leads = self.env['crm.lead'].create([{
+            'email_from': 'duplicate@test.example.com',
+            'name': f'Duplicate {index}',
+            'team_id': self.sales_team_1.id,
+            'type': 'opportunity',
+            'user_id': self.env.user.id,
+        } for index in range(2)])
+        self.env.flush_all()
+
+        head = leads.merge_opportunity()
+        self.assertIn(head, leads)
+        self.assertFalse((leads - head).exists(), 'The tail is consolidated away')
+        self.assertTrue(head.exists())

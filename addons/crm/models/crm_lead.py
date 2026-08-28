@@ -280,9 +280,22 @@ class CrmLead(models.Model):
 
     @api.constrains('probability', 'stage_id')
     def _check_won_validity(self):
+        """A won stage implies a 100% probability; the two cannot disagree.
+
+        The message used to say "cannot be lost", which is only one of the ways
+        to reach this state -- any probability other than 100 does it -- and it
+        named neither the lead nor the value that was refused.
+        """
         for lead in self:
             if lead.stage_id.is_won and lead.probability != 100:
-                raise ValidationError(_("A lead in a Won stage cannot be lost. Move it to another stage first."))
+                raise ValidationError(_(
+                    "%(lead_name)s is in the won stage %(stage_name)s, which implies a "
+                    "100%% probability, but its probability is %(probability)s%%. "
+                    "Move it to another stage first.",
+                    lead_name=lead.display_name,
+                    stage_name=lead.stage_id.display_name,
+                    probability=lead.probability,
+                ))
 
     @api.depends('company_id')
     def _compute_user_company_ids(self):
@@ -656,11 +669,19 @@ class CrmLead(models.Model):
             below a given threshold (i.e: `SEARCH_RESULT_LIMIT`). Otherwise, returns
             an empty recordset of the provided model as it indicates search term
             was not relevant.
-            Note: The function will use the administrator privileges to guarantee
-            that a maximum amount of leads will be included in the search results
-            and transcend multi-company record rules. It also includes archived
-            records. Idea is that counter indicates duplicates are present and
-            the lead could be escalated to managers.
+            Note: the privilege escalation this docstring used to claim comes
+            from the FIELD (`compute_sudo=True` on `duplicate_lead_ids` and
+            `duplicate_lead_count`), not from here -- there is no `sudo()` in
+            this function. The effect is the intended one: a maximum of leads is
+            included and multi-company record rules are transcended, so the
+            counter indicates duplicates are present and the lead could be
+            escalated to managers. Archived records are included too.
+
+            Not batched across `self` on purpose: the 21-result relevance cap is
+            per lead AND per criterion, so a batched form needs a count pass
+            plus an id pass per criterion. The only consumer is the form view's
+            stat button, always a singleton, which that shape would make slower
+            rather than faster. Measured cost is 4 queries per lead.
             """
             model = self.env[model_name].with_context(active_test=False)
             res = model.search(domain, limit=SEARCH_RESULT_LIMIT)
@@ -850,34 +871,39 @@ class CrmLead(models.Model):
             vals['website'] = self.env['res.partner']._clean_website(vals['website'])
 
         now = self.env.cr.now()
-        stage_updated, stage_is_won = False, False
-        # stage change (or reset): update date_last_stage_update if at least one
-        # lead does not have the same stage
+        stage_is_won = False
+        # The three date stamps below belong to the records that actually move,
+        # not to the whole recordset. They used to be decided with `any()` and
+        # put in the shared `vals`, so ONE moving record restamped every other
+        # record in the same write -- which is exactly what a multi-edit of
+        # stage_id or user_id does, both list views being `multi_edit="1"`.
+        # date_open feeds crm.team.member.lead_day_count and hence the daily
+        # assignment quota, so a ten-lead multi-edit where nine already had the
+        # right owner took that salesperson out of the assignment run for a day.
+        stage_movers = user_movers = self.browse()
         if 'stage_id' in vals:
-            stage_updated = any(lead.stage_id.id != vals['stage_id'] for lead in self)
-            if stage_updated:
-                vals['date_last_stage_update'] = now
-            if stage_updated and vals.get('stage_id'):
+            stage_movers = self.filtered(lambda lead: lead.stage_id.id != vals['stage_id'])
+            if stage_movers and vals.get('stage_id'):
                 stage = self.env['crm.stage'].browse(vals['stage_id'])
                 if stage.is_won:
                     vals.update({'active': True, 'probability': 100, 'automated_probability': 100})
                     stage_is_won = True
-        # user change; update date_open if at least one lead does not
-        # have the same user
+        # user change; update date_open for the leads whose user really changes
         if 'user_id' in vals and not vals.get('user_id'):
             vals['date_open'] = False
         elif vals.get('user_id'):
-            user_updated = any(lead.user_id.id != vals['user_id'] for lead in self)
-            if user_updated:
-                vals['date_open'] = now
+            user_movers = self.filtered(lambda lead: lead.user_id.id != vals['user_id'])
 
         # stage change with new stage: update probability and date_closed
+        stage_clears_date_closed = False
         if vals.get('probability', 0) >= 100 or not vals.get('active', True):
+            # wall clock, not `cr.now()`: callers and tests freeze time, and the
+            # transaction timestamp is not what "closed at" means here
             vals['date_closed'] = fields.Datetime.now()
         elif vals.get('probability', 0) > 0:
             vals['date_closed'] = False
-        elif stage_updated and not stage_is_won and not 'probability' in vals:
-            vals['date_closed'] = False
+        elif not stage_is_won and 'probability' not in vals:
+            stage_clears_date_closed = bool(stage_movers)
 
         update_frequencies = any(field in ['active', 'stage_id', 'probability'] for field in vals)
         old_status_by_lead = {
@@ -887,17 +913,32 @@ class CrmLead(models.Model):
             } for lead in self
         } if update_frequencies else {}
 
-        if not stage_is_won:
-            result = super().write(vals)
-        else:
-            # stage change between two won stages: does not change the date_closed
-            leads_already_won = self.filtered(lambda lead: lead.stage_id.is_won)
-            remaining = self - leads_already_won
-            if remaining:
-                result = super(CrmLead, remaining).write(vals)
-            if leads_already_won:
-                vals.pop('date_closed', False)
-                result = super(CrmLead, leads_already_won).write(vals)
+        # stage change between two won stages: does not change the date_closed
+        keep_date_closed = self.filtered(lambda lead: lead.stage_id.is_won) if stage_is_won else self.browse()
+
+        # One super() call per distinct set of per-record values; a recordset
+        # where nothing moves is still exactly one write, as it was before.
+        stage_mover_ids, user_mover_ids = set(stage_movers._ids), set(user_movers._ids)
+        keep_date_closed_ids = set(keep_date_closed._ids)
+        writes = {}
+        for lead_id in self._ids:
+            extra = {}
+            if lead_id in stage_mover_ids:
+                extra['date_last_stage_update'] = now
+                if stage_clears_date_closed:
+                    extra['date_closed'] = False
+            if lead_id in user_mover_ids:
+                extra['date_open'] = now
+            drop_date_closed = lead_id in keep_date_closed_ids
+            key = (tuple(sorted(extra)), drop_date_closed)
+            writes.setdefault(key, (extra, drop_date_closed, []))[2].append(lead_id)
+
+        result = True
+        for extra, drop_date_closed, lead_ids in writes.values():
+            lead_vals = {**vals, **extra}
+            if drop_date_closed:
+                lead_vals.pop('date_closed', None)
+            result = super(CrmLead, self.browse(lead_ids)).write(lead_vals)
 
         if update_frequencies:
             self._handle_won_lost(old_status_by_lead, {
@@ -1065,10 +1106,20 @@ class CrmLead(models.Model):
     def action_set_won(self):
         """ Won semantic: stage.is_won (AND probability = 100 but implied) """
         self.action_unarchive()
-        # group the leads by team_id, in order to write once by values couple (each write leads to frequency increment)
-        leads_by_won_stage = {}
+        # Won stages are looked up per TEAM, once. The search used to sit inside
+        # the per-lead loop AND be issued on `self`, so `_stage_find` pooled the
+        # teams of every lead in the recordset: on a mixed-team batch a lead
+        # could be moved into a stage restricted to somebody else's team, a
+        # state the form view's own stage domain forbids. It was also one search
+        # per lead -- 1.00 query per extra record, measured at N=2 against N=20.
+        won_stages_by_team = {
+            team: team_leads._stage_find(domain=[('is_won', '=', True)], limit=None)
+            for team, team_leads in self.grouped('team_id').items()
+        }
+        # group the leads by stage, in order to write once by values couple (each write leads to frequency increment)
+        leads_by_won_stage = defaultdict(lambda: self.browse())
         for lead in self:
-            won_stages = self._stage_find(domain=[('is_won', '=', True)], limit=None)
+            won_stages = won_stages_by_team[lead.team_id]
             # ABD : We could have a mixed pipeline, with "won" stages being separated by "standard"
             # stages. In the future, we may want to prevent any "standard" stage to have a higher
             # sequence than any "won" stage. But while this is not the case, searching
@@ -1077,15 +1128,12 @@ class CrmLead(models.Model):
             #       stage sequence : [x] [x (won)] [y] [y (won)] [z] [z (won)]
             #       when in stage [y] and marked as "won", should go to the stage [y (won)],
             #       not in [x (won)] nor [z (won)]
-            stage_id = next((stage for stage in won_stages if stage.sequence > lead.stage_id.sequence), None)
-            if not stage_id:
-                stage_id = next((stage for stage in reversed(won_stages) if stage.sequence <= lead.stage_id.sequence), won_stages)
-            if stage_id in leads_by_won_stage:
-                leads_by_won_stage[stage_id] += lead
-            else:
-                leads_by_won_stage[stage_id] = lead
-        for won_stage_id, leads in leads_by_won_stage.items():
-            leads.write({'stage_id': won_stage_id.id, 'probability': 100})
+            won_stage = next((stage for stage in won_stages if stage.sequence > lead.stage_id.sequence), None)
+            if not won_stage:
+                won_stage = next((stage for stage in reversed(won_stages) if stage.sequence <= lead.stage_id.sequence), won_stages)
+            leads_by_won_stage[won_stage] += lead
+        for won_stage, leads in leads_by_won_stage.items():
+            leads.write({'stage_id': won_stage.id, 'probability': 100})
         return True
 
     def action_set_automated_probability(self):
@@ -1521,9 +1569,18 @@ class CrmLead(models.Model):
             merged_data.pop('team_id')
         opportunities_head.write(merged_data)
 
-        # delete tail opportunities
-        # we use the SUPERUSER to avoid access rights issues because as the user had the rights to see the records it should be safe to do so
+        # delete tail opportunities.
+        # sudo() is for the RECORD RULES -- a duplicate being merged away is
+        # routinely another salesperson's lead, which the merger may act on but
+        # not read under `crm_rule_personal_lead`. It was NOT checked at all,
+        # which made an unchecked bypass of every access right on the model.
+        # The right assertion is `write`, not `unlink`: by this point
+        # `_merge_dependences` has moved the messages, attachments, activities
+        # and meetings onto the head, so what is dropped is an empty husk. Merge
+        # is consolidation, and `perm_unlink` -- which `ir.model.access` denies
+        # to group_sale_salesman -- gates outright deletion, which this is not.
         if auto_unlink:
+            opportunities_tail.check_access('write')
             opportunities_tail.sudo().unlink()
 
         return opportunities_head
@@ -2220,11 +2277,14 @@ class CrmLead(models.Model):
             impact is positive (>.5) or negative (<.5). See method prepare_pls_tooltip_data, or test_pls_tooltip_data for
             more details
 
-        :return: probability in percent (and rounded at 2 decimals) that the lead will be won at the current stage.
+        :return: 2-tuple ``(probabilities_by_lead_id, tooltip_data)``. Both early
+          exits below return the pair too: they used to hand back the bare dict,
+          and every caller unpacks two values, so an empty recordset raised
+          ``ValueError: not enough values to unpack``.
         """
         lead_probabilities = {}
         if not self:
-            return lead_probabilities
+            return lead_probabilities, {}
 
         # Initialize tooltip data. A returned 0.00 probability means computation was not possible.
         tooltip_data = {}
@@ -2246,7 +2306,7 @@ class CrmLead(models.Model):
         leads_values_dict = self._pls_get_lead_pls_values(domain=domain)
 
         if not leads_values_dict:
-            return lead_probabilities
+            return lead_probabilities, tooltip_data
 
         # Get unique couples to search in frequency table and won leads.
         leads_fields = set()  # keep unique fields, as a lead can have multiple tag_ids
@@ -2312,8 +2372,21 @@ class CrmLead(models.Model):
             result[team_id]['team_total'] = self._pls_get_won_lost_total_count(
                 result[team_id], first_stage_id=first_stage_id)
 
-        save_team_id = None
-        p_won, p_lost = 1, 1
+        # Priors per team, resolved before the loop rather than cached across its
+        # iterations. The cache this replaces advanced its key BEFORE the guard
+        # below and then `continue`d, so the next lead of an unscoreable team
+        # took the `same team` fast path and multiplied the PREVIOUS team's
+        # priors: a team with four lost leads and no won one scored 98.39%.
+        # See `test_pls_unscoreable_team_does_not_inherit_another_team_prior`.
+        team_priors = {}
+        for team_id, team_result in result.items():
+            team_won, team_lost = team_result['team_won'], team_result['team_lost']
+            # if one count = 0, we cannot compute lead probability for that team
+            if team_won and team_lost:
+                team_total = team_result['team_total']
+                team_priors[team_id] = (
+                    team_won, team_lost, team_won / team_total, team_lost / team_total)
+
         for lead_id, lead_values in leads_values_dict.items():
             # if stage_id is null, return 0 and bypass computation
             lead_fields = [value[0] for value in lead_values.get('values', [])]
@@ -2327,21 +2400,15 @@ class CrmLead(models.Model):
 
             # team_id not in frequency Table -> convert to -1
             lead_team_id = lead_values['team_id'] if lead_values['team_id'] in result else -1
-            if lead_team_id != save_team_id:
-                save_team_id = lead_team_id
-                team_won = result[save_team_id]['team_won']
-                team_lost = result[save_team_id]['team_lost']
-                team_total = result[save_team_id]['team_total']
-                # if one count = 0, we cannot compute lead probability
-                if not team_won or not team_lost:
-                    continue
-                p_won = team_won / team_total
-                p_lost = team_lost / team_total
+            prior = team_priors.get(lead_team_id)
+            if prior is None:
+                continue
+            team_won, team_lost, p_won, p_lost = prior
 
             # 2. Compute won and lost score using each variable's individual probability
             s_lead_won, s_lead_lost = p_won, p_lost
             for field, value in lead_values['values']:
-                field_result = result.get(save_team_id, {}).get(field)
+                field_result = result[lead_team_id].get(field)
                 value = value.origin if hasattr(value, 'origin') else value
                 value_result = field_result.get(str(value)) if field_result else False
                 if value_result:

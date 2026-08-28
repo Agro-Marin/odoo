@@ -453,8 +453,14 @@ class CrmTeam(models.Model):
             counter += 1
             team = random.choices(population, weights=weights, k=1)[0]
 
-            # filter remaining leads, remove team if no more leads for it
-            teams_data[team]["leads"] = teams_data[team]["leads"].filtered(lambda l: l.id not in leads_done_ids).exists()
+            # filter remaining leads, remove team if no more leads for it.
+            # No `.exists()`: every id this loop unlinks goes into `leads_done_ids`
+            # (`lead_unlink_ids` is filled from `assign_res['duplicates']`, which
+            # is also unioned into `leads_done_ids`), so the filter above has
+            # already dropped them. The probe cost 2 queries per allocated lead
+            # -- 66% of the whole call as the perf tests measure it, 39% as the
+            # cron runs it -- for an allocation result that is identical without it.
+            teams_data[team]["leads"] = teams_data[team]["leads"].filtered(lambda l: l.id not in leads_done_ids)
             if not teams_data[team]["leads"]:
                 population_index = population.index(team)
                 population.pop(population_index)

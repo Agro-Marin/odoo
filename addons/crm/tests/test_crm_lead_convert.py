@@ -695,8 +695,13 @@ class TestLeadConvertBatch(crm_common.TestLeadConvertMassCommon):
             self.assertTrue(opp.active)
             self.assertEqual(opp.user_id, convert.user_id)
             self.assertEqual(opp.team_id, convert.team_id)
-            # dates update: convert set them to now
-            self.assertEqual(opp.date_open, date)
+            # dates update: date_open is the ASSIGNMENT date, so only the leads
+            # whose salesperson actually changes get a new one. lead_1 already
+            # belonged to the wizard's user and keeps the date the fixture set.
+            if opp == self.lead_1:
+                self.assertEqual(opp.date_open, Datetime.from_string('2020-01-15 11:30:00'))
+            else:
+                self.assertEqual(opp.date_open, date)
             self.assertEqual(opp.date_conversion, date)
             # stage update (depends on previous value)
             if opp == self.lead_1:

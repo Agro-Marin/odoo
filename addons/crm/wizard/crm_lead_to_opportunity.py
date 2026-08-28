@@ -140,7 +140,11 @@ class CrmLead2opportunityPartner(models.TransientModel):
         if self.lead_id != result_opportunity:
             # Prevent unwanted cascade during unlinks, keeping other operations and overrides possible
             self.write({'lead_id': result_opportunity})
-        (to_merge - result_opportunity).sudo().unlink()
+        # sudo() for the record rules, and `write` for the access check -- see
+        # the same call in ``crm.lead._merge_opportunity`` for why it is `write`.
+        merged_away = to_merge - result_opportunity
+        merged_away.check_access('write')
+        merged_away.sudo().unlink()
         return result_opportunity
 
     def _action_convert(self):

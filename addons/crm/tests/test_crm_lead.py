@@ -708,6 +708,104 @@ class TestCRMLead(TestCrmCommon):
         self.assertEqual(self.contact_company_1.phone, 'alsobroken')
 
     @users('user_sales_manager')
+    def test_crm_lead_update_dates_are_per_record(self):
+        """A mixed batch stamps only the records that actually moved.
+
+        Both list views are ``multi_edit="1"`` with ``user_id`` and ``stage_id``
+        as editable columns, so selecting ten opportunities and setting one
+        owner is an ordinary action. The stamps used to be decided with
+        ``any()`` and put in the shared vals, so the one lead that changed hands
+        restamped the nine that did not -- and ``date_open`` feeds
+        ``crm.team.member.lead_day_count``, hence ``_get_assignment_quota``, so
+        the no-op edit took that salesperson out of the assignment run for a day.
+        """
+        first_now = datetime(2024, 3, 1, 8, 0, 0)
+        with patch.object(self.env.cr, 'now', lambda: first_now), freeze_time(first_now):
+            settled = self.env['crm.lead'].create([{
+                'name': f'Settled_{index}',
+                'stage_id': self.stage_team1_1.id,
+                'team_id': self.sales_team_1.id,
+                'type': 'opportunity',
+                'user_id': self.user_sales_salesman.id,
+            } for index in range(3)])
+            mover = self.env['crm.lead'].create({
+                'name': 'Mover',
+                'stage_id': self.stage_team1_2.id,
+                'team_id': self.sales_team_1.id,
+                'type': 'opportunity',
+                'user_id': self.user_sales_leads.id,
+            })
+            (settled + mover).flush_recordset()
+        for lead in settled + mover:
+            self.assertEqual(lead.date_open, first_now)
+            self.assertEqual(lead.date_last_stage_update, first_now)
+
+        later = datetime(2024, 3, 20, 8, 0, 0)
+        with patch.object(self.env.cr, 'now', lambda: later), freeze_time(later):
+            # one multi-edit, one record actually changing owner and stage
+            (settled + mover).write({
+                'stage_id': self.stage_team1_1.id,
+                'user_id': self.user_sales_salesman.id,
+            })
+            (settled + mover).flush_recordset()
+
+        self.assertEqual(mover.date_open, later, 'Its salesperson changed')
+        self.assertEqual(mover.date_last_stage_update, later, 'Its stage changed')
+        for lead in settled:
+            self.assertEqual(
+                lead.date_open, first_now,
+                'Same salesperson, same stage: untouched, whatever else was in the write')
+            self.assertEqual(lead.date_last_stage_update, first_now)
+
+        # and the daily quota is spent on the one real assignment, not on four
+        member = self.env['crm.team.member'].search([
+            ('crm_team_id', '=', self.sales_team_1.id),
+            ('user_id', '=', self.user_sales_salesman.id),
+        ], limit=1)
+        if member:
+            member.invalidate_recordset(['lead_day_count'])
+            self.assertEqual(
+                member.lead_day_count, 1,
+                'Only the lead that really changed hands counts against the daily quota')
+
+    @users('user_sales_manager')
+    def test_crm_lead_won_stage_is_the_teams_own(self):
+        """A batch mark-as-won keeps every lead inside its own team's pipeline.
+
+        ``_stage_find`` used to be called on ``self`` from inside the per-lead
+        loop, so it pooled the teams of the whole recordset and a lead could be
+        parked in a won stage restricted to somebody else's team -- a state the
+        form view's own stage domain forbids.
+        """
+        team_other = self.env['crm.team'].create({'name': 'Other Team'})
+        stage_other, stage_other_won = self.env['crm.stage'].create([
+            {'name': 'Other New', 'sequence': 1, 'team_ids': [team_other.id]},
+            {'name': 'Other Won', 'sequence': 10, 'team_ids': [team_other.id], 'is_won': True},
+        ])
+        lead_team_1 = self.env['crm.lead'].create({
+            'name': 'Team 1 opportunity',
+            'stage_id': self.stage_team1_1.id,
+            'team_id': self.sales_team_1.id,
+            'type': 'opportunity',
+        })
+        lead_other = self.env['crm.lead'].create({
+            'name': 'Other team opportunity',
+            'stage_id': stage_other.id,
+            'team_id': team_other.id,
+            'type': 'opportunity',
+        })
+
+        (lead_team_1 + lead_other).action_set_won()
+
+        self.assertEqual(lead_other.stage_id, stage_other_won)
+        for lead in lead_team_1 + lead_other:
+            self.assertTrue(lead.stage_id.is_won)
+            if lead.stage_id.team_ids:
+                self.assertIn(
+                    lead.team_id, lead.stage_id.team_ids,
+                    f'{lead.name} was moved into a stage reserved for another team')
+
+    @users('user_sales_manager')
     def test_crm_lead_update_dates(self):
         """ Test date_open / date_last_stage_update update, check those dates
         are not erased too often """
@@ -759,8 +857,9 @@ class TestCRMLead(TestCrmCommon):
             leads[1].date_last_stage_update, first_now,
             'Setting same stage when changing user_id, should not update')
         self.assertEqual(
-            leads[1].date_open, updated_time,
-            'Should not update date_open, was already the same user_id, but done in batch so ...')
+            leads[1].date_open, first_now,
+            'Same user_id: date_open is untouched, even though the other lead in '
+            'the same write did change hands')
 
         # set won changes stage -> update date_last_stage_update
         newer_time = datetime(2023, 11, 26, 8, 0, 0)
@@ -791,8 +890,9 @@ class TestCRMLead(TestCrmCommon):
             leads[1].date_last_stage_update, newer_time,
             'Should not rewrite when setting same stage')
         self.assertEqual(
-            leads[1].date_open, updated_time,
-            'Should not rewrite when setting same user_id')
+            leads[1].date_open, first_now,
+            'Should not rewrite when setting same user_id: this lead has had the '
+            'same salesperson since it was created')
         self.assertEqual(leads[1].stage_id, self.stage_gen_won)
         self.assertEqual(leads[1].team_id, self.sales_team_1)
         self.assertEqual(leads[1].user_id, self.user_sales_salesman)
