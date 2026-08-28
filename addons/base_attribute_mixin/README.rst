@@ -16,7 +16,7 @@ Mixins
   ``active``, ``value_type`` and ``display_type``. Concrete models add their
   own ``value_ids`` One2many pointing at their value model.
 * ``mixin.attribute.value`` -- a value: ``name``, ``sequence``, ``color``
-  (defaulted across the palette by ``_get_default_color``), ``active``, and a
+  (defaulted across the palette by ``_default_color``), ``active``, and a
   ``display_name`` qualified with the attribute. Concrete models add
   ``attribute_id``.
 * ``mixin.attribute.line`` -- one attribute plus its chosen values, bound to a
@@ -66,7 +66,7 @@ Hooks a consumer can set
   errors ("... for *Chair*"). Empty by default; override where users need one
   record disambiguated from thousands.
 
-``attribute.value.mixin._get_default_color()``
+``attribute.value.mixin._default_color()``
   Palette index for a new value. Defaults to a random 1-11 so values are
   visually distinguishable; ``0`` means "no colour" and is not drawn.
 
