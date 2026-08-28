@@ -170,8 +170,20 @@ class AccountPayment(models.Model):
         comodel_name="res.partner",
         string="Customer/Vendor",
         ondelete="restrict",
-        domain="['|', ('parent_id','=', False), ('is_company','=', True)]",
         tracking=True,
+        check_company=True,
+    )
+    commercial_partner_id = fields.Many2one(
+        "res.partner",
+        string="Commercial Entity",
+        compute="_compute_commercial_partner_id",
+        store=True,
+        readonly=True,
+        # journal, destination account and payment channel all resolve from the
+        # commercial entity during create, so it has to be known before them.
+        precompute=True,
+        index=True,
+        ondelete="restrict",
         check_company=True,
     )
     outstanding_account_id = fields.Many2one(
@@ -358,7 +370,7 @@ class AccountPayment(models.Model):
             {
                 "name": default_values["name"],
                 "date_maturity": self.date,
-                "partner_id": self.partner_id.id,
+                "partner_id": self.commercial_partner_id.id,
                 "account_id": self.outstanding_account_id.id,
                 "currency_id": self.currency_id.id,
                 "balance": default_values["balance"],
@@ -372,7 +384,7 @@ class AccountPayment(models.Model):
             {
                 "name": default_values["name"],
                 "date_maturity": self.date,
-                "partner_id": self.partner_id.id,
+                "partner_id": self.commercial_partner_id.id,
                 "account_id": self.destination_account_id.id,
                 "currency_id": self.currency_id.id,
                 "balance": default_values["balance"],
@@ -485,11 +497,16 @@ class AccountPayment(models.Model):
                     sequence_date=payment.date,
                 )
 
-    @api.depends("company_id", "partner_id", "payment_type")
+    @api.depends("partner_id")
+    def _compute_commercial_partner_id(self):
+        for payment in self:
+            payment.commercial_partner_id = payment.partner_id.commercial_partner_id
+
+    @api.depends("company_id", "commercial_partner_id", "payment_type")
     def _compute_journal_id(self):
         default_journal_by_company = {}
         for payment in self:
-            partner = payment.partner_id
+            partner = payment.commercial_partner_id
             payment_type = (
                 payment.payment_type
                 if payment.payment_type in ("inbound", "outbound")
@@ -497,9 +514,9 @@ class AccountPayment(models.Model):
             )
             if not payment._origin and partner and payment_type:
                 field_name = f"property_{payment_type}_payment_channel_id"
-                default_payment_channel = payment.partner_id.with_company(
-                    payment.company_id
-                )[field_name]
+                default_payment_channel = partner.with_company(payment.company_id)[
+                    field_name
+                ]
                 journal = default_payment_channel.journal_id
                 if journal:
                     payment.journal_id = journal
@@ -671,16 +688,21 @@ class AccountPayment(models.Model):
                 payment.amount_signed = payment.amount
 
     @api.depends(
-        "partner_id", "company_id", "payment_type", "journal_id.bank_account_id"
+        "commercial_partner_id",
+        "company_id",
+        "payment_type",
+        "journal_id.bank_account_id",
     )
     def _compute_available_partner_bank_ids(self):
         for pay in self:
             if pay.payment_type == "inbound":
                 pay.available_partner_bank_ids = pay.journal_id.bank_account_id
             else:
-                pay.available_partner_bank_ids = pay.partner_id.bank_ids.filtered(
-                    lambda x, pay=pay: x.company_id.id in (False, pay.company_id.id)
-                )._origin
+                pay.available_partner_bank_ids = (
+                    pay.commercial_partner_id.bank_ids.filtered(
+                        lambda x, pay=pay: x.company_id.id in (False, pay.company_id.id)
+                    )._origin
+                )
 
     @api.depends("available_partner_bank_ids", "journal_id")
     def _compute_partner_bank_id(self):
@@ -688,11 +710,11 @@ class AccountPayment(models.Model):
             if pay.partner_bank_id not in pay.available_partner_bank_ids:
                 pay.partner_bank_id = pay.available_partner_bank_ids[:1]._origin
 
-    @api.depends("available_payment_channel_ids", "partner_id", "company_id")
+    @api.depends("available_payment_channel_ids", "commercial_partner_id", "company_id")
     def _compute_payment_channel_id(self):
         for pay in self:
             available_payment_channels = pay.available_payment_channel_ids
-            partner = pay.partner_id.with_company(pay.company_id)
+            partner = pay.commercial_partner_id.with_company(pay.company_id)
             inbound_payment_method = partner.property_inbound_payment_channel_id
             outbound_payment_method = partner.property_outbound_payment_channel_id
             if (
@@ -763,7 +785,7 @@ class AccountPayment(models.Model):
         for pay in self:
             pay.outstanding_account_id = pay.payment_channel_id.payment_account_id
 
-    @api.depends("journal_id", "partner_id", "partner_type")
+    @api.depends("journal_id", "commercial_partner_id", "partner_type")
     def _compute_destination_account_id(self):
         self.destination_account_id = False
         fallback_account = {}
@@ -786,8 +808,8 @@ class AccountPayment(models.Model):
 
         for pay in self:
             if pay.partner_type == "customer":
-                if pay.partner_id:
-                    pay.destination_account_id = pay.partner_id.with_company(
+                if pay.commercial_partner_id:
+                    pay.destination_account_id = pay.commercial_partner_id.with_company(
                         pay.company_id
                     ).property_account_receivable_id
                 else:
@@ -795,8 +817,8 @@ class AccountPayment(models.Model):
                         pay.company_id, "asset_receivable"
                     )
             elif pay.partner_type == "supplier":
-                if pay.partner_id:
-                    pay.destination_account_id = pay.partner_id.with_company(
+                if pay.commercial_partner_id:
+                    pay.destination_account_id = pay.commercial_partner_id.with_company(
                         pay.company_id
                     ).property_account_payable_id
                 else:
@@ -986,7 +1008,7 @@ class AccountPayment(models.Model):
 
         used_fields = (
             "company_id",
-            "partner_id",
+            "commercial_partner_id",
             "date",
             "state",
             "amount",
@@ -1027,7 +1049,7 @@ class AccountPayment(models.Model):
                        ARRAY_AGG(DISTINCT duplicate_payment.id) AS duplicate_payment_ids
                   FROM %(payment_table_and_alias)s
                   JOIN account_payment AS duplicate_payment ON payment.id != duplicate_payment.id
-                                                           AND payment.partner_id = duplicate_payment.partner_id
+                                                           AND payment.commercial_partner_id = duplicate_payment.commercial_partner_id
                                                            AND payment.company_id = duplicate_payment.company_id
                                                            AND payment.date = duplicate_payment.date
                                                            AND payment.payment_type = duplicate_payment.payment_type
@@ -1263,7 +1285,7 @@ class AccountPayment(models.Model):
             ]
             to_write = {
                 "date": pay.date,
-                "partner_id": pay.partner_id.id,
+                "partner_id": pay.commercial_partner_id.id,
                 "currency_id": pay.currency_id.id,
                 "partner_bank_id": pay.partner_bank_id.id,
                 "line_ids": line_ids_commands,
@@ -1323,7 +1345,7 @@ class AccountPayment(models.Model):
             "date": self.date,
             "journal_id": self.journal_id.id,
             "company_id": self.company_id.id,
-            "partner_id": self.partner_id.id,
+            "partner_id": self.commercial_partner_id.id,
             "currency_id": self.currency_id.id,
             "partner_bank_id": self.partner_bank_id.id,
             "line_ids": line_ids
