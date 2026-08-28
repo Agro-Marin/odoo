@@ -3,8 +3,6 @@ import logging
 from collections import defaultdict
 from itertools import batched
 
-from dateutil.relativedelta import relativedelta
-
 from odoo import api, fields, models, modules
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
@@ -17,15 +15,13 @@ _logger = logging.getLogger(__name__)
 RECYCLE_BATCH_AUTOMATIC = 5000
 RECYCLE_BATCH_MANUAL = 50000
 
-# The values are `relativedelta` keyword arguments, which is what lets a period
-# become a delta without a branch per period.
-NOTIFY_PERIODS = [('days', 'Days'), ('weeks', 'Weeks'), ('months', 'Months')]
-
-
 class Data_RecycleModel(models.Model):
     _name = 'data_recycle.model'
+    _inherit = ['mixin.data.cleaning.notification']
     _description = 'Recycling Model'
     _order = 'name'
+
+    _cleaning_mode_field = 'recycle_mode'
 
     # Core identification
     active = fields.Boolean(default=True)
@@ -59,24 +55,8 @@ class Data_RecycleModel(models.Model):
         help='Propose archived records for deletion as well. Ignored when the action is Archive, '
              'where an already archived record has nothing left to recycle.')
 
-    # Notification block -- manual mode only
-    notify_user_ids = fields.Many2many(
-        'res.users', string='Notify Users',
-        domain=lambda self: self._domain_notify_user_ids(),
-        default=lambda self: self.env.user,
-        help='List of users to notify when there are new records to recycle')
-    notify_frequency = fields.Integer(string='Notify', default=1)
-    notify_frequency_period = fields.Selection(NOTIFY_PERIODS, string='Notify Frequency Period', default='weeks')
-    last_notification = fields.Datetime(readonly=True)
-
-    _check_notif_freq = models.Constraint(
-        'CHECK(notify_frequency > 0)',
-        'The notification frequency should be greater than 0',
-    )
-
-    def _domain_notify_user_ids(self):
-        # Only a system user can reach the queue the notification links to.
-        return [('all_group_ids', 'in', self.env.ref('base.group_system').id)]
+    # The notification block -- fields, period arithmetic and delivery -- is
+    # `mixin.data.cleaning.notification`.
 
     @api.constrains('recycle_action', 'res_model_id')
     def _check_recycle_action(self):
@@ -162,7 +142,7 @@ class Data_RecycleModel(models.Model):
                 _logger.exception(
                     "Data recycle: rule %r (id=%s) failed, the other rules still run",
                     recycle_model.name, recycle_model.id)
-        recycle_models._notify_records_to_recycle()
+        recycle_models._notify_pending_records()
 
     def _recycle_records(self, batch_commits=False):
         """Make the queue of each rule equal to what the rule currently selects.
@@ -228,44 +208,23 @@ class Data_RecycleModel(models.Model):
                     # as a run can create a lot of records.
                     self.env.cr.commit()
 
-    def _notify_records_to_recycle(self):
-        for recycle_model in self.filtered(lambda m: m.recycle_mode == 'manual'):
-            if not recycle_model.notify_user_ids or not recycle_model.notify_frequency:
-                continue
-            delta = relativedelta(**{
-                recycle_model.notify_frequency_period: recycle_model.notify_frequency})
-            if recycle_model.last_notification and recycle_model.last_notification + delta >= fields.Datetime.now():
-                continue
-            # Stamp only on a notification that went out: stamping on a silent run
-            # consumes the period and the users are never told about the backlog.
-            if recycle_model._send_notification():
-                recycle_model.last_notification = fields.Datetime.now()
-
-    def _send_notification(self):
-        """Tell the rule's users about its pending records. False when there are none."""
+    def _get_count_pending(self):
         self.ensure_one()
-        records_count = self.env['data_recycle.record'].search_count([
+        return self.env['data_recycle.record'].search_count([
             ('recycle_model_id', '=', self.id),
         ])
-        partner_ids = self.notify_user_ids.partner_id.ids
-        if not records_count or not partner_ids:
-            return False
-        self.env['mixin.mail.thread'].message_notify(
-            body=self.env['ir.qweb']._render(
-                'data_recycle.notification',
-                {
-                    'records_count': records_count,
-                    'res_model_label': self.res_model_id.name,
-                    'recycle_model_id': self.id,
-                    'menu_id': self.env.ref('data_recycle.menu_data_cleaning_root').id,
-                }
-            ),
-            model=self._name,
-            partner_ids=partner_ids,
-            res_id=self.id,
-            subject=self.env._('Data to Recycle'),
-        )
-        return True
+
+    def _get_notification_body(self, records_count):
+        self.ensure_one()
+        return self.env['ir.qweb']._render('data_recycle.notification', {
+            'records_count': records_count,
+            'res_model_label': self.res_model_id.name,
+            'recycle_model_id': self.id,
+            'menu_id': self.env.ref('data_recycle.menu_data_cleaning_root').id,
+        })
+
+    def _get_notification_subject(self):
+        return self.env._('Data to Recycle')
 
     def write(self, vals):
         if 'active' in vals and not vals['active']:

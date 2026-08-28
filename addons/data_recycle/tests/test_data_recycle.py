@@ -266,14 +266,14 @@ class TestDataRecycle(TransactionCase):
         self.recycle_model.notify_user_ids = self.env.ref('base.user_admin')
         self.recycle_model.notify_frequency_period = 'weeks'
 
-        self.recycle_model._notify_records_to_recycle()
+        self.recycle_model._notify_pending_records()
         self.assertFalse(
             self.recycle_model.last_notification,
             "nothing was sent, so the period must not be consumed")
 
         self.recycle_model._recycle_records()
         notifications = self.env['mail.notification'].search_count([])
-        self.recycle_model._notify_records_to_recycle()
+        self.recycle_model._notify_pending_records()
         self.assertEqual(self.env['mail.notification'].search_count([]), notifications + 1)
         self.assertTrue(self.recycle_model.last_notification)
 
@@ -281,14 +281,14 @@ class TestDataRecycle(TransactionCase):
         self.env.ref('base.user_admin').email = 'mitchell.admin@example.com'
         self.recycle_model.notify_user_ids = self.env.ref('base.user_admin')
         self.recycle_model._recycle_records()
-        self.recycle_model._notify_records_to_recycle()
+        self.recycle_model._notify_pending_records()
         notifications = self.env['mail.notification'].search_count([])
 
-        self.recycle_model._notify_records_to_recycle()
+        self.recycle_model._notify_pending_records()
         self.assertEqual(self.env['mail.notification'].search_count([]), notifications)
 
         self.recycle_model.last_notification = Datetime.now() - relativedelta(weeks=2)
-        self.recycle_model._notify_records_to_recycle()
+        self.recycle_model._notify_pending_records()
         self.assertEqual(self.env['mail.notification'].search_count([]), notifications + 1)
 
     def test_the_notification_counts_the_whole_backlog(self):
