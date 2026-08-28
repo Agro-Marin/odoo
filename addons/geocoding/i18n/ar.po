@@ -1,0 +1,253 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * geocoding
+#
+# Translators:
+# Martin Trigaux, 2022
+# Niyas Raphy, 2022
+# Malaz Abuidris <msea@odoo.com>, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 15.5alpha1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-09-16 13:37+0000\n"
+"Last-Translator: \"Tiffany Chang (tic)\" <tic@odoo.com>\n"
+"Language-Team: Arabic <https://translate.odoo.com/projects/odoo-19/"
+"geocoding/ar/>\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
+"&& n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_id
+msgid "API"
+msgstr "الواجهة البرمجية للتطبيق"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid ""
+"API key for GeoCoding (Places) required.\n"
+"Visit https://developers.google.com/maps/documentation/geocoding/get-api-key "
+"for more information."
+msgstr ""
+"بحاجة إلى مفتاح الواجهة البرمجية للتطبيق للترميز الجغرافي (الأماكن).\n"
+"قم بزيارة https://developers.google.com/maps/documentation/geocoding/get-api-"
+"key للمزيد من المعلومات."
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.res_config_settings_view_form
+msgid "API:"
+msgstr "الواجهة البرمجية للتطبيق:"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Compute Localization"
+msgstr "احتساب الأقلمة"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Compute based on address"
+msgstr "احسب بناءً على العنوان"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_res_config_settings
+msgid "Config Settings"
+msgstr "تهيئة الإعدادات"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_res_partner
+msgid "Contact"
+msgstr "جهة الاتصال"
+
+#. module: geocoding
+#: model:ir.model,website_form_label:geocoding.model_res_partner
+msgid "Create a Customer"
+msgstr "Create a Customer"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__create_uid
+msgid "Created by"
+msgstr "أنشئ بواسطة"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__create_date
+msgid "Created on"
+msgstr "أنشئ في"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__display_name
+#: model:ir.model.fields,field_description:geocoding.field_base_geocoder__display_name
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__display_name
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__display_name
+msgid "Display Name"
+msgstr "اسم العرض"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Error with geolocation server: %s"
+msgstr "حدث خطأ في خادم التموضع الجغرافي: %s"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_geocoder
+msgid "Geo Coder"
+msgstr "الترميز الجغرافي"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Geo Location"
+msgstr "التموضع الجغرافي"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_geocoder_provider
+msgid "Geo Provider"
+msgstr "المزود الجغرافي"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Geolocation"
+msgstr "التموضع الجغرافي"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__date_localization
+#: model:ir.model.fields,field_description:geocoding.field_res_users__date_localization
+msgid "Geolocation Date"
+msgstr "تاريخ التموضع الجغرافي"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_googlemap_key
+msgid "Google Map API Key"
+msgstr "مفتاح الواجهة البرمجية للتطبيق لخريطة Google"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__id
+#: model:ir.model.fields,field_description:geocoding.field_base_geocoder__id
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__id
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__id
+msgid "ID"
+msgstr "المُعرف"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.res_config_settings_view_form
+msgid "Key:"
+msgstr "المفتاح:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__write_uid
+msgid "Last Updated by"
+msgstr "آخر تحديث بواسطة"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__write_date
+msgid "Last Updated on"
+msgstr "آخر تحديث في"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Lat :"
+msgstr "خطوط العرض:"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Long:"
+msgstr "خطوط الطول:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__name
+msgid "Name"
+msgstr "الاسم"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/res_partner.py:0
+msgid "No match found for %(partner_names)s address(es)."
+msgstr "لم يتم العثور على عناوين مطابقة لـ %(partner_names)s."
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "OpenStreetMap calls disabled in testing environment."
+msgstr "مكالمات OpenStreetMap معطلة في البيئة الاختبارية."
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Partner Assignment"
+msgstr "تعيين الشريك"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Provider %s is not implemented for geolocation service."
+msgstr "المزود %s غير مطبق في خدمة التموضع الجغرافي."
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Refresh"
+msgstr "تحديث"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Refresh Localization"
+msgstr "تحديث الأقلمة"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__tech_name
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_techname
+msgid "Technical Name"
+msgstr "الاسم التقني"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid ""
+"Unable to geolocate, received the error:\n"
+"%s\n"
+"\n"
+"Google made this a paid feature.\n"
+"You should first enable billing on your Google account.\n"
+"Then, go to Developer Console, and enable the APIs:\n"
+"Geocoding, Maps Static, Maps Javascript.\n"
+msgstr ""
+"تعذر إيجاد الموقع الجغرافي، تم استلام رسالة الخطأ:\n"
+"%s\n"
+"\n"
+"قام Google بجعل هذه الخاصية مدفوعة.\n"
+"عليك أولاً تفعيل الفوترة في حساب Google الخاص بك.\n"
+"ثم اذهب إلى أداة المطوِّر وقم بتفعيل الواجهة البرمجية للتطبيق:\n"
+"الترميز الجغرافي، الخرائط الساكنة، خرائط جافا سكريبت.\n"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Unknown"
+msgstr "غير معروف"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Updated on:"
+msgstr "تحديث في:"
+
+#. module: geocoding
+#: model:ir.model.fields,help:geocoding.field_res_config_settings__geoloc_provider_googlemap_key
+msgid ""
+"Visit https://developers.google.com/maps/documentation/geocoding/get-api-key "
+"for more information."
+msgstr ""
+"قم بزيارة https://developers.google.com/maps/documentation/geocoding/get-api-"
+"key للمزيد من المعلومات."
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/res_partner.py:0
+msgid "Warning"
+msgstr "تحذير"
+
+#~ msgid "Error with geolocation server:"
+#~ msgstr "حدث خطأ في خادم التموضع الجغرافي: "

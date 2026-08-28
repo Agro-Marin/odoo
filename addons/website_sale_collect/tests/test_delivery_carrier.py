@@ -83,7 +83,7 @@ class TestDeliveryCarrier(ClickAndCollectCommon, WebsiteSaleStockCommon):
 
         with (
             patch(
-                "odoo.addons.base_geolocalize.models.res_partner.ResPartner.geo_localize",
+                "odoo.addons.geocoding.models.res_partner.ResPartner.geo_localize",
                 return_value=True,
             ),
             MockRequest(self.env, website=self.website, sale_order_id=so.id),

@@ -1,0 +1,253 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * geocoding
+#
+# Translators:
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+# "Anastasiia Koroleva (koan)" <koan@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 17.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-12-05 18:08+0000\n"
+"Last-Translator: \"Anastasiia Koroleva (koan)\" <koan@odoo.com>\n"
+"Language-Team: Russian <https://translate.odoo.com/projects/odoo-19/"
+"geocoding/ru/>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=4; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || "
+"(n%100>=11 && n%100<=14)? 2 : 3);\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_id
+msgid "API"
+msgstr "API"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid ""
+"API key for GeoCoding (Places) required.\n"
+"Visit https://developers.google.com/maps/documentation/geocoding/get-api-key "
+"for more information."
+msgstr ""
+"Требуется ключ API для GeoCoding (Places). \n"
+"Посетите https://developers.google.com/maps/documentation/geocoding/get-api-"
+"key для получения дополнительной информации."
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.res_config_settings_view_form
+msgid "API:"
+msgstr "API:"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Compute Localization"
+msgstr "Вычислить локализацию"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Compute based on address"
+msgstr "Вычислить на основе адреса"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_res_config_settings
+msgid "Config Settings"
+msgstr "Параметры конфигурации"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_res_partner
+msgid "Contact"
+msgstr "Контакты"
+
+#. module: geocoding
+#: model:ir.model,website_form_label:geocoding.model_res_partner
+msgid "Create a Customer"
+msgstr "Создать клиента"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__create_uid
+msgid "Created by"
+msgstr "Создано:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__create_date
+msgid "Created on"
+msgstr "Дата создания:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__display_name
+#: model:ir.model.fields,field_description:geocoding.field_base_geocoder__display_name
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__display_name
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__display_name
+msgid "Display Name"
+msgstr "Отображаемое имя"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Error with geolocation server: %s"
+msgstr "Ошибка сервера геолокации: %s"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_geocoder
+msgid "Geo Coder"
+msgstr "Геокодер"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Geo Location"
+msgstr "Местоположение"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_geocoder_provider
+msgid "Geo Provider"
+msgstr "Геопровайдер"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Geolocation"
+msgstr "Геолокация"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__date_localization
+#: model:ir.model.fields,field_description:geocoding.field_res_users__date_localization
+msgid "Geolocation Date"
+msgstr "Дата геолокации"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_googlemap_key
+msgid "Google Map API Key"
+msgstr "Google Map API ключ"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__id
+#: model:ir.model.fields,field_description:geocoding.field_base_geocoder__id
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__id
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__id
+msgid "ID"
+msgstr "ID"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.res_config_settings_view_form
+msgid "Key:"
+msgstr "Ключ:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__write_uid
+msgid "Last Updated by"
+msgstr "Последнее обновление:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__write_date
+msgid "Last Updated on"
+msgstr "Дата последнего обновления:"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Lat :"
+msgstr "Широта :"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Long:"
+msgstr "Долгота:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__name
+msgid "Name"
+msgstr "Имя"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/res_partner.py:0
+msgid "No match found for %(partner_names)s address(es)."
+msgstr "Не найдено совпадений для адреса(адресов) %(partner_names)s."
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "OpenStreetMap calls disabled in testing environment."
+msgstr "OpenStreetMap вызывает отключение в тестовой среде."
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Partner Assignment"
+msgstr "Задание для партнера"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Provider %s is not implemented for geolocation service."
+msgstr "Провайдер %s не реализован для геолокационного сервиса."
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Refresh"
+msgstr "Обновить"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Refresh Localization"
+msgstr "Обновить локализацию"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__tech_name
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_techname
+msgid "Technical Name"
+msgstr "Техническое название"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid ""
+"Unable to geolocate, received the error:\n"
+"%s\n"
+"\n"
+"Google made this a paid feature.\n"
+"You should first enable billing on your Google account.\n"
+"Then, go to Developer Console, and enable the APIs:\n"
+"Geocoding, Maps Static, Maps Javascript.\n"
+msgstr ""
+"Невозможность геолокации, получена ошибка:\n"
+"%s\n"
+"\n"
+"Google сделал это платной функцией.\n"
+"Сначала необходимо включить выставление счетов в вашем аккаунте Google.\n"
+"Затем перейдите в Консоль разработчиков и включите API:\n"
+"Geocoding, Maps Static, Maps Javascript.\n"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Unknown"
+msgstr "Неизвестный"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Updated on:"
+msgstr "Обновлено по:"
+
+#. module: geocoding
+#: model:ir.model.fields,help:geocoding.field_res_config_settings__geoloc_provider_googlemap_key
+msgid ""
+"Visit https://developers.google.com/maps/documentation/geocoding/get-api-key "
+"for more information."
+msgstr ""
+"Посетите https://developers.google.com/maps/documentation/geocoding/get-api-"
+"key для получения дополнительной информации."
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/res_partner.py:0
+msgid "Warning"
+msgstr "Предупреждение"
+
+#~ msgid "Error with geolocation server:"
+#~ msgstr "Ошибка с геолокационным сервером:"

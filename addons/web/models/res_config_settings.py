@@ -66,7 +66,7 @@ class ResConfigSettings(models.TransientModel):
     module_web_unsplash = fields.Boolean("Unsplash Image Library")
     module_sms = fields.Boolean("SMS")
     module_partner_autocomplete = fields.Boolean("Partner Autocomplete")
-    module_base_geolocalize = fields.Boolean("GeoLocalize")
+    module_geocoding = fields.Boolean("Geocoding")
     module_google_recaptcha = fields.Boolean("reCAPTCHA")
     module_website_cf_turnstile = fields.Boolean("Cloudflare Turnstile")
     module_google_address_autocomplete = fields.Boolean("Google Address Autocomplete")

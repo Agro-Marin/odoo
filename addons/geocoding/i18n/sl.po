@@ -1,0 +1,255 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * geocoding
+#
+# Translators:
+# laznikd <laznik@mentis.si>, 2022
+# Jasmina Macur <jasmina@hbs.si>, 2022
+# Tadej Lupšina <tadej@hbs.si>, 2022
+# Matjaz Mozetic <m.mozetic@matmoz.si>, 2022
+# Grega Vavtar <grega@hbs.si>, 2022
+# matjaz k <matjaz@mentis.si>, 2022
+# Tomaž Jug <tomaz@editor.si>, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 15.5alpha1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-09-16 21:17+0000\n"
+"Last-Translator: \"Tiffany Chang (tic)\" <tic@odoo.com>\n"
+"Language-Team: Slovenian <https://translate.odoo.com/projects/odoo-19/"
+"geocoding/sl/>\n"
+"Language: sl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=4; plural=n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || "
+"n%100==4 ? 2 : 3;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_id
+msgid "API"
+msgstr "API"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid ""
+"API key for GeoCoding (Places) required.\n"
+"Visit https://developers.google.com/maps/documentation/geocoding/get-api-key "
+"for more information."
+msgstr ""
+"Potreben je API ključ za geokodiranje (krajev).\n"
+"Obiščite https://developers.google.com/maps/documentation/geocoding/get-api-"
+"key for more information."
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.res_config_settings_view_form
+msgid "API:"
+msgstr "API:"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Compute Localization"
+msgstr "Lokalizacija računanja"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Compute based on address"
+msgstr "Izračunaj na podlagi naslova"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_res_config_settings
+msgid "Config Settings"
+msgstr "Uredi nastavitve"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_res_partner
+msgid "Contact"
+msgstr "Stik"
+
+#. module: geocoding
+#: model:ir.model,website_form_label:geocoding.model_res_partner
+msgid "Create a Customer"
+msgstr "Ustvari stranko"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__create_uid
+msgid "Created by"
+msgstr "Ustvaril"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__create_date
+msgid "Created on"
+msgstr "Ustvarjeno"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__display_name
+#: model:ir.model.fields,field_description:geocoding.field_base_geocoder__display_name
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__display_name
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__display_name
+msgid "Display Name"
+msgstr "Prikazani naziv"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Error with geolocation server: %s"
+msgstr "Napaka s strežnikom za geolokacijo: %s"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_geocoder
+msgid "Geo Coder"
+msgstr "Geo Programer"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Geo Location"
+msgstr "Geo Lokacija"
+
+#. module: geocoding
+#: model:ir.model,name:geocoding.model_geocoder_provider
+msgid "Geo Provider"
+msgstr "Geo Ponudnik"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Geolocation"
+msgstr "Geolokacija"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__date_localization
+#: model:ir.model.fields,field_description:geocoding.field_res_users__date_localization
+msgid "Geolocation Date"
+msgstr "Datum geolokacije"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_googlemap_key
+msgid "Google Map API Key"
+msgstr "API ključ za Google zemljevide"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__id
+#: model:ir.model.fields,field_description:geocoding.field_base_geocoder__id
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__id
+#: model:ir.model.fields,field_description:geocoding.field_res_partner__id
+msgid "ID"
+msgstr "ID"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.res_config_settings_view_form
+msgid "Key:"
+msgstr "Ključ:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__write_uid
+msgid "Last Updated by"
+msgstr "Zadnji posodobil"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__write_date
+msgid "Last Updated on"
+msgstr "Zadnjič posodobljeno"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Lat :"
+msgstr "Zemljepisna širina :"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Long:"
+msgstr "Zemljepisna dolžina:"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__name
+msgid "Name"
+msgstr "Naziv"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/res_partner.py:0
+msgid "No match found for %(partner_names)s address(es)."
+msgstr "Ni najdenega ujemanja za %(partner_names)s naslov(e)."
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "OpenStreetMap calls disabled in testing environment."
+msgstr ""
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Partner Assignment"
+msgstr "Dodelitev partnerja"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Provider %s is not implemented for geolocation service."
+msgstr "Ponudnik %s ni implementiran za storitev geolokacije."
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Refresh"
+msgstr "Osvežite"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Refresh Localization"
+msgstr "Osveži lokalizacijo"
+
+#. module: geocoding
+#: model:ir.model.fields,field_description:geocoding.field_geocoder_provider__tech_name
+#: model:ir.model.fields,field_description:geocoding.field_res_config_settings__geoloc_provider_techname
+msgid "Technical Name"
+msgstr "Tehnični naziv"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid ""
+"Unable to geolocate, received the error:\n"
+"%s\n"
+"\n"
+"Google made this a paid feature.\n"
+"You should first enable billing on your Google account.\n"
+"Then, go to Developer Console, and enable the APIs:\n"
+"Geocoding, Maps Static, Maps Javascript.\n"
+msgstr ""
+"Geokodiranje, statični zemljevidi, zemljevidi Javascript.Unable to "
+"geolocate, received the error:\n"
+"%s\n"
+"\n"
+"Google je to funkcijo uvedel kot plačljivo.\n"
+"Najprej morate omogočiti obračunavanje v svojem Google Računu.\n"
+"Nato pojdite v konzolo za razvijalce in omogočite API-je:\n"
+"Geokodiranje, statični zemljevidi, zemljevidi Javascript.\n"
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/geocoder.py:0
+msgid "Unknown"
+msgstr "Neznano"
+
+#. module: geocoding
+#: model_terms:ir.ui.view,arch_db:geocoding.view_crm_partner_geo_form
+msgid "Updated on:"
+msgstr "Posodobljeno:"
+
+#. module: geocoding
+#: model:ir.model.fields,help:geocoding.field_res_config_settings__geoloc_provider_googlemap_key
+msgid ""
+"Visit https://developers.google.com/maps/documentation/geocoding/get-api-key "
+"for more information."
+msgstr ""
+"Obiščite https://developers.google.com/maps/documentation/geocoding/get-api-"
+"key za več informacij."
+
+#. module: geocoding
+#. odoo-python
+#: code:addons/geocoding/models/res_partner.py:0
+msgid "Warning"
+msgstr "Opozorilo"

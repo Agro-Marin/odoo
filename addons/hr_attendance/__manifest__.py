@@ -13,7 +13,7 @@ Keeps account of the attendances of the employees on the basis of the
 actions(Check in/Check out) performed by them.
        """,
     "website": "https://www.odoo.com/app/employees",
-    "depends": ["hr", "barcodes", "base_geolocalize"],
+    "depends": ["hr", "barcodes", "geocoding"],
     "data": [
         "data/hr_attendance_overtime_ruleset_data.xml",
         "data/hr_attendance_overtime_rule_data.xml",

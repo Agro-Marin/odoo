@@ -49,7 +49,7 @@ class TestPartnerAssign(TransactionCase):
             }.get(addr)
 
         patcher = patch(
-            "odoo.addons.base_geolocalize.models.base_geocoder.BaseGeocoder.geo_find",
+            "odoo.addons.geocoding.models.geocoder.Geocoder.geo_find",
             wraps=geo_find,
         )
         self.startPatcher(patcher)

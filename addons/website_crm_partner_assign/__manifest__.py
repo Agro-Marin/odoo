@@ -19,7 +19,7 @@ The automatic assignment is figured from the weight of partner levels and the ge
 
     """,
     "depends": [
-        "base_geolocalize",
+        "geocoding",
         "crm",
         "account",
         "partnership",

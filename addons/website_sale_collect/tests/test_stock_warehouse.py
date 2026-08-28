@@ -10,7 +10,7 @@ class TestStockWarehouse(ClickAndCollectCommon):
     def test_geolocation_updates_unset_coordinates_of_valid_addresses(self):
         """Test that valid addresses with default coordinates are geolocated."""
         with patch(
-            "odoo.addons.base_geolocalize.models.res_partner.ResPartner.geo_localize",
+            "odoo.addons.geocoding.models.res_partner.ResPartner.geo_localize",
             new=lambda self_: self_.write(
                 {"partner_latitude": 1.0, "partner_longitude": 1.0}
             ),
@@ -23,7 +23,7 @@ class TestStockWarehouse(ClickAndCollectCommon):
     def test_geolocation_flags_coordinates_of_invalid_addresses(self):
         """Test that invalid addresses with default coordinates are assigned invalid coordinates."""
         with patch(
-            "odoo.addons.base_geolocalize.models.res_partner.ResPartner.geo_localize",
+            "odoo.addons.geocoding.models.res_partner.ResPartner.geo_localize",
             new=lambda self_: self_.write(
                 {"partner_latitude": 0.0, "partner_longitude": 0.0}
             ),
@@ -47,7 +47,7 @@ class TestStockWarehouse(ClickAndCollectCommon):
                 {"partner_latitude": lat, "partner_longitude": long}
             )
             with patch(
-                "odoo.addons.base_geolocalize.models.res_partner.ResPartner.geo_localize"
+                "odoo.addons.geocoding.models.res_partner.ResPartner.geo_localize"
             ) as geo_localize_mock:
                 self.warehouse._prepare_pickup_location_data()
                 self.assertFalse(geo_localize_mock.called)
