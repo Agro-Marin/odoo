@@ -976,7 +976,7 @@ registerWebsitePreviewTour(
     },
     () => [
         // Create a form with two checkboxes: the second one required but
-        // invisible when the first one is checked. Basically this should allow
+        // invisible when the first one is checked. This should allow
         // to have: both checkboxes are visible by default but the form can
         // only be sent if one of the checkbox is checked.
         ...insertSnippet({
