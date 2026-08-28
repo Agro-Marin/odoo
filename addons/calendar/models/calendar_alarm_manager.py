@@ -11,19 +11,9 @@ class CalendarAlarm_Manager(models.AbstractModel):
     _name = "calendar.alarm_manager"
     _description = "Event Alarm Manager"
 
-    def _get_next_potential_limit_alarm(self, alarm_type, seconds=None, partners=None):
-        # flush models before making queries
-        for model_name in ("calendar.alarm", "calendar.event", "calendar.recurrence"):
-            self.env[model_name].flush_model()
-
-        result = {}
-        # Composed with SQL() fragments that each carry their own parameters,
-        # rather than %-formatting three strings together with one flat tuple:
-        # there the parameter order was positional *across* fragments and a
-        # str.replace spliced in the partner filter, so reordering a fragment
-        # silently misbound the parameters. Its sibling _get_events_by_alarm_to_notify
-        # already uses SQL() -- the fork has the right tool.
-        calcul_delta = SQL(
+    def _get_alarm_delta_sql(self, alarm_type):
+        """Per event, the widest and narrowest reminder lead time, in minutes."""
+        return SQL(
             """
             SELECT rel.calendar_event_id,
                    max(alarm.duration_minutes) AS max_delta,
@@ -36,7 +26,11 @@ class CalendarAlarm_Manager(models.AbstractModel):
             alarm_type,
         )
 
-        # Optional restriction to events attended by the given partners.
+    def _get_alarm_events_sql(self, partners):
+        """Active events with a reminder, and the window in which one fires.
+
+        `partners`, when given, restricts to the events they attend.
+        """
         partner_join = SQL("")
         if partners:
             partner_join = SQL(
@@ -45,8 +39,7 @@ class CalendarAlarm_Manager(models.AbstractModel):
                           AND part_rel.res_partner_id = ANY(%s)""",
                 list(partners.ids),
             )
-
-        all_events = SQL(
+        return SQL(
             """
             SELECT cal.id,
                    cal.start - interval '1' minute * calcul_delta.max_delta AS first_alarm,
@@ -63,24 +56,44 @@ class CalendarAlarm_Manager(models.AbstractModel):
             partner_join,
         )
 
-        # Upper bound on the first_alarm of the events we return.
-        if seconds is None:
-            # the next future alarm + 3 minutes if there is one, otherwise now
-            first_alarm_max_value = SQL(
-                """COALESCE(
-                    (SELECT MIN(cal.start - interval '1' minute * calcul_delta.max_delta)
-                       FROM calendar_event cal
-                       RIGHT JOIN calcul_delta ON calcul_delta.calendar_event_id = cal.id
-                      WHERE cal.start - interval '1' minute * calcul_delta.max_delta > now() at time zone 'utc'
-                    ) + interval '3' minute,
-                    now() at time zone 'utc'
-                )"""
-            )
-        else:
-            # now + the given number of seconds
-            first_alarm_max_value = SQL(
+    def _get_alarm_horizon_sql(self, seconds):
+        """Upper bound on the `first_alarm` of the events to return.
+
+        Without `seconds`: the next future alarm plus three minutes if there is
+        one, otherwise now -- so a caller asking "what is due?" gets the events
+        around the next reminder rather than every event that has one.
+        """
+        if seconds is not None:
+            return SQL(
                 "now() at time zone 'utc' + %s * interval '1' second", seconds
             )
+        return SQL(
+            """COALESCE(
+                (SELECT MIN(cal.start - interval '1' minute * calcul_delta.max_delta)
+                   FROM calendar_event cal
+                   RIGHT JOIN calcul_delta ON calcul_delta.calendar_event_id = cal.id
+                  WHERE cal.start - interval '1' minute * calcul_delta.max_delta > now() at time zone 'utc'
+                ) + interval '3' minute,
+                now() at time zone 'utc'
+            )"""
+        )
+
+    def _get_next_potential_limit_alarm(self, alarm_type, seconds=None, partners=None):
+        """Events whose reminder window is open, keyed by event id.
+
+        Composed from SQL() fragments that each carry their own parameters,
+        rather than %-formatting three strings together with one flat tuple:
+        there the parameter order was positional *across* fragments and a
+        str.replace spliced in the partner filter, so reordering a fragment
+        silently misbound the parameters. Its sibling
+        `_get_events_by_alarm_to_notify` already uses SQL() -- the fork has the
+        right tool.
+
+        :rtype: dict[int, dict]
+        """
+        # flush models before making queries
+        for model_name in ("calendar.alarm", "calendar.event", "calendar.recurrence"):
+            self.env[model_name].flush_model()
 
         self.env.flush_all()
         self.env.cr.execute(
@@ -92,22 +105,14 @@ class CalendarAlarm_Manager(models.AbstractModel):
                  WHERE all_events.first_alarm < %s
                    AND all_events.last_alarm > (now() at time zone 'utc')
                 """,
-                calcul_delta,
-                all_events,
-                first_alarm_max_value,
+                self._get_alarm_delta_sql(alarm_type),
+                self._get_alarm_events_sql(partners),
+                self._get_alarm_horizon_sql(seconds),
             )
         )
 
-        for (
-            event_id,
-            first_alarm,
-            last_alarm,
-            first_meeting,
-            last_meeting,
-            min_duration,
-            max_duration,
-        ) in self.env.cr.fetchall():
-            result[event_id] = {
+        result = {
+            event_id: {
                 "event_id": event_id,
                 "first_alarm": first_alarm,
                 "last_alarm": last_alarm,
@@ -116,11 +121,20 @@ class CalendarAlarm_Manager(models.AbstractModel):
                 "min_duration": min_duration,
                 "max_duration": max_duration,
             }
+            for (
+                event_id,
+                first_alarm,
+                last_alarm,
+                first_meeting,
+                last_meeting,
+                min_duration,
+                max_duration,
+            ) in self.env.cr.fetchall()
+        }
 
         # determine accessible events
         events = self.env["calendar.event"].browse(result)
-        result = {key: result[key] for key in events._filtered_access("read").ids}
-        return result
+        return {key: result[key] for key in events._filtered_access("read").ids}
 
     def do_check_alarm_for_one_date(
         self,

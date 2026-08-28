@@ -414,9 +414,11 @@ class CalendarRecurrence(models.Model):
 
         for recurrence in self.filtered("base_event_id"):
             recurrence.calendar_event_ids |= recurrence.base_event_id
-            event = recurrence.base_event_id or recurrence._get_first_event(
-                include_outliers=False
-            )
+            # `or recurrence._get_first_event(include_outliers=False)` stood
+            # here: unreachable behind the `filtered("base_event_id")` above,
+            # and reaching it would have enumerated the whole rrule to work out
+            # which events are outliers.
+            event = recurrence.base_event_id
             duration = event.stop - event.start
             if specific_values_creation:
                 ranges = {
@@ -599,7 +601,35 @@ class CalendarRecurrence(models.Model):
                 )
             )
 
-        return str(self._get_rrule(bounded=False)) if self.rrule_type else ""
+        if not self.rrule_type:
+            return ""
+        return self._rrule_value(str(self._get_rrule(bounded=False)))
+
+    @api.model
+    def _rrule_value(self, rule_str):
+        """The RRULE payload of `rule_str`, without the DTSTART line.
+
+        dateutil renders a rule as ``DTSTART:...\nRRULE:...``, and
+        `_rrule_serialize` builds it with no `dtstart`, so that DTSTART was
+        `datetime.now()` at the moment the field was last computed. It carried
+        no information -- the series' real start is `dtstart`, computed from the
+        events -- and every consumer had to work around it: `google_calendar`
+        strips it with a regex before sending, `calendar.event._get_ics_rrule`
+        extracts around it for the .ics, and reading the stored column showed a
+        timestamp that had nothing to do with the recurrence.
+
+        Both shapes are accepted, because rows stored before this still carry
+        the DTSTART and are only rewritten when a parameter changes.
+
+        :rtype: str
+        """
+        lines = [line.strip() for line in (rule_str or "").splitlines() if line.strip()]
+        for line in lines:
+            if line.startswith("RRULE:"):
+                return line[len("RRULE:") :]
+        # No RRULE line: a bare ``FREQ=...`` is already the payload; a lone
+        # DTSTART is not a rule at all.
+        return next((line for line in lines if not line.startswith("DTSTART:")), "")
 
     @api.model
     def _rrule_parse(self, rule_str, date_start):
@@ -778,8 +808,24 @@ class CalendarRecurrence(models.Model):
         )
 
     def _get_events_from(self, dtstart):
-        return self.env["calendar.event"].search(
-            [("id", "in", self.calendar_event_ids.ids), ("start", ">=", dtstart)]
+        """Occurrences of this recurrence starting at or after `dtstart`.
+
+        Archived ones included. This filtered them out **twice** -- reading the
+        one2many applies the comodel's active test, and then so does the search
+        -- so an archived occurrence after the cut point was neither detached
+        nor deleted by anything built on this: `_stop_at`, and through it
+        `action_mass_archive`, `action_mass_deletion` and `_break_recurrence`.
+
+        Deleting "this and following" therefore left an archived occurrence
+        behind, still pointing at a recurrence whose rule now ends before it
+        starts. Being archived is not being outside the series -- `_stop_at`
+        archives occurrences itself, so the state is one this module produces.
+        """
+        events = self.with_context(active_test=False).calendar_event_ids
+        return (
+            self.env["calendar.event"]
+            .with_context(active_test=False)
+            .search([("id", "in", events.ids), ("start", ">=", dtstart)])
         )
 
     def _get_week_days(self):

@@ -4,8 +4,8 @@ from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo.exceptions import UserError
-from odoo.tests import Form, TransactionCase
 from odoo.libs.datetime import timezone
+from odoo.tests import Form, TransactionCase
 
 
 class TestRecurrentEvents(TransactionCase):

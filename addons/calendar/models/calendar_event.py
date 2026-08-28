@@ -1,10 +1,12 @@
 import itertools
 import logging
 import math
+import re
 import uuid
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from itertools import repeat
+from typing import NamedTuple
 from urllib.parse import urlsplit, urlunsplit
 
 from markupsafe import Markup
@@ -63,6 +65,29 @@ def get_weekday_occurence(date):
     if occurence_in_month in {4, 5}:  # fourth or fifth week on the month -> last
         return -1
     return occurence_in_month
+
+
+class RecurrencePolicy(NamedTuple):
+    """Which occurrences of a recurrence a `calendar.event.write` is to touch.
+
+    The four flags used to be four locals threaded through a 146-line `write`,
+    recomputed from `recurrence_update` at three different points. Named
+    together because they are one decision: `setting` is the raw UI selection,
+    the rest are what it means for this particular recordset.
+    """
+
+    #: 'self_only' / 'future_events' / 'all_events', or None when no policy
+    #: applies -- including when one was asked for on an event with no
+    #: recurrence, where it is meaningless.
+    setting: str | None
+    #: rewrite the series rather than this occurrence alone.
+    update: bool
+    #: `recurrency=False` is being written: detach rather than rewrite.
+    breaking: bool
+    #: 'future_events' asked for from the base event, i.e. from the first
+    #: occurrence -- "this and following" is then the whole series, and it takes
+    #: the `all_events` path.
+    from_base_event: bool
 
 
 class CalendarEvent(models.Model):
@@ -416,7 +441,12 @@ class CalendarEvent(models.Model):
                 for attendee in event.attendee_ids
             )
 
-    @api.depends("attendee_ids", "attendee_ids.state")
+    # `attendee_ids.state` was a dependency here and is not one: this selects an
+    # attendee by `partner_id` and never reads a state, so every RSVP in the
+    # database invalidated it -- and `should_show_status` with it -- for nothing.
+    # `current_status` is a *related* on `current_attendee.state` and invalidates
+    # itself.
+    @api.depends("attendee_ids", "attendee_ids.partner_id")
     @api.depends_context("uid")
     def _compute_current_attendee(self):
         for event in self:
@@ -446,14 +476,21 @@ class CalendarEvent(models.Model):
                     "accepted_count": count_event["accepted"],
                     "declined_count": count_event["declined"],
                     "tentative_count": count_event["tentative"],
-                    # The headline count is the guest list; the breakdown is the
-                    # answers. They are counted from different fields, so
-                    # `awaiting` is the number of attendees who have not answered
-                    # rather than the guest count minus the answers -- that
-                    # subtraction went negative whenever `attendee_ids` held more
-                    # rows than `partner_ids`, which is every moment between the
-                    # two writes that keep them in step.
-                    "attendees_count": len(event.partner_ids),
+                    # All five come from `attendee_ids`, so the headline and
+                    # the breakdown cannot contradict each other. The headline
+                    # used to be `len(partner_ids)`, and a many2many read drops
+                    # archived records while the attendee rows survive: archive
+                    # a contact who is on a meeting and the event reads "0
+                    # guests, 1 accepted". `attendee_ids` is the authoritative
+                    # invitation list -- an attendee whose contact was
+                    # deactivated is still invited, and theirs is still the row
+                    # carrying the answer.
+                    #
+                    # `awaiting` stays a count of the unanswered rather than the
+                    # total minus the answers: that subtraction went negative
+                    # whenever the two sources disagreed, which this makes
+                    # impossible rather than merely survivable.
+                    "attendees_count": len(event.attendee_ids),
                     "awaiting_count": count_event["needsAction"],
                 }
             )
@@ -724,9 +761,25 @@ class CalendarEvent(models.Model):
     @api.depends("partner_ids", "start", "stop")
     def _compute_unavailable_partner_ids(self):
         self.unavailable_partner_ids = False
-        for start, stop, events in interval_from_events(self):
-            events_by_partner_id = events.partner_ids._get_busy_calendar_events(
-                start, stop
+        intervals = list(interval_from_events(self))
+        if not intervals:
+            return
+        # One search over the span the whole recordset covers, sliced per
+        # interval in Python.  `interval_from_events` groups the events into
+        # contiguous clusters and this used to search once per cluster, so a
+        # calendar view of back-to-back meetings -- which is a cluster per
+        # meeting -- issued a query per event.  The slicing stays per interval:
+        # `_is_partner_unavailable` is a hook, and `appointment`'s override sums
+        # a capacity over everything it is handed rather than re-checking the
+        # overlap, so handing it a wider set would change its answer.
+        span_start = min(start for start, _stop, _events in intervals)
+        span_stop = max(stop for _start, stop, _events in intervals)
+        busy_events = self.partner_ids._search_busy_calendar_events(
+            span_start, span_stop
+        )
+        for start, stop, events in intervals:
+            events_by_partner_id = events.partner_ids._group_busy_calendar_events(
+                busy_events, start, stop
             )
             for event in events:
                 for partner in event.partner_ids:
@@ -738,6 +791,22 @@ class CalendarEvent(models.Model):
                     ):
                         event.unavailable_partner_ids |= partner
 
+    # A deliberate cycle, measured rather than assumed: `videocall_location` is
+    # stored and computed from `videocall_source`, which is computed from
+    # `videocall_location`. It terminates because the compute assigns only for
+    # `source == "discuss"` and then writes the URL its own token implies.
+    #
+    # Depending on `videocall_source` changes exactly ONE case out of the five
+    # this was measured against, and it is not the one you would guess. It is
+    # *not* what gives each occurrence of a recurrence its own room -- remove
+    # the dependency and three occurrences still get three distinct tokens,
+    # because `access_token` is `copy=False` and the create path mints one. The
+    # single case it decides is **writing a discuss-shaped URL onto an event
+    # that has no token**: with the dependency a token is minted and the URL
+    # repointed at it, without it the token stays False and the URL names a
+    # token no event has -- `/calendar/join_videocall` resolves
+    # `('access_token', '=', token)`, so that link is permanently dead. The
+    # regeneration is self-healing, not a value being trampled.
     @api.depends("videocall_source", "access_token")
     def _compute_videocall_location(self):
         for event in self:
@@ -817,7 +886,14 @@ class CalendarEvent(models.Model):
     )
 
     def _create_apply_defaults(self, vals_list, defaults):
-        """Fill in `_CREATE_DEFAULT_FNAMES` from `defaults` where absent."""
+        """Fill in `_CREATE_DEFAULT_FNAMES` from `defaults` where absent.
+
+        `res_model` is not among them and is not filled here: it is a stored
+        related on `res_model_id.model`, so the ORM derives it from the
+        `res_model_id` this does fill. It used to be written too, from a key
+        `default_get` is never asked for, which put `None` into every vals dict
+        for the ORM to discard.
+        """
         # Else bug with quick_create when we are filter on an other user
         return [
             {
@@ -828,7 +904,6 @@ class CalendarEvent(models.Model):
                 "name": vals.get("name", defaults.get("name")),
                 # when res_id is not defined or vals['res_id'] == 0, fallback on default
                 "res_id": vals.get("res_id") or defaults.get("res_id"),
-                "res_model": vals.get("res_model", defaults.get("res_model")),
                 "res_model_id": vals.get("res_model_id", defaults.get("res_model_id")),
                 "start": vals.get("start", defaults.get("start")),
                 "user_id": vals.get(
@@ -1200,13 +1275,16 @@ class CalendarEvent(models.Model):
             "show_as",
         }
 
-    def write(self, vals):
-        values = vals
-        # Snapshot before the pops below: ``values`` IS ``vals``, and the
-        # recurrence branches consume the very keys the sync decision needs.
-        written_fnames = set(vals)
-        detached_events = self.env["calendar.event"]
-        recurrence_update_setting = values.pop("recurrence_update", None)
+    def _write_recurrence_policy(self, values):
+        """Resolve which occurrences this write is meant to touch.
+
+        Consumes `values`' own `recurrence_update` key, which is a UI selection
+        rather than a column, and rejects a recurrence edit that no policy
+        authorises.
+
+        :rtype: RecurrencePolicy
+        """
+        setting = values.pop("recurrence_update", None)
         # `recurrence_update` selects which occurrences of an EXISTING recurrence
         # to touch. On an event with no recurrence yet (a plain event being made
         # recurrent), it is meaningless: honouring 'self_only'/'all_events' here
@@ -1215,88 +1293,129 @@ class CalendarEvent(models.Model):
         # Its own default is 'self_only', so this bit any programmatic caller
         # that passed the field through. Treat it as unset so the recurrence is
         # built regardless of which policy was requested.
-        if recurrence_update_setting and not self.recurrence_id:
-            recurrence_update_setting = None
-        update_recurrence = (
-            recurrence_update_setting in ("all_events", "future_events")
+        if setting and not self.recurrence_id:
+            setting = None
+        update = bool(
+            setting in ("all_events", "future_events")
             and len(self) == 1
             and self.recurrence_id
         )
-        break_recurrence = values.get("recurrency") is False
-
-        if any(vals in self._get_fields_recurrent() for vals in values) and not (
-            update_recurrence or values.get("recurrency")
+        if any(fname in self._get_fields_recurrent() for fname in values) and not (
+            update or values.get("recurrency")
         ):
             raise UserError(_('Unable to save the recurrence with "This Event"'))
+        return RecurrencePolicy(
+            setting=setting,
+            update=update,
+            breaking=values.get("recurrency") is False,
+            from_base_event=(
+                setting == "future_events" and self == self.recurrence_id.base_event_id
+            ),
+        )
+
+    def _write_update_recurrence(self, values, recurrence_values, policy):
+        """Rewrite the series `policy` selects, consuming the time keys of `values`.
+
+        :return: the event the resulting series is rooted at, and the events
+            detached from their recurrence by the rewrite.
+        """
+        if policy.breaking:
+            return self, self._break_recurrence(
+                future=policy.setting == "future_events"
+            )
+        time_values = {
+            field: values.pop(field)
+            for field in self._get_fields_time()
+            if field in values
+        }
+        # prevents copying access_token to other events in recurrency
+        values.pop("access_token", None)
+        # Both calls return the event the resulting series is rooted at. It is
+        # not always ``self``: `_rewrite_recurrence` archives every occurrence
+        # and rebuilds from the *base* event, so a write on any other occurrence
+        # leaves ``self`` archived and detached, with nobody left to notify.
+        if policy.setting == "all_events" or policy.from_base_event:
+            # Update all events: we create a new reccurrence and dismiss the existing events
+            return self._rewrite_recurrence(
+                values, time_values, recurrence_values
+            ), self.browse()
+        # Update future events: trim recurrence, delete remaining events except base event and recreate it
+        # All the recurrent events processing is done within the following method
+        return self._update_future_events(
+            values, time_values, recurrence_values
+        ), self.browse()
+
+    def _write_sync_reservations(self, written_fnames):
+        """Project the write onto the shared reservation ledger.
+
+        `_reservation_sync_manual`: called from the end of `write`, with the
+        recurrence rewrite settled. `written_fnames` rather than the values
+        dict, which the recurrence branches emptied; `exists()` because
+        `_rewrite_recurrence` and `_update_future_events` unlink occurrences,
+        `self` among them.
+        """
+        if not (written_fnames & (self._get_fields_sync_trigger() | {"active"})):
+            return
+        to_sync = self.exists()._active_for_sync()
+        # Settle first: the computes this write triggered are still pending, and
+        # reading `stop` to build a booking would otherwise force
+        # `_compute_stop` ahead of the inverse that set it.
+        to_sync.flush_recordset()
+        to_sync._sync_reservations()
+
+    def write(self, values):
+        # Snapshot before the pops below: the recurrence branches consume the
+        # very keys the sync and the notification decisions need, and
+        # ``_rewrite_recurrence`` can archive ``self`` out from under them.
+        written_fnames = set(values)
+        requested_start = values.get("start")
+        previous_attendees = self.attendee_ids
+        previous_partners = self.partner_ids
+        detached_events = self.env["calendar.event"]
+        policy = self._write_recurrence_policy(values)
 
         # Check the privacy permissions of the events whose organizer is different from the current user.
         self.filtered(
             lambda ev: ev.user_id and self.env.user != ev.user_id
         )._check_calendar_privacy_write_permissions()
 
-        self._set_videocall_location([values])
-        if "partner_ids" in values:
-            values["attendee_ids"] = self._attendees_values(values["partner_ids"])
-            self._write_sync_videocall_members(values["partner_ids"])
+        self._write_prepare_values(values)
 
-        time_fields = self._get_fields_time()
         touches_time = self._touches_time(values)
-        update_time = touches_time
         # Alarms are rescheduled when the event moves, when its reminders change,
         # and when its attendees change -- a new attendee has a next-notification
         # of their own, and a removed one no longer has this event's.
         update_alarms = touches_time or "alarm_ids" in values or "partner_ids" in values
 
         if (
-            not recurrence_update_setting or recurrence_update_setting == "self_only"
+            not policy.setting or policy.setting == "self_only"
         ) and "follow_recurrence" not in values:
             if touches_time:
                 values["follow_recurrence"] = False
-
-        previous_attendees = self.attendee_ids
 
         recurrence_values = {
             field: values.pop(field)
             for field in self._get_fields_recurrent()
             if field in values
         }
-        future_edge_case = (
-            recurrence_update_setting == "future_events"
-            and self == self.recurrence_id.base_event_id
-        )
-        if update_recurrence:
-            if break_recurrence:
-                # Update this event
-                detached_events |= self._break_recurrence(
-                    future=recurrence_update_setting == "future_events"
-                )
-            else:
-                time_values = {
-                    field: values.pop(field) for field in time_fields if field in values
-                }
-                if "access_token" in values:
-                    values.pop(
-                        "access_token"
-                    )  # prevents copying access_token to other events in recurrency
-                if recurrence_update_setting == "all_events" or future_edge_case:
-                    # Update all events: we create a new reccurrence and dismiss the existing events
-                    self._rewrite_recurrence(values, time_values, recurrence_values)
-                else:
-                    # Update future events: trim recurrence, delete remaining events except base event and recreate it
-                    # All the recurrent events processing is done within the following method
-                    self._update_future_events(values, time_values, recurrence_values)
+        notify_from = self
+        if policy.update:
+            notify_from, detached = self._write_update_recurrence(
+                values, recurrence_values, policy
+            )
+            detached_events |= detached
         else:
             super().write(values)
             self._sync_activities(fields=values.keys())
 
         # We reapply recurrence for future events and when we add a rrule and 'recurrency' == True on the event
         if (
-            recurrence_update_setting not in ["self_only", "all_events"]
-            and not future_edge_case
-            and not break_recurrence
+            policy.setting not in ["self_only", "all_events"]
+            and not policy.from_base_event
+            and not policy.breaking
         ):
             detached_events |= self._apply_recurrence_values(
-                recurrence_values, future=recurrence_update_setting == "future_events"
+                recurrence_values, future=policy.setting == "future_events"
             )
 
         (detached_events & self).active = False
@@ -1304,9 +1423,15 @@ class CalendarEvent(models.Model):
 
         if not self.env.context.get("dont_notify") and update_alarms:
             self._write_reschedule_alarms()
-        if update_time:
+        if touches_time:
             self._write_reset_organizer_answer()
-        self._write_notify_attendees(values, previous_attendees, update_recurrence)
+        notify_from._write_notify_attendees(
+            written_fnames,
+            requested_start,
+            previous_attendees,
+            previous_partners,
+            policy.update,
+        )
 
         # Change base event when the main base event is archived. If it isn't done when trying to modify
         # all events of the recurrence an error can be thrown or all the recurrence can be deleted.
@@ -1315,19 +1440,23 @@ class CalendarEvent(models.Model):
                 [("base_event_id", "in", self.ids)]
             )._select_new_base_event()
 
-        # `_reservation_sync_manual`: project only now, with the recurrence
-        # rewrite settled.  `written_fnames` rather than `values`, which the
-        # branches above emptied; `exists()` because `_rewrite_recurrence` and
-        # `_update_future_events` unlink occurrences, `self` among them.
-        if written_fnames & (self._get_fields_sync_trigger() | {"active"}):
-            to_sync = self.exists()._active_for_sync()
-            # Settle first: the computes this write triggered are still
-            # pending, and reading `stop` to build a booking would otherwise
-            # force `_compute_stop` ahead of the inverse that set it.
-            to_sync.flush_recordset()
-            to_sync._sync_reservations()
+        self._write_sync_reservations(written_fnames)
 
         return True
+
+    def _write_prepare_values(self, values):
+        """Complete `values` in place before it reaches the ORM.
+
+        Two derivations the caller is never asked to make: an absolute videocall
+        URL, and the attendee commands that keep `attendee_ids` in step with the
+        `partner_ids` being written. Adding somebody to the meeting also adds
+        them to its discuss channel, which is a side effect rather than a value,
+        and is done here because it needs the same commands.
+        """
+        self._set_videocall_location([values])
+        if "partner_ids" in values:
+            values["attendee_ids"] = self._attendees_values(values["partner_ids"])
+            self._write_sync_videocall_members(values["partner_ids"])
 
     def _write_sync_videocall_members(self, partner_commands):
         """Add newly invited partners to the event's discuss channel."""
@@ -1353,23 +1482,68 @@ class CalendarEvent(models.Model):
         Otherwise the base event of a recurrence stays accepted by its organizer
         while the following occurrences are not, which reads as a half-answered
         series.
+
+        Per attendee, against *its own* event's organizer. It used to compare
+        every candidate against ``self.user_id.partner_id`` -- a many2one read
+        off the whole recordset, so on a multi-record write it is the *union* of
+        the organizers' partners, and a union never equals the single partner on
+        the left. Moving two events with different organizers in one write
+        therefore reset nobody, silently; the single-event case happened to work
+        because a one-element union is that one element.
         """
         moved_by_others = self.filtered(
             lambda ev: ev.user_id and ev.user_id != self.env.user
         )
-        if moved_by_others:
-            moved_by_others.attendee_ids.filtered(
-                lambda att: self.user_id.partner_id == att.partner_id
-            ).write({"state": "needsAction"})
+        moved_by_others.attendee_ids.filtered(
+            lambda att: att.partner_id == att.event_id.user_id.partner_id
+        ).write({"state": "needsAction"})
 
-    def _write_notify_attendees(self, values, previous_attendees, update_recurrence):
-        """Mail the invitation to new attendees and the new date to the old ones."""
+    def _write_notify_attendees(
+        self,
+        written_fnames,
+        requested_start,
+        previous_attendees,
+        previous_partners,
+        update_recurrence,
+    ):
+        """Mail the invitation to new attendees and the new date to the old ones.
+
+        `written_fnames` and `requested_start` are `write`'s snapshot of its own
+        argument, taken before the recurrence branches empty it. Asking the dict
+        meant that a recurrence update -- which pops every time field into
+        `time_values` -- reached the "start" test with no "start" left in it and
+        returned early, so moving a whole series told nobody the date had
+        changed while moving a single occurrence did. That the caller passes
+        `update_recurrence` down purely to *un*set
+        `calendar_template_ignore_recurrence` shows the branch was meant to be
+        reachable.
+
+        An attendee is new only when *both* identities say so: its row is not
+        one of `previous_attendees` AND its partner is not one of
+        `previous_partners`. Neither test is sufficient alone. Records alone
+        break on the "all events" path, which archives every occurrence and
+        recreates it, so no attendee row survives the write and everyone looks
+        new. Partners alone break because a many2many read drops
+        archived records while the attendee rows survive: an attendee whose
+        contact was deactivated is absent from `previous_partners`, so a
+        partner-only test calls them new and re-invites somebody who was on the
+        invitation all along.
+        """
         if self.env.context.get("skip_attendee_notification"):
             return
         current_attendees = self.filtered("active").attendee_ids
-        if "partner_ids" in values:
+        previous_partner_ids = set(previous_partners.ids)
+        previous_attendee_ids = set(previous_attendees.ids)
+
+        def is_new(attendee):
+            return (
+                attendee.id not in previous_attendee_ids
+                and attendee.partner_id.id not in previous_partner_ids
+            )
+
+        if "partner_ids" in written_fnames:
             # we send to all partners and not only the new ones
-            (current_attendees - previous_attendees)._notify_attendees(
+            current_attendees.filtered(is_new)._notify_attendees(
                 self.env.ref(
                     "calendar.calendar_template_meeting_invitation",
                     raise_if_not_found=False,
@@ -1384,15 +1558,15 @@ class CalendarEvent(models.Model):
         # `stop`-only write (event lengthened/shortened, start untouched)
         # used to skip this notification entirely.
         if self.env.context.get("is_calendar_event_new") or not (
-            values.keys() & {"start", "stop"}
+            written_fnames & {"start", "stop"}
         ):
             return
-        start_date = fields.Datetime.to_datetime(values.get("start")) or (
+        start_date = fields.Datetime.to_datetime(requested_start) or (
             self[:1].start if self else None
         )
         # Only notify on future events
         if start_date and start_date >= fields.Datetime.now():
-            (current_attendees & previous_attendees).with_context(
+            current_attendees.filtered(lambda att: not is_new(att)).with_context(
                 calendar_template_ignore_recurrence=not update_recurrence
             )._notify_attendees(
                 self.env.ref(
@@ -1926,10 +2100,14 @@ class CalendarEvent(models.Model):
             self.recurrence_id.unlink()
             events.unlink()
         elif recurrence_update_setting == "future_events":
-            future_events = self.recurrence_id.calendar_event_ids.filtered(
-                lambda ev: ev.start >= self.start
-            )
-            future_events.unlink()
+            # `_stop_at` does both halves: it detaches the occurrences from this
+            # one onward AND trims the rule to end before it. Selecting the rows
+            # by hand and unlinking them did only the first, so the recurrence
+            # went on claiming its original `count` with no `until`, and the
+            # next `_apply_recurrence` -- any later edit of the series reaches
+            # one -- recreated every occurrence that had just been deleted.
+            # `action_mass_archive`, the sibling this mirrors, already trims.
+            self.recurrence_id._stop_at(self).unlink()
         else:
             # Public, RPC-callable method: fail loudly instead of silently
             # no-op'ing on an unrecognized policy. Today's only caller,
@@ -2040,6 +2218,7 @@ class CalendarEvent(models.Model):
         """Schedule cron triggers for future events"""
         cron = self.env.ref("calendar.ir_cron_scheduler_alarm").sudo()
         alarm_types = self._get_trigger_alarm_types()
+        now = fields.Datetime.now()
         events_to_notify = self.env["calendar.event"]
         triggers_by_events = {}
         for event in self:
@@ -2053,11 +2232,12 @@ class CalendarEvent(models.Model):
                     # Don't trigger for past alarms, they would be skipped by design
                     trigger = cron._trigger(at=at)
                     triggers_by_events[event.id] = trigger.id
-            if any(alarm.alarm_type == "notification" for alarm in event.alarm_ids):
-                # filter events before notifying attendees through calendar_alarm_manager
-                events_to_notify |= event.filtered(
-                    lambda ev: ev.alarm_ids and ev.stop >= fields.Datetime.now()
-                )
+            if (
+                any(alarm.alarm_type == "notification" for alarm in event.alarm_ids)
+                and event.stop >= now
+            ):
+                # notify the attendees through calendar_alarm_manager below
+                events_to_notify |= event
         if events_to_notify:
             self.env["calendar.alarm_manager"]._notify_next_alarm(
                 events_to_notify.partner_ids.ids
@@ -2251,6 +2431,8 @@ class CalendarEvent(models.Model):
         """
         Trim the current recurrence detaching the occurrences after current event,
         deactivate the detached events except for the updated event and apply recurrence values.
+
+        :return: the event the resulting series is rooted at.
         """
         self.ensure_one()
         base_event = self
@@ -2270,7 +2452,13 @@ class CalendarEvent(models.Model):
 
         # Update the current event with the new recurrence information.
         if values or time_values:
-            self.write(
+            # `skip_attendee_notification`, as `_rewrite_recurrence` already
+            # does on its own inner write: this is a nested `write` carrying the
+            # new `start`, so it announces the move a second time on top of the
+            # one the outer `write` sends. The outer one is the one to keep --
+            # it is the only one rendered with the recurrence described, the
+            # whole point of `calendar_template_ignore_recurrence`.
+            self.with_context(skip_attendee_notification=True).write(
                 {
                     **time_values,
                     **values,
@@ -2291,11 +2479,20 @@ class CalendarEvent(models.Model):
         }
         new_values.pop("rrule", None)
 
-        # Generate the new recurrence by patching the updated event and return an empty list.
+        # Generate the new recurrence by patching the updated event.
         self._apply_recurrence_values(new_values)
+        # `self` is the base event of the series this just built; `write` mails
+        # the attendees from it.
+        return self
 
     def _rewrite_recurrence(self, values, time_values, recurrence_values):
-        """Delete the current recurrence, reactivate base event and apply updated recurrence values."""
+        """Delete the current recurrence, reactivate base event and apply updated recurrence values.
+
+        :return: the event the resulting series is rooted at. It is the *base*
+            event, which is not necessarily ``self``: every occurrence is
+            archived and the series rebuilt from the base, so a write on any
+            other occurrence leaves ``self`` archived and detached.
+        """
         self.ensure_one()
         base_event = (
             self.recurrence_id.base_event_id
@@ -2338,6 +2535,7 @@ class CalendarEvent(models.Model):
         else:
             # Write on all events. Carefull, it could trigger a lot of noise to Google/Microsoft...
             self.recurrence_id._write_events(values)
+        return base_event
 
     # ------------------------------------------------------------
     # MANAGEMENT
@@ -2433,12 +2631,8 @@ class CalendarEvent(models.Model):
         """
         result = {}
 
-        def ics_datetime(idate, allday=False):
-            if idate:
-                if allday:
-                    return idate
-                return idate.replace(tzinfo=timezone("UTC"))
-            return False
+        def ics_datetime(idate):
+            return idate.replace(tzinfo=timezone("UTC")) if idate else False
 
         if not vobject:
             return result
@@ -2452,48 +2646,116 @@ class CalendarEvent(models.Model):
                     _("First you have to specify the date of the invitation.")
                 )
             event.add("created").value = ics_datetime(fields.Datetime.now())
-            event.add("dtstart").value = ics_datetime(meeting.start, meeting.allday)
-            event.add("dtend").value = ics_datetime(meeting.stop, meeting.allday)
+            if meeting.allday:
+                # An all-day event is a DATE, not a time of day. `start`/`stop`
+                # hold 08:00 and 18:00 by this module's own convention (see
+                # `_inverse_dates`), and handing those naive datetimes to
+                # vobject emitted `DTSTART:20301224T080000` -- a *floating*
+                # datetime, which a reader shifts into its own timezone. So
+                # Christmas arrived as "08:00 to 18:00, in whatever zone the
+                # reader happens to be", the exact reading the convention
+                # exists to avoid.
+                #
+                # DTEND is exclusive for a DATE value (RFC 5545 3.8.2.2), so a
+                # 24th-to-26th event ends on the 27th. Emitting the 26th made
+                # every multi-day all-day event a day short.
+                event.add("dtstart").value = meeting.start.date()
+                event.add("dtend").value = meeting.stop.date() + timedelta(days=1)
+            else:
+                event.add("dtstart").value = ics_datetime(meeting.start)
+                event.add("dtend").value = ics_datetime(meeting.stop)
             event.add("summary").value = meeting._get_customer_summary()
             description = html2plaintext(meeting._get_customer_description())
             if description:
                 event.add("description").value = description
             if meeting.location:
                 event.add("location").value = meeting.location
-            if meeting.rrule:
-                event.add("rrule").value = meeting.rrule
+            if meeting._ics_should_declare_recurrence() and (
+                rrule_value := self._get_ics_rrule(meeting.rrule)
+            ):
+                event.add("rrule").value = rrule_value
 
-            if meeting.alarm_ids:
-                for alarm in meeting.alarm_ids:
-                    valarm = event.add("valarm")
-                    interval = alarm.interval
-                    duration = alarm.duration
-                    trigger = valarm.add("TRIGGER")
-                    trigger.params["related"] = ["START"]
-                    if interval == "days":
-                        delta = timedelta(days=duration)
-                    elif interval == "hours":
-                        delta = timedelta(hours=duration)
-                    elif interval == "minutes":
-                        delta = timedelta(minutes=duration)
-                    trigger.value = delta
-                    valarm.add("DESCRIPTION").value = alarm.name or "Odoo"
-            for attendee in meeting.attendee_ids:
-                attendee_add = event.add("attendee")
-                attendee_add.value = "MAILTO:" + (attendee.email or "")
-
-            # Add "organizer" field if email available
-            if meeting.partner_id.email:
-                organizer = event.add("organizer")
-                organizer.value = "MAILTO:" + meeting.partner_id.email
-                if meeting.partner_id.name:
-                    organizer.params["CN"] = [
-                        meeting.partner_id.display_name.replace('"', "'")
-                    ]
+            meeting._ics_add_alarms(event)
+            meeting._ics_add_people(event)
 
             result[meeting.id] = cal.serialize().encode("utf-8")
 
         return result
+
+    def _ics_add_alarms(self, vevent):
+        """Add one VALARM per reminder, triggered relative to the start."""
+        self.ensure_one()
+        for alarm in self.alarm_ids:
+            valarm = vevent.add("valarm")
+            trigger = valarm.add("TRIGGER")
+            trigger.params["related"] = ["START"]
+            trigger.value = -timedelta(minutes=alarm.duration_minutes)
+            valarm.add("DESCRIPTION").value = alarm.name or "Odoo"
+
+    def _ics_add_people(self, vevent):
+        """Add the ATTENDEE lines and, where there is an address, ORGANIZER."""
+        self.ensure_one()
+        for attendee in self.attendee_ids:
+            vevent.add("attendee").value = "MAILTO:" + (attendee.email or "")
+        if self.partner_id.email:
+            organizer = vevent.add("organizer")
+            organizer.value = "MAILTO:" + self.partner_id.email
+            if self.partner_id.name:
+                organizer.params["CN"] = [
+                    self.partner_id.display_name.replace('"', "'")
+                ]
+
+    def _ics_should_declare_recurrence(self):
+        """Whether this event's .ics may carry the series' RRULE.
+
+        Odoo materialises every occurrence as its own `calendar.event` row, so
+        an RRULE in an occurrence's .ics does not describe it -- it asks the
+        reading client to *generate* the siblings that already exist. Emitting
+        one per occurrence multiplies the series by itself: three daily
+        occurrences each declaring ``FREQ=DAILY;COUNT=3`` is nine events.
+
+        This went unnoticed because the RRULE was malformed (see
+        `_get_ics_rrule`) and clients dropped it. Making it well-formed is what
+        makes the over-declaration bite, so the two belong together.
+
+        Two conditions, and both are needed:
+
+        - only the recurrence's **base event** stands for the series; every
+          other occurrence is one event and exports as one.
+        - not when `calendar_template_ignore_recurrence` is set, which is the
+          module's existing way of saying "this mail is about this occurrence,
+          not about the series" -- `_send_reminder` sets it for every reminder,
+          and `_write_notify_attendees` for a single-occurrence move.
+        """
+        self.ensure_one()
+        if not self.rrule or self.env.context.get(
+            "calendar_template_ignore_recurrence"
+        ):
+            return False
+        # A recurrent event with no recurrence record yet is its own base.
+        return not self.recurrence_id or self == self.recurrence_id.base_event_id
+
+    @api.model
+    def _get_ics_rrule(self, rrule):
+        """The RRULE value fit for a single iCalendar RRULE property.
+
+        The payload comes from `calendar.recurrence._rrule_value`, which owns
+        the two shapes the stored column can hold -- see its docstring for why
+        one of them prefixes a meaningless DTSTART. Assigning the whole block to
+        an `RRULE` property emitted **two** RRULE lines, the first of them
+        ``RRULE:DTSTART:<the compute's timestamp>``, so a client reading the
+        invitation took a bare DTSTART as the recurrence rule and the meeting
+        arrived with its repetition broken.
+
+        `UNTIL` is stamped UTC here and not in the stored value: RFC 5545
+        requires it when DTSTART is a UTC datetime, which is how `_get_ics_file`
+        writes it, but the stored rule is not an iCalendar document and
+        `_rrule_parse` reads it back against a naive `dtstart`.
+
+        :rtype: str
+        """
+        value = self.env["calendar.recurrence"]._rrule_value(rrule)
+        return re.sub(r"(UNTIL=\d{8}T\d{6})($|;)", r"\1Z\2", value)
 
     @api.model
     def _get_contact_details_description(self, organizer, partners):
@@ -2698,11 +2960,19 @@ class CalendarEvent(models.Model):
 
     @api.model
     def get_default_duration(self):
-        ir_default_get = self.env["ir.default"].sudo()._get
-        res = ir_default_get(
-            "calendar.event", "duration", user_id=True, company_id=True
-        )
-        res = res or ir_default_get("calendar.event", "duration", user_id=True)
-        res = res or ir_default_get("calendar.event", "duration", company_id=True)
-        res = res or ir_default_get("calendar.event", "duration")
-        return res or 1
+        """The configured default meeting length, in hours.
+
+        Read through `ir.default._get_model_defaults`, which is `ormcache`d --
+        one query cold, none warm. This used to spell the precedence out by
+        hand as four `ir.default._get` calls -- (user, company), (user),
+        (company), global -- and each of those is an uncached `search`, so it
+        cost **four queries on every call**, warm, from every `default_get`
+        (`_default_stop` asks for it).
+
+        `_get_model_defaults` answers the same question: its
+        ``ORDER BY (user_id IS NOT NULL) DESC, (company_id IS NOT NULL) DESC,
+        id`` with first-row-wins per field is that same precedence, and it
+        returns the whole model's defaults rather than one field's.
+        """
+        defaults = self.env["ir.default"].sudo()._get_model_defaults("calendar.event")
+        return defaults.get("duration") or 1

@@ -637,6 +637,14 @@ class TestEventNotifications(CalendarMailCommon):
             'location': 'Odoo S.A.',
             'privacy': 'public',
             'show_as': 'busy',
+            # A participant to notify, which is what this test is named for.
+            # Without one the meeting is solo, and the wizard's `close()`
+            # deletes it outright rather than offering to mail anybody -- so
+            # `action_unlink_event()` below ran against a deleted record. It
+            # used to survive only because the creating user here is OdooBot,
+            # whose partner is archived and therefore absent from
+            # `partner_ids`, which is what the old "is this solo?" test read.
+            'partner_ids': [(4, user_admin.partner_id.id)],
         })
 
         # Deleting the next occurrence of the event using the delete wizard.

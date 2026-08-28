@@ -34,8 +34,13 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
         offers to mail the attendees before deleting.
         """
         event = self.calendar_event_id
+        # Asked of `attendee_ids`, the authoritative invitation list, rather
+        # than half of it of `partner_ids` -- which a many2many read strips of
+        # archived contacts, so a meeting whose only other guest had been
+        # deactivated counted as solo and was deleted with no offer to tell
+        # them.
         organizer_is_sole_attendee = (
-            event.attendees_count == 1 and event.partner_ids == event.user_id.partner_id
+            event.attendee_ids.partner_id == event.user_id.partner_id
         )
         if organizer_is_sole_attendee:
             event._unlink_by_recurrence_policy(self.delete)

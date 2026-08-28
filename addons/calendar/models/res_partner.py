@@ -1,5 +1,4 @@
 from collections import defaultdict
-from datetime import datetime
 
 from odoo import _, api, fields, models
 from odoo.tools import SQL
@@ -121,15 +120,50 @@ class ResPartner(models.Model):
 
         :rtype: dict[int, <calendar.event>]
         """
-        events = self.env['calendar.event'].search([
+        return self._group_busy_calendar_events(
+            self._search_busy_calendar_events(start_datetime, end_datetime),
+            start_datetime,
+            end_datetime,
+        )
+
+    def _search_busy_calendar_events(self, start_datetime, end_datetime):
+        """Events attended by `self`, shown as busy, intersecting the interval.
+
+        Split out of `_get_busy_calendar_events` so a caller holding several
+        intervals can pay for one search over their whole span and slice it per
+        interval with `_group_busy_calendar_events`, instead of one search per
+        interval (see `calendar.event._compute_unavailable_partner_ids`).
+
+        :rtype: <calendar.event>
+        """
+        return self.env['calendar.event'].search([
             ('stop', '>=', start_datetime.replace(tzinfo=None)),
             ('start', '<=', end_datetime.replace(tzinfo=None)),
             ('partner_ids', 'in', self.ids),
             ('show_as', '=', 'busy'),
         ])
 
+    def _group_busy_calendar_events(self, events, start_datetime, end_datetime):
+        """Bucket the part of `events` intersecting the interval, by attendee.
+
+        Keyed by every partner attending a kept event, not only by the partners
+        of `self` -- which is what `_get_busy_calendar_events` has always
+        returned, and restricting it here would silently change that method for
+        its callers outside this module. Callers read the keys they asked about;
+        the extra ones are inert.
+
+        The bounds are the closed ones `_search_busy_calendar_events` compares
+        against: an event that merely touches an edge counts as busy there, so
+        the search and the slice must not disagree about it.
+
+        :rtype: dict[int, <calendar.event>]
+        """
+        start = start_datetime.replace(tzinfo=None)
+        stop = end_datetime.replace(tzinfo=None)
         event_by_partner_id = defaultdict(lambda: self.env['calendar.event'])
         for event in events:
+            if not (event.stop >= start and event.start <= stop):
+                continue
             for partner in event.partner_ids:
                 event_by_partner_id[partner.id] |= event
         return dict(event_by_partner_id)

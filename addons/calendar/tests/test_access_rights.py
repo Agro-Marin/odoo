@@ -233,12 +233,13 @@ class TestAccessRights(TransactionCase):
         for (field, value) in [
             ('name', 'pub'),
             ('location', 'loc_2'),
-            ('description', '<div>pub<br>'
+            ('description', (
+                '<div>pub<br>'
                 '<strong>Organized by</strong><br>'
                 'john (base.group_user)<br><a href="mailto:j.j@example.com">j.j@example.com</a><br><br>'
                 '<strong>Contact Details</strong><br>'
-                'george (base.group_user)<br><a href="mailto:g.g@example.com">g.g@example.com</a></div>',
-            ),
+                'george (base.group_user)<br><a href="mailto:g.g@example.com">g.g@example.com</a></div>'
+            )),
         ]:
             field_information = self.read_event(self.admin_user, john_public_evt, field)
             self.assertEqual(str(field_information), value, "The field '%s' information must be readable by the admin." % field)

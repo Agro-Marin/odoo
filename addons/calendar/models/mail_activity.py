@@ -25,13 +25,13 @@ class MailActivity(models.Model):
             for event in events:
                 # allday: just apply diff between dates
                 if event.allday and event.start_date != date_deadline:
-                    event.start = event.start + (date_deadline - event.start_date)
+                    event.start += date_deadline - event.start_date
                 # otherwise: we have to check if day did change, based on TZ
                 elif not event.allday:
                     # old start in user timezone
                     old_deadline_dt = event.start.replace(tzinfo=UTC).astimezone(timezone(user_tz))
                     date_diff = date_deadline - old_deadline_dt.date()
-                    event.start = event.start + date_diff
+                    event.start += date_diff
 
         return res
 

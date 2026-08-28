@@ -1,5 +1,4 @@
 import logging
-import re
 
 from odoo import api, models
 from odoo.fields import Command, Domain
@@ -215,15 +214,14 @@ class CalendarRecurrence(models.Model):
             values['start']['timeZone'] = self.event_tz or 'Etc/UTC'
             values['end']['timeZone'] = self.event_tz or 'Etc/UTC'
 
-        # DTSTART is not allowed by Google Calendar API.
-        # Event start and end times are specified in the start and end fields.
-        rrule = re.sub(r'DTSTART:[0-9]{8}T[0-9]{1,8}\n', '', self.rrule)
-        # UNTIL must be in UTC (appending Z)
-        # We want to only add a 'Z' to non UTC UNTIL values and avoid adding a second.
-        # 'RRULE:FREQ=DAILY;UNTIL=20210224T235959;INTERVAL=3 --> match UNTIL=20210224T235959
-        # 'RRULE:FREQ=DAILY;UNTIL=20210224T235959 --> match
-        rrule = re.sub(r"(UNTIL=\d{8}T\d{6})($|;)", r"\1Z\2", rrule)
-        values['recurrence'] = ['RRULE:%s' % rrule] if 'RRULE:' not in rrule else [rrule]
+        # DTSTART is not allowed by Google Calendar API -- event start and end
+        # times are specified in the start and end fields -- and UNTIL must be
+        # stamped UTC. Both are what `_get_ics_rrule` does for the .ics, off the
+        # same stored column, so the two shapes that column can hold are known
+        # in one place rather than re-derived here by regex.
+        values['recurrence'] = [
+            'RRULE:%s' % self.env['calendar.event']._get_ics_rrule(self.rrule)
+        ]
         property_location = 'shared' if event.user_id else 'private'
         values['extendedProperties'] = {
             property_location: {
