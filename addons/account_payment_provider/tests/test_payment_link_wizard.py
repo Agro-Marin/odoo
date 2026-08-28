@@ -1,7 +1,7 @@
 from odoo import Command
 from odoo.tests import tagged
 
-from odoo.addons.account_payment.tests.common import AccountPaymentCommon
+from odoo.addons.account_payment_provider.tests.common import AccountPaymentCommon
 
 
 @tagged("-at_install", "post_install")

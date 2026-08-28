@@ -3,7 +3,7 @@ from unittest.mock import patch
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 
-from odoo.addons.account_payment.tests.common import AccountPaymentCommon
+from odoo.addons.account_payment_provider.tests.common import AccountPaymentCommon
 
 
 @tagged("-at_install", "post_install")
@@ -57,11 +57,11 @@ class TestPaymentProviderSetup(AccountPaymentCommon):
         )
 
     def test_check_existing_payment_true_when_payment_uses_method(self):
-        method_line = self.provider.journal_id.inbound_payment_method_line_ids.filtered(
+        method_line = self.provider.journal_id.inbound_payment_channel_ids.filtered(
             lambda l: l.payment_provider_id == self.provider
         )
         self.env["account.payment"].create(
-            {"payment_method_line_id": method_line.id, "amount": 10}
+            {"payment_channel_id": method_line.id, "amount": 10}
         )
 
         self.assertTrue(
@@ -69,11 +69,11 @@ class TestPaymentProviderSetup(AccountPaymentCommon):
         )
 
     def test_remove_provider_blocked_when_payments_exist(self):
-        method_line = self.provider.journal_id.inbound_payment_method_line_ids.filtered(
+        method_line = self.provider.journal_id.inbound_payment_channel_ids.filtered(
             lambda l: l.payment_provider_id == self.provider
         )
         self.env["account.payment"].create(
-            {"payment_method_line_id": method_line.id, "amount": 10}
+            {"payment_channel_id": method_line.id, "amount": 10}
         )
 
         with self.assertRaises(UserError):

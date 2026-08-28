@@ -108,7 +108,7 @@ class AccountPayment(models.Model):
             group_key = (
                 payment.company_id.id,
                 payment.partner_id.id,
-                payment.payment_method_line_id.payment_provider_id.id,
+                payment.payment_channel_id.payment_provider_id.id,
             )
             if group_key not in tokens_per_group:
                 tokens_per_group[group_key] = (

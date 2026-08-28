@@ -203,7 +203,7 @@ class TestAccountPayment(AccountPaymentCommon):
         each distinct (company, partner, provider) group when computed on a batch of
         several account.payment records sharing the same group."""
         provider_method_line = (
-            self.provider.journal_id.inbound_payment_method_line_ids.filtered(
+            self.provider.journal_id.inbound_payment_channel_ids.filtered(
                 lambda l: l.payment_provider_id == self.provider
             )
         )
@@ -220,7 +220,7 @@ class TestAccountPayment(AccountPaymentCommon):
                     "currency_id": self.currency.id,
                     "partner_id": self.partner.id,
                     "journal_id": self.provider.journal_id.id,
-                    "payment_method_line_id": provider_method_line.id,
+                    "payment_channel_id": provider_method_line.id,
                 },
                 {
                     "payment_type": "inbound",
@@ -230,7 +230,7 @@ class TestAccountPayment(AccountPaymentCommon):
                     "currency_id": self.currency.id,
                     "partner_id": self.partner.id,
                     "journal_id": self.provider.journal_id.id,
-                    "payment_method_line_id": provider_method_line.id,
+                    "payment_channel_id": provider_method_line.id,
                 },
                 {
                     "payment_type": "inbound",
@@ -240,7 +240,7 @@ class TestAccountPayment(AccountPaymentCommon):
                     "currency_id": self.currency.id,
                     "partner_id": other_partner.id,
                     "journal_id": self.provider.journal_id.id,
-                    "payment_method_line_id": provider_method_line.id,
+                    "payment_channel_id": provider_method_line.id,
                 },
             ]
         )
