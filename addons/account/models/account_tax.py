@@ -37,7 +37,6 @@ class AccountTax(models.Model):
     _name = "account.tax"
     _inherit = ["account.tax", "mixin.company.split"]
 
-
     fiscal_position_ids = fields.Many2many(
         comodel_name="account.fiscal.position",
         relation="account_fiscal_position_account_tax_rel",
@@ -1211,6 +1210,10 @@ class AccountTaxRepartitionLine(models.Model):
         domain="[('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance'))]",
         check_company=True,
         help="Account on which to post the tax amount",
+    )
+    account_active = fields.Boolean(
+        related="account_id.active",
+        string="Account Active",
     )
     tag_ids = fields.Many2many(
         string="Tax Grids",

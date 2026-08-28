@@ -71,6 +71,10 @@ class ProductTemplate(models.Model):
         domain=ACCOUNT_DOMAIN,
         help="Keep this field empty to use the default value from the product category.",
     )
+    property_account_income_active = fields.Boolean(
+        related="property_account_income_id.active",
+        string="Income Account Active",
+    )
     property_account_expense_id = fields.Many2one(
         "account.account",
         company_dependent=True,
@@ -78,6 +82,10 @@ class ProductTemplate(models.Model):
         string="Expense Account",
         domain=ACCOUNT_DOMAIN,
         help="Keep this field empty to use the default value from the product category. If anglo-saxon accounting with automated valuation method is configured, the expense account on the product category will be used.",
+    )
+    property_account_expense_active = fields.Boolean(
+        related="property_account_expense_id.active",
+        string="Expense Account Active",
     )
     account_tag_ids = fields.Many2many(
         string="Account Tags",
