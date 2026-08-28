@@ -114,6 +114,25 @@ class TestKeyCryptoOperations(TransactionCase):
             },
         )
 
+        cls.rsa_encrypted_crypto_key = rsa.generate_private_key(
+            public_exponent=65537, key_size=2048
+        )
+        cls.rsa_private_encrypted = cls.Key.create(
+            {
+                "name": "RSA private (password-protected)",
+                "content": base64.b64encode(
+                    cls.rsa_encrypted_crypto_key.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.PKCS8,
+                        encryption_algorithm=serialization.BestAvailableEncryption(
+                            b"hunter2"
+                        ),
+                    )
+                ),
+                "password": "hunter2",
+            },
+        )
+
     def test_sign_requires_private_key(self):
         with self.assertRaises(UserError):
             self.ed_public._sign("payload")
@@ -139,6 +158,17 @@ class TestKeyCryptoOperations(TransactionCase):
             ),
         )
         self.assertEqual(self.rsa_private._decrypt(ciphertext), "secreto")
+
+    def test_rsa_decrypt_round_trip_with_password_protected_key(self):
+        ciphertext = self.rsa_encrypted_crypto_key.public_key().encrypt(
+            b"secreto",
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            ),
+        )
+        self.assertEqual(self.rsa_private_encrypted._decrypt(ciphertext), "secreto")
 
     def test_decrypt_guards(self):
         with self.assertRaises(UserError):
