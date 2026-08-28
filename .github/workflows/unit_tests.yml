@@ -130,6 +130,48 @@ jobs:
         # exact-mode ratchets.
         run: python -m pytest odoo/libs -q
 
+      - name: Run the Tier-1 suites that were in no lane at all
+        # `pytest.ini` declares 24 testpaths. Before this step CI ran three of
+        # them: `odoo/orm/components/tests` (the no-Rust job above),
+        # `odoo/libs/_field_access/tests` and `odoo/libs`. Everything below was
+        # in Tier 1 and gated by nothing — `odoo/tools/tests` alone is 615
+        # tests. `tooling/architecture` and `tooling/vendored` are not here
+        # because they already have lanes of their own (architecture.yml,
+        # vendored_libs.yml); the rest of `tooling/` did not.
+        #
+        # ONE STEP PER SUITE, not one invocation naming them all. Naming N paths
+        # makes `_testing_bootstrap` stub N package chains at once, and the
+        # stubs then shadow each other's packages: these ten in a single
+        # `pytest` call abort with 11 collection errors, while each on its own
+        # is green. Separate steps also name the suite that broke, which is the
+        # reason the steps above are separate too.
+        #
+        # `odoo/db/tests` and `odoo/tools/tests` are deliberately NOT here.
+        # Named on their own they are 22 and 11 failed — `AttributeError:
+        # module 'odoo.db' has no attribute '_Pool'` and friends, tests reaching
+        # for state that lives in a package `__init__.py` the stub replaces.
+        # They pass in the bare run, where the stubs turn out to be inert, and
+        # gating them means first deciding whether that code moves to a leaf
+        # module or those tests move to Tier 2. Adding a red lane is not the way
+        # to raise the question.
+        run: |
+          for suite in \
+            odoo/orm/domain/tests \
+            odoo/modules/tests \
+            odoo/addons/base/models/tests \
+            addons/account/tools/tests \
+            addons/mail/tools/tests \
+            tooling/doclinks \
+            tooling/ratchet \
+            tooling/testbaseline \
+            tooling/typecheck \
+            tooling/hoot
+          do
+            echo "::group::pytest $suite"
+            python -m pytest "$suite" -q
+            echo "::endgroup::"
+          done
+
       - name: Run the Tier-2 suites (real import — one separate invocation)
         # MUST be a separate invocation: the Tier-1 conftests above register
         # process-global sys.modules stubs that would shadow `import odoo`.
