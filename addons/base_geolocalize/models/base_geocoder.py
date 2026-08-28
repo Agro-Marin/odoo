@@ -88,7 +88,7 @@ class BaseGeocoder(models.AbstractModel):
     def _call_openstreetmap(self, addr, **kw):
         """
         Use Openstreemap Nominatim service to retrieve location
-        :return: (latitude, longitude), or None only when addr is empty; raises if the provider returns zero results
+        :return: (latitude, longitude), or None if addr is empty or the provider found no match
         """
         if not addr:
             _logger.info("invalid address given")
@@ -108,9 +108,12 @@ class BaseGeocoder(models.AbstractModel):
                     response.status_code,
                     response.content,
                 )
+                raise ValueError("Nominatim returned HTTP %s" % response.status_code)
             result = response.json()
         except Exception as e:
             self._raise_query_error(e)
+        if not result:
+            return None
         geo = result[0]
         return float(geo["lat"]), float(geo["lon"])
 
@@ -145,6 +148,7 @@ class BaseGeocoder(models.AbstractModel):
                     response.status_code,
                     response.content,
                 )
+                raise ValueError("Nominatim returned HTTP %s" % response.status_code)
             result = response.json()
         except Exception as e:
             self._raise_query_error(e)
