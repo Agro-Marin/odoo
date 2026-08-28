@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from markupsafe import Markup
-from odoo import api, fields, models, _
+from odoo import fields, models, _
 from odoo.tools.mail import is_html_empty
 
 

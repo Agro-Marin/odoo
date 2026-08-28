@@ -1,4 +1,4 @@
 {
-  "count": 46,
-  "note": "Set on the composed tree after rebasing onto origin a second time. 48 -> 46 is a side effect of taking stock_picking_batch/models/stock_move_line.py under the 80-line budget, not a separate piece of work: origin had grown _auto_wave_lines_into_existing_waves to complexity 21 and _auto_wave_lines_into_new_waves to 25, and splitting each into its potential-set query, its grouping predicate and its wave-filling loop dropped both under 20. The file is now at zero on this gate, as it is on pyfunclen_addons."
+  "count": 45,
+  "note": "46 -> 45: crm reaches zero on this gate. `_pls_get_naive_bayes_probabilities` was the module's only offender, at complexity 25 -- and it was 189 lines, which is the same fact told twice. Two seams came out of it: `_pls_tally_frequencies`, which sums the frequency table into {team: {field: {value: {won, lost}}}}, and `_pls_team_priors`, which turns those totals into P(won)/P(lost) per team and expresses \"this team cannot be scored\" as absence from the dict rather than as a cached value the next iteration inherits. That absence is the fix from e04f704f6ba, and it is now the helper's whole contract."
 }

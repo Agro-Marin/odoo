@@ -57,6 +57,70 @@ class CrmLead(models.Model):
     # ---------------------------------
     # PLS: Probability Computation
     # ---------------------------------
+    def _pls_tally_frequencies(self, frequencies, leads_fields, frequency_team_ids):
+        """ Sum the frequency table into ``{team_id: {field: {value: {won, lost}}}}``.
+
+        Team ``-1`` is the all-teams bucket, used for leads whose team has no
+        frequencies of its own, which is why every value lands in it as well as
+        in its own team's.
+
+        :param frequencies: crm.lead.scoring.frequency rows, any team
+        :param leads_fields: the PLS field names in play, sorted
+        :param frequency_team_ids: the teams those rows belong to
+        """
+        result = {
+            team_id: {field: {'won_total': 0, 'lost_total': 0} for field in leads_fields}
+            for team_id in [*frequency_team_ids, -1]
+        }
+        for frequency in frequencies:
+            field, value = frequency['variable'], frequency['value']  # value is always a string
+
+            # To avoid that a tag take too much importance if its subset is too small,
+            # we ignore the tag frequencies if we have less than 50 won or lost for this tag.
+            if field == 'tag_id' and (frequency['won_count'] + frequency['lost_count']) < 50:
+                continue
+
+            if frequency.team_id:
+                team_result = result[frequency.team_id.id]
+                team_result[field][value] = {'won': frequency['won_count'], 'lost': frequency['lost_count']}
+                team_result[field]['won_total'] += frequency['won_count']
+                team_result[field]['lost_total'] += frequency['lost_count']
+
+            all_teams = result[-1][field]
+            all_teams.setdefault(value, {'won': 0, 'lost': 0})
+            all_teams[value]['won'] += frequency['won_count']
+            all_teams[value]['lost'] += frequency['lost_count']
+            all_teams['won_total'] += frequency['won_count']
+            all_teams['lost_total'] += frequency['lost_count']
+        return result
+
+    def _pls_team_priors(self, result):
+        """ ``{team_id: (won, lost, P(won), P(lost))}`` for the teams that can be scored.
+
+        A team is absent when either count is zero, and absent is the ONLY way
+        to say so: the loop that used to do this cached the priors across its
+        iterations and advanced the cache key BEFORE this guard, so the next
+        lead of an unscoreable team took the `same team` fast path and
+        multiplied the PREVIOUS team's priors -- a team with four lost leads and
+        no won one scored 98.39%. See
+        ``test_pls_unscoreable_team_does_not_inherit_another_team_prior``.
+
+        ``result`` is annotated in place with the three team totals, which the
+        caller reads back per field.
+        """
+        # The reference stage does not depend on the team, so it is resolved
+        # once here rather than re-searched for every team.
+        first_stage_id = self._pls_first_stage()
+        priors = {}
+        for team_id, team_result in result.items():
+            won, lost, total = self._pls_get_won_lost_total_count(
+                team_result, first_stage_id=first_stage_id)
+            team_result['team_won'], team_result['team_lost'], team_result['team_total'] = won, lost, total
+            # if one count = 0, we cannot compute lead probability for that team
+            if won and lost:
+                priors[team_id] = (won, lost, won / total, lost / total)
+        return priors
+
     def _pls_get_naive_bayes_probabilities(self, batch_mode=False, is_tooltip=False):
         """
         In machine learning, naive Bayes classifiers (NBC) are a family of simple "probabilistic classifiers" based on
@@ -148,54 +212,8 @@ class CrmLead(models.Model):
         # each value probability must be computed only with their own variable related total count
         # special case: for lead for which team_id is not in frequency table or lead with no team_id,
         # we consider all the records, independently from team_id (this is why we add a result[-1])
-        result = dict((team_id, dict((field, dict(won_total=0, lost_total=0)) for field in leads_fields)) for team_id in frequency_team_ids)
-        result[-1] = dict((field, dict(won_total=0, lost_total=0)) for field in leads_fields)
-        for frequency in frequencies:
-            field = frequency['variable']
-            value = frequency['value']  # This is always a string
-
-            # To avoid that a tag take too much importance if its subset is too small,
-            # we ignore the tag frequencies if we have less than 50 won or lost for this tag.
-            if field == 'tag_id' and (frequency['won_count'] + frequency['lost_count']) < 50:
-                continue
-
-            if frequency.team_id:
-                team_result = result[frequency.team_id.id]
-                team_result[field][value] = {'won': frequency['won_count'], 'lost': frequency['lost_count']}
-                team_result[field]['won_total'] += frequency['won_count']
-                team_result[field]['lost_total'] += frequency['lost_count']
-
-            if value not in result[-1][field]:
-                result[-1][field][value] = {'won': 0, 'lost': 0}
-            result[-1][field][value]['won'] += frequency['won_count']
-            result[-1][field][value]['lost'] += frequency['lost_count']
-            result[-1][field]['won_total'] += frequency['won_count']
-            result[-1][field]['lost_total'] += frequency['lost_count']
-
-        # Get all won, lost and total count for all records in frequencies per team_id.
-        # The reference stage does not depend on the team, so it is resolved once
-        # here rather than re-searched for every team in the loop.
-        first_stage_id = self._pls_first_stage()
-        for team_id in result:
-            result[team_id]['team_won'], \
-            result[team_id]['team_lost'], \
-            result[team_id]['team_total'] = self._pls_get_won_lost_total_count(
-                result[team_id], first_stage_id=first_stage_id)
-
-        # Priors per team, resolved before the loop rather than cached across its
-        # iterations. The cache this replaces advanced its key BEFORE the guard
-        # below and then `continue`d, so the next lead of an unscoreable team
-        # took the `same team` fast path and multiplied the PREVIOUS team's
-        # priors: a team with four lost leads and no won one scored 98.39%.
-        # See `test_pls_unscoreable_team_does_not_inherit_another_team_prior`.
-        team_priors = {}
-        for team_id, team_result in result.items():
-            team_won, team_lost = team_result['team_won'], team_result['team_lost']
-            # if one count = 0, we cannot compute lead probability for that team
-            if team_won and team_lost:
-                team_total = team_result['team_total']
-                team_priors[team_id] = (
-                    team_won, team_lost, team_won / team_total, team_lost / team_total)
+        result = self._pls_tally_frequencies(frequencies, leads_fields, frequency_team_ids)
+        team_priors = self._pls_team_priors(result)
 
         for lead_id, lead_values in leads_values_dict.items():
             # if stage_id is null, return 0 and bypass computation

@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import random
 
-from odoo import modules
-
 from odoo.addons.crm.tests.test_crm_lead_assignment import TestLeadAssignCommon
 from odoo.tests.common import tagged
 from odoo.tools import mute_logger

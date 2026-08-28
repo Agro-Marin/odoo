@@ -2,7 +2,6 @@
 import base64
 from datetime import timedelta
 
-from odoo import exceptions
 from odoo.addons.crm.tests.common import TestLeadConvertMassCommon
 from odoo.fields import Datetime
 from odoo.tests.common import tagged, users

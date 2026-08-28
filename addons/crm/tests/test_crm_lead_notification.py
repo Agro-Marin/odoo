@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from odoo.addons.crm.tests.common import INCOMING_EMAIL, TestCrmCommon
 from odoo.tests import tagged, users
-from odoo.tools import email_normalize, formataddr, mute_logger
+from odoo.tools import email_normalize, mute_logger
 
 
 @tagged('mail_thread', 'mail_gateway')

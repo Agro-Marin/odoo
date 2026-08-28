@@ -248,12 +248,15 @@ class TestLeadConvert(crm_common.TestLeadConvertCommon):
         self.lead_1.write({
             'email_from': 'Amy Wong <amy.wong@test.example.com>'
         })
-        customer = self.env['res.partner'].create({
+        # created for its side effect: the wizard below matches on it. The name
+        # is dropped because the only assertion that used it is commented out
+        # under the TDE FIXME two lines down.
+        self.env['res.partner'].create({
             'name': 'Different Name',
             'email': 'Wong AMY <AMY.WONG@test.example.com>'
         })
 
-        convert = self.env['crm.lead2opportunity.partner'].with_context({
+        self.env['crm.lead2opportunity.partner'].with_context({
             'active_model': 'crm.lead',
             'active_id': self.lead_1.id,
             'active_ids': self.lead_1.ids,
