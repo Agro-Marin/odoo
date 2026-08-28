@@ -46,29 +46,19 @@ class WebsiteMenu(models.Model):
 
     @api.model
     def save(self, website_id, data):
-        """
-        Method context:
+        """Override to force new menu entries inside an event under that event's pages.
 
-        This method takes a data argument that follows the following format:
-         [
-           { 'id': 4, url: '/mypage' },
-           { 'id': 'menu_xxx_...', url: '/anotherpage' }
-         ]
+        All sub-menus of an event are children of a 'main' website.menu linking to
+        the event main page, so a newly created menu sharing that parent is part of
+        the event. When going through the super() call, new-menu id entries (a
+        string) are replaced by their created menu id (integer), so new menu
+        entries must be identified before calling super.
 
-         The new menu entries are identified by their ID being a string and not an integer value.
-         Note that when going through super() call, those id entries are replaced by their created
-         menu ID (integer), so we need to identify new menu entries before calling super.
-
-         Override purpose:
-
-         All sub-menus of an event are children of a 'main' website.menu, linking to the event main page.
-
-         We abuse that information to determine if the added menu is part of an event or not:
-         If we find a website.event.menu item that has the same parent as the menu we just created
-         -> it means that we just created a menu inside an event.
-
-         Once we have identified that, we force its URL to be part of the event pages, and we create
-         a matching website.event.menu record for it."""
+        :param int website_id: website the menu is being saved for
+        :param dict data: menu tree as sent by the editor; ``data['data']`` items
+            with a string ``id`` are entries not yet created
+        :return: whether the save succeeded
+        :rtype: bool"""
 
         old_menu_ids = [
             menu["id"] for menu in data["data"] if isinstance(menu["id"], int)

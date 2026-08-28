@@ -21,23 +21,18 @@ class Website(models.Model):
     ):
         """Override the page creation in the context of events.
 
-        When creating a page for an event, the page needs to be embedded inside the
-        'website_event.layout' template, otherwise it is not visually contained within that event.
-        Note that to create an event page, one has to first create a menu entry in that event.
+        An event page must be embedded inside the 'website_event.layout' template,
+        otherwise it is not visually contained within its event. To create an event
+        page, one has to first create a menu entry in that event.
 
-        To determine if this page is an event page:
-        - Check that the path starts with 'event/', this should avoid extra requests in other contexts
-        - Fetch a website.menu linked to this path
-        - Check if we have a website.event.menu linked to that website.menu.
-
-        In addition, we attach the created view to the website.event.menu and adapt they view key
-        to make it unique in the context of our event, which makes it possible to find the view in
-        the event pages controller.
-
-        Finally, we also manually adapt the content of the generated page so that it's suited for
-        the website editor generation.
-        This includes removing false attributes and making sure the content is contained within a
-        single oe_structure element (which cannot be 'wrap' as wrap contains the event menu).
+        :param str name: page URL path; used to detect whether this is an event page
+        :param str template: template to instantiate; forced to
+            'website_event.layout' when a website.event.menu already exists for
+            this path
+        :param str sections_arch: extra content injected into the page; also used
+            to relocate sections into the event content container
+        :return: the created page's values
+        :rtype: dict
 
         See: website.menu#save override"""
 
