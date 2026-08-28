@@ -205,9 +205,7 @@ class TestExpenses(TestExpenseCommon):
         default_account_payable_id = self.company_data["default_account_payable"].id
         product_b_account_id = self.product_b.property_account_expense_id.id
         product_c_account_id = self.product_c.property_account_expense_id.id
-        company_payment_account_id = (
-            self.outbound_payment_channel.payment_account_id.id
-        )
+        company_payment_account_id = self.outbound_payment_channel.payment_account_id.id
         # One payment per expense
         self.assertRecordValues(
             all_expenses.account_move_id.line_ids.sorted(
@@ -772,8 +770,8 @@ class TestExpenses(TestExpenseCommon):
         self.assertEqual(expense.product_uom_id, product.uom_id)
         self.assertEqual(
             expense.tax_ids,
-            product.supplier_taxes_id.filtered(
-                lambda t: t.company_id == expense.company_id
+            product.supplier_taxes_id.filtered_domain(
+                self.env["account.tax"]._check_company_domain(expense.company_id)
             ),
         )
         self.assertEqual(expense.account_id, product._get_product_accounts()["expense"])
@@ -1642,3 +1640,70 @@ class TestExpenses(TestExpenseCommon):
         self.assertEqual(
             expense.account_move_id.line_ids.mapped("balance"), [86.96, 13.04, -100.0]
         )
+
+
+@tagged("-at_install", "post_install")
+class TestExpenseProductTaxAccess(TestExpenseCommon):
+    """`product_has_tax` asks a yes/no question through a company-scoped rule.
+
+    `account.tax` carries `tax_comp_rule` (`company_ids parent_of company_ids`),
+    so walking `product_id.supplier_taxes_id` raises as soon as one of those
+    taxes belongs to a company the reader is not in. The flag was reaching
+    users as a blocking AccessError dialog instead of as a yes or a no.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.other_company_data = cls.setup_other_company(name="Tax Rule Co")
+        cls.other_tax = cls.other_company_data["default_tax_purchase"]
+        # The product is shared; the tax on it is not. Reading the m2m as a user
+        # who holds only the main company is what the rule refuses.
+        cls.foreign_taxed_product = cls.env["product.product"].create(
+            {
+                "name": "Carries another company's tax",
+                "type": "service",
+                "can_be_expensed": True,
+                "standard_price": 100.0,
+                "supplier_taxes_id": [Command.set(cls.other_tax.ids)],
+            },
+        )
+
+    def _reader(self, record):
+        return record.with_user(self.expense_user_employee).with_context(
+            allowed_company_ids=self.env.company.ids,
+        )
+
+    def test_product_has_tax_reads_across_the_company_rule(self):
+        expense = self.env["hr.expense"].create(
+            {
+                "name": "Expense on a foreign-taxed product",
+                "employee_id": self.expense_employee.id,
+                "product_id": self.foreign_taxed_product.id,
+                "total_amount_currency": 100.0,
+            },
+        )
+        reader = self._reader(expense)
+        reader.invalidate_recordset()
+        # Without `sudo()` on the m2m this raises AccessError instead of
+        # answering. The answer is False: the only tax is another company's,
+        # and `_check_company_domain` drops it.
+        self.assertFalse(reader.product_has_tax)
+
+    def test_split_wizard_product_has_tax_reads_across_the_company_rule(self):
+        expense = self.env["hr.expense"].create(
+            {
+                "name": "Expense to split",
+                "employee_id": self.expense_employee.id,
+                "product_id": self.foreign_taxed_product.id,
+                "total_amount_currency": 100.0,
+            },
+        )
+        # Through the real entry point: the wizard builds its own split lines.
+        wizard = self._reader(self.env["hr.expense.split.wizard"]).browse(
+            self._reader(expense).action_split_wizard()["res_id"],
+        )
+        splits = wizard.expense_split_line_ids
+        splits.invalidate_recordset()
+        self.assertTrue(splits)
+        self.assertFalse(any(splits.mapped("product_has_tax")))

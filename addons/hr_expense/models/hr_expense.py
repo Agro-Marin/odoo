@@ -571,8 +571,14 @@ class HrExpense(models.Model):
                     expense.product_id.standard_price
                 )
             )
+            # `sudo()`, as purchase does for the same read: `account.tax`
+            # carries `tax_comp_rule`, `company_ids parent_of company_ids`, so
+            # reading the m2m raises for an expense whose company is outside the
+            # reader's. `_check_company_domain` is what knows about parent
+            # companies, so the scoping is done here rather than by the rule --
+            # and this only asks whether a tax exists, never returning one.
             expense.product_has_tax = bool(
-                expense.product_id.supplier_taxes_id.filtered_domain(
+                expense.product_id.sudo().supplier_taxes_id.filtered_domain(
                     self.env["account.tax"]._check_company_domain(expense.company_id)
                 )
             )
@@ -1434,8 +1440,8 @@ class HrExpense(models.Model):
             "product_uom_id": product.uom_id.id,
             "tax_ids": [
                 Command.set(
-                    product.supplier_taxes_id.filtered(
-                        lambda r: r.company_id == company
+                    product.supplier_taxes_id.filtered_domain(
+                        self.env["account.tax"]._check_company_domain(company)
                     ).ids
                 )
             ],
@@ -1460,7 +1466,7 @@ class HrExpense(models.Model):
     # Actions
     # ----------------------------------------
 
-    def action_open_split_expense(self):
+    def action_view_split_expense(self):
         self.ensure_one()
         split_expense_ids = self.search(
             [("split_expense_origin_id", "=", self.split_expense_origin_id.id)]
@@ -1736,7 +1742,7 @@ class HrExpense(models.Model):
             "context": self.env.context,
         }
 
-    def action_open_account_move(self):
+    def action_view_account_move(self):
         self.ensure_one()
         if self.payment_mode == "own_account":
             res_model = "account.move"

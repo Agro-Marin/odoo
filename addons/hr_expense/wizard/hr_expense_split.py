@@ -129,9 +129,12 @@ class HrExpenseSplit(models.TransientModel):
     @api.depends("product_id")
     def _compute_product_has_tax(self):
         for split in self:
+            # `sudo()` for the same reason as `hr_expense._compute_from_product`:
+            # `account.tax`'s multi-company rule makes the plain read raise, and
+            # the company scoping is `_check_company_domain`'s job either way.
             split.product_has_tax = (
                 split.product_id
-                and split.product_id.supplier_taxes_id.filtered_domain(
+                and split.product_id.sudo().supplier_taxes_id.filtered_domain(
                     self.env["account.tax"]._check_company_domain(split.company_id)
                 )
             )
