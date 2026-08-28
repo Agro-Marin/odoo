@@ -41,7 +41,11 @@ class BoardBoard(models.AbstractModel):
 
         def remove_unauthorized_children(node):
             for child in node.iterchildren():
-                if child.tag == "action" and child.get("invisible"):
+                if child.tag == "action" and child.get("invisible") not in (
+                    None,
+                    "0",
+                    "",
+                ):
                     node.remove(child)
                 else:
                     remove_unauthorized_children(child)
