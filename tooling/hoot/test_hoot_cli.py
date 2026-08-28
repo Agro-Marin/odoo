@@ -383,15 +383,27 @@ class TestTheDeadServerCheckAsksAboutIdentity:
     def _run(self, cli, monkeypatch, before_pid, after_state):
         state = {"pid": before_pid, "port": 8085, "db": "hoot_web"}
         monkeypatch.setattr(
-            cli.H, "run_suites", lambda *a, **k: cli.H.RunResult(ok=False, suites=["s"], failed=3)
+            cli.H,
+            "run_suites",
+            lambda *a, **k: cli.H.RunResult(ok=False, suites=["s"], failed=3),
         )
         monkeypatch.setattr(cli.H, "read_state", lambda db: after_state)
         monkeypatch.setattr(cli.H, "server_is_warm", bool)
-        args = type("A", (), {
-            "preset": "desktop", "browser_size": None, "touch": None, "tag": None,
-            "filter": None, "hook_timeout": None, "hoot_timeout": 15000,
-            "timeout": 300, "verbose": False,
-        })()
+        args = type(
+            "A",
+            (),
+            {
+                "preset": "desktop",
+                "browser_size": None,
+                "touch": None,
+                "tag": None,
+                "filter": None,
+                "hook_timeout": None,
+                "hoot_timeout": 15000,
+                "timeout": 300,
+                "verbose": False,
+            },
+        )()
         return cli._run_once(["s"], state, args)
 
     def test_a_replacement_server_does_not_make_the_run_valid(self, cli, monkeypatch):

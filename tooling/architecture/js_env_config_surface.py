@@ -123,6 +123,8 @@ def _uncast(expression: str) -> str:
     """Strip one leading JSDoc type cast from an assignment's right-hand side."""
     match = _CAST.match(expression)
     return match.group(1).strip() if match else expression
+
+
 _IDENT = re.compile(r"^[A-Za-z_$][\w$]*$")
 _ARRAY = r"export const {name} = \[(.*?)\];"
 
@@ -170,9 +172,7 @@ def _alias_is_rebound(source: str, alias: str) -> bool:
     for match in re.finditer(
         rf"(?:const|let|var)\s+{re.escape(alias)}\s*=\s*{_RHS}", source
     ):
-        if not re.match(
-            r"(?:this\.)?env\.config\b", _uncast(match.group(1).strip())
-        ):
+        if not re.match(r"(?:this\.)?env\.config\b", _uncast(match.group(1).strip())):
             return True
     return False
 

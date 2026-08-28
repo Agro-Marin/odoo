@@ -63,11 +63,13 @@ class ModuleOfTests(unittest.TestCase):
 
     def test_file_excluded_from_the_program_is_out_of_scope(self):
         self.assertIn(
-            "addons/web/static/src/service_worker.js", scope_gate.excluded_from_program()
+            "addons/web/static/src/service_worker.js",
+            scope_gate.excluded_from_program(),
         )
         self.assertIsNone(module_of("addons/web/static/src/service_worker.js"))
         self.assertEqual(
-            module_of("addons/web/static/src/webclient/service_worker_service.js"), "web"
+            module_of("addons/web/static/src/webclient/service_worker_service.js"),
+            "web",
         )
 
     def test_only_literal_exclusions_narrow_the_scope(self):

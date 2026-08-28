@@ -269,7 +269,9 @@ class BaselinePathTests(unittest.TestCase):
     def test_the_cli_reports_a_bad_suite_name_instead_of_raising(self):
         with TemporaryDirectory() as tmp:
             log = Path(tmp) / "run.log"
-            log.write_text(f"{PREFIX} INFO db odoo.tests.result: 0 failed, 0 error(s) of 1 tests\n")
+            log.write_text(
+                f"{PREFIX} INFO db odoo.tests.result: 0 failed, 0 error(s) of 1 tests\n"
+            )
             err = io.StringIO()
             with redirect_stderr(err), redirect_stdout(io.StringIO()):
                 code = testbaseline.main(["/loyalty,/sale_loyalty", str(log)])

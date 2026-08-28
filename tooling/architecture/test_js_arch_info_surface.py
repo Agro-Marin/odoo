@@ -122,9 +122,7 @@ class TestAnalyzer:
         )
         assert out["emits"] == []
 
-    def test_a_computed_key_from_an_unrelated_binding_is_still_refused(
-        self, tmp_path
-    ):
+    def test_a_computed_key_from_an_unrelated_binding_is_still_refused(self, tmp_path):
         out = _analyse(
             tmp_path,
             "function p(archInfo, other) {"

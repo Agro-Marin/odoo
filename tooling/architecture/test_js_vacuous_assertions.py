@@ -29,9 +29,9 @@ def _classes(tmp_path: Path, *, test: str, **decls: str) -> list[str]:
 
 
 def test_a_zero_count_on_an_undeclared_class_is_reported(tmp_path):
-    assert _classes(
-        tmp_path, test='expect(".o_never_existed").toHaveCount(0);\n'
-    ) == ["o_never_existed"]
+    assert _classes(tmp_path, test='expect(".o_never_existed").toHaveCount(0);\n') == [
+        "o_never_existed"
+    ]
 
 
 def test_a_class_the_markup_declares_is_not_reported(tmp_path):
@@ -58,15 +58,11 @@ def test_a_declaration_counts_from_any_scanned_kind(tmp_path, ext):
 
 
 def test_a_positive_count_needs_no_gate(tmp_path):
-    assert (
-        _classes(tmp_path, test='expect(".o_gone").toHaveCount(1);\n') == []
-    )
+    assert _classes(tmp_path, test='expect(".o_gone").toHaveCount(1);\n') == []
 
 
 def test_a_class_outside_the_owned_namespaces_is_not_reported(tmp_path):
-    assert (
-        _classes(tmp_path, test='expect(".btn-primary").toHaveCount(0);\n') == []
-    )
+    assert _classes(tmp_path, test='expect(".btn-primary").toHaveCount(0);\n') == []
 
 
 def test_every_owned_namespace_is_actually_policed(tmp_path):

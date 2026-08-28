@@ -17,7 +17,6 @@ class TestMeasure(unittest.TestCase):
         path.write_text(textwrap.dedent(body))
         return pcb.measure([path])
 
-
     def test_an_if_test_is_reported(self):
         found = self._measure("if self.search_count(domain):\n    pass\n")
         self.assertEqual([f.kind for f in found], ["if"])
@@ -55,7 +54,6 @@ class TestMeasure(unittest.TestCase):
     def test_a_chain_of_boolean_operators_is_walked_through(self):
         found = self._measure("if a and b and not self.search_count(d):\n    pass\n")
         self.assertEqual(len(found), 1)
-
 
     def test_a_limit_already_there_is_the_fixed_form(self):
         self.assertEqual(

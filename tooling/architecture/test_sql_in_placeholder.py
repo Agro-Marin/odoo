@@ -21,11 +21,8 @@ class TestMeasure(unittest.TestCase):
     def _measure(self, body: str):
         return sip.measure([_write(self.tmp, "a.py", body)])
 
-
     def test_a_query_handed_straight_to_execute_is_reported(self):
-        found = self._measure(
-            'cr.execute("SELECT id FROM tbl WHERE id IN %s", (ids,))'
-        )
+        found = self._measure('cr.execute("SELECT id FROM tbl WHERE id IN %s", (ids,))')
         self.assertEqual([f.kind for f in found], ["unbuilt"])
 
     def test_a_named_placeholder_is_reported_too(self):
@@ -63,7 +60,6 @@ class TestMeasure(unittest.TestCase):
             'SQL("SELECT id FROM tbl WHERE a IN %s AND b IN %s", (1, 2), [3, 4])'
         )
         self.assertEqual(len(found), 1)
-
 
     def test_the_builder_given_a_tuple_is_correct(self):
         self.assertEqual(
@@ -119,7 +115,7 @@ class TestMeasure(unittest.TestCase):
     def test_a_query_text_returned_for_a_builder_elsewhere_is_left_alone(self):
         self.assertEqual(
             self._measure(
-                'def q():\n'
+                "def q():\n"
                 '    return "SELECT res_id FROM ir_model_data WHERE res_id IN %(res_ids)s"\n'
             ),
             [],

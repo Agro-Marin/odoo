@@ -54,8 +54,7 @@ def iter_python_files(
     found = [
         path
         for path in root.rglob("*.py")
-        if not SKIP_DIRS & set(path.parts)
-        and (include_tests or not is_test_path(path))
+        if not SKIP_DIRS & set(path.parts) and (include_tests or not is_test_path(path))
     ]
     if include_polyglots:
         found.extend(

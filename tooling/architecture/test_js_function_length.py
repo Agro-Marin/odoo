@@ -147,7 +147,9 @@ def test_dropping_the_wrapper_leaves_every_real_offender(tmp_path):
 
 
 def test_a_long_method_inside_a_mixin_is_still_counted(tmp_path):
-    body = "\n".join(f"            const x{i} = {i};" for i in range(jfl.MAX_LINES + 10))
+    body = "\n".join(
+        f"            const x{i} = {i};" for i in range(jfl.MAX_LINES + 10)
+    )
     src = _src(
         tmp_path,
         {

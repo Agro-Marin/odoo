@@ -57,9 +57,7 @@ def test_an_unreadable_path_is_not_python(tmp_path):
 def test_polyglots_can_be_excluded_without_disturbing_the_py_set():
     with_them = _sources.iter_python_files(TOOLING)
     without = _sources.iter_python_files(TOOLING, include_polyglots=False)
-    assert set(with_them) - set(without) == {
-        TOOLING / rel for rel in KNOWN_POLYGLOTS
-    }
+    assert set(with_them) - set(without) == {TOOLING / rel for rel in KNOWN_POLYGLOTS}
 
 
 def test_tests_are_excluded_by_default_and_reachable_on_request():

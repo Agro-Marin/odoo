@@ -19,9 +19,7 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_baseline_enforcement"
 BASELINES_DIR = HERE / "baselines"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
-_INVOCATION = re.compile(
-    r"ratchet\.py\s+([a-z0-9_]+)(?:\s+--mode\s+\S+)?\s+--count\b"
-)
+_INVOCATION = re.compile(r"ratchet\.py\s+([a-z0-9_]+)(?:\s+--mode\s+\S+)?\s+--count\b")
 _CONTINUATION = re.compile(r"\\\s*\n\s*")
 
 _COMMENT_LINE = re.compile(r"^[ \t]*#.*$", re.MULTILINE)

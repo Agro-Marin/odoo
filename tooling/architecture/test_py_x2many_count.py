@@ -27,7 +27,9 @@ class Move:
             move.lines_count = len(move.line_ids)
 """,
     )
-    assert [(f.kind, f.what) for f in found] == [("len", "_compute_lines_count -> line_ids")]
+    assert [(f.kind, f.what) for f in found] == [
+        ("len", "_compute_lines_count -> line_ids")
+    ]
 
 
 def test_search_count_in_a_loop_over_self_is_found(tmp_path):

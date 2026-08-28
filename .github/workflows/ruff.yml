@@ -92,6 +92,17 @@ jobs:
         # unrelated AttributeError satisfy a rollback test.
         run: ruff check tooling/ tests/ --no-cache --output-format=concise
 
+      - name: Format tooling/ and tests/ at a hard zero
+        # Same two trees, same argument, the other half of it. `ruff check` was
+        # gated here and `ruff format` was not, so the trees drifted in a
+        # dimension nothing measured: sixteen files were unformatted when this
+        # step was added, and whether a new one arrives formatted depended on
+        # whether its author happened to run the formatter. `odoo/` and
+        # `addons/` are too wide to hold still and are not in scope here — these
+        # two are small, and small enough to hold at zero is the whole reason
+        # the check step above is a hard zero rather than a ratchet.
+        run: ruff format --check tooling/ tests/
+
       - name: Lint the promoted addons at zero
         # Same argument as the step above, for the same kind of gap.
         #

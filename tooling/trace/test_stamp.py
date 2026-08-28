@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import stamp
 
-COMPONENT = '''/** @odoo-module */
+COMPONENT = """/** @odoo-module */
 import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
@@ -22,9 +22,9 @@ export class ThingRenderer extends Component {
         return 1;
     }
 }
-'''
+"""
 
-TWO_CLASSES = '''/** @odoo-module */
+TWO_CLASSES = """/** @odoo-module */
 import { Component } from "@odoo/owl";
 
 export class Alpha extends Component {
@@ -38,13 +38,13 @@ class Beta extends Component {
         this.b = 2;
     }
 }
-'''
+"""
 
-NO_COMPONENT = '''/** @odoo-module */
+NO_COMPONENT = """/** @odoo-module */
 export function helper(x) {
     return x + 1;
 }
-'''
+"""
 
 
 def _stamp(text: str, path: Path) -> tuple[str, int, list[str]]:
@@ -80,7 +80,7 @@ def test_revert_removes_only_sentinel_lines(tmp_path):
     stamped, _written, _over = _stamp(COMPONENT, path)
     poisoned = stamped.replace(
         "    onClick() {",
-        f'    // see {stamp.PROBE_MODULE}\n    onClick() {{',
+        f"    // see {stamp.PROBE_MODULE}\n    onClick() {{",
     )
     reverted, _removed = stamp.revert_text(poisoned)
     assert f"// see {stamp.PROBE_MODULE}" in reverted
@@ -91,9 +91,7 @@ def test_every_written_line_carries_the_sentinel(tmp_path):
     path = tmp_path / "web" / "static" / "src" / "thing.js"
     stamped, written, _over = _stamp(TWO_CLASSES, path)
     added = [
-        line
-        for line in stamped.splitlines()
-        if line not in TWO_CLASSES.splitlines()
+        line for line in stamped.splitlines() if line not in TWO_CLASSES.splitlines()
     ]
     assert len(added) == written
     assert all(stamp.SENTINEL in line for line in added), added
