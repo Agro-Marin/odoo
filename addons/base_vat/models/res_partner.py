@@ -87,6 +87,7 @@ _ref_vat = {
     "uy": _lt(
         "Example: '219999830019' (format: 12 digits, all numbers, valid check digit)"
     ),
+    "uz": _lt("123456789 (TIN) or 12345678901234 (PINFL)"),
     "ve": "V-12345678-1, V123456781, V-12.345.678-1",
     "xi": "XI123456782",
     "sa": _lt('310175397400003 [Fifteen digits, first and last digits should be "3"]'),
@@ -707,6 +708,13 @@ class ResPartner(models.Model):
             and vat[8:11] == "001"
             and vat[-1] == calc_check_digit(vat)  # Invalid Check Digit
         )
+
+    def check_vat_uz(self, vat):
+        if not vat.isdigit():
+            return False
+        if self.is_company:
+            return len(vat) == 9
+        return len(vat) == 14
 
     def check_vat_ve(self, vat):
         # https://tin-check.com/en/venezuela/
