@@ -67,7 +67,7 @@ class BarcodeRule(models.Model):
         gs1_rules = self.filtered(lambda rule: rule.encoding == "gs1-128")
         for rule in gs1_rules:
             try:
-                re.compile(rule.pattern)
+                compiled_pattern = re.compile(rule.pattern)
             except re.error as error:
                 raise ValidationError(
                     _(
@@ -76,8 +76,7 @@ class BarcodeRule(models.Model):
                         error=error,
                     )
                 ) from error
-            groups = re.findall(r"\([^)]*\)", rule.pattern)
-            if len(groups) != 2:
+            if compiled_pattern.groups != 2:
                 raise ValidationError(
                     _(
                         'The rule pattern "%s" is not valid, it needs two groups:'
