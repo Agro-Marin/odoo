@@ -3,6 +3,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -125,6 +126,53 @@ DB_MAXCONN = 8
 #: test gives up waiting, so the suite can only ever report the timeout, never
 #: the recovery. Ten seconds puts the escalation well inside the window.
 GRACEFUL_STOP_TIMEOUT_S = 10.0
+
+
+class Poller(threading.Thread):
+    """Hammers the server on a short interval and counts what came back.
+
+    Shared by the reload and the worker-recycle suites: a transient outage is
+    invisible to a `wait_until(is_serving)`, which asks whether the server is up
+    *now* and answers yes the moment it recovers. Only something already
+    knocking on the door during the window can tell you the door was shut.
+
+    `refused` is the count that matters. The prefork master binds the listen
+    socket and its workers inherit it, so a `ConnectionRefusedError` means the
+    socket was closed or never re-bound — not that a worker was busy. Anything
+    else (a reset from a worker killed mid-request, a timeout) lands in `other`,
+    which is reported but not asserted on: SIGKILLing a worker that is holding a
+    connection drops that connection by definition.
+    """
+
+    def __init__(self, port, interval=0.02):
+        super().__init__(daemon=True)
+        self.port = port
+        self.interval = interval
+        self.stop_flag = threading.Event()
+        self.served = 0
+        self.refused = 0
+        self.other = []
+
+    def run(self):
+        while not self.stop_flag.is_set():
+            try:
+                with socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+                    s.sendall(b"GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")
+                    s.recv(64)
+                self.served += 1
+            except ConnectionRefusedError:
+                self.refused += 1
+            except Exception as exc:
+                self.other.append(type(exc).__name__)
+            time.sleep(self.interval)
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.stop_flag.set()
+        self.join(timeout=10)
 
 
 @pytest.fixture
