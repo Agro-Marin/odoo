@@ -148,6 +148,18 @@ class AccountMoveReversal(models.TransientModel):
             "invoice_origin": move.invoice_origin,
         }
 
+    def _prepare_reversal_log_body(self, move, reverse):
+        """Body logged on ``move``, naming ``reverse`` once it carries a number."""
+        if reverse.name and reverse.name != "/":
+            return move.env._(
+                "This entry has been reversed by %s",
+                reverse._get_html_link(title=reverse.name),
+            )
+        return move.env._(
+            "This entry has been %s",
+            reverse._get_html_link(title=move.env._("reversed")),
+        )
+
     def reverse_moves(self, is_modify=False):
         self.ensure_one()
         moves = self.move_ids
@@ -185,10 +197,7 @@ class AccountMoveReversal(models.TransientModel):
             new_moves._compute_partner_bank_id()
             batch_moves._message_log_batch(
                 bodies={
-                    move.id: move.env._(
-                        "This entry has been %s",
-                        reverse._get_html_link(title=move.env._("reversed")),
-                    )
+                    move.id: self._prepare_reversal_log_body(move, reverse)
                     for move, reverse in zip(batch_moves, new_moves, strict=True)
                 }
             )
