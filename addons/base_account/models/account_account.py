@@ -778,6 +778,22 @@ class AccountAccount(models.Model):
         """Create accounts, auto-generating codes when needed."""
         records_list = []
 
+        # ``itertools.groupby`` only merges *consecutive* equal keys, so a
+        # ``vals_list`` where the same ``company_ids`` recurs non-contiguously
+        # (e.g. built by interleaving rows from several companies) would
+        # silently split into one extra group per interleaving instead of
+        # merging. Sort by each key's first-occurrence position first: groups
+        # already contiguous are left untouched, and a scattered one is
+        # brought together at the position it first appeared, with a stable
+        # sort keeping same-key rows in their original relative order.
+        first_seen = {}
+        for index, vals in enumerate(vals_list):
+            first_seen.setdefault(repr(vals.get("company_ids", [])), index)
+        vals_list = sorted(
+            vals_list,
+            key=lambda vals: first_seen[repr(vals.get("company_ids", []))],
+        )
+
         for company_ids, vals_list_for_company in itertools.groupby(
             vals_list,
             lambda v: v.get("company_ids", []),
