@@ -67,7 +67,7 @@ class ResUsers(models.Model):
         )
 
         if include_user:
-            partner_ids += [self.env.user.partner_id.id]
+            partner_ids += [self.partner_id.id]
         return partner_ids
 
     @api.model
