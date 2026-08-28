@@ -7,7 +7,7 @@ from odoo.http import Controller, request, route
 logger = logging.getLogger(__name__)
 
 
-class ProductDocumentController(Controller):
+class ProductDocumentsController(Controller):
     @route("/product/document/upload", type="http", methods=["POST"], auth="user")
     def upload_document(self, ufile, res_model, res_id, **kwargs):
         if not self.is_model_valid(res_model):
@@ -32,7 +32,7 @@ class ProductDocumentController(Controller):
         for file in files:
             try:
                 with request.env.cr.savepoint():
-                    request.env["product.document"].create(
+                    request.env["documents.document"].create(
                         {
                             "name": file.filename,
                             "res_model": record._name,

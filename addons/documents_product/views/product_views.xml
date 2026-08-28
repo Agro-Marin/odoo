@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="product_template_form_view_documents_button" model="ir.ui.view">
+        <field name="name">product.template.form.documents.button</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.view_product_template_form_only" />
+        <field name="arch" type="xml">
+            <span id="button_documents_before" position="after">
+                <button
+                    name="action_view_documents"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-regular fa-file-lines">
+                    <field
+                        string="Documents"
+                        name="product_document_count"
+                        widget="statinfo" />
+                </button>
+            </span>
+        </field>
+    </record>
+
+</odoo>

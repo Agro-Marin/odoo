@@ -45,7 +45,7 @@ class TestProductDocumentUpload(HttpCase):
 
     def _documents_of(self, record):
         return (
-            self.env["product.document"]
+            self.env["documents.document"]
             .sudo()
             .search([("res_model", "=", record._name), ("res_id", "=", record.id)])
         )
