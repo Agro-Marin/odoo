@@ -165,7 +165,6 @@ class AccountMove(models.Model):
         ],
         string="Type",
         required=True,
-        readonly=True,
         tracking=True,
         change_default=True,
         index=True,
