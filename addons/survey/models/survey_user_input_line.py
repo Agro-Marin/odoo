@@ -7,6 +7,8 @@ from odoo.tools import float_is_zero
 
 
 class SurveyUser_InputLine(models.Model):
+    """One answered line within a survey.user_input."""
+
     _name = "survey.user_input.line"
     _description = "Survey User Input Line"
     _rec_name = "user_input_id"

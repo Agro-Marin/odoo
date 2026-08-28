@@ -13,6 +13,8 @@ emails_split = re.compile(r"[;,\n\r]+")
 
 
 class SurveyInvite(models.TransientModel):
+    """Wizard to invite partners to answer a survey."""
+
     _name = "survey.invite"
     _inherit = ["mixin.mail.composer"]
     _description = "Survey Invitation Wizard"
