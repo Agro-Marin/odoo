@@ -13,9 +13,6 @@ from odoo_rust import (
     batch_cache_get as _rust_batch_cache_get,
 )
 from odoo_rust import (
-    batch_cache_values as _rust_batch_cache_values,
-)
-from odoo_rust import (
     batch_group_ids as _rust_batch_group_ids,
 )
 from odoo_rust import (
@@ -32,7 +29,6 @@ from odoo.libs._field_access._fallback import (
     batch_cache_fill,
     batch_cache_filter,
     batch_cache_get,
-    batch_cache_values,
     batch_group_ids,
     scalar_cache_get,
     sort_ids_by_cache,
@@ -73,7 +69,6 @@ class _FieldAccessTestMixin(_MixinBase):
     batch_cache_fill: Callable
     batch_cache_get: Callable
     batch_cache_filter: Callable
-    batch_cache_values: Callable
     scalar_cache_get: Callable
     sort_ids_by_values: Callable
     sort_ids_by_cache: Callable
@@ -369,40 +364,6 @@ class _FieldAccessTestMixin(_MixinBase):
         self.assertEqual(list(passing), [1, 2, 3])
         self.assertEqual(list(misses), [])
 
-    def test_values_all_hit(self) -> None:
-        cache = {1: "a", 2: "b", 3: "c"}
-        result = self.batch_cache_values(cache, (1, 2, 3), PENDING)
-        self.assertEqual(list(result), ["a", "b", "c"])
-
-    def test_values_miss_returns_none(self) -> None:
-        cache = {1: "a"}
-        result = self.batch_cache_values(cache, (1, 2), PENDING)
-        self.assertIsNone(result)
-
-    def test_values_pending_returns_none(self) -> None:
-        cache = {1: PENDING, 2: "ok"}
-        result = self.batch_cache_values(cache, (1, 2), PENDING)
-        self.assertIsNone(result)
-
-    def test_values_empty(self) -> None:
-        result = self.batch_cache_values({}, (), PENDING)
-        self.assertEqual(list(result), [])
-
-    def test_values_none_is_valid(self) -> None:
-        cache = {1: None, 2: "x"}
-        result = self.batch_cache_values(cache, (1, 2), PENDING)
-        self.assertEqual(list(result), [None, "x"])
-
-    def test_values_false_is_valid(self) -> None:
-        cache = {1: False, 2: 0}
-        result = self.batch_cache_values(cache, (1, 2), PENDING)
-        self.assertEqual(list(result), [False, 0])
-
-    def test_values_early_bailout(self) -> None:
-        cache = {1: "a"}
-        result = self.batch_cache_values(cache, (1, 2, 3), PENDING)
-        self.assertIsNone(result)
-
     def test_scalar_hit(self) -> None:
         field = object()
         env_dict = {"_field_cache_memo": {field: {42: "value"}}}
@@ -591,7 +552,6 @@ class TestFallback(_FieldAccessTestMixin, unittest.TestCase):
         cls.batch_cache_fill = staticmethod(batch_cache_fill)
         cls.batch_cache_get = staticmethod(batch_cache_get)
         cls.batch_cache_filter = staticmethod(batch_cache_filter)
-        cls.batch_cache_values = staticmethod(batch_cache_values)
         cls.scalar_cache_get = staticmethod(scalar_cache_get)
         cls.sort_ids_by_values = staticmethod(sort_ids_by_values)
         cls.sort_ids_by_cache = staticmethod(sort_ids_by_cache)
@@ -605,7 +565,6 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
         cls.batch_cache_fill = staticmethod(_rust_batch_cache_fill)
         cls.batch_cache_get = staticmethod(_rust_batch_cache_get)
         cls.batch_cache_filter = staticmethod(_rust_batch_cache_filter)
-        cls.batch_cache_values = staticmethod(_rust_batch_cache_values)
         cls.scalar_cache_get = staticmethod(scalar_cache_get)
         cls.sort_ids_by_values = staticmethod(_rust_sort_ids_by_values)
         cls.sort_ids_by_cache = staticmethod(_rust_sort_ids_by_cache)

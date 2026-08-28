@@ -112,7 +112,6 @@ jobs:
                   "batch_cache_fill",      # odoo/libs/_field_access, orm/models/mixins/read.py
                   "batch_cache_filter",    # odoo/libs/_field_access
                   "batch_cache_get",       # odoo/libs/_field_access
-                  "batch_cache_values",    # odoo/libs/_field_access
                   "batch_group_ids",       # odoo/libs/_field_access
                   "sort_ids_by_values",    # odoo/libs/_field_access
                   "sort_ids_by_cache",     # odoo/libs/_field_access, orm/models/mixins/traversal.py

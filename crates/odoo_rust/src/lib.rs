@@ -72,7 +72,6 @@ fn odoo_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // `_field_access/_fallback.py` and is exported from there.
     m.add_function(wrap_pyfunction!(cache::batch_cache_get, m)?)?;
     m.add_function(wrap_pyfunction!(cache::batch_cache_filter, m)?)?;
-    m.add_function(wrap_pyfunction!(cache::batch_cache_values, m)?)?;
     m.add_function(wrap_pyfunction!(cache::batch_cache_fill, m)?)?;
     // ids
     m.add_function(wrap_pyfunction!(ids::origin_ids, m)?)?;

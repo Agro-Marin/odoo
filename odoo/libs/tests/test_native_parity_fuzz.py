@@ -1,6 +1,6 @@
 """Randomised differential: the three exports with no production reference.
 
-`sort_ids_by_values` has `test_sort_parity_fuzz`, and the eight `_field_access`
+`sort_ids_by_values` has `test_sort_parity_fuzz`, and the seven `_field_access`
 functions have `test_field_access`, which runs the *same* assertions against the
 accelerated and the pure-Python half. `csv_export`, `rows_to_dicts` and
 `fast_clone` had neither — only hand-written expectations, which check the cases

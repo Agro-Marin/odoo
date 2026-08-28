@@ -84,25 +84,6 @@ def batch_cache_filter(
     return passing_ids, miss_indices
 
 
-def batch_cache_values(
-    field_cache: dict,
-    ids: tuple,
-    pending: object,
-) -> list | None:
-    values: list = []
-    _get = field_cache.get
-    _MISSING = object()
-    _append = values.append
-
-    for id_ in ids:
-        value = _get(id_, _MISSING)
-        if value is _MISSING or value is pending:
-            return None
-        _append(value)
-
-    return values
-
-
 def batch_cache_fill(
     field_cache: dict,
     ids: tuple,

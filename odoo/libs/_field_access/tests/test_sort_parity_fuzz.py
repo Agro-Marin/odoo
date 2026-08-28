@@ -9,6 +9,7 @@ import pytest
 # module whose `__init__.py` never ran. `test_field_access.py` beside this one
 # already imports this way. See `odoo/tools/tests/test_suite_collects_standalone.py`.
 from odoo_rust import sort_ids_by_cache, sort_ids_by_values
+
 from odoo.libs._field_access._fallback import (
     sort_ids_by_cache as sort_ids_by_cache_py,
 )

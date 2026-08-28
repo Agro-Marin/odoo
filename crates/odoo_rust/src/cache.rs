@@ -24,8 +24,7 @@
 //! `gil_used = false` against CPython 3.14.7t and run with 8 readers against 6
 //! threads replacing every cache value, **`batch_cache_filter` segfaults**,
 //! four runs out of four. The same harness leaves `batch_cache_get` (128,909
-//! calls), `batch_cache_values` (104,367) and `batch_cache_fill` (101,311)
-//! standing, because CPython's free-threaded build defers reclamation and that
+//! calls) and `batch_cache_fill` (101,311) standing, because CPython's free-threaded build defers reclamation and that
 //! covers a lookup followed immediately by an `Py_INCREF`. `filter` is the one
 //! that hands control back to Python — `PyObject_IsTrue` can call `__bool__` —
 //! while holding only a borrow.
@@ -253,59 +252,6 @@ pub fn batch_cache_filter<'py>(
         // list is normally empty.
         let pass_list = Bound::from_owned_ptr(py, pass_list).cast_into_unchecked::<PyList>();
         Ok((pass_list.unbind(), PyList::new(py, &miss_items)?.unbind()))
-    }
-}
-
-/// All-or-nothing batch cache extraction for `sorted()` fast path.
-///
-/// For each id in `ids`, looks up `field_cache[id]`:
-/// - Cache hit (not `pending`): collects the raw value.
-/// - Cache miss or `pending`: **immediately returns `None`** (early bailout).
-///
-/// Returns `Some(list)` with all cached values, or `None` on any miss.
-/// This is the optimal pattern for `_sorted_by_ids` which needs all values
-/// present to sort — a single miss means fallback to the record-based path.
-#[pyfunction]
-pub fn batch_cache_values<'py>(
-    py: Python<'py>,
-    field_cache: &Bound<'py, PyDict>,
-    ids: &Bound<'py, PyTuple>,
-    pending: &Bound<'py, PyAny>,
-) -> PyResult<Option<Py<PyList>>> {
-    let n = ids.len() as ffi::Py_ssize_t;
-
-    // SAFETY: PyList_New initializes all slots to NULL.  On early bailout,
-    // Py_DECREF on the list correctly DECREFs filled slots (0..i) and
-    // skips NULL slots (i..n).
-    unsafe {
-        let cache_ptr = field_cache.as_ptr();
-        let ids_ptr = ids.as_ptr();
-        let pending_ptr = pending.as_ptr();
-
-        let result = ffi::PyList_New(n);
-        if result.is_null() {
-            return Err(PyErr::fetch(py));
-        }
-
-        for i in 0..n {
-            let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i);
-            let Some(value) = cache_probe(cache_ptr, id_obj, pending_ptr) else {
-                // Miss or PENDING — bail.  Slots 0..i are owned,
-                // slots i..n are NULL.  Py_DECREF handles cleanup.
-                ffi::Py_DECREF(result);
-                return Ok(None);
-            };
-            let value = value.as_ptr();
-
-            ffi::Py_INCREF(value);
-            ffi::PyList_SET_ITEM(result, i, value);
-        }
-
-        Ok(Some(
-            Bound::from_owned_ptr(py, result)
-                .cast_into_unchecked::<PyList>()
-                .unbind(),
-        ))
     }
 }
 

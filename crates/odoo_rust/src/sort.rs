@@ -7,8 +7,8 @@
 //!   a plain Python dict.
 //!
 //! Both operate on (`ids: tuple`, `values: list`) pairs that are produced by
-//! [`crate::cache::batch_cache_get`] / [`crate::cache::batch_cache_values`],
-//! replacing the Python-level loops in `sorted()` and `grouped()`.
+//! [`crate::cache::batch_cache_get`], replacing the Python-level loops in
+//! `sorted()` and `grouped()`.
 //!
 //! # Performance notes
 //!
@@ -155,6 +155,14 @@ unsafe fn compare_py(
 /// The Rust version uses a `Vec<usize>` index array sorted in-place (stable
 /// Timsort equivalent), then builds the output tuple from the original `ids`.
 /// Zero new Python objects are created during the sort itself.
+///
+/// **No production caller.** `sorted()` reaches [`sort_ids_by_cache`], which
+/// fuses the cache read in and always passes a *bool* `null_high`
+/// (`traversal.py` computes `nulls_first == desc`). This export survives as the
+/// only seam that drives [`decode_column`] from an explicit values list, which
+/// is what makes `test_sort_parity_fuzz` and `test_sorted_multi_key`
+/// expressible — and it is why the four non-`Opt` [`Column`] arms exist at all.
+/// Treat it as a test seam, not as an ORM accelerator.
 #[pyfunction]
 #[pyo3(signature = (ids, values, reverse, null_high = None))]
 pub fn sort_ids_by_values<'py>(
@@ -198,11 +206,12 @@ pub fn sort_ids_by_values<'py>(
 
 /// Fused cache-read + sort — the single-field `sorted()` fast path.
 ///
-/// Reads each `field_cache[id]` directly (`PyDict_GetItem`, borrowed) instead of
-/// having Python first build an intermediate values list via `batch_cache_values`
-/// and hand it back in a second call. Returns:
+/// Reads each `field_cache[id]` directly instead of having Python first build an
+/// intermediate values list and hand it back in a second call. That two-call
+/// shape had its own export, `batch_cache_values`; this superseded it, and it
+/// was deleted once nothing called it. Returns:
 /// - `Ok(None)` if any id is a cache miss or holds `pending` — the caller then
-///   abandons the fast path (exactly as `batch_cache_values` returning `None`);
+///   abandons the fast path;
 /// - `Ok(Some(tuple))` with the sorted ids otherwise (native fast path, or the
 ///   object-comparison fallback for exotic / heterogeneous columns).
 #[pyfunction]

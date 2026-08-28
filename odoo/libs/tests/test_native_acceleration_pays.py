@@ -47,7 +47,6 @@ from odoo.libs._field_access._fallback import (
     batch_cache_fill,
     batch_cache_filter,
     batch_cache_get,
-    batch_cache_values,
     batch_group_ids,
     sort_ids_by_cache,
     sort_ids_by_values,
@@ -81,7 +80,6 @@ slow = SimpleNamespace(
     batch_cache_fill=batch_cache_fill,
     batch_cache_filter=batch_cache_filter,
     batch_cache_get=batch_cache_get,
-    batch_cache_values=batch_cache_values,
     batch_group_ids=batch_group_ids,
     sort_ids_by_cache=sort_ids_by_cache,
     sort_ids_by_values=sort_ids_by_values,
@@ -136,7 +134,6 @@ def _results():
 CASES = (
     ("batch_cache_get", lambda m: m.batch_cache_get(_CACHE, _IDS, _PENDING, _NONE_VAL)),
     ("batch_cache_filter", lambda m: m.batch_cache_filter(_CACHE, _IDS, _PENDING)),
-    ("batch_cache_values", lambda m: m.batch_cache_values(_CACHE, _IDS, _PENDING)),
     (
         "batch_cache_fill",
         lambda m: m.batch_cache_fill(
@@ -242,7 +239,7 @@ def test_every_accelerated_function_is_measured():
 
 
 def test_the_field_access_references_are_the_production_ones():
-    """The eight `_field_access` references must be `_fallback.py`'s.
+    """The seven `_field_access` references must be `_fallback.py`'s.
 
     Not copies of it: `_fallback` is exercised by `test_field_access`, which
     runs the SAME assertions against it and the accelerated half. A reference
@@ -253,7 +250,6 @@ def test_the_field_access_references_are_the_production_ones():
         "batch_cache_fill",
         "batch_cache_filter",
         "batch_cache_get",
-        "batch_cache_values",
         "batch_group_ids",
         "sort_ids_by_cache",
         "sort_ids_by_values",
