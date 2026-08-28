@@ -133,10 +133,6 @@ function overlayContaining(containsFns, node) {
     return containsFns.some((contains) => contains(node));
 }
 /**
- * @param {string|string[]|Function|Function[]} refNames
- * @returns {HoverTarget[]}
- */
-/**
  * @param {any} state
  * @param {Object} callbacks
  * @param {() => void} [callbacks.onHover]
@@ -184,6 +180,10 @@ function makeHoverSwitch(state, { onHover, onAway, onHovering }) {
         },
     };
 }
+/**
+ * @param {string|string[]|Function|Function[]} refNames
+ * @returns {HoverTarget[]}
+ */
 function useHoverTargets(refNames) {
     const refNameList = Array.isArray(refNames) ? refNames : [refNames];
     /** @type {HoverTarget[]} */
