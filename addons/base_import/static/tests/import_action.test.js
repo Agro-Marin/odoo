@@ -1792,4 +1792,156 @@ describe("Import a CSV", () => {
         expect(".o_import_action .o_import_data_content").toHaveCount(1);
         expect.verifySteps(["/base_import/set_file"]);
     });
+    test.tags("desktop");
+    test("date and number formatting options are offered for a spreadsheet too", async () => {
+        // The panel used to be shown only for `.csv`. Only the three
+        // CSV-parsing options are format-specific; `date_format`,
+        // `datetime_format` and the two number separators are applied by
+        // `_parse_date_from_data` / `_parse_float_from_data` whatever the
+        // reader was. A spreadsheet holding the text "03/04/2024" is guessed
+        // as `%m/%d/%Y` by the server, so a European file imports 3 April as
+        // 4 March -- and the one control that would correct it was off screen.
+        await mountWebClient();
+        await getService("action").doAction(1);
+        await animationFrame();
+
+        const file = new File(["fake_file"], "fake_file.xlsx", { type: "text/plain" });
+        await contains(".o_control_panel_main_buttons .o_import_file").click();
+        await setInputFiles([file]);
+        await animationFrame();
+
+        expect(".o_import_data_sidepanel .o_import_formatting").toHaveCount(1);
+        expect(".o_import_date_format").toHaveCount(1);
+        expect(".o_import_datetime_format").toHaveCount(1);
+        expect(".o_import_float_thousand_separator").toHaveCount(1);
+        expect(".o_import_float_decimal_separator").toHaveCount(1);
+        // ...but nothing that only a CSV reader consumes.
+        expect(".o_import_encoding").toHaveCount(0);
+        expect(".o_import_separator").toHaveCount(0);
+        expect(".o_import_quoting").toHaveCount(0);
+        // The ids the datalists hang off are built from the index in the full
+        // option list, so filtering must not renumber them.
+        expect(".o_import_date_format").toHaveAttribute("list", "list-3");
+    });
+
+    test.tags("desktop");
+    test("CSV keeps every formatting option", async () => {
+        await mountWebClient();
+        await getService("action").doAction(1);
+        await animationFrame();
+
+        const file = new File(["fake_file"], "fake_file.csv", { type: "text/plain" });
+        await contains(".o_control_panel_main_buttons .o_import_file").click();
+        await setInputFiles([file]);
+        await animationFrame();
+
+        expect(".o_import_encoding").toHaveCount(1);
+        expect(".o_import_separator").toHaveCount(1);
+        expect(".o_import_quoting").toHaveCount(1);
+        expect(".o_import_date_format").toHaveCount(1);
+    });
+
+    test.tags("desktop");
+    test("'Start at line' 0 does not turn into a negative skip", async () => {
+        // "Start at line" sends `value - 1`, and the string "0" is truthy in
+        // JavaScript, so this used to send `skip = -1`. `data[-1:]` is a legal
+        // Python slice, so the server imported the LAST row of the file and
+        // reported success -- no error anywhere, just the wrong records.
+        patchWithCleanup(ImportAction.prototype, {
+            get isBatched() {
+                return true;
+            },
+        });
+        let skipSent;
+        await mountWebClient();
+        onRpc("base_import.import", "execute_import", ({ args }) => {
+            skipSent = args[3].skip;
+            return { ids: [1], messages: [], nextrow: 0, name: [] };
+        });
+        await getService("action").doAction(1);
+
+        const file = new File(["fake_file"], "fake_file.csv", { type: "text/plain" });
+        await contains(".o_control_panel_main_buttons .o_import_file").click();
+        await setInputFiles([file]);
+        await animationFrame();
+
+        await contains("input#o_import_row_start").edit(0);
+        // Displayed value is `skip + 1`, so 1 means skip 0 and 0 meant skip -1.
+        expect("input#o_import_row_start").toHaveValue("1");
+
+        await contains(".o_control_panel_main_buttons button:first").click();
+        await animationFrame();
+        expect(skipSent).toBe(0);
+    });
+
+    test.tags("desktop");
+    test("a non-numeric batch limit falls back to one row", async () => {
+        // The input is free text, so "abc" reached the server verbatim:
+        // `num_rows > "abc"` raised TypeError, and `execute_import` catches
+        // only ImportValidationError, so it left as an HTTP 500.
+        patchWithCleanup(ImportAction.prototype, {
+            get isBatched() {
+                return true;
+            },
+        });
+        await mountWebClient();
+        await getService("action").doAction(1);
+
+        const file = new File(["fake_file"], "fake_file.csv", { type: "text/plain" });
+        await contains(".o_control_panel_main_buttons .o_import_file").click();
+        await setInputFiles([file]);
+        await animationFrame();
+
+        await contains("input#o_import_batch_limit").edit("abc");
+        expect("input#o_import_batch_limit").toHaveValue("1");
+
+        await contains("input#o_import_batch_limit").edit(-5);
+        expect("input#o_import_batch_limit").toHaveValue("1");
+    });
+
+    test.tags("desktop");
+    test("the batch inputs keep showing the value that was accepted", async () => {
+        // The write-back has to survive a valid edit too. `t-att-value` sets
+        // the attribute while the handler sets the property, and after the
+        // first keystroke those diverge permanently -- so a clamp that only
+        // worked from the initial render would go quiet the moment the user
+        // typed anything at all.
+        patchWithCleanup(ImportAction.prototype, {
+            get isBatched() {
+                return true;
+            },
+        });
+        await mountWebClient();
+        await getService("action").doAction(1);
+
+        const file = new File(["fake_file"], "fake_file.csv", { type: "text/plain" });
+        await contains(".o_control_panel_main_buttons .o_import_file").click();
+        await setInputFiles([file]);
+        await animationFrame();
+
+        for (const [typed, shown] of [
+            [500, "500"],
+            ["abc", "1"],
+            [250, "250"],
+            [-5, "1"],
+            [1000, "1000"],
+        ]) {
+            await contains("input#o_import_batch_limit").edit(typed);
+            expect("input#o_import_batch_limit").toHaveValue(shown, {
+                message: `entering ${typed} shows ${shown}`,
+            });
+        }
+
+        for (const [typed, shown] of [
+            [5, "5"],
+            [0, "1"],
+            ["", "1"],
+            [3, "3"],
+        ]) {
+            await contains("input#o_import_row_start").edit(typed);
+            expect("input#o_import_row_start").toHaveValue(shown, {
+                message: `start line ${typed} shows ${shown}`,
+            });
+        }
+    });
 });

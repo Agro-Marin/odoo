@@ -100,18 +100,47 @@ class ODSReader:
         return rows
 
     def _read_row(self, row):
+        """ One row's cells, repeats expanded.
+
+        Two things this deliberately does NOT do, both of which it used to:
+
+        * **Skip cells whose text starts with ``#``.** ODF has no comment-cell
+          convention -- that came from a third-party recipe this reader
+          descends from. The cell was dropped *without a placeholder*, so every
+          later column of that row shifted one to the left, differently per
+          row. A colour column (``#FF0000``), an ``#N/A`` a spreadsheet left
+          behind, an invoice reference written ``#1042``: measured, the row
+          ``['Alice', '#FF0000', '1']`` was read as ``['Alice', '1']``, which
+          then imports ``1`` as the colour and nothing as the quantity. Silent
+          wrong data, which is worse than a rejected file.
+        * **Ignore the repeat count on the last cell of the row, whatever it
+          holds.** The intent was to drop the "to the end of the used range"
+          filler, which is a blank cell carrying a repeat in the thousands --
+          but the test was position, not blankness, so a row genuinely *ending*
+          in repeated values went with it. ``a,b,b,b`` is written by
+          LibreOffice as ``<table:table-cell table:number-columns-repeated="3">
+          b</table:table-cell>`` in final position (verified against a real
+          CSV -> ODS conversion), and read back as ``['a', 'b']``. The file
+          then failed to import on a row-width mismatch.
+
+        A blank last cell still contributes exactly **one** cell, whatever its
+        repeat says. Not zero: LibreOffice writes an ordinary trailing empty
+        column as a bare ``<table:table-cell/>`` with no repeat at all -- for
+        ``Bob,blue,2,`` it emits four cells, the last one empty -- so dropping
+        it makes that row one narrower than its header and the import fails on
+        a width mismatch it should never have seen. And not `repeat` either:
+        the used-range filler would then pad every row with thousands of blank
+        columns, which `_prepare_column_examples` turns into thousands of
+        phantom columns in the mapping UI.
+        """
         cells = []
         elements = row.getElementsByType(TableCell)
         for position, cell in enumerate(elements, start=1):
-            # The repeat count on the *last* cell of a row is a "to the end of
-            # the used range" marker rather than real data, so it is ignored.
-            if position == len(elements):
+            text = _cell_text(cell)
+            if position == len(elements) and not text.strip():
                 repeat = 1
             else:
                 repeat = _repeat_count(cell, 'numbercolumnsrepeated', MAX_CELL_REPEAT)
-            text = _cell_text(cell)
-            if text.startswith("#"):  # comment cell
-                continue
             cells.extend([text] * repeat)
         return cells
 

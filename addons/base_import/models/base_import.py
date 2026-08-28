@@ -6,11 +6,13 @@ import csv
 import datetime
 import difflib
 import functools
+import hashlib
 import io
 import itertools
 import logging
 import operator
 import re
+import threading
 import unicodedata
 from collections.abc import Sequence
 from pathlib import Path
@@ -71,6 +73,91 @@ EXTENSION_TO_READER = {
     "xlsm": "_read_xlsx",
     "xlsx": "_read_xlsx",
 }
+
+# The options the readers consume. Everything else -- `has_headers`, `skip`,
+# `limit`, the date and number formats -- is applied to the rows *after* the
+# file has been read, so it cannot change what a parse produces.
+PARSE_OPTION_KEYS = ("encoding", "separator", "quoting", "sheet")
+# ...and the ones the readers write back into `options`: the sheet list a
+# workbook turned out to have, and the encoding/separator/quoting they guessed.
+# A cache hit has to replay these or the client stops being told about them.
+PARSE_OPTION_OUTPUTS = (*PARSE_OPTION_KEYS, "sheets")
+# Entries kept, and the size above which a result is parsed but not kept. The
+# pair bounds what one worker can hold to roughly what an import's own row lists
+# already cost, rather than to whatever a 64 MiB upload expands to. A file over
+# the cell budget simply behaves as it did before.
+PARSED_FILE_CACHE_ENTRIES = 4
+PARSED_FILE_CACHE_MAX_CELLS = 500_000
+
+
+def _copy_option_outputs(outputs):
+    """A caller-owned copy of the options a reader wrote.
+
+    Only ``sheets`` is mutable today; copying by type rather than by name keeps
+    that from being a fact this function has to be told again.
+    """
+    return {
+        name: list(value) if isinstance(value, list) else value
+        for name, value in outputs.items()
+    }
+
+
+class _ParsedFileCache:
+    """Rows keyed by file content, so a batched import parses its file once.
+
+    ``execute_import`` re-reads the upload from scratch on every batch -- the
+    batches are separate RPC calls, and nothing carried the parse between them.
+    That is O(batches x file) and the readers are not cheap: measured on a
+    5,000-row xlsx imported at limit 500, **18% of the entire import** (1.97 s
+    of 10.7 s) went on parsing the same workbook eleven times, and a
+    20,000-row .ods costs 1.4 s per read, so ten batches burn 12.5 s producing
+    eleven identical lists.
+
+    Keyed on a digest of the file rather than on the import record, for a
+    reason that is easy to get wrong: ``write_date`` is the *transaction*
+    timestamp, so two writes to ``file`` inside one transaction share it and a
+    record-keyed entry would serve the old rows for the new file. Content is
+    also the honest key -- the same bytes parse to the same rows whichever
+    record they arrived on.
+
+    Safe to hand the same rows to several callers because nothing downstream
+    mutates them: ``_convert_import_data`` copies each row it keeps
+    (``list(mapper(row))``) and every in-place stage from ``_parse_import_data``
+    on works on those copies. The outer list is copied per caller anyway, so a
+    caller that pops from it -- ``parse_preview`` does -- cannot reach the
+    entry.
+    """
+
+    def __init__(self, entries, max_cells):
+        self._entries = entries
+        self._max_cells = max_cells
+        self._store = collections.OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key):
+        with self._lock:
+            hit = self._store.get(key)
+            if hit is not None:
+                self._store.move_to_end(key)
+            return hit
+
+    def set(self, key, rows, outputs):
+        if sum(len(row) for row in rows) > self._max_cells:
+            return
+        with self._lock:
+            self._store[key] = (rows, outputs)
+            self._store.move_to_end(key)
+            while len(self._store) > self._entries:
+                self._store.popitem(last=False)
+
+    def clear(self):
+        with self._lock:
+            self._store.clear()
+
+
+PARSED_FILE_CACHE = _ParsedFileCache(
+    PARSED_FILE_CACHE_ENTRIES, PARSED_FILE_CACHE_MAX_CELLS
+)
 
 CONCAT_SEPARATOR_IMPORT = {
     "char": " ",
@@ -252,8 +339,34 @@ class Base_ImportImport(models.TransientModel):
         # comodels, three levels deep. Checked on the entry model only: the
         # recursion below legitimately descends into comodels a user may not
         # read directly but must still be able to map onto.
+        self._check_model_name(model)
         self.env[model].check_access("read")
         return self._get_fields_tree(model, depth)
+
+    @api.model
+    def _check_model_name(self, model):
+        """Refuse a model name that names nothing, with a message.
+
+        ``res_model`` is a plain ``Char`` the client fills in at ``create``
+        time and ``model`` here is an RPC argument, so both are caller-supplied
+        and neither need name a real model. ``self.env[<not a model>]`` raises
+        ``KeyError``, which no entry point of this module catches: an import
+        record carrying a typo -- or none at all, since the field is not
+        ``required`` -- answered ``parse_preview`` with an HTTP 500 and a bare
+        ``KeyError: 'nope.nope'``.
+
+        :raises UserError: rather than :class:`ImportValidationError`, which
+            the client renders as a per-column import message. A record whose
+            target model does not exist is not a mapping problem; nothing about
+            it is fixable from the mapping screen.
+        """
+        if not model or model not in self.env:
+            raise UserError(
+                _(
+                    "Cannot import into %(model)s: no such model.",
+                    model=model or _("(none)"),
+                )
+            )
 
     def _get_fields_tree(self, model, depth):
         """Recursive body of :meth:`get_fields_tree`, without its access
@@ -443,9 +556,89 @@ class Base_ImportImport(models.TransientModel):
                 most_likely_fields_tree.append(field)
         return most_likely_fields_tree
 
+    @api.model
+    def _normalize_row_window_options(self, options):
+        """Coerce ``skip`` and ``limit`` to the non-negative integers every
+        consumer below assumes, in place.
+
+        Both reach the server as whatever the client's input produced, and both
+        inputs are plain free-text ``<input>`` elements in the batch panel -- so
+        a typo is an ordinary user action here, not a crafted call. Neither was
+        checked, and each bad value failed differently and badly:
+
+        * ``limit="abc"`` -- ``num_rows > "abc"`` in :meth:`parse_preview` and
+          ``limit >= len(data)`` in :meth:`_batch_window` both raise
+          ``TypeError``. ``execute_import`` catches only
+          :class:`ImportValidationError`, so it left as an HTTP 500;
+          ``parse_preview`` caught it and told the user the *file* could not be
+          read, which is a lie about a perfectly good file.
+        * ``limit=-5`` -- ``IndexError`` out of the row window, again a 500.
+        * ``skip=-2`` -- no error at all, which is the worst of the three.
+          ``data[-2:]`` is a legal slice, so the import silently ran on the
+          *last* two rows of the file and reported success. The UI reaches this:
+          "Start at line" sends ``value - 1``, and the string ``"0"`` is truthy
+          in JavaScript, so entering 0 sends ``skip=-1`` and imports the last
+          row alone.
+
+        A numeric string is accepted and coerced rather than refused: the two
+        inputs are untyped, so the client already sends one for some edits, and
+        refusing it would break a round trip that works today.
+        """
+        for name in ("skip", "limit"):
+            if name not in options:
+                continue
+            value = options[name]
+            # "No value" means different things to the two options, so neither
+            # may be folded into the other.
+            #
+            # `skip` unset is 0, and normalising it is a fix: `[""] * None` in
+            # `_record_names` raised.
+            #
+            # `limit` unset is **None**, the only spelling `load` reads as "no
+            # limit" (it substitutes `float("inf")`). Every other falsy value
+            # lands in `index < limit` as itself, and this module's own
+            # `_batch_window` disagrees with `load` about all of them -- it
+            # treats a falsy limit as "no batching" and hands over every row,
+            # while `load` stops at 0 and imports none. Measured through
+            # `load`: `_import_limit=None` takes 4 of 4 rows, `0` and `False`
+            # take none while reporting success and `nextrow=0`, so the client
+            # is told the import finished; `""` raises `TypeError: '<' not
+            # supported between instances of 'int' and 'str'` and leaves as an
+            # HTTP 500. Resolving that in `_batch_window`'s favour is what the
+            # one already-stated intent in this module says: falsy means no
+            # limit.
+            if not value:
+                options[name] = 0 if name == "skip" else None
+                continue
+            if isinstance(value, bool) or not isinstance(value, int | str):
+                raise ImportValidationError(self._bad_row_window_message(name, value))
+            try:
+                coerced = int(value)
+            except ValueError:
+                raise ImportValidationError(
+                    self._bad_row_window_message(name, value)
+                ) from None
+            if coerced < 0:
+                raise ImportValidationError(self._bad_row_window_message(name, value))
+            options[name] = coerced
+        return options
+
+    @api.model
+    def _bad_row_window_message(self, name, value):
+        labels = {"skip": _("Start at line"), "limit": _("Batch limit")}
+        return _(
+            "%(option)s must be a whole number of rows, not %(value)s.",
+            option=labels[name],
+            value=value,
+        )
+
     def _read_file(self, options):
-        """Dispatch to the reader for this file's format, deduced from its
-        content, its declared mimetype, or its extension (in that order).
+        """The file's non-empty rows, parsed once per (content, read options).
+
+        See :class:`_ParsedFileCache` for why this is memoized at all and why
+        the key is the file's content. The options a reader *writes* are
+        replayed on a hit, so a caller cannot tell a hit from a miss except by
+        how long it took.
 
         :param dict options: reading options (quoting, separator, ...)
         :returns: the file's non-empty rows
@@ -453,6 +646,52 @@ class Base_ImportImport(models.TransientModel):
         """
         self.ensure_one()
 
+        key = self._parsed_file_key(options)
+        hit = PARSED_FILE_CACHE.get(key)
+        if hit is not None:
+            rows, outputs = hit
+            options.update(_copy_option_outputs(outputs))
+            return list(rows)
+
+        before = {name: options.get(name) for name in PARSE_OPTION_OUTPUTS}
+        rows = self._read_file_uncached(options)
+        outputs = {
+            name: options[name]
+            for name in PARSE_OPTION_OUTPUTS
+            if name in options and options[name] != before[name]
+        }
+        # Copied on the way in as well as on the way out. `sheets` is a list,
+        # and the reader leaves the very object it built in the caller's
+        # `options` -- storing that reference lets a caller that appends to its
+        # own `options["sheets"]` rewrite the cached entry, so every later hit
+        # reports a sheet the workbook does not have. Verified: without this,
+        # appending to `options["sheets"]` after a miss showed up in the next
+        # read.
+        PARSED_FILE_CACHE.set(key, rows, _copy_option_outputs(outputs))
+        return list(rows)
+
+    def _parsed_file_key(self, options):
+        """What makes two reads of this file interchangeable.
+
+        The dispatch in :meth:`_read_file_uncached` is driven by the content,
+        the declared mimetype and the name, so all three belong in the key
+        alongside the options the readers consume.
+        """
+        return (
+            hashlib.blake2b(self.file or b"", digest_size=16).digest(),
+            self.file_name or "",
+            self.file_type or "",
+            tuple(options.get(name) for name in PARSE_OPTION_KEYS),
+        )
+
+    def _read_file_uncached(self, options):
+        """Dispatch to the reader for this file's format, deduced from its
+        content, its declared mimetype, or its extension (in that order).
+
+        :param dict options: reading options (quoting, separator, ...)
+        :returns: the file's non-empty rows
+        :rtype: list[list]
+        """
         # guess mimetype from file content
         mimetype = guess_mimetype(self.file or b"")
         extensions_to_try = [
@@ -860,6 +1099,9 @@ class Base_ImportImport(models.TransientModel):
             except ValueError:
                 pass
 
+        if _is_native_date_column(preview_values):
+            return ["date", "datetime"]
+
         results = self._try_match_date_time(preview_values, options)
         if results:
             return results
@@ -1253,8 +1495,10 @@ class Base_ImportImport(models.TransientModel):
         :rtype: {dict(str: dict(...)), dict(int, list(str)), list(str), list(list(str))} | {str, str}
         """
         self.ensure_one()
+        self._check_model_name(self.res_model)
         fields_tree = self.get_fields_tree(self.res_model)
         try:
+            self._normalize_row_window_options(options)
             data_rows = self._read_file(options)
             if not data_rows:
                 raise ImportValidationError(
@@ -1414,6 +1658,33 @@ class Base_ImportImport(models.TransientModel):
         return column_examples
 
     @api.model
+    def _check_field_mapping(self, fields):
+        """Every mapped column must name a field path.
+
+        Each consumer downstream treats a mapped entry as a ``'/'``-joined path
+        and calls ``.split`` on it, so a client sending a number or an object
+        produced an ``AttributeError`` out of ``execute_import`` -- which
+        catches only :class:`ImportValidationError` -- and so an HTTP 500 for
+        what is a caller mistake.
+
+        The message names the column's position, not its value: the value is
+        whatever the caller sent, and ``_()`` flattens a container argument into
+        prose (``{'a': 1}`` renders as "a", ``[1, 2]`` as "1 and 2"), so echoing
+        it describes the complaint wrongly.
+
+        :param list fields: field path per column, falsy where unmapped
+        :raises ImportValidationError: on the first entry that is not a string
+        """
+        for position, field in enumerate(fields, start=1):
+            if field and not isinstance(field, str):
+                raise ImportValidationError(
+                    _(
+                        "Column %(column)s is not mapped to a field name.",
+                        column=position,
+                    )
+                )
+
+    @api.model
     def _convert_import_data(
         self,
         fields: Sequence[str | bool],
@@ -1430,6 +1701,7 @@ class Base_ImportImport(models.TransientModel):
         :returns: (data, fields)
         :raises ValueError: in case the import data could not be converted
         """
+        self._check_field_mapping(fields)
         # Get indices for non-empty fields
         indices = [index for index, field in enumerate(fields) if field]
         if not indices:
@@ -2032,6 +2304,7 @@ class Base_ImportImport(models.TransientModel):
         :rtype: dict(ids: list(int), messages: list({type, message, record}))
         """
         self.ensure_one()
+        self._check_model_name(self.res_model)
         import_savepoint = self.env.cr.savepoint(flush=False)
         # `try/finally`, not just the `except ImportValidationError` below: the
         # savepoint used to be released only on the success path and on that
@@ -2042,33 +2315,13 @@ class Base_ImportImport(models.TransientModel):
         # the leak long outlived the two crashes that used to reach it.
         released = False
         try:
-            import_limit = options.get("limit")
             try:
-                input_file_data, import_fields = self._convert_import_data(
+                import_fields, input_file_data = self._prepare_batch_rows(
                     fields, options
                 )
-                # Parse date and float field
-                input_file_data = self._parse_import_data(
-                    input_file_data, import_fields, options
-                )
-                # Only `load` used to honour the batch limit, so every stage below
-                # ran over the whole remainder of the file on every batch. Trim to
-                # what this batch can actually consume -- see _batch_window.
-                #
-                # Trim *after* parsing, not before: overrides of
-                # _parse_import_data legitimately read the whole remaining file.
-                # The bank-statement importer takes the statement's closing
-                # balance from its last row and drops rows carrying no amount, so
-                # bounding the rows beforehand both mis-stated that balance and
-                # yielded fewer records than the limit -- which in turn made
-                # `load` report end-of-file and silently import only the first
-                # batch. Everything from here on is per-row, and `load` applies
-                # the same bound anyway.
-                input_file_data = input_file_data[
-                    : self._batch_window(import_fields, input_file_data, import_limit)
-                ]
             except ImportValidationError as error:
                 return {"messages": [error.__dict__]}
+            import_limit = options.get("limit")
 
             _logger.info("importing %d rows...", len(input_file_data))
 
@@ -2113,29 +2366,9 @@ class Base_ImportImport(models.TransientModel):
             if import_result["ids"] and options.get("has_headers"):
                 self._save_column_mappings(columns, fields)
 
-            if "name" in import_fields:
-                # `merged_data`, not `input_file_data`: `import_fields` was rebound
-                # by _handle_multi_mapping above to the *deduplicated* field list, so
-                # its index no longer addresses the pre-merge rows. With two columns
-                # mapped to the same field ahead of `name` -- e.g. [city, city, name]
-                # -- index('name') is 1, which in the original row is the second
-                # `city` cell: the import reported "FR" as the record name.
-                index_of_name = import_fields.index("name")
-                skipped = options.get("skip", 0)
-                # pad front as data doesn't contain anything for skipped lines
-                r = import_result["name"] = [""] * skipped
-                # One name per *record*, matching `ids`: a one2many continuation
-                # row belongs to the record above it and has no name of its own,
-                # so counting it here shifted every later name by one relative to
-                # the ids the client pairs them with.
-                continuation = self._continuation_rows(import_fields, merged_data)
-                r.extend(
-                    self._stringify_date_like_objects(row[index_of_name], options)
-                    for index, row in enumerate(merged_data)
-                    if not continuation[index]
-                )
-            else:
-                import_result["name"] = []
+            import_result["name"] = self._record_names(
+                import_fields, merged_data, options
+            )
 
             skip = options.get("skip", 0)
             # convert load's internal nextrow to the imported file's
@@ -2149,6 +2382,77 @@ class Base_ImportImport(models.TransientModel):
             if not released:
                 with contextlib.suppress(psycopg.InternalError):
                     import_savepoint.close(rollback=True)
+
+    def _prepare_batch_rows(self, fields, options):
+        """The rows this batch will hand to ``load``, and the field paths that
+        address them.
+
+        Split out of :meth:`execute_import` because it is the one stretch of
+        that method that can refuse the request: everything it calls raises
+        :class:`ImportValidationError` for a caller mistake, and the caller
+        turns that into a message on the import screen.
+
+        :returns: ``(import_fields, rows)``
+        :raises ImportValidationError: on any unusable option, mapping or row
+        """
+        # Normalised here rather than in the caller so that a bad option is
+        # refused the same way an unusable mapping is, instead of escaping as
+        # an HTTP 500.
+        self._normalize_row_window_options(options)
+        data, import_fields = self._convert_import_data(fields, options)
+        # Parse date and float field
+        data = self._parse_import_data(data, import_fields, options)
+        # Only `load` used to honour the batch limit, so every stage below ran
+        # over the whole remainder of the file on every batch. Trim to what this
+        # batch can actually consume -- see _batch_window.
+        #
+        # Trim *after* parsing, not before: overrides of _parse_import_data
+        # legitimately read the whole remaining file. The bank-statement
+        # importer takes the statement's closing balance from its last row and
+        # drops rows carrying no amount, so bounding the rows beforehand both
+        # mis-stated that balance and yielded fewer records than the limit --
+        # which in turn made `load` report end-of-file and silently import only
+        # the first batch. Everything from here on is per-row, and `load`
+        # applies the same bound anyway.
+        window = self._batch_window(import_fields, data, options.get("limit"))
+        return import_fields, data[:window]
+
+    def _record_names(self, import_fields, merged_data, options):
+        """One name per record imported in this batch, indexable by the file
+        row it came from.
+
+        :param list import_fields: field paths, **post**-merge --
+            ``_handle_multi_mapping`` rebinds them to the deduplicated list, so
+            an index taken from the pre-merge list addresses the wrong cell.
+            With two columns mapped to the same field ahead of ``name`` -- say
+            ``[city, city, name]`` -- ``index('name')`` is 1, which in the
+            original row is the second ``city`` cell, and the import reported
+            "FR" as the record's name.
+        :param list merged_data: this batch's rows, post-merge
+        :param dict options: supplies ``skip``
+        :rtype: list[str]
+        """
+        if "name" not in import_fields:
+            return []
+        index_of_name = import_fields.index("name")
+        # Pad the front so the client can index the result by absolute file row
+        # (`resultNames[error.rows.from]`), but only when there is something to
+        # align it to. `skip` is caller-supplied and the padding was dense and
+        # unbounded, so `skip=5_000_000` on a four-row file allocated a
+        # five-million-element list -- 44 MiB measured, linear in a number the
+        # caller chooses -- to carry no names at all.
+        names = [""] * (options.get("skip", 0) if merged_data else 0)
+        # One name per *record*, matching `ids`: a one2many continuation row
+        # belongs to the record above it and has no name of its own, so counting
+        # it here shifted every later name by one against the ids the client
+        # pairs them with.
+        continuation = self._continuation_rows(import_fields, merged_data)
+        names.extend(
+            self._stringify_date_like_objects(row[index_of_name], options)
+            for index, row in enumerate(merged_data)
+            if not continuation[index]
+        )
+        return names
 
     def _save_column_mappings(self, columns, fields):
         """Remember the column-name -> field mapping so the next import from
@@ -2580,6 +2884,34 @@ def _normalize_column_name(name):
     :rtype: str
     """
     return (name or "").strip().lower()
+
+
+def _is_native_date_column(values):
+    """Whether the reader has already resolved this column to date objects.
+
+    The xls/xlsx readers hand back native ``datetime.date`` /
+    ``datetime.datetime`` for date-formatted cells, and such a column must not
+    be put through :func:`check_patterns`: that function *skips* date
+    instances, so every candidate pattern matches vacuously over the column and
+    the FIRST one is returned as though it had been confirmed. The answer is
+    then written into ``options["date_format"]`` -- measured, a sheet of native
+    dates pinned it to the user's language format on no evidence at all -- and
+    the client renders it as the format the file is in. Answering directly
+    yields the same types the vacuous match produced, so no mapping suggestion
+    changes; only the false claim about the file's format goes away.
+
+    Empty cells are ignored, but an all-empty column is not a date column.
+    :meth:`_extract_header_types` answers that case (``["all"]``) before
+    reaching here; this returns False for it anyway so the predicate stands on
+    its own.
+
+    :param list values: one column's preview values
+    :rtype: bool
+    """
+    populated = [value for value in values if value]
+    return bool(populated) and all(
+        isinstance(value, datetime.date) for value in populated
+    )
 
 
 def _is_integer_literal(value):

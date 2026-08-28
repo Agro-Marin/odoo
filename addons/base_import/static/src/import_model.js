@@ -76,7 +76,7 @@ const humanToStrftimeFormat = memoize(function humanToStrftimeFormat(value) {
  * Inverse of {@link humanToStrftimeFormat}, used to redisplay the options the
  * server echoes back. Several human tokens map to the same directive (`hh` and
  * `II` are both `%I`), so this picks one canonical spelling per directive --
- * the one used by the presets in `_getCSVFormattingOptions`.
+ * the one used by the presets in `_getFormattingOptions`.
  */
 const STRFTIME_TO_HUMAN = {
     w: "d",
@@ -141,7 +141,7 @@ export class BaseImportModel {
 
         this.importTemplates = [];
 
-        this.formattingOptionsValues = this._getCSVFormattingOptions();
+        this.formattingOptionsValues = this._getFormattingOptions();
 
         this.importOptionsValues = {
             ...this.formattingOptionsValues,
@@ -845,9 +845,19 @@ export class BaseImportModel {
         }
     }
 
-    _getCSVFormattingOptions() {
+    /**
+     * The parsing options the side panel exposes.
+     *
+     * `csvOnly` marks the three that only a CSV reader consumes. The rest --
+     * date, datetime and the two number separators -- are applied by
+     * `_parse_date_from_data` and `_parse_float_from_data` whatever the reader
+     * was, so they belong on screen for every format (see
+     * `ImportDataSidepanel.isOptionApplicable`).
+     */
+    _getFormattingOptions() {
         return {
             encoding: {
+                csvOnly: true,
                 label: _t("Encoding:"),
                 type: "select",
                 value: "",
@@ -865,6 +875,7 @@ export class BaseImportModel {
                 ],
             },
             separator: {
+                csvOnly: true,
                 label: _t("Separator:"),
                 type: "select",
                 value: "",
@@ -876,6 +887,7 @@ export class BaseImportModel {
                 ],
             },
             quoting: {
+                csvOnly: true,
                 label: _t("Text Delimiter:"),
                 type: "input",
                 value: '"',

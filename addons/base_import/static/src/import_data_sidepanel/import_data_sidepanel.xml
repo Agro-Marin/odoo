@@ -27,9 +27,12 @@
                     Use first row as header
                 </CheckBox>
             </div>
-            <div t-if="fileExtension.toLowerCase() === '.csv'" class="o_import_formatting pt-3 pb-4 border-top">
+            <div class="o_import_formatting pt-3 pb-4 border-top">
                 <h4>Formatting</h4>
-                <div t-foreach="Object.entries(props.formattingOptions)" t-as="option" t-key="`${option[0]}-${option_index}`" class="o_import_options">
+                <!-- One loop over every option, with the CSV-only ones filtered
+                     inside it: `option_index` numbers the full list, and the
+                     input ids and datalist ids are built from it. -->
+                <div t-foreach="Object.entries(props.formattingOptions)" t-as="option" t-key="`${option[0]}-${option_index}`" t-if="isOptionApplicable(option[1])" class="o_import_options">
                     <label t-att-for="`${option[0]}-${option_index}`">
                         <t t-esc="option[1].label" />
                         <sup t-if="option[1].help" class="text-info p-1" t-att-data-tooltip="option[1].help" t-esc="'?'" />
@@ -68,7 +71,7 @@
                 <div class="d-flex">
                     <div class="o_import_batch_limit w-50 pe-1">
                         <label class="mb-1" for="o_import_batch_limit">Batch limit</label>
-                        <input class="w-100" id="o_import_batch_limit" t-att-value="getOptionValue('limit')" t-on-change="(ev) => this.setOptionValue('limit', ev.target.value || 1)" />
+                        <input class="w-100" id="o_import_batch_limit" t-att-value="getOptionValue('limit')" t-on-change="onBatchLimitChange" />
                     </div>
                     <div class="w-50 ps-1" data-tooltip="Warning: ignores the labels line, empty lines and lines composed only of empty cells">
                         <label class="mb-1" for="o_import_row_start">Start at line</label>
