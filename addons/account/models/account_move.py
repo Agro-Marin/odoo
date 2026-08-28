@@ -6496,6 +6496,33 @@ class AccountMove(models.Model):
         term_lines = self.line_ids.filtered(lambda l: l.display_type == "payment_term")
         return term_lines._get_installments_data()
 
+    def _get_in_process_payments_amount(self, currency=None):
+        """Amount of this invoice already settled by payments that are still in
+        process.
+
+        Such a payment reconciles nothing and is matched with no bank
+        statement, so `amount_residual` still counts its amount as owed.
+        Anything that offers an amount to pay has to subtract it, or the
+        invoice gets paid a second time.
+        """
+        self.ensure_one()
+        currency = currency or self.currency_id
+        return sum(
+            payment.currency_id._convert(
+                payment.amount,
+                currency,
+                self.company_id,
+                payment.date,
+            )
+            for payment in self.reconciled_payment_ids.filtered(
+                lambda payment: (
+                    payment.state == "in_process"
+                    and not payment.is_invoice_reconciled
+                    and not payment.is_bank_matched
+                )
+            )
+        )
+
     def _get_invoice_next_payment_values(self, custom_amount=None):
         self.ensure_one()
         term_lines = self.line_ids.filtered(
@@ -6572,8 +6599,8 @@ class AccountMove(models.Model):
             )
         else:
             installment_state = None
-            amount_due = self.amount_residual
-            next_amount_to_pay = self.amount_residual
+            amount_due = self.amount_residual - self._get_in_process_payments_amount()
+            next_amount_to_pay = amount_due
             next_payment_reference = self.name
             next_due_date = self.invoice_date_due
 

@@ -355,6 +355,78 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             ]
         )
 
+    def test_register_payment_deducts_a_payment_still_in_process(self):
+        """With the Accounting app and a channel that books no entry, a
+        registered payment stays in process, reconciles nothing and leaves the
+        invoice fully open.  Registering a second payment on that invoice must
+        not offer the whole amount again -- that is how a bill gets paid twice.
+        """
+
+        def patched_get_invoice_in_payment_state(self):
+            return "in_payment"
+
+        self.company_data[
+            "default_journal_bank"
+        ].inbound_payment_channel_ids.payment_account_id = self.env["account.account"]
+
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "date": "2017-01-01",
+                "invoice_date": "2017-01-01",
+                "partner_id": self.partner_a.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "price_unit": 1000.0,
+                            "tax_ids": [],
+                        }
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+
+        with patch.object(
+            self.env.registry["account.move"],
+            "_get_invoice_in_payment_state",
+            patched_get_invoice_in_payment_state,
+        ):
+            (
+                self.env["account.payment.register"]
+                .with_context(active_model="account.move", active_ids=invoice.ids)
+                .create({})
+                ._create_payments()
+            )
+
+            self.assertRecordValues(
+                invoice.reconciled_payment_ids,
+                [
+                    {
+                        "state": "in_process",
+                        "is_invoice_reconciled": False,
+                        "is_bank_matched": False,
+                    }
+                ],
+            )
+            self.assertEqual(invoice.amount_residual, 1000.0)
+
+            wizard = (
+                self.env["account.payment.register"]
+                .with_context(active_model="account.move", active_ids=invoice.ids)
+                .create({})
+            )
+            self.assertEqual(wizard.unreconciled_paid_amount, 1000.0)
+            self.assertEqual(wizard.amount, 0.0)
+            self.assertEqual(
+                invoice._get_invoice_next_payment_values()["amount_due"], 0.0
+            )
+            self.assertIn(
+                "is already paid",
+                wizard.actionable_errors["unpaid_matched_payments"]["message"],
+            )
+
     def test_register_payment_single_batch_grouped_keep_open_lower_amount(self):
         active_ids = (self.out_invoice_1 + self.out_invoice_2).ids
         payments = (
@@ -2609,9 +2681,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         wizard = (
             self.env["account.payment.register"]
             .with_context(
-                active_domain=[
-                    ["next_payment_date", "=", "2017-01-07"]
-                ],
+                active_domain=[["next_payment_date", "=", "2017-01-07"]],
                 active_model="account.move",
                 active_ids=invoice_2.ids,
             )

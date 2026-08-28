@@ -13,7 +13,6 @@ class AccountAccount(models.Model):
         "mixin.mail.activity",
     ]
 
-
     name = fields.Char(tracking=True)
     currency_id = fields.Many2one(tracking=True)
     active = fields.Boolean(tracking=True)
@@ -62,7 +61,6 @@ class AccountAccount(models.Model):
     related_taxes_amount = fields.Integer(
         compute="_compute_related_taxes_amount",
     )
-
 
     @api.constrains("reconcile", "account_type", "tax_ids")
     def _constrains_reconcile(self):
@@ -234,7 +232,6 @@ class AccountAccount(models.Model):
                 )
             )
 
-
     @api.depends_context("company")
     def _compute_company_fiscal_country_code(self):
         self.company_fiscal_country_code = (
@@ -349,9 +346,6 @@ class AccountAccount(models.Model):
 
     @api.depends_context("company")
     def _compute_opening_debit_credit(self):
-        self.opening_debit = 0
-        self.opening_credit = 0
-        self.opening_balance = 0
         opening_move = self.env.company.account_opening_move_id
         if not self.ids or not opening_move:
             return
@@ -378,9 +372,9 @@ class AccountAccount(models.Model):
                 "credit": 0,
                 "balance": 0,
             }
-            record.opening_debit = res["debit"]
-            record.opening_credit = res["credit"]
-            record.opening_balance = res["balance"]
+            record.opening_debit = record.opening_debit or res["debit"]
+            record.opening_credit = record.opening_credit or res["credit"]
+            record.opening_balance = record.opening_balance or res["balance"]
 
     @api.depends_context("company", "formatted_display_name", "uid")
     @api.depends("code")
@@ -431,12 +425,10 @@ class AccountAccount(models.Model):
                     else account.name
                 )
 
-
     @api.onchange("account_type")
     def _onchange_account_type(self):
         if self.account_type == "off_balance":
             self.tax_ids = False
-
 
     def _inverse_opening_debit(self):
         for record in self:
@@ -490,7 +482,6 @@ class AccountAccount(models.Model):
             )
 
         self.env.flush_all()
-
 
     def _toggle_reconcile_to_true(self):
         if not self.ids:
@@ -546,7 +537,6 @@ class AccountAccount(models.Model):
             WHERE full_reconcile_id IS NULL AND account_id = ANY(%s)
         """
         self.env.cr.execute(query, [list(self.ids)])
-
 
     @api.model
     def _get_most_frequent_accounts_for_partner(
@@ -756,7 +746,6 @@ class AccountAccount(models.Model):
         ).search_fetch(domain, ["display_name"], limit=limit)
         return [(record.id, record.display_name) for record in records]
 
-
     def write(self, vals):
         if "reconcile" in vals:
             if vals["reconcile"]:
@@ -802,7 +791,6 @@ class AccountAccount(models.Model):
             )
 
         return super().write(vals)
-
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_contains_journal_items(self):
@@ -853,7 +841,6 @@ class AccountAccount(models.Model):
                 )
             )
 
-
     def action_open_related_taxes(self):
         related_taxes_ids = (
             self.env["account.tax"]
@@ -870,6 +857,21 @@ class AccountAccount(models.Model):
             "res_model": "account.tax",
             "views": [[False, "list"], [False, "form"]],
             "domain": [("id", "in", related_taxes_ids)],
+        }
+
+    @api.model
+    def action_validate_opening_move(self):
+        opening_move = self.env.company.account_opening_move_id
+        if not opening_move:
+            raise UserError(_("There is no opening entry to post yet."))
+
+        opening_move.action_post()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Chart of Accounts"),
+            "res_model": "account.account",
+            "view_mode": "list",
+            "context": {"no_breadcrumbs": True},
         }
 
     @api.model

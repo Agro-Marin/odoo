@@ -1045,6 +1045,44 @@ class TestAccountAccount(TestAccountMergeCommon):
             ],
         )
 
+    @freeze_time("2018-01-01")
+    def test_opening_amount_typed_in_the_list_survives_its_own_compute(self):
+        """The opening-balance list lets the user retype the debit of an account
+        that already has one.  `opening_debit`, `opening_credit` and
+        `opening_balance` share a single compute, so drawing any of the three
+        re-runs it over the row being edited -- and it must not throw away what
+        the user just typed.
+        """
+        account = self.company_data["default_account_revenue"]
+        account.opening_debit = 300
+        self.cr.precommit.run()
+
+        # The record the editable list holds while the amount is being retyped.
+        editing_account = account.new(origin=account)
+        editing_account.opening_debit = 500
+
+        # `opening_credit` is drawn in the same row, which runs the shared compute.
+        editing_account.opening_credit
+
+        self.assertEqual(editing_account.opening_debit, 500)
+
+    @freeze_time("2018-01-01")
+    def test_validate_opening_move_posts_it(self):
+        company = self.env.company
+        account = self.company_data["default_account_revenue"]
+
+        with self.assertRaises(UserError):
+            self.env["account.account"].action_validate_opening_move()
+
+        account.opening_debit = 300
+        self.cr.precommit.run()
+        self.assertEqual(company.account_opening_move_id.state, "draft")
+
+        action = self.env["account.account"].action_validate_opening_move()
+
+        self.assertEqual(company.account_opening_move_id.state, "posted")
+        self.assertEqual(action["res_model"], "account.account")
+
     def test_unmerge(self):
         company_1 = self.company_data["company"]
         company_2 = self.company_data_2["company"]

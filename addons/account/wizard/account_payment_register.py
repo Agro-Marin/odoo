@@ -5,7 +5,7 @@ import markupsafe
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import OrderedSet, frozendict
+from odoo.tools import OrderedSet, format_amount, frozendict
 from odoo.tools.misc import clean_context
 
 
@@ -79,6 +79,11 @@ class AccountPaymentRegister(models.TransientModel):
         compute="_compute_qr_code",
     )
 
+    unreconciled_paid_amount = fields.Monetary(
+        string="Already Paid, Not Reconciled",
+        currency_field="currency_id",
+        compute="_compute_unreconciled_paid_amount",
+    )
     batches = fields.Binary(compute="_compute_batches", export_string_translation=False)
     total_amounts_to_pay = fields.Binary(
         compute="_compute_total_amounts_to_pay", export_string_translation=False
@@ -733,12 +738,21 @@ class AccountPaymentRegister(models.TransientModel):
             if (
                 unpaid_matched_payments
                 := wizard.line_ids.move_id.reconciled_payment_ids.filtered(
-                    lambda p: p.state == "in_process"
+                    lambda p: (
+                        p.state == "in_process"
+                        and not p.is_invoice_reconciled
+                        and not p.is_bank_matched
+                    )
                 )
             ):
                 actionable_errors["unpaid_matched_payments"] = {
                     "message": self.env._(
-                        "There are payments in progress. Make sure you don't pay twice."
+                        "%(amount)s is already paid. Make sure you don't pay twice.",
+                        amount=format_amount(
+                            self.env,
+                            wizard.unreconciled_paid_amount,
+                            wizard.currency_id,
+                        ),
                     ),
                     "action_text": self.env._("Check them"),
                     "action": unpaid_matched_payments._get_records_action(
@@ -747,6 +761,14 @@ class AccountPaymentRegister(models.TransientModel):
                     "level": "danger",
                 }
             wizard.actionable_errors = actionable_errors
+
+    @api.depends("line_ids.move_id.reconciled_payment_ids", "company_id", "currency_id")
+    def _compute_unreconciled_paid_amount(self):
+        for wizard in self:
+            wizard.unreconciled_paid_amount = sum(
+                move._get_in_process_payments_amount(currency=wizard.currency_id)
+                for move in wizard.line_ids.move_id
+            )
 
     def _convert_to_wizard_currency(self, installments):
         self.ensure_one()
@@ -932,6 +954,7 @@ class AccountPaymentRegister(models.TransientModel):
         "currency_id",
         "payment_date",
         "installments_mode",
+        "unreconciled_paid_amount",
     )
     def _compute_amount(self):
         for wizard in self:
@@ -944,7 +967,14 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.amount = wizard.amount
             else:
                 total_amount_values = wizard.total_amounts_to_pay
-                wizard.amount = total_amount_values["amount_by_default"]
+                if total_amount_values["epd_applied"]:
+                    wizard.amount = total_amount_values["amount_by_default"]
+                else:
+                    wizard.amount = max(
+                        0.0,
+                        total_amount_values["amount_by_default"]
+                        - wizard.unreconciled_paid_amount,
+                    )
 
     @api.depends("amount")
     def _compute_installments_mode(self):
