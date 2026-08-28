@@ -27,7 +27,7 @@
 #     half floats, bignum tags, 100k nested arrays (CBORDecodeError on both).
 #   6.x renames the C extension `_cbor2` -> `cbor2._cbor2`. Not imported here.
 #
-# cryptography 50.0.0
+# cryptography 50.0.1
 #   Clears the four advisories the 46.x line carried: GHSA-537c-gmf6-5ccf
 #     (HIGH, vulnerable OpenSSL in the wheels) at 48.0.1; GHSA-jwv3-5hgf-82ww
 #     (HIGH, exponential path-building) and GHSA-m2h6-j472-rp4c (MODERATE,
@@ -39,14 +39,23 @@
 #     (payment_redsys), hazmat.backends.default_backend() (agromarin
 #     documents_l10n_mx_edi), pkcs7.PKCS7SignatureBuilder (enterprise
 #     l10n_ar_edi).
+#   50.0.1 vs 50.0.0, a patch with no advisory of its own: identical across
+#     x509 CertificateBuilder sign + parse (subject, issuer, serial, SAN,
+#     not_valid_after_utc, PEM length), pkcs7.PKCS7SignatureBuilder DER,
+#     pkcs12 serialize/load round trip, RSA PKCS1v15 sign + verify, ECDSA
+#     P-256 sign, decrepit TripleDES CBC ciphertext and default_backend(),
+#     again with DeprecationWarning raised as an error. The certificate
+#     FINGERPRINT is the one value that moves, and it moves between two runs on
+#     one version too — the probe generates a fresh key each time.
 #   For 51.x: the PKCS#7 advisory covers EnvelopedData DECRYPTION, which
 #     nothing here performs (l10n_ar_edi only signs). iot_drivers/tools/
 #     certificate.py reads the not_valid_after PROPERTY, deprecated since 42 for
-#     not_valid_after_utc, still only deprecated on 50.0.0 — the one call site a
+#     not_valid_after_utc, still only deprecated on 50.0.1 — the one call site a
 #     removal takes out.
 #
 # pyopenssl 26.4.0
-#   Required by cryptography 50.0.0 (26.3.0+ needs cryptography>=49).
+#   Required by cryptography 50.0.1 (26.3.0+ needs cryptography>=49;
+#     26.4.0 accepts >=49,<51, so the 50.0.1 patch needs no move here).
 #   GHSA-5pwr-322w-8jr4 (HIGH, DTLS cookie callback buffer overflow) and
 #     GHSA-vp96-hxj8-p424 (LOW, TLS bypass via unhandled servername-callback
 #     exception) are fixed in 26.0.0; 25.3.0 carried both. No advisory affects
@@ -70,8 +79,8 @@
 #     PKCS7_verify and OpenSSL.crypto.load_pkcs7_data, neither of which still
 #     exists; it now parses the CMS envelope with asn1crypto.
 #
-# reportlab 5.0.0
-#   No advisory against 4.4.10 or 5.0.0.
+# reportlab 5.0.1
+#   No advisory against 4.4.10, 5.0.0 or 5.0.1.
 #   The hold required visual comparison, so output was compared, not the API:
 #     same documents generated on both versions, rasterised at 150 dpi, diffed
 #     pixel by pixel. 4 PDFs identical (max per-channel delta 0), 3 barcode PNGs
@@ -81,6 +90,12 @@
 #     libs/barcode createBarcodeDrawing + .asString("png"); snailmail platypus
 #     Frame / KeepInFrame / Paragraph; l10n_ch graphics.shapes Drawing / Image
 #     via renderPDF; enterprise sign TTFont + stringWidth + Paragraph + canvas.
+#   5.0.1 was held to the same standard as the 5.0.0 jump above: 2 canvas PDFs
+#     byte-identical (invariant=1) and their 150-dpi rasters identical, 8
+#     barcode PNGs byte-identical across Code128 / EAN13 / EAN8 / QR /
+#     Standard39 / Standard93 / ECC200DataMatrix, stringWidth exact for three
+#     built-in faces and an embedded Lato TTF, Paragraph.wrap exact plain and
+#     with inline markup.
 #   5.0.0 declares charset-normalizer. It adds no package — requests and
 #     pdfminer.six already pull it — and does not reverse the chardet decision
 #     in requirements-addons.txt; base_import imports chardet by name.
@@ -94,18 +109,18 @@ blake3==1.0.9
 cbor2==6.1.4  # auth_passkey (auto_install). external_dependencies is not
               # consulted for auto_install — odoo/modules/db.py marks that
               # closure in raw SQL — so the pin stays global.
-cryptography==50.0.0
+cryptography==50.0.1
 cssselect2==0.9.0
 docutils==0.23
 fonttools==4.63.0
 geoip2==5.3.0
-idna==3.18
-lxml==6.1.1
+idna==3.19
+lxml==6.1.2
 lxml-html-clean
 MarkupSafe==3.0.3
 maxminddb==3.1.1
 num2words==0.5.14
-orjson==3.11.9
+orjson==3.12.0
 packaging==26.3
 Pillow==12.3.0
 polib==1.2.0
@@ -114,10 +129,10 @@ psutil==7.2.2
 psycopg[binary]>=3.3.4
 psycopg-pool>=3.3.1
 pyopenssl==26.4.0
-pypdf==6.15.0
+pypdf==6.16.2
 python-dateutil==2.9.0.post0
 python-magic==0.4.27 ; sys_platform != 'win32'
-reportlab==5.0.0
+reportlab==5.0.1
 requests==2.34.2
 rjsmin==1.2.5
 rl-renderPM==4.0.3 ; sys_platform == 'win32'  # Needed by reportlab but included in deb package
