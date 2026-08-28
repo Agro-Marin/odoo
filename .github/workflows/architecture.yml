@@ -577,6 +577,27 @@ jobs:
           echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
+      - name: Run addon-import resolution check
+        id: py_addon_imports
+        # The Python twin of the named-export gate above, and the half nothing
+        # asked. Measured 2026-08-27: published `agromarin/mcp_server` imports
+        # `odoo.addons.rpc.tools.preflight` at module level, and no published
+        # repository provides it -- the module cannot be imported against the
+        # published community fork, so it cannot install. Both repositories' CI
+        # was green, because each one only ever sees its own tree.
+        #
+        # Same topology as its twin: CI checks this repo out alone, so this run
+        # covers intra-repo drift and the siblings re-run it from their own lanes
+        # with this checkout beside them. An addon whose tree is absent yields no
+        # verdict rather than a guess.
+        run: |
+          set +e
+          python tooling/architecture/py_addon_imports.py --check \
+            | tee /tmp/py_addon_imports.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          exit "${GATE_EXIT}"
+
       - name: Run JS suite/source parity check
         id: js_parity
         # Blocking. HOOT derives a suite's id from the test file's path, so when

@@ -30,6 +30,7 @@ GATES = {
     "js_forced_render": ["--check"],
     "js_suite_parity": ["--check"],
     "named_export_coherence": ["--check"],
+    "py_addon_imports": ["--check"],
     "layer_check": ["--check"],
     "js_private_access": ["--check"],
     "xml_reference_coherence": ["--check"],
