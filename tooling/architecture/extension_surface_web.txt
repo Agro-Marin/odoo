@@ -119,7 +119,6 @@ CalendarYearRenderer.options  odoo  :triage
 CalendarYearRenderer.setup  odoo  :triage
 CharField.formattedValue  odoo  :triage
 CharField.setup  odoo enterprise  :keep
-CharField.shouldTrim  odoo  :generalize
 CheckBox.onClick  odoo enterprise  :keep
 CogMenu._registryItems  odoo  :promote
 CogMenu.cogItems  odoo  :triage

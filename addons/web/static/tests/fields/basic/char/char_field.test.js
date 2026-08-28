@@ -15,7 +15,11 @@ import {
     onRpc,
     serverState,
 } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
+import { charField } from "@web/fields/basic/char/char_field";
 import { Field } from "@web/fields/field";
+
+const fieldsRegistry = registry.category("fields");
 
 class Currency extends models.Model {
     digits = fields.Integer();
@@ -492,6 +496,27 @@ test("char field trim (or not) characters", async () => {
         message: "Name value should have been trimmed",
     });
     expect(".o_field_widget[name='foo2'] input:only").toHaveValue("  def  ");
+});
+
+test("a widget may say it does not trim, over a field that says it does", async () => {
+    fieldsRegistry.add("no_trim_char", {
+        ...charField,
+        extractProps: (...args) => ({
+            ...charField.extractProps(...args),
+            trim: false,
+        }),
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "res.partner",
+        resId: 1,
+        arch: `<form><field name="name" widget="no_trim_char"/></form>`,
+    });
+
+    await fieldInput("name").edit("  abc  ");
+    await clickSave();
+    expect(".o_field_widget[name='name'] input").toHaveValue("  abc  ");
 });
 
 test.tags("desktop");

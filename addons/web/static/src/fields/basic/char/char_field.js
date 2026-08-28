@@ -28,6 +28,7 @@ export class CharField extends TextInputFieldBase {
         ...standardFieldProps,
         autocomplete: { type: String, optional: true },
         isPassword: { type: Boolean, optional: true },
+        trim: { type: Boolean, optional: true },
         placeholder: { type: String, optional: true },
         dynamicPlaceholder: { type: Boolean, optional: true },
         dynamicPlaceholderModelReferenceField: { type: String, optional: true },
@@ -52,9 +53,16 @@ export class CharField extends TextInputFieldBase {
         });
     }
 
-    /** @returns {boolean} */
+    /**
+     * A widget may state whether it trims, overriding what the field declares:
+     * `char_emojis` must not, because a trailing space before an inserted emoji
+     * is what the user is still typing. Left unset, the field's own `trim`
+     * decides — which is the only thing that knows about the stored value.
+     *
+     * @returns {boolean}
+     */
     get shouldTrim() {
-        return super.shouldTrim && !this.props.isPassword;
+        return (this.props.trim ?? super.shouldTrim) && !this.props.isPassword;
     }
     /** @returns {number | undefined} */
     get maxLength() {

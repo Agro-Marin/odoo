@@ -11,16 +11,13 @@ export class EmojisCharField extends EmojisFieldCommon(CharField) {
         this.targetEditElement = useRef("input");
         this._setupOverride();
     }
-
-    get shouldTrim() {
-        return false;
-    }
 }
 
 export const emojisCharField = {
     ...charField,
     component: EmojisCharField,
     additionalClasses: [...(charField.additionalClasses || []), "o_field_text"],
+    extractProps: (...args) => ({ ...charField.extractProps(...args), trim: false }),
 };
 
 registry.category("fields").add("char_emojis", emojisCharField);
