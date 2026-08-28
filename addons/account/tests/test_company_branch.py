@@ -395,7 +395,7 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
         ]
         for record, lines, company_field in (
             (account, account_lines, "company_ids"),
-            (tax, tax_lines, "company_id"),
+            (tax, tax_lines, "company_ids"),
         ):
             with self.subTest(model=record._name):
                 self.env["account.move"].create(

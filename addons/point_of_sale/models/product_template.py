@@ -71,13 +71,13 @@ class ProductTemplate(models.Model):
         self.ensure_one()
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             raise AccessError(
-                _("Only Point of Sale users can change a POS favourite.")
+                _("Only Point of Sale users can change a POS favorite.")
             )
         if not self.available_in_pos:
             raise AccessError(
                 _(
                     "%s is not available in the Point of Sale, so it cannot be "
-                    "marked as a favourite there.",
+                    "marked as a favorite there.",
                     self.display_name,
                 )
             )
@@ -350,7 +350,8 @@ class ProductTemplate(models.Model):
         taxes_by_company = defaultdict(set)
         if self.env.company.parent_id:
             for tax in taxes:
-                taxes_by_company[tax.company_id.id].add(tax.id)
+                for company_id in tax.sudo().company_ids.ids:
+                    taxes_by_company[company_id].add(tax.id)
 
         different_currency = config_id.currency_id != self.env.company.currency_id
 
@@ -484,7 +485,7 @@ class ProductTemplate(models.Model):
         company = config.company_id
         while not tax_to_use and company:
             tax_to_use = self.taxes_id.filtered(
-                lambda tax, company=company: tax.company_id.id == company.id
+                lambda tax, company=company: tax._serves_company(company)
             )
             if not tax_to_use:
                 company = company.sudo().parent_id

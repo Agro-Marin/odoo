@@ -91,7 +91,10 @@ class PurchaseOrder(models.Model):
             # Compute taxes
             taxes_ids = fpos.map_tax(
                 line.product_id.supplier_taxes_id.filtered(
-                    lambda tax: tax.company_id in requisition.company_id.parent_ids
+                    lambda tax: any(
+                        tax._serves_company(c)
+                        for c in requisition.company_id.parent_ids
+                    )
                 )
             ).ids
 

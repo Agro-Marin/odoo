@@ -10,7 +10,7 @@ class TestEventBoothSaleCommon(TestEventBoothCommon):
         super(TestEventBoothSaleCommon, cls).setUpClass()
 
         cls.env['account.tax.group'].create(
-            {'name': 'Test Account Tax Group', 'company_id': cls.env.company.id}
+            {'name': 'Test Account Tax Group', "company_ids": [Command.set(cls.env.company.ids)]}
         )
 
         cls.event_booth_product = cls.env['product.product'].create({

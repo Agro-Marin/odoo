@@ -1217,7 +1217,7 @@ class AccountMove(models.Model):
     ):
         taxes = self.env["account.tax"].search(
             [
-                ("company_id", "=", company.id),
+                ('company_ids', 'in', [company.id]),
                 ("amount", "=", -1.0 * amount if is_withheld else amount),
                 ("amount_type", "=", "fixed" if is_fixed else "percent"),
                 ("type_tax_use", "=", "purchase" if is_purchase else "sale"),

@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from odoo import Command
 from odoo.fields import Datetime
 from odoo.tests import HttpCase, tagged
 
@@ -11,7 +12,7 @@ class TestUi(HttpCase):
         # self.env["account.chart.template"].try_loading('generic_coa', self.env.company)
 
         self.env['account.tax.group'].create(
-            {'name': 'Test Account Tax Group', 'company_id': self.env.company.id}
+            {'name': 'Test Account Tax Group', "company_ids": [Command.set(self.env.company.ids)]}
         )
 
         self.tax_10 = self.env['account.tax'].sudo().create({

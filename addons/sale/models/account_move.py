@@ -428,12 +428,20 @@ class AccountMove(models.Model):
         self.ensure_one()
         sale_line_vals = {}
         fpos = sale.fiscal_position_id
+        # `account.tax` serves several companies, so membership -- and through a
+        # parent company -- is the question, not identity. The domain helper is
+        # what knows that; reading `company_ids` in Python needs `sudo()` because
+        # the reader may not see the companies behind the relation. Same shape as
+        # account_move_line._compute_tax_ids.
+        company_domain = self.env["account.tax"]._check_company_domain(
+            self.company_id
+        )
         for line in self.invoice_line_ids.filtered(
             lambda ln: ln.display_type == "product",
         ):
-            taxes = fpos.map_tax(line.product_id.taxes_id)
+            taxes = fpos.map_tax(line.product_id.sudo().taxes_id)
             if taxes:
-                taxes = taxes.filtered(lambda t: t.company_id.id == self.company_id.id)
+                taxes = taxes.filtered_domain(company_domain)
             sale_line_vals[line.id] = {
                 "order_id": sale.id,
                 "product_id": line.product_id.id,

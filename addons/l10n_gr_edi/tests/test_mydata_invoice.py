@@ -234,7 +234,7 @@ class TestMyDATAInvoice(AccountTestInvoicingCommon):
             'name': 'Bad 12%',
             'type_tax_use': 'sale',
             'amount': 12.0,
-            'company_id': self.env.company.id,
+            "company_ids": [Command.set(self.env.company.ids)],
         }])
         invoice = self._create_mydata_invoice(tax_ids=[Command.set(invalid_tax.ids)])
         invoice.l10n_gr_edi_try_send_invoices()

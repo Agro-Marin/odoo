@@ -672,15 +672,15 @@ class TestSaleOrder(SaleCommon):
             [
                 {
                     "name": "Tax Group",
-                    "company_id": company.id,
+                    "company_ids": [Command.set(company.ids)],
                 },
                 {
                     "name": "Tax Group X",
-                    "company_id": branch_x.id,
+                    "company_ids": [Command.set(branch_x.ids)],
                 },
                 {
                     "name": "Tax Group XX",
-                    "company_id": branch_xx.id,
+                    "company_ids": [Command.set(branch_xx.ids)],
                 },
             ]
         )
@@ -691,7 +691,7 @@ class TestSaleOrder(SaleCommon):
                 "amount_type": "percent",
                 "amount": 10,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_b = self.env["account.tax"].create(
@@ -701,7 +701,7 @@ class TestSaleOrder(SaleCommon):
                 "amount_type": "percent",
                 "amount": 15,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_x = self.env["account.tax"].create(
@@ -711,7 +711,7 @@ class TestSaleOrder(SaleCommon):
                 "amount_type": "percent",
                 "amount": 20,
                 "tax_group_id": tax_groups[1].id,
-                "company_id": branch_x.id,
+                "company_ids": [Command.set(branch_x.ids)],
             }
         )
         tax_xx = self.env["account.tax"].create(
@@ -721,7 +721,7 @@ class TestSaleOrder(SaleCommon):
                 "amount_type": "percent",
                 "amount": 25,
                 "tax_group_id": tax_groups[2].id,
-                "company_id": branch_xx.id,
+                "company_ids": [Command.set(branch_xx.ids)],
             }
         )
         product_all_taxes = self.env["product.product"].create(
@@ -1138,19 +1138,31 @@ class TestSalesTeam(SaleCommon):
     def test_cannot_assign_tax_of_mismatch_company(self):
         company_a = self.env["res.company"].create({"name": "A"})
         company_b = self.env["res.company"].create({"name": "B"})
+        country = self.env["res.country"].search([], limit=1)
+        # Pin the country rather than letting it be computed. The subject here is
+        # a *company* mismatch; the group's country used to fall out of its own
+        # (countryless) company and now falls out of the acting one, which is not
+        # the country these taxes are created with.
         tax_group_a = self.env["account.tax.group"].create(
-            {"name": "A", "company_id": company_a.id}
+            {
+                "name": "A",
+                "company_ids": [Command.set(company_a.ids)],
+                "country_id": country.id,
+            }
         )
         tax_group_b = self.env["account.tax.group"].create(
-            {"name": "B", "company_id": company_b.id}
+            {
+                "name": "B",
+                "company_ids": [Command.set(company_b.ids)],
+                "country_id": country.id,
+            }
         )
-        country = self.env["res.country"].search([], limit=1)
 
         tax_a = self.env["account.tax"].create(
             {
                 "name": "A",
                 "amount": 10,
-                "company_id": company_a.id,
+                "company_ids": [Command.set(company_a.ids)],
                 "tax_group_id": tax_group_a.id,
                 "country_id": country.id,
             }
@@ -1159,7 +1171,7 @@ class TestSalesTeam(SaleCommon):
             {
                 "name": "B",
                 "amount": 10,
-                "company_id": company_b.id,
+                "company_ids": [Command.set(company_b.ids)],
                 "tax_group_id": tax_group_b.id,
                 "country_id": country.id,
             }
@@ -1204,7 +1216,7 @@ class TestSalesTeam(SaleCommon):
         tax_b0 = self.env["account.tax"].create(
             {
                 "name": "B0 tax",
-                "company_id": root_company.id,
+                "company_ids": [Command.set(root_company.ids)],
                 "amount": 10,
                 "tax_group_id": basic_tax_group.id,
                 "country_id": country.id,
@@ -1213,7 +1225,7 @@ class TestSalesTeam(SaleCommon):
         tax_b1 = self.env["account.tax"].create(
             {
                 "name": "B1 tax",
-                "company_id": root_company.child_ids[0].id,
+                "company_ids": [Command.set(root_company.child_ids[0].ids)],
                 "amount": 11,
                 "tax_group_id": basic_tax_group.id,
                 "country_id": country.id,
@@ -1222,7 +1234,7 @@ class TestSalesTeam(SaleCommon):
         tax_b2 = self.env["account.tax"].create(
             {
                 "name": "B2 tax",
-                "company_id": root_company.child_ids[1].id,
+                "company_ids": [Command.set(root_company.child_ids[1].ids)],
                 "amount": 20,
                 "tax_group_id": basic_tax_group.id,
                 "country_id": country.id,

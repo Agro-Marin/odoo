@@ -628,12 +628,18 @@ class AccountMove(models.Model):
         self.ensure_one()
         purchase_line_vals = {}
         fpos = purchase.fiscal_position_id
+        # See sale's counterpart: `account.tax` serves several companies, and the
+        # domain helper is what knows about parent companies. Reading
+        # `company_ids` in Python needs `sudo()`.
+        company_domain = self.env["account.tax"]._check_company_domain(
+            self.company_id
+        )
         for line in self.invoice_line_ids.filtered(
             lambda ln: ln.display_type == "product",
         ):
-            taxes = fpos.map_tax(line.product_id.supplier_taxes_id)
+            taxes = fpos.map_tax(line.product_id.sudo().supplier_taxes_id)
             if taxes:
-                taxes = taxes.filtered(lambda t: t.company_id.id == self.company_id.id)
+                taxes = taxes.filtered_domain(company_domain)
             purchase_line_vals[line.id] = {
                 "order_id": purchase.id,
                 "product_id": line.product_id.id,

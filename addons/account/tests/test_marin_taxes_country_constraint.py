@@ -15,7 +15,7 @@ class TestTaxesCountryConstraint(AccountTestInvoicingCommon):
             {
                 "name": "Foreign tax group",
                 "country_id": cls.foreign_country.id,
-                "company_id": cls.company_data["company"].id,
+                "company_ids": [Command.set(cls.company_data["company"].ids)],
             }
         )
         cls.foreign_tax = cls.company_data["default_tax_sale"].copy(

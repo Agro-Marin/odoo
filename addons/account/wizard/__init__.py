@@ -12,3 +12,4 @@ from . import account_payment_register
 from . import accrued_orders
 from . import base_partner_merge
 from . import account_merge_wizard
+from . import account_tax_merge_wizard

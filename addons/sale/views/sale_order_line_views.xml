@@ -120,7 +120,7 @@
                                 widget="many2many_tax_tags"
                                 options="{'no_create': True}"
                                 context="{'search_view_ref': 'account.account_tax_view_search'}"
-                                domain="[('type_tax_use', '=', 'sale'), ('company_id', '=', company_id)]"
+                                domain="[('type_tax_use', '=', 'sale'), ('company_ids', 'parent_of', company_id)]"
                                 readonly="qty_invoiced &gt; 0" />
                             <field name="price_tax" widget="monetary" />
                             <field name="currency_id" invisible="1" />

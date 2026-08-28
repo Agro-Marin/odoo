@@ -6,6 +6,7 @@ aggregation in ``_get_tax_totals_summary`` and the whole
 standalone.
 """
 
+from odoo import Command
 from odoo.tests import tagged
 
 from .common import BaseTaxCommon
@@ -28,7 +29,7 @@ class TestBaseTaxTotalsSummary(BaseTaxCommon):
         return self.env["account.tax.group"].create(
             {
                 "name": name,
-                "company_id": self.company.id,
+                "company_ids": [Command.set(self.company.ids)],
                 "country_id": self.country.id,
             }
         )

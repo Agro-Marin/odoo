@@ -472,7 +472,7 @@ class AccountChartTemplate(models.AbstractModel):
             tax.type_tax_use,
             tax.tax_scope,
             tax.country_id,
-            tax.company_id.root_id,
+            frozenset(tax.company_ids.root_id.ids),
         )
 
     def _reload_tax_template_changed(self, tax, template):
@@ -958,6 +958,10 @@ class AccountChartTemplate(models.AbstractModel):
 
     def _force_company_default_tax_on_products(self, company, fname, tax_field):
         company_domain = self.env["product.template"]._check_company_domain(company)
+        # `tax_field` traverses into account.tax, so the nested condition needs
+        # THAT model's company domain, not the product's. The two happened to be
+        # the same expression while both models spelled membership `company_id`.
+        tax_domain = self.env["account.tax"]._check_company_domain(company)
         products = (
             self.env["product.template"]
             .sudo()
@@ -966,7 +970,7 @@ class AccountChartTemplate(models.AbstractModel):
                     [
                         company_domain,
                         Domain(tax_field, "!=", False),
-                        Domain(tax_field, "not any", company_domain),
+                        Domain(tax_field, "not any", tax_domain),
                     ]
                 )
             )

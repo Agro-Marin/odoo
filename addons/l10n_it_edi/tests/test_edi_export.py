@@ -285,7 +285,7 @@ class TestItEdiExport(TestItEdi):
             'name': '10% tax',
             'amount': 10.0,
             'amount_type': 'percent',
-            'company_id': self.company.id,
+            "company_ids": [Command.set(self.company.ids)],
         })
 
         invoice = self.env['account.move'].with_company(self.company).create({

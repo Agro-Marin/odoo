@@ -30,7 +30,7 @@ class TestOSSBelgium(AccountTestInvoicingCommon):
         another_eu_country_code = (self.env.ref('base.europe').country_ids - self.sub_child_company.country_id)[0].code
         tax_oss = self.env['account.tax'].search([('name', 'ilike', f'%"{another_eu_country_code}"%')], limit=1)
         self.assertTrue(tax_oss)
-        self.assertEqual(tax_oss.company_id, self.root_company)
+        self.assertEqual(tax_oss.company_ids, self.root_company)
 
     def test_oss_tax_should_be_instantiated_on_first_branch_having_a_tax_id(self):
         # simulate sub child selection in the switcher
@@ -40,7 +40,7 @@ class TestOSSBelgium(AccountTestInvoicingCommon):
         another_eu_country_code = (self.env.ref('base.europe').country_ids - self.sub_child_company.country_id)[0].code
         tax_oss = self.env['account.tax'].search([('name', 'ilike', f'%{another_eu_country_code}%')], limit=1)
         self.assertTrue(tax_oss)
-        self.assertEqual(tax_oss.company_id, self.sub_child_company)
+        self.assertEqual(tax_oss.company_ids, self.sub_child_company)
 
     def test_country_tag_from_belgium(self):
         """
@@ -178,7 +178,7 @@ class TestOSSUSA(AccountTestInvoicingCommon):
         tax_oss = self.env['account.tax'].search([('name', 'ilike', f'%{another_eu_country_code}%')], limit=1)
 
         self.assertTrue(tax_oss)
-        self.assertEqual(tax_oss.company_id, self.sub_child_company)
+        self.assertEqual(tax_oss.company_ids, self.sub_child_company)
         self.assertEqual(tax_oss.country_id, self.foreign_vat_fpos.country_id)
 
 

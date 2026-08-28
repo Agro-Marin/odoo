@@ -64,13 +64,15 @@ class AccountTaxGroup(models.Model):
     _description = "Tax Group"
     _order = "sequence asc, id"
     _check_company_auto = True
-    _check_company_domain = models.check_company_domain_parent_of
+    _check_company_domain = models.check_companies_domain_parent_of
 
     name = fields.Char(required=True, translate=True)
     sequence = fields.Integer(default=10)
-    company_id = fields.Many2one(
+    company_ids = fields.Many2many(
         "res.company",
+        string="Companies",
         required=True,
+        depends_context=("uid",),
         default=lambda self: self.env.company,
     )
     country_id = fields.Many2one(
@@ -95,16 +97,39 @@ class AccountTaxGroup(models.Model):
     )
     pos_receipt_label = fields.Char(string="PoS receipt label")
 
-    @api.depends("company_id")
+    def _get_settings_company(self):
+        return self.env.company
+
+    @api.constrains("company_ids")
+    def _check_company_ids_not_empty(self):
+        # `required=True` on a many2many is not enforced by the ORM -- there is
+        # no NOT NULL to hang it on -- so the rule needs stating. Same shape as
+        # account.account's own company_ids constraint.
+        self.invalidate_recordset(fnames=["company_ids"])
+        if groups := self.filtered(lambda g: not g.sudo().company_ids):
+            raise ValidationError(
+                self.env._(
+                    "The following tax groups must be assigned to at least "
+                    "one company:\n%(groups)s",
+                    groups="\n".join(f"- {group.display_name}" for group in groups),
+                ),
+            )
+
+    # No `@api.depends`, deliberately. The country is a precomputed default
+    # taken from the acting company and then owned by the user (`readonly=False`,
+    # stored). It used to depend on `company_id`; making it depend on
+    # `company_ids` would be wrong -- adding a second company to a shared group
+    # must not flip the group's jurisdiction.
+    @api.depends_context("company")
     def _compute_country_id(self):
         for group in self:
-            if "account_fiscal_country_id" in group.company_id._fields:
+            company = group._get_settings_company()
+            if "account_fiscal_country_id" in company._fields:
                 group.country_id = (
-                    group.company_id.account_fiscal_country_id
-                    or group.company_id.country_id
+                    company.account_fiscal_country_id or company.country_id
                 )
             else:
-                group.country_id = group.company_id.country_id
+                group.country_id = company.country_id
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -119,7 +144,7 @@ class AccountTax(models.Model):
     _order = "sequence,id"
     _check_company_auto = True
     _rec_names_search = ["name", "description", "invoice_label"]
-    _check_company_domain = models.check_company_domain_parent_of
+    _check_company_domain = models.check_companies_domain_parent_of
 
     # ─── Core Fields ──────────────────────────────────────────────────
 
@@ -170,11 +195,11 @@ class AccountTax(models.Model):
         default=True,
         help="Set active to false to hide the tax without removing it.",
     )
-    company_id = fields.Many2one(
+    company_ids = fields.Many2many(
         "res.company",
-        string="Company",
+        string="Companies",
         required=True,
-        readonly=True,
+        depends_context=("uid",),
         default=lambda self: self.env.company,
     )
     children_tax_ids = fields.Many2many(
@@ -285,14 +310,51 @@ class AccountTax(models.Model):
 
     has_negative_factor = fields.Boolean(compute="_compute_has_negative_factor")
 
+    # ─── Company Resolution ───────────────────────────────────────────
+
+    def _get_settings_company(self):
+        return self.env.company
+
+    def _serves_company(self, company):
+        """Whether this tax is available to ``company``.
+
+        Reads membership through sudo on purpose. It is metadata about the tax,
+        not data about the companies: anyone entitled to read a tax is entitled
+        to know which companies it serves. Without this the many2many is read
+        under res.company's own rules, so a narrowed ``allowed_company_ids``
+        empties it and every membership test silently answers False -- with no
+        error, and only for restricted users in a branch context.
+
+        The many2one this replaced had the property for free: reading an m2o's
+        id never needed access to its target.
+        """
+        return company.id in self.sudo().company_ids.ids
+
     # ─── Constraints ──────────────────────────────────────────────────
 
-    @api.constrains("company_id", "name", "type_tax_use", "tax_scope", "country_id")
+    @api.constrains("company_ids")
+    def _check_company_ids_not_empty(self):
+        # `required=True` on a many2many is not enforced by the ORM; state it.
+        self.invalidate_recordset(fnames=["company_ids"])
+        if taxes := self.filtered(lambda t: not t.sudo().company_ids):
+            raise ValidationError(
+                self.env._(
+                    "The following taxes must be assigned to at least one "
+                    "company:\n%(taxes)s",
+                    taxes="\n".join(f"- {tax.display_name}" for tax in taxes),
+                ),
+            )
+
+    @api.constrains("company_ids", "name", "type_tax_use", "tax_scope", "country_id")
     def _constrains_name(self):
         for taxes in map(self.browse, batched(self.ids, 100, strict=False)):
             domains = [
                 [
-                    ("company_id", "child_of", tax.company_id.root_id.id),
+                    # The rule was "one tax of this name per accounting group",
+                    # expressed as child_of the owning company's root. With
+                    # membership as a set it is stated directly: no other tax of
+                    # this name may share a company with this one.
+                    ("company_ids", "in", tax.company_ids.ids),
                     ("name", "=", tax.name),
                     ("type_tax_use", "=", tax.type_tax_use),
                     ("tax_scope", "=", tax.tax_scope),
@@ -310,7 +372,7 @@ class AccountTax(models.Model):
                             self.env._(
                                 "- %(name)s in %(company)s",
                                 name=duplicate.name,
-                                company=duplicate.company_id.name,
+                                company=", ".join(duplicate.company_ids.mapped("name")),
                             )
                             for duplicate in duplicates
                         ),
@@ -496,29 +558,32 @@ class AccountTax(models.Model):
 
     # ─── Compute Methods ──────────────────────────────────────────────
 
-    @api.depends("company_id")
+    @api.depends_context("company")
     def _compute_country_id(self):
         for tax in self:
-            if "account_fiscal_country_id" in tax.company_id._fields:
+            company = tax._get_settings_company()
+            if "account_fiscal_country_id" in company._fields:
                 tax.country_id = (
-                    tax.company_id.account_fiscal_country_id
-                    or tax.company_id.country_id
+                    company.account_fiscal_country_id
+                    or company.country_id
                     or tax.country_id
                 )
             else:
-                tax.country_id = tax.company_id.country_id or tax.country_id
+                tax.country_id = company.country_id or tax.country_id
 
-    @api.depends("company_id", "country_id")
+    @api.depends_context("company")
+    @api.depends("country_id")
     def _compute_tax_group_id(self):
-        by_country_company = defaultdict(self.browse)
+        company = self._get_settings_company()
+        by_country = defaultdict(self.browse)
         for tax in self:
             if (
                 not tax.tax_group_id
                 or tax.tax_group_id.country_id != tax.country_id
-                or tax.tax_group_id.company_id != tax.company_id
+                or company.id not in tax.tax_group_id.sudo().company_ids.ids
             ):
-                by_country_company[(tax.country_id, tax.company_id)] += tax
-        for (country, company), taxes in by_country_company.items():
+                by_country[tax.country_id] += tax
+        for country, taxes in by_country.items():
             taxes.tax_group_id = self.env["account.tax.group"].search(
                 [
                     *self.env["account.tax.group"]._check_company_domain(company),
@@ -533,12 +598,14 @@ class AccountTax(models.Model):
                 limit=1,
             )
 
-    @api.depends("company_id")
+    @api.depends_context("company")
     def _compute_company_price_include(self):
         has_field = "account_price_include" in self.env["res.company"]._fields
         for tax in self:
             tax.company_price_include = (
-                tax.company_id.account_price_include if has_field else False
+                tax._get_settings_company().account_price_include
+                if has_field
+                else False
             )
 
     @api.depends("price_include_override")
@@ -564,17 +631,20 @@ class AccountTax(models.Model):
         tax_value = "tax_included" if operator == "in" else "tax_excluded"
         if "account_price_include" not in self.env["res.company"]._fields:
             return [("price_include_override", "=", tax_value)]
-        return [
-            "|",
-            ("price_include_override", "=", tax_value),
-            "&",
-            ("price_include_override", "=", False),
-            # company_price_include is a non-stored mirror of the company field;
-            # search the stored underlying field so the domain is SQL-convertible.
-            ("company_id.account_price_include", "=", tax_value),
-        ]
+        # The relational spelling this used to carry -- company_id.account_price_include
+        # -- has no honest translation to a many2many: ("company_ids....") asks
+        # whether ANY of a tax's companies includes tax in price, and the question
+        # is whether the ACTING one does. Resolve it here; the domain is then a
+        # plain test on the tax's own override.
+        if self._get_settings_company().account_price_include == tax_value:
+            return [
+                "|",
+                ("price_include_override", "=", tax_value),
+                ("price_include_override", "=", False),
+            ]
+        return [("price_include_override", "=", tax_value)]
 
-    @api.depends("company_id")
+    @api.depends("company_ids")
     def _compute_invoice_repartition_line_ids(self):
         for tax in self:
             if not tax.invoice_repartition_line_ids:
@@ -587,7 +657,7 @@ class AccountTax(models.Model):
                     ),
                 ]
 
-    @api.depends("company_id")
+    @api.depends("company_ids")
     def _compute_refund_repartition_line_ids(self):
         for tax in self:
             if not tax.refund_repartition_line_ids:
@@ -631,12 +701,14 @@ class AccountTax(models.Model):
                     use := type_tax_uses.get(record.type_tax_use)
                 ):
                     name += wrapper % use
-                if "company_id" in fields_to_include and len(self.env.companies) > 1:
-                    name += wrapper % record.company_id.display_name
+                if "company_ids" in fields_to_include and len(self.env.companies) > 1:
+                    name += wrapper % ", ".join(
+                        record.company_ids.mapped("display_name")
+                    )
                 if needs_markdown and (scope := scopes.get(record.tax_scope)):
                     name += wrapper % scope
                 # Check fiscal country (falls back to company country without account module)
-                branch = record.company_id._accessible_branches()[:1]
+                branch = record._get_settings_company()._accessible_branches()[:1]
                 fiscal_country = (
                     branch.account_fiscal_country_id
                     if "account_fiscal_country_id" in branch._fields
@@ -4675,12 +4747,8 @@ class AccountTax(models.Model):
         :param rounding_method: Override rounding method.
         :returns: A dict with 'total_excluded', 'total_included', 'taxes'.
         """
-        if not self:
-            company = self.env.company
-        else:
-            company = (
-                self[0].company_id._accessible_branches()[:1] or self[0].company_id
-            )
+        company = self._get_settings_company()
+        company = company._accessible_branches()[:1] or company
 
         currency = currency or company.currency_id
         special_mode = self._compute_all_special_mode(handle_price_include)
@@ -4737,7 +4805,7 @@ class AccountTax(models.Model):
             return self
         taxes, company = self.env["account.tax"], company_id
         while not taxes and company:
-            taxes = self.filtered(lambda t, c=company: t.company_id == c)
+            taxes = self.filtered(lambda t, c=company: c in t.company_ids)
             company = company.sudo().parent_id
         return taxes
 
@@ -4759,8 +4827,12 @@ class AccountTax(models.Model):
     ):
         if company_id:
             # To keep the same behavior as in _compute_tax_id
-            prod_taxes = prod_taxes.filtered(lambda tax: tax.company_id == company_id)
-            line_taxes = line_taxes.filtered(lambda tax: tax.company_id == company_id)
+            prod_taxes = prod_taxes.filtered(
+                lambda tax: tax._serves_company(company_id)
+            )
+            line_taxes = line_taxes.filtered(
+                lambda tax: tax._serves_company(company_id)
+            )
         return self._fix_tax_included_price(price, prod_taxes, line_taxes)
 
     def _get_description_plaintext(self):
@@ -4780,7 +4852,7 @@ class AccountTaxRepartitionLine(models.Model):
     _description = "Tax Repartition Line"
     _order = "document_type, repartition_type, sequence, id"
     _check_company_auto = True
-    _check_company_domain = models.check_company_domain_parent_of
+    _check_company_domain = models.check_companies_domain_parent_of
 
     factor_percent = fields.Float(
         string="%",
@@ -4812,12 +4884,11 @@ class AccountTaxRepartitionLine(models.Model):
         ondelete="cascade",
         check_company=True,
     )
-    company_id = fields.Many2one(
-        string="Company",
+    company_ids = fields.Many2many(
+        string="Companies",
         comodel_name="res.company",
-        related="tax_id.company_id",
-        store=True,
-        help="The company this distribution line belongs to.",
+        related="tax_id.company_ids",
+        help="The companies this distribution line belongs to.",
     )
     sequence = fields.Integer(
         string="Sequence",

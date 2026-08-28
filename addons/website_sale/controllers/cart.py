@@ -534,7 +534,14 @@ class Cart(PaymentPortal):
                     "name": line._get_line_header(),
                     "combination_name": line._get_combination_name(),
                     "description": line._get_line_multiline_description_variants(),
-                    "price_total": line.price_unit * added_qty_per_line[line.id],
+                    # `price_unit` is tax-excluded, so on a tax-included
+                    # storefront the toast showed the pre-tax price.
+                    # `_get_displayed_unit_price` is what every other
+                    # website_sale price display goes through.
+                    "price_total": (
+                        line._get_displayed_unit_price()
+                        * added_qty_per_line[line.id]
+                    ),
                     **self._get_additional_cart_notification_information(line),
                 }
                 for line in lines

@@ -698,7 +698,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
 
     def test_pos_create_account_move_round_globally(self):
         tax_21_incl = self.taxes["tax21"]
-        tax_21_incl.company_id.tax_calculation_rounding_method = "round_globally"
+        self.env.company.tax_calculation_rounding_method = "round_globally"
 
         product1 = self.create_product(
             name="Product 1",
@@ -775,7 +775,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
 
     def test_pos_create_correct_account_move_round_globally_discount(self):
         tax_21_incl = self.taxes["tax21"]
-        tax_21_incl.company_id.tax_calculation_rounding_method = "round_globally"
+        self.env.company.tax_calculation_rounding_method = "round_globally"
 
         product1 = self.create_product(
             name="Product 1",
@@ -855,7 +855,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
         self,
     ):
         tax_21_incl = self.taxes["tax21"]
-        tax_21_incl.company_id.tax_calculation_rounding_method = "round_globally"
+        self.env.company.tax_calculation_rounding_method = "round_globally"
 
         product1 = self.create_product(
             name="Product 1",
@@ -1021,15 +1021,15 @@ class TestPoSProductsWithTax(TestPoSCommon):
             [
                 {
                     "name": "Tax Group",
-                    "company_id": company.id,
+                    "company_ids": [Command.set(company.ids)],
                 },
                 {
                     "name": "Tax Group X",
-                    "company_id": branch_x.id,
+                    "company_ids": [Command.set(branch_x.ids)],
                 },
                 {
                     "name": "Tax Group XX",
-                    "company_id": branch_xx.id,
+                    "company_ids": [Command.set(branch_xx.ids)],
                 },
             ]
         )
@@ -1040,7 +1040,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
                 "amount_type": "percent",
                 "amount": 10,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_b = self.env["account.tax"].create(
@@ -1050,7 +1050,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
                 "amount_type": "percent",
                 "amount": 15,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_x = self.env["account.tax"].create(
@@ -1060,7 +1060,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
                 "amount_type": "percent",
                 "amount": 20,
                 "tax_group_id": tax_groups[1].id,
-                "company_id": branch_x.id,
+                "company_ids": [Command.set(branch_x.ids)],
             }
         )
         tax_xx = self.env["account.tax"].create(
@@ -1070,7 +1070,7 @@ class TestPoSProductsWithTax(TestPoSCommon):
                 "amount_type": "percent",
                 "amount": 25,
                 "tax_group_id": tax_groups[2].id,
-                "company_id": branch_xx.id,
+                "company_ids": [Command.set(branch_xx.ids)],
             }
         )
         product_all_taxes = self.env["product.product"].create(

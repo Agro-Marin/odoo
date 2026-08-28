@@ -21,7 +21,7 @@ class TestConfigureShops(TestPoSCommon):
     def _remove_on_payment_taxes(self):
         self.env["account.tax"].search(
             [
-                ("company_id", "=", self.env.company.id),
+                ('company_ids', 'in', [self.env.company.id]),
                 ("tax_exigibility", "=", "on_payment"),
             ]
         ).unlink()

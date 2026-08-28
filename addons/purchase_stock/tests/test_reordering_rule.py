@@ -1620,7 +1620,7 @@ class TestReorderingRule(TransactionCase):
         tax_group = self.env["account.tax.group"].create(
             {
                 "name": "Test Tax Group",
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         purchase_tax = self.env["account.tax"].create(
@@ -1630,7 +1630,7 @@ class TestReorderingRule(TransactionCase):
                 "amount_type": "percent",
                 "amount": 10,
                 "tax_group_id": tax_group.id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
                 "country_id": company.country_id.id,
             }
         )

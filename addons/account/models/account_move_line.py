@@ -1711,10 +1711,10 @@ class AccountMoveLine(models.Model):
             "tax_ids",
             lambda line: (
                 line.account_id.sudo().tax_ids.filtered(
-                    lambda tax: tax.company_id == line.company_id
+                    lambda tax: tax._serves_company(line.company_id)
                 )
                 and not line.product_id.sudo().taxes_id.filtered(
-                    lambda tax: tax.company_id == line.company_id
+                    lambda tax: tax._serves_company(line.company_id)
                 )
             ),
         )

@@ -142,7 +142,7 @@ class SelfOrderCommonTest(odoo.tests.HttpCase):
                         }
                     )
                     .id,
-                    "company_id": new_company.id,
+                    "company_ids": [Command.set(new_company.ids)],
                 }
             )
         )

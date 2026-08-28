@@ -46,7 +46,7 @@ class TestTaxesRepartitionAmounts(AccountTestInvoicingCommon):
                 "name": f"rep {'/'.join(str(f) for f in factors)}",
                 "amount_type": "percent",
                 "amount": amount,
-                "company_id": self.env.company.id,
+                "company_ids": [Command.set(self.env.company.ids)],
                 "invoice_repartition_line_ids": reps("invoice"),
                 "refund_repartition_line_ids": reps("refund"),
             }

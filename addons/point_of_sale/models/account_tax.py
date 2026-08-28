@@ -31,7 +31,7 @@ class AccountTax(models.Model):
                   AND s.state != 'closed'
                 LIMIT 1
                 """,
-                [list(self.ids), list(self.company_id.ids)],
+                [list(self.ids), list(self.company_ids.ids)],
             )
             if self.env.cr.fetchone():
                 raise UserError(
@@ -74,7 +74,7 @@ class AccountTax(models.Model):
             "amount_type",
             "children_tax_ids",
             "amount",
-            "company_id",
+            "company_ids",
             "sequence",
             "tax_group_id",
             "fiscal_position_ids",

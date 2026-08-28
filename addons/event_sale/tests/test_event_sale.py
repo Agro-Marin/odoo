@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import users
@@ -69,7 +70,7 @@ class TestEventSale(TestEventSaleCommon):
         })
 
         cls.env['account.tax.group'].create(
-            {'name': 'Test Account Tax Group', 'company_id': cls.env.company.id}
+            {'name': 'Test Account Tax Group', "company_ids": [Command.set(cls.env.company.ids)]}
         )
 
     @users('user_sales_salesman')

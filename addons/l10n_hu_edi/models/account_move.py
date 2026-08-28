@@ -946,7 +946,7 @@ class AccountMove(models.Model):
                     [
                         ('type_tax_use', '=', 'sale'),
                         ('l10n_hu_tax_type', '=', 'ATK'),
-                        ('company_id', '=', self.company_id.id),
+                        ('company_ids', 'in', [self.company_id.id]),
                     ],
                     limit=1,
                 )

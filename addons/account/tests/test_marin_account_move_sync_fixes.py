@@ -138,7 +138,7 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 10.0,
                 "type_tax_use": "sale",
-                "company_id": self.env.company.id,
+                "company_ids": [Command.set(self.env.company.ids)],
             }
         )
         for strategy in ("biggest_tax", "add_invoice_line"):

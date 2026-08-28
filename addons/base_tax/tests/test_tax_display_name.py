@@ -6,6 +6,7 @@ differs from the company fiscal country). None of these branches were exercised
 standalone.
 """
 
+from odoo import Command
 from odoo.tests import tagged
 
 from .common import BaseTaxCommon
@@ -47,7 +48,7 @@ class TestBaseTaxDisplayName(BaseTaxCommon):
         group = self.env["account.tax.group"].create(
             {
                 "name": "other-country group",
-                "company_id": self.company.id,
+                "company_ids": [Command.set(self.company.ids)],
                 "country_id": other.id,
             }
         )

@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+from odoo import Command
 from odoo.tests import tagged
 
 from .common import BaseTaxCommon
@@ -70,7 +71,7 @@ class TestTaxTotalsSummaryBranches(BaseTaxCommon):
         group_small = self.env["account.tax.group"].create(
             {
                 "name": "BT small group",
-                "company_id": self.company.id,
+                "company_ids": [Command.set(self.company.ids)],
                 "country_id": self.country.id,
             },
         )

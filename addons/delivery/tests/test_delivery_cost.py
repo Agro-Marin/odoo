@@ -400,10 +400,10 @@ class TestDeliveryCost(DeliveryCommon, SaleCommon):
         # create taxes for the parent company and its branch
         tax_groups = self.env['account.tax.group'].create([{
             'name': 'Tax Group A',
-            'company_id': company.id,
+            "company_ids": [Command.set(company.ids)],
         }, {
             'name': 'Tax Group B',
-            'company_id': branch.id,
+            "company_ids": [Command.set(branch.ids)],
         }])
         tax_a = self.env['account.tax'].create({
             'name': 'Tax A',
@@ -411,7 +411,7 @@ class TestDeliveryCost(DeliveryCommon, SaleCommon):
             'amount_type': 'percent',
             'amount': 10,
             'tax_group_id': tax_groups[0].id,
-            'company_id': company.id,
+            "company_ids": [Command.set(company.ids)],
         })
         tax_b = self.env['account.tax'].create({
             'name': 'Tax B',
@@ -419,7 +419,7 @@ class TestDeliveryCost(DeliveryCommon, SaleCommon):
             'amount_type': 'percent',
             'amount': 20,
             'tax_group_id': tax_groups[1].id,
-            'company_id': branch.id,
+            "company_ids": [Command.set(branch.ids)],
         })
         # create delivery product with taxes from both branch and parent company
         delivery_product = self.env['product.product'].create({

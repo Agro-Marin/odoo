@@ -80,7 +80,7 @@ class ResCompany(models.Model):
                         'price_unit': price_unit,
                         'quantity': quantity,
                         'tax_ids': self.env['account.tax'].search(
-                            domain=[('amount', '=', tax_amount), ('company_id', '=', gr_company.id)],
+                            domain=[('amount', '=', tax_amount), ('company_ids', 'in', [gr_company.id])],
                             limit=1,
                         ),
                     }))

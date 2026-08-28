@@ -113,13 +113,13 @@ class TestEdiFacturaeXmls(AccountTestInvoicingCommon):
 
         cls.tax, cls.tax_2 = cls.env['account.tax'].create([{
                 'name': "IVA 21% (Bienes)",
-                'company_id': cls.company_data['company'].id,
+                "company_ids": [Command.set(cls.company_data['company'].ids)],
                 'amount': 21.0,
                 'price_include_override': 'tax_excluded',
                 'l10n_es_edi_facturae_tax_type': '01'
             }, {
                 'name': "IVA 21% (Bienes) Included",
-                'company_id': cls.company_data['company'].id,
+                "company_ids": [Command.set(cls.company_data['company'].ids)],
                 'amount': 21.0,
                 'price_include_override': 'tax_included',
                 'l10n_es_edi_facturae_tax_type': '01'
@@ -263,7 +263,7 @@ class TestEdiFacturaeXmls(AccountTestInvoicingCommon):
         with freeze_time(self.frozen_today):
             withhold_tax = self.env['account.tax'].create({
                 'name': "15% WHI (Test)",
-                'company_id': self.company_data['company'].id,
+                "company_ids": [Command.set(self.company_data['company'].ids)],
                 'amount': -15.0,
                 'price_include_override': 'tax_excluded',
                 'l10n_es_edi_facturae_tax_type': '04',

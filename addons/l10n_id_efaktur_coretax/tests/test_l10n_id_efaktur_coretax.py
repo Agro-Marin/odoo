@@ -769,7 +769,7 @@ class TestEfakturCoretax(AccountTestInvoicingCommon):
         """ Ensure that generating efaktur document for invoices across multi company is not allowed """
         # Setup company
         company_2 = self.company_data_2['company']
-        tax_id = self.env['account.tax'].create({"name": "test tax", "type_tax_use": "sale", "amount": 10.0, "price_include": True, "company_id": company_2.id})
+        tax_id = self.env['account.tax'].create({"name": "test tax", "type_tax_use": "sale", "amount": 10.0, "price_include": True, "company_ids": [Command.set(company_2.ids)]})
 
         # Setup company across 2 companies
         invoices = self.env["account.move"].create([{

@@ -738,15 +738,15 @@ class TestPurchase(AccountTestInvoicingCommon):
             [
                 {
                     "name": "Tax Group",
-                    "company_id": company.id,
+                    "company_ids": [Command.set(company.ids)],
                 },
                 {
                     "name": "Tax Group X",
-                    "company_id": branch_x.id,
+                    "company_ids": [Command.set(branch_x.ids)],
                 },
                 {
                     "name": "Tax Group XX",
-                    "company_id": branch_xx.id,
+                    "company_ids": [Command.set(branch_xx.ids)],
                 },
             ]
         )
@@ -757,7 +757,7 @@ class TestPurchase(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 10,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_b = self.env["account.tax"].create(
@@ -767,7 +767,7 @@ class TestPurchase(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 15,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_x = self.env["account.tax"].create(
@@ -777,7 +777,7 @@ class TestPurchase(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 20,
                 "tax_group_id": tax_groups[1].id,
-                "company_id": branch_x.id,
+                "company_ids": [Command.set(branch_x.ids)],
             }
         )
         tax_xx = self.env["account.tax"].create(
@@ -787,7 +787,7 @@ class TestPurchase(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 25,
                 "tax_group_id": tax_groups[2].id,
-                "company_id": branch_xx.id,
+                "company_ids": [Command.set(branch_xx.ids)],
             }
         )
         product_all_taxes = self.env["product.product"].create(
@@ -1290,7 +1290,7 @@ class TestPurchase(AccountTestInvoicingCommon):
             }
         )
 
-        email_ctx = rfq.action_rfq_send().get("context", {})
+        email_ctx = rfq.action_send_rfq().get("context", {})
         mail_template = self.env["mail.template"].browse(
             email_ctx.get("default_template_id")
         )

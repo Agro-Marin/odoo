@@ -45,7 +45,7 @@ class TestAccountTaxConstraints(BaseTaxCommon):
         foreign_group = self.env["account.tax.group"].create(
             {
                 "name": "BT foreign group",
-                "company_id": self.company.id,
+                "company_ids": [Command.set(self.company.ids)],
                 "country_id": other_country.id,
             }
         )
@@ -63,7 +63,7 @@ class TestAccountTaxConstraints(BaseTaxCommon):
         matching_group = self.env["account.tax.group"].create(
             {
                 "name": "BT matching group",
-                "company_id": self.company.id,
+                "company_ids": [Command.set(self.company.ids)],
                 "country_id": self.country.id,
             }
         )
@@ -79,7 +79,10 @@ class TestAccountTaxConstraints(BaseTaxCommon):
         future "tighten the constraint" change would silently remove.
         """
         countryless_group = self.env["account.tax.group"].create(
-            {"name": "BT country-less group", "company_id": self.company.id}
+            {
+                "name": "BT country-less group",
+                "company_ids": [Command.set(self.company.ids)],
+            }
         )
         countryless_group.country_id = False
         self.assertFalse(countryless_group.country_id)

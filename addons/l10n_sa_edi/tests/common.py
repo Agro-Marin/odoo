@@ -135,7 +135,7 @@ class TestSaEdiCommon(AccountEdiTestCommon):
         """Setup tax references."""
         # Standard 15% VAT in Saudi Arabia
         cls.tax_15 = cls.env['account.tax'].search([
-            ('company_id', '=', cls.company.id),
+            ('company_ids', 'in', [cls.company.id]),
             ('amount', '=', 15.0)
         ], limit=1)
 

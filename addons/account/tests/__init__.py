@@ -15,10 +15,12 @@ from . import test_account_inalterable_hash
 from . import test_account_journal
 from . import test_account_account
 from . import test_account_tax
+from . import test_account_tax_settings_company
+from . import test_account_tax_merge_wizard
 from . import test_account_to_check
 from . import test_account_analytic
 from . import test_account_payment
-from . import test_account_payment_method_line
+from . import test_account_payment_channel
 from . import test_account_payment_duplicate
 from . import test_account_bank_statement
 from . import test_account_invoice_report

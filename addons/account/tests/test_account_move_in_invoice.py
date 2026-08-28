@@ -3380,15 +3380,15 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             [
                 {
                     "name": "Tax Group",
-                    "company_id": company.id,
+                    "company_ids": [Command.set(company.ids)],
                 },
                 {
                     "name": "Tax Group X",
-                    "company_id": branch_x.id,
+                    "company_ids": [Command.set(branch_x.ids)],
                 },
                 {
                     "name": "Tax Group XX",
-                    "company_id": branch_xx.id,
+                    "company_ids": [Command.set(branch_xx.ids)],
                 },
             ]
         )
@@ -3399,7 +3399,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 10,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_b = self.env["account.tax"].create(
@@ -3409,7 +3409,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 15,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_x = self.env["account.tax"].create(
@@ -3419,7 +3419,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 20,
                 "tax_group_id": tax_groups[1].id,
-                "company_id": branch_x.id,
+                "company_ids": [Command.set(branch_x.ids)],
             }
         )
         tax_xx = self.env["account.tax"].create(
@@ -3429,7 +3429,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 25,
                 "tax_group_id": tax_groups[2].id,
-                "company_id": branch_xx.id,
+                "company_ids": [Command.set(branch_xx.ids)],
             }
         )
         product_all_taxes = self.env["product.product"].create(
@@ -3739,7 +3739,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 "type_tax_use": "purchase",
                 "amount_type": "percent",
                 "amount": 10,
-                "company_id": self.env.company.id,
+                "company_ids": [Command.set(self.env.company.ids)],
             }
         )
         account_tax = product_tax.copy({"name": "Default account tax"})

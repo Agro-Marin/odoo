@@ -2,6 +2,7 @@
 from odoo.tests import tagged
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from freezegun import freeze_time
+from odoo import Command
 
 @tagged('post_install_l10n', 'post_install', '-at_install')
 class TestKeMoveExport(AccountTestInvoicingCommon):
@@ -196,7 +197,7 @@ class TestKeMoveExport(AccountTestInvoicingCommon):
         tourism_levy = self.env['account.tax'].create({
             'name': 'Tourism levy',
             'amount': 2,
-            'company_id': self.company_data['company'].id,
+            "company_ids": [Command.set(self.company_data['company'].ids)],
         })
         multi_tax_line_invoice = self.env['account.move'].create({
             'move_type': 'out_invoice',

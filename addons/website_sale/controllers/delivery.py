@@ -318,7 +318,7 @@ class Delivery(WebsiteSale):
         )
         if rate.get("success"):
             tax_ids = delivery_method.product_id.taxes_id.filtered(
-                lambda t: t.company_id == order.company_id
+                lambda t: order.company_id in t.company_ids
             )
             if tax_ids:
                 fpos = order.fiscal_position_id

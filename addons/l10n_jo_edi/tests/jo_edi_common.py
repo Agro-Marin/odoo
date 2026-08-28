@@ -18,7 +18,7 @@ class JoEdiCommon(AccountTestInvoicingCommon):
                 ('amount', '=', amount),
                 ('amount_type', '=', 'percent'),
                 ('type_tax_use', '=', 'sale'),
-                ('company_id', '=', cls.company_data['company'].id)
+                ('company_ids', 'in', [cls.company_data['company'].id])
             ], limit=1)
 
         def _create_special_tax(amount):
@@ -27,7 +27,7 @@ class JoEdiCommon(AccountTestInvoicingCommon):
                     'name': f'Fixed {amount}',
                     'amount_type': 'fixed',
                     'amount': amount,
-                    'company_id': cls.company_data['company'].id,
+                    "company_ids": [Command.set(cls.company_data['company'].ids)],
                     'include_base_amount': True,
                     'is_base_affected': False,
                     'sequence': 0,

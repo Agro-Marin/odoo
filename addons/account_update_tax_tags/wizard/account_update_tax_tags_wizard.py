@@ -190,7 +190,7 @@ class AccountUpdateTaxTagsWizard(models.TransientModel):
     def update_amls_tax_tags(self):
         parent_taxes = self.env["account.tax"].search(
             [
-                ("company_id", "=", self.company_id.id),
+                ('company_ids', 'in', [self.company_id.id]),
                 ("children_tax_ids", "!=", False),
             ]
         )

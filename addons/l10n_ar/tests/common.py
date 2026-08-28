@@ -1,4 +1,4 @@
-from odoo import fields
+from odoo import Command, fields
 from odoo.tests import Form
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 import random
@@ -188,7 +188,7 @@ class TestAr(AccountTestInvoicingCommon):
             "amount_type": "percent",
             "type_tax_use": "sale",
             "country_id": cls.env.ref("base.ar").id,
-            "company_id": cls.company_ri.id,
+            "company_ids": [Command.set(cls.company_ri.ids)],
             "tax_group_id": cls.env.ref(f"account.{cls.company_ri.id}_tax_group_national_taxes").id,
         })
         cls.tax_internal = cls.env['account.tax'].create({
@@ -198,7 +198,7 @@ class TestAr(AccountTestInvoicingCommon):
             "amount_type": "percent",
             "type_tax_use": "sale",
             "country_id": cls.env.ref("base.ar").id,
-            "company_id": cls.company_ri.id,
+            "company_ids": [Command.set(cls.company_ri.ids)],
             "tax_group_id": cls.env.ref(f"account.{cls.company_ri.id}_tax_impuestos_internos").id,
         })
         cls.tax_other = cls.env['account.tax'].create({
@@ -208,7 +208,7 @@ class TestAr(AccountTestInvoicingCommon):
             "amount_type": "fixed",
             "type_tax_use": "sale",
             "country_id": cls.env.ref("base.ar").id,
-            "company_id": cls.company_ri.id,
+            "company_ids": [Command.set(cls.company_ri.ids)],
             "tax_group_id": cls.env.ref(f"account.{cls.company_ri.id}_tax_group_otros_impuestos").id,
         })
 
@@ -660,7 +660,7 @@ class TestAr(AccountTestInvoicingCommon):
     def _search_tax(self, tax_type, type_tax_use='sale'):
         res = self.env['account.tax'].with_context(active_test=False).search([
             ('type_tax_use', '=', type_tax_use),
-            ('company_id', '=', self.env.company.id),
+            ('company_ids', 'in', [self.env.company.id]),
             ('tax_group_id', '=', self.env.ref(f'account.{self.env.company.id}_tax_group_{tax_type}').id)], limit=1)
         self.assertTrue(res, '%s Tax was not found' % (tax_type))
         return res

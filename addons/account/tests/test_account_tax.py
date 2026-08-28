@@ -84,7 +84,7 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
 
         with self.assertRaises(UserError):
-            self.company_data["default_tax_sale"].company_id = self.company_data_2[
+            self.company_data["default_tax_sale"].company_ids = self.company_data_2[
                 "company"
             ]
 
@@ -530,7 +530,7 @@ class TestAccountTax(AccountTestInvoicingCommon):
                 "amount": 21.0,
                 "type_tax_use": "sale",
                 "price_include_override": "tax_included",
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         res = tax.with_context(round_globally=True).compute_all(
@@ -558,7 +558,7 @@ class TestAccountTax(AccountTestInvoicingCommon):
                     "amount": 60.0,
                     "type_tax_use": "sale",
                     "price_include_override": "tax_excluded",
-                    "company_id": company.id,
+                    "company_ids": [Command.set(company.ids)],
                 }
                 for i in range(2)
             ]

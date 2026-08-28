@@ -106,7 +106,7 @@ class TestTaxesBaseLinesTaxDetails(TestTaxCommon):
         def get_expected_values(base_values, tax):
             expected_tax_total = sum(values[2] for values in base_expected_values)
             self.assertTrue(
-                tax.company_id.currency_id.is_zero(expected_tax_total),
+                self.env.company.currency_id.is_zero(expected_tax_total),
                 "Expected taxes should add up to zero.",
             )
             return {

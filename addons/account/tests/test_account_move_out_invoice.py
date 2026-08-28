@@ -36,7 +36,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             "price_subtotal": 1000.0,
             "price_total": 1150.0,
             "tax_ids": cls.product_a.taxes_id.filtered(
-                lambda t: t.company_id == cls.invoice.company_id
+                lambda t: cls.invoice.company_id in t.company_ids
             ).ids,
             "tax_line_id": False,
             "currency_id": cls.company_data["currency"].id,
@@ -57,7 +57,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             "price_subtotal": 200.0,
             "price_total": 260.0,
             "tax_ids": cls.product_b.taxes_id.filtered(
-                lambda t: t.company_id == cls.invoice.company_id
+                lambda t: cls.invoice.company_id in t.company_ids
             ).ids,
             "tax_line_id": False,
             "currency_id": cls.company_data["currency"].id,
@@ -193,7 +193,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                     "price_subtotal": 200.0,
                     "price_total": 260.0,
                     "tax_ids": self.product_b.taxes_id.filtered(
-                        lambda t: t.company_id == self.env.company
+                        lambda t: self.env.company in t.company_ids
                     ).ids,
                     "amount_currency": -200.0,
                     "credit": 200.0,
@@ -1075,7 +1075,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                     "price_total": 2627.01,
                     "tax_ids": (
                         self.product_a.taxes_id.filtered(
-                            lambda t: t.company_id == self.env.company
+                            lambda t: self.env.company in t.company_ids
                         )
                         + tax_price_include
                     ).ids,
@@ -1135,7 +1135,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                     "price_total": -2627.01,
                     "tax_ids": (
                         self.product_a.taxes_id.filtered(
-                            lambda t: t.company_id == self.env.company
+                            lambda t: self.env.company in t.company_ids
                         )
                         + tax_price_include
                     ).ids,
@@ -1200,7 +1200,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                     "price_total": 2627.014,
                     "tax_ids": (
                         self.product_a.taxes_id.filtered(
-                            lambda t: t.company_id == self.env.company
+                            lambda t: self.env.company in t.company_ids
                         )
                         + tax_price_include
                     ).ids,
@@ -1264,7 +1264,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                     "price_total": -2627.014,
                     "tax_ids": (
                         self.product_a.taxes_id.filtered(
-                            lambda t: t.company_id == self.env.company
+                            lambda t: self.env.company in t.company_ids
                         )
                         + tax_price_include
                     ).ids,
@@ -1358,7 +1358,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                                     6,
                                     0,
                                     self.product_a.taxes_id.filtered(
-                                        lambda t: t.company_id == self.env.company
+                                        lambda t: self.env.company in t.company_ids
                                     ).ids,
                                 )
                             ],
@@ -1654,7 +1654,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                                     6,
                                     0,
                                     self.product_a.taxes_id.filtered(
-                                        lambda t: t.company_id == self.env.company
+                                        lambda t: self.env.company in t.company_ids
                                     ).ids,
                                 )
                             ],
@@ -1672,7 +1672,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                                     6,
                                     0,
                                     self.product_b.taxes_id.filtered(
-                                        lambda t: t.company_id == self.env.company
+                                        lambda t: self.env.company in t.company_ids
                                     ).ids,
                                 )
                             ],
@@ -2423,7 +2423,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                                     6,
                                     0,
                                     self.product_a.taxes_id.filtered(
-                                        lambda t: t.company_id == self.env.company
+                                        lambda t: self.env.company in t.company_ids
                                     ).ids,
                                 )
                             ],
@@ -2442,7 +2442,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                                     6,
                                     0,
                                     self.product_b.taxes_id.filtered(
-                                        lambda t: t.company_id == self.env.company
+                                        lambda t: self.env.company in t.company_ids
                                     ).ids,
                                 )
                             ],
@@ -4352,7 +4352,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                                     6,
                                     0,
                                     self.product_a.taxes_id.filtered(
-                                        lambda t: t.company_id == self.env.company
+                                        lambda t: self.env.company in t.company_ids
                                     ).ids,
                                 )
                             ],
@@ -4401,7 +4401,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                                     6,
                                     0,
                                     self.product_a.taxes_id.filtered(
-                                        lambda t: t.company_id == self.env.company
+                                        lambda t: self.env.company in t.company_ids
                                     ).ids,
                                 )
                             ],
@@ -4846,7 +4846,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                             "tax_ids": [
                                 Command.set(
                                     self.product_a.taxes_id.filtered(
-                                        lambda t: t.company_id == self.env.company
+                                        lambda t: self.env.company in t.company_ids
                                     ).ids
                                 )
                             ],
@@ -5688,15 +5688,15 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             [
                 {
                     "name": "Tax Group",
-                    "company_id": company.id,
+                    "company_ids": [Command.set(company.ids)],
                 },
                 {
                     "name": "Tax Group X",
-                    "company_id": branch_x.id,
+                    "company_ids": [Command.set(branch_x.ids)],
                 },
                 {
                     "name": "Tax Group XX",
-                    "company_id": branch_xx.id,
+                    "company_ids": [Command.set(branch_xx.ids)],
                 },
             ]
         )
@@ -5707,7 +5707,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 10,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_b = self.env["account.tax"].create(
@@ -5717,7 +5717,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 15,
                 "tax_group_id": tax_groups[0].id,
-                "company_id": company.id,
+                "company_ids": [Command.set(company.ids)],
             }
         )
         tax_x = self.env["account.tax"].create(
@@ -5727,7 +5727,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 20,
                 "tax_group_id": tax_groups[1].id,
-                "company_id": branch_x.id,
+                "company_ids": [Command.set(branch_x.ids)],
             }
         )
         tax_xx = self.env["account.tax"].create(
@@ -5737,7 +5737,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_type": "percent",
                 "amount": 25,
                 "tax_group_id": tax_groups[2].id,
-                "company_id": branch_xx.id,
+                "company_ids": [Command.set(branch_xx.ids)],
             }
         )
         product_all_taxes = self.env["product.product"].create(

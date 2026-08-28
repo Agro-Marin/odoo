@@ -145,7 +145,7 @@ class ResCompany(models.Model):
                                     'res_id': self.env['account.tax.group'].create({
                                         'name': f'OSS {tax_amount}%',
                                         'country_id': company.account_fiscal_country_id.id,
-                                        'company_id': company.id,
+                                        'company_ids': [Command.link(company.id)],
                                         'tax_payable_account_id': default_oss_payable_account.id,
                                         'tax_receivable_account_id': default_oss_receivable_account.id,
                                     }).id,
@@ -153,7 +153,7 @@ class ResCompany(models.Model):
                                 })
                             foreign_tax_name = f'{tax_amount}% {destination_country.code} {destination_country.vat_label}'
                             existing_foreign_tax = self.env['account.tax'].search([
-                                ('company_id', 'child_of', company.root_id.id),
+                                ('company_ids', 'child_of', company.root_id.id),
                                 ('name', 'like', foreign_tax_name),
                                 ('type_tax_use', '=', 'sale'),
                                 ('country_id', '=', company.account_fiscal_country_id.id),
@@ -171,7 +171,7 @@ class ResCompany(models.Model):
                                 'tax_group_id': self.env.ref(f'account.{oss_tax_group_local_xml_id}').id,
                                 'country_id': company.account_fiscal_country_id.id,
                                 'sequence': 1000,
-                                'company_id': company.id,
+                                "company_ids": [Command.set(company.ids)],
                                 'fiscal_position_ids': [Command.link(fpos.id)],
                                 'original_tax_ids': [Command.link(domestic_tax.id)],
                                 **extra_fields,

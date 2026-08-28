@@ -38,7 +38,7 @@ class TestWebsiteEventSaleCommon(WebsiteSaleCommon):
                     .create(
                         {
                             "name": "Text Tax Group",
-                            "company_id": cls.env.company.id,
+                            "company_ids": [Command.set(cls.env.company.ids)],
                         }
                     )
                     .id,

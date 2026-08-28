@@ -1,4 +1,5 @@
 import ast
+import json
 from collections import defaultdict
 
 from markupsafe import Markup
@@ -6,7 +7,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import SQL, frozendict, groupby
+from odoo.tools import SQL, frozendict
 
 
 class AccountTaxGroup(models.Model):
@@ -33,7 +34,8 @@ class AccountTaxGroup(models.Model):
 
 
 class AccountTax(models.Model):
-    _inherit = "account.tax"
+    _name = "account.tax"
+    _inherit = ["account.tax", "mixin.company.split"]
 
 
     fiscal_position_ids = fields.Many2many(
@@ -67,7 +69,7 @@ class AccountTax(models.Model):
         compute="_compute_display_alternative_taxes_field"
     )
     is_domestic = fields.Boolean(
-        compute="_compute_is_domestic", store=True, precompute=True
+        compute="_compute_is_domestic", search="_search_is_domestic"
     )
     analytic = fields.Boolean(
         string="Include in Analytic Cost",
@@ -75,8 +77,7 @@ class AccountTax(models.Model):
     )
     hide_tax_exigibility = fields.Boolean(
         string="Hide Use Cash Basis Option",
-        related="company_id.tax_exigibility",
-        readonly=True,
+        compute="_compute_hide_tax_exigibility",
     )
     tax_exigibility = fields.Selection(
         [
@@ -150,30 +151,35 @@ class AccountTax(models.Model):
         # every caller in the chain still needs the full candidate set.
         return set()
 
-    @api.depends(
-        "company_id", "company_id.domestic_fiscal_position_id", "fiscal_position_ids"
-    )
+    @api.depends_context("company")
+    def _compute_hide_tax_exigibility(self):
+        self.hide_tax_exigibility = self._get_settings_company().tax_exigibility
+
+    @api.depends_context("company")
+    @api.depends("fiscal_position_ids")
     def _compute_is_domestic(self):
+        domestic = self._get_settings_company().domestic_fiscal_position_id
         for tax in self:
             tax.is_domestic = (
-                not tax.fiscal_position_ids
-                or tax.company_id.domestic_fiscal_position_id in tax.fiscal_position_ids
+                not tax.fiscal_position_ids or domestic in tax.fiscal_position_ids
             )
 
-    @api.depends(
-        "fiscal_position_ids",
-        "original_tax_ids",
-        "company_id.domestic_fiscal_position_id",
-    )
+    def _search_is_domestic(self, operator, value):
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        domestic = self._get_settings_company().domestic_fiscal_position_id
+        matches = Domain("fiscal_position_ids", "=", False) | Domain(
+            "fiscal_position_ids", "in", domestic.ids
+        )
+        return matches if operator == "in" else ~matches
+
+    @api.depends_context("company")
+    @api.depends("fiscal_position_ids", "original_tax_ids")
     def _compute_display_alternative_taxes_field(self):
         for tax in self:
-            tax.display_alternative_taxes_field = (
-                tax.original_tax_ids
-                or (
-                    tax.fiscal_position_ids
-                    and tax.fiscal_position_ids._origin
-                    != tax.company_id.domestic_fiscal_position_id
-                )
+            domestic = tax._get_settings_company().domestic_fiscal_position_id
+            tax.display_alternative_taxes_field = tax.original_tax_ids or (
+                tax.fiscal_position_ids and tax.fiscal_position_ids._origin != domestic
             )
 
     def _compute_is_used(self):
@@ -566,7 +572,7 @@ class AccountTax(models.Model):
             for repartition_type in ("base", "tax")
         ]
 
-    @api.depends("company_id")
+    @api.depends("company_ids")
     def _compute_invoice_repartition_line_ids(self):
         for tax in self:
             if not tax.invoice_repartition_line_ids:
@@ -574,7 +580,7 @@ class AccountTax(models.Model):
                     "invoice"
                 )
 
-    @api.depends("company_id")
+    @api.depends("company_ids")
     def _compute_refund_repartition_line_ids(self):
         for tax in self:
             if not tax.refund_repartition_line_ids:
@@ -582,18 +588,123 @@ class AccountTax(models.Model):
                     "refund"
                 )
 
-    @api.constrains("company_id")
+    def _unmerge_action_xmlid(self):
+        return "account.action_unmerge_taxes"
+
+    def _unmerge_copy_defaults(self):
+        # Deliberately NOT the name: `_constrains_name` refuses two taxes that
+        # share a name and a company, and during a split the copy and the
+        # original briefly share every company. copy() suffixes it;
+        # _unmerge_finalize puts it back once membership has settled.
+        return {}
+
+    def _unmerge_finalize(self, new_record_by_company):
+        for new_tax in new_record_by_company.values():
+            new_tax.name = self.name
+
+    def _unmerge_split_sidecars(self, new_record_by_company):
+        """Send each company's journal items to its own copy's distribution.
+
+        The mixin repoints every reference that names the tax; a journal item
+        also holds `tax_repartition_line_id`, which names a *line* of it, and
+        copy() gave each split tax lines of its own. That column is
+        ondelete="restrict", so leaving them behind is a foreign key error
+        rather than a silent mis-post.
+
+        Positional pairing is sound here because the copies are copies.
+        """
+
+        def ordered(tax):
+            return tax.repartition_line_ids.sorted(
+                lambda line: (
+                    line.document_type,
+                    line.repartition_type,
+                    line.sequence,
+                    line.factor_percent,
+                    line.account_id.id or 0,
+                )
+            )
+
+        source_lines = ordered(self)
+        for company, new_tax in new_record_by_company.items():
+            mapping = {
+                old.id: new.id
+                for old, new in zip(source_lines, ordered(new_tax), strict=True)
+            }
+            if not mapping:
+                continue
+            self.env["account.move.line"].flush_model(["tax_repartition_line_id"])
+            self.env.cr.execute(
+                SQL(
+                    """
+                    UPDATE account_move_line
+                       SET tax_repartition_line_id =
+                           (%(mapping)s::jsonb->>tax_repartition_line_id::text)::int
+                     WHERE tax_repartition_line_id IN %(old_ids)s
+                       AND company_id IN %(company_ids)s
+                    """,
+                    mapping=json.dumps({str(k): v for k, v in mapping.items()}),
+                    old_ids=tuple(mapping),
+                    company_ids=tuple(
+                        self.env["res.company"]
+                        .search([("id", "child_of", company.id)])
+                        .ids
+                    ),
+                )
+            )
+        self.env["account.move.line"].invalidate_model(["tax_repartition_line_id"])
+
+    def _merge_method(self, destination, source):
+        # The generic merge cannot know that two taxes with the same rate may
+        # still distribute differently, nor repoint the journal items that hold
+        # a tax_repartition_line_id with ondelete="restrict". account.tax.merge.wizard
+        # does both; send people there rather than half-doing it here.
+        raise UserError(self.env._("You cannot merge taxes."))
+
+    @api.constrains("company_ids", "country_id")
+    def _check_company_ids_country(self):
+        # A shared tax has ONE country by construction, so every company it
+        # serves has to recognise it -- as its own fiscal country, or as one it
+        # is registered for under multi-VAT. This is not "all in one country":
+        # chart_template._instantiate_foreign_taxes legitimately gives a company
+        # taxes of a foreign country, and the allowed set is the same expression
+        # the repartition line's tag domain uses.
+        for tax in self:
+            # Only for a SHARED tax. A tax of one company may name any country
+            # it likes -- that was true before this change and narrowing it is
+            # not a schema move's job. What sharing adds is that every member
+            # has to be able to file the thing.
+            if len(tax.company_ids) < 2:
+                continue
+            for company in tax.company_ids:
+                allowed = (
+                    company.account_fiscal_country_id
+                    | company.multi_vat_foreign_country_ids
+                )
+                if tax.country_id not in allowed:
+                    raise ValidationError(
+                        self.env._(
+                            "%(company)s does not file taxes for %(country)s, so "
+                            "it cannot share the tax %(tax)s.",
+                            company=company.display_name,
+                            country=tax.country_id.display_name,
+                            tax=tax.display_name,
+                        )
+                    )
+
+    @api.constrains("company_ids")
     def _check_company_consistency(self):
         if self.env.context.get("from_account_tax_creation") is True:
             return
-        for company, taxes in groupby(self, lambda tax: tax.company_id):
+        self.invalidate_recordset(fnames=["company_ids"])
+        for companies, taxes in self.grouped(lambda tax: tax.company_ids).items():
             if self.env["account.move.line"].search_count(
                 [
                     "|",
-                    ("tax_line_id", "in", [tax.id for tax in taxes]),
-                    ("tax_ids", "in", [tax.id for tax in taxes]),
+                    ("tax_line_id", "in", taxes.ids),
+                    ("tax_ids", "in", taxes.ids),
                     "!",
-                    ("company_id", "child_of", company.id),
+                    ("company_id", "child_of", companies.ids),
                 ],
                 limit=1,
             ):
@@ -1045,12 +1156,8 @@ class AccountTax(models.Model):
         *,
         include_caba_tags=False,
     ):
-        if not self:
-            company = self.env.company
-        else:
-            company = (
-                self[0].company_id._accessible_branches()[:1] or self[0].company_id
-            )
+        company = self._get_settings_company()
+        company = company._accessible_branches()[:1] or company
 
         currency = currency or company.currency_id
         special_mode = self._compute_all_special_mode(handle_price_include)
@@ -1125,16 +1232,14 @@ class AccountTaxRepartitionLine(models.Model):
         compute="_compute_tag_ids_domain",
     )
 
-    @api.depends(
-        "company_id.multi_vat_foreign_country_ids",
-        "company_id.account_fiscal_country_id",
-    )
+    @api.depends_context("company")
     def _compute_tag_ids_domain(self):
         for rep_line in self:
+            company = rep_line.tax_id._get_settings_company()
             allowed_country_ids = (
                 False,
-                rep_line.company_id.account_fiscal_country_id.id,
-                *rep_line.company_id.multi_vat_foreign_country_ids.ids,
+                company.account_fiscal_country_id.id,
+                *company.multi_vat_foreign_country_ids.ids,
             )
             rep_line.tag_ids_domain = [
                 ("applicability", "=", "taxes"),

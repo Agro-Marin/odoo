@@ -7,6 +7,7 @@ is NOT installed. This suite pins the standalone behaviour and skips the
 fallback-specific assertions when ``account`` is installed.
 """
 
+from odoo import Command
 from odoo.tests import TransactionCase, tagged
 
 from .common import BaseTaxCommon
@@ -186,7 +187,10 @@ class TestBaseTaxRepartitionViews(TransactionCase):
         if not cls.company.country_id:
             cls.company.country_id = cls.env.ref("base.us")
         cls.tax_group = cls.env["account.tax.group"].create(
-            {"name": "repartition views group", "company_id": cls.company.id}
+            {
+                "name": "repartition views group",
+                "company_ids": [Command.set(cls.company.ids)],
+            }
         )
 
     def _tax(self):
@@ -197,7 +201,7 @@ class TestBaseTaxRepartitionViews(TransactionCase):
                 "amount_type": "percent",
                 "type_tax_use": "sale",
                 "tax_group_id": self.tax_group.id,
-                "company_id": self.company.id,
+                "company_ids": [Command.set(self.company.ids)],
                 "country_id": self.company.country_id.id,
             }
         )

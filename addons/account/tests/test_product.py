@@ -266,7 +266,7 @@ class TestProduct(AccountTestInvoicingCommon):
         product = self._product_carrying_two_companies_taxes()
         self.assertIn(
             self.other_company,
-            product.sudo().taxes_id.company_id,
+            product.sudo().taxes_id.company_ids,
             "control: create() links the other companies' default sale taxes, so"
             " every reader of taxes_id has to filter by company",
         )
@@ -276,7 +276,7 @@ class TestProduct(AccountTestInvoicingCommon):
         self.assertEqual(
             product.with_context(
                 allowed_company_ids=self.env.company.ids
-            ).taxes_id.company_id,
+            ).taxes_id.company_ids,
             self.env.company,
             "control: with a single company active the account.tax record rule"
             " already filters them out - which is what used to hide the defect",
@@ -294,7 +294,7 @@ class TestProduct(AccountTestInvoicingCommon):
         widened = product.with_context(allowed_company_ids=self.both_companies.ids)
         self.assertIn(
             self.other_company,
-            widened.taxes_id.company_id,
+            widened.taxes_id.company_ids,
             "control: with both companies active nothing filters the foreign tax",
         )
         self.assertEqual(
@@ -310,7 +310,7 @@ class TestProduct(AccountTestInvoicingCommon):
         self.env.invalidate_all()
         self.assertIn(
             self.other_company,
-            product.sudo().taxes_id.company_id,
+            product.sudo().taxes_id.company_ids,
             "control: sudo bypasses the record rule that was masking this",
         )
         self.assertEqual(

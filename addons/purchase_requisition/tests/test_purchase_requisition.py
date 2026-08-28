@@ -1266,7 +1266,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
                 "amount_type": "percent",
                 "amount": 10.0,
                 "type_tax_use": "purchase",
-                "company_id": self.env.company.id,
+                "company_ids": [Command.set(self.env.company.ids)],
             }
         )
 

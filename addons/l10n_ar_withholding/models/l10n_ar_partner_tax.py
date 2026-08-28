@@ -22,8 +22,8 @@ class L10n_ArPartnerTax(models.Model):
         'account.tax',
         required=True,
     )
-    company_id = fields.Many2one(
-        related='tax_id.company_id', store=True,
+    company_ids = fields.Many2many(
+        related='tax_id.company_ids',
     )
     from_date = fields.Date(
         string="From Date"

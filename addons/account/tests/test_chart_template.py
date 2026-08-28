@@ -462,7 +462,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         tax_1, tax_2, tax_3, tax_4 = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id)]
+            [('company_ids', 'in', [self.company.id])]
         )
         self.assertRecordValues(
             tax_1 | tax_2 | tax_3 | tax_4,
@@ -623,7 +623,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
 
-        taxes = self.env["account.tax"].search([("company_id", "=", self.company.id)])
+        taxes = self.env["account.tax"].search([("company_ids", "in", self.company.ids)])
         self.assertRecordValues(
             taxes,
             [
@@ -652,7 +652,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=new_company, install_demo=False
             )
 
-        taxes = self.env["account.tax"].search([("company_id", "=", new_company.id)])
+        taxes = self.env["account.tax"].search([("company_ids", "in", new_company.ids)])
         self.assertRecordValues(
             taxes,
             [
@@ -685,7 +685,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         updated_tax = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "like", "%Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "like", "%Tax 1")]
         )
         self.assertEqual(len(updated_tax), 1)
         self.assertEqual(
@@ -711,7 +711,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         updated_tax = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "like", "%Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "like", "%Tax 1")]
         )
         self.assertEqual(len(updated_tax), 1)
         self.assertEqual(
@@ -727,7 +727,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             return data
 
         tax_existing = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "=", "Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1")]
         )
         with patch.object(
             AccountChartTemplate,
@@ -742,13 +742,13 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertRecordValues(tax_existing, [{"name": "[old] Tax 1", "amount": 15}])
 
         new_tax = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "=", "Tax 1 modified")]
+            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1 modified")]
         )
         self.assertEqual(new_tax.amount, tax_existing.amount + 1)
 
     def test_update_taxes_removed_from_templates(self):
         fiscal_position = self.env["account.fiscal.position"].search([])
-        self.env["account.tax"].search([("company_id", "=", self.company.id)]).unlink()
+        self.env["account.tax"].search([("company_ids", "in", self.company.ids)]).unlink()
 
         with patch.object(
             AccountChartTemplate,
@@ -761,7 +761,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         self.assertEqual(
-            len(self.env["account.tax"].search([("company_id", "=", self.company.id)])),
+            len(self.env["account.tax"].search([("company_ids", "in", self.company.ids)])),
             2,
         )
         self.assertEqual(len(fiscal_position.tax_ids.original_tax_ids), 1)
@@ -791,7 +791,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             return data
 
         tax_1_existing = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "=", "Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1")]
         )
         with patch.object(
             AccountChartTemplate,
@@ -803,10 +803,10 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
         tax_1_old = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "=", "[old] Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "=", "[old] Tax 1")]
         )
         tax_1_new = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "=", "Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1")]
         )
         self.assertEqual(
             tax_1_old, tax_1_existing, "Old tax still exists but with a different name."
@@ -825,13 +825,13 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "test", company=self.company, install_demo=False
             )
         tax_1_old_first = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "=", "[old] Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "=", "[old] Tax 1")]
         )
         tax_1_old_second = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "=", "[old1] Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "=", "[old1] Tax 1")]
         )
         tax_1_latest = self.env["account.tax"].search(
-            [("company_id", "=", self.company.id), ("name", "=", "Tax 1")]
+            [('company_ids', 'in', [self.company.id]), ("name", "=", "Tax 1")]
         )
 
         self.assertEqual(
@@ -880,7 +880,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         taxes_1_companies = self.env["account.tax"].search(
             [
                 ("name", "=like", "%Tax 1"),
-                ("company_id", "in", [self.company.id, company_2.id]),
+                ('company_ids', 'in', [self.company.id, company_2.id]),
             ]
         )
         self.assertEqual(len(taxes_1_companies), 4)
@@ -959,13 +959,13 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         parent_tax = self.env["account.tax"].search(
             [
-                ("company_id", "=", self.company.id),
+                ('company_ids', 'in', [self.company.id]),
                 ("name", "=", "Tax with children"),
             ]
         )
         children_taxes = self.env["account.tax"].search(
             [
-                ("company_id", "=", self.company.id),
+                ('company_ids', 'in', [self.company.id]),
                 ("name", "in", ["Tax 3", "Tax 4"]),
             ]
         )
@@ -1037,7 +1037,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             .with_context(active_test=False)
             .search(
                 [
-                    ("company_id", "=", self.company.id),
+                    ('company_ids', 'in', [self.company.id]),
                     ("name", "=", "Inactive Tax with children"),
                 ]
             )
@@ -1047,7 +1047,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             .with_context(active_test=False)
             .search(
                 [
-                    ("company_id", "=", self.company.id),
+                    ('company_ids', 'in', [self.company.id]),
                     ("name", "in", ["Inactive Tax 3", "Inactive Tax 4"]),
                 ]
             )
@@ -1073,7 +1073,12 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         def get_domain(model):
             if model == "account.account.tag":
                 return [("country_id", "=", self.company.country_id.id)]
-            elif model == "account.account":
+            elif model in (
+                "account.account",
+                "account.tax.group",
+                "account.tax",
+                "account.tax.repartition.line",
+            ):
                 return [("company_ids", "=", self.company.id)]
             else:
                 return [("company_id", "=", self.company.id)]
@@ -1309,7 +1314,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                     "name": "Free Tax",
                     "description": "Free Tax Description",
                     "amount": "0.00",
-                    "company_id": company.id,
+                    "company_ids": [Command.link(company.id)],
                 },
             },
         }
@@ -1677,7 +1682,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 "type_tax_use": "sale",
                 "tax_exigibility": "on_payment",
                 "cash_basis_transition_account_id": transition_account.id,
-                "company_id": self.company.id,
+                "company_ids": [Command.set(self.company.ids)],
             }
         )
         self.env.flush_all()

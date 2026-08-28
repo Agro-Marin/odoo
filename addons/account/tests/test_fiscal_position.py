@@ -87,7 +87,10 @@ class TestFiscalPosition(common.TransactionCase):
     def test_20_fp_one_tax_2m(self):
         self.env.company.country_id = self.env.ref("base.us")
         self.env["account.tax.group"].create(
-            {"name": "Test Tax Group", "company_id": self.env.company.id}
+            {
+                "name": "Test Tax Group",
+                "company_ids": [Command.set(self.env.company.ids)],
+            }
         )
 
         self.src_tax = self.env["account.tax"].create({"name": "SRC", "amount": 0.0})
@@ -232,7 +235,10 @@ class TestFiscalPosition(common.TransactionCase):
     def test_domestic_fp_map_self(self):
         self.env.company.country_id = self.us
         self.env["account.tax.group"].create(
-            {"name": "Test Tax Group", "company_id": self.env.company.id}
+            {
+                "name": "Test Tax Group",
+                "company_ids": [Command.set(self.env.company.ids)],
+            }
         )
         fp = self.env["account.fiscal.position"].create(
             {

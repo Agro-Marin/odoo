@@ -520,8 +520,8 @@ class TestItEdiImport(TestItEdi):
         """Ensure that importing vendor bill with a referenced service product, with a service tax of 22% S
         only applies one tax on the product
         """
-        sale_tax = self.env['account.tax'].search([('display_name', '=', '22%'), ('company_id', '=', self.company.id)])[0]
-        supplier_tax = self.env['account.tax'].search([('display_name', '=', '22% S'), ('company_id', '=', self.company.id)])[0]
+        sale_tax = self.env['account.tax'].search([('display_name', '=', '22%'), ('company_ids', 'in', [self.company.id])])[0]
+        supplier_tax = self.env['account.tax'].search([('display_name', '=', '22% S'), ('company_ids', 'in', [self.company.id])])[0]
         self.env['product.product'].create({
             'name': 'Servizio tecnico',
             'default_code': 'abcdefgh',

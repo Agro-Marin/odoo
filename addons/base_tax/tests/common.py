@@ -1,5 +1,4 @@
-"""Shared fixtures for the ``base_tax`` test suite."""
-
+from odoo import Command
 from odoo.tests import TransactionCase
 
 
@@ -21,7 +20,7 @@ class BaseTaxCommon(TransactionCase):
         cls.tax_group = cls.env["account.tax.group"].create(
             {
                 "name": "base_tax test group",
-                "company_id": cls.company.id,
+                "company_ids": [Command.set(cls.company.ids)],
                 "country_id": cls.country.id,
             }
         )
