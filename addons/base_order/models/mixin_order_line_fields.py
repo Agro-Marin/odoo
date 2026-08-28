@@ -364,6 +364,12 @@ class MixinOrderLineFields(models.AbstractModel):
         for line in self:
             line.product_is_archived = line.product_id and not line.product_id.active
 
+    @api.depends(
+        "sequence",
+        "display_type",
+        "order_id.line_ids.sequence",
+        "order_id.line_ids.display_type",
+    )
     def _compute_parent_id(self):
         target_lines = set(self)
         for order, lines in self.grouped("order_id").items():
