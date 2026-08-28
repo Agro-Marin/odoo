@@ -97,8 +97,8 @@ class CertificateCertificate(models.Model):
         ],
         default="general",
         help="What this certificate may be used for. Every consumer selects on "
-             "this field, so a certificate is inert until it is scoped "
-             "deliberately -- 'General' is the safe default, not a fiscal role.",
+        "this field, so a certificate is inert until it is scoped "
+        "deliberately -- 'General' is the safe default, not a fiscal role.",
     )
     content_format = fields.Selection(
         selection=[
