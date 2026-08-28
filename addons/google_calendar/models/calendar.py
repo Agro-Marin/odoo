@@ -408,10 +408,16 @@ class CalendarEvent(models.Model):
                 recurrence_update_setting = "all_events"
         super().action_mass_archive(recurrence_update_setting)
 
-    def _google_values(self):
-        # In Google API, all-day events must have their 'dateTime' information set
-        # as null and timed events must have their 'date' information set as null.
-        # This is mandatory for allowing changing timed events to all-day and vice versa.
+    def _get_google_start_end(self):
+        """Return the Google 'start' and 'end' payloads for this event.
+
+        In Google API, all-day events must have their 'dateTime' information set
+        as null and timed events must have their 'date' information set as null.
+        This is mandatory for allowing changing timed events to all-day and vice versa.
+
+        :return: (start, end)
+        :rtype: tuple
+        """
         start = {"date": None, "dateTime": None}
         end = {"date": None, "dateTime": None}
         if self.allday:
@@ -424,60 +430,35 @@ class CalendarEvent(models.Model):
             # Otherwise, if both 'date' and 'dateTime' are set, Google may not recognize it as a timed event
             start["dateTime"] = self.start.replace(tzinfo=UTC).isoformat()
             end["dateTime"] = self.stop.replace(tzinfo=UTC).isoformat()
-        reminders = [
-            {
-                "method": "email" if alarm.alarm_type == "email" else "popup",
-                "minutes": alarm.duration_minutes,
-            }
-            for alarm in self.alarm_ids
-        ]
+        return start, end
 
-        attendees = self.attendee_ids
+    def _get_google_attendee_values(self):
+        """Return the Google 'attendees' payload, sorted by email.
+
+        We sort the attendees to avoid undeterministic test fails. It's not
+        mandatory for Google.
+
+        :return: The attendee payloads
+        :rtype: list
+        """
         attendee_values = [
             {
                 "email": attendee.partner_id.email_normalized,
                 "responseStatus": attendee.state or "needsAction",
             }
-            for attendee in attendees
+            for attendee in self.attendee_ids
             if attendee.partner_id.email_normalized
         ]
-        # We sort the attendees to avoid undeterministic test fails. It's not mandatory for Google.
         attendee_values.sort(key=lambda k: k["email"])
-        values = {
-            "id": self.google_id,
-            "start": start,
-            "end": end,
-            "summary": self.name,
-            "description": self._get_customer_description(),
-            "location": self.location or "",
-            "guestsCanModify": not self.guests_readonly,
-            "organizer": {
-                "email": self.user_id.email,
-                "self": self.user_id == self.env.user,
-            },
-            "attendees": attendee_values,
-            "extendedProperties": {
-                "shared": {
-                    "%s_odoo_id" % self.env.cr.dbname: self.id,
-                },
-            },
-            "reminders": {
-                "overrides": reminders,
-                "useDefault": False,
-            },
-        }
-        if not self.google_id and not self.videocall_location and not self.location:
-            values["conferenceData"] = {"createRequest": {"requestId": uuid4().hex}}
-        if self.google_id and not self.videocall_location:
-            values["conferenceData"] = None
-        if self.privacy:
-            values["visibility"] = self.privacy
-        if self.show_as:
-            values["transparency"] = (
-                "opaque" if self.show_as == "busy" else "transparent"
-            )
-        if not self.active:
-            values["status"] = "cancelled"
+        return attendee_values
+
+    def _update_google_owner_values(self, values):
+        """Record the event's owner in `values`, or strip what we may not send.
+
+        :param dict values: The Google payload built so far
+        :return: The payload, owner information applied
+        :rtype: dict
+        """
         if (
             self.user_id
             and self.user_id != self.env.user
@@ -502,6 +483,52 @@ class CalendarEvent(models.Model):
                 },
             }
         return values
+
+    def _google_values(self):
+        start, end = self._get_google_start_end()
+        reminders = [
+            {
+                "method": "email" if alarm.alarm_type == "email" else "popup",
+                "minutes": alarm.duration_minutes,
+            }
+            for alarm in self.alarm_ids
+        ]
+        values = {
+            "id": self.google_id,
+            "start": start,
+            "end": end,
+            "summary": self.name,
+            "description": self._get_customer_description(),
+            "location": self.location or "",
+            "guestsCanModify": not self.guests_readonly,
+            "organizer": {
+                "email": self.user_id.email,
+                "self": self.user_id == self.env.user,
+            },
+            "attendees": self._get_google_attendee_values(),
+            "extendedProperties": {
+                "shared": {
+                    "%s_odoo_id" % self.env.cr.dbname: self.id,
+                },
+            },
+            "reminders": {
+                "overrides": reminders,
+                "useDefault": False,
+            },
+        }
+        if not self.google_id and not self.videocall_location and not self.location:
+            values["conferenceData"] = {"createRequest": {"requestId": uuid4().hex}}
+        if self.google_id and not self.videocall_location:
+            values["conferenceData"] = None
+        if self.privacy:
+            values["visibility"] = self.privacy
+        if self.show_as:
+            values["transparency"] = (
+                "opaque" if self.show_as == "busy" else "transparent"
+            )
+        if not self.active:
+            values["status"] = "cancelled"
+        return self._update_google_owner_values(values)
 
     def _cancel(self):
         # only owner can delete => others refuse the event

@@ -123,19 +123,16 @@ class PaymentTransaction(models.Model):
         for tx in self.filtered(lambda t: t.state == "cancel"):
             tx.payment_id.action_cancel()
 
-    def _create_payment(self, **extra_create_values):
-        """Create an `account.payment` record for the current transaction.
-
-        If the transaction is linked to some invoices, their reconciliation is done automatically.
+    def _prepare_payment_vals(self, **extra_create_values):
+        """Return the create values for this transaction's `account.payment`.
 
         :param dict extra_create_values: Optional extra create values
-        :return: The created payment
-        :rtype: recordset of `account.payment`
+        :return: The payment create values
+        :rtype: dict
         """
         self.ensure_one()
 
         reference = f"{self.reference} - {self.provider_reference or ''}"
-
         payment_method_line = (
             self.provider_id.journal_id.inbound_payment_method_line_ids.filtered(
                 lambda l: l.payment_provider_id == self.provider_id
@@ -159,37 +156,9 @@ class PaymentTransaction(models.Model):
             "invoice_ids": self.invoice_ids,
             **extra_create_values,
         }
-
-        for invoice in self.invoice_ids:
-            if invoice.state != "posted":
-                continue
-            next_payment_values = invoice._get_invoice_next_payment_values()
-            if (
-                next_payment_values["installment_state"] == "epd"
-                and self.amount == next_payment_values["amount_due"]
-            ):
-                aml = next_payment_values["epd_line"]
-                epd_aml_values_list = [
-                    (
-                        {
-                            "aml": aml,
-                            "amount_currency": -aml.amount_residual_currency,
-                            "balance": -aml.balance,
-                        }
-                    )
-                ]
-                open_balance = next_payment_values["epd_discount_amount"]
-                early_payment_values = self.env[
-                    "account.move"
-                ]._get_invoice_counterpart_amls_for_early_payment_discount(
-                    epd_aml_values_list, open_balance
-                )
-                for aml_values_list in early_payment_values.values():
-                    if aml_values_list:
-                        aml_vl = aml_values_list[0]
-                        aml_vl["partner_id"] = invoice.partner_id.id
-                        payment_values["write_off_line_vals"] += [aml_vl]
-                break
+        payment_values["write_off_line_vals"] += (
+            self._prepare_early_payment_discount_vals()
+        )
 
         payment_term_lines = self.invoice_ids.line_ids.filtered(
             lambda line: line.display_type == "payment_term"
@@ -205,27 +174,101 @@ class PaymentTransaction(models.Model):
                 0
             ].account_id.id
 
-        payment = self.env["account.payment"].create(payment_values)
+        return payment_values
+
+    def _prepare_early_payment_discount_vals(self):
+        """Return the write-off line values for an early payment discount.
+
+        Only the first posted invoice whose next installment is an early
+        payment discount matching this transaction's amount contributes; the
+        list is empty when no invoice qualifies.
+
+        :return: The write-off line create values
+        :rtype: list
+        """
+        self.ensure_one()
+
+        for invoice in self.invoice_ids:
+            if invoice.state != "posted":
+                continue
+            next_payment_values = invoice._get_invoice_next_payment_values()
+            if (
+                next_payment_values["installment_state"] != "epd"
+                or self.amount != next_payment_values["amount_due"]
+            ):
+                continue
+            aml = next_payment_values["epd_line"]
+            epd_aml_values_list = [
+                {
+                    "aml": aml,
+                    "amount_currency": -aml.amount_residual_currency,
+                    "balance": -aml.balance,
+                }
+            ]
+            open_balance = next_payment_values["epd_discount_amount"]
+            early_payment_values = self.env[
+                "account.move"
+            ]._get_invoice_counterpart_amls_for_early_payment_discount(
+                epd_aml_values_list, open_balance
+            )
+            write_off_line_vals = []
+            for aml_values_list in early_payment_values.values():
+                if aml_values_list:
+                    aml_vl = aml_values_list[0]
+                    aml_vl["partner_id"] = invoice.partner_id.id
+                    write_off_line_vals += [aml_vl]
+            return write_off_line_vals
+
+        return []
+
+    def _reconcile_payment(self, payment):
+        """Reconcile `payment` with the invoices it settles.
+
+        The source transaction's invoices are used in case of a partial
+        capture, where this transaction and its source share an operation.
+
+        :param recordset payment: The posted `account.payment`
+        :return: None
+        """
+        self.ensure_one()
+
+        if self.operation == self.source_transaction_id.operation:
+            invoices = self.source_transaction_id.invoice_ids
+        else:
+            invoices = self.invoice_ids
+        invoices = invoices.filtered(lambda inv: inv.state != "cancel")
+        if not invoices:
+            return
+
+        invoices.filtered(lambda inv: inv.state == "draft").action_post()
+        (payment.move_id.line_ids + invoices.line_ids).filtered(
+            lambda line: (
+                line.account_id == payment.destination_account_id
+                and not line.reconciled
+            )
+        ).reconcile()
+
+    def _create_payment(self, **extra_create_values):
+        """Create an `account.payment` record for the current transaction.
+
+        If the transaction is linked to some invoices, their reconciliation is done automatically.
+
+        :param dict extra_create_values: Optional extra create values
+        :return: The created payment
+        :rtype: recordset of `account.payment`
+        """
+        self.ensure_one()
+
+        payment = self.env["account.payment"].create(
+            self._prepare_payment_vals(**extra_create_values)
+        )
         payment.action_post()
 
         # Track the payment to make a one2one.
         self.payment_id = payment
 
         # Reconcile the payment with the source transaction's invoices in case of a partial capture.
-        if self.operation == self.source_transaction_id.operation:
-            invoices = self.source_transaction_id.invoice_ids
-        else:
-            invoices = self.invoice_ids
-        invoices = invoices.filtered(lambda inv: inv.state != "cancel")
-        if invoices:
-            invoices.filtered(lambda inv: inv.state == "draft").action_post()
-
-            (payment.move_id.line_ids + invoices.line_ids).filtered(
-                lambda line: (
-                    line.account_id == payment.destination_account_id
-                    and not line.reconciled
-                )
-            ).reconcile()
+        self._reconcile_payment(payment)
 
         return payment
 

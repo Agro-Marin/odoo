@@ -91,6 +91,60 @@ class ExportMixin(_ModelStubs):
 
         return ((record, to_xid(record.id)) for record in self)
 
+    def _export_get_cell_value(self, record, name, cache_properties):
+        """Resolve the export path segment `name` against `record`.
+
+        A dotted segment names a property inside a properties field, whose
+        type and value come from the pre-filled cache rather than from the
+        field itself.
+
+        :return: (field, field_type, value)
+        """
+        if "." in name:
+            fname, prop_name = name.split(".")
+            field = record._fields[fname]
+            field_type, cache_value = cache_properties[field].get(
+                prop_name, ("char", None)
+            )
+            value = cache_value.get(record.id, "") if cache_value else ""
+        else:
+            field = record._fields[name]
+            field_type = field.type
+            value = record[name]
+        return field, field_type, value
+
+    def _export_get_many2many_cell(self, value, fields2, index_fallback):
+        """Render an import-compatible many2many as one comma-joined cell.
+
+        The column it lands in is the first of `.id`, `id`, `name` and
+        `display_name` the caller asked for, and how the records are spelled
+        follows from which one that was; with none of them asked for, the
+        cell stays where the caller had it.
+
+        :return: (index, text)
+        """
+        index = None
+        subfield = None
+        for candidate in (".id", "id", "name", "display_name"):
+            target = (candidate,)
+            index = next(
+                (pos for pos, f2 in enumerate(fields2) if tuple(f2) == target),
+                None,
+            )
+            if index is not None:
+                subfield = candidate
+                break
+        if index is None:
+            index = index_fallback
+
+        if subfield == "id":
+            text = ",".join(xid for _, xid in value._ensure_xml_ids())
+        elif subfield == ".id":
+            text = ",".join(str(rec_id) for rec_id in value.ids)
+        else:
+            text = ",".join(value.mapped("display_name")) if value else ""
+        return index, text
+
     def _export_rows(
         self, fields: list[list[str]], *, _is_toplevel_call: bool = True
     ) -> list[list]:
@@ -124,18 +178,9 @@ class ExportMixin(_ModelStubs):
                 elif name == "id":
                     current[i] = (record._name, record.id)
                 else:
-                    prop_name = None
-                    if "." in name:
-                        fname, prop_name = name.split(".")
-                        field = record._fields[fname]
-                        field_type, cache_value = cache_properties[field].get(
-                            prop_name, ("char", None)
-                        )
-                        value = cache_value.get(record.id, "") if cache_value else ""
-                    else:
-                        field = record._fields[name]
-                        field_type = field.type
-                        value = record[name]
+                    field, field_type, value = self._export_get_cell_value(
+                        record, name, cache_properties
+                    )
 
                     if not is_recordset(value):
                         current[i] = field.convert_to_export(value, record)
@@ -151,37 +196,10 @@ class ExportMixin(_ModelStubs):
                         ]
 
                         if import_compatible and field_type == "many2many":
-                            index = None
-                            subfield = None
-                            for candidate in (".id", "id", "name", "display_name"):
-                                target = (candidate,)
-                                index = next(
-                                    (
-                                        pos
-                                        for pos, f2 in enumerate(fields2)
-                                        if tuple(f2) == target
-                                    ),
-                                    None,
-                                )
-                                if index is not None:
-                                    subfield = candidate
-                                    break
-                            if index is None:
-                                index = i
-
-                            if subfield == "id":
-                                xml_ids = [xid for _, xid in value._ensure_xml_ids()]
-                                current[index] = ",".join(xml_ids)
-                            elif subfield == ".id":
-                                current[index] = ",".join(
-                                    str(rec_id) for rec_id in value.ids
-                                )
-                            else:
-                                current[index] = (
-                                    ",".join(value.mapped("display_name"))
-                                    if value
-                                    else ""
-                                )
+                            index, text = self._export_get_many2many_cell(
+                                value, fields2, i
+                            )
+                            current[index] = text
                             continue
 
                         lines2 = value._export_rows(fields2, _is_toplevel_call=False)

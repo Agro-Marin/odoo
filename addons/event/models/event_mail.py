@@ -279,27 +279,19 @@ class EventMail(models.Model):
             ):
                 self._execute_event_based(mail_slot=mail_slot)
 
-    def _execute_attendee_based(self):
-        """Main scheduler method when running in attendee-based mode aka
-        'after_sub'. This relies on a sub model allowing to know which
-        registrations have been contacted.
+    def _get_scheduler_batch_limits(self):
+        """Return the batch size and cron limit driving attendee-based runs.
 
-        It currently does two main things
-          * generate missing 'event.mail.registrations' which are scheduled
-            communication linked to registrations;
-          * launch registration-based communication, splitting in batches as
-            it may imply a lot of computation. When having more than given
-            limit to handle, schedule another call of cron to avoid having to
-            wait another cron interval check;
+        Both fall back to a non-zero default: a batch size of 0 would iterate
+        over nothing, and a cron limit of 0 would loop.
+
+        :return: (batch_size, cron_limit)
+        :rtype: tuple
         """
-        self.ensure_one()
-        context_registrations = self.env.context.get("event_mail_registration_ids")
-
-        auto_commit = not modules.module.current_test
         batch_size = (
             int(self.env["ir.config_parameter"].sudo().get_param("mail.batch_size"))
             or 50
-        )  # be sure to not have 0, as otherwise no iteration is done
+        )
         cron_limit = (
             int(
                 self.env["ir.config_parameter"]
@@ -307,10 +299,22 @@ class EventMail(models.Model):
                 .get_param("mail.render.cron.limit")
             )
             or 1000
-        )  # be sure to not have 0, as otherwise we will loop
+        )
+        return batch_size, cron_limit
 
-        # fillup on subscription lines (generate more than to render creating
-        # mail.registration is less costly than rendering emails)
+    def _create_missing_attendee_mails(self, context_registrations, cron_limit):
+        """Generate the 'event.mail.registration' this scheduler still misses.
+
+        Fillup on subscription lines: generate more than to render, as
+        creating mail.registration is less costly than rendering emails.
+
+        :param list context_registrations: Optional registration ids to restrict to
+        :param int cron_limit: The cron's own limit; twice that is generated
+        :return: The newly created scheduled communications
+        :rtype: recordset of `event.mail.registration`
+        """
+        self.ensure_one()
+
         # note: original 2many domain was
         #   ("id", "not in", self.env["event.registration"]._search([
         #       ("mail_registration_ids.scheduler_id", "in", self.ids),
@@ -337,9 +341,24 @@ class EventMail(models.Model):
         new_attendees = self.env["event.registration"].search(
             new_attendee_domain, limit=cron_limit * 2, order="id ASC"
         )
-        new_attendee_mails = self._create_missing_mail_registrations(new_attendees)
+        return self._create_missing_mail_registrations(new_attendees)
 
-        # fetch attendee schedulers to run (or use the one given in context)
+    def _get_attendee_mails_to_run(
+        self, new_attendee_mails, context_registrations, cron_limit
+    ):
+        """Return the scheduled communications this run should send.
+
+        When more than the cron limit are due, the surplus is left for a
+        re-triggered cron rather than handled in one pass.
+
+        :param recordset new_attendee_mails: The communications just generated
+        :param list context_registrations: Optional registration ids to restrict to
+        :param int cron_limit: The most to handle in one run
+        :return: The communications to run, capped at `cron_limit`
+        :rtype: recordset of `event.mail.registration`
+        """
+        self.ensure_one()
+
         mail_domain = self.env["event.mail.registration"]._get_skip_domain() + [
             ("scheduler_id", "=", self.id)
         ]
@@ -354,6 +373,20 @@ class EventMail(models.Model):
         if len(new_attendee_mails) > cron_limit:
             new_attendee_mails = new_attendee_mails[:cron_limit]
             self.env.ref("event.event_mail_scheduler")._trigger()
+
+        return new_attendee_mails
+
+    def _execute_attendee_mail_batches(
+        self, new_attendee_mails, batch_size, auto_commit
+    ):
+        """Send `new_attendee_mails` in batches, committing between them.
+
+        :param recordset new_attendee_mails: The communications to run
+        :param int batch_size: How many to handle per batch
+        :param bool auto_commit: Whether to commit between batches
+        :return: None
+        """
+        self.ensure_one()
 
         for chunk in (
             self.env["event.mail.registration"].browse(b)
@@ -375,6 +408,33 @@ class EventMail(models.Model):
                 self.env.cr.commit()
                 # invalidate cache, no need to keep previous content in memory
                 self.env.invalidate_all()
+
+    def _execute_attendee_based(self):
+        """Main scheduler method when running in attendee-based mode aka
+        'after_sub'. This relies on a sub model allowing to know which
+        registrations have been contacted.
+
+        It currently does two main things
+          * generate missing 'event.mail.registrations' which are scheduled
+            communication linked to registrations;
+          * launch registration-based communication, splitting in batches as
+            it may imply a lot of computation. When having more than given
+            limit to handle, schedule another call of cron to avoid having to
+            wait another cron interval check;
+        """
+        self.ensure_one()
+        context_registrations = self.env.context.get("event_mail_registration_ids")
+
+        auto_commit = not modules.module.current_test
+        batch_size, cron_limit = self._get_scheduler_batch_limits()
+
+        new_attendee_mails = self._create_missing_attendee_mails(
+            context_registrations, cron_limit
+        )
+        new_attendee_mails = self._get_attendee_mails_to_run(
+            new_attendee_mails, context_registrations, cron_limit
+        )
+        self._execute_attendee_mail_batches(new_attendee_mails, batch_size, auto_commit)
 
     def _create_missing_mail_registrations(self, registrations):
         new = self.env["event.mail.registration"]

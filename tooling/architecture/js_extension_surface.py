@@ -781,7 +781,7 @@ def count_subclasses(consumer_roots=CONSUMER_ROOTS, web_src=None) -> int:
     return total
 
 
-def main(argv: list[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="exit 1 on drift")
     parser.add_argument("--update", action="store_true", help="rewrite the pin")
@@ -799,116 +799,40 @@ def main(argv: list[str] | None = None) -> int:
         help="list the files overriding one point — the narrowing worklist",
     )
     doc_measured.main_flags(parser)
-    args = parser.parse_args(argv)
+    return parser
 
-    if not (WEB / "static" / "src").is_dir():
-        parser.error(f"no web addon at {WEB}")
 
-    if args.dispositions is not None:
-        recorded = load_dispositions()
-        wanted = args.dispositions
-        if wanted and wanted not in DISPOSITIONS:
-            parser.error(f"unknown disposition {wanted!r}: {', '.join(DISPOSITIONS)}")
-        for mark in DISPOSITIONS:
-            points = sorted(p for p, value in recorded.items() if value == mark)
-            if wanted and mark != wanted:
-                continue
-            print(f"{mark} — {len(points)} point(s)")
-            if wanted or len(points) <= 40:
-                for point in points:
-                    print(f"    {point}")
-        return 0
+def _print_dispositions(wanted: str, parser: argparse.ArgumentParser) -> int:
+    recorded = load_dispositions()
+    if wanted and wanted not in DISPOSITIONS:
+        parser.error(f"unknown disposition {wanted!r}: {', '.join(DISPOSITIONS)}")
+    for mark in DISPOSITIONS:
+        points = sorted(p for p, value in recorded.items() if value == mark)
+        if wanted and mark != wanted:
+            continue
+        print(f"{mark} — {len(points)} point(s)")
+        if wanted or len(points) <= 40:
+            for point in points:
+                print(f"    {point}")
+    return 0
 
-    if args.explain:
-        rows = overriders(args.explain)
-        if not rows:
-            print(f"nothing overrides {args.explain}")
-            return 1
-        print(f"{args.explain} — {len(rows)} overrider(s)")
-        for scope, path, subclass in rows:
-            try:
-                shown = path.relative_to(ROOT.parent)
-            except ValueError:
-                shown = path
-            print(f"  [{scope}] {subclass}  {shown}")
-        return 0
 
-    present = [name for name, _ in _named_roots(CONSUMER_ROOTS)]
-    absent = [name for name, _ in CONSUMER_ROOTS if name not in present]
-    if args.update and absent:
-        parser.error(
-            "--update needs every consumer checkout present; missing: "
-            + ", ".join(absent)
-        )
+def _print_overriders(target: str) -> int:
+    rows = overriders(target)
+    if not rows:
+        print(f"nothing overrides {target}")
+        return 1
+    print(f"{target} — {len(rows)} overrider(s)")
+    for scope, path, subclass in rows:
+        try:
+            shown = path.relative_to(ROOT.parent)
+        except ValueError:
+            shown = path
+        print(f"  [{scope}] {subclass}  {shown}")
+    return 0
 
-    detailed = measure_detailed(CONSUMER_ROOTS)
-    if not detailed:
-        parser.error("measured an empty surface — the scan reached nothing")
-    measured_provenance = provenance(detailed)
-    totals = {
-        point: sum(sum(counts) for counts in scopes.values())
-        for point, scopes in detailed.items()
-    }
-    single_use = sorted(point for point, n in totals.items() if n == 1)
 
-    here = Path(__file__).resolve()
-    if args.update_doc:
-        changed = doc_measured.update(here, repo_metrics())
-        print(f"{'rewrote' if changed else 'already fresh:'} MEASURED block")
-        return 0
-    if args.check_doc:
-        problems = doc_measured.check(here, repo_metrics())
-        for problem in problems:
-            print(f"[FAIL] {problem}")
-        if problems:
-            print(
-                "\n  python tooling/architecture/js_extension_surface.py --update-doc"
-            )
-        return 1 if problems else 0
-
-    if args.update:
-        write_pinned(measured_provenance, frozenset(single_use))
-        print(f"wrote {PINNED.name}: {len(measured_provenance)} point(s)")
-        return 0
-
-    pinned = load_pinned()
-    new, gone = drift(measured_provenance, pinned, present)
-    orphaned = unresolved(pinned)
-    dispositions = load_dispositions()
-    unmarked = unclassified(pinned, dispositions)
-
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "scopes_present": present,
-                    "scopes_absent": absent,
-                    "measured": len(detailed),
-                    "subclass_sites": sum(totals.values()),
-                    "single_use": single_use,
-                    "new": new,
-                    "gone": gone,
-                    "orphaned": orphaned,
-                    "unclassified": unmarked,
-                    "dispositions": disposition_counts(),
-                },
-                indent=2,
-            )
-        )
-        return 1 if ((new or gone or orphaned or unmarked) and args.check) else 0
-
-    print("JS extension-surface ratchet (shrink-only, per consumer scope)")
-    print("=" * 64)
-    print(f"consumer scopes present: {', '.join(present)}")
-    if absent:
-        print(_consumer_scopes.absent_scopes_line("js_extension_surface", absent))
-    print(
-        f"measured {len(detailed)} override point(s) over {sum(totals.values())} site(s)"
-    )
-    print(f"  {len(single_use)} reached by exactly one consumer")
-    counts = disposition_counts()
-    shape = "  ".join(f"{mark}={counts[mark]}" for mark in DISPOSITIONS)
-    print(f"pinned dispositions: {shape}")
+def _print_new_and_gone(new: dict, gone: dict, totals: dict) -> None:
     for scope, points in new.items():
         print(f"\n[FAIL] scope '{scope}': {len(points)} NEW override point(s):")
         for point in points[:20]:
@@ -924,6 +848,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    {point}")
         if len(points) > 20:
             print(f"    … and {len(points) - 20} more")
+
+
+def _print_orphaned_and_unmarked(orphaned: list, unmarked: list) -> None:
     if orphaned:
         print(
             f"\n[FAIL] {len(orphaned)} pinned point(s) name a method the owning "
@@ -945,9 +872,134 @@ def main(argv: list[str] | None = None) -> int:
             "    Say what is to become of each: "
             + ", ".join(f":{mark}" for mark in DISPOSITIONS)
         )
+
+
+def _print_drift_report(
+    present: list,
+    absent: list,
+    detailed: dict,
+    totals: dict,
+    single_use: list,
+    new: dict,
+    gone: dict,
+    orphaned: list,
+    unmarked: list,
+) -> None:
+    print("JS extension-surface ratchet (shrink-only, per consumer scope)")
+    print("=" * 64)
+    print(f"consumer scopes present: {', '.join(present)}")
+    if absent:
+        print(_consumer_scopes.absent_scopes_line("js_extension_surface", absent))
+    print(
+        f"measured {len(detailed)} override point(s) over {sum(totals.values())} site(s)"
+    )
+    print(f"  {len(single_use)} reached by exactly one consumer")
+    counts = disposition_counts()
+    shape = "  ".join(f"{mark}={counts[mark]}" for mark in DISPOSITIONS)
+    print(f"pinned dispositions: {shape}")
+    _print_new_and_gone(new, gone, totals)
+    _print_orphaned_and_unmarked(orphaned, unmarked)
     print("-" * 64)
     if not new and not gone and not orphaned and not unmarked:
         print(f"\nExtension surface unchanged across {len(present)} scope(s). ✓")
+
+
+def _print_drift_json(
+    present: list,
+    absent: list,
+    detailed: dict,
+    totals: dict,
+    single_use: list,
+    new: dict,
+    gone: dict,
+    orphaned: list,
+    unmarked: list,
+) -> None:
+    print(
+        json.dumps(
+            {
+                "scopes_present": present,
+                "scopes_absent": absent,
+                "measured": len(detailed),
+                "subclass_sites": sum(totals.values()),
+                "single_use": single_use,
+                "new": new,
+                "gone": gone,
+                "orphaned": orphaned,
+                "unclassified": unmarked,
+                "dispositions": disposition_counts(),
+            },
+            indent=2,
+        )
+    )
+
+
+def _run_doc_flags(args: argparse.Namespace) -> int | None:
+    here = Path(__file__).resolve()
+    if args.update_doc:
+        changed = doc_measured.update(here, repo_metrics())
+        print(f"{'rewrote' if changed else 'already fresh:'} MEASURED block")
+        return 0
+    if args.check_doc:
+        problems = doc_measured.check(here, repo_metrics())
+        for problem in problems:
+            print(f"[FAIL] {problem}")
+        if problems:
+            print(
+                "\n  python tooling/architecture/js_extension_surface.py --update-doc"
+            )
+        return 1 if problems else 0
+    return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    if not (WEB / "static" / "src").is_dir():
+        parser.error(f"no web addon at {WEB}")
+
+    if args.dispositions is not None:
+        return _print_dispositions(args.dispositions, parser)
+
+    if args.explain:
+        return _print_overriders(args.explain)
+
+    present = [name for name, _ in _named_roots(CONSUMER_ROOTS)]
+    absent = [name for name, _ in CONSUMER_ROOTS if name not in present]
+    if args.update and absent:
+        parser.error(
+            "--update needs every consumer checkout present; missing: "
+            + ", ".join(absent)
+        )
+
+    detailed = measure_detailed(CONSUMER_ROOTS)
+    if not detailed:
+        parser.error("measured an empty surface — the scan reached nothing")
+    measured_provenance = provenance(detailed)
+    totals = {
+        point: sum(sum(counts) for counts in scopes.values())
+        for point, scopes in detailed.items()
+    }
+    single_use = sorted(point for point, n in totals.items() if n == 1)
+
+    doc_status = _run_doc_flags(args)
+    if doc_status is not None:
+        return doc_status
+
+    if args.update:
+        write_pinned(measured_provenance, frozenset(single_use))
+        print(f"wrote {PINNED.name}: {len(measured_provenance)} point(s)")
+        return 0
+
+    pinned = load_pinned()
+    new, gone = drift(measured_provenance, pinned, present)
+    orphaned = unresolved(pinned)
+    dispositions = load_dispositions()
+    unmarked = unclassified(pinned, dispositions)
+
+    report = _print_drift_json if args.json else _print_drift_report
+    report(present, absent, detailed, totals, single_use, new, gone, orphaned, unmarked)
 
     return 1 if ((new or gone or orphaned or unmarked) and args.check) else 0
 
