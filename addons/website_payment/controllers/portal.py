@@ -288,7 +288,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
 
 class PortalAccount(account_payment_portal.PortalAccount):
     def _invoice_get_page_view_values(self, *args, **kwargs):
-        """Override of `account_payment` to make the providers filtering website-aware."""
+        """Override of `account_payment_provider` to make the providers filtering website-aware."""
         return super()._invoice_get_page_view_values(
             *args, website_id=request.website.id, **kwargs
         )
