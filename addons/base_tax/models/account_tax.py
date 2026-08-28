@@ -969,6 +969,23 @@ class AccountTax(models.Model):
         special_mode=False,
         filter_tax_function=None,
     ):
+        """Compute the tax amounts for ``self`` (the taxes to apply) against a
+        single ``price_unit``/``quantity`` pair, in four passes over the
+        taxes sorted by sequence/inclusion order (``_flatten_taxes_and_sort_them``,
+        called earlier in the pipeline): fixed-amount taxes, price-included
+        taxes, price-excluded taxes, then base-propagation (each tax's amount
+        feeding the base of taxes that come after it, via
+        ``_propagate_extra_taxes_base``). ``special_mode`` (``False``,
+        ``"total_included"`` or ``"total_excluded"``) tells price-include
+        resolution which of ``price_unit``'s two possible readings to assume
+        when it is otherwise ambiguous. Taxes with a negative factor (reverse
+        charge) get a mirrored, negated entry in ``reverse_charge_taxes_data``
+        alongside their normal one in ``taxes_data``. ``total_excluded`` in the
+        result is taken from the first entry of the sorted/batched tax list, an
+        invariant depending on ``_batch_for_taxes_computation`` guaranteeing
+        that first entry never has a base contribution from an earlier tax.
+        """
+
         def add_tax_amount_to_results(tax, tax_amount):
             taxes_data[tax.id]["tax_amount"] = tax_amount
             if rounding_method == "round_per_line":
@@ -1374,16 +1391,24 @@ class AccountTax(models.Model):
         extra_tax_data = self._import_base_line_extra_tax_data(
             base_line, load("extra_tax_data", {}) or {}
         )
+        # NOTE: manual_total_excluded[_currency] use an explicit `is not None`
+        # check, not `or` — 0.0 is a legitimate override (force the base to
+        # zero) and must not be treated as absent, unlike `or`'s previous
+        # behavior here which silently discarded it in favor of extra_tax_data.
+        manual_total_excluded_currency = kwargs.get("manual_total_excluded_currency")
+        if manual_total_excluded_currency is None:
+            manual_total_excluded_currency = extra_tax_data.get(
+                "manual_total_excluded_currency"
+            )
+        manual_total_excluded = kwargs.get("manual_total_excluded")
+        if manual_total_excluded is None:
+            manual_total_excluded = extra_tax_data.get("manual_total_excluded")
         base_line.update(
             {
                 "computation_key": kwargs.get("computation_key")
                 or extra_tax_data.get("computation_key"),
-                "manual_total_excluded_currency": kwargs.get(
-                    "manual_total_excluded_currency"
-                )
-                or extra_tax_data.get("manual_total_excluded_currency"),
-                "manual_total_excluded": kwargs.get("manual_total_excluded")
-                or extra_tax_data.get("manual_total_excluded"),
+                "manual_total_excluded_currency": manual_total_excluded_currency,
+                "manual_total_excluded": manual_total_excluded,
                 "manual_tax_amounts": kwargs.get("manual_tax_amounts")
                 or extra_tax_data.get("manual_tax_amounts"),
             }
@@ -1485,9 +1510,27 @@ class AccountTax(models.Model):
     def _distribute_delta_amount_smoothly(
         self, precision_digits, delta_amount, target_factors
     ):
+        """Spread ``delta_amount`` (a rounding residual) across ``target_factors``.
+
+        Each entry of ``target_factors`` must be a dict exposing a ``"factor"``
+        key; the residual is split proportionally to ``abs(factor)``, biggest
+        factor first, with any leftover unit of precision (due to integer
+        rounding of the split) assigned to the highest-weighted entries. The
+        returned list always sums to exactly ``delta_amount`` at
+        ``precision_digits``, regardless of the factors used — only *which*
+        entries absorb the residual depends on the weights.
+
+        Returns a list of deltas, one per ``target_factors`` entry, in the same
+        order. With no targets, there is nothing to distribute onto: returns an
+        all-empty list even for a non-zero ``delta_amount`` rather than
+        raising, since a caller with an empty target list has no correction to
+        apply.
+        """
         precision_rounding = float(f"1e-{precision_digits}")
         amounts_to_distribute = [0.0] * len(target_factors)
-        if float_is_zero(delta_amount, precision_digits=precision_digits):
+        if not target_factors or float_is_zero(
+            delta_amount, precision_digits=precision_digits
+        ):
             return amounts_to_distribute
 
         sign = -1 if delta_amount < 0.0 else 1
@@ -2253,9 +2296,12 @@ class AccountTax(models.Model):
                     ]
 
                     if all_subtotal_tax_group:
+                        # Use abs(): on a credit note tax amounts are negative,
+                        # and "biggest tax" must mean largest magnitude, not
+                        # largest signed value.
                         max_subtotal, max_tax_group = max(
                             all_subtotal_tax_group,
-                            key=lambda item: item[1]["tax_amount_currency"],
+                            key=lambda item: abs(item[1]["tax_amount_currency"]),
                         )
                         max_tax_group["tax_amount_currency"] += (
                             cash_rounding_base_amount_currency
@@ -2468,6 +2514,15 @@ class AccountTax(models.Model):
 
     @api.model
     def _split_tax_data(self, base_line, tax_data, company, target_factors):
+        """Split one tax_data entry proportionally across ``target_factors``
+        (each a dict with a ``"factor"`` key, normalized internally so they
+        need not sum to 1). Returns a new list of tax_data dicts, one per
+        factor, in the same order as ``target_factors``. Raw amounts are
+        scaled by the factor directly; the rounded ``*_amount``/``*_amount_currency``
+        fields are re-derived via ``_distribute_delta_amount_smoothly`` so the
+        split parts still sum back to the original ``tax_data``'s rounded
+        totals despite each part being rounded independently.
+        """
         currency = base_line["currency_id"]
 
         factors = self._normalize_target_factors(target_factors)
@@ -2514,6 +2569,12 @@ class AccountTax(models.Model):
 
     @api.model
     def _split_tax_details(self, base_line, company, target_factors):
+        """Split ``base_line["tax_details"]`` (totals + all its taxes_data)
+        proportionally across ``target_factors``, calling ``_split_tax_data``
+        per tax and re-deriving ``total_excluded``/``total_included`` for each
+        part the same rounded-yet-sum-preserving way. Returns a new list of
+        tax_details dicts, one per factor, in ``target_factors`` order.
+        """
         currency = base_line["currency_id"]
         tax_details = base_line["tax_details"]
 
@@ -2584,6 +2645,13 @@ class AccountTax(models.Model):
     def _split_base_line(
         self, base_line, company, target_factors, populate_function=None
     ):
+        """Split ``base_line`` (``price_unit`` and ``tax_details``) proportionally
+        across ``target_factors``, returning one new base line per factor via
+        ``_prepare_base_line_for_taxes_computation``. ``populate_function(base_line,
+        target_factor, kwargs)``, if given, is called per split part to add or
+        override extra kwargs (e.g. a caller-specific ``quantity``) before the
+        new base line is built.
+        """
         factors = self._normalize_target_factors(target_factors)
 
         new_tax_details_list = self._split_tax_details(
@@ -2607,6 +2675,17 @@ class AccountTax(models.Model):
     def _dispatch_taxes_into_new_base_lines(
         self, base_lines, company, exclude_function
     ):
+        """Peel taxes matched by ``exclude_function(base_line, tax_data)`` off
+        of ``base_lines`` and into their own new base lines, so that the
+        original lines keep only the taxes ``exclude_function`` did not match
+        (used e.g. to isolate discount-ineligible taxes onto a separate line).
+        Processes a work queue (``to_process``) of (index, base_line,
+        taxes_to_exclude) tuples so a base line with several excluded taxes is
+        peeled one tax at a time rather than all at once. Returns the flat
+        list of newly created base lines (the untouched originals are mutated
+        in place and are not part of the return value).
+        """
+
         def partition_function(base_line, tax_data):
             return not exclude_function(base_line, tax_data)
 
@@ -2853,6 +2932,15 @@ class AccountTax(models.Model):
         grouping_function=None,
         aggregate_function=None,
     ):
+        """Rescale ``base_lines`` (e.g. a discount/down-payment's own generated
+        lines) so their combined total hits ``amount`` exactly: either a
+        ``"fixed"`` target amount, or a ``"percentage"`` of the lines'
+        current total. Rescales each line's ``price_unit`` proportionally,
+        recomputes tax details from scratch on the rescaled lines, then
+        distributes the residual per-tax rounding delta via
+        ``_spread_delta_on_base_amount`` so the recomputed totals land on the
+        target exactly rather than merely close to it.
+        """
         if not base_lines:
             return []
 
@@ -3027,6 +3115,14 @@ class AccountTax(models.Model):
         expected_base_amount_currency,
         expected_base_amount,
     ):
+        """Nudge ``new_base_lines``' ``price_unit``s so their combined base
+        amount matches ``expected_base_amount_currency``/``expected_base_amount``
+        exactly, distributing the residual across ``sorted_base_lines`` via
+        ``_distribute_delta_amount_smoothly``. Called by
+        ``_reduce_base_lines_to_target_amount`` as its last step, after a plain
+        proportional rescale has already gotten close but not exact due to
+        per-line rounding.
+        """
         current_base_amount_currency, current_base_amount = 0.0, 0.0
         values_per_grouping_key = self._aggregate_base_lines_aggregated_values(
             self._aggregate_base_lines_tax_details(
@@ -3145,7 +3241,31 @@ class AccountTax(models.Model):
         return new_base_lines
 
     @api.model
+    def _finalize_dispatch(self, new_base_lines, dispatched_base_lines):
+        """Drop the base lines that were fully consumed by a dispatch.
+
+        Shared by ``_dispatch_global_discount_lines`` and
+        ``_dispatch_return_of_merchandise_lines``: both dispatch a subset of
+        their input lines (discount lines, return lines) into new lines
+        attached to other base lines, and must exclude the now-redundant
+        originals from their own return value. Identity-based (``id()``) since
+        base line dicts are not hashable and are never deduplicated by value.
+        """
+        dispatched_ids = {id(x) for x in dispatched_base_lines}
+        return [x for x in new_base_lines if id(x) not in dispatched_ids]
+
+    @api.model
     def _dispatch_global_discount_lines(self, base_lines, company):
+        """Split each ``special_type == "global_discount"`` line, proportionally
+        by ``raw_total_excluded_currency``, across the other base_lines that
+        share its discountable tax set, appending the resulting parts to each
+        target line's ``discount_base_lines`` list. Companion to
+        ``_squash_global_discount_lines``, which merges those parts back in.
+        Returns ``base_lines`` with the now-redundant discount lines removed
+        (see ``_finalize_dispatch``); lines with no discountable counterpart
+        are left untouched (their discount line, if any, has no target and is
+        not dispatched).
+        """
         new_base_lines = []
         discount_data_per_taxes = {}
         dispatched_neg_base_lines = []
@@ -3200,11 +3320,15 @@ class AccountTax(models.Model):
                     discount_data["base_lines"], splitted_base_lines, strict=True
                 ):
                     base_line["discount_base_lines"].append(new_base_line)
-        dispatched_ids = {id(x) for x in dispatched_neg_base_lines}
-        return [x for x in new_base_lines if id(x) not in dispatched_ids]
+        return self._finalize_dispatch(new_base_lines, dispatched_neg_base_lines)
 
     @api.model
     def _squash_global_discount_lines(self, base_lines, company):
+        """Merge each base_line's ``discount_base_lines`` (populated by
+        ``_dispatch_global_discount_lines``) back into its own ``tax_details``
+        in place, then re-fix any manual tax amount overrides on the lines
+        that actually received a discount split.
+        """
         for base_line in base_lines:
             for sub_base_line in base_line["discount_base_lines"]:
                 base_line["tax_details"] = self._merge_tax_details(
@@ -3267,6 +3391,20 @@ class AccountTax(models.Model):
 
     @api.model
     def _dispatch_return_of_merchandise_lines(self, base_lines, company):
+        """Match negative-quantity (return) lines against positive-quantity
+        lines of the same product/grouping (``_group_lines_for_return_of_merchandise``,
+        ``_match_returns_to_positive_lines``: a greedy, quantity-sorted match),
+        splitting each return line proportionally across the positive lines it
+        was matched to and appending the resulting parts to each positive
+        line's ``return_of_merchandise_base_lines``. A return quantity that
+        exceeds all available positive quantity is *not* silently dropped: the
+        matcher assigns the unmatched remainder a target factor with
+        ``plus_base_line: None``, which this method turns into a new,
+        standalone base line (no positive counterpart to attach to) instead of
+        appending it anywhere. Companion to ``_squash_return_of_merchandise_lines``.
+        Returns ``base_lines`` with the now-redundant return lines removed
+        (see ``_finalize_dispatch``).
+        """
         dispatched_neg_base_lines = []
         new_base_lines, mapping = self._group_lines_for_return_of_merchandise(
             base_lines
@@ -3313,8 +3451,7 @@ class AccountTax(models.Model):
                         new_base_line["return_of_merchandise_base_lines"] = []
                         new_base_lines.append(new_base_line)
 
-        dispatched_ids = {id(x) for x in dispatched_neg_base_lines}
-        return [x for x in new_base_lines if id(x) not in dispatched_ids]
+        return self._finalize_dispatch(new_base_lines, dispatched_neg_base_lines)
 
     @api.model
     def _group_lines_for_return_of_merchandise(self, base_lines):
@@ -3385,6 +3522,11 @@ class AccountTax(models.Model):
 
     @api.model
     def _squash_return_of_merchandise_lines(self, base_lines, company):
+        """Merge each base_line's ``return_of_merchandise_base_lines``
+        (populated by ``_dispatch_return_of_merchandise_lines``) back into its
+        own ``tax_details`` and ``quantity`` in place, then re-fix any manual
+        tax amount overrides on the lines that actually absorbed a return.
+        """
         for base_line in base_lines:
             for sub_base_line in base_line["return_of_merchandise_base_lines"]:
                 base_line["tax_details"] = self._merge_tax_details(
@@ -3410,6 +3552,21 @@ class AccountTax(models.Model):
         raw_current_amount,
         raw_current_amount_precision_digits,
     ):
+        """Return the delta to add to ``raw_current_amount`` to bring it back
+        within tolerance of ``target_amount``, or 0.0 if it already is.
+
+        The tolerance window is ``abs(target_amount) +/- target_currency.rounding / 2``.
+        ``raw_current_amount_rounding`` (one unit of precision at
+        ``raw_current_amount_precision_digits``) is subtracted only from the
+        upper bound, not added back to the lower one: the upper bound is
+        computed by *adding* half the currency rounding, so shrinking it by one
+        precision unit compensates for `float_round`'s own rounding pushing a
+        borderline value up past the boundary and being wrongly seen as
+        in-tolerance. The lower bound is computed by *subtracting* half the
+        currency rounding already, so it does not need — and must not get —
+        the same nudge in the same direction, or it would loosen instead of
+        tighten the tolerance.
+        """
         target_amount_sign = -1 if target_amount < 0.0 else 1
         raw_current_amount_rounding = math.pow(10, -raw_current_amount_precision_digits)
         tolerance_bounds = (
@@ -3444,6 +3601,17 @@ class AccountTax(models.Model):
         apply_strict_tolerance=False,
         in_foreign_currency=True,
     ):
+        """Round each base_line's ``raw_total_excluded[_currency]`` to
+        ``precision_digits`` in place. With ``apply_strict_tolerance``, also
+        reconciles the sum of the now-rounded per-line values against the
+        group's own expected total (via ``_get_delta_amount_to_reach_target`` +
+        ``_distribute_delta_amount_smoothly``), so many small per-line roundings
+        can't drift the aggregate total outside its tolerance window. Part of
+        the ``raw_``/``target_``/``delta_`` rounding-reconciliation family also
+        used by ``_apply_gross_total_strict_tolerance``,
+        ``_round_raw_gross_total_excluded_and_discount``, and
+        ``_apply_raw_tax_amounts_tolerance``.
+        """
         if not base_lines:
             return
 
@@ -3625,6 +3793,13 @@ class AccountTax(models.Model):
     def _apply_gross_total_strict_tolerance(
         self, base_lines, suffix, suffix_currency, precision_digits
     ):
+        """Reconcile the sum of ``base_lines``' already-rounded
+        ``raw_total_excluded[_currency]`` against the group's expected total
+        (aggregated tax-detail values), redistributing any residual across the
+        lines via ``_distribute_delta_amount_smoothly``. Called by
+        ``_round_raw_total_excluded`` when ``apply_strict_tolerance=True``; see
+        that method's docstring for the family this belongs to.
+        """
         base_lines_aggregated_values = self._aggregate_base_lines_tax_details(
             base_lines, _group_everything_together
         )
@@ -3685,6 +3860,13 @@ class AccountTax(models.Model):
         company,
         in_foreign_currency=True,
     ):
+        """Round each base_line's ``raw_gross_total_excluded[_currency]`` (the
+        pre-discount total, computed via ``_get_price_unit_without_tax``/
+        ``_get_discount_amount_without_tax``) and its discount amount, then
+        reconcile the rounded sum back to the group's expected gross total.
+        Same rounding-reconciliation shape as ``_round_raw_total_excluded``,
+        applied to the gross (pre-discount) field instead.
+        """
         if not base_lines:
             return
 
@@ -3798,6 +3980,17 @@ class AccountTax(models.Model):
     def _apply_raw_tax_amounts_tolerance(
         self, base_lines_aggregated_values, suffix, suffix_currency, precision_digits
     ):
+        """Reconcile each per-tax group's rounded ``raw_tax_amount[_currency]``
+        against its own expected tax amount, then derive and reconcile the
+        matching ``raw_base_amount[_currency]`` from the (constant, per-group)
+        tax rate. Called by ``_round_raw_tax_amounts`` when
+        ``apply_strict_tolerance=True``; same rounding-reconciliation family as
+        ``_round_raw_total_excluded``. Note: the per-line weights used to
+        distribute the residual are snapshotted once per group and reused for
+        both the tax-amount and the base-amount redistribution passes below;
+        this only affects which line(s) absorb a sub-cent residual; the
+        redistributed total is always exact regardless.
+        """
         tax_field = f"tax_amount{suffix}"
         raw_tax_field = f"raw_{tax_field}"
         base_field = f"base_amount{suffix}"
@@ -3897,6 +4090,20 @@ class AccountTax(models.Model):
         handle_price_include=True,
         rounding_method=None,
     ):
+        """Legacy-shaped, single-line entry point to the tax engine: takes one
+        ``price_unit``/``quantity`` pair and returns the older
+        ``{"taxes": [...], "total_excluded", "total_included", ...}``
+        dict shape. Internally it just builds one base line via
+        ``_prepare_base_line_for_taxes_computation`` and delegates to
+        ``_add_tax_details_in_base_line`` — the same batch pipeline used
+        elsewhere in this file — then reshapes the result back to this
+        contract. Kept for callers needing the single-line/legacy shape (there
+        are many across the addons tree); new code computing taxes for more
+        than one line at a time should use the base-lines batch API
+        (``_prepare_base_line_for_taxes_computation`` /
+        ``_add_tax_details_in_base_lines``) directly instead, since this method
+        pays the per-line dict-building overhead once per call.
+        """
         company = self._get_settings_company()
         company = company._accessible_branches()[:1] or company
 
