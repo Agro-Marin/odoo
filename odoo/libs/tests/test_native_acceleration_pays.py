@@ -62,17 +62,28 @@ from odoo.orm.helpers import _origin_ids_python
 
 #: The accelerated call must take at most this fraction of the reference's time.
 #:
-#: Placed between the two numbers that matter rather than picked round. The
-#: worst legitimate ratio is `sort_ids_by_values` at **0.81** — deliberately so:
-#: its column below is the least favourable shape there is, not a typical one.
-#: The regression this suite exists to catch measured **1.10-1.16**. 0.95 sits
-#: 1.17x above the first and 1.16x below the second, the widest margin available
-#: on both sides at once.
+#: Placed between the two numbers that matter rather than picked round: the
+#: worst ratio the tree legitimately produces, and the regression this suite
+#: exists to catch, which measured **1.10-1.16**.
+#:
+#: It was 0.95, sitting between 0.81 and 1.10. 0.81 was `sort_ids_by_values` on
+#: a column of short distinct strings — the least favourable shape there is,
+#: which is why it was the ceiling. Packing a string key's first eight bytes
+#: took that case to **0.37** and `sort_ids_by_cache` to 0.27, so the ceiling
+#: moved to `batch_cache_fill` and `origin_ids`, both at **0.61**. Measured
+#: over five interleaved rounds on a loaded box, every export's spread was
+#: <= 0.04, so 0.61 is a ceiling and not a sample.
+#:
+#: 0.82 is the geometric midpoint: 1.34x above 0.61 and 1.34x below 1.10, the
+#: widest margin available on both sides at once, and 5x the observed spread
+#: away from the nearest legitimate reading. **Re-derive it rather than nudging
+#: it** — a bar left where the slowest export used to be stops catching
+#: anything the day that export gets faster.
 #:
 #: Not 1.0: a function that has drawn level has stopped paying for the boundary
 #: it crosses, the wheel it lives in and the `unsafe` it is written in, and is
 #: worth reconsidering before it goes backwards.
-MAX_RATIO = 0.95
+MAX_RATIO = 0.82
 
 
 #: Every reference, keyed by the name it stands in for.
