@@ -399,8 +399,8 @@ class TestCompanyRevocation(TestSalesCommon):
 
 
 class TestFavorite(TestSalesCommon):
-    def test_is_favorite_is_per_user(self):
-        team = self.env["crm.team"].create({"name": "Favourite", "company_id": False})
+    def test_is_user_favorite_is_per_user(self):
+        team = self.env["crm.team"].create({"name": "Favorite", "company_id": False})
         team.favorite_user_ids = [(6, 0, [self.user_sales_manager.id])]
         self.env.flush_all()
 
@@ -410,32 +410,32 @@ class TestFavorite(TestSalesCommon):
         ):
             self.env.invalidate_all()
             expected_first = first == self.user_sales_manager
-            self.assertEqual(team.with_user(first).is_favorite, expected_first)
-            self.assertEqual(team.with_user(second).is_favorite, not expected_first)
+            self.assertEqual(team.with_user(first).is_user_favorite, expected_first)
+            self.assertEqual(team.with_user(second).is_user_favorite, not expected_first)
 
-    def test_is_favorite_follows_favorite_user_ids(self):
-        team = self.env["crm.team"].create({"name": "Favourite 2", "company_id": False})
+    def test_is_user_favorite_follows_favorite_user_ids(self):
+        team = self.env["crm.team"].create({"name": "Favorite 2", "company_id": False})
         as_leads = team.with_user(self.user_sales_leads)
-        self.assertFalse(as_leads.is_favorite)
+        self.assertFalse(as_leads.is_user_favorite)
 
         team.favorite_user_ids = [(4, self.user_sales_leads.id)]
-        self.assertTrue(as_leads.is_favorite)
+        self.assertTrue(as_leads.is_user_favorite)
 
         team.favorite_user_ids = [(3, self.user_sales_leads.id)]
-        self.assertFalse(as_leads.is_favorite)
+        self.assertFalse(as_leads.is_user_favorite)
 
     def test_adding_members_refreshes_the_flag(self):
         team = self.env["crm.team"].create(
             {
-                "name": "Favourite 3",
+                "name": "Favorite 3",
                 "company_id": False,
                 "member_ids": [(4, self.user_sales_leads.id)],
             }
         )
         self.env.flush_all()
-        self.assertTrue(team.with_user(self.user_sales_leads).is_favorite)
+        self.assertTrue(team.with_user(self.user_sales_leads).is_user_favorite)
 
-    def test_every_way_of_joining_a_team_grants_the_favourite(self):
+    def test_every_way_of_joining_a_team_grants_the_favorite(self):
         self.env["ir.config_parameter"].sudo().set_param(
             "sales_team.membership_multi", True
         )
@@ -474,7 +474,7 @@ class TestFavorite(TestSalesCommon):
         self.env.flush_all()
         for label, team in teams.items():
             self.assertIn(leads, team.member_ids, f"{label}: membership")
-            self.assertIn(leads, team.favorite_user_ids, f"{label}: favourite")
+            self.assertIn(leads, team.favorite_user_ids, f"{label}: favorite")
 
 
 class TestMultiMembershipActivation(TestSalesCommon):

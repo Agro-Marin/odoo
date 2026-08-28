@@ -12,7 +12,7 @@ export class DocumentFavoriteField extends BooleanFavoriteField {
     }
     await this.props.record.model.orm.call(
       "documents.document",
-      "toggle_favorited",
+      "action_toggle_user_favorite",
       [this.props.record.resId]
     );
     await this.props.record.load();

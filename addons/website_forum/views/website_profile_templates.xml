@@ -122,10 +122,10 @@
                                     </div>
                                 </t>
                             </div>
-                            <t t-if="favourite">
+                            <t t-if="favorite">
                                 <div class="mb-4">
-                                    <h5 class="border-bottom pb-1">Favourite Questions</h5>
-                                    <div class="mb-1" t-foreach="favourite" t-as="question">
+                                    <h5 class="border-bottom pb-1">Favorite Questions</h5>
+                                    <div class="mb-1" t-foreach="favorite" t-as="question">
                                         <t t-call="website_forum.display_post">
                                             <t t-set="hide_fav_icon" t-value="True"/>
                                         </t>

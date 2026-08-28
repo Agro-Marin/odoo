@@ -171,9 +171,11 @@ export class SpreadsheetDashboardAction extends Component {
         if (!this.loader.getActiveDashboard()) {
             return;
         }
-        const { id, is_favorite } = this.loader.getActiveDashboard().data;
-        await this.orm.call("spreadsheet.dashboard", "action_toggle_favorite", [id]);
-        this.loader.getActiveDashboard().data.is_favorite = !is_favorite;
+        const { id, is_user_favorite } = this.loader.getActiveDashboard().data;
+        await this.orm.call("spreadsheet.dashboard", "action_toggle_user_favorite", [
+            id,
+        ]);
+        this.loader.getActiveDashboard().data.is_user_favorite = !is_user_favorite;
     }
 
     toggleSidebar() {

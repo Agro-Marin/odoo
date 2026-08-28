@@ -248,8 +248,8 @@ class TestPickingTypeFavorite(TestStockCommon):
         cls.picking_types = cls.env["stock.picking.type"].search([], limit=3)
         cls.reader = cls.env["res.users"].create(
             {
-                "name": "Favourite Reader",
-                "login": "favourite_reader",
+                "name": "Favorite Reader",
+                "login": "favorite_reader",
                 "group_ids": [
                     Command.set(
                         [
@@ -267,14 +267,14 @@ class TestPickingTypeFavorite(TestStockCommon):
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertEqual(
-            [record.is_favorite for record in self.picking_types],
+            [record.is_user_favorite for record in self.picking_types],
             [True, False, False],
         )
-        self.picking_types.write({"is_favorite": True})
+        self.picking_types.write({"is_user_favorite": True})
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertEqual(
-            [record.is_favorite for record in self.picking_types],
+            [record.is_user_favorite for record in self.picking_types],
             [True, True, True],
         )
 
@@ -283,11 +283,11 @@ class TestPickingTypeFavorite(TestStockCommon):
         self.picking_types.sudo().favorite_user_ids = [Command.set([user.id])]
         self.env.flush_all()
         self.env.invalidate_all()
-        self.picking_types.write({"is_favorite": False})
+        self.picking_types.write({"is_user_favorite": False})
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertEqual(
-            [record.is_favorite for record in self.picking_types],
+            [record.is_user_favorite for record in self.picking_types],
             [False, False, False],
         )
 
@@ -296,18 +296,18 @@ class TestPickingTypeFavorite(TestStockCommon):
         picking_type.sudo().favorite_user_ids = [Command.set([self.env.uid])]
         self.env.flush_all()
         self.env.invalidate_all()
-        self.assertTrue(picking_type.is_favorite)
-        self.assertFalse(picking_type.with_user(self.reader).is_favorite)
+        self.assertTrue(picking_type.is_user_favorite)
+        self.assertFalse(picking_type.with_user(self.reader).is_user_favorite)
 
     def test_writing_the_m2m_invalidates_the_flag(self):
         picking_type = self.picking_types[0]
         picking_type.sudo().favorite_user_ids = [Command.clear()]
         self.env.flush_all()
         self.env.invalidate_all()
-        self.assertFalse(picking_type.is_favorite)
+        self.assertFalse(picking_type.is_user_favorite)
         picking_type.sudo().favorite_user_ids = [Command.link(self.env.uid)]
         self.assertTrue(
-            picking_type.is_favorite,
+            picking_type.is_user_favorite,
             "@api.depends('favorite_user_ids') keeps the flag in step",
         )
 
@@ -316,8 +316,8 @@ class TestPickingTypeFavorite(TestStockCommon):
         picking_type.sudo().favorite_user_ids = [Command.set([self.env.uid])]
         self.env.flush_all()
         model = self.env["stock.picking.type"]
-        self.assertIn(picking_type, model.search([("is_favorite", "=", True)]))
-        self.assertNotIn(picking_type, model.search([("is_favorite", "=", False)]))
+        self.assertIn(picking_type, model.search([("is_user_favorite", "=", True)]))
+        self.assertNotIn(picking_type, model.search([("is_user_favorite", "=", False)]))
 
 
 @tagged("post_install", "-at_install")

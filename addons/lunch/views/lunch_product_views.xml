@@ -113,7 +113,7 @@
                         <main class="col">
                             <div class="d-flex">
                                 <div class="d-flex">
-                                    <field class="pe-1 pt-1" name="is_favorite" widget="lunch_is_favorite" nolabel="1"/>
+                                    <field class="pe-1 pt-1" name="is_user_favorite" widget="lunch_is_user_favorite" nolabel="1"/>
                                     <field name="name" class="fw-bolder fs-5" />
                                 </div>
                                 <div class="text-primary ms-auto">

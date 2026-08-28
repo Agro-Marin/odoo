@@ -46,7 +46,7 @@ class WebsiteForum(WebsiteProfile):
 
             def _get_my_other_forums():
                 post_domain = Domain("create_uid", "=", request.env.uid) | Domain(
-                    "favourite_ids", "=", request.env.uid
+                    "favorite_user_ids", "=", request.env.uid
                 )
                 return request.env["forum.forum"].search(
                     request.website.website_domain()
@@ -497,21 +497,21 @@ class WebsiteForum(WebsiteProfile):
         return request.render("website_forum.post_description_full", values)
 
     @http.route(
-        '/forum/<model("forum.forum"):forum>/question/<model("forum.post"):question>/toggle_favourite',
+        '/forum/<model("forum.forum"):forum>/question/<model("forum.post"):question>/toggle_favorite',
         type="jsonrpc",
         auth="user",
         methods=["POST"],
         website=True,
     )
     def question_toggle_favorite(self, forum, question, **post):
-        favourite = not question.user_favourite
-        question.sudo().favourite_ids = [((favourite and 4) or 3, request.env.uid)]
-        if favourite:
+        favorite = not question.is_user_favorite
+        question._update_user_favorite(favorite)
+        if favorite:
             # Automatically add the user as follower of the posts that he
             # favorites (on unfavorite we chose to keep him as a follower until
             # he decides to not follow anymore).
             question.sudo().message_subscribe(request.env.user.partner_id.ids)
-        return favourite
+        return favorite
 
     @http.route(
         '/forum/<model("forum.forum"):forum>/question/<model("forum.post"):question>/ask_for_close',
@@ -1110,10 +1110,10 @@ class WebsiteForum(WebsiteProfile):
             ]
         )
 
-        # showing Favourite questions of user.
-        favourite = Post.search(
+        # showing Favorite questions of user.
+        favorite = Post.search(
             [
-                ("favourite_ids", "=", user.id),
+                ("favorite_user_ids", "=", user.id),
                 ("forum_id", "in", forums.ids),
                 ("parent_id", "=", False),
             ]
@@ -1182,7 +1182,7 @@ class WebsiteForum(WebsiteProfile):
             "answers": user_answers,
             "count_answers": count_user_answers,
             "followed": followed,
-            "favourite": favourite,
+            "favorite": favorite,
             "up_votes": up_votes,
             "down_votes": down_votes,
             "activities": activities,

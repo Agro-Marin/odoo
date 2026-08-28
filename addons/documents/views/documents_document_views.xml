@@ -19,7 +19,7 @@
                 <filter string="My Documents" name="my_documents_filter"
                     domain="['|', ('owner_id', '=', uid), ('partner_id.user_ids', '=', uid)]" />
                 <filter string="Starred" name="my_favorites_filter"
-                    domain="[('favorited_ids', 'in', uid)]" />
+                    domain="[('favorite_user_ids', 'in', uid)]" />
                 <filter string="Shared with anyone" name="shared_anyone_with_the_link"
                     domain="[('access_via_link', '!=', 'none'), ('is_access_via_link_hidden', '=', False)]" />
                 <separator />
@@ -81,7 +81,7 @@
                 <field name="id" />
                 <field name="active" />
                 <field name="mimetype" />
-                <field name="favorited_ids" />
+                <field name="favorite_user_ids" />
                 <field name="attachment_id" />
                 <field name="res_id" />
                 <field name="folder_id" />
@@ -142,7 +142,7 @@
                                 <div name="document_preview"
                                     class="o_kanban_image_wrapper d-flex justify-content-center position-relative"
                                     t-att-title="fileRequest ? 'Upload file' : ''">
-                                    <field name="is_favorited" nolabel="1"
+                                    <field name="is_user_favorite" nolabel="1"
                                         widget="document_favorite"
                                         class="position-absolute top-0 end-0 p-1 pt-2" />
                                     <img t-if="youtubeVideoToken" alt="Document"
@@ -207,7 +207,7 @@
                                         string="Document" />
                                     <i t-if="!discoverable" class="fa-regular fa-eye-slash me-1"
                                         title="Must have the link to access" />
-                                    <field name="is_favorited" nolabel="1"
+                                    <field name="is_user_favorite" nolabel="1"
                                         widget="document_favorite" class="ms-auto" />
                                 </div>
                                 <div t-else="" class="p-2 pb-0">
@@ -340,7 +340,7 @@
                 decoration-info="shortcut_document_id"
                 default_order="is_folder, create_date DESC, id DESC"
             >
-                <field name="is_favorited" widget="document_favorite" nolabel="1" />
+                <field name="is_user_favorite" widget="document_favorite" nolabel="1" />
                 <field name="type" width="25px" widget="documents_type_icon" nolabel="1" />
                 <field name="name" required="True" readonly="False" />
                 <field name="folder_id" optional="show" />

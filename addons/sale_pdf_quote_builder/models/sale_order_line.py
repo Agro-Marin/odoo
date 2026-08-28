@@ -8,7 +8,7 @@ class SaleOrderLine(models.Model):
 
     available_product_document_ids = fields.Many2many(
         string="Available Product Documents",
-        comodel_name="product.document",
+        comodel_name="documents.document",
         relation="available_sale_order_line_product_document_rel",
         compute="_compute_available_product_document_ids",
         compute_sudo=True,  # To access attached_on_sale
@@ -16,7 +16,7 @@ class SaleOrderLine(models.Model):
     product_document_ids = fields.Many2many(
         string="Product Documents",
         help="The product documents for this order line that will be merged in the PDF quote.",
-        comodel_name="product.document",
+        comodel_name="documents.document",
         relation="sale_order_line_product_document_rel",
         domain="[('id', 'in', available_product_document_ids)]",
         readonly=False,
@@ -36,7 +36,7 @@ class SaleOrderLine(models.Model):
 
     @api.depends("product_id", "product_template_id")
     def _compute_available_product_document_ids(self):
-        available_documents_ordered = self.env["product.document"]._read_group(
+        available_documents_ordered = self.env["documents.document"]._read_group(
             [
                 ("attached_on_sale", "=", "inside"),
                 "|",

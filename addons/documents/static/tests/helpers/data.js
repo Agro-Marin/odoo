@@ -35,8 +35,8 @@ export class DocumentsDocument extends models.Model {
     });
     name = fields.Char();
     thumbnail = fields.Binary();
-    favorited_ids = fields.Many2many({ relation: "res.users" });
-    is_favorited = fields.Boolean({ string: "Name" });
+    favorite_user_ids = fields.Many2many({ relation: "res.users" });
+    is_user_favorite = fields.Boolean({ string: "Name" });
     is_folder = fields.Boolean();
     is_multipage = fields.Boolean();
 
@@ -200,7 +200,7 @@ export class DocumentsDocument extends models.Model {
                 "display_name",
                 "user_folder_id",
                 "is_access_via_link_hidden",
-                "is_favorited",
+                "is_user_favorite",
                 "mail_alias_domain_count",
                 "owner_id",
                 "shortcut_document_id",

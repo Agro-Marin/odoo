@@ -778,7 +778,7 @@
                             <div class="bg-light p-2 rounded">
                                 <div class="position-relative text-center">
                                     <t t-set="attachment_sudo"
-                                        t-value="document_sudo.ir_attachment_id" />
+                                        t-value="document_sudo.attachment_id" />
                                     <t t-set="target"
                                         t-value="attachment_sudo.type == 'url' and '_blank' or '_self'" />
                                     <a

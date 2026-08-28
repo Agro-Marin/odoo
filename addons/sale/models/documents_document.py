@@ -1,8 +1,8 @@
 from odoo import fields, models
 
 
-class ProductDocument(models.Model):
-    _inherit = "product.document"
+class DocumentsDocument(models.Model):
+    _inherit = "documents.document"
 
     attached_on_sale = fields.Selection(
         selection=[

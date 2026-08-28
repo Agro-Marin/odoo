@@ -2,8 +2,8 @@ from odoo import _, fields, models
 from odoo.exceptions import UserError
 
 
-class ProductDocument(models.Model):
-    _inherit = "product.document"
+class DocumentsDocument(models.Model):
+    _inherit = "documents.document"
 
     # Technical field to tell apart Gelato print images from other product documents.
     is_gelato = fields.Boolean(readonly=True)
@@ -19,10 +19,8 @@ class ProductDocument(models.Model):
                 _("Print images must be set on products before they can be ordered.")
             )
 
-        query_string = (
-            f"access_token={self.ir_attachment_id.generate_access_token()[0]}"
-        )
-        url = f"{self.get_base_url()}{self.ir_attachment_id.image_src}?{query_string}"
+        query_string = f"access_token={self.attachment_id.generate_access_token()[0]}"
+        url = f"{self.get_base_url()}{self.attachment_id.image_src}?{query_string}"
         return {
             "type": self.name.lower(),  # Gelato requires lowercase types.
             "url": url,

@@ -574,16 +574,16 @@ class TestCaseDocuments(TransactionCaseDocuments):
         document.attachment_id.unlink()
         self.assertFalse(document.exists(), "the document should not exist")
 
-    def test_is_favorited(self):
+    def test_is_user_favorite(self):
         user = new_test_user(
             self.env, "test user", groups="documents.group_documents_user"
         )
         document = self.env["documents.document"].create(
             {"datas": GIF, "folder_id": self.folder_b.id}
         )
-        document.favorited_ids = user
-        self.assertFalse(document.is_favorited)
-        self.assertTrue(document.with_user(user).is_favorited)
+        document.favorite_user_ids = user
+        self.assertFalse(document.is_user_favorite)
+        self.assertTrue(document.with_user(user).is_user_favorite)
 
     def test_neuter_mimetype(self):
         self.folder_b.action_update_access_rights(

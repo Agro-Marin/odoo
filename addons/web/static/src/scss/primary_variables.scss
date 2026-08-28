@@ -134,19 +134,19 @@ $o-list-footer-font-weight: bold !default;
 
 $o-text-colors-custom: (
     "action": $o-action-text,
-    "favourite": $o-main-favorite-color,
+    "favorite": $o-main-favorite-color,
 ) !default;
 
 $o-bg-colors-custom: (
     "action": $o-action,
     "view": $o-view-background-color,
-    "favourite": $o-main-favorite-color,
+    "favorite": $o-main-favorite-color,
 ) !default;
 
 $o-text-bg-contrast: 4.5 !default;
 
 $o-btn-custom: (
-    "favourite": $o-main-favorite-color,
+    "favorite": $o-main-favorite-color,
 ) !default;
 
 $o-input-padding-y: 2px !default;

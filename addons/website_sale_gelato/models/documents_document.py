@@ -2,8 +2,8 @@ from odoo import _, api, models
 from odoo.exceptions import ValidationError
 
 
-class ProductDocument(models.Model):
-    _inherit = "product.document"
+class DocumentsDocument(models.Model):
+    _inherit = "documents.document"
 
     # === CONSTRAINT METHODS === #
 

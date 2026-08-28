@@ -3026,3 +3026,19 @@ class TestOrmCountDelegate(models.Model):
     container_id = fields.Many2one(
         "test_orm.count.container", required=True, ondelete="cascade"
     )
+
+
+class TestOrmUserFavorite(models.Model):
+    _name = "test_orm.user.favorite"
+    _description = "test_orm.user.favorite"
+    _inherit = ["mixin.user.favorite"]
+    _order = "is_user_favorite desc, id"
+
+    name = fields.Char()
+
+
+class TestOrmUserFavoriteLine(models.Model):
+    _name = "test_orm.user.favorite.line"
+    _description = "test_orm.user.favorite.line"
+
+    favorite_id = fields.Many2one("test_orm.user.favorite")

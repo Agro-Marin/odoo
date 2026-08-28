@@ -105,7 +105,7 @@ class IrActionsReport(models.Model):
         :param BrandedFileWriter writer: the writer to which pages needs to be added
         :param recordset document: the document that needs to be added to the writer and get its
                                    form fields mapped. Either a quotation.document or a
-                                   product.document.
+                                   documents.document.
         :param dict form_fields_values_mapping: the existing prefixed form field names - values that
                                                 will be updated to add those of the current document
         :param str prefix: the prefix needed to update existing form field name, to be able to add
@@ -141,7 +141,7 @@ class IrActionsReport(models.Model):
         :param recordset form_field: sale.pdf.form.field that has a valid path.
         :param recordset order: sale.order from where the values and timezone need to be taken
         :param recordset order_line: sale.order.line from where the values need to be taken
-                                     (optional, only for product.document)
+                                     (optional, only for documents.document)
         :return: value that need to be shown in the final pdf. Multiple values are joined by ', '
         :rtype: str
         """
@@ -199,7 +199,7 @@ class IrActionsReport(models.Model):
 
         :param recordset document: the document that needs to be added to the writer and get its
                                    form fields mapped. Either a quotation.document or a
-                                   product.document.
+                                   documents.document.
         :param str form_field_name: the name of the form field as present in the PDF.
         :param recordset order: the sale order from where to take the existing mapping.
         :param recordset order_line: the sale order line linked to the document (optional)

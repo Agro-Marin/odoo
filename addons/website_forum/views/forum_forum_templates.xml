@@ -9,8 +9,8 @@
         <t t-set="_page_name" t-value="'my_posts'"/>
         <t t-set="_page_name_label">My Posts</t>
     </t>
-    <t t-elif="my == 'favourites'">
-        <t t-set="_page_name" t-value="'my_favourites'"/>
+    <t t-elif="my == 'favorites'">
+        <t t-set="_page_name" t-value="'my_favorites'"/>
         <t t-set="_page_name_label">My Favorites</t>
     </t>
     <t t-else="" t-set="_page_name" t-value="'list_questions'"/>

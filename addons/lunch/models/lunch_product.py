@@ -9,7 +9,7 @@ class LunchProduct(models.Model):
     """ Products available to order. A product is linked to a specific vendor. """
     _name = 'lunch.product'
     _description = 'Lunch Product'
-    _inherit = ['mixin.image']
+    _inherit = ['mixin.image', 'mixin.user.favorite']
     _order = 'name'
     _check_company_auto = True
 
@@ -26,8 +26,7 @@ class LunchProduct(models.Model):
     new_until = fields.Date('New Until')
     is_new = fields.Boolean(compute='_compute_is_new')
 
-    favorite_user_ids = fields.Many2many('res.users', 'lunch_product_favorite_user_rel', 'product_id', 'user_id', check_company=True)
-    is_favorite = fields.Boolean(compute='_compute_is_favorite', inverse='_inverse_is_favorite')
+    favorite_user_ids = fields.Many2many(check_company=True)
 
     last_order_date = fields.Date(compute='_compute_last_order_date')
 
@@ -48,12 +47,6 @@ class LunchProduct(models.Model):
                 product.is_new = today <= product.new_until
             else:
                 product.is_new = False
-
-    @api.depends_context('uid')
-    @api.depends('favorite_user_ids')
-    def _compute_is_favorite(self):
-        for product in self:
-            product.is_favorite = self.env.user in product.favorite_user_ids
 
     @api.depends_context('uid')
     def _compute_last_order_date(self):
@@ -98,21 +91,3 @@ class LunchProduct(models.Model):
         invalid_products = self.filtered(lambda product: product.active and not product.supplier_id.active)
         if invalid_products:
             raise UserError(_("The following suppliers are archived. You should either unarchive the suppliers or change the supplier of the product.\n%s", '\n'.join(invalid_products.supplier_id.mapped('name'))))
-
-    def _inverse_is_favorite(self):
-        """ Handled in the write() """
-        return
-
-    def write(self, vals):
-        if 'is_favorite' in vals:
-            if vals.pop('is_favorite'):
-                commands = [(4, product.id) for product in self]
-            else:
-                commands = [(3, product.id) for product in self]
-            self.env.user.write({
-                'favorite_lunch_product_ids': commands,
-            })
-
-        if not vals:
-            return True
-        return super().write(vals)

@@ -543,9 +543,9 @@ class TestDocumentsArchiveAuthorization(TransactionCaseDocuments):
 
 
 @tagged("post_install", "-at_install")
-class TestDocumentsFavourites(TransactionCaseDocuments):
+class TestDocumentsFavorites(TransactionCaseDocuments):
     @users("documents@example.com")
-    def test_toggle_favorited_requires_read_access(self):
+    def test_toggle_user_favorite_requires_read_access(self):
         hidden = (
             self.env["documents.document"]
             .sudo()
@@ -563,14 +563,12 @@ class TestDocumentsFavourites(TransactionCaseDocuments):
         self.assertEqual(document.user_permission, "none")
 
         with self.assertRaises(AccessError):
-            document.toggle_favorited_multi()
-        with self.assertRaises(AccessError):
-            document.toggle_favorited()
+            document.action_toggle_user_favorite()
 
-        self.assertNotIn(self.env.user, hidden.favorited_ids)
+        self.assertNotIn(self.env.user, hidden.favorite_user_ids)
 
     @users("documents@example.com")
-    def test_toggle_favorited_still_works_for_a_viewer(self):
+    def test_toggle_user_favorite_still_works_for_a_viewer(self):
         shared = (
             self.env["documents.document"]
             .sudo()
@@ -586,10 +584,13 @@ class TestDocumentsFavourites(TransactionCaseDocuments):
         document = self.env["documents.document"].browse(shared.id)
         self.assertEqual(document.user_permission, "view")
 
-        self.assertTrue(document.toggle_favorited())
-        self.assertIn(self.env.user, shared.favorited_ids)
-        self.assertFalse(document.toggle_favorited())
-        self.assertNotIn(self.env.user, shared.favorited_ids)
+        document.action_toggle_user_favorite()
+        self.assertTrue(document.is_user_favorite)
+        self.assertIn(self.env.user, shared.favorite_user_ids)
+
+        document.action_toggle_user_favorite()
+        self.assertFalse(document.is_user_favorite)
+        self.assertNotIn(self.env.user, shared.favorite_user_ids)
 
 
 @tagged("post_install", "-at_install")

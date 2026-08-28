@@ -6,6 +6,7 @@
     "website": "https://www.odoo.com/app/ecommerce",
     "version": "1.1",
     "depends": [
+        "documents",
         "website_payment",
         "website_mail",
         "portal_rating",

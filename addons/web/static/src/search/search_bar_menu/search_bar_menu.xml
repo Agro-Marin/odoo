@@ -113,7 +113,7 @@
                         <t t-set="sharedFavoritesItems" t-value="sharedFavorites" />
                         <t t-set="favoriteItems" t-value="favorites" />
                         <div class="px-3 fs-5 mb-2">
-                            <i class="me-2 text-favourite" t-att-class="facet_icons.favorite"/>
+                            <i class="me-2 text-favorite" t-att-class="facet_icons.favorite"/>
                             <h5 class="o_dropdown_title d-inline">Favorites</h5>
                         </div>
                         <t t-foreach="favoriteItems" t-as="item" t-key="item.id">

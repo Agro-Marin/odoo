@@ -7,7 +7,7 @@ from odoo.tools.misc import str2bool
 
 class CrmTeam(models.Model):
     _name = "crm.team"
-    _inherit = ["mixin.mail.thread"]
+    _inherit = ["mixin.mail.thread", "mixin.user.favorite"]
     _description = "Sales Team"
     _order = "sequence ASC, create_date DESC, id DESC"
     _check_company_auto = True
@@ -78,17 +78,11 @@ class CrmTeam(models.Model):
         default=_default_color,
     )
     favorite_user_ids = fields.Many2many(
-        "res.users",
-        "team_favorite_user_rel",
-        "team_id",
-        "user_id",
         string="Favorite Members",
         default=_default_favorite_user_ids,
     )
-    is_favorite = fields.Boolean(
+    is_user_favorite = fields.Boolean(
         string="Show on dashboard",
-        compute="_compute_is_favorite",
-        inverse="_inverse_is_favorite",
         help="Favorite teams to display them in the dashboard and access them easily.",
     )
     dashboard_button_name = fields.Char(
@@ -182,12 +176,6 @@ class CrmTeam(models.Model):
         for team in self:
             team.member_company_ids = team.company_id or all_companies
 
-    @api.depends("favorite_user_ids")
-    @api.depends_context("uid")
-    def _compute_is_favorite(self):
-        for team in self:
-            team.is_favorite = self.env.user in team.favorite_user_ids
-
     def _compute_dashboard_button_name(self):
         self.dashboard_button_name = _("Dashboard")
 
@@ -214,15 +202,6 @@ class CrmTeam(models.Model):
             self.env["crm.team.member"].create(to_create)
         if to_archive:
             to_archive.action_archive()
-
-    def _inverse_is_favorite(self):
-        sudoed_self = self.sudo()
-        to_fav = sudoed_self.filtered(
-            lambda team: self.env.user not in team.favorite_user_ids
-        )
-        to_fav.write({"favorite_user_ids": [(4, self.env.uid)]})
-        (sudoed_self - to_fav).write({"favorite_user_ids": [(3, self.env.uid)]})
-        return True
 
     def action_primary_channel_button(self):
         return False

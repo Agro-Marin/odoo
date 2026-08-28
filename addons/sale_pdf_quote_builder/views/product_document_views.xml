@@ -2,9 +2,9 @@
 <odoo>
 
     <record id="view_product_document_form" model="ir.ui.view">
-        <field name="name">product.document.form.sale</field>
-        <field name="model">product.document</field>
-        <field name="inherit_id" ref="product.view_product_document_form"/>
+        <field name="name">documents.document.form.sale</field>
+        <field name="model">documents.document</field>
+        <field name="inherit_id" ref="documents_product.view_documents_document_product_form"/>
         <field name="arch" type="xml">
             <field name="datas" position="after">
                 <button

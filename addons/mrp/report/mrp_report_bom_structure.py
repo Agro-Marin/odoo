@@ -1228,7 +1228,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         index = self.env.context.get("mrp_bom_attachment_index")
         if index is not None:
             return index
-        documents = self.env["product.document"].search_read(
+        documents = self.env["documents.document"].search_read(
             [("attached_on_mrp", "=", "bom")], ["res_model", "res_id"], load=False
         )
         index = {"product.product": set(), "product.template": set()}

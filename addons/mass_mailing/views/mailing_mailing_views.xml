@@ -12,6 +12,11 @@
                             domain="[('user_id', '=', uid)]"
                             help="Mailings that are assigned to me"/>
                     <separator/>
+                    <filter string="Favorites" name="filter_favorite"
+                            domain="[('is_favorite', '=', True)]"/>
+                    <filter string="My Favorites" name="filter_my_favorite"
+                            domain="[('is_user_favorite', '=', True)]"/>
+                    <separator/>
                     <filter name="filter_sent_date" date="sent_date"/>
                     <separator/>
                     <filter string="A/B Tests" name="filter_ab_test" domain="[('ab_testing_enabled', '=', True)]"/>
@@ -75,12 +80,12 @@
                         <button type="object"
                             name="action_set_favorite"
                             class="btn-secondary"
-                            invisible="favorite"
+                            invisible="is_favorite"
                             string="Add to Templates"/>
                         <button type="object"
                             name="action_remove_favorite"
                             class="btn-secondary"
-                            invisible="not favorite"
+                            invisible="not is_favorite"
                             string="Remove from Templates"/>
                         <field name="state" readonly="1" widget="statusbar" statusbar_visible="draft,in_queue,sending,done"/>
                     </header>

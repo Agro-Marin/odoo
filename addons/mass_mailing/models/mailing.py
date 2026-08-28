@@ -44,6 +44,8 @@ class MailingMailing(models.Model):
         "mixin.mail.attachment.owner",
         "mixin.mail.render",
         "mixin.utm.source",
+        "mixin.favorite",
+        "mixin.user.favorite",
     ]
     _order = "calendar_date DESC"
     _rec_name = "subject"
@@ -126,10 +128,10 @@ class MailingMailing(models.Model):
         store=True,
         precompute=True,
     )
-    favorite = fields.Boolean("Favorite", copy=False, tracking=True)
-    favorite_date = fields.Datetime(
+    is_favorite = fields.Boolean(copy=False, tracking=True)
+    date_favorite = fields.Datetime(
         "Favorite Date",
-        compute="_compute_favorite_date",
+        compute="_compute_date_favorite",
         store=True,
         copy=False,
         help="When this mailing was added in the favorites",
@@ -429,13 +431,13 @@ class MailingMailing(models.Model):
             else:
                 mailing.email_from = mailing.email_from or user_email
 
-    @api.depends("favorite")
-    def _compute_favorite_date(self):
-        favorited = self.filtered("favorite")
-        (self - favorited).favorite_date = False
+    @api.depends("is_favorite")
+    def _compute_date_favorite(self):
+        favorited = self.filtered("is_favorite")
+        (self - favorited).date_favorite = False
         favorited.filtered(
-            lambda mailing: not mailing.favorite_date
-        ).favorite_date = fields.Datetime.now()
+            lambda mailing: not mailing.date_favorite
+        ).date_favorite = fields.Datetime.now()
 
     def _compute_total(self):
         for mass_mailing in self:
@@ -859,7 +861,7 @@ class MailingMailing(models.Model):
 
     def action_set_favorite(self):
         """Add the current mailing in the favorites list."""
-        self.favorite = True
+        self.is_favorite = True
 
         return {
             "type": "ir.actions.client",
@@ -877,7 +879,7 @@ class MailingMailing(models.Model):
 
     def action_remove_favorite(self):
         """Remove the current mailing from the favorites list."""
-        self.favorite = False
+        self.is_favorite = False
 
         return {
             "type": "ir.actions.client",
@@ -1142,14 +1144,14 @@ class MailingMailing(models.Model):
         while keeping using it, without cluttering the Kanban view if they're a lot of
         templates.
         """
-        domain = Domain("favorite", "=", True)
+        domain = Domain("is_favorite", "=", True)
         if extra_domain:
             domain &= Domain(extra_domain)
 
         values_list = self.with_context(active_test=False).search_read(
             domain=domain,
             fields=["id", "subject", "body_arch", "user_id", "mailing_model_id"],
-            order="favorite_date DESC",
+            order="date_favorite DESC",
         )
 
         values_list = [

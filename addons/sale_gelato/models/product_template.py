@@ -20,7 +20,7 @@ class ProductTemplate(models.Model):
     )
     gelato_image_ids = fields.One2many(
         string="Gelato Print Images",
-        comodel_name="product.document",
+        comodel_name="documents.document",
         inverse_name="res_id",
         domain=[("is_gelato", "=", True)],
         readonly=True,
@@ -197,7 +197,7 @@ class ProductTemplate(models.Model):
             # Gelato might send several print images for the same placement if several layers were
             # defined, but we keep only one because their API only accepts one image per placement.
             print_image_found = bool(
-                self.env["product.document"].search_count(
+                self.env["documents.document"].search_count(
                     [
                         ("name", "ilike", print_image_data["printArea"]),
                         ("res_id", "=", self.id),

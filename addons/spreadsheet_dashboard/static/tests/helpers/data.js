@@ -21,7 +21,7 @@ export class SpreadsheetDashboard extends models.Model {
     is_published = fields.Boolean({ string: "Is published" });
     dashboard_group_id = fields.Many2one({ relation: "spreadsheet.dashboard.group" });
     favorite_user_ids = fields.Many2many({ relation: "res.users", string: "Favorite Users" });
-    is_favorite = fields.Boolean({ compute: "_compute_is_favorite", string: "Is Favorite" });
+    is_user_favorite = fields.Boolean({ compute: "_compute_is_user_favorite", string: "Is Favorite" });
     // Present on the deployed model whenever spreadsheet_dashboard_edition is
     // installed (which adds it and unconditionally patches the dashboard loader
     // to read it into the groups fetch spec). The unit-test bundle always loads
@@ -30,9 +30,9 @@ export class SpreadsheetDashboard extends models.Model {
     // mock (test_data.js) with the same definition.
     is_from_data = fields.Boolean({ string: "Is from Data", default: false });
 
-    _compute_is_favorite() {
+    _compute_is_user_favorite() {
         for (const record of this) {
-            record.is_favorite = record.favorite_user_ids.includes(this.env.uid);
+            record.is_user_favorite = record.favorite_user_ids.includes(this.env.uid);
         }
     }
 

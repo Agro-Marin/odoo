@@ -1,1 +1,1 @@
-from . import catalog, product_document, pricelist_report
+from . import catalog, pricelist_report

@@ -173,7 +173,7 @@
         <field name="inherit_id" ref="product.view_product_template_form_only" />
         <field name="priority" eval="15" />
         <field name="arch" type="xml">
-            <button name="action_view_documents" position="before">
+            <span id="button_documents_before" position="before">
                 <t groups="stock.group_stock_user">
                     <field name="tracking" invisible="1" />
                     <field name="show_on_hand_qty_status_button" invisible="1" />
@@ -216,8 +216,8 @@
                         </div>
                     </button>
                 </t>
-            </button>
-            <button name="action_view_documents" position="after">
+            </span>
+            <span id="button_documents_after" position="after">
                 <t groups="stock.group_stock_user">
                     <button type="object"
                         name="action_view_orderpoints"
@@ -308,7 +308,7 @@
                         </div>
                     </button>
                 </t>
-            </button>
+            </span>
             <xpath expr="//label[@for='weight']" position="before">
                 <field name="responsible_id" domain="[('share', '=', False)]"
                     widget="many2one_avatar_user" groups="stock.group_stock_user" />

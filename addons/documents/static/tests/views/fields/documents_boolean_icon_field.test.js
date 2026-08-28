@@ -13,7 +13,7 @@ test("Document boolean icon field in kanban", async () => {
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(2, "myDoc", {
             folder_id: 1,
-            is_favorited: true,
+            is_user_favorite: true,
         }),
     ]);
     const documents = serverData["documents.document"];
@@ -27,7 +27,7 @@ test("Document boolean icon field in kanban", async () => {
                     <t t-name="card">
                         <h1><field name="name"/></h1>
                         <div t-attf-class="test-{{record.id.raw_value}}">
-                            <field name="is_favorited" widget="documents_boolean_icon"
+                            <field name="is_user_favorite" widget="documents_boolean_icon"
                                 options="{'icon': 'fa-fw fa-times', 'btn_false_class': 'btn-danger', 'btn_true_class': 'btn-success'}"/>
                         </div>
                     </t>
@@ -38,7 +38,7 @@ test("Document boolean icon field in kanban", async () => {
         const base = `test-${doc.id}`;
         expect(`.${base} i.fa-fw`).toHaveCount(1);
         expect(`.${base} i.fa-times`).toHaveCount(1);
-        if (doc.is_favorited) {
+        if (doc.is_user_favorite) {
             expect(`.${base} button`).toHaveClass("btn btn-success");
             await contains(`.${base} button`).click();
             expect(`.${base} button`).toHaveClass("btn btn-danger");

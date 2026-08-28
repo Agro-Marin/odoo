@@ -25,7 +25,7 @@
                     t-if="loader.getActiveDashboard()"
                     title="Toggle favorite"
                     t-on-click="toggleFavorite"
-                    t-attf-class="o_dashboard_star align-middle lh-base fa-lg {{!loader.getActiveDashboard().data.is_favorite ? 'fa-regular fa-star' : 'fa-solid fa-star'}}"
+                    t-attf-class="o_dashboard_star align-middle lh-base fa-lg {{!loader.getActiveDashboard().data.is_user_favorite ? 'fa-regular fa-star' : 'fa-solid fa-star'}}"
                 />
                 <div class="ms-1 o_search_toggler" t-if="env.isSmall">
                     <t t-component="searchBarToggler.component" t-props="searchBarToggler.props"/>

@@ -1048,7 +1048,7 @@ class MrpBom(models.Model):
         product_ids, template_ids = self._get_extra_attachment_targets()
         return self._search_extra_attachments(
             product_ids, template_ids
-        ).ir_attachment_id
+        ).attachment_id
 
     def _get_extra_attachments_by_bom(self):
         """Same answer as ``_get_extra_attachments`` per BoM, in one search."""
@@ -1059,8 +1059,8 @@ class MrpBom(models.Model):
             all_products.update(product_ids)
             all_templates.update(template_ids)
         documents = self._search_extra_attachments(all_products, all_templates)
-        by_product = defaultdict(lambda: self.env["product.document"])
-        by_template = defaultdict(lambda: self.env["product.document"])
+        by_product = defaultdict(lambda: self.env["documents.document"])
+        by_template = defaultdict(lambda: self.env["documents.document"])
         for document in documents:
             target = (
                 by_product if document.res_model == "product.product" else by_template
@@ -1068,12 +1068,12 @@ class MrpBom(models.Model):
             target[document.res_id] |= document
         result = {}
         for bom, (product_ids, template_ids) in targets_by_bom.items():
-            documents = self.env["product.document"]
+            documents = self.env["documents.document"]
             for product_id in product_ids:
                 documents |= by_product[product_id]
             for template_id in template_ids:
                 documents |= by_template[template_id]
-            result[bom] = documents.ir_attachment_id
+            result[bom] = documents.attachment_id
         return result
 
     def _get_extra_attachment_targets(self):
@@ -1099,7 +1099,7 @@ class MrpBom(models.Model):
                 & Domain("res_id", "in", template_ids)
             )
         )
-        return self.env["product.document"].search(domain)
+        return self.env["documents.document"].search(domain)
 
     @api.model
     def _skip_for_no_variant(

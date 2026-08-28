@@ -93,14 +93,14 @@
             <field name="model">product.template</field>
             <field name="inherit_id" ref="stock.product_template_form_view_procurement_button"/>
             <field name="arch" type="xml">
-                <button name="action_view_documents" position="before">
+                <span id="button_documents_before" position="before">
                     <button class="oe_stat_button" name="%(template_open_bom)d" type="action"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu'" icon="fa-flask">
                         <field string="Bill of Materials" name="bom_count" widget="statinfo" />
                     </button>
-                </button>
-                <button name="action_view_documents" position="after">
+                </span>
+                <span id="button_documents_after" position="after">
                     <button class="oe_stat_button" name="action_used_in_bom" type="object"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu' or used_in_bom_count == 0" icon="fa-level-up">
@@ -117,7 +117,7 @@
                             <span class="o_stat_text">Manufactured</span>
                         </div>
                     </button>
-                </button>
+                </span>
             </field>
         </record>
 

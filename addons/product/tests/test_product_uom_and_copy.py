@@ -47,32 +47,6 @@ class TestDuplicatedRecordsetCopy(TransactionCase):
         vals = self._assert_copy_data_tolerates_a_none_entry(pricelist)
         self.assertEqual(vals["name"], "Dup PL (copy)")
 
-    def test_copy_duplicated_document(self):
-        template = self.env["product.template"].create(
-            {"name": "Doc Holder", "uom_id": self.uom_unit.id}
-        )
-        document = self.env["product.document"].create(
-            {
-                "ir_attachment_id": self.env["ir.attachment"]
-                .create(
-                    {
-                        "name": "Dup Doc",
-                        "raw": b"x",
-                        "res_model": "product.template",
-                        "res_id": template.id,
-                    }
-                )
-                .id
-            }
-        )
-        attachments_before = self.env["ir.attachment"].search_count([])
-        vals = self._assert_copy_data_tolerates_a_none_entry(document)
-        self.assertEqual(
-            self.env["ir.attachment"].search_count([]), attachments_before + 1
-        )
-        self.assertTrue(vals["ir_attachment_id"])
-        self.assertNotEqual(vals["ir_attachment_id"], document.ir_attachment_id.id)
-
     def test_copy_several_variants_of_one_template(self):
         attribute = self.env["product.attribute"].create({"name": "Dup Size"})
         values = self.env["product.attribute.value"].create(

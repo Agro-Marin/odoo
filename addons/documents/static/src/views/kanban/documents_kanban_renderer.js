@@ -61,7 +61,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
             _t("Toggle favorite"),
             async () => {
                 if (this.selection.length) {
-                    await this.env.model.orm.call("documents.document", "toggle_favorited_multi", [
+                    await this.env.model.orm.call("documents.document", "action_toggle_user_favorite", [
                         this.selection.map((record) => record.resId),
                     ]);
                     this.env.model.load();

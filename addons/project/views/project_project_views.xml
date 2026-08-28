@@ -123,7 +123,7 @@
 
                     <div class="oe_title">
                         <h1 class="d-flex flex-row">
-                            <field name="is_favorite" nolabel="1" widget="project_is_favorite" class="me-2" options="{'autosave': False}"/>
+                            <field name="is_user_favorite" nolabel="1" widget="project_is_user_favorite" class="me-2" options="{'autosave': False}"/>
                             <field name="name" options="{'line_breaks': False}" widget="text" class="o_text_overflow" placeholder="e.g. Office Party"/>
                         </h1>
                     </div>
@@ -288,7 +288,7 @@
             <field name="name">project.project.list</field>
             <field name="model">project.project</field>
             <field name="arch" type="xml">
-                <list decoration-muted="active == False" string="Projects" multi_edit="1" sample="1" default_order="is_favorite desc, sequence, name, id" js_class="project_project_list">
+                <list decoration-muted="active == False" string="Projects" multi_edit="1" sample="1" default_order="is_user_favorite desc, sequence, name, id" js_class="project_project_list">
                     <field name="sequence" column_invisible="True"/>
                     <field name="message_needaction" column_invisible="True"/>
                     <field name="active" column_invisible="True"/>
@@ -296,7 +296,7 @@
                     <field name="can_mark_milestone_as_done" column_invisible="True"/>
                     <field name="is_milestone_deadline_exceeded" column_invisible="1"/>
                     <field name="allow_milestones" column_invisible="True"/>
-                    <field name="is_favorite" string="Favorite" nolabel="1" widget="project_is_favorite" optional="hide"/>
+                    <field name="is_user_favorite" string="Favorite" nolabel="1" widget="project_is_user_favorite" optional="hide"/>
                     <field name="name" class="fw-bold"/>
                     <field name="partner_id" optional="show" string="Customer" invisible="is_template"/>
                     <field name="company_id" optional="show" groups="base.group_multi_company" options="{'no_create': True, 'no_open': True}"/>
@@ -459,7 +459,7 @@
                     action="action_view_tasks" type="object"
 		    quick_create_view="project.quick_create_project_form"
                     sample="1"
-                    default_order="is_favorite desc, sequence, name, id"
+                    default_order="is_user_favorite desc, sequence, name, id"
                 >
                     <field name="allow_milestones"/>
                     <field name="rating_child_count" />
@@ -526,7 +526,7 @@
                         <t t-name="card">
                             <main class="o_project_kanban_main">
                                 <div class="d-flex align-items-baseline gap-1">
-                                    <field name="is_favorite" widget="project_is_favorite" nolabel="1"/>
+                                    <field name="is_user_favorite" widget="project_is_user_favorite" nolabel="1"/>
                                     <span class="text-truncate d-block fs-4 fw-bold" t-att-title="record.display_name.value"><field name="display_name"/></span>
                                 </div>
                                 <div class="o_project_kanban_body min-w-0 pb-4 me-2">
@@ -642,7 +642,7 @@
                     js_class="project_project_calendar">
                     <field name="partner_id" invisible="not partner_id"/>
                     <field name="user_id" widget="many2one_avatar_user" invisible="not user_id"/>
-                    <field name="is_favorite" widget="project_is_favorite" nolabel="1" string="Favorite"/>
+                    <field name="is_user_favorite" widget="project_is_user_favorite" nolabel="1" string="Favorite"/>
                     <field name="phase_color" invisible="1"/>
                     <field name="phase_id" groups="project.group_project_stages" invisible="not phase_id"/>
                     <field name="last_update_color" invisible="1"/>
@@ -796,7 +796,7 @@
             <field name="arch" type="xml">
                 <list position="attributes">
                     <attribute name="js_class"></attribute>
-                    <attribute name="default_order">sequence, is_favorite desc, name, id</attribute>
+                    <attribute name="default_order">sequence, is_user_favorite desc, name, id</attribute>
                 </list>
                 <field name="sequence" position="attributes">
                     <attribute name="column_invisible">False</attribute>

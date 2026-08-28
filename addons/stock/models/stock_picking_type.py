@@ -1,7 +1,7 @@
 import json
 from datetime import UTC
 
-from odoo import Command, _, api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL
@@ -11,9 +11,9 @@ from odoo.addons.base.models.ir_actions_actions import _eval_dict_or_default
 
 class StockPickingType(models.Model):
     _name = "stock.picking.type"
-    _inherit = ["mixin.date.category"]
+    _inherit = ["mixin.date.category", "mixin.user.favorite"]
     _description = "Picking Type"
-    _order = "is_favorite desc, sequence, id"
+    _order = "is_user_favorite desc, sequence, id"
     _rec_names_search = ["name", "warehouse_id.name"]
     _check_company_auto = True
 
@@ -243,19 +243,7 @@ class StockPickingType(models.Model):
 
     picking_properties_definition = fields.PropertiesDefinition("Picking Properties")
 
-    favorite_user_ids = fields.Many2many(
-        comodel_name="res.users",
-        relation="picking_type_favorite_user_rel",
-        column1="picking_type_id",
-        column2="user_id",
-    )
-    is_favorite = fields.Boolean(
-        string="Show Operation in Overview",
-        compute="_compute_is_favorite",
-        compute_sudo=True,
-        inverse="_inverse_is_favorite",
-        search="_search_is_favorite",
-    )
+    is_user_favorite = fields.Boolean(string="Show Operation in Overview")
 
     show_operations = fields.Boolean(
         string="Show Detailed Operations",
@@ -431,31 +419,6 @@ class StockPickingType(models.Model):
                     to_update["default_location_dest_id"] |= picking_type
         for field_name, picking_types in to_update.items():
             picking_types.write({field_name: stock_location.id})
-
-    def _order_field_to_sql(self, alias, field_name, direction, nulls, query):
-        if field_name == "is_favorite":
-            favorites = self._fields["favorite_user_ids"]
-            sql_field = SQL(
-                "%s IN (SELECT %s FROM %s WHERE %s = %s)",
-                SQL.identifier(alias, "id"),
-                SQL.identifier(favorites.column1),
-                SQL.identifier(favorites.relation),
-                SQL.identifier(favorites.column2),
-                self.env.uid,
-            )
-            if query._any_value_orderby:
-                sql_field = SQL("ANY_VALUE(%s)", sql_field)
-            else:
-                query._order_groupby.append(sql_field)
-            return SQL("%s %s %s", sql_field, direction, nulls)
-
-        return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
-
-    @api.depends("favorite_user_ids")
-    @api.depends_context("uid")
-    def _compute_is_favorite(self):
-        for picking_type in self:
-            picking_type.is_favorite = self.env.user in picking_type.favorite_user_ids
 
     @api.depends("code")
     def _compute_hide_reservation_method(self):
@@ -664,12 +627,6 @@ class StockPickingType(models.Model):
         self._update_graph_data(summaries)
 
     @api.model
-    def _search_is_favorite(self, operator, value):
-        if operator != "in" or set(value) != {True}:
-            return NotImplemented
-        return [("favorite_user_ids", "in", [self.env.uid])]
-
-    @api.model
     def _search_display_name(self, operator, value):
         if operator in ("in", "not in"):
             return NotImplemented
@@ -684,11 +641,6 @@ class StockPickingType(models.Model):
             & Domain("name", positive, picking_type_name)
         ) | Domain("name", positive, value)
         return matched if positive == operator else ~matched
-
-    def _inverse_is_favorite(self):
-        to_favorite = self.filtered("is_favorite").sudo()
-        to_favorite.favorite_user_ids = [Command.link(self.env.uid)]
-        (self.sudo() - to_favorite).favorite_user_ids = [Command.unlink(self.env.uid)]
 
     @api.onchange("code")
     def _onchange_picking_code(self):

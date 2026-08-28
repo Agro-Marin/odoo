@@ -37,7 +37,7 @@ export const documentsCogMenuItemStarAdd = {
         DocumentsCogMenuItem.isVisible(
             env,
             ({ folder, documentService }) =>
-                documentService.isEditable(folder) && !folder.is_favorited
+                documentService.isEditable(folder) && !folder.is_user_favorite
         ),
 };
 
@@ -48,6 +48,6 @@ export const documentsCogMenuItemStarRemove = {
         DocumentsCogMenuItem.isVisible(
             env,
             ({ folder, documentService }) =>
-                documentService.isEditable(folder) && folder.is_favorited
+                documentService.isEditable(folder) && folder.is_user_favorite
         ),
 };

@@ -28,7 +28,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
 
         cls.sale_order.date_validity = "2020-11-04"
         cls.sale_order.partner_id.tz = "Europe/Brussels"
-        cls.env["product.document"].search([]).action_archive()
+        cls.env["documents.document"].search([]).action_archive()
         cls.env["quotation.document"].search([]).action_archive()
 
         with file_open(forms_pdf, "rb") as file:
@@ -57,20 +57,20 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
             [
                 {
                     "name": "Header",
-                    "ir_attachment_id": att_header.id,
+                    "attachment_id": att_header.id,
                     "document_type": "header",
                 },
                 {
                     "name": "Footer",
-                    "ir_attachment_id": att_footer.id,
+                    "attachment_id": att_footer.id,
                     "document_type": "footer",
                 },
             ]
         )
-        cls.product_document = cls.env["product.document"].create(
+        cls.product_document = cls.env["documents.document"].create(
             {
                 "name": "Product Document",
-                "ir_attachment_id": att_prod_doc.id,
+                "attachment_id": att_prod_doc.id,
                 "attached_on_sale": "inside",
                 "res_model": "product.product",
                 "res_id": cls.product.id,
@@ -94,7 +94,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
 
     def test_compute_customizable_pdf_form_fields_when_no_file(self):
         self.env["quotation.document"].search([]).action_archive()
-        self.env["product.document"].search([]).action_archive()
+        self.env["documents.document"].search([]).action_archive()
         self.assertEqual(self.sale_order.customizable_pdf_form_fields, False)
 
     def test_dynamic_fields_mapping_for_quotation_document(self):
@@ -242,7 +242,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
 
         product_document.write(
             {
-                "ir_attachment_id": non_pdf_att.id,
+                "attachment_id": non_pdf_att.id,
             }
         )
         with self.assertRaises(ValidationError):

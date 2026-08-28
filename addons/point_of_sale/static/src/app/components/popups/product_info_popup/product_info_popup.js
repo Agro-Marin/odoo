@@ -42,8 +42,8 @@ export class ProductInfoPopup extends Component {
             template.is_favorite = applied;
         } catch (error) {
             this.pos.dialog.add(AlertDialog, {
-                title: _t("Favourite not saved"),
-                body: _t("This product could not be marked as a favourite."),
+                title: _t("Favorite not saved"),
+                body: _t("This product could not be marked as a favorite."),
             });
             logPosMessage(
                 "ProductInfoPopup",

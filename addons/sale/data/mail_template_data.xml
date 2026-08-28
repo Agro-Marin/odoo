@@ -33,7 +33,7 @@
             <ul style="margin-bottom: 0;">
                 <t t-foreach="documents" t-as="document">
                     <li style="font-size: 13px;">
-                        <a t-out="document.ir_attachment_id.name"
+                        <a t-out="document.attachment_id.name"
                             t-att-href="object.get_portal_url('/document/' + str(document.id))"
                             t-att-target="target"/>
                     </li>
@@ -121,7 +121,7 @@
             <ul style="margin-bottom: 0;">
                 <t t-foreach="documents" t-as="document">
                     <li style="font-size: 13px;">
-                        <a t-out="document.ir_attachment_id.name"
+                        <a t-out="document.attachment_id.name"
                             t-att-href="object.get_portal_url('/document/' + str(document.id))"
                             t-att-target="target"/>
                     </li>

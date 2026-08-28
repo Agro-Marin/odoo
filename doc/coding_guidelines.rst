@@ -897,7 +897,7 @@ the decorator and no field declaration mentions the method -- so four families a
 measured by nothing.
 
 **``@api.onchange``** ``[review]``: a hook bound to one field is
-``_onchange_<field>``. **271** of **383** single-field onchange hooks are spelled
+``_onchange_<field>``. **270** of **382** single-field onchange hooks are spelled
 for their field. Four of the rest carry the **pre-9.0 public spelling**
 (``on_change_login``, ``onchange_parent_id``), reachable over RPC by accident.
 
@@ -1407,7 +1407,7 @@ among them have been renamed to ``_get_``. Split by what the body does, the **29
   (``_find_available_name`` appends ``(2)``, ``(3)`` until unused: a derivation).
 
 The third kind is gone. **The canonical is ``_get_or_create_*``**: **1** methods
-here still spell it ``_find_``, against **18** spelling it ``_get_``. ``_find_``
+here still spell it ``_find_``, against **19** spelling it ``_get_``. ``_find_``
 is not in the abolished table, because classification needs the body: a pass keyed
 on the name scored both survivors as pure reads, and a check for ``create`` /
 ``write`` / ``unlink`` / ``copy`` moved them out.

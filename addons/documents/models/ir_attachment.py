@@ -91,10 +91,22 @@ class IrAttachment(models.Model):
         record = model.browse(res_id)
         if not record._check_create_documents():
             return False
+        candidates = self.filtered(lambda attachment: not attachment.res_field)
+        # `write` reaches here whenever res_model/res_id move, and an attachment
+        # that already carries a document must not get a second one: the
+        # `_attachment_unique` constraint would raise. Merging two products is
+        # the path that does it.
+        already_documented = set(
+            self.env["documents.document"]
+            .sudo()
+            .search_fetch([("attachment_id", "in", candidates.ids)], ["attachment_id"])
+            .mapped("attachment_id")
+            .ids
+        )
         vals_list = [
             document_vals
-            for attachment in self
-            if not attachment.res_field
+            for attachment in candidates
+            if attachment.id not in already_documented
             and (document_vals := record._get_document_vals(attachment))
         ]
         if not vals_list:

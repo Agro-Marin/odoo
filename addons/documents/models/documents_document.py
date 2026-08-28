@@ -37,7 +37,12 @@ class DocumentsDocument(models.Model):
 
     _name = "documents.document"
     _description = "Document"
-    _inherit = ["mixin.mail.thread.cc", "mixin.mail.activity", "mixin.mail.alias.optional"]
+    _inherit = [
+        "mixin.mail.thread.cc",
+        "mixin.mail.activity",
+        "mixin.mail.alias.optional",
+        "mixin.user.favorite",
+    ]
     _mail_post_access = "read"
     _order = "sequence, id desc"
     _parent_name = "folder_id"
@@ -219,11 +224,6 @@ class DocumentsDocument(models.Model):
     requestee_partner_id = fields.Many2one("res.partner")
     tag_ids = fields.Many2many("documents.tag", "document_tag_rel", string="Tags")
     lock_uid = fields.Many2one("res.users", string="Locked by", tracking=True)
-    favorited_ids = fields.Many2many("res.users", string="Favorite of")
-    is_favorited = fields.Boolean(
-        compute="_compute_is_favorited",
-        inverse="_inverse_is_favorited",
-    )
 
     document_token = fields.Char(
         required=True,
@@ -1346,15 +1346,6 @@ class DocumentsDocument(models.Model):
         folders.deletion_delay = self.get_deletion_delay()
         (self - folders).deletion_delay = False
 
-    @api.depends("favorited_ids")
-    @api.depends_context("uid", "allowed_company_ids")
-    def _compute_is_favorited(self) -> None:
-        favorited = self._filtered_access("read").filtered(
-            lambda d: self.env.user in d.favorited_ids
-        )
-        favorited.is_favorited = True
-        (self - favorited).is_favorited = False
-
     @api.depends("res_model")
     def _compute_res_model_name(self) -> None:
         for record in self:
@@ -1403,18 +1394,6 @@ class DocumentsDocument(models.Model):
             attachments.sudo().with_context(no_document=True).write(
                 {"res_model": res_model, "res_id": res_id}
             )
-
-    def _inverse_is_favorited(self) -> None:
-        unfavorited_documents = favorited_documents = self.env[
-            "documents.document"
-        ].sudo()
-        for document in self:
-            if document.is_favorited:
-                favorited_documents |= document
-            else:
-                unfavorited_documents |= document
-        favorited_documents.write({"favorited_ids": [(4, self.env.uid)]})
-        unfavorited_documents.write({"favorited_ids": [(3, self.env.uid)]})
 
 
     def action_move_folder(
@@ -1574,20 +1553,28 @@ class DocumentsDocument(models.Model):
         else:
             self.lock_uid = self.env.uid
 
-    def toggle_favorited(self) -> bool:
-        self.ensure_one()
-        self.toggle_favorited_multi()
-        return self.is_favorited
-
-    def toggle_favorited_multi(
-        self,
-    ) -> None:
+    def _check_user_favorite_access(self) -> None:
         self._check_access_or_raise(
             "read", _("You are not allowed to access these documents.")
         )
-        favorited = self.filtered("is_favorited").sudo()
-        favorited.write({"favorited_ids": [(3, self.env.uid)]})
-        (self.sudo() - favorited).write({"favorited_ids": [(4, self.env.uid)]})
+
+    # compute_sudo=False, unlike the mixin's default: the compute below masks
+    # the value for documents this user may not access, and _filtered_access
+    # answers "yes" to everything when it runs sudo.
+    is_user_favorite = fields.Boolean(compute_sudo=False)
+
+    @api.depends("favorite_user_ids")
+    @api.depends_context("uid", "allowed_company_ids")
+    def _compute_is_user_favorite(self) -> None:
+        # A document you may no longer access reads as not-favorited, rather
+        # than as whatever the relation still says. Field reads on this model
+        # are not gated by user_permission, so the mixin's plain membership
+        # test would answer for records the rest of the UI hides.
+        favorited = self._filtered_access("read").filtered(
+            lambda document: self.env.user in document.favorite_user_ids
+        )
+        favorited.is_user_favorite = True
+        (self - favorited).is_user_favorite = False
 
     def action_archive(self) -> bool | None:
         if not self:

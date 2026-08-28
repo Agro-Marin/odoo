@@ -51,7 +51,7 @@ test("load all dashboards of all containers", async () => {
                     data: {
                         id: 1,
                         name: "Dashboard CRM 1",
-                        is_favorite: false,
+                        is_user_favorite: false,
                     },
                     status: Status.NotLoaded,
                 },
@@ -59,7 +59,7 @@ test("load all dashboards of all containers", async () => {
                     data: {
                         id: 2,
                         name: "Dashboard CRM 2",
-                        is_favorite: false,
+                        is_user_favorite: false,
                     },
                     status: Status.NotLoaded,
                 },
@@ -73,7 +73,7 @@ test("load all dashboards of all containers", async () => {
                     data: {
                         id: 3,
                         name: "Dashboard Accounting 1",
-                        is_favorite: false,
+                        is_user_favorite: false,
                     },
                     status: Status.NotLoaded,
                 },

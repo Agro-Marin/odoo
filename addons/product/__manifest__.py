@@ -40,7 +40,6 @@ Print product labels with barcode.
         "views/product_attribute_value_views.xml",
         "views/product_category_views.xml",
         "views/product_combo_views.xml",
-        "views/product_document_views.xml",
         "views/product_pricelist_item_views.xml",
         "views/product_pricelist_views.xml",
         "views/product_supplierinfo_views.xml",
@@ -59,7 +58,6 @@ Print product labels with barcode.
         "demo/product_attribute_demo.xml",
         "demo/product_category_demo.xml",
         "demo/product_demo.xml",
-        "demo/product_document_demo.xml",
         "demo/product_supplierinfo_demo.xml",
     ],
     "assets": {

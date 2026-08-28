@@ -265,20 +265,3 @@ class TestCombinationEngineHardening(ProductVariantsCommon):
         self.assertEqual(
             list(self.child._cartesian_product(per_line, self.sofa_red)), []
         )
-
-    def test_document_count_counts_active_variant_documents(self):
-        tmpl = self.env["product.template"].create({"name": "WithDocs"})
-        variant = tmpl.product_variant_ids
-        self.env["product.document"].create(
-            {"name": "spec", "res_model": "product.product", "res_id": variant.id}
-        )
-        tmpl.invalidate_recordset(["product_document_count"])
-        self.assertEqual(tmpl.product_document_count, 1)
-
-        variant.write({"active": False})
-        tmpl.invalidate_recordset(["product_document_count"])
-        self.assertEqual(
-            tmpl.product_document_count,
-            0,
-            "documents on archived variants are not counted",
-        )

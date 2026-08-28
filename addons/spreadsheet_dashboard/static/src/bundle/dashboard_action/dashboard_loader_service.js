@@ -173,7 +173,7 @@ export class DashboardLoader {
     _getFetchGroupsSpecification() {
         return {
             name: {},
-            published_dashboard_ids: { fields: { name: {}, is_favorite: {} } },
+            published_dashboard_ids: { fields: { name: {}, is_user_favorite: {} } },
         };
     }
 
@@ -186,7 +186,7 @@ export class DashboardLoader {
         this.groups
             .flatMap((group) => group.dashboards)
             .forEach((dashboardData) => {
-                if (dashboardData.is_favorite) {
+                if (dashboardData.is_user_favorite) {
                     favoriteDashboards.push(this._getDashboard(dashboardData.id));
                 }
             });

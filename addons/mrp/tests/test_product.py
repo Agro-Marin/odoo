@@ -190,8 +190,8 @@ class TestMrpProductIsKits(TestMrpCommon):
         before any search method runs, and `= False` arrives as `not in [True]`,
         which the operator check already refuses so the ORM can invert the
         positive answer. Measured, all four spellings. So this pins the
-        convention (`stock_location._search_is_empty`,
-        `stock_picking_type._search_is_favorite`), not a reachable defect.
+        convention (`stock_location._search_is_empty`), not a reachable
+        defect.
         """
         for model in ("product.product", "product.template"):
             with self.subTest(model=model):

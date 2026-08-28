@@ -39,6 +39,12 @@ class ProductProduct(models.Model):
         store=True,
         readonly=False,
     )
+    # Not stored, unlike its global sibling: the value differs per user, so
+    # there is no one column that could hold it.
+    is_user_favorite = fields.Boolean(
+        related="product_tmpl_id.is_user_favorite",
+        readonly=False,
+    )
     active = fields.Boolean(
         string="Active",
         default=True,
@@ -138,17 +144,6 @@ class ProductProduct(models.Model):
         compute="_compute_pricelist_rule_ids",
         inverse="_inverse_pricelist_rule_ids",
         readonly=False,
-    )
-
-    product_document_ids = fields.One2many(
-        comodel_name="product.document",
-        inverse_name="res_id",
-        string="Documents",
-        domain=lambda self: [("res_model", "=", self._name)],
-    )
-    product_document_count = fields.Integer(
-        string="Documents Count",
-        compute="_compute_product_document_count",
     )
 
     additional_product_tag_ids = fields.Many2many(
@@ -270,6 +265,13 @@ class ProductProduct(models.Model):
         return products.with_env(self.env)
 
     def write(self, vals):
+        # Starring for yourself needs read access, not write, and the record
+        # that holds the favorite is the template. Forwarding it here keeps
+        # super().write()'s write-access check on the variant off that path.
+        if "is_user_favorite" in vals:
+            self.product_tmpl_id._update_user_favorite(vals.pop("is_user_favorite"))
+            if not vals:
+                return True
         res = super().write(vals)
         if "product_template_variant_value_ids" in vals:
             self.invalidate_recordset(["product_template_attribute_value_ids"])
@@ -502,18 +504,6 @@ class ProductProduct(models.Model):
             else:
                 product.partner_ref = product.display_name
 
-    def _compute_product_document_count(self):
-        counts = {}
-        if self:
-            data = self.env["product.document"]._read_group(
-                [("res_model", "=", "product.product"), ("res_id", "in", self.ids)],
-                ["res_id"],
-                ["__count"],
-            )
-            counts = dict(data)
-        for product in self:
-            product.product_document_count = counts.get(product.id, 0)
-
     @api.depends("product_tag_ids", "additional_product_tag_ids")
     def _compute_all_product_tag_ids(self):
         for product in self:
@@ -724,11 +714,6 @@ class ProductProduct(models.Model):
 
     @api.model
     def name_search(self, name="", domain=None, operator="ilike", limit=100):
-        # On this RPC-facing method 0 means "no limit", as it does on
-        # load_product_from_pos. The ORM's own sentinel is None alone, and
-        # handing it a 0 emits LIMIT 0, so normalise once here rather than at
-        # each of the six searches below.
-        limit = limit or None
         if not name:
             return super().name_search(name, domain, operator, limit)
         positive_operators = ["=", "ilike", "=ilike", "like", "=like"]
@@ -945,18 +930,6 @@ class ProductProduct(models.Model):
             "res_id": self.product_tmpl_id.id,
             "target": "new",
         }
-
-    @api.readonly
-    def action_view_documents(self):
-        res = self.product_tmpl_id.action_view_documents()
-        res["context"].update(
-            {
-                "default_res_model": self._name,
-                "default_res_id": self.id,
-                "search_default_context_variant": True,
-            },
-        )
-        return res
 
     def _filter_to_unlink(self):
         return self

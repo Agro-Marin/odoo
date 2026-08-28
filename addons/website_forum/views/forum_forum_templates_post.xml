@@ -6,9 +6,9 @@
 <template id="display_post_question_block">
  <div class="o_wforum_index_entry_title">
  <div class="d-flex align-items-baseline gap-1">
- <small t-if="question.user_favourite and not (my == 'favourites' or hide_fav_icon)"
- title="Your favourite"
- aria-label="Your favourite"
+ <small t-if="question.is_user_favorite and not (my == 'favorites' or hide_fav_icon)"
+ title="Your favorite"
+ aria-label="Your favorite"
  data-bs-toggle="tooltip"
  class="fa-solid fa-star o_wforum_gold"/>
  <small t-if="question.message_is_follower and not (my == 'followed' or hide_fav_icon)"

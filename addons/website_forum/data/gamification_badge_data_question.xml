@@ -119,12 +119,12 @@
             <field name="rule_auth">nobody</field>
         </record>
         <record model="gamification.goal.definition" id="definition_favorite_question_1">
-            <field name="name">Favourite Question (1)</field>
+            <field name="name">Favorite Question (1)</field>
             <field name="description">Question set as favorite by 1 user</field>
             <field name="computation_mode">count</field>
             <field name="display_mode">boolean</field>
             <field name="model_id" ref="website_forum.model_forum_post"/>
-            <field name="domain">[('parent_id', '=', False), ('favourite_count', '>=', 1)]</field>
+            <field name="domain">[('parent_id', '=', False), ('favorite_count', '>=', 1)]</field>
             <field name="condition">higher</field>
             <field name="batch_mode">True</field>
             <field name="batch_distinctive_field" ref="website_forum.field_forum_post__create_uid"/>
@@ -154,12 +154,12 @@
             <field name="rule_auth">nobody</field>
         </record>
         <record model="gamification.goal.definition" id="definition_favorite_question_5">
-            <field name="name">Favourite Question (5)</field>
+            <field name="name">Favorite Question (5)</field>
             <field name="description">Question set as favorite by 5 user</field>
             <field name="computation_mode">count</field>
             <field name="display_mode">boolean</field>
             <field name="model_id" ref="website_forum.model_forum_post"/>
-            <field name="domain">[('parent_id', '=', False), ('favourite_count', '>=', 5)]</field>
+            <field name="domain">[('parent_id', '=', False), ('favorite_count', '>=', 5)]</field>
             <field name="condition">higher</field>
             <field name="batch_mode">True</field>
             <field name="batch_distinctive_field" ref="website_forum.field_forum_post__create_uid"/>
@@ -189,12 +189,12 @@
             <field name="rule_auth">nobody</field>
         </record>
         <record model="gamification.goal.definition" id="definition_stellar_question_25">
-            <field name="name">Favourite Question (25)</field>
+            <field name="name">Favorite Question (25)</field>
             <field name="description">Question set as favorite by 25 user</field>
             <field name="computation_mode">count</field>
             <field name="display_mode">boolean</field>
             <field name="model_id" ref="website_forum.model_forum_post"/>
-            <field name="domain">[('parent_id', '=', False), ('favourite_count', '>=', 25)]</field>
+            <field name="domain">[('parent_id', '=', False), ('favorite_count', '>=', 25)]</field>
             <field name="condition">higher</field>
             <field name="batch_mode">True</field>
             <field name="batch_distinctive_field" ref="website_forum.field_forum_post__create_uid"/>

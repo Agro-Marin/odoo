@@ -1,21 +1,11 @@
 from typing import Self
 
-from odoo import api, fields, models
+from odoo import api, models
 from odoo.api import ValuesType
 
 
 class ResUsers(models.Model):
     _inherit = "res.users"
-
-    favorite_project_ids = fields.Many2many(
-        "project.project",
-        "project_favorite_user_rel",
-        "user_id",
-        "project_id",
-        string="Favorite Projects",
-        export_string_translation=False,
-        copy=False,
-    )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

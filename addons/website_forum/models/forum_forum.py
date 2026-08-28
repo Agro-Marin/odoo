@@ -269,7 +269,7 @@ class ForumForum(models.Model):
         "post_ids.state",
         "post_ids.views",
         "post_ids.child_count",
-        "post_ids.favourite_count",
+        "post_ids.favorite_count",
     )
     def _compute_forum_statistics(self):
         default_stats = {
@@ -291,20 +291,20 @@ class ForumForum(models.Model):
                 ("parent_id", "=", False),
             ],
             ["forum_id"],
-            ["__count", "views:sum", "child_count:sum", "favourite_count:sum"],
+            ["__count", "views:sum", "child_count:sum", "favorite_count:sum"],
         )
         for (
             forum,
             count,
             views_sum,
             child_count_sum,
-            favourite_count_sum,
+            favorite_count_sum,
         ) in read_group_res:
             stat_forum = result[forum.id]
             stat_forum["total_posts"] += count
             stat_forum["total_views"] += views_sum
             stat_forum["total_answers"] += child_count_sum
-            stat_forum["total_favorites"] += 1 if favourite_count_sum else 0
+            stat_forum["total_favorites"] += 1 if favorite_count_sum else 0
 
         for record in self:
             record.update(result[record.id])

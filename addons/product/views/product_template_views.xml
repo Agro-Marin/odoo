@@ -26,6 +26,10 @@
                     string="Favorites"
                     name="favorites"
                     domain="[('is_favorite', '=', True)]" />
+                <filter
+                    string="My Favorites"
+                    name="my_favorites"
+                    domain="[('is_user_favorite', '=', True)]" />
                 <separator />
                 <filter
                     string="Sales"
@@ -240,16 +244,8 @@
                         <!-- Dummy tag for organizing buttons, using position='replace' when
                         inheriting -->
                         <span id="button_website" invisible="1" />
-                        <button
-                            name="action_view_documents"
-                            type="object"
-                            class="oe_stat_button"
-                            icon="fa-regular fa-file-lines">
-                            <field
-                                string="Documents"
-                                name="product_document_count"
-                                widget="statinfo" />
-                        </button>
+                        <span id="button_documents_before" invisible="1" />
+                        <span id="button_documents_after" invisible="1" />
                     </div>
                     <widget
                         name="web_ribbon"
@@ -525,7 +521,7 @@
                     invisible="product_variant_count &gt; 1 or (product_variant_count == 0 and valid_product_template_attribute_line_ids) or type in ['service', 'combo']" />
             </field>
 
-            <button name="action_view_documents" position="before">
+            <span id="button_documents_before" position="before">
                 <button
                     name="%(product.product_variant_action)d"
                     type="action"
@@ -538,7 +534,7 @@
                         name="product_variant_count"
                         widget="statinfo" />
                 </button>
-            </button>
+            </span>
 
             <xpath expr="//page[@name='general_information']" position="after">
                 <page

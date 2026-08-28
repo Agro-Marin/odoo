@@ -5,8 +5,8 @@ from odoo.fields import Command
 from odoo.addons.sale_pdf_quote_builder import utils
 
 
-class ProductDocument(models.Model):
-    _inherit = "product.document"
+class DocumentsDocument(models.Model):
+    _inherit = "documents.document"
 
     attached_on_sale = fields.Selection(
         selection_add=[("inside", "Inside quote pdf")],
@@ -46,7 +46,7 @@ class ProductDocument(models.Model):
                 )
             if doc.datas:
                 utils._ensure_document_not_encrypted(
-                    doc.ir_attachment_id._get_content_prefix()
+                    doc.attachment_id._get_content_prefix()
                 )
 
     # === COMPUTE METHODS === #

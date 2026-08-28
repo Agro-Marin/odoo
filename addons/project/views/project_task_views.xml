@@ -14,7 +14,7 @@
                     <field name="partner_id" operator="child_of" invisible="context.get('template_project')"/>
                     <filter string="Unassigned" name="unassigned" domain="[('user_ids', '=', False)]"/>
                     <separator invisible="context.get('default_project_id')"/>
-                    <filter string="Favorite Projects" name="favorite_projects" domain="[('project_id.is_favorite', '=', True)]" invisible="context.get('default_project_id')"/>
+                    <filter string="Favorite Projects" name="favorite_projects" domain="[('project_id.is_user_favorite', '=', True)]" invisible="context.get('default_project_id')"/>
                     <separator groups="project.group_project_task_dependencies" invisible="not context.get('allow_dependencies', True)"/>
                     <filter string="Blocking" name="blocking" domain="[('is_closed', '=', False), ('successor_ids', '!=', False)]" groups="project.group_project_task_dependencies" invisible="not context.get('allow_dependencies', True)"/>
                     <separator/>

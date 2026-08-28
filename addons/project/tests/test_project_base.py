@@ -247,11 +247,11 @@ class TestProjectBase(TestProjectCommon):
         domain = [("id", "in", project_ids)]
 
         self.assertEqual(
-            Project.search(domain, order="is_favorite desc")[0],
+            Project.search(domain, order="is_user_favorite desc")[0],
             self.project_goats,
         )
         self.assertEqual(
-            Project.search(domain, order="is_favorite")[-1], self.project_goats
+            Project.search(domain, order="is_user_favorite")[-1], self.project_goats
         )
 
         self.assertTrue(self.project_pigs.id < self.project_goats.id)
@@ -266,33 +266,33 @@ class TestProjectBase(TestProjectCommon):
                 },
                 {
                     "name": "Project Test2",
-                    "is_favorite": True,
+                    "is_user_favorite": True,
                 },
             ]
         )
-        self.assertFalse(project1.is_favorite)
-        self.assertTrue(project2.is_favorite)
-        project1.is_favorite = True
-        project2.is_favorite = False
-        projects.invalidate_recordset(["is_favorite"])
-        self.assertTrue(project1.is_favorite)
-        self.assertFalse(project2.is_favorite)
+        self.assertFalse(project1.is_user_favorite)
+        self.assertTrue(project2.is_user_favorite)
+        project1.is_user_favorite = True
+        project2.is_user_favorite = False
+        projects.invalidate_recordset(["is_user_favorite"])
+        self.assertTrue(project1.is_user_favorite)
+        self.assertFalse(project2.is_user_favorite)
 
     @users("bastien")
     def test_create_favorite_from_project_form(self) -> None:
         Project = self.env["project.project"]
         form1 = Form(Project)
         form1.name = "Project Test1"
-        self.assertFalse(form1.is_favorite)
+        self.assertFalse(form1.is_user_favorite)
         project1 = form1.save()
-        self.assertFalse(project1.is_favorite)
+        self.assertFalse(project1.is_user_favorite)
 
         form2 = Form(Project)
         form2.name = "Project Test2"
-        form2.is_favorite = True
-        self.assertTrue(form2.is_favorite)
+        form2.is_user_favorite = True
+        self.assertTrue(form2.is_user_favorite)
         project2 = form2.save()
-        self.assertTrue(project2.is_favorite)
+        self.assertTrue(project2.is_user_favorite)
 
     @users("bastien")
     def test_edit_favorite_from_project_form(self) -> None:
@@ -303,17 +303,17 @@ class TestProjectBase(TestProjectCommon):
                 },
                 {
                     "name": "Project Test2",
-                    "is_favorite": True,
+                    "is_user_favorite": True,
                 },
             ]
         )
         with Form(project1) as form:
-            form.is_favorite = True
-        self.assertTrue(project1.is_favorite)
+            form.is_user_favorite = True
+        self.assertTrue(project1.is_user_favorite)
 
         with Form(project2) as form:
-            form.is_favorite = False
-        self.assertFalse(project2.is_favorite)
+            form.is_user_favorite = False
+        self.assertFalse(project2.is_user_favorite)
 
     def test_change_project_or_partner_company(self) -> None:
         company_1 = self.env.company

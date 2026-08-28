@@ -1,7 +1,7 @@
 {
     'name': 'Lunch',
     'sequence': 300,
-    'version': '1.0',
+    'version': '1.1',
     'depends': ['mail'],
     'category': 'Human Resources/Lunch',
     'summary': 'Handle lunch orders of your employees',

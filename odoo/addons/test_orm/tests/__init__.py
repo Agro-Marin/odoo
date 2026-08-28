@@ -38,6 +38,7 @@ from . import (
     test_traversal,
     test_ui,
     test_unity_read,
+    test_user_favorite_mixin,
     test_validation,
     test_views,
     test_web_save,

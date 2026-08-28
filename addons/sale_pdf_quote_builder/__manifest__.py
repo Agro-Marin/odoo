@@ -2,7 +2,7 @@
     "name": "Sales PDF Quotation Builder",
     "category": "Sales/Sales",
     "description": "Build nice quotations",
-    "depends": ["sale_management"],
+    "depends": ["documents_product", "sale_management"],
     "data": [
         "data/ir_cron.xml",
         "data/sale_pdf_form_field.xml",

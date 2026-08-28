@@ -486,7 +486,7 @@ export class DocumentService {
 
     async toggleFavorite(document) {
         await this.orm.write("documents.document", [document.id], {
-            is_favorited: !document.is_favorited,
+            is_user_favorite: !document.is_user_favorite,
         });
     }
 

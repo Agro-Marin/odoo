@@ -76,7 +76,7 @@
                                     <div class="col-3 d-flex flex-column align-self-center o_kanban_card_header">
                                         <div class="d-flex flex-row justify-content-between">
                                             <div class="d-flex fw-bold fs-3 o_kanban_card_header_title">
-                                                <field name="is_favorite" widget="boolean_favorite" nolabel="1"/>
+                                                <field name="is_user_favorite" widget="boolean_favorite" nolabel="1"/>
                                                 <field class="fs-3" name="name"/>
                                             </div>
                                             <div t-if="record.alias_email.value" class="d-flex flex-wrap">
@@ -166,7 +166,7 @@
                                 <div class="d-flex flex-column gap-1 mb-1">
                                     <div class="mb-2">
                                         <div class="d-flex fw-bold fs-3">
-                                            <field name="is_favorite" widget="boolean_favorite" nolabel="1"/>
+                                            <field name="is_user_favorite" widget="boolean_favorite" nolabel="1"/>
                                             <field name="name"/>
                                         </div>
                                         <div t-if="record.alias_email.value" class="d-flex flex-wrap">
@@ -278,7 +278,7 @@
                 <attribute name="class" add="d-flex align-items-center" separator=" "/>
             </xpath>
             <xpath expr="//field[@name='name']" position="before">
-                <field name="is_favorite" widget="boolean_favorite" class="hr_recruitment_is_favorite_job" nolabel="1"/>
+                <field name="is_user_favorite" widget="boolean_favorite" class="hr_recruitment_is_favorite_job" nolabel="1"/>
             </xpath>
             <xpath expr="//form" position="attributes">
                 <attribute name="js_class">recruitment_form_view</attribute>

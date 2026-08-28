@@ -2,9 +2,9 @@
 <odoo>
 
     <record id="view_product_document_search" model="ir.ui.view">
-        <field name="name">product.document.search.sale</field>
-        <field name="model">product.document</field>
-        <field name="inherit_id" ref="product.view_product_document_search" />
+        <field name="name">documents.document.search.sale</field>
+        <field name="model">documents.document</field>
+        <field name="inherit_id" ref="documents_product.view_documents_document_product_search" />
         <field name="arch" type="xml">
             <search position="inside">
                 <separator />
@@ -19,9 +19,9 @@
     </record>
 
     <record id="view_product_document_kanban" model="ir.ui.view">
-        <field name="name">product.document.kanban.sale</field>
-        <field name="model">product.document</field>
-        <field name="inherit_id" ref="product.view_product_document_kanban" />
+        <field name="name">documents.document.kanban.sale</field>
+        <field name="model">documents.document</field>
+        <field name="inherit_id" ref="documents_product.view_documents_document_product_kanban" />
         <field name="arch" type="xml">
             <xpath expr="//main/div" position="inside">
                 <div class="d-flex mt-2">
@@ -33,9 +33,9 @@
     </record>
 
     <record id="view_product_document_list" model="ir.ui.view">
-        <field name="name">product.document.list.sale</field>
-        <field name="model">product.document</field>
-        <field name="inherit_id" ref="product.view_product_document_list" />
+        <field name="name">documents.document.list.sale</field>
+        <field name="model">documents.document</field>
+        <field name="inherit_id" ref="documents_product.view_documents_document_product_list" />
         <field name="arch" type="xml">
             <field name="name" position="after">
                 <field name="attached_on_sale" />
@@ -44,9 +44,9 @@
     </record>
 
     <record id="view_product_document_form" model="ir.ui.view">
-        <field name="name">product.document.form.sale</field>
-        <field name="model">product.document</field>
-        <field name="inherit_id" ref="product.view_product_document_form" />
+        <field name="name">documents.document.form.sale</field>
+        <field name="model">documents.document</field>
+        <field name="inherit_id" ref="documents_product.view_documents_document_product_form" />
         <field name="arch" type="xml">
             <sheet position="inside">
                 <group name="sale" string="Sales">

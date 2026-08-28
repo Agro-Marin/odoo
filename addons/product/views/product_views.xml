@@ -53,6 +53,10 @@
                     string="Favorites"
                     name="favorites"
                     domain="[('is_favorite', '=', True)]" />
+                <filter
+                    string="My Favorites"
+                    name="my_favorites"
+                    domain="[('is_user_favorite', '=', True)]" />
                 <separator />
                 <filter
                     string="Services"

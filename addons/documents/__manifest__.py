@@ -10,7 +10,7 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
     """,
     "category": "Productivity/Documents",
     "sequence": 80,
-    "version": "1.6",
+    "version": "1.7",
     "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/documents",
     "depends": [

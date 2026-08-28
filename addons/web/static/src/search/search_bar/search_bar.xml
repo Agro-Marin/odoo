@@ -20,7 +20,7 @@
  'text-bg-action': facet.type == 'groupBy',
  'btn': facet.type == 'groupBy' and env.searchModel.canOrderByCount,
  'btn btn-primary': facet.type == 'field' || facet.type == 'filter',
- 'btn btn-favourite': facet.type == 'favorite'
+ 'btn btn-favorite': facet.type == 'favorite'
  }"
  >
  <i t-if="facet.icon" class="small " t-att-class="facet.icon" aria-hidden="true"/>

@@ -636,7 +636,7 @@ class TestMrpByProduct(common.TransactionCase):
 
     def test_byproducts_bom_document(self):
         self.env.user.group_ids += self.env.ref("mrp.group_mrp_byproducts")
-        doc_product_bom = self.env["product.document"].create(
+        doc_product_bom = self.env["documents.document"].create(
             {
                 "name": "doc_product_bom",
                 "attached_on_mrp": "bom",
@@ -645,7 +645,7 @@ class TestMrpByProduct(common.TransactionCase):
             }
         )
 
-        self.env["product.document"].create(
+        self.env["documents.document"].create(
             {
                 "name": "doc_product_bom_archived",
                 "active": False,
@@ -655,7 +655,7 @@ class TestMrpByProduct(common.TransactionCase):
             }
         )
 
-        doc_template_bom = self.env["product.document"].create(
+        doc_template_bom = self.env["documents.document"].create(
             {
                 "name": "doc_template_bom",
                 "attached_on_mrp": "bom",
@@ -665,7 +665,7 @@ class TestMrpByProduct(common.TransactionCase):
         )
 
         attachments = (
-            doc_template_bom.ir_attachment_id + doc_product_bom.ir_attachment_id
+            doc_template_bom.attachment_id + doc_product_bom.attachment_id
         )
 
         bom = self.env["mrp.bom"].create(

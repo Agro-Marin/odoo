@@ -415,7 +415,7 @@ class TestPortalProject(TestProjectPortalCommon):
         pigs = self.project_pigs.with_user(self.user_projectuser)
 
         self.assertRaises(AccessError, pigs.write, {"name": "False Pigs"})
-        pigs.write({"is_favorite": True})
+        pigs.write({"is_user_favorite": True})
 
     @mute_logger("odoo.addons.base.ir.ir_model")
     def test_followers_project_access_rights(self) -> None:

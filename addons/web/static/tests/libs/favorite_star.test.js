@@ -20,7 +20,7 @@ test("boolean_favorite: the two states are visually distinct", async () => {
     expect(off.color).not.toBe(on.color);
 });
 
-test("boolean_favorite: the filled star uses the favourite colour", async () => {
+test("boolean_favorite: the filled star uses the favorite colour", async () => {
     const { on } = mountStars("o_field_widget o_favorite");
     expect(on.color).toBe("rgb(243, 204, 0)");
 });

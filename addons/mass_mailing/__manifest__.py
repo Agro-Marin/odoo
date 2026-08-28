@@ -1,7 +1,7 @@
 {
     "name": "Email Marketing",
     "summary": "Design, send and track emails",
-    "version": "2.7",
+    "version": "2.8",
     "sequence": 60,
     "website": "https://www.odoo.com/app/email-marketing",
     "category": "Marketing/Email Marketing",
@@ -167,7 +167,7 @@
         "web.assets_unit_tests": [
             ("include", "mass_mailing.assets_builder"),
             "mass_mailing/static/tests/customize_mailing_variables.test.js",
-            "mass_mailing/static/tests/mass_mailing_favourite_filter.test.js",
+            "mass_mailing/static/tests/mass_mailing_favorite_filter.test.js",
             "mass_mailing/static/tests/mass_mailing_html_field.test.js",
         ],
     },

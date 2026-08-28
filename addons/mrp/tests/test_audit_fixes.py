@@ -530,7 +530,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         plain = self.env["product.product"].create(
             {"name": "Audit attach none", "is_storable": True}
         )
-        self.env["product.document"].create(
+        self.env["documents.document"].create(
             [
                 {
                     "name": "variant-spec.txt",

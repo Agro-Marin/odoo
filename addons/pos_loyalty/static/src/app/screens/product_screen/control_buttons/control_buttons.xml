@@ -28,7 +28,7 @@
                     t-att-class="buttonClass"
                     t-attf-class="{{state.nbrRewards ? 'highlight' : 'disabled'}}"
                     t-on-click="() => this.clickRewards()">
-                    <i class="fa-solid fa-star me-1 text-favourite"/>Reward
+                    <i class="fa-solid fa-star me-1 text-favorite"/>Reward
                 </button>
             </t>
         </xpath>

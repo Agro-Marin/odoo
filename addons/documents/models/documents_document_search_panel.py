@@ -110,7 +110,7 @@ class DocumentsDocument(models.Model):
             "display_name",
             "user_folder_id",
             "is_access_via_link_hidden",
-            "is_favorited",
+            "is_user_favorite",
             "mail_alias_domain_count",
             "owner_id",
             "shortcut_document_id",

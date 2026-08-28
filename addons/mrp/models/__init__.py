@@ -1,5 +1,5 @@
 from . import ir_qweb_field
-from . import product_document
+from . import documents_document
 from . import res_config_settings
 from . import mixin_bom_variant_line
 from . import mixin_bom_component

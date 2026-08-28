@@ -32,6 +32,7 @@ class ProjectProject(models.Model):
         "mixin.mail.tracking.duration",
         "mixin.portal",
         "mixin.rating.parent",
+        "mixin.user.favorite",
     ]
     _order = "sequence, name, id"
     _rating_satisfaction_days = 30
@@ -64,24 +65,6 @@ class ProjectProject(models.Model):
 
     def _default_phase_id(self) -> int | bool:
         return self.env["project.phase"].search([], limit=1)
-
-    @api.model
-    def _search_is_favorite(self, operator: str, value: Any) -> list:
-        if operator != "in":
-            return NotImplemented
-        return [("favorite_user_ids", "in", [self.env.uid])]
-
-    def _compute_is_favorite(self) -> None:
-        favorite_project_ids = self.env.user.favorite_project_ids
-        for project in self:
-            project.is_favorite = project in favorite_project_ids
-
-    def _set_favorite_user_ids(self, is_favorite: bool) -> None:
-        self_sudo = self.sudo()
-        if is_favorite:
-            self_sudo.favorite_user_ids = [Command.link(self.env.uid)]
-        else:
-            self_sudo.favorite_user_ids = [Command.unlink(self.env.uid)]
 
     company_id = fields.Many2one(
         "res.company",
@@ -267,23 +250,8 @@ class ProjectProject(models.Model):
         relation="project_project_project_tags_rel",
         string="Tags",
     )
-    favorite_user_ids = fields.Many2many(
-        "res.users",
-        "project_favorite_user_rel",
-        "project_id",
-        "user_id",
-        string="Members",
-        export_string_translation=False,
-        copy=False,
-    )
-    is_favorite = fields.Boolean(
-        compute="_compute_is_favorite",
-        readonly=False,
-        search="_search_is_favorite",
-        compute_sudo=True,
-        string="Show Project on Dashboard",
-        export_string_translation=False,
-    )
+    favorite_user_ids = fields.Many2many(string="Members")
+    is_user_favorite = fields.Boolean(string="Show Project on Dashboard")
     workflow_step_ids = fields.Many2many(
         "project.workflow.step",
         "project_workflow_step_project_rel",
@@ -1826,8 +1794,6 @@ class ProjectProject(models.Model):
                     vals["phase_id"] = stage.id
 
         for vals in vals_list:
-            if vals.pop("is_favorite", False):
-                vals["favorite_user_ids"] = [self.env.uid]
             self._check_date_pair(
                 vals.get("date_start"),
                 vals.get("date_end", vals.get("date")),
@@ -1863,9 +1829,6 @@ class ProjectProject(models.Model):
                     order=f"sequence asc, {ProjectStage._order}",
                     limit=1,
                 ).id
-
-        if "is_favorite" in vals:
-            self._set_favorite_user_ids(vals.pop("is_favorite"))
 
         if "last_update_status" in vals and vals["last_update_status"] != "to_define":
             for project in self:
@@ -1952,24 +1915,6 @@ class ProjectProject(models.Model):
         self._check_project_group_with_field(
             "allow_recurring_tasks", "project.group_project_recurring_tasks"
         )
-
-    def _order_field_to_sql(
-        self,
-        alias: str,
-        field_name: str,
-        direction: Any,
-        nulls: Any,
-        query: Any,
-    ) -> SQL:
-        if field_name == "is_favorite":
-            sql_field = SQL(
-                "%s IN (SELECT project_id FROM project_favorite_user_rel WHERE user_id = %s)",
-                SQL.identifier(alias, "id"),
-                self.env.uid,
-            )
-            return SQL("%s %s %s", sql_field, direction, nulls)
-
-        return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
 
     def message_subscribe(
         self,
@@ -2231,17 +2176,6 @@ class ProjectProject(models.Model):
             action["name"] = _("Share Project")
         action["context"] = local_context
         return action
-
-    def toggle_favorite(self) -> None:
-        favorite_projects = not_fav_projects = self.env["project.project"].sudo()
-        for project in self:
-            if self.env.user in project.favorite_user_ids:
-                favorite_projects |= project
-            else:
-                not_fav_projects |= project
-
-        not_fav_projects.write({"favorite_user_ids": [Command.link(self.env.uid)]})
-        favorite_projects.write({"favorite_user_ids": [(3, self.env.uid)]})
 
     def action_view_tasks(self) -> dict:
         action = (

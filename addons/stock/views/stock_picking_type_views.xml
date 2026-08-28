@@ -8,7 +8,7 @@
             <search string="Operation Type">
                 <field name="name" />
                 <field name="warehouse_id" />
-                <filter name="favorites" string="Favorites" domain="[('is_favorite', '=', True)]" />
+                <filter name="favorites" string="Favorites" domain="[('is_user_favorite', '=', True)]" />
                 <filter string="Archived" name="inactive" domain="[('active','=',False)]" />
                 <group>
                     <filter string="Type of Operation" name="groupby_code"
@@ -85,7 +85,7 @@
                             </div>
 
                             <div t-if="widget.editable" class="o_kanban_card_manage_settings row">
-                                <field name="is_favorite" widget="boolean_favorite" class="col-6" />
+                                <field name="is_user_favorite" widget="boolean_favorite" class="col-6" />
                                 <div class="col-6 text-end">
                                     <a class="dropdown-item" role="menuitem" type="open">
                                         Configuration</a>

@@ -449,7 +449,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
         except AccessError, MissingError:
             return request.redirect("/my")
 
-        document = request.env["product.document"].browse(document_id).sudo().exists()
+        document = request.env["documents.document"].browse(document_id).sudo().exists()
         if not document or not document.active:
             return request.redirect("/my")
 
@@ -459,7 +459,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
         return (
             request.env["ir.binary"]
             ._get_stream_from_record(
-                document.ir_attachment_id,
+                document.attachment_id,
             )
             .get_response(as_attachment=True)
         )

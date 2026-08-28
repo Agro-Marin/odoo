@@ -1,6 +1,6 @@
 {
     "name": "Recruitment",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Human Resources/Recruitment",
     "sequence": 90,
     "summary": "Track your recruitment pipeline",

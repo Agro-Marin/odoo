@@ -1,13 +1,17 @@
 from collections import defaultdict
 
 from odoo import SUPERUSER_ID, Command, _, api, fields, models
-from odoo.tools import SQL
 from odoo.tools.convert import convert_file
 
 
 class HrJob(models.Model):
     _name = "hr.job"
-    _inherit = ["mixin.mail.alias", "hr.job", "mixin.mail.activity"]
+    _inherit = [
+        "mixin.mail.alias",
+        "hr.job",
+        "mixin.mail.activity",
+        "mixin.user.favorite",
+    ]
     _order = "sequence, name asc"
 
     @api.model
@@ -119,14 +123,11 @@ class HrJob(models.Model):
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     color = fields.Integer("Color Index")
-    is_favorite = fields.Boolean(
-        compute="_compute_is_favorite", inverse="_inverse_is_favorite"
-    )
     favorite_user_ids = fields.Many2many(
-        "res.users",
-        "job_favorite_user_rel",
-        "job_id",
-        "user_id",
+        # interviewer_ids already owns the table the ORM would derive here.
+        relation="job_favorite_user_rel",
+        column1="job_id",
+        column2="user_id",
         default=_default_favorite_user_ids,
     )
     interviewer_ids = fields.Many2many(
@@ -251,20 +252,6 @@ class HrJob(models.Model):
             job.extended_interviewer_ids = [
                 Command.set(list(interviewers_by_job[job.id]))
             ]
-
-    def _compute_is_favorite(self):
-        for job in self:
-            job.is_favorite = self.env.user in job.favorite_user_ids
-
-    def _inverse_is_favorite(self):
-        unfavorited_jobs = favorited_jobs = self.env["hr.job"]
-        for job in self:
-            if self.env.user in job.favorite_user_ids:
-                unfavorited_jobs |= job
-            else:
-                favorited_jobs |= job
-        favorited_jobs.write({"favorite_user_ids": [Command.link(self.env.uid)]})
-        unfavorited_jobs.write({"favorite_user_ids": [Command.unlink(self.env.uid)]})
 
     def _compute_documents(self):
         applicants = self.mapped("application_ids").filtered(
@@ -447,12 +434,13 @@ class HrJob(models.Model):
         return jobs
 
     def write(self, vals):
-        old_interviewers = self.interviewer_ids
-        old_managers = {}
-        old_recruiters = {}
-        for job in self:
-            old_managers[job] = job.manager_id
-            old_recruiters[job] = job.user_id
+        # Read only what this write will actually need afterwards: both fields
+        # are group-restricted, and reading them unconditionally denied any
+        # write by a user without those groups -- favoriting a job included.
+        old_interviewers = (
+            self.interviewer_ids if "interviewer_ids" in vals else self.browse()
+        )
+        old_recruiters = {job: job.user_id for job in self} if "user_id" in vals else {}
         if "active" in vals and not vals["active"]:
             self.application_ids.active = False
         res = super().write(vals)
@@ -493,17 +481,6 @@ class HrJob(models.Model):
                 )
                 job.alias_defaults = alias_default_vals
         return res
-
-    def _order_field_to_sql(self, alias, field_name, direction, nulls, query):
-        if field_name == "is_favorite":
-            sql_field = SQL(
-                "%s IN (SELECT job_id FROM job_favorite_user_rel WHERE user_id = %s)",
-                SQL.identifier(alias, "id"),
-                self.env.uid,
-            )
-            return SQL("%s %s %s", sql_field, direction, nulls)
-
-        return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
 
     def _creation_subtype(self):
         return self.env.ref("hr_recruitment.mt_job_new")

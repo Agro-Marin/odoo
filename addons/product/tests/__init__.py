@@ -1,6 +1,5 @@
 from . import test_barcode
 from . import test_common
-from . import test_document_upload
 from . import test_import_and_copy_integrity
 from . import test_import_batching
 from . import test_investigation_fixes
@@ -17,6 +16,7 @@ from . import test_product_audit_fixes
 from . import test_product_deduplication
 from . import test_product_investigation_0824
 from . import test_product_combo
+from . import test_product_favorite
 from . import test_product_merge
 from . import test_product_pricelist
 from . import test_product_product_improvements

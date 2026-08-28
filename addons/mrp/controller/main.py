@@ -1,7 +1,9 @@
-from odoo.addons.product.controllers.product_document import ProductDocumentController
+from odoo.addons.documents_product.controllers.documents_document import (
+    ProductDocumentsController,
+)
 
 
-class MRPProductDocumentController(ProductDocumentController):
+class MRPProductDocumentController(ProductDocumentsController):
     def get_additional_create_params(self, **kwargs):
         super_values = super().get_additional_create_params(**kwargs)
         if kwargs.get("attached_on_bom"):

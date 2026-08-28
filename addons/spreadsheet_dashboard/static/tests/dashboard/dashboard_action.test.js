@@ -71,10 +71,10 @@ test("Folding dashboard from 'FAVORITES' group shows correct active dashboard gr
     await createSpreadsheetDashboard({
         mockRPC: async function (route, args) {
             if (
-                args.method === "action_toggle_favorite" &&
+                args.method === "action_toggle_user_favorite" &&
                 args.model === "spreadsheet.dashboard"
             ) {
-                expect.step("action_toggle_favorite");
+                expect.step("action_toggle_user_favorite");
                 return true;
             }
         },
@@ -83,7 +83,7 @@ test("Folding dashboard from 'FAVORITES' group shows correct active dashboard gr
     await contains(".o_dashboard_star").click();
     expect(".o_search_panel_section").toHaveCount(3);
     expect(".o_search_panel_category header b:first").toHaveText("FAVORITES");
-    expect.verifySteps(["action_toggle_favorite"]);
+    expect.verifySteps(["action_toggle_user_favorite"]);
 
     await contains(".o_spreadsheet_dashboard_search_panel button").click();
     expect(".o_spreadsheet_dashboard_search_panel").toHaveCount(0);
@@ -318,7 +318,7 @@ test("Changing filter values will create a new share", async function () {
 });
 
 test("Should toggle favorite status of a dashboard when the 'Favorite' icon is clicked", async function () {
-    onRpc("spreadsheet.dashboard", "action_toggle_favorite", ({ method }) => {
+    onRpc("spreadsheet.dashboard", "action_toggle_user_favorite", ({ method }) => {
         expect.step(method);
         return true;
     });
@@ -329,7 +329,7 @@ test("Should toggle favorite status of a dashboard when the 'Favorite' icon is c
         message: "The star should be filled",
     });
     expect(".o_search_panel_section").toHaveCount(3);
-    expect.verifySteps(["action_toggle_favorite"]);
+    expect.verifySteps(["action_toggle_user_favorite"]);
     expect(".o_search_panel_section.o_search_panel_category:first header b:first").toHaveText(
         "FAVORITES"
     );
@@ -337,7 +337,7 @@ test("Should toggle favorite status of a dashboard when the 'Favorite' icon is c
     expect(".o_dashboard_star").not.toHaveClass("fa-star", {
         message: "The star should not be filled",
     });
-    expect.verifySteps(["action_toggle_favorite"]);
+    expect.verifySteps(["action_toggle_user_favorite"]);
     expect(".o_search_panel_section").toHaveCount(2);
 });
 

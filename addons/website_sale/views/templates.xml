@@ -2204,7 +2204,7 @@
                                             <t t-foreach="product_documents" t-as="document_sudo">
                                                 <t
                                                     t-set="attachment_sudo"
-                                                    t-value="document_sudo.ir_attachment_id"
+                                                    t-value="document_sudo.attachment_id"
                                                 />
                                                 <t
                                                     t-set="target"

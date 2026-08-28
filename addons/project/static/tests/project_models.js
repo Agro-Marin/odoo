@@ -5,7 +5,7 @@ export class ProjectProject extends models.Model {
     _name = "project.project";
 
     name = fields.Char();
-    is_favorite = fields.Boolean();
+    is_user_favorite = fields.Boolean();
     is_template = fields.Boolean();
     active = fields.Boolean({ default: true });
     phase_id = fields.Many2one({ relation: "project.phase" });

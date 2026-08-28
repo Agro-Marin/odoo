@@ -35,12 +35,6 @@
             <field
                 name="domain_force">['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
         </record>
-        <record id="product_document_comp_rule" model="ir.rule">
-            <field name="name">Product multi-company</field>
-            <field name="model_id" ref="model_product_document" />
-            <field
-                name="domain_force">['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
-        </record>
         <record id="product_pricelist_comp_rule" model="ir.rule">
             <field name="name">product pricelist company rule</field>
             <field name="model_id" ref="model_product_pricelist" />

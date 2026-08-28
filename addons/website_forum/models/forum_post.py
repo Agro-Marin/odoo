@@ -17,6 +17,7 @@ class ForumPost(models.Model):
     _description = "Forum Post"
     _inherit = [
         "mixin.mail.thread",
+        "mixin.user.favorite",
         "mixin.website.seo.metadata",
         "mixin.website.searchable",
     ]
@@ -82,9 +83,7 @@ class ForumPost(models.Model):
     )
 
     # favorite
-    favourite_ids = fields.Many2many("res.users", string="Favourite")
-    user_favourite = fields.Boolean("Is Favourite", compute="_compute_user_favourite")
-    favourite_count = fields.Count("favourite_ids", "Favorite", store=True)
+    favorite_count = fields.Count("favorite_user_ids", "Favorite", store=True)
 
     # hierarchy
     is_correct = fields.Boolean("Correct", help="Correct answer or answer accepted")
@@ -262,11 +261,6 @@ class ForumPost(models.Model):
             result[post.id] += count * int(vote)
         for post in self:
             post.vote_count = result[post.id]
-
-    @api.depends_context("uid")
-    def _compute_user_favourite(self):
-        for post in self:
-            post.user_favourite = post.env.uid in post.favourite_ids.ids
 
     @api.depends("create_uid", "parent_id")
     def _compute_self_reply(self):
@@ -1219,8 +1213,8 @@ class ForumPost(models.Model):
             domain &= Domain("message_partner_ids", "=", user.partner_id.id)
         elif my == "tagged":
             domain &= Domain("tag_ids.message_partner_ids", "=", user.partner_id.id)
-        elif my == "favourites":
-            domain &= Domain("favourite_ids", "=", user.id)
+        elif my == "favorites":
+            domain &= Domain("favorite_user_ids", "=", user.id)
         elif my == "upvoted":
             domain &= Domain("vote_ids.user_id", "=", user.id)
 

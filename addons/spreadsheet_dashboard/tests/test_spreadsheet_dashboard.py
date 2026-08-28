@@ -73,15 +73,15 @@ class TestSpreadsheetDashboard(DashboardTestCommon):
     def test_toggle_favorite(self):
         dashboard = self.create_dashboard().with_user(self.user)
 
-        self.assertFalse(dashboard.is_favorite)
+        self.assertFalse(dashboard.is_user_favorite)
         self.assertNotIn(self.user, dashboard.favorite_user_ids)
 
-        dashboard.with_user(self.user).action_toggle_favorite()
+        dashboard.with_user(self.user).action_toggle_user_favorite()
 
-        self.assertTrue(dashboard.is_favorite)
+        self.assertTrue(dashboard.is_user_favorite)
         self.assertIn(self.user, dashboard.favorite_user_ids)
 
-        dashboard.with_user(self.user).action_toggle_favorite()
+        dashboard.with_user(self.user).action_toggle_user_favorite()
 
-        self.assertFalse(dashboard.is_favorite)
+        self.assertFalse(dashboard.is_user_favorite)
         self.assertNotIn(self.user, dashboard.favorite_user_ids)

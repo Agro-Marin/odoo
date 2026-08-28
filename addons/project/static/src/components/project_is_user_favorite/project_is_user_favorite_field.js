@@ -3,7 +3,7 @@ import { registry } from "@web/core/registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { booleanFavoriteField } from "@web/fields/basic/boolean_favorite/boolean_favorite_field";
 
-export const projectIsFavoriteField = {
+export const projectIsUserFavoriteField = {
     ...booleanFavoriteField,
     extractProps: (fieldsInfo, dynamicInfo) => ({
         ...booleanFavoriteField.extractProps(fieldsInfo, dynamicInfo),
@@ -16,4 +16,4 @@ export const projectIsFavoriteField = {
     }),
 };
 
-registry.category("fields").add("project_is_favorite", projectIsFavoriteField);
+registry.category("fields").add("project_is_user_favorite", projectIsUserFavoriteField);

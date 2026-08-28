@@ -53,9 +53,9 @@
  </t>
  </span>
  <a t-elif="uid" type="button" aria-label="Favorite"
- t-attf-data-href="/forum/#{slug(question.forum_id)}/question/#{slug(question)}/toggle_favourite"
- t-attf-class="o_wforum_favourite_toggle btn btn-lg #{ 'opacity-50' if not question.user_favourite else '' } opacity-hover-100 p-0">
- <i t-attf-class="position-relative fa-star #{'fa-solid o_wforum_gold' if question.user_favourite else 'fa-regular'}"
+ t-attf-data-href="/forum/#{slug(question.forum_id)}/question/#{slug(question)}/toggle_favorite"
+ t-attf-class="o_wforum_favorite_toggle btn btn-lg #{ 'opacity-50' if not question.is_user_favorite else '' } opacity-hover-100 p-0">
+ <i t-attf-class="position-relative fa-star #{'fa-solid o_wforum_gold' if question.is_user_favorite else 'fa-regular'}"
  data-bs-toggle="tooltip"
  data-bs-placement="top"
  title="Favorite"/>
@@ -300,9 +300,9 @@
  <i t-attf-class="fa-solid fa-user-circle #{ 'opacity-50' if my != 'mine' else ''}"/> My Posts
  </a>
 
- <!-- My Favourites -->
- <a t-attf-class="nav-link my-1 py-1 #{ 'rounded text-bg-light disabled' if my == 'favourites' else 'text-reset' }" t-att-href="location + keep_query( 'search', 'filters', 'sorting', my='favourites')">
- <i t-attf-class="fa-solid fa-star #{ 'opacity-50' if my != 'favourites' else ''}"/> Favourites
+ <!-- My Favorites -->
+ <a t-attf-class="nav-link my-1 py-1 #{ 'rounded text-bg-light disabled' if my == 'favorites' else 'text-reset' }" t-att-href="location + keep_query( 'search', 'filters', 'sorting', my='favorites')">
+ <i t-attf-class="fa-solid fa-star #{ 'opacity-50' if my != 'favorites' else ''}"/> Favorites
  </a>
  </t>
  <!-- People -->
@@ -399,7 +399,7 @@
  <t t-else="">
  Sorry, we could not find any results
  </t>
- <b t-if="my == 'favourites'"> in your favourites</b>
+ <b t-if="my == 'favorites'"> in your favorites</b>
  <b t-elif="my == 'mine'"> in your posts</b>
  <span t-if="search">matching "<em class="fw-bold text-break" t-out="original_search or search"/>"</span>
  <span t-out="'and' if search and tag else ''"/>

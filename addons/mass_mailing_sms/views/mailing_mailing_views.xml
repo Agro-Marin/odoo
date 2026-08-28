@@ -121,7 +121,7 @@
                 <attribute name="invisible" separator=" or " add="mailing_type != 'mail'"/>
             </xpath>
             <xpath expr="//button[@name='action_remove_favorite']" position="attributes">
-                <attribute name="invisible">mailing_type != 'mail' or not favorite</attribute>
+                <attribute name="invisible" separator=" or " add="mailing_type != 'mail'"/>
             </xpath>
             <xpath expr="//field[@name='preview']" position="attributes">
                 <attribute name="invisible">mailing_type != 'mail'</attribute>

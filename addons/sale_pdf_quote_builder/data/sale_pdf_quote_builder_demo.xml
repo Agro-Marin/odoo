@@ -41,7 +41,7 @@
         <field name="sequence">40</field>
     </record>
 
-    <record id="consu_delivery_02_document" model="product.document">
+    <record id="consu_delivery_02_document" model="documents.document">
         <field name="name">Large Meeting Table Document</field>
         <field name="datas" type="base64" file="sale_pdf_quote_builder/static/quote_builder_pdf/large_meeting_table_with_form_fields.pdf"/>
         <field name="mimetype">application/pdf</field>
@@ -50,11 +50,11 @@
         <field name="res_id" ref="product.consu_delivery_02_product_template"/>
     </record>
 
-    <record id="product.product_product_4_product_template_document" model="product.document">
+    <record id="documents_product.product_product_4_product_template_document" model="documents.document">
         <field name="attached_on_sale">inside</field>
     </record>
 
-    <record id="product.product_product_25_document" model="product.document">
+    <record id="documents_product.product_product_25_document" model="documents.document">
         <field name="attached_on_sale">inside</field>
     </record>
 

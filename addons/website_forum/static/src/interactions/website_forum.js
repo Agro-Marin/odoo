@@ -44,8 +44,8 @@ export class WebsiteForum extends Interaction {
         ".o_wforum_validate_toggler:not(.karma_required)": {
             "t-on-click.prevent.withTarget": this.onToggleValidateClick,
         },
-        ".o_wforum_favourite_toggle": {
-            "t-on-click.prevent.withTarget": this.onToggleFavouriteClick,
+        ".o_wforum_favorite_toggle": {
+            "t-on-click.prevent.withTarget": this.onToggleFavoriteClick,
         },
         ".comment_delete:not(.karma_required)": {
             "t-on-click.prevent.withTarget": this.onDeleteCommentClick,
@@ -455,7 +455,7 @@ export class WebsiteForum extends Interaction {
      * @param {MouseEvent} ev
      * @param {HTMLElement} currentTargetEl
      */
-    async onToggleFavouriteClick(ev, currentTargetEl) {
+    async onToggleFavoriteClick(ev, currentTargetEl) {
         const data = await this.waitFor(rpc(currentTargetEl.dataset.href));
         currentTargetEl.classList.toggle("opacity-50", !data);
         currentTargetEl.classList.toggle("opacity-100-hover", !data);
