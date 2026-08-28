@@ -101,6 +101,12 @@ class MixinOrderLineFields(models.AbstractModel):
         depends=["product_id"],
     )
 
+    # A model that re-declares `parent_id` to narrow `comodel_name` (see
+    # e.g. `purchase.order.line`) keeps this `compute=` only because Odoo's
+    # field-merge rules carry over a base field's kwargs when the redeclared
+    # type still matches. Redeclaring with a *different* field type would
+    # silently clear `compute` instead of raising -- keep any such override
+    # a `fields.Many2one` too.
     parent_id = fields.Many2one(
         comodel_name="mixin.order.line.fields",
         string="Parent Section Line",
