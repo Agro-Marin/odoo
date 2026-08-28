@@ -663,16 +663,17 @@ class AccountAccount(models.Model):
         if cache is None:
             cache = {start_code}
 
+        company_domain = [
+            "|",
+            ("company_ids", "parent_of", self.env.company.id),
+            ("company_ids", "child_of", self.env.company.id),
+        ]
+
         def code_is_available(new_code):
             return new_code not in cache and not self.with_context(
                 active_test=False
             ).sudo().search_count(
-                [
-                    ("code", "=", new_code),
-                    "|",
-                    ("company_ids", "parent_of", self.env.company.id),
-                    ("company_ids", "child_of", self.env.company.id),
-                ],
+                [("code", "=", new_code), *company_domain],
                 limit=1,
             )
 
@@ -685,8 +686,33 @@ class AccountAccount(models.Model):
 
         if digits_str != "":
             d, n = len(digits_str), int(digits_str)
+            code_len = len(start_str) + d + len(end_str)
+            # A single bulk fetch of every occupied code for this company's
+            # parent/child hierarchy, instead of one ``search_count`` round
+            # trip per candidate digit -- the first free numeric gap is then
+            # found in Python from that one query.
+            existing_codes = (
+                self.with_context(active_test=False)
+                .sudo()
+                .search_read(company_domain, fields=["code"])
+            )
+            occupied = set()
+            for existing in existing_codes:
+                code = existing["code"]
+                if (
+                    code
+                    and len(code) == code_len
+                    and code.startswith(start_str)
+                    and code.endswith(end_str)
+                ):
+                    middle = code[len(start_str) : code_len - len(end_str)]
+                    if middle.isdigit():
+                        occupied.add(int(middle))
             for num in range(n + 1, 10**d):
-                if code_is_available(new_code := f"{start_str}{num:0{d}}{end_str}"):
+                if num in occupied:
+                    continue
+                new_code = f"{start_str}{num:0{d}}{end_str}"
+                if new_code not in cache:
                     return new_code
 
         for num in range(99):
