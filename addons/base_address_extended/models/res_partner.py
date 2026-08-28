@@ -74,3 +74,6 @@ class ResPartner(models.Model):
         super()._onchange_country_id()
         if self.country_id and self.country_id != self.city_id.country_id:
             self.city_id = False
+            self.city = False
+            self.zip = False
+            self.state_id = False
