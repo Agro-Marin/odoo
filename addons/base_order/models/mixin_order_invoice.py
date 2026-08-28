@@ -301,6 +301,15 @@ class MixinOrderInvoice(models.AbstractModel):
         )
 
     def _switch_negative_moves(self, moves, final):
+        """Switch every negative-total move to a credit note/refund.
+
+        The base implementation ignores ``final`` and switches
+        unconditionally -- that is the live behavior for any concrete model
+        that does not override this method (e.g. `purchase.order`).
+        `sale.order` overrides it to gate on `final` instead; a future
+        override that wants that gating must implement it itself rather than
+        relying on a `super()` call to apply it.
+        """
         moves_to_switch = moves.sudo().filtered(
             lambda m: m.currency_id.round(m.amount_total) < 0,
         )
