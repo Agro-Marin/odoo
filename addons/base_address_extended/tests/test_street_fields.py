@@ -64,6 +64,16 @@ class TestStreetFields(TransactionCase):
                 % (street, partner.street),
             )
 
+    def test_inverse_street_data_without_leading_parts(self):
+        """A door number alone must not leave a stray leading " - "."""
+        mx_id = self.env.ref("base.mx").id
+        partner = self.env["res.partner"].create(
+            {"name": "Test Address", "country_id": mx_id}
+        )
+
+        partner.write({"street_name": "", "street_number": "", "street_number2": "4B"})
+        self.assertEqual(partner.street, "4B")
+
     def test_child_sync(self):
         """Test that city_id is propagated to (contact-type) children contacts."""
         usa = self.env.ref("base.us")

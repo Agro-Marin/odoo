@@ -33,11 +33,15 @@ class ResPartner(models.Model):
     def _inverse_street_data(self):
         """update self.street based on street_name, street_number and street_number2"""
         for partner in self:
-            street = (
-                (partner.street_name or "") + " " + (partner.street_number or "")
-            ).strip()
+            street = " ".join(
+                part for part in (partner.street_name, partner.street_number) if part
+            )
             if partner.street_number2:
-                street = street + " - " + partner.street_number2
+                street = (
+                    f"{street} - {partner.street_number2}"
+                    if street
+                    else partner.street_number2
+                )
             partner.street = street
 
     @api.depends("street")
