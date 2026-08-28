@@ -2,9 +2,7 @@ from odoo import fields, models
 
 
 class MailMessage(models.Model):
-    """Override MailMessage class in order to add a new type: SMS messages.
-    Those messages comes with their own notification method, using SMS
-    gateway."""
+    """mail.message extended with an SMS notification type."""
 
     _inherit = "mail.message"
 
