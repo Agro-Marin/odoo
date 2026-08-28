@@ -46,10 +46,17 @@
     }
 }
 
-
 @include media-only(screen) {
     :root[data-color-scheme="dark"] .o_kanban_renderer .o_kanban_group {
-        @each $-class, $-name in (success: "success", warning: "warning", danger: "danger", muted: "dark", info: "info")
+        @each $-class,
+            $-name
+                in (
+                    success: "success",
+                    warning: "warning",
+                    danger: "danger",
+                    muted: "dark",
+                    info: "info"
+                )
         {
             @include o-kanban-css-filter(
                 $-class,

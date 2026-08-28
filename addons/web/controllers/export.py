@@ -160,41 +160,58 @@ class Export(http.Controller):
             key=lambda field: field[1]["string"].lower(),
         )
 
-        result = []
-        for field_name, field in fields_sequence:
-            ident = prefix + ("/" if prefix else "") + field_name
-            val = ident
-            if (
-                field_name == "name"
-                and import_compat
-                and parent_field_type in ["many2one", "many2many"]
-            ):
-                val = prefix
-            name = parent_name + ((parent_name and "/") or "") + field["string"]
-            field_dict = {
-                "id": ident,
-                "string": name,
-                "value": val,
-                "children": False,
-                "field_type": field.get("type"),
-                "required": field.get("required"),
-                "relation_field": field.get("relation_field"),
-                "default_export": import_compat
-                and field.get("default_export_compatible"),
+        return [
+            self._get_export_field_entry(
+                field_name,
+                field,
+                prefix=prefix,
+                parent_name=parent_name,
+                import_compat=import_compat,
+                parent_field_type=parent_field_type,
+            )
+            for field_name, field in fields_sequence
+        ]
+
+    def _get_export_field_entry(
+        self,
+        field_name: str,
+        field: dict[str, Any],
+        *,
+        prefix: str,
+        parent_name: str,
+        import_compat: bool,
+        parent_field_type: str | None,
+    ) -> dict[str, Any]:
+        """One entry of the export field tree, with its lazy-children params."""
+        ident = prefix + ("/" if prefix else "") + field_name
+        val = ident
+        if (
+            field_name == "name"
+            and import_compat
+            and parent_field_type in ["many2one", "many2many"]
+        ):
+            val = prefix
+        name = parent_name + ((parent_name and "/") or "") + field["string"]
+        field_dict = {
+            "id": ident,
+            "string": name,
+            "value": val,
+            "children": False,
+            "field_type": field.get("type"),
+            "required": field.get("required"),
+            "relation_field": field.get("relation_field"),
+            "default_export": import_compat and field.get("default_export_compatible"),
+        }
+        if len(ident.split("/")) < 3 and "relation" in field:
+            field_dict["value"] += "/id"
+            field_dict["params"] = {
+                "model": field["relation"],
+                "prefix": ident,
+                "name": name,
+                "parent_field": field,
             }
-            if len(ident.split("/")) < 3 and "relation" in field:
-                field_dict["value"] += "/id"
-                field_dict["params"] = {
-                    "model": field["relation"],
-                    "prefix": ident,
-                    "name": name,
-                    "parent_field": field,
-                }
-                field_dict["children"] = True
-
-            result.append(field_dict)
-
-        return result
+            field_dict["children"] = True
+        return field_dict
 
     @http.route("/web/export/namelist", type="jsonrpc", auth="user", readonly=True)
     def namelist(self, model: str, export_id: int) -> list[dict[str, Any]]:
@@ -319,6 +336,105 @@ class ExportFormat:
             )
             raise InternalServerError(payload) from exc
 
+    def _check_export_order(self, Model: Any, order: str | None) -> None:
+        """Refuse an `order` that is not a comma-separated list of known fields."""
+        if not order:
+            return
+        order_root = []
+        for term in order.split(","):
+            parts = term.split()
+            if (
+                not parts
+                or len(parts) > 2
+                or (len(parts) == 2 and parts[1].lower() not in ("asc", "desc"))
+            ):
+                raise UserError(
+                    request.env._(
+                        "Invalid order clause %(order)s for %(model)s.",
+                        order=order,
+                        model=Model._name,
+                    )
+                )
+            order_root.append(parts[0].split(":", 1)[0].split(".", 1)[0])
+        unknown = [f for f in order_root if f not in Model._fields]
+        if unknown:
+            raise UserError(
+                request.env._(
+                    "Unknown order fields for %(model)s: %(fields)s",
+                    model=Model._name,
+                    fields=", ".join(unknown),
+                )
+            )
+
+    def _get_export_rows(
+        self, Model: Any, records: Any, field_names: list[str]
+    ) -> list[list]:
+        """Every record's exported row, read and invalidated in prefetch batches."""
+        all_rows = []
+        for batch_ids in itertools.batched(records.ids, PREFETCH_MAX, strict=False):
+            batch = Model.browse(batch_ids)
+            all_rows.extend(batch.export_data(field_names).get("datas", []))
+            batch.invalidate_recordset()
+        return all_rows
+
+    def _get_export_groups_tree(
+        self,
+        Model: Any,
+        records: Any,
+        field_names: list[str],
+        groupby: list[str],
+        ids: list[int] | None,
+        domain: list,
+    ) -> GroupsTreeNode:
+        """The grouped export tree: every group's rows, under its own leaf."""
+        groupby_root = [x.split(":", 1)[0].split(".", 1)[0] for x in groupby]
+        unknown = [f for f in groupby_root if f not in Model._fields]
+        if unknown:
+            raise UserError(
+                request.env._(
+                    "Unknown groupby fields for %(model)s: %(fields)s",
+                    model=Model._name,
+                    fields=", ".join(unknown),
+                )
+            )
+        groupby_type = [Model._fields[f].type for f in groupby_root]
+        tree = GroupsTreeNode(Model, field_names, groupby, groupby_type)
+        if ids:
+            domain = [("id", "in", ids)]
+            SearchModel = Model.with_context(active_test=False)
+        else:
+            SearchModel = Model
+        groups_data = SearchModel.formatted_read_group(
+            domain, groupby, ["__count", "id:array_agg"]
+        )
+
+        record_rows = {}
+        current_id = None
+        for batch_ids in itertools.batched(records.ids, PREFETCH_MAX, strict=False):
+            batch = Model.browse(batch_ids)
+            export_data = batch.export_data([".id"] + field_names).get("datas", [])
+            for row in export_data:
+                if row[0]:
+                    current_id = int(row[0])
+                    record_rows[current_id] = []
+                record_rows[current_id].append(row[1:])
+            batch.invalidate_recordset()
+
+        groups = [group["id:array_agg"] for group in groups_data]
+        record_to_group = defaultdict(list)
+        for group_index, group_record_ids in enumerate(groups):
+            for record_id in group_record_ids:
+                record_to_group[record_id].append(group_index)
+
+        grouped_rows = [[] for _ in groups]
+        for record_id, rows in record_rows.items():
+            for group_index in record_to_group[record_id]:
+                grouped_rows[group_index].extend(rows)
+
+        for group_info, group_rows in zip(groups_data, grouped_rows, strict=True):
+            tree.insert_leaf(group_info, group_rows)
+        return tree
+
     def base(self, data: str) -> Response:
         params = json_loads(data)
         model, fields, ids, domain, import_compat = operator.itemgetter(
@@ -338,93 +454,18 @@ class ExportFormat:
             columns_headers = [val["label"].strip() for val in fields]
 
         order = params.get("order") or None
-        if order:
-            order_root = []
-            for term in order.split(","):
-                parts = term.split()
-                if (
-                    not parts
-                    or len(parts) > 2
-                    or (len(parts) == 2 and parts[1].lower() not in ("asc", "desc"))
-                ):
-                    raise UserError(
-                        request.env._(
-                            "Invalid order clause %(order)s for %(model)s.",
-                            order=order,
-                            model=Model._name,
-                        )
-                    )
-                order_root.append(parts[0].split(":", 1)[0].split(".", 1)[0])
-            unknown = [f for f in order_root if f not in Model._fields]
-            if unknown:
-                raise UserError(
-                    request.env._(
-                        "Unknown order fields for %(model)s: %(fields)s",
-                        model=Model._name,
-                        fields=", ".join(unknown),
-                    )
-                )
+        self._check_export_order(Model, order)
 
         records = Model.browse(ids) if ids else Model.search(domain, order=order)
 
         groupby = params.get("groupby")
         if not import_compat and groupby:
-            groupby_root = [x.split(":", 1)[0].split(".", 1)[0] for x in groupby]
-            unknown = [f for f in groupby_root if f not in Model._fields]
-            if unknown:
-                raise UserError(
-                    request.env._(
-                        "Unknown groupby fields for %(model)s: %(fields)s",
-                        model=Model._name,
-                        fields=", ".join(unknown),
-                    )
-                )
-            groupby_type = [Model._fields[f].type for f in groupby_root]
-            tree = GroupsTreeNode(Model, field_names, groupby, groupby_type)
-            if ids:
-                domain = [("id", "in", ids)]
-                SearchModel = Model.with_context(active_test=False)
-            else:
-                SearchModel = Model
-            groups_data = SearchModel.formatted_read_group(
-                domain, groupby, ["__count", "id:array_agg"]
+            tree = self._get_export_groups_tree(
+                Model, records, field_names, groupby, ids, domain
             )
-
-            record_rows = {}
-            current_id = None
-            for batch_ids in itertools.batched(records.ids, PREFETCH_MAX, strict=False):
-                batch = Model.browse(batch_ids)
-                export_data = batch.export_data([".id"] + field_names).get("datas", [])
-                for row in export_data:
-                    if row[0]:
-                        current_id = int(row[0])
-                        record_rows[current_id] = []
-                    record_rows[current_id].append(row[1:])
-                batch.invalidate_recordset()
-
-            groups = [group["id:array_agg"] for group in groups_data]
-            record_to_group = defaultdict(list)
-            for group_index, group_record_ids in enumerate(groups):
-                for record_id in group_record_ids:
-                    record_to_group[record_id].append(group_index)
-
-            grouped_rows = [[] for _ in groups]
-            for record_id, rows in record_rows.items():
-                for group_index in record_to_group[record_id]:
-                    grouped_rows[group_index].extend(rows)
-
-            for group_info, group_rows in zip(groups_data, grouped_rows, strict=True):
-                tree.insert_leaf(group_info, group_rows)
-
             response_data = self.from_group_data(fields, columns_headers, tree)
         else:
-            all_rows = []
-            for batch_ids in itertools.batched(records.ids, PREFETCH_MAX, strict=False):
-                batch = Model.browse(batch_ids)
-                export_data = batch.export_data(field_names).get("datas", [])
-                all_rows.extend(export_data)
-                batch.invalidate_recordset()
-
+            all_rows = self._get_export_rows(Model, records, field_names)
             response_data = self.from_data(fields, columns_headers, all_rows)
 
         _logger.info(

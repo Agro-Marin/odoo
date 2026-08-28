@@ -165,12 +165,11 @@ $o-color-extras-nesting-selector: "&" !default;
     @return map-merge(
         $-spec,
         (
-            disabled-color:
-                if(
+            disabled-color: if(
                     o-is-color($-background),
                     o-scheme-contrast($-background, $-scheme),
                     map-get($-spec, color)
-                )
+                ),
         )
     );
 }
@@ -202,16 +201,14 @@ $o-color-extras-nesting-selector: "&" !default;
         $-border,
         $color: $-color,
         $hover-background: $-hover-background,
-        $hover-border:
-            if(
+        $hover-border: if(
                 $-shades,
                 o-scheme-shade($-border, $btn-hover-border-shade-amount, $-scheme),
                 o-scheme-tint($-border, $btn-hover-border-tint-amount, $-scheme)
             ),
         $hover-color: o-scheme-contrast($-hover-background, $-scheme),
         $active-background: $-active-background,
-        $active-border:
-            if(
+        $active-border: if(
                 $-shades,
                 o-scheme-shade($-border, $btn-active-border-shade-amount, $-scheme),
                 o-scheme-tint($-border, $btn-active-border-tint-amount, $-scheme)

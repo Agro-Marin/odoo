@@ -109,7 +109,6 @@
     }
 
     .o_row > div > .o_field_widget,
-
     .o_form_readonly {
         .oe_edit_only {
             display: none !important;
@@ -143,9 +142,9 @@
 
         > span:first-child {
             @include o-hover-text-color(
-            o-token(--link-color, $link-color),
-            o-token(--link-hover-color, $link-hover-color)
-        );
+                o-token(--link-color, $link-color),
+                o-token(--link-hover-color, $link-hover-color)
+            );
         }
     }
 

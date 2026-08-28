@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <template id="view_memory"> &lt;!DOCTYPE html&gt; <html lang="en">
+    <template id="view_memory">
+ &lt;!DOCTYPE html&gt; <html lang="en">
             <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -114,7 +115,9 @@
                         </div>
                     </div>
                     <div class="bottom-row">
-                        <div class="bar-chart-wrapper chart-container" id="memoryChartContainer">
+                        <div
+                            class="bar-chart-wrapper chart-container"
+                            id="memoryChartContainer">
                             <canvas id="memoryChart" />
                         </div>
                         <div class="traceback-panel" id="tracebackPanel">

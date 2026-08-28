@@ -2,20 +2,20 @@ $o-dark-colors-lighten: 12% !default;
 $o-dark-min-contrast-ratio: 3 !default;
 
 $o-dark-white: #000 !default;
-$o-dark-black: #E2E8F0 !default;
+$o-dark-black: #e2e8f0 !default;
 
 $o-dark-color-contrast-light: $o-dark-white !default;
 $o-dark-color-contrast-dark: $o-dark-black !default;
 
-$o-dark-gray-100: #0B1120 !default;
-$o-dark-gray-200: #151D2E !default;
-$o-dark-gray-300: #1C2639 !default;
-$o-dark-gray-400: #2D3A4F !default;
+$o-dark-gray-100: #0b1120 !default;
+$o-dark-gray-200: #151d2e !default;
+$o-dark-gray-300: #1c2639 !default;
+$o-dark-gray-400: #2d3a4f !default;
 $o-dark-gray-500: #475569 !default;
-$o-dark-gray-600: #64748B !default;
-$o-dark-gray-700: #94A3B8 !default;
-$o-dark-gray-800: #CBD5E1 !default;
-$o-dark-gray-900: #E2E8F0 !default;
+$o-dark-gray-600: #64748b !default;
+$o-dark-gray-700: #94a3b8 !default;
+$o-dark-gray-800: #cbd5e1 !default;
+$o-dark-gray-900: #e2e8f0 !default;
 
 $o-dark-grays: (
     100: $o-dark-gray-100,
@@ -39,10 +39,10 @@ $o-dark-action-text: $o-dark-action !default;
 
 $o-dark-theme-text-colors: (
     "primary": $o-dark-brand-primary,
-    "success": #34D399,
-    "info": #60A5FA,
-    "warning": #FBBF24,
-    "danger": #F87171,
+    "success": #34d399,
+    "info": #60a5fa,
+    "warning": #fbbf24,
+    "danger": #f87171,
 ) !default;
 
 $o-dark-main-text-color: $o-dark-gray-900 !default;
@@ -120,25 +120,92 @@ $o-dark-theme-colors: (
     "dark": $o-dark-bs-dark,
 ) !default;
 
-
-$o-dark-primary-text-emphasis: mix(#fff, map-get($o-dark-theme-colors, "primary"), 60%) !default;
-$o-dark-primary-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "primary"), 80%) !default;
-$o-dark-primary-border-subtle: mix(#000, map-get($o-dark-theme-colors, "primary"), 60%) !default;
-$o-dark-secondary-text-emphasis: mix(#fff, map-get($o-dark-theme-colors, "secondary"), 60%) !default;
-$o-dark-secondary-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "secondary"), 80%) !default;
-$o-dark-secondary-border-subtle: mix(#000, map-get($o-dark-theme-colors, "secondary"), 60%) !default;
-$o-dark-success-text-emphasis: mix(#fff, map-get($o-dark-theme-colors, "success"), 60%) !default;
-$o-dark-success-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "success"), 80%) !default;
-$o-dark-success-border-subtle: mix(#000, map-get($o-dark-theme-colors, "success"), 60%) !default;
-$o-dark-info-text-emphasis: mix(#fff, map-get($o-dark-theme-colors, "info"), 60%) !default;
+$o-dark-primary-text-emphasis: mix(
+    #fff,
+    map-get($o-dark-theme-colors, "primary"),
+    60%
+) !default;
+$o-dark-primary-bg-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "primary"),
+    80%
+) !default;
+$o-dark-primary-border-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "primary"),
+    60%
+) !default;
+$o-dark-secondary-text-emphasis: mix(
+    #fff,
+    map-get($o-dark-theme-colors, "secondary"),
+    60%
+) !default;
+$o-dark-secondary-bg-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "secondary"),
+    80%
+) !default;
+$o-dark-secondary-border-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "secondary"),
+    60%
+) !default;
+$o-dark-success-text-emphasis: mix(
+    #fff,
+    map-get($o-dark-theme-colors, "success"),
+    60%
+) !default;
+$o-dark-success-bg-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "success"),
+    80%
+) !default;
+$o-dark-success-border-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "success"),
+    60%
+) !default;
+$o-dark-info-text-emphasis: mix(
+    #fff,
+    map-get($o-dark-theme-colors, "info"),
+    60%
+) !default;
 $o-dark-info-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "info"), 80%) !default;
-$o-dark-info-border-subtle: mix(#000, map-get($o-dark-theme-colors, "info"), 60%) !default;
-$o-dark-warning-text-emphasis: mix(#fff, map-get($o-dark-theme-colors, "warning"), 60%) !default;
-$o-dark-warning-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "warning"), 80%) !default;
-$o-dark-warning-border-subtle: mix(#000, map-get($o-dark-theme-colors, "warning"), 60%) !default;
-$o-dark-danger-text-emphasis: mix(#fff, map-get($o-dark-theme-colors, "danger"), 60%) !default;
-$o-dark-danger-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "danger"), 80%) !default;
-$o-dark-danger-border-subtle: mix(#000, map-get($o-dark-theme-colors, "danger"), 60%) !default;
+$o-dark-info-border-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "info"),
+    60%
+) !default;
+$o-dark-warning-text-emphasis: mix(
+    #fff,
+    map-get($o-dark-theme-colors, "warning"),
+    60%
+) !default;
+$o-dark-warning-bg-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "warning"),
+    80%
+) !default;
+$o-dark-warning-border-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "warning"),
+    60%
+) !default;
+$o-dark-danger-text-emphasis: mix(
+    #fff,
+    map-get($o-dark-theme-colors, "danger"),
+    60%
+) !default;
+$o-dark-danger-bg-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "danger"),
+    80%
+) !default;
+$o-dark-danger-border-subtle: mix(
+    #000,
+    map-get($o-dark-theme-colors, "danger"),
+    60%
+) !default;
 
 $o-dark-theme-colors-text: (
     "primary": $o-dark-primary-text-emphasis,
@@ -184,12 +251,11 @@ $o-dark-table-variants: () !default;
     $o-dark-table-variants: map-merge(
         $o-dark-table-variants,
         (
-            $-name:
-                if(
+            $-name: if(
                     index(("light", "dark"), $-name),
                     $-color,
                     mix(#000, $-color, -$o-dark-table-bg-scale)
-                )
+                ),
         )
     ) !global;
 }
@@ -285,9 +351,8 @@ $o-dark-btns-bs-override: (
 $o-dark-btns-bs-outline-override: (
     "primary": (
         background: transparent,
-        border: map-get($o-dark-theme-text-colors, 'primary'),
-        color: map-get($o-dark-theme-text-colors, 'primary'),
-
+        border: map-get($o-dark-theme-text-colors, "primary"),
+        color: map-get($o-dark-theme-text-colors, "primary"),
         hover-background: darken($o-dark-brand-primary-filled, 8%),
         hover-border: darken($o-dark-brand-primary-filled, 8%),
         hover-color: $o-dark-white,

@@ -12,7 +12,10 @@
         @include o-hover-text-color($body-color, $headings-color);
 
         &:hover {
-            background-color: o-palette-token(--o-gray-200, map-get($grays, "200")) !important;
+            background-color: o-palette-token(
+                --o-gray-200,
+                map-get($grays, "200")
+            ) !important;
         }
     }
 

@@ -87,7 +87,8 @@ declare module "registries" {
         default?: string;
     }
 
-    type SupportedOptions = BooleanOption | FieldOption | NumberOption | SelectionOption | StringOption;
+    type SupportedOptions =
+        BooleanOption | FieldOption | NumberOption | SelectionOption | StringOption;
 
     /**
      * What callers put on a field's info on top of StaticFieldInfo. Declared
@@ -115,9 +116,25 @@ declare module "registries" {
             staticInfo: StaticFieldInfo & ExtraFieldInfo,
             dynamicInfo: DynamicFieldInfo & Record<string, any>,
         ): Record<string, any>;
-        fieldDependencies?: FieldDependency[] | ((baseInfo: StaticFieldInfo) => FieldDependency[]);
-        listViewWidth?: number | number[] | ((param: { type: string; hasLabel: boolean; }) => number | false);
-        relatedFields?: Partial<StaticFieldInfo>[] | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);
+        fieldDependencies?:
+            FieldDependency[] | ((baseInfo: StaticFieldInfo) => FieldDependency[]);
+        /**
+         * `column_width_hook` is the only caller and hands it all three keys;
+         * an implementation destructures the ones it reads. The return may be
+         * undefined as well as false: the caller treats any falsy width as
+         * "use the default for this type".
+         */
+        listViewWidth?:
+            | number
+            | number[]
+            | ((param: {
+                  type: string;
+                  hasLabel: boolean;
+                  options: Record<string, any>;
+              }) => number | false | undefined);
+        relatedFields?:
+            | Partial<StaticFieldInfo>[]
+            | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);
         isEmpty?(...args: any[]): boolean;
         supportedAttributes?: any[];
         supportedOptions?: any[];

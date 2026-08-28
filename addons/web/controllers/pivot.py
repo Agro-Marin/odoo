@@ -64,67 +64,14 @@ class TableExporter(http.Controller):
 
             measure_count = _clamp_int(jdata["measure_count"], 100000)
 
-            col_group_headers = jdata["col_group_headers"]
-
-            x, y, carry = 1, 0, deque()
-            for i, header_row in enumerate(col_group_headers):
-                worksheet.write(i, 0, "", header_plain)
-                for header in header_row:
-                    while carry and carry[0]["x"] == x:
-                        cell = carry.popleft()
-                        for j in range(measure_count):
-                            worksheet.write(y, x + j, "", header_plain)
-                        if cell["height"] > 1:
-                            carry.append({"x": x, "height": cell["height"] - 1})
-                        x += measure_count
-                    width = _clamp_int(header["width"], 100000)
-                    height = _clamp_int(header["height"], 100000)
-                    for j in range(width):
-                        worksheet.write(
-                            y,
-                            x + j,
-                            _cell(header["title"]) if j == 0 else "",
-                            header_plain,
-                        )
-                    if height > 1:
-                        carry.append({"x": x, "height": height - 1})
-                    x += width
-                while carry and carry[0]["x"] == x:
-                    cell = carry.popleft()
-                    for j in range(measure_count):
-                        worksheet.write(y, x + j, "", header_plain)
-                    if cell["height"] > 1:
-                        carry.append({"x": x, "height": cell["height"] - 1})
-                    x += measure_count
-                x, y = 1, y + 1
-
-            measure_headers = jdata["measure_headers"]
-
-            if measure_headers:
-                worksheet.write(y, 0, "", header_plain)
-                for measure in measure_headers:
-                    style = header_bold if measure["is_bold"] else header_plain
-                    worksheet.write(y, x, _cell(measure["title"]), style)
-                    x += 1
-                x, y = 1, y + 1
+            y = self._write_pivot_col_headers(
+                worksheet, jdata, header_plain, measure_count
+            )
+            y = self._write_pivot_measure_headers(
+                worksheet, jdata, y, header_bold, header_plain
+            )
             worksheet.freeze_panes(y, 1)
-
-            x = 0
-            for row in jdata["rows"]:
-                indent = _clamp_int(row.get("indent", 0), 50)
-                worksheet.write(
-                    y,
-                    x,
-                    f"{indent * '     '}{_cell(row['title'])}",
-                    header_plain,
-                )
-                for cell in row["values"]:
-                    x += 1
-                    if cell.get("is_bold", False):
-                        worksheet.write(y, x, _cell(cell["value"]), bold)
-                    else:
-                        worksheet.write(y, x, _cell(cell["value"]))
-                x, y = 0, y + 1
+            self._write_pivot_rows(worksheet, jdata, y, header_plain, bold)
 
             worksheet.autofit()
 
@@ -149,3 +96,68 @@ class TableExporter(http.Controller):
                 ),
             ],
         )
+
+    def _write_pivot_col_headers(self, worksheet, jdata, header_plain, measure_count):
+        """The column-group header rows; returns the first free row."""
+        x, y, carry = 1, 0, deque()
+        for i, header_row in enumerate(jdata["col_group_headers"]):
+            worksheet.write(i, 0, "", header_plain)
+            for header in header_row:
+                while carry and carry[0]["x"] == x:
+                    cell = carry.popleft()
+                    for j in range(measure_count):
+                        worksheet.write(y, x + j, "", header_plain)
+                    if cell["height"] > 1:
+                        carry.append({"x": x, "height": cell["height"] - 1})
+                    x += measure_count
+                width = _clamp_int(header["width"], 100000)
+                height = _clamp_int(header["height"], 100000)
+                for j in range(width):
+                    worksheet.write(
+                        y,
+                        x + j,
+                        _cell(header["title"]) if j == 0 else "",
+                        header_plain,
+                    )
+                if height > 1:
+                    carry.append({"x": x, "height": height - 1})
+                x += width
+            while carry and carry[0]["x"] == x:
+                cell = carry.popleft()
+                for j in range(measure_count):
+                    worksheet.write(y, x + j, "", header_plain)
+                if cell["height"] > 1:
+                    carry.append({"x": x, "height": cell["height"] - 1})
+                x += measure_count
+            x, y = 1, y + 1
+        return y
+
+    def _write_pivot_measure_headers(
+        self, worksheet, jdata, y, header_bold, header_plain
+    ):
+        """The measure header row, when there is one; returns the first free row."""
+        measure_headers = jdata["measure_headers"]
+        if not measure_headers:
+            return y
+        worksheet.write(y, 0, "", header_plain)
+        for x, measure in enumerate(measure_headers, start=1):
+            style = header_bold if measure["is_bold"] else header_plain
+            worksheet.write(y, x, _cell(measure["title"]), style)
+        return y + 1
+
+    def _write_pivot_rows(self, worksheet, jdata, y, header_plain, bold):
+        """One worksheet row per pivot row, its title indented by its depth."""
+        for row in jdata["rows"]:
+            indent = _clamp_int(row.get("indent", 0), 50)
+            worksheet.write(
+                y,
+                0,
+                f"{indent * '     '}{_cell(row['title'])}",
+                header_plain,
+            )
+            for x, cell in enumerate(row["values"], start=1):
+                if cell.get("is_bold", False):
+                    worksheet.write(y, x, _cell(cell["value"]), bold)
+                else:
+                    worksheet.write(y, x, _cell(cell["value"]))
+            y += 1

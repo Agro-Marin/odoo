@@ -172,9 +172,10 @@
     }
 }
 
-
 @include media-only(screen) {
-    :root[data-color-scheme="dark"] .o_bottom_sheet .o_cp_switch_buttons
+    :root[data-color-scheme="dark"]
+        .o_bottom_sheet
+        .o_cp_switch_buttons
         .o-dropdown-item {
         @include o-button-variant-from(
             o-dark-button-spec(

@@ -1,7 +1,10 @@
 .o_list_renderer {
     --ListRenderer-table-padding-x: #{$table-cell-padding-x-sm};
     --ListRenderer-thead-padding-y: #{map-get($spacers, 4)};
-    --ListRenderer-thead-bg-color: #{o-palette-token(--body-bg, $o-webclient-background-color)};
+    --ListRenderer-thead-bg-color: #{o-palette-token(
+            --body-bg,
+            $o-webclient-background-color
+        )};
     --ListRenderer-thead-border-end-color: #{o-token(--border-color, $border-color)};
     --ListRenderer-tfoot-bg-color: #{$o-list-footer-bg-color};
     --sticky-header-zindex: 1;
@@ -499,7 +502,11 @@
             border-bottom-width: var(--ListRenderer-data-row-border-bottom-width, 1px);
 
             &:hover:not(.o_selected_row):not(.o_data_row_selected) > * {
-                --#{$variable-prefix}table-accent-bg: color-mix(in srgb, var(--o-brand) 3%, transparent);
+                --#{$variable-prefix}table-accent-bg: color-mix(
+                    in srgb,
+                    var(--o-brand) 3%,
+                    transparent
+                );
             }
 
             &:not(.o_selected_row):not(.o_data_row_selected):focus-within > * {

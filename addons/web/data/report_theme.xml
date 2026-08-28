@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-
     <record id="report_theme_modern" model="report.theme">
         <field name="name">Modern</field>
         <field name="sequence">1</field>

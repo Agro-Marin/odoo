@@ -405,6 +405,37 @@ export class DateTimeField extends FieldComponent {
 const START_DATE_FIELD_OPTION = "start_date_field";
 const END_DATE_FIELD_OPTION = "end_date_field";
 
+/**
+ * The list column width of a date field, shared with the widgets that fall back
+ * to it. A plain function rather than a `listViewWidth` read off the registry
+ * entry: that property is declared as a number, an array or a function, so a
+ * sibling widget calling it had to assume which.
+ *
+ * @param {Record<string, any>} options
+ * @returns {number}
+ */
+function dateListViewWidth(options) {
+    return exprToBoolean(options.numeric ?? false)
+        ? FIELD_WIDTHS.numeric_date
+        : FIELD_WIDTHS.date;
+}
+
+/**
+ * @param {Record<string, any>} options
+ * @returns {number}
+ */
+function dateTimeListViewWidth(options) {
+    if (!exprToBoolean(options.show_time ?? true)) {
+        return dateListViewWidth(options);
+    }
+    if (exprToBoolean(options.numeric ?? false)) {
+        return FIELD_WIDTHS.numeric_datetime;
+    }
+    return exprToBoolean(options.show_seconds ?? false)
+        ? FIELD_WIDTHS.datetime_seconds
+        : FIELD_WIDTHS.datetime;
+}
+
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const dateField = {
     component: DateTimeField,
@@ -465,10 +496,7 @@ export const dateField = {
             maxPrecision: options.max_precision,
         });
     },
-    listViewWidth: ({ options }) =>
-        exprToBoolean(options.numeric ?? false)
-            ? FIELD_WIDTHS.numeric_date
-            : FIELD_WIDTHS.date,
+    listViewWidth: ({ options }) => dateListViewWidth(options),
     fieldDependencies: ({ type, attrs, options }) => {
         const modifiers = pick(attrs, "invisible", "readonly", "required");
         const dependency = (name) => ({ name, type, readonly: false, ...modifiers });
@@ -540,17 +568,7 @@ export const dateTimeField = {
         };
     },
     supportedTypes: ["datetime"],
-    listViewWidth: ({ options }) => {
-        if (!exprToBoolean(options.show_time ?? true)) {
-            return dateField.listViewWidth({ options });
-        }
-        if (exprToBoolean(options.numeric ?? false)) {
-            return FIELD_WIDTHS.numeric_datetime;
-        }
-        return exprToBoolean(options.show_seconds ?? false)
-            ? FIELD_WIDTHS.datetime_seconds
-            : FIELD_WIDTHS.datetime;
-    },
+    listViewWidth: ({ options }) => dateTimeListViewWidth(options),
 };
 
 /** @type {import("registries").FieldsRegistryItemShape} */
@@ -586,8 +604,8 @@ export const dateRangeField = {
     listViewWidth: ({ type, options }) => {
         const width =
             type === "datetime"
-                ? dateTimeField.listViewWidth({ options })
-                : dateField.listViewWidth({ options });
+                ? dateTimeListViewWidth(options)
+                : dateListViewWidth(options);
         return width ? 2 * width + 30 : undefined;
     },
     isValid: (record, fieldname, fieldInfo) => {

@@ -13,6 +13,10 @@ import {
     clickbotSkippedMenus,
 } from "@web/webclient/clickbot/clickbot_state";
 
+/**
+ * @typedef {import("@web/core/network/rpc").RpcEventDetail} RpcEventDetail
+ */
+
 export const SUCCESS_SIGNAL = "clickbot test succeeded";
 
 const MOUSE_EVENTS = ["mouseover", "mouseenter", "mousedown", "mouseup", "click"];
@@ -137,10 +141,12 @@ class ClickBot {
 
         this.onUiUpdate = () => this.actionCount++;
         this.onActionSettled = () => this.settledCount++;
-        this.onRPCRequest = ({ detail }) => {
+        this.onRPCRequest = (event) => {
+            const detail = /** @type {CustomEvent<RpcEventDetail>} */ (event).detail;
             this.calledRPC[detail.data.id] = detail.url;
         };
-        this.onRPCResponse = ({ detail }) => {
+        this.onRPCResponse = (event) => {
+            const detail = /** @type {CustomEvent<RpcEventDetail>} */ (event).detail;
             if (!detail?.data) {
                 return;
             }

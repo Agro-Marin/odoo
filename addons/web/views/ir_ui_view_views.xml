@@ -7,7 +7,10 @@
         <field name="inherit_id" ref="base.view_view_form" />
         <field name="arch" type="xml">
             <xpath expr="//sheet/div[hasclass('alert-info')]" position="after">
-                <div class="alert alert-danger" role="alert" invisible="not invalid_locators">
+                <div
+                    class="alert alert-danger"
+                    role="alert"
+                    invisible="not invalid_locators">
                     Please note that your view includes invalid locators.<br /> These nodes could
                     not be anchored to the parent view and have no effect.<br /> This issue may have
                     arisen as a result of manual modifications or during the upgrade process.<br />

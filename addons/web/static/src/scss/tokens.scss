@@ -4,9 +4,21 @@
 }
 
 @function o-bootstrap-inputs(
-    $-grays, $-white, $-black, $-theme-colors, $-body-bg, $-body-color,
-    $-link-color, $-link-hover-color, $-code-color, $-text-emphasis,
-    $-bg-subtle, $-border-subtle, $-mark-bg, $-mark-color, $-border-color,
+    $-grays,
+    $-white,
+    $-black,
+    $-theme-colors,
+    $-body-bg,
+    $-body-color,
+    $-link-color,
+    $-link-hover-color,
+    $-code-color,
+    $-text-emphasis,
+    $-bg-subtle,
+    $-border-subtle,
+    $-mark-bg,
+    $-mark-color,
+    $-border-color,
     $-shadows
 ) {
     @return (
@@ -30,9 +42,24 @@
 }
 
 @function o-token-set(
-    $-grays, $-white, $-black, $-brand, $-brand-odoo, $-brand-fill, $-text,
-    $-action, $-action-text, $-theme-text, $-bg-view, $-bg-chrome,
-    $-bg-disabled, $-bg-raised, $-bg-active, $-text-muted, $-ring, $-favorite
+    $-grays,
+    $-white,
+    $-black,
+    $-brand,
+    $-brand-odoo,
+    $-brand-fill,
+    $-text,
+    $-action,
+    $-action-text,
+    $-theme-text,
+    $-bg-view,
+    $-bg-chrome,
+    $-bg-disabled,
+    $-bg-raised,
+    $-bg-active,
+    $-text-muted,
+    $-ring,
+    $-favorite
 ) {
     $-set: (
         "o-white": $-white,
@@ -53,10 +80,20 @@
         "o-favorite": $-favorite,
     );
     @each $-step, $-value in $-grays {
-        $-set: map-merge($-set, ("o-gray-#{$-step}": $-value));
+        $-set: map-merge(
+            $-set,
+            (
+                "o-gray-#{$-step}": $-value,
+            )
+        );
     }
     @each $-name, $-value in $-theme-text {
-        $-set: map-merge($-set, ("o-#{$-name}-text": $-value));
+        $-set: map-merge(
+            $-set,
+            (
+                "o-#{$-name}-text": $-value,
+            )
+        );
     }
     @return $-set;
 }
@@ -152,11 +189,17 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view");
 
         @include print-variable(
             "o-record-color-#{$-i}-chip-bg-rgb",
-            to-rgb(o-round-color(adjust-color($-color, $lightness: 25%, $saturation: 15%)))
+            to-rgb(
+                o-round-color(adjust-color($-color, $lightness: 25%, $saturation: 15%))
+            )
         );
         @include print-variable(
             "o-record-color-#{$-i}-chip-text-rgb",
-            to-rgb(o-round-color(adjust-color($-color, $lightness: -40%, $saturation: -15%)))
+            to-rgb(
+                o-round-color(
+                    adjust-color($-color, $lightness: -40%, $saturation: -15%)
+                )
+            )
         );
     }
 }
@@ -169,55 +212,100 @@ $-o-light-scheme: map-merge(
     ),
     (
         "tokens": o-token-set(
-            $o-grays, $o-white, $o-black, $o-brand-primary, $o-brand-odoo,
-            $o-brand-primary-filled, $o-main-text-color, $o-action,
-            $o-action-text, $o-theme-text-colors, $o-view-background-color,
-            $o-bg-chrome, $o-bg-disabled, $o-bg-raised, $o-component-active-bg,
-            $o-main-color-muted, $o-ring-color, $o-main-favorite-color
-        ),
+                $o-grays,
+                $o-white,
+                $o-black,
+                $o-brand-primary,
+                $o-brand-odoo,
+                $o-brand-primary-filled,
+                $o-main-text-color,
+                $o-action,
+                $o-action-text,
+                $o-theme-text-colors,
+                $o-view-background-color,
+                $o-bg-chrome,
+                $o-bg-disabled,
+                $o-bg-raised,
+                $o-component-active-bg,
+                $o-main-color-muted,
+                $o-ring-color,
+                $o-main-favorite-color
+            ),
         "bootstrap": o-bootstrap-inputs(
-            $o-grays, $o-white, $o-black, $theme-colors,
-            $o-webclient-background-color, $o-main-text-color,
-            $o-main-link-color, $link-hover-color, $o-main-code-color,
-            $theme-colors-text, $theme-colors-bg-subtle,
-            $theme-colors-border-subtle, $mark-bg, $mark-color, $border-color,
-            ()
-        )
+                $o-grays,
+                $o-white,
+                $o-black,
+                $theme-colors,
+                $o-webclient-background-color,
+                $o-main-text-color,
+                $o-main-link-color,
+                $link-hover-color,
+                $o-main-code-color,
+                $theme-colors-text,
+                $theme-colors-bg-subtle,
+                $theme-colors-border-subtle,
+                $mark-bg,
+                $mark-color,
+                $border-color,
+                ()
+            ),
     )
 );
 $-o-dark-scheme: map-merge(
     o-scheme(
         (
-            $o-dark-color-contrast-light, $o-dark-color-contrast-dark,
-            $o-dark-white, $o-dark-black
+            $o-dark-color-contrast-light,
+            $o-dark-color-contrast-dark,
+            $o-dark-white,
+            $o-dark-black
         ),
         $o-dark-min-contrast-ratio,
         true
     ),
     (
         "tokens": o-token-set(
-            $o-dark-grays, $o-dark-white, $o-dark-black, $o-dark-brand-primary,
-            $o-dark-brand-odoo, $o-dark-brand-primary-filled,
-            $o-dark-main-text-color, $o-dark-action, $o-dark-action-text,
-            $o-dark-theme-text-colors, $o-dark-view-background-color,
-            $o-dark-bg-chrome, $o-dark-bg-disabled, $o-dark-bg-raised,
-            $o-dark-component-active-bg, $o-dark-main-color-muted,
-            $o-dark-ring-color, $o-dark-main-favorite-color
-        ),
+                $o-dark-grays,
+                $o-dark-white,
+                $o-dark-black,
+                $o-dark-brand-primary,
+                $o-dark-brand-odoo,
+                $o-dark-brand-primary-filled,
+                $o-dark-main-text-color,
+                $o-dark-action,
+                $o-dark-action-text,
+                $o-dark-theme-text-colors,
+                $o-dark-view-background-color,
+                $o-dark-bg-chrome,
+                $o-dark-bg-disabled,
+                $o-dark-bg-raised,
+                $o-dark-component-active-bg,
+                $o-dark-main-color-muted,
+                $o-dark-ring-color,
+                $o-dark-main-favorite-color
+            ),
         "bootstrap": o-bootstrap-inputs(
-            $o-dark-grays, $o-dark-white, $o-dark-black, $o-dark-theme-colors,
-            $o-dark-webclient-background-color, $o-dark-main-text-color,
-            $o-dark-main-link-color, $o-dark-link-hover-color,
-            $o-dark-main-code-color, $o-dark-theme-colors-text,
-            $o-dark-theme-colors-bg-subtle, $o-dark-theme-colors-border-subtle,
-            $o-dark-mark-bg, $o-dark-mark-color, $o-dark-border-color,
-            (
-                "box-shadow": $o-dark-box-shadow,
-                "box-shadow-sm": $o-dark-box-shadow-sm,
-                "box-shadow-lg": $o-dark-box-shadow-lg,
-                "box-shadow-inset": $o-dark-box-shadow-inset
-            )
-        )
+                $o-dark-grays,
+                $o-dark-white,
+                $o-dark-black,
+                $o-dark-theme-colors,
+                $o-dark-webclient-background-color,
+                $o-dark-main-text-color,
+                $o-dark-main-link-color,
+                $o-dark-link-hover-color,
+                $o-dark-main-code-color,
+                $o-dark-theme-colors-text,
+                $o-dark-theme-colors-bg-subtle,
+                $o-dark-theme-colors-border-subtle,
+                $o-dark-mark-bg,
+                $o-dark-mark-color,
+                $o-dark-border-color,
+                (
+                    "box-shadow": $o-dark-box-shadow,
+                    "box-shadow-sm": $o-dark-box-shadow-sm,
+                    "box-shadow-lg": $o-dark-box-shadow-lg,
+                    "box-shadow-inset": $o-dark-box-shadow-inset,
+                )
+            ),
     )
 );
 
@@ -301,11 +389,7 @@ $-o-dark-scheme: map-merge(
             o-scheme-tint($yellow, 80%, $-scheme)
         )};
 
-    --#{$prefix}border-color: #{o-safe-get(
-            $-bs,
-            "border-color",
-            map-get($-grays, 300)
-        )};
+    --#{$prefix}border-color: #{o-safe-get($-bs, "border-color", map-get($-grays, 300))};
     --#{$prefix}border-color-translucent: #{rgba($-black, 0.175)};
 
     --#{$prefix}gradient: #{linear-gradient(

@@ -56,7 +56,10 @@
     &:after {
         position: absolute;
         left: var(--treeEntry--beforeAfter-left, calc(#{$-padding-h} * 0.5));
-        background: var(--treeEntry--beforeAfter-color, #{o-token(--border-color, $border-color)});
+        background: var(
+            --treeEntry--beforeAfter-color,
+            #{o-token(--border-color, $border-color)}
+        );
         content: "";
     }
 

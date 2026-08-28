@@ -1,4 +1,3 @@
-
 h1,
 .h1,
 h2,
@@ -269,7 +268,10 @@ $-o-switch-toggle: var(--o-action, #{$o-action});
         .form-check-input,
         .form-check-input:checked {
             border-color: $-o-switch-toggle;
-            background-color: var(--o-bg-view, #{o-token(--o-bg-view, $o-view-background-color)});
+            background-color: var(
+                --o-bg-view,
+                #{o-token(--o-bg-view, $o-view-background-color)}
+            );
 
             &,
             &:focus,

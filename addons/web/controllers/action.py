@@ -69,89 +69,79 @@ class Action(Controller):
     def load_breadcrumbs(self, actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         results = []
         for idx, action in enumerate(actions):
-            record_id = action.get("resId")
             try:
-                if action.get("action"):
-                    act = self.load(action.get("action"))
-                    if not act:
-                        results.append(
-                            {
-                                "error": f"Action {action.get('action')!r} could not be loaded"
-                            }
-                        )
-                        continue
-                    if act["type"] == "ir.actions.server":
-                        if act["path"]:
-                            act = (
-                                request.env["ir.actions.server"].browse(act["id"]).run()
-                            )
-                            if not isinstance(act, dict):
-                                results.append(
-                                    {
-                                        "error": "Server action did not return a restorable action"
-                                    }
-                                )
-                                continue
-                        else:
-                            results.append(
-                                {
-                                    "error": "A server action must have a path to be restored"
-                                }
-                            )
-                            continue
-                    if not act.get("display_name"):
-                        act["display_name"] = act["name"]
-                    if (
-                        act["type"] == "ir.actions.client"
-                        and idx + 1 < len(actions)
-                        and action.get("action") == actions[idx + 1].get("action")
-                    ):
-                        results.append(
-                            {"error": "Client actions don't have multi-record views"}
-                        )
-                        continue
-                    if record_id:
-                        if record_id == "new":
-                            results.append({"display_name": _("New")})
-                        elif act["res_model"]:
-                            results.append(
-                                {
-                                    "display_name": request.env[act["res_model"]]
-                                    .browse(record_id)
-                                    .display_name
-                                }
-                            )
-                        else:
-                            results.append({"display_name": act["display_name"]})
-                    else:
-                        if act.get("res_model") and act["type"] != "ir.actions.client":
-                            request.env[act["res_model"]].check_access("read")
-                            name = (
-                                act["display_name"]
-                                if any(
-                                    view[1] != "form" and view[1] != "search"
-                                    for view in act["views"]
-                                )
-                                else None
-                            )
-                        else:
-                            name = act["display_name"]
-                        results.append({"display_name": name})
-                elif action.get("model"):
-                    Model = request.env[action.get("model")]
-                    if record_id:
-                        if record_id == "new":
-                            results.append({"display_name": _("New")})
-                        else:
-                            results.append(
-                                {"display_name": Model.browse(record_id).display_name}
-                            )
-                    else:
-                        msg = "Actions with a model should also have a resId"
-                        raise BadRequest(msg)
-                else:
-                    msg = "Actions should have either an action (id or path) or a model"
-                    raise BadRequest(msg)
+                results.append(self._get_breadcrumb(action, idx, actions))
             except (MissingActionError, MissingError, AccessError) as exc:
                 results.append({"error": str(exc)})
         return results
+
+    def _get_breadcrumb(
+        self, action: dict[str, Any], idx: int, actions: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """One breadcrumb entry, from an action id/path or from a bare model."""
+        record_id = action.get("resId")
+        if action.get("action"):
+            return self._get_action_breadcrumb(action, record_id, idx, actions)
+        if action.get("model"):
+            Model = request.env[action.get("model")]
+            if not record_id:
+                msg = "Actions with a model should also have a resId"
+                raise BadRequest(msg)
+            if record_id == "new":
+                return {"display_name": _("New")}
+            return {"display_name": Model.browse(record_id).display_name}
+        msg = "Actions should have either an action (id or path) or a model"
+        raise BadRequest(msg)
+
+    def _get_action_breadcrumb(
+        self,
+        action: dict[str, Any],
+        record_id: Any,
+        idx: int,
+        actions: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """The breadcrumb of an action reference, or the error that stopped it."""
+        act = self.load(action.get("action"))
+        if not act:
+            return {"error": f"Action {action.get('action')!r} could not be loaded"}
+
+        if act["type"] == "ir.actions.server":
+            if not act["path"]:
+                return {"error": "A server action must have a path to be restored"}
+            act = request.env["ir.actions.server"].browse(act["id"]).run()
+            if not isinstance(act, dict):
+                return {"error": "Server action did not return a restorable action"}
+
+        if not act.get("display_name"):
+            act["display_name"] = act["name"]
+
+        if (
+            act["type"] == "ir.actions.client"
+            and idx + 1 < len(actions)
+            and action.get("action") == actions[idx + 1].get("action")
+        ):
+            return {"error": "Client actions don't have multi-record views"}
+
+        if record_id:
+            if record_id == "new":
+                return {"display_name": _("New")}
+            if act["res_model"]:
+                return {
+                    "display_name": request.env[act["res_model"]]
+                    .browse(record_id)
+                    .display_name
+                }
+            return {"display_name": act["display_name"]}
+
+        if act.get("res_model") and act["type"] != "ir.actions.client":
+            request.env[act["res_model"]].check_access("read")
+            name = (
+                act["display_name"]
+                if any(
+                    view[1] != "form" and view[1] != "search" for view in act["views"]
+                )
+                else None
+            )
+        else:
+            name = act["display_name"]
+        return {"display_name": name}

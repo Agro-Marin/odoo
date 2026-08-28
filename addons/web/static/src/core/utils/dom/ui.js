@@ -217,7 +217,7 @@ export function getTabableElements(container = document.body) {
 }
 
 /**
- * @param {HTMLElement | DocumentFragment} root
+ * @param {ParentNode} root the element or fragment to search, and its shadow hosts
  * @param {HTMLElement[]} out
  */
 function collectTabable(root, out) {

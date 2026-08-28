@@ -1,19 +1,18 @@
-
 $utilities: map-merge(
     $utilities,
     (
         "color": (
-                property: color,
-                class: text,
-                local-vars: (
-                    "text-opacity": 1,
-                ),
-                values: (
-                    "body": $body-color,
-                    "muted": $text-muted,
-                    "reset": inherit,
-                ),
+            property: color,
+            class: text,
+            local-vars: (
+                "text-opacity": 1,
             ),
+            values: (
+                "body": $body-color,
+                "muted": $text-muted,
+                "reset": inherit,
+            ),
+        ),
 
         "background-color": null,
 
@@ -22,7 +21,7 @@ $utilities: map-merge(
                 (
                     print: true,
                 )
-            )
+            ),
     )
 );
 

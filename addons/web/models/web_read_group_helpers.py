@@ -121,25 +121,9 @@ class Base(models.AbstractModel):
         existing = sorted(
             group_value for group in groups if (group_value := group[0])
         ) or [None]
-        existing_from, existing_to = existing[0], existing[-1]
-
-        if fill_from:
-            fill_from = self._read_group_fill_temporal_bound(
-                field, granularity, days_offset, fill_from
-            )
-        elif existing_from:
-            fill_from = existing_from
-        if fill_to:
-            fill_to = self._read_group_fill_temporal_bound(
-                field, granularity, days_offset, fill_to
-            )
-        elif existing_to:
-            fill_to = existing_to
-
-        if not fill_to and fill_from:
-            fill_to = fill_from
-        elif not fill_from and fill_to:
-            fill_from = fill_to
+        fill_from, fill_to = self._web_read_group_get_temporal_bounds(
+            field, granularity, days_offset, existing, fill_from, fill_to
+        )
         if not fill_from and not fill_to:
             return groups
 
@@ -175,6 +159,37 @@ class Base(models.AbstractModel):
             result.extend(groups_mapped[False])
 
         return result
+
+    def _web_read_group_get_temporal_bounds(
+        self,
+        field: Any,
+        granularity: str,
+        days_offset: int,
+        existing: list,
+        fill_from: Any,
+        fill_to: Any,
+    ) -> tuple[Any, Any]:
+        """The window to fill: the asked-for bounds, else the ones the groups span."""
+        existing_from, existing_to = existing[0], existing[-1]
+
+        if fill_from:
+            fill_from = self._read_group_fill_temporal_bound(
+                field, granularity, days_offset, fill_from
+            )
+        elif existing_from:
+            fill_from = existing_from
+        if fill_to:
+            fill_to = self._read_group_fill_temporal_bound(
+                field, granularity, days_offset, fill_to
+            )
+        elif existing_to:
+            fill_to = existing_to
+
+        if not fill_to and fill_from:
+            fill_to = fill_from
+        elif not fill_from and fill_to:
+            fill_from = fill_to
+        return fill_from, fill_to
 
     def _web_read_group_get_groupby_formatter(
         self, groupby_spec: str, values: Any
@@ -222,73 +237,9 @@ class Base(models.AbstractModel):
             return formatter_many2one
 
         if field.type in ("date", "datetime"):
-            if ":" not in groupby_spec:
-                raise ValueError(
-                    f"Granularity is missing from date/datetime groupby: {groupby_spec!r}"
-                )
-            granularity = groupby_spec.split(":")[1]
-            if granularity in READ_GROUP_TIME_GRANULARITY:
-                locale = get_lang(self.env).code
-                fmt = (
-                    DEFAULT_SERVER_DATETIME_FORMAT
-                    if field.type == "datetime"
-                    else DEFAULT_SERVER_DATE_FORMAT
-                )
-                interval = READ_GROUP_TIME_GRANULARITY[granularity]
-
-                def formatter_time_granularity(value):
-                    if not value:
-                        return value, [(field_name, "=", value)]
-                    range_start = value
-                    range_end = value + interval
-                    if field.type == "datetime":
-                        tzinfo = None
-                        if self.env.context.get("tz") in all_timezones():
-                            tzinfo = timezone(self.env.context["tz"])
-                            range_start = range_start.replace(tzinfo=tzinfo).astimezone(
-                                UTC
-                            )
-                            range_end = range_end.replace(tzinfo=tzinfo).astimezone(UTC)
-
-                        label = babel.dates.format_datetime(
-                            range_start,
-                            format=READ_GROUP_DISPLAY_FORMAT[granularity],
-                            tzinfo=tzinfo,
-                            locale=locale,
-                        )
-                    else:
-                        label = babel.dates.format_date(
-                            value,
-                            format=READ_GROUP_DISPLAY_FORMAT[granularity],
-                            locale=locale,
-                        )
-
-                    if granularity == "week":
-                        year, week = date_utils.weeknumber(
-                            babel.Locale.parse(locale),
-                            value,
-                        )
-                        label = f"W{week} {year:04}"
-
-                    additional_domain = [
-                        "&",
-                        (field_name, ">=", range_start.strftime(fmt)),
-                        (field_name, "<", range_end.strftime(fmt)),
-                    ]
-                    return (range_start.strftime(fmt), label), additional_domain
-
-                return formatter_time_granularity
-
-            if granularity in READ_GROUP_NUMBER_GRANULARITY:
-
-                def formatter_date_number_granularity(value):
-                    if value is None:
-                        return None, [(field_name, "=", value)]
-                    return value, [(f"{field_name}.{granularity}", "=", value)]
-
-                return formatter_date_number_granularity
-
-            raise ValueError(f"{granularity!r} isn't a valid granularity")
+            return self._web_read_group_get_date_formatter(
+                field, field_name, groupby_spec
+            )
 
         if field.type == "properties":
             return self._web_read_group_get_groupby_formatter_properties(
@@ -296,6 +247,77 @@ class Base(models.AbstractModel):
             )
 
         return lambda value: (value, [(field_name, "=", value)])
+
+    def _web_read_group_get_date_formatter(
+        self, field: Any, field_name: str, groupby_spec: str
+    ) -> Callable:
+        """The label/domain formatter for a date or datetime groupby granularity."""
+        if ":" not in groupby_spec:
+            raise ValueError(
+                f"Granularity is missing from date/datetime groupby: {groupby_spec!r}"
+            )
+        granularity = groupby_spec.split(":")[1]
+
+        if granularity in READ_GROUP_NUMBER_GRANULARITY:
+
+            def formatter_date_number_granularity(value):
+                if value is None:
+                    return None, [(field_name, "=", value)]
+                return value, [(f"{field_name}.{granularity}", "=", value)]
+
+            return formatter_date_number_granularity
+
+        if granularity not in READ_GROUP_TIME_GRANULARITY:
+            raise ValueError(f"{granularity!r} isn't a valid granularity")
+
+        locale = get_lang(self.env).code
+        fmt = (
+            DEFAULT_SERVER_DATETIME_FORMAT
+            if field.type == "datetime"
+            else DEFAULT_SERVER_DATE_FORMAT
+        )
+        interval = READ_GROUP_TIME_GRANULARITY[granularity]
+
+        def formatter_time_granularity(value):
+            if not value:
+                return value, [(field_name, "=", value)]
+            range_start = value
+            range_end = value + interval
+            if field.type == "datetime":
+                tzinfo = None
+                if self.env.context.get("tz") in all_timezones():
+                    tzinfo = timezone(self.env.context["tz"])
+                    range_start = range_start.replace(tzinfo=tzinfo).astimezone(UTC)
+                    range_end = range_end.replace(tzinfo=tzinfo).astimezone(UTC)
+
+                label = babel.dates.format_datetime(
+                    range_start,
+                    format=READ_GROUP_DISPLAY_FORMAT[granularity],
+                    tzinfo=tzinfo,
+                    locale=locale,
+                )
+            else:
+                label = babel.dates.format_date(
+                    value,
+                    format=READ_GROUP_DISPLAY_FORMAT[granularity],
+                    locale=locale,
+                )
+
+            if granularity == "week":
+                year, week = date_utils.weeknumber(
+                    babel.Locale.parse(locale),
+                    value,
+                )
+                label = f"W{week} {year:04}"
+
+            additional_domain = [
+                "&",
+                (field_name, ">=", range_start.strftime(fmt)),
+                (field_name, "<", range_end.strftime(fmt)),
+            ]
+            return (range_start.strftime(fmt), label), additional_domain
+
+        return formatter_time_granularity
 
     def _web_read_group_get_groupby_formatter_properties(
         self,
@@ -324,47 +346,10 @@ class Base(models.AbstractModel):
 
             return formatter_property_selection
 
-        if property_type == "many2one":
-            comodel = definition["comodel"]
-            all_groups = tuple(value for value in values if value)
-
-            def formatter_property_many2one(value):
-                if not value:
-                    return value, [
-                        "|",
-                        (fullname, "=", False),
-                        (fullname, "not in", all_groups),
-                    ]
-                record = self.env[comodel].browse(value).with_prefetch(all_groups)
-                return (value, record.display_name), [(fullname, "=", value)]
-
-            return formatter_property_many2one
-
-        if property_type == "many2many":
-            comodel = definition["comodel"]
-            all_groups = tuple(value for value in values if value)
-
-            def formatter_property_many2many(value):
-                if not value:
-                    return value, (
-                        OR(
-                            [
-                                [(fullname, "=", False)],
-                                AND(
-                                    [
-                                        [(fullname, "not in", [group])]
-                                        for group in all_groups
-                                    ]
-                                ),
-                            ]
-                        )
-                        if all_groups
-                        else []
-                    )
-                record = self.env[comodel].browse(value).with_prefetch(all_groups)
-                return (value, record.display_name), [(fullname, "in", [value])]
-
-            return formatter_property_many2many
+        if property_type in ("many2one", "many2many"):
+            return self._web_read_group_get_property_relational_formatter(
+                fullname, definition, property_type, values
+            )
 
         if property_type == "tags":
             tags = definition.get("tags") or []
@@ -388,42 +373,93 @@ class Base(models.AbstractModel):
             return formatter_property_tags
 
         if property_type in ("date", "datetime"):
-            if func in READ_GROUP_NUMBER_GRANULARITY:
-
-                def formatter_property_date_number(value):
-                    if value is None:
-                        return None, [(fullname, "=", value)]
-                    return value, [(f"{fullname}.{func}", "=", value)]
-
-                return formatter_property_date_number
-
-            interval = READ_GROUP_TIME_GRANULARITY[func]
-            fmt = (
-                DEFAULT_SERVER_DATE_FORMAT
-                if property_type == "date"
-                else DEFAULT_SERVER_DATETIME_FORMAT
+            return self._web_read_group_get_property_date_formatter(
+                fullname, property_type, func
             )
 
-            def formatter_property_datetime(value):
-                if not value:
-                    return False, [(fullname, "=", False)]
-
-                if func == "week":
-                    start = value
-                else:
-                    start = date_utils.start_of(value, func)
-                end = start + interval
-
-                label = babel.dates.format_date(
-                    value,
-                    format=READ_GROUP_DISPLAY_FORMAT[func],
-                    locale=get_lang(self.env).code,
-                )
-                return (value.strftime(fmt), label), [
-                    (fullname, ">=", start.strftime(fmt)),
-                    (fullname, "<", end.strftime(fmt)),
-                ]
-
-            return formatter_property_datetime
-
         return lambda value: (value, [(fullname, "=", value)])
+
+    def _web_read_group_get_property_relational_formatter(
+        self, fullname: str, definition: dict, property_type: str, values: Any
+    ) -> Callable:
+        """The label/domain formatter for a many2one or many2many property."""
+        comodel = definition["comodel"]
+        all_groups = tuple(value for value in values if value)
+
+        if property_type == "many2one":
+
+            def formatter_property_many2one(value):
+                if not value:
+                    return value, [
+                        "|",
+                        (fullname, "=", False),
+                        (fullname, "not in", all_groups),
+                    ]
+                record = self.env[comodel].browse(value).with_prefetch(all_groups)
+                return (value, record.display_name), [(fullname, "=", value)]
+
+            return formatter_property_many2one
+
+        def formatter_property_many2many(value):
+            if not value:
+                return value, (
+                    OR(
+                        [
+                            [(fullname, "=", False)],
+                            AND(
+                                [
+                                    [(fullname, "not in", [group])]
+                                    for group in all_groups
+                                ]
+                            ),
+                        ]
+                    )
+                    if all_groups
+                    else []
+                )
+            record = self.env[comodel].browse(value).with_prefetch(all_groups)
+            return (value, record.display_name), [(fullname, "in", [value])]
+
+        return formatter_property_many2many
+
+    def _web_read_group_get_property_date_formatter(
+        self, fullname: str, property_type: str, func: str
+    ) -> Callable:
+        """The label/domain formatter for a date or datetime property granularity."""
+        if func in READ_GROUP_NUMBER_GRANULARITY:
+
+            def formatter_property_date_number(value):
+                if value is None:
+                    return None, [(fullname, "=", value)]
+                return value, [(f"{fullname}.{func}", "=", value)]
+
+            return formatter_property_date_number
+
+        interval = READ_GROUP_TIME_GRANULARITY[func]
+        fmt = (
+            DEFAULT_SERVER_DATE_FORMAT
+            if property_type == "date"
+            else DEFAULT_SERVER_DATETIME_FORMAT
+        )
+
+        def formatter_property_datetime(value):
+            if not value:
+                return False, [(fullname, "=", False)]
+
+            if func == "week":
+                start = value
+            else:
+                start = date_utils.start_of(value, func)
+            end = start + interval
+
+            label = babel.dates.format_date(
+                value,
+                format=READ_GROUP_DISPLAY_FORMAT[func],
+                locale=get_lang(self.env).code,
+            )
+            return (value.strftime(fmt), label), [
+                (fullname, ">=", start.strftime(fmt)),
+                (fullname, "<", end.strftime(fmt)),
+            ]
+
+        return formatter_property_datetime

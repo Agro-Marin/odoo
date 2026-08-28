@@ -1,4 +1,3 @@
-
 @each $color, $value in $grays {
     @include bg-variant(".bg-#{$color}", $value);
     @include text-emphasis-variant(".text-#{$color}", $value);
@@ -9,7 +8,6 @@
 }
 
 .card {
-
     --body-color: var(--card-color);
 }
 :where(.card:not([data-vxml])) .card-body:not(.card[data-vxml] .card-body) {
@@ -118,9 +116,11 @@ $o-navbar-nav-pills-link-border-radius: $nav-pills-border-radius !default;
 }
 
 .modal-content {
-
     @if $modal-content-color == null {
-        color: adjust-color-to-background(o-palette-token(--o-text, $body-color), $modal-content-bg);
+        color: adjust-color-to-background(
+            o-palette-token(--o-text, $body-color),
+            $modal-content-bg
+        );
 
         &:where(:not(.oe_structure)) {
             @if ($input-bg == $body-bg) {
@@ -155,12 +155,18 @@ $o-navbar-nav-pills-link-border-radius: $nav-pills-border-radius !default;
 .popover {
     @if $popover-header-color == null {
         .popover-header {
-            color: adjust-color-to-background(o-palette-token(--o-text, $body-color), $popover-header-bg);
+            color: adjust-color-to-background(
+                o-palette-token(--o-text, $body-color),
+                $popover-header-bg
+            );
         }
     }
     @if $popover-body-color == $body-color {
         .popover-body {
-            color: adjust-color-to-background(o-palette-token(--o-text, $body-color), $popover-bg);
+            color: adjust-color-to-background(
+                o-palette-token(--o-text, $body-color),
+                $popover-bg
+            );
         }
     }
 }
@@ -195,7 +201,10 @@ $-color-for-gray-200-bg: adjust-color-to-background($body-color, $gray-200);
 
 .offcanvas {
     @if $offcanvas-color == null {
-        color: adjust-color-to-background(o-palette-token(--o-text, $body-color), $offcanvas-bg-color);
+        color: adjust-color-to-background(
+            o-palette-token(--o-text, $body-color),
+            $offcanvas-bg-color
+        );
 
         @if $form-check-input-bg == $body-bg {
             .form-check-input:where(:not(:checked)) {

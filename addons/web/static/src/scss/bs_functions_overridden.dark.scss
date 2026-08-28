@@ -3,5 +3,5 @@
 }
 
 @function shade-color($color, $weight) {
-    @return mix(#FFF, $color, $weight);
+    @return mix(#fff, $color, $weight);
 }

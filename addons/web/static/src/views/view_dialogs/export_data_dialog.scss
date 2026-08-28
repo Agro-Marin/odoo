@@ -13,13 +13,21 @@
 
             .o_export_tree_item {
                 &:hover:not(.o_expanded) {
-                    background: color-mix(in srgb, var(--o-brand-odoo) 70%, transparent);
+                    background: color-mix(
+                        in srgb,
+                        var(--o-brand-odoo) 70%,
+                        transparent
+                    );
                     color: white;
                 }
 
                 &.o_expanded {
                     border-bottom: 1px solid grey;
-                    background: color-mix(in srgb, var(--o-brand-odoo) 20%, transparent);
+                    background: color-mix(
+                        in srgb,
+                        var(--o-brand-odoo) 20%,
+                        transparent
+                    );
                 }
 
                 .o_expand_parent {

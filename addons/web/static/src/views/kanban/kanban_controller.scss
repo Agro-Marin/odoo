@@ -81,7 +81,6 @@
 }
 
 .o_kanban_renderer {
-
     --Kanban-background: #{$o-kanban-background};
     --Kanban-gap: unset;
     --Kanban-padding: 0;
@@ -104,10 +103,18 @@
 
     --KanbanRecord__dropdown-gap: #{$border-width};
 
-    --KanbanColumn__highlight-background: color-mix(in srgb, var(--o-tint-target) 90%, var(--o-action));
+    --KanbanColumn__highlight-background: color-mix(
+        in srgb,
+        var(--o-tint-target) 90%,
+        var(--o-action)
+    );
     --KanbanColumn__highlight-border: var(--o-action);
     --KanbanColumn__highlight-selected: #d1ecf1;
-    --KanbanColumn__highlight-selected-border: color-mix(in srgb, var(--o-tint-target) 60%, var(--o-action));
+    --KanbanColumn__highlight-selected-border: color-mix(
+        in srgb,
+        var(--o-tint-target) 60%,
+        var(--o-action)
+    );
 
     --o-view-nocontent-zindex: 1;
 

@@ -47,8 +47,8 @@ class ResUserGroupIdsField extends FieldComponent {
 
     /**
      * @param {Array<{ id: string|number, name: string, privilege_ids: Array<string|number> }>} categories
-     * @param {Record<string, any>} privileges
-     * @returns {Array<Record<string, any>>}
+     * @param {Object<string, any>} privileges
+     * @returns {Array<Object<string, any>>}
      */
     buildCategories(categories, privileges) {
         const orphans = Object.values(privileges)
@@ -65,8 +65,8 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /**
-     * @param {Record<string, any>} groups
-     * @returns {{ id: string, name: string, privileges: Array<Record<string, any>> }}
+     * @param {Object<string, any>} groups
+     * @returns {{ id: string, name: string, privileges: Array<Object<string, any>> }}
      */
     buildExtraCategory(groups) {
         return {
@@ -89,9 +89,9 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /**
-     * @param {Record<string, any>} privileges
-     * @param {Record<string, any>} groups
-     * @returns {Record<string, number>}
+     * @param {Object<string, any>} privileges
+     * @param {Object<string, any>} groups
+     * @returns {Object<string, number>}
      */
     buildFields(privileges, groups) {
         this._fields = {};
@@ -121,8 +121,8 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /**
-     * @param {Record<string, any>} privilege
-     * @param {Record<string, any>} groups
+     * @param {Object<string, any>} privilege
+     * @param {Object<string, any>} groups
      * @returns {string}
      */
     getPrivilegeHelp(privilege, groups) {
@@ -136,8 +136,8 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /**
-     * @param {Record<string, any>} privilege
-     * @param {Record<string, any>} groups
+     * @param {Object<string, any>} privilege
+     * @param {Object<string, any>} groups
      * @returns {Array<[number|false, string]>}
      */
     getPrivilegeSelection(privilege, groups) {
@@ -147,7 +147,7 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /**
-     * @returns {Record<string, any>}
+     * @returns {Object<string, any>}
      */
     buildArch() {
         const arch = `

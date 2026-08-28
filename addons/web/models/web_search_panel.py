@@ -68,6 +68,18 @@ class Base(models.AbstractModel):
                 ),
             }
 
+        return self._search_panel_range_many2one(
+            field_name, field, model_domain, extra_domain, **kwargs
+        )
+
+    def _search_panel_range_many2one(
+        self,
+        field_name: str,
+        field: Any,
+        model_domain: list,
+        extra_domain: list,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         Comodel = self.env[field.comodel_name].with_context(hierarchical_naming=False)
         field_names = ["display_name"]
         hierarchize = kwargs.get("hierarchize", True)
@@ -75,11 +87,6 @@ class Base(models.AbstractModel):
         if hierarchize and Comodel._parent_name in Comodel._fields:
             parent_name = Comodel._parent_name
             field_names.append(parent_name)
-
-            def get_parent_id(record):
-                value = record[parent_name]
-                return value and value[0]
-
         else:
             hierarchize = False
 
@@ -88,6 +95,7 @@ class Base(models.AbstractModel):
         expand = kwargs.get("expand")
         limit = kwargs.get("limit")
 
+        domain_image = None
         if enable_counters or not expand:
             domain_image = self._search_panel_get_field_image(
                 field_name,
@@ -127,19 +135,9 @@ class Base(models.AbstractModel):
         if limit and len(comodel_records) == limit:
             return {"error_msg": str(SEARCH_PANEL_ERROR_MESSAGE)}
 
-        field_range = {}
-        for record in comodel_records:
-            record_id = record["id"]
-            values = {
-                "id": record_id,
-                "display_name": record["display_name"],
-            }
-            if hierarchize:
-                values[parent_name] = get_parent_id(record)
-            if enable_counters:
-                image_element = domain_image.get(record_id)
-                values["__count"] = image_element["__count"] if image_element else 0
-            field_range[record_id] = values
+        field_range = self._search_panel_prepare_category_values(
+            comodel_records, parent_name, hierarchize, enable_counters, domain_image
+        )
 
         if hierarchize and enable_counters:
             self._search_panel_rollup_counters_global(field_range, parent_name)
@@ -148,6 +146,55 @@ class Base(models.AbstractModel):
             "parent_field": parent_name,
             "values": list(field_range.values()),
         }
+
+    def _search_panel_prepare_category_values(
+        self,
+        comodel_records: list[dict],
+        parent_name: Any,
+        hierarchize: bool,
+        enable_counters: Any,
+        domain_image: dict | None,
+    ) -> dict[int, dict]:
+        """One category entry per comodel record, keyed by id."""
+        field_range = {}
+        for record in comodel_records:
+            record_id = record["id"]
+            values = {
+                "id": record_id,
+                "display_name": record["display_name"],
+            }
+            if hierarchize:
+                parent = record[parent_name]
+                values[parent_name] = parent and parent[0]
+            if enable_counters:
+                image_element = domain_image.get(record_id)
+                values["__count"] = image_element["__count"] if image_element else 0
+            field_range[record_id] = values
+        return field_range
+
+    def _search_panel_get_group_id_name(self, Comodel: Any, group_by: str) -> Any:
+        """Return the `(id, name)` mapper for `group_by` values on `Comodel`."""
+        group_by_field = Comodel._fields[group_by]
+
+        if group_by_field.type == "many2one":
+
+            def group_id_name(value):
+                return value or (False, self.env._("Not Set"))
+
+        elif group_by_field.type == "selection":
+            desc = Comodel.fields_get([group_by])[group_by]
+            group_by_selection = dict(desc["selection"])
+            group_by_selection[False] = self.env._("Not Set")
+
+            def group_id_name(value):
+                return value, group_by_selection.get(value, value)
+
+        else:
+
+            def group_id_name(value):
+                return (value, value) if value else (False, self.env._("Not Set"))
+
+        return group_id_name
 
     @api.model
     @api.readonly
@@ -187,169 +234,215 @@ class Base(models.AbstractModel):
         Comodel = self.env[field.comodel_name].with_context(hierarchical_naming=False)
         field_names = ["display_name"]
         group_by = kwargs.get("group_by")
-        limit = kwargs.get("limit")
+        group_id_name = None
         if group_by:
-            group_by_field = Comodel._fields[group_by]
-
             field_names.append(group_by)
+            group_id_name = self._search_panel_get_group_id_name(Comodel, group_by)
 
-            if group_by_field.type == "many2one":
+        if field.type == "many2many":
+            return self._search_panel_multi_range_many2many(
+                field_name,
+                Comodel,
+                field_names,
+                group_id_name,
+                model_domain,
+                extra_domain,
+                **kwargs,
+            )
+        if field.type == "many2one":
+            return self._search_panel_multi_range_many2one(
+                field_name,
+                Comodel,
+                field_names,
+                group_id_name,
+                model_domain,
+                extra_domain,
+                **kwargs,
+            )
+        raise ValueError(
+            f"Unsupported field type {field.type!r} for search panel multi-range"
+        )
 
-                def group_id_name(value):
-                    return value or (False, self.env._("Not Set"))
-
-            elif group_by_field.type == "selection":
-                desc = Comodel.fields_get([group_by])[group_by]
-                group_by_selection = dict(desc["selection"])
-                group_by_selection[False] = self.env._("Not Set")
-
-                def group_id_name(value):
-                    return value, group_by_selection.get(value, value)
-
-            else:
-
-                def group_id_name(value):
-                    return (value, value) if value else (False, self.env._("Not Set"))
-
+    def _search_panel_multi_range_many2many(
+        self,
+        field_name: str,
+        Comodel: Any,
+        field_names: list[str],
+        group_id_name: Any,
+        model_domain: list,
+        extra_domain: list,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        group_by = kwargs.get("group_by")
+        limit = kwargs.get("limit")
         comodel_domain = kwargs.get("comodel_domain", [])
         enable_counters = kwargs.get("enable_counters")
         expand = kwargs.get("expand")
 
-        if field.type == "many2many":
-            if not expand:
-                domain_image = self._search_panel_get_domain_image(
-                    field_name, model_domain, limit=limit
-                )
-                image_element_ids = list(domain_image.keys())
-                comodel_domain = AND(
-                    [
-                        comodel_domain,
-                        [("id", "in", image_element_ids)],
-                    ]
-                )
-
-            comodel_records = Comodel.search_read(
-                comodel_domain, field_names, limit=limit
+        if not expand:
+            domain_image = self._search_panel_get_domain_image(
+                field_name, model_domain, limit=limit
             )
-            if limit and len(comodel_records) == limit:
-                return {"error_msg": str(SEARCH_PANEL_ERROR_MESSAGE)}
+            image_element_ids = list(domain_image.keys())
+            comodel_domain = AND(
+                [
+                    comodel_domain,
+                    [("id", "in", image_element_ids)],
+                ]
+            )
 
-            group_domain = kwargs.get("group_domain")
+        comodel_records = Comodel.search_read(comodel_domain, field_names, limit=limit)
+        if limit and len(comodel_records) == limit:
+            return {"error_msg": str(SEARCH_PANEL_ERROR_MESSAGE)}
 
-            count_image = None
-            if enable_counters and not (group_by and group_domain):
-                count_domain = AND([model_domain, extra_domain])
-                count_image = self._search_panel_get_domain_image(
-                    field_name,
-                    count_domain,
-                    set_count=True,
-                )
+        group_domain = kwargs.get("group_domain")
 
-            group_count_images = {}
-            if enable_counters and count_image is None:
-                for record in comodel_records:
-                    group_key = json_dumps(group_id_name(record[group_by])[0])
-                    if group_key not in group_count_images:
-                        count_domain = AND(
-                            [
-                                model_domain,
-                                extra_domain,
-                                group_domain.get(group_key, []),
-                            ]
-                        )
-                        group_count_images[group_key] = (
-                            self._search_panel_get_domain_image(
-                                field_name, count_domain, set_count=True
-                            )
-                        )
+        count_image = None
+        if enable_counters and not (group_by and group_domain):
+            count_domain = AND([model_domain, extra_domain])
+            count_image = self._search_panel_get_domain_image(
+                field_name,
+                count_domain,
+                set_count=True,
+            )
 
-            field_range = []
-            for record in comodel_records:
-                record_id = record["id"]
-                values = {
-                    "id": record_id,
-                    "display_name": record["display_name"],
-                }
-                if group_by:
-                    group_id, group_name = group_id_name(record[group_by])
-                    values["group_id"] = group_id
-                    values["group_name"] = group_name
+        group_count_images = {}
+        if enable_counters and count_image is None:
+            group_count_images = self._search_panel_prepare_group_count_images(
+                field_name,
+                comodel_records,
+                group_id_name,
+                model_domain,
+                extra_domain,
+                **kwargs,
+            )
 
-                if enable_counters:
-                    image = (
-                        count_image
-                        if count_image is not None
-                        else group_count_images[json_dumps(group_id)]
-                    )
-                    image_element = image.get(record_id)
-                    values["__count"] = image_element["__count"] if image_element else 0
-                field_range.append(values)
-
-            return {
-                "values": field_range,
+        field_range = []
+        for record in comodel_records:
+            record_id = record["id"]
+            values = {
+                "id": record_id,
+                "display_name": record["display_name"],
             }
+            if group_by:
+                group_id, group_name = group_id_name(record[group_by])
+                values["group_id"] = group_id
+                values["group_name"] = group_name
 
-        if field.type == "many2one":
-            if enable_counters or not expand:
-                extra_domain = AND(
+            if enable_counters:
+                image = (
+                    count_image
+                    if count_image is not None
+                    else group_count_images[json_dumps(group_id)]
+                )
+                image_element = image.get(record_id)
+                values["__count"] = image_element["__count"] if image_element else 0
+            field_range.append(values)
+
+        return {
+            "values": field_range,
+        }
+
+    def _search_panel_prepare_group_count_images(
+        self,
+        field_name: str,
+        comodel_records: list[dict],
+        group_id_name: Any,
+        model_domain: list,
+        extra_domain: list,
+        **kwargs: Any,
+    ) -> dict[str, dict]:
+        """One counter image per `group_by` group, keyed by its JSON group id."""
+        group_by = kwargs.get("group_by")
+        group_domain = kwargs.get("group_domain")
+        group_count_images: dict[str, dict] = {}
+        for record in comodel_records:
+            group_key = json_dumps(group_id_name(record[group_by])[0])
+            if group_key not in group_count_images:
+                count_domain = AND(
                     [
+                        model_domain,
                         extra_domain,
-                        kwargs.get("group_domain", []),
+                        group_domain.get(group_key, []),
                     ]
                 )
-                domain_image = self._search_panel_get_field_image(
-                    field_name,
-                    model_domain=model_domain,
-                    extra_domain=extra_domain,
-                    only_counters=expand,
-                    set_limit=limit and not (expand or group_by or comodel_domain),
-                    **kwargs,
+                group_count_images[group_key] = self._search_panel_get_domain_image(
+                    field_name, count_domain, set_count=True
                 )
+        return group_count_images
 
-            if not (expand or group_by or comodel_domain):
-                values = list(domain_image.values())
-                if limit and len(values) == limit:
-                    return {"error_msg": str(SEARCH_PANEL_ERROR_MESSAGE)}
-                return {
-                    "values": values,
-                }
+    def _search_panel_multi_range_many2one(
+        self,
+        field_name: str,
+        Comodel: Any,
+        field_names: list[str],
+        group_id_name: Any,
+        model_domain: list,
+        extra_domain: list,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        group_by = kwargs.get("group_by")
+        limit = kwargs.get("limit")
+        comodel_domain = kwargs.get("comodel_domain", [])
+        enable_counters = kwargs.get("enable_counters")
+        expand = kwargs.get("expand")
 
-            if not expand:
-                image_element_ids = list(domain_image.keys())
-                comodel_domain = AND(
-                    [
-                        comodel_domain,
-                        [("id", "in", image_element_ids)],
-                    ]
-                )
-            comodel_records = Comodel.search_read(
-                comodel_domain, field_names, limit=limit
+        domain_image = None
+        if enable_counters or not expand:
+            extra_domain = AND(
+                [
+                    extra_domain,
+                    kwargs.get("group_domain", []),
+                ]
             )
-            if limit and len(comodel_records) == limit:
+            domain_image = self._search_panel_get_field_image(
+                field_name,
+                model_domain=model_domain,
+                extra_domain=extra_domain,
+                only_counters=expand,
+                set_limit=limit and not (expand or group_by or comodel_domain),
+                **kwargs,
+            )
+
+        if not (expand or group_by or comodel_domain):
+            values = list(domain_image.values())
+            if limit and len(values) == limit:
                 return {"error_msg": str(SEARCH_PANEL_ERROR_MESSAGE)}
-
-            field_range = []
-            for record in comodel_records:
-                record_id = record["id"]
-                values = {
-                    "id": record_id,
-                    "display_name": record["display_name"],
-                }
-
-                if group_by:
-                    group_id, group_name = group_id_name(record[group_by])
-                    values["group_id"] = group_id
-                    values["group_name"] = group_name
-
-                if enable_counters:
-                    image_element = domain_image.get(record_id)
-                    values["__count"] = image_element["__count"] if image_element else 0
-
-                field_range.append(values)
-
             return {
-                "values": field_range,
+                "values": values,
             }
-        raise ValueError(
-            f"Unsupported field type {field.type!r} for search panel multi-range"
-        )
+
+        if not expand:
+            image_element_ids = list(domain_image.keys())
+            comodel_domain = AND(
+                [
+                    comodel_domain,
+                    [("id", "in", image_element_ids)],
+                ]
+            )
+        comodel_records = Comodel.search_read(comodel_domain, field_names, limit=limit)
+        if limit and len(comodel_records) == limit:
+            return {"error_msg": str(SEARCH_PANEL_ERROR_MESSAGE)}
+
+        field_range = []
+        for record in comodel_records:
+            record_id = record["id"]
+            values = {
+                "id": record_id,
+                "display_name": record["display_name"],
+            }
+
+            if group_by:
+                group_id, group_name = group_id_name(record[group_by])
+                values["group_id"] = group_id
+                values["group_name"] = group_name
+
+            if enable_counters:
+                image_element = domain_image.get(record_id)
+                values["__count"] = image_element["__count"] if image_element else 0
+
+            field_range.append(values)
+
+        return {
+            "values": field_range,
+        }

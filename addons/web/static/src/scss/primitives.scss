@@ -38,10 +38,7 @@ $o-colors-secondary: o-build-color-ramp(
     $o-colors-lighten
 ) !default;
 
-$o-dark-colors: o-build-color-ramp(
-    $o-colors-source,
-    $o-dark-colors-lighten
-) !default;
+$o-dark-colors: o-build-color-ramp($o-colors-source, $o-dark-colors-lighten) !default;
 $o-dark-colors-secondary: o-build-color-ramp(
     $o-colors-secondary-source,
     $o-dark-colors-lighten

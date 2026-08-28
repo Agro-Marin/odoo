@@ -169,54 +169,11 @@ class Binary(http.Controller):
                     attachment, "raw", filename
                 )
         if stream is None:
-            if env.cr.readonly:
-                env.cr.rollback()
-                cursor_manager = env.registry.cursor(readonly=False)
-            else:
-                cursor_manager = nullcontext(env.cr)
-            with cursor_manager as rw_cr:
-                rw_env = api.Environment(rw_cr, env.user.id, {})
-                try:
-                    if filename.endswith(".map"):
-                        _logger.error(
-                            ".map should have been generated through debug assets, (version %s most likely outdated)",
-                            unique,
-                        )
-                        raise request.not_found()
-                    bundle_name, rtl, asset_type, autoprefix = rw_env[
-                        "ir.asset"
-                    ]._parse_bundle_name(filename, debug_assets)
-                    css = asset_type == "css"
-                    js = asset_type == "js"
-                    bundle = rw_env["ir.qweb"]._get_asset_bundle(
-                        bundle_name,
-                        css=css,
-                        js=js,
-                        debug_assets=debug_assets,
-                        rtl=rtl,
-                        autoprefix=autoprefix,
-                        assets_params=assets_params,
-                    )
-                    if (
-                        not debug_assets
-                        and unique != ANY_UNIQUE
-                        and unique != bundle.get_version(asset_type)
-                    ):
-                        return request.redirect(bundle.get_link(asset_type))
-                    attachment = None
-                    if css and bundle.stylesheets:
-                        attachment = bundle.css()
-                    elif js and (bundle.javascripts or bundle.templates):
-                        attachment = bundle.js()
-                    if attachment:
-                        stream = rw_env["ir.binary"]._get_stream_from_record(
-                            attachment, "raw", filename
-                        )
-                except ValueError as e:
-                    _logger.warning(
-                        "Parsing asset bundle %s has failed: %s", filename, e
-                    )
-                    raise request.not_found() from e
+            stream, redirect = self._get_generated_asset_stream(
+                filename, unique, debug_assets, assets_params
+            )
+            if redirect is not None:
+                return redirect
         if stream is None:
             raise request.not_found()
         if stream.type == "url":
@@ -236,6 +193,68 @@ class Binary(http.Controller):
 
         return stream.get_response(**send_file_kwargs)
 
+    def _get_generated_asset_stream(
+        self,
+        filename: str,
+        unique: str,
+        debug_assets: bool,
+        assets_params: dict[str, Any],
+    ) -> tuple[Any, Response | None]:
+        """Build the bundle `filename` names, on a read-write cursor.
+
+        Returns `(stream, redirect)`: the redirect is set instead of the stream
+        when `unique` names a version other than the one the bundle now has.
+        """
+        env = request.env
+        stream = None
+        if env.cr.readonly:
+            env.cr.rollback()
+            cursor_manager = env.registry.cursor(readonly=False)
+        else:
+            cursor_manager = nullcontext(env.cr)
+        with cursor_manager as rw_cr:
+            rw_env = api.Environment(rw_cr, env.user.id, {})
+            try:
+                if filename.endswith(".map"):
+                    _logger.error(
+                        ".map should have been generated through debug assets, (version %s most likely outdated)",
+                        unique,
+                    )
+                    raise request.not_found()
+                bundle_name, rtl, asset_type, autoprefix = rw_env[
+                    "ir.asset"
+                ]._parse_bundle_name(filename, debug_assets)
+                css = asset_type == "css"
+                js = asset_type == "js"
+                bundle = rw_env["ir.qweb"]._get_asset_bundle(
+                    bundle_name,
+                    css=css,
+                    js=js,
+                    debug_assets=debug_assets,
+                    rtl=rtl,
+                    autoprefix=autoprefix,
+                    assets_params=assets_params,
+                )
+                if (
+                    not debug_assets
+                    and unique != ANY_UNIQUE
+                    and unique != bundle.get_version(asset_type)
+                ):
+                    return None, request.redirect(bundle.get_link(asset_type))
+                attachment = None
+                if css and bundle.stylesheets:
+                    attachment = bundle.css()
+                elif js and (bundle.javascripts or bundle.templates):
+                    attachment = bundle.js()
+                if attachment:
+                    stream = rw_env["ir.binary"]._get_stream_from_record(
+                        attachment, "raw", filename
+                    )
+            except ValueError as e:
+                _logger.warning("Parsing asset bundle %s has failed: %s", filename, e)
+                raise request.not_found() from e
+        return stream, None
+
     @http.route(
         ["/web/assets/esm/<string:unique>/<string:filename>"],
         type="http",
@@ -245,7 +264,9 @@ class Binary(http.Controller):
     def content_esm_assets(self, unique: str, filename: str) -> Response:
         IrAttachment = request.env["ir.attachment"].sudo()
         attachment = IrAttachment.search(
-            IrAttachment._generated_asset_domain(f"/web/assets/esm/{unique}/{filename}"),
+            IrAttachment._generated_asset_domain(
+                f"/web/assets/esm/{unique}/{filename}"
+            ),
             limit=1,
             order="id desc",
         )

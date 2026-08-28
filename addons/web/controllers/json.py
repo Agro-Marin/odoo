@@ -67,105 +67,24 @@ class WebJsonController(http.Controller):
         if view_type == "form" or record_id:
             if redirect := check_redirect():
                 return redirect
-            if not record_id:
-                raise BadRequest(env._("Missing record id"))
-            record = model.browse(int(record_id))
-            res = record.web_read(spec)
-            if not res:
-                raise NotFound
-            return request.make_json_response(res[0])
+            return self._get_json_record(model, spec, record_id)
 
-        domains = [safe_eval(action.domain or "[]", eval_context)]
-        if "domain" in kwargs:
-            try:
-                user_domain = ast.literal_eval(kwargs.get("domain") or "[]")
-            except (ValueError, SyntaxError) as exc:
-                raise BadRequest(f"Invalid domain: {exc}") from exc
-            domains.append(user_domain)
-        else:
-            default_domain = get_default_domain(model, action, context, eval_context)
-            if default_domain and not Domain(default_domain).is_true():
-                kwargs["domain"] = repr(list(default_domain))
-            domains.append(default_domain)
-        try:
-            limit = int(kwargs.get("limit", 0)) or action.limit
-            offset = int(kwargs.get("offset", 0))
-        except ValueError as exc:
-            raise BadRequest(exc.args[0]) from exc
-        if "offset" not in kwargs:
-            kwargs["offset"] = offset
-        if "limit" not in kwargs:
-            kwargs["limit"] = limit
+        domains = self._get_json_domains(model, action, context, eval_context, kwargs)
+        limit, offset = self._get_json_window(action, kwargs)
 
         view_tree = etree.fromstring(view["arch"])
 
         if view_type in ("calendar", "gantt", "cohort"):
-            try:
-                start_date = date.fromisoformat(kwargs["start_date"])
-                end_date = date.fromisoformat(kwargs["end_date"])
-            except ValueError as exc:
-                raise BadRequest(exc.args[0]) from exc
-            except KeyError:
-                start_date = end_date = None
-            try:
-                date_domain = get_date_domain(start_date, end_date, view_tree)
-            except ValueError as exc:
-                raise BadRequest(exc.args[0]) from exc
-            domains.append(date_domain)
-            if "start_date" not in kwargs or "end_date" not in kwargs:
-                kwargs.update(
-                    {
-                        "start_date": date_domain[0][2].isoformat(),
-                        "end_date": date_domain[1][2].isoformat(),
-                    }
-                )
+            domains.append(self._get_json_date_domain(view_tree, kwargs))
 
         if view_type == "activity":
             domains.append([("activity_ids", "!=", False)])
-            for field_name, field in model._fields.items():
-                if (
-                    field_name.startswith("activity_")
-                    and field_name not in spec
-                    and model._has_field_access(field, "read")
-                ):
-                    spec[field_name] = {}
+            self._update_json_activity_spec(model, spec)
 
         groupby, fields = get_groupby(
             view_tree, kwargs.get("groupby"), kwargs.get("fields")
         )
-        if fields:
-            invalid = [f for f in fields if ":" not in f and f not in model._fields]
-            if invalid:
-                raise BadRequest(
-                    env._(
-                        "Unknown fields for %(model)s: %(fields)s",
-                        model=model._name,
-                        fields=", ".join(invalid),
-                    )
-                )
-            not_aggregatable = [
-                f
-                for f in fields
-                if ":" not in f and model._fields[f].aggregator is None
-            ]
-            if not_aggregatable:
-                raise BadRequest(
-                    env._(
-                        "Fields not aggregatable for %(model)s: %(fields)s",
-                        model=model._name,
-                        fields=", ".join(not_aggregatable),
-                    )
-                )
-            aggregates = [
-                (
-                    f"{fname}:{model._fields[fname].aggregator}"
-                    if ":" not in fname
-                    else fname
-                )
-                for fname in fields
-            ]
-        else:
-            aggregates = ["__count"]
+        aggregates = self._get_json_aggregates(model, fields)
 
         if groupby is not None and not kwargs.get("groupby"):
             kwargs["groupby"] = ",".join(groupby)
@@ -177,7 +96,23 @@ class WebJsonController(http.Controller):
 
         if redirect := check_redirect():
             return redirect
-        domain = Domain.AND(domains)
+        return self._get_json_listing(
+            model, Domain.AND(domains), spec, groupby, aggregates, limit, offset
+        )
+
+    def _get_json_record(self, model, spec, record_id):
+        """The single record `subpath` addressed, as a JSON response."""
+        if not record_id:
+            raise BadRequest(request.env._("Missing record id"))
+        res = model.browse(int(record_id)).web_read(spec)
+        if not res:
+            raise NotFound
+        return request.make_json_response(res[0])
+
+    def _get_json_listing(
+        self, model, domain, spec, groupby, aggregates, limit, offset
+    ):
+        """The grouped or flat listing `subpath` addressed, as a JSON response."""
         if groupby:
             res = model.web_read_group(
                 domain,
@@ -197,6 +132,97 @@ class WebJsonController(http.Controller):
             )
         res.pop("__version", None)
         return request.make_json_response(res)
+
+    def _get_json_domains(self, model, action, context, eval_context, kwargs):
+        """The action's domain, plus the caller's or the view's default one."""
+        domains = [safe_eval(action.domain or "[]", eval_context)]
+        if "domain" in kwargs:
+            try:
+                user_domain = ast.literal_eval(kwargs.get("domain") or "[]")
+            except (ValueError, SyntaxError) as exc:
+                raise BadRequest(f"Invalid domain: {exc}") from exc
+            domains.append(user_domain)
+        else:
+            default_domain = get_default_domain(model, action, context, eval_context)
+            if default_domain and not Domain(default_domain).is_true():
+                kwargs["domain"] = repr(list(default_domain))
+            domains.append(default_domain)
+        return domains
+
+    def _get_json_window(self, action, kwargs):
+        """The `(limit, offset)` pair, echoed back into `kwargs` when defaulted."""
+        try:
+            limit = int(kwargs.get("limit", 0)) or action.limit
+            offset = int(kwargs.get("offset", 0))
+        except ValueError as exc:
+            raise BadRequest(exc.args[0]) from exc
+        if "offset" not in kwargs:
+            kwargs["offset"] = offset
+        if "limit" not in kwargs:
+            kwargs["limit"] = limit
+        return limit, offset
+
+    def _get_json_date_domain(self, view_tree, kwargs):
+        """The date window a calendar/gantt/cohort view reads, defaulted from it."""
+        try:
+            start_date = date.fromisoformat(kwargs["start_date"])
+            end_date = date.fromisoformat(kwargs["end_date"])
+        except ValueError as exc:
+            raise BadRequest(exc.args[0]) from exc
+        except KeyError:
+            start_date = end_date = None
+        try:
+            date_domain = get_date_domain(start_date, end_date, view_tree)
+        except ValueError as exc:
+            raise BadRequest(exc.args[0]) from exc
+        if "start_date" not in kwargs or "end_date" not in kwargs:
+            kwargs.update(
+                {
+                    "start_date": date_domain[0][2].isoformat(),
+                    "end_date": date_domain[1][2].isoformat(),
+                }
+            )
+        return date_domain
+
+    def _update_json_activity_spec(self, model, spec):
+        """Add the readable `activity_*` fields an activity view needs to `spec`."""
+        for field_name, field in model._fields.items():
+            if (
+                field_name.startswith("activity_")
+                and field_name not in spec
+                and model._has_field_access(field, "read")
+            ):
+                spec[field_name] = {}
+
+    def _get_json_aggregates(self, model, fields):
+        """`fields` as read_group aggregate specs, or `__count` when there are none."""
+        if not fields:
+            return ["__count"]
+        env = request.env
+        invalid = [f for f in fields if ":" not in f and f not in model._fields]
+        if invalid:
+            raise BadRequest(
+                env._(
+                    "Unknown fields for %(model)s: %(fields)s",
+                    model=model._name,
+                    fields=", ".join(invalid),
+                )
+            )
+        not_aggregatable = [
+            f for f in fields if ":" not in f and model._fields[f].aggregator is None
+        ]
+        if not_aggregatable:
+            raise BadRequest(
+                env._(
+                    "Fields not aggregatable for %(model)s: %(fields)s",
+                    model=model._name,
+                    fields=", ".join(not_aggregatable),
+                )
+            )
+        return [
+            f"{fname}:{model._fields[fname].aggregator}" if ":" not in fname else fname
+            for fname in fields
+        ]
 
     def _check_json_route_active(self):
         sudo_env = request.env(su=True)

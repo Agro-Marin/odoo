@@ -425,291 +425,286 @@ class Base(models.AbstractModel):
         if not values_list:
             return values_list
 
-        def cleanup(vals: dict) -> dict:
-            if not vals["id"]:
-                vals["id"] = vals["id"].origin or False
-            return vals
-
         for field_name, field_spec in specification.items():
             field = self._fields.get(field_name)
             if field is None:
                 continue
 
             if field.type == "many2one":
-                if "fields" not in field_spec:
-                    for values in values_list:
-                        if isinstance(values[field_name], NewId):
-                            values[field_name] = values[field_name].origin or False
-                    continue
-
-                for values in values_list:
-                    if isinstance(values[field_name], NewId):
-                        values[field_name] = values[field_name].origin or False
-
-                co_ids = OrderedSet(
-                    vals[field_name] for vals in values_list if vals[field_name]
+                self._web_read_resolve_many2one(
+                    values_list, field, field_name, field_spec
                 )
-                co_records = self.env[field.comodel_name].browse(co_ids)
-                if "context" in field_spec:
-                    co_records = co_records.with_context(**field_spec["context"])
-
-                extra_fields = dict(field_spec["fields"])
-                extra_fields.pop("display_name", None)
-
-                if co_records:
-                    readable_records = (
-                        co_records.with_context(active_test=False)
-                        ._filtered_access("read")
-                        .with_context(co_records.env.context)
-                    )
-                else:
-                    readable_records = co_records
-
-                many2one_data = {
-                    vals["id"]: cleanup(vals)
-                    for vals in readable_records.web_read(extra_fields)
-                }
-
-                if "display_name" in field_spec["fields"]:
-                    for rec in readable_records:
-                        many2one_data.setdefault(rec.id, {"id": rec.id})[
-                            "display_name"
-                        ] = rec.display_name
-
-                for values in values_list:
-                    if values[field_name] is False:
-                        continue
-                    vals = many2one_data.get(values[field_name])
-                    values[field_name] = (vals and vals["id"] and vals) or False
-
             elif field.type in ("one2many", "many2many"):
-                if not field_spec:
-                    continue
-
-                co_ids = OrderedSet(
-                    id_ for vals in values_list for id_ in vals[field_name]
+                self._web_read_resolve_x2many(
+                    values_list, field, field_name, field_spec
                 )
-                co_records = self.env[field.comodel_name].browse(co_ids)
-
-                if field_spec.get("order"):
-                    field_context = field.context or {}
-                    if not (
-                        co_records
-                        and co_records.env["ir.model.access"].check(
-                            co_records._name, "read", raise_exception=False
-                        )
-                    ):
-                        co_records = co_records.browse()
-                    else:
-                        try:
-                            co_records = (
-                                co_records.with_context(active_test=False)
-                                .search(
-                                    [("id", "in", co_records.ids)],
-                                    order=field_spec["order"],
-                                )
-                                .with_context(co_records.env.context, **field_context)
-                            )
-                        except AccessError, UserError, ValueError:
-                            co_records = co_records.browse()
-                    order_key = {
-                        co_record.id: index
-                        for index, co_record in enumerate(co_records)
-                    }
-                    for values in values_list:
-                        values[field_name] = [
-                            id_ for id_ in values[field_name] if id_ in order_key
-                        ]
-                        values[field_name] = sorted(
-                            values[field_name], key=order_key.__getitem__
-                        )
-                elif "fields" in field_spec:
-                    if co_records and co_records.env["ir.model.access"].check(
-                        co_records._name, "read", raise_exception=False
-                    ):
-                        accessible = co_records.with_context(
-                            active_test=False
-                        )._filtered_access("read")
-                        accessible_ids = set(accessible.ids)
-                        for values in values_list:
-                            values[field_name] = [
-                                id_
-                                for id_ in values[field_name]
-                                if id_ in accessible_ids
-                            ]
-                        co_records = accessible.with_context(co_records.env.context)
-
-                if "context" in field_spec:
-                    co_records = co_records.with_context(**field_spec["context"])
-
-                if "fields" in field_spec:
-                    if field_spec.get("limit") is not None:
-                        limit = field_spec["limit"]
-                        ids_to_read = OrderedSet(
-                            id_
-                            for values in values_list
-                            for id_ in values[field_name][:limit]
-                        )
-                        co_records = co_records.browse(ids_to_read)
-
-                    x2many_data = {
-                        vals["id"]: vals
-                        for vals in co_records.web_read(field_spec["fields"])
-                    }
-
-                    for values in values_list:
-                        values[field_name] = [
-                            x2many_data.get(id_, {"id": id_})
-                            for id_ in values[field_name]
-                        ]
-
             elif field.type in ("reference", "many2one_reference"):
-                if not field_spec:
-                    continue
-
-                values_by_id = {vals["id"]: vals for vals in values_list}
-                has_sub_fields = "fields" in field_spec
-                can_infer_existence = has_sub_fields and any(
-                    fname != "id" for fname in field_spec["fields"]
+                self._web_read_resolve_reference(
+                    values_list, field, field_name, field_spec
                 )
-
-                co_by_model = defaultdict(list)
-                for record in self:
-                    if record.id not in values_by_id:
-                        continue
-                    if not record[field_name]:
-                        continue
-                    if field.type == "reference":
-                        co_rec = record[field_name]
-                        co_by_model[co_rec._name].append((record.id, co_rec.id))
-                    else:
-                        if not record[field.model_field]:
-                            values_by_id[record.id][field_name] = False
-                            continue
-                        co_by_model[record[field.model_field]].append(
-                            (record.id, record[field_name])
-                        )
-
-                for model_name, pairs in co_by_model.items():
-                    co_ids = list({co_id for _, co_id in pairs})
-                    CoModel = self.env[model_name]
-                    if "context" in field_spec:
-                        CoModel = CoModel.with_context(**field_spec["context"])
-                    co_recordset = CoModel.browse(co_ids)
-
-                    co_data = {}
-                    if has_sub_fields:
-                        try:
-                            co_data = {
-                                d["id"]: d
-                                for d in co_recordset.web_read(field_spec["fields"])
-                            }
-                        except AccessError:
-                            for co_id in co_ids:
-                                try:
-                                    result = CoModel.browse(co_id).web_read(
-                                        field_spec["fields"]
-                                    )
-                                    if result:
-                                        co_data[co_id] = result[0]
-                                except AccessError:
-                                    co_data[co_id] = {
-                                        "id": co_id,
-                                        "display_name": self.env._(
-                                            "You don't have access to this record"
-                                        ),
-                                    }
-
-                    existing_ids = (
-                        set(co_data)
-                        if can_infer_existence
-                        else set(co_recordset.exists().ids)
-                    )
-
-                    for record_id, co_id in pairs:
-                        record_values = values_by_id[record_id]
-                        if co_id not in existing_ids:
-                            record_values[field_name] = False
-                            if field.type == "many2one_reference":
-                                record_values[field.model_field] = False
-                            continue
-                        if has_sub_fields and co_id in co_data:
-                            record_values[field_name] = co_data[co_id]
-                            if field.type == "reference":
-                                record_values[field_name]["id"] = {
-                                    "id": co_id,
-                                    "model": model_name,
-                                }
-
             elif field.type == "properties":
-                if not field_spec or "fields" not in field_spec:
-                    continue
-
-                prop_ctx = field_spec.get("context")
-
-                batch_ids: dict[tuple[str, str], set[int]] = defaultdict(set)
-                batch_specs: dict[str, dict] = {}
-
-                for values in values_list:
-                    for property_name, spec in field_spec["fields"].items():
-                        if "fields" not in spec:
-                            continue
-                        prop = next(
-                            (
-                                p
-                                for p in values[field_name]
-                                if p.get("name") == property_name
-                            ),
-                            None,
-                        )
-                        if not prop or not prop.get("comodel") or not prop.get("value"):
-                            continue
-                        comodel = prop["comodel"]
-                        batch_specs[property_name] = spec["fields"]
-                        if prop.get("type") == "many2one":
-                            batch_ids[(comodel, property_name)].add(prop["value"][0])
-                        elif prop.get("type") == "many2many":
-                            batch_ids[(comodel, property_name)].update(
-                                r[0] for r in prop["value"]
-                            )
-
-                co_data: dict[tuple[str, str], dict[int, dict]] = {}
-                for (comodel, prop_name), ids in batch_ids.items():
-                    co_records = (
-                        self.env[comodel].with_context(**(prop_ctx or {})).browse(ids)
-                    )
-                    co_data[(comodel, prop_name)] = {
-                        d["id"]: d for d in co_records.web_read(batch_specs[prop_name])
-                    }
-
-                for values in values_list:
-                    old_values = values[field_name]
-                    next_values = []
-                    for property_name, spec in field_spec["fields"].items():
-                        prop = next(
-                            (p for p in old_values if p.get("name") == property_name),
-                            None,
-                        )
-                        if not prop:
-                            continue
-
-                        comodel = prop.get("comodel")
-                        if comodel and prop.get("value") and "fields" in spec:
-                            data = co_data.get((comodel, property_name), {})
-                            if prop.get("type") == "many2one":
-                                co_id = prop["value"][0]
-                                if co_id in data:
-                                    prop["value"] = [data[co_id]]
-                            elif prop.get("type") == "many2many":
-                                prop["value"] = [
-                                    data.get(r[0], r) for r in prop["value"]
-                                ]
-
-                        next_values.append(prop)
-
-                    values[field_name] = next_values
+                self._web_read_resolve_properties(values_list, field_name, field_spec)
 
         return values_list
+
+    def _web_read_resolve_many2one(self, values_list, field, field_name, field_spec):
+        def cleanup(vals: dict) -> dict:
+            if not vals["id"]:
+                vals["id"] = vals["id"].origin or False
+            return vals
+
+        if "fields" not in field_spec:
+            for values in values_list:
+                if isinstance(values[field_name], NewId):
+                    values[field_name] = values[field_name].origin or False
+            return
+
+        for values in values_list:
+            if isinstance(values[field_name], NewId):
+                values[field_name] = values[field_name].origin or False
+
+        co_ids = OrderedSet(
+            vals[field_name] for vals in values_list if vals[field_name]
+        )
+        co_records = self.env[field.comodel_name].browse(co_ids)
+        if "context" in field_spec:
+            co_records = co_records.with_context(**field_spec["context"])
+
+        extra_fields = dict(field_spec["fields"])
+        extra_fields.pop("display_name", None)
+
+        if co_records:
+            readable_records = (
+                co_records.with_context(active_test=False)
+                ._filtered_access("read")
+                .with_context(co_records.env.context)
+            )
+        else:
+            readable_records = co_records
+
+        many2one_data = {
+            vals["id"]: cleanup(vals)
+            for vals in readable_records.web_read(extra_fields)
+        }
+
+        if "display_name" in field_spec["fields"]:
+            for rec in readable_records:
+                many2one_data.setdefault(rec.id, {"id": rec.id})["display_name"] = (
+                    rec.display_name
+                )
+
+        for values in values_list:
+            if values[field_name] is False:
+                continue
+            vals = many2one_data.get(values[field_name])
+            values[field_name] = (vals and vals["id"] and vals) or False
+
+    def _web_read_resolve_x2many(self, values_list, field, field_name, field_spec):
+        if not field_spec:
+            return
+
+        co_ids = OrderedSet(id_ for vals in values_list for id_ in vals[field_name])
+        co_records = self.env[field.comodel_name].browse(co_ids)
+
+        if field_spec.get("order"):
+            field_context = field.context or {}
+            if not (
+                co_records
+                and co_records.env["ir.model.access"].check(
+                    co_records._name, "read", raise_exception=False
+                )
+            ):
+                co_records = co_records.browse()
+            else:
+                try:
+                    co_records = (
+                        co_records.with_context(active_test=False)
+                        .search(
+                            [("id", "in", co_records.ids)],
+                            order=field_spec["order"],
+                        )
+                        .with_context(co_records.env.context, **field_context)
+                    )
+                except AccessError, UserError, ValueError:
+                    co_records = co_records.browse()
+            order_key = {
+                co_record.id: index for index, co_record in enumerate(co_records)
+            }
+            for values in values_list:
+                values[field_name] = [
+                    id_ for id_ in values[field_name] if id_ in order_key
+                ]
+                values[field_name] = sorted(
+                    values[field_name], key=order_key.__getitem__
+                )
+        elif "fields" in field_spec:
+            if co_records and co_records.env["ir.model.access"].check(
+                co_records._name, "read", raise_exception=False
+            ):
+                accessible = co_records.with_context(
+                    active_test=False
+                )._filtered_access("read")
+                accessible_ids = set(accessible.ids)
+                for values in values_list:
+                    values[field_name] = [
+                        id_ for id_ in values[field_name] if id_ in accessible_ids
+                    ]
+                co_records = accessible.with_context(co_records.env.context)
+
+        if "context" in field_spec:
+            co_records = co_records.with_context(**field_spec["context"])
+
+        if "fields" in field_spec:
+            if field_spec.get("limit") is not None:
+                limit = field_spec["limit"]
+                ids_to_read = OrderedSet(
+                    id_ for values in values_list for id_ in values[field_name][:limit]
+                )
+                co_records = co_records.browse(ids_to_read)
+
+            x2many_data = {
+                vals["id"]: vals for vals in co_records.web_read(field_spec["fields"])
+            }
+
+            for values in values_list:
+                values[field_name] = [
+                    x2many_data.get(id_, {"id": id_}) for id_ in values[field_name]
+                ]
+
+    def _web_read_resolve_reference(self, values_list, field, field_name, field_spec):
+        if not field_spec:
+            return
+
+        values_by_id = {vals["id"]: vals for vals in values_list}
+        has_sub_fields = "fields" in field_spec
+        can_infer_existence = has_sub_fields and any(
+            fname != "id" for fname in field_spec["fields"]
+        )
+
+        co_by_model = defaultdict(list)
+        for record in self:
+            if record.id not in values_by_id:
+                continue
+            if not record[field_name]:
+                continue
+            if field.type == "reference":
+                co_rec = record[field_name]
+                co_by_model[co_rec._name].append((record.id, co_rec.id))
+            else:
+                if not record[field.model_field]:
+                    values_by_id[record.id][field_name] = False
+                    continue
+                co_by_model[record[field.model_field]].append(
+                    (record.id, record[field_name])
+                )
+
+        for model_name, pairs in co_by_model.items():
+            co_ids = list({co_id for _, co_id in pairs})
+            CoModel = self.env[model_name]
+            if "context" in field_spec:
+                CoModel = CoModel.with_context(**field_spec["context"])
+            co_recordset = CoModel.browse(co_ids)
+
+            co_data = {}
+            if has_sub_fields:
+                try:
+                    co_data = {
+                        d["id"]: d for d in co_recordset.web_read(field_spec["fields"])
+                    }
+                except AccessError:
+                    for co_id in co_ids:
+                        try:
+                            result = CoModel.browse(co_id).web_read(
+                                field_spec["fields"]
+                            )
+                            if result:
+                                co_data[co_id] = result[0]
+                        except AccessError:
+                            co_data[co_id] = {
+                                "id": co_id,
+                                "display_name": self.env._(
+                                    "You don't have access to this record"
+                                ),
+                            }
+
+            existing_ids = (
+                set(co_data) if can_infer_existence else set(co_recordset.exists().ids)
+            )
+
+            for record_id, co_id in pairs:
+                record_values = values_by_id[record_id]
+                if co_id not in existing_ids:
+                    record_values[field_name] = False
+                    if field.type == "many2one_reference":
+                        record_values[field.model_field] = False
+                    continue
+                if has_sub_fields and co_id in co_data:
+                    record_values[field_name] = co_data[co_id]
+                    if field.type == "reference":
+                        record_values[field_name]["id"] = {
+                            "id": co_id,
+                            "model": model_name,
+                        }
+
+    def _web_read_resolve_properties(self, values_list, field_name, field_spec):
+        if not field_spec or "fields" not in field_spec:
+            return
+
+        prop_ctx = field_spec.get("context")
+
+        batch_ids: dict[tuple[str, str], set[int]] = defaultdict(set)
+        batch_specs: dict[str, dict] = {}
+
+        for values in values_list:
+            for property_name, spec in field_spec["fields"].items():
+                if "fields" not in spec:
+                    continue
+                prop = next(
+                    (p for p in values[field_name] if p.get("name") == property_name),
+                    None,
+                )
+                if not prop or not prop.get("comodel") or not prop.get("value"):
+                    continue
+                comodel = prop["comodel"]
+                batch_specs[property_name] = spec["fields"]
+                if prop.get("type") == "many2one":
+                    batch_ids[(comodel, property_name)].add(prop["value"][0])
+                elif prop.get("type") == "many2many":
+                    batch_ids[(comodel, property_name)].update(
+                        r[0] for r in prop["value"]
+                    )
+
+        co_data: dict[tuple[str, str], dict[int, dict]] = {}
+        for (comodel, prop_name), ids in batch_ids.items():
+            co_records = self.env[comodel].with_context(**(prop_ctx or {})).browse(ids)
+            co_data[(comodel, prop_name)] = {
+                d["id"]: d for d in co_records.web_read(batch_specs[prop_name])
+            }
+
+        for values in values_list:
+            old_values = values[field_name]
+            next_values = []
+            for property_name, spec in field_spec["fields"].items():
+                prop = next(
+                    (p for p in old_values if p.get("name") == property_name),
+                    None,
+                )
+                if not prop:
+                    continue
+
+                comodel = prop.get("comodel")
+                if comodel and prop.get("value") and "fields" in spec:
+                    data = co_data.get((comodel, property_name), {})
+                    if prop.get("type") == "many2one":
+                        co_id = prop["value"][0]
+                        if co_id in data:
+                            prop["value"] = [data[co_id]]
+                    elif prop.get("type") == "many2many":
+                        prop["value"] = [data.get(r[0], r) for r in prop["value"]]
+
+                next_values.append(prop)
+
+            values[field_name] = next_values
 
     def web_resequence(
         self,

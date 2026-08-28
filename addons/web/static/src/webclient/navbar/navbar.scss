@@ -285,7 +285,6 @@ body.o_is_superuser .o_menu_systray {
     border-image-width: map-get($border-widths, 2);
 }
 
-
 @include o-publish-per-scheme using ($-scheme, $-ramp, $-record-colors) {
     $-dark: map-get($-scheme, "dark");
 
@@ -309,7 +308,11 @@ body.o_is_superuser .o_menu_systray {
             $o-dark-navbar-entry-color--active,
             $o-navbar-entry-color--active
         )};
-    --o-navbar-background: #{if($-dark, $o-dark-navbar-background, $o-navbar-background)};
+    --o-navbar-background: #{if(
+            $-dark,
+            $o-dark-navbar-background,
+            $o-navbar-background
+        )};
     --o-navbar-brand-color: #{if(
             $-dark,
             $o-dark-navbar-brand-color,
@@ -333,6 +336,5 @@ body.o_is_superuser .o_menu_systray {
 
         border-bottom: $o-dark-navbar-border-bottom;
         background: $o-dark-navbar-background;
-
     }
 }

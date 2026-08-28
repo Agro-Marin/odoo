@@ -89,6 +89,43 @@ def _clamp_cls(value):
     return float(value)
 
 
+def _js_error_beacon(payload: dict) -> dict | None:
+    """The beacon fields of a `/js_error` payload, each bounded and typed.
+
+    None when the payload carries no message: there is nothing to record.
+    """
+
+    def _str_field(raw, cap):
+        return (str(raw)[:cap]) if isinstance(raw, str) else ""
+
+    def _int_field(raw):
+        return int(raw) if isinstance(raw, (int, float)) and raw >= 0 else 0
+
+    message = _str_field(payload.get("message"), _MAX_ERROR_MSG_LEN)
+    if not message:
+        return None
+
+    return {
+        "message": message,
+        "kind": (
+            payload.get("kind") if payload.get("kind") in _JS_ERROR_KINDS else "error"
+        ),
+        "phase": (
+            payload.get("phase")
+            if payload.get("phase") in _JS_ERROR_PHASES
+            else "unknown"
+        ),
+        "filename": _str_field(payload.get("filename"), _MAX_ERROR_FILENAME_LEN),
+        "url": _str_field(payload.get("url"), _MAX_URL_LEN),
+        "user_agent": _str_field(payload.get("user_agent"), _MAX_UA_LEN),
+        "stack": _str_field(payload.get("stack"), _MAX_ERROR_STACK_LEN),
+        "cause": _str_field(payload.get("cause"), _MAX_ERROR_CAUSE_LEN),
+        "line": _int_field(payload.get("line")),
+        "col": _int_field(payload.get("col")),
+        "reloaded": bool(payload.get("reloaded")) if "reloaded" in payload else None,
+    }
+
+
 class Observability(Controller):
     @route(
         "/web/observability/cwv",
@@ -183,68 +220,39 @@ class Observability(Controller):
         if not isinstance(payload, dict):
             return Response("invalid payload", status=400, mimetype="text/plain")
 
-        def _str_field(raw, cap):
-            return (str(raw)[:cap]) if isinstance(raw, str) else ""
-
-        def _int_field(raw):
-            return int(raw) if isinstance(raw, (int, float)) and raw >= 0 else 0
-
-        message = _str_field(payload.get("message"), _MAX_ERROR_MSG_LEN)
-        if not message:
+        beacon = _js_error_beacon(payload)
+        if beacon is None:
             return Response("", status=204)
-
-        kind = (
-            payload.get("kind") if payload.get("kind") in _JS_ERROR_KINDS else "error"
-        )
-        phase = (
-            payload.get("phase")
-            if payload.get("phase") in _JS_ERROR_PHASES
-            else "unknown"
-        )
-        filename = _str_field(payload.get("filename"), _MAX_ERROR_FILENAME_LEN)
-        url = _str_field(payload.get("url"), _MAX_URL_LEN)
-        user_agent = _str_field(payload.get("user_agent"), _MAX_UA_LEN)
-        stack = _str_field(payload.get("stack"), _MAX_ERROR_STACK_LEN)
-        cause = _str_field(payload.get("cause"), _MAX_ERROR_CAUSE_LEN)
-        line = _int_field(payload.get("line"))
-        col = _int_field(payload.get("col"))
-        reloaded = bool(payload.get("reloaded")) if "reloaded" in payload else None
 
         uid = request.session.uid or False
         in_test = bool(modules.module.current_test) or config["test_enable"]
         level = (
-            logging.DEBUG if kind == "module_rebind" and in_test else logging.WARNING
+            logging.DEBUG
+            if beacon["kind"] == "module_rebind" and in_test
+            else logging.WARNING
         )
         _logger.log(
             level,
             "[js_error] uid=%s phase=%s kind=%s reloaded=%s msg=%r cause=%r"
             " at %r:%d:%d url=%r ua=%r stack=%r",
             uid or "anon",
-            phase,
-            kind,
-            reloaded,
-            message,
-            cause,
-            filename,
-            line,
-            col,
-            url,
-            user_agent,
-            stack,
+            beacon["phase"],
+            beacon["kind"],
+            beacon["reloaded"],
+            beacon["message"],
+            beacon["cause"],
+            beacon["filename"],
+            beacon["line"],
+            beacon["col"],
+            beacon["url"],
+            beacon["user_agent"],
+            beacon["stack"],
         )
+        reloaded = beacon["reloaded"]
         request.env["web.js.error"].sudo()._record_beacon(
             {
                 "user_id": uid,
-                "phase": phase,
-                "kind": kind,
-                "message": message,
-                "cause": cause,
-                "stack": stack,
-                "filename": filename,
-                "line": line,
-                "col": col,
-                "url": url,
-                "user_agent": user_agent,
+                **beacon,
                 "reloaded": (
                     None
                     if reloaded is None

@@ -1,4 +1,3 @@
-
 @mixin density-compact-base() {
     .o_list_renderer {
         --ListRenderer-thead-padding-y: #{$table-cell-padding-y-sm * 0.5};

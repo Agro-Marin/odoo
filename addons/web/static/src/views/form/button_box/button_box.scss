@@ -234,7 +234,11 @@
         outline: none;
 
         &:not(:last-child) {
-            border-bottom: solid 1px var(--o-stat-button-border-color, #{o-token(--border-color, $border-color)});
+            border-bottom: solid 1px
+                var(
+                    --o-stat-button-border-color,
+                    #{o-token(--border-color, $border-color)}
+                );
         }
 
         .oe_stat_button {

@@ -35,11 +35,7 @@ kbd {
     box-shadow: $kbd-box-shadow;
 }
 
-@include o-bg-light-variants(
-    $theme-colors,
-    $o-view-background-color,
-    o-light-scheme()
-);
+@include o-bg-light-variants($theme-colors, $o-view-background-color, o-light-scheme());
 
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
@@ -309,4 +305,3 @@ html {
     scrollbar-width: thin;
     scrollbar-color: var(--o-gray-300) transparent;
 }
-
