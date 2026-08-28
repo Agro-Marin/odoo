@@ -706,6 +706,25 @@ class TestImportModule(odoo.tests.TransactionCase):
         with self.assertRaises(FileNotFoundError):
             file_open(tmp_folder + "/foo/__manifest__.py", "r", env=self.env)
 
+    def test_check_zip_dependencies(self):
+        files = [("foo/__manifest__.py", self.manifest_content(data=["data.xml"]))]
+        archive = BytesIO()
+        with ZipFile(archive, "w") as zipf:
+            for path, data in files:
+                zipf.writestr(path, data)
+        modules_dependencies, _not_found = self.env[
+            "ir.module.module"
+        ]._get_missing_dependencies(archive.getvalue())
+        import_module = self.env["base.import.module"].create(
+            {
+                "module_file": base64.b64encode(archive.getvalue()),
+                "state": "init",
+                "modules_dependencies": modules_dependencies,
+            }
+        )
+        dependencies_names = import_module.get_dependencies_to_install_names()
+        self.assertEqual(dependencies_names, [])
+
 
 class TestImportModuleHttp(TestImportModule, odoo.tests.HttpCase):
     def test_import_module_icon(self):
@@ -767,22 +786,3 @@ class TestImportModuleHttp(TestImportModule, odoo.tests.HttpCase):
         self.assertEqual(asset.path, asset_path)
         asset_data = files[1][1]
         self.assertEqual(self.url_open(asset_path).content, asset_data)
-
-    def test_check_zip_dependencies(self):
-        files = [("foo/__manifest__.py", self.manifest_content(data=["data.xml"]))]
-        archive = BytesIO()
-        with ZipFile(archive, "w") as zipf:
-            for path, data in files:
-                zipf.writestr(path, data)
-        modules_dependencies, _not_found = self.env[
-            "ir.module.module"
-        ]._get_missing_dependencies(archive.getvalue())
-        import_module = self.env["base.import.module"].create(
-            {
-                "module_file": base64.b64encode(archive.getvalue()),
-                "state": "init",
-                "modules_dependencies": modules_dependencies,
-            }
-        )
-        dependencies_names = import_module.get_dependencies_to_install_names()
-        self.assertEqual(dependencies_names, [])
