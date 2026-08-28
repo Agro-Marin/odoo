@@ -181,9 +181,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             while ancestor:
                 if ancestor.id in selected:
                     raise UserError(
-                        self.env._(
-                            "You cannot merge a contact with one of his parent."
-                        )
+                        self.env._("You cannot merge a contact with one of his parent.")
                     )
                 ancestor = ancestor.parent_id
 
