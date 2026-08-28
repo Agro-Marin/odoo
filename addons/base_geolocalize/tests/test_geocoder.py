@@ -95,6 +95,38 @@ class TestGeocoderEdges(TransactionCase):
             "  ", query, "flipped country name must not leave a double space"
         )
 
+    def test_googlemap_force_country_resolves_to_iso_code(self):
+        """`force_country` is resolved to its ISO code for Google's `components` filter."""
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base_geolocalize.google_map_api_key", "fake-key"
+        )
+        response = MagicMock()
+        response.json.return_value = {
+            "status": "OK",
+            "results": [{"geometry": {"location": {"lat": 10.0, "lng": 20.0}}}],
+        }
+        with patch("requests.get", return_value=response) as mock_get:
+            self.Geocoder._call_googlemap(
+                "Some address", force_country=self.env.ref("base.mx").name
+            )
+        self.assertEqual(mock_get.call_args.args[1]["components"], "country:MX")
+
+    def test_googlemap_force_country_unknown_name_falls_back(self):
+        """An unmatched `force_country` name is passed through as-is (no worse than before)."""
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base_geolocalize.google_map_api_key", "fake-key"
+        )
+        response = MagicMock()
+        response.json.return_value = {
+            "status": "OK",
+            "results": [{"geometry": {"location": {"lat": 10.0, "lng": 20.0}}}],
+        }
+        with patch("requests.get", return_value=response) as mock_get:
+            self.Geocoder._call_googlemap("Some address", force_country="Nowhereland")
+        self.assertEqual(
+            mock_get.call_args.args[1]["components"], "country:Nowhereland"
+        )
+
     def test_network_error_raises_query_error(self):
         """A requests failure surfaces as a UserError, never a raw exception."""
         with (
