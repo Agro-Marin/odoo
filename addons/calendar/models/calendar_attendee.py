@@ -13,31 +13,42 @@ _logger = logging.getLogger(__name__)
 
 
 class CalendarAttendee(models.Model):
-    """ Calendar Attendee Information """
-    _name = 'calendar.attendee'
-    _inherit = ['mixin.calendar.privacy']
-    _rec_name = 'common_name'
-    _description = 'Calendar Attendee Information'
-    _order = 'create_date ASC'
+    """Calendar Attendee Information"""
+
+    _name = "calendar.attendee"
+    _inherit = ["mixin.calendar.privacy"]
+    _rec_name = "common_name"
+    _description = "Calendar Attendee Information"
+    _order = "create_date ASC"
 
     def _default_access_token(self):
         return uuid.uuid4().hex
 
     STATE_SELECTION = [
-        ('accepted', 'Yes'),
-        ('declined', 'No'),
-        ('tentative', 'Maybe'),
-        ('needsAction', 'Needs Action'),
+        ("accepted", "Yes"),
+        ("declined", "No"),
+        ("tentative", "Maybe"),
+        ("needsAction", "Needs Action"),
     ]
 
     # event
-    event_id = fields.Many2one('calendar.event', 'Meeting linked', required=True, index=True, ondelete='cascade')
-    recurrence_id = fields.Many2one('calendar.recurrence', related='event_id.recurrence_id')
+    event_id = fields.Many2one(
+        "calendar.event",
+        "Meeting linked",
+        required=True,
+        index=True,
+        ondelete="cascade",
+    )
+    recurrence_id = fields.Many2one(
+        "calendar.recurrence", related="event_id.recurrence_id"
+    )
     # attendee
-    partner_id = fields.Many2one('res.partner', 'Attendee', required=True, readonly=True, ondelete='cascade')
-    email = fields.Char('Email', related='partner_id.email')
-    phone = fields.Char('Phone', related='partner_id.phone')
-    common_name = fields.Char('Common name', compute='_compute_common_name', store=True)
+    partner_id = fields.Many2one(
+        "res.partner", "Attendee", required=True, readonly=True, ondelete="cascade"
+    )
+    email = fields.Char("Email", related="partner_id.email")
+    phone = fields.Char("Phone", related="partner_id.phone")
+    common_name = fields.Char("Common name", compute="_compute_common_name", store=True)
     # `access_token` is the bearer credential of the `calendar` auth method:
     # holding one is enough to accept or decline an invitation from an
     # unauthenticated browser, and the controllers that do it sudo() without
@@ -52,15 +63,25 @@ class CalendarAttendee(models.Model):
     # checked at access time, keeps the cache honest, and sudo() bypasses it, so
     # the legitimate readers (mail templates, token controllers) still work.
     access_token = fields.Char(
-        'Invitation Token', default=_default_access_token, groups='base.group_system')
-    mail_tz = fields.Selection(_tz_get, compute='_compute_mail_tz', help='Timezone used for displaying time in the mail template')
+        "Invitation Token", default=_default_access_token, groups="base.group_system"
+    )
+    mail_tz = fields.Selection(
+        _tz_get,
+        compute="_compute_mail_tz",
+        help="Timezone used for displaying time in the mail template",
+    )
     # state
-    state = fields.Selection(STATE_SELECTION, string='Status', default='needsAction')
+    state = fields.Selection(STATE_SELECTION, string="Status", default="needsAction")
+
+    _event_id_partner_id_unique = models.Constraint(
+        "UNIQUE(event_id, partner_id)",
+        "An attendee can only appear once per meeting.",
+    )
     # `availability` (free/busy) used to be declared here: a stored column with
     # no reader, no writer and no view in any repo. The event's own `show_as`
     # carries that information.
 
-    @api.depends('partner_id', 'partner_id.name', 'email')
+    @api.depends("partner_id", "partner_id.name", "email")
     def _compute_common_name(self):
         for attendee in self:
             attendee.common_name = attendee.partner_id.name or attendee.email
@@ -74,32 +95,45 @@ class CalendarAttendee(models.Model):
         for values in vals_list:
             # by default, if no state is given for the attendee corresponding to the current user
             # that means he's the event organizer so we can set his state to "accepted"
-            if 'state' not in values and values.get('partner_id') == self.env.user.partner_id.id:
-                values['state'] = 'accepted'
-            if not values.get("email") and values.get("common_name"):
-                common_nameval = values.get("common_name").split(':')
-                email = [x for x in common_nameval if '@' in x]
-                values['email'] = email[0] if email else ''
-                values['common_name'] = values.get("common_name")
+            if (
+                "state" not in values
+                and values.get("partner_id") == self.env.user.partner_id.id
+            ):
+                values["state"] = "accepted"
+            # A `common_name`-parsing block used to live here, trying to pull
+            # an embedded `mailto:` address out of `values['common_name']`
+            # into `values['email']`. Both fields are related/computed with
+            # no inverse (`email` -> `partner_id.email`, `common_name` ->
+            # `_compute_common_name`), so the ORM silently dropped whatever
+            # was written into them -- dead code, confirmed by a live
+            # `create()` call whose passed-in `common_name`/`email` never
+            # landed on the record.
         attendees = super().create(vals_list)
-        attendees.event_id.check_access('write')
+        attendees.event_id.check_access("write")
         return attendees
 
     def write(self, vals):
         attendees = super().write(vals)
-        self.event_id.check_access('write')
+        self.event_id.check_access("write")
         return attendees
 
     def unlink(self):
+        # `create()`/`write()` both route through `event_id.check_access('write')`;
+        # `unlink()` had no equivalent, letting any internal user delete any
+        # attendee off any event -- checked before deleting, since after
+        # deletion the rows this check would query no longer exist.
+        self.event_id.check_access("write")
         self._unsubscribe_partner()
         return super().unlink()
 
     def copy(self, default=None):
-        raise UserError(_('You cannot duplicate a calendar attendee.'))
+        raise UserError(_("You cannot duplicate a calendar attendee."))
 
     def _unsubscribe_partner(self):
         for event in self.event_id:
-            partners = (event.attendee_ids & self).partner_id & event.message_partner_ids
+            partners = (
+                event.attendee_ids & self
+            ).partner_id & event.message_partner_ids
             event.message_unsubscribe(partner_ids=partners.ids)
 
     # ------------------------------------------------------------
@@ -121,22 +155,26 @@ class CalendarAttendee(models.Model):
         # simplify computation, we have no other choice than relying on it
         return {
             attendee.id: {
-                'partners': attendee.partner_id,
-                'email_to_lst': [],
-                'email_cc_lst': [],
-            } for attendee in self
+                "partners": attendee.partner_id,
+                "email_to_lst": [],
+                "email_cc_lst": [],
+            }
+            for attendee in self
         }
 
     def _send_invitation_emails(self):
-        """ Hook to be able to override the invitation email sending process.
-         Notably inside appointment to use a different mail template from the appointment type. """
+        """Hook to be able to override the invitation email sending process.
+        Notably inside appointment to use a different mail template from the appointment type."""
         self._notify_attendees(
-            self.env.ref('calendar.calendar_template_meeting_invitation', raise_if_not_found=False),
+            self.env.ref(
+                "calendar.calendar_template_meeting_invitation",
+                raise_if_not_found=False,
+            ),
             force_send=True,
         )
 
     def _notify_attendees(self, mail_template, notify_author=False, force_send=False):
-        """ Notify attendees about event main changes (invite, cancel, ...) based
+        """Notify attendees about event main changes (invite, cancel, ...) based
         on template.
 
         :param mail_template: a mail.template record
@@ -144,18 +182,28 @@ class CalendarAttendee(models.Model):
         """
         # TDE FIXME: check this
         if force_send:
-            force_send_limit = int(self.env['ir.config_parameter'].sudo().get_param('mail.mail_force_send_limit', 100))
+            force_send_limit = int(
+                self.env["ir.config_parameter"]
+                .sudo()
+                .get_param("mail.mail_force_send_limit", 100)
+            )
         notified_attendees_ids = set(self.ids)
-        for event, attendees in self.grouped('event_id').items():
+        for event, attendees in self.grouped("event_id").items():
             if event._skip_send_mail_status_update():
                 notified_attendees_ids -= set(attendees.ids)
         notified_attendees = self.browse(notified_attendees_ids)
         if isinstance(mail_template, str):
-            raise ValueError('Template should be a template record, not an XML ID anymore.')
-        if self.env['ir.config_parameter'].sudo().get_param('calendar.block_mail') or self.env.context.get("no_mail_to_attendees"):
+            raise ValueError(
+                "Template should be a template record, not an XML ID anymore."
+            )
+        if self.env["ir.config_parameter"].sudo().get_param(
+            "calendar.block_mail"
+        ) or self.env.context.get("no_mail_to_attendees"):
             return False
         if not mail_template:
-            _logger.warning("No template passed to %s notification process. Skipped.", self)
+            _logger.warning(
+                "No template passed to %s notification process. Skipped.", self
+            )
             return False
 
         # The attendees that will actually receive a mail: an email address, and
@@ -165,8 +213,10 @@ class CalendarAttendee(models.Model):
         # copies carry res_id=0/res_model='mail.compose.message', the wasted ones
         # are only reclaimed a day later by the mail autovacuum).
         recipients = notified_attendees.filtered(
-            lambda attendee: attendee.email
-            and attendee._should_notify_attendee(notify_author=notify_author)
+            lambda attendee: (
+                attendee.email
+                and attendee._should_notify_attendee(notify_author=notify_author)
+            )
         )
         if not recipients:
             return None
@@ -177,7 +227,6 @@ class CalendarAttendee(models.Model):
         # If the mail template has attachments, prepare one copy per recipient (to be added to each recipient's mail)
         attendee_id_attachment_id_map = {}
         if mail_template.attachment_ids:
-
             # Setting res_model to ensure attachments are linked to the msg (otherwise only internal users are allowed link attachments)
             #
             # `copy()`, not `copy_data()` + `create()`: duplicating an
@@ -194,14 +243,29 @@ class CalendarAttendee(models.Model):
             # an attachment is what stops this regressing again.
             recipient_attachment_ids = []
             for _recipient in recipients:
-                recipient_attachment_ids += mail_template.attachment_ids.copy({
-                    'res_id': 0,
-                    'res_model': 'mail.compose.message',
-                }).ids
+                recipient_attachment_ids += mail_template.attachment_ids.copy(
+                    {
+                        "res_id": 0,
+                        "res_model": "mail.compose.message",
+                    }
+                ).ids
 
             # Map recipients to their respective attachments
             template_attachment_count = len(mail_template.attachment_ids)
-            attendee_id_attachment_id_map = dict(zip(recipients.ids, (list(b) for b in batched(recipient_attachment_ids, template_attachment_count, strict=True)), strict=True))
+            attendee_id_attachment_id_map = dict(
+                zip(
+                    recipients.ids,
+                    (
+                        list(b)
+                        for b in batched(
+                            recipient_attachment_ids,
+                            template_attachment_count,
+                            strict=True,
+                        )
+                    ),
+                    strict=True,
+                )
+            )
 
         # Render the template once for all recipients instead of three times per
         # recipient inside the loop; _render_field already batches by id.
@@ -213,11 +277,15 @@ class CalendarAttendee(models.Model):
         # Rendering is the one legitimate reader of somebody else's token; it
         # emits it only into the mail addressed to that person.
         rendering_template = mail_template.sudo()
-        bodies = rendering_template._render_field('body_html', recipients.ids, compute_lang=True)
-        subjects = rendering_template._render_field('subject', recipients.ids, compute_lang=True)
-        emails_from = rendering_template._render_field('email_from', recipients.ids)
+        bodies = rendering_template._render_field(
+            "body_html", recipients.ids, compute_lang=True
+        )
+        subjects = rendering_template._render_field(
+            "subject", recipients.ids, compute_lang=True
+        )
+        emails_from = rendering_template._render_field("email_from", recipients.ids)
 
-        mail_messages = self.env['mail.message']
+        mail_messages = self.env["mail.message"]
         for attendee in recipients:
             event_id = attendee.event_id.id
             ics_file = ics_files.get(event_id)
@@ -228,27 +296,40 @@ class CalendarAttendee(models.Model):
             if ics_file:
                 context = {
                     **clean_context(self.env.context),
-                    'no_document': True,  # An ICS file must not create a document
+                    "no_document": True,  # An ICS file must not create a document
                 }
-                attachment_ids += self.env['ir.attachment'].with_context(context).create({
-                    'datas': base64.b64encode(ics_file),
-                    'description': 'invitation.ics',
-                    'mimetype': 'text/calendar',
-                    'res_id': 0,
-                    'res_model': 'mail.compose.message',
-                    'name': 'invitation.ics',
-                }).ids
+                attachment_ids += (
+                    self.env["ir.attachment"]
+                    .with_context(context)
+                    .create(
+                        {
+                            "datas": base64.b64encode(ics_file),
+                            "description": "invitation.ics",
+                            "mimetype": "text/calendar",
+                            "res_id": 0,
+                            "res_model": "mail.compose.message",
+                            "name": "invitation.ics",
+                        }
+                    )
+                    .ids
+                )
 
-            mail_messages += attendee.event_id.with_context(no_document=True).sudo().message_notify(
-                email_from=emails_from[attendee.id] or None,  # use None to trigger fallback sender
-                author_id=attendee.event_id.user_id.partner_id.id or self.env.user.partner_id.id,
-                body=bodies[attendee.id],
-                subject=subjects[attendee.id],
-                notify_author=notify_author,
-                partner_ids=attendee.partner_id.ids,
-                email_layout_xmlid='mail.mail_notification_light',
-                attachment_ids=attachment_ids,
-                force_send=False,
+            mail_messages += (
+                attendee.event_id.with_context(no_document=True)
+                .sudo()
+                .message_notify(
+                    email_from=emails_from[attendee.id]
+                    or None,  # use None to trigger fallback sender
+                    author_id=attendee.event_id.user_id.partner_id.id
+                    or self.env.user.partner_id.id,
+                    body=bodies[attendee.id],
+                    subject=subjects[attendee.id],
+                    notify_author=notify_author,
+                    partner_ids=attendee.partner_id.ids,
+                    email_layout_xmlid="mail.mail_notification_light",
+                    attachment_ids=attachment_ids,
+                    force_send=False,
+                )
             )
         # batch sending at the end
         if force_send and len(recipients) < force_send_limit:
@@ -256,10 +337,10 @@ class CalendarAttendee(models.Model):
         return None
 
     def _should_notify_attendee(self, notify_author=False):
-        """ Utility method that determines if the attendee should be notified.
-            By default, we do not want to notify (aka no message and no mail) the current user
-            if he is part of the attendees. But for reminders, mail_notify_author could be forced
-            (Override in appointment to ignore that rule and notify all attendees if it's an appointment)
+        """Utility method that determines if the attendee should be notified.
+        By default, we do not want to notify (aka no message and no mail) the current user
+        if he is part of the attendees. But for reminders, mail_notify_author could be forced
+        (Override in appointment to ignore that rule and notify all attendees if it's an appointment)
         """
         self.ensure_one()
         partner_not_sender = self.partner_id != self.env.user.partner_id
@@ -270,25 +351,25 @@ class CalendarAttendee(models.Model):
     # ------------------------------------------------------------
 
     def do_tentative(self):
-        """ Makes event invitation as Tentative. """
-        return self.write({'state': 'tentative'})
+        """Makes event invitation as Tentative."""
+        return self.write({"state": "tentative"})
 
     def do_accept(self):
-        """ Marks event invitation as Accepted. """
+        """Marks event invitation as Accepted."""
         for attendee in self:
             attendee.event_id.message_post(
                 author_id=attendee.partner_id.id,
                 body=_("%s has accepted the invitation", attendee.common_name),
                 subtype_xmlid="calendar.subtype_invitation",
             )
-        return self.write({'state': 'accepted'})
+        return self.write({"state": "accepted"})
 
     def do_decline(self):
-        """ Marks event invitation as Declined. """
+        """Marks event invitation as Declined."""
         for attendee in self:
             attendee.event_id.message_post(
                 author_id=attendee.partner_id.id,
                 body=_("%s has declined the invitation", attendee.common_name),
                 subtype_xmlid="calendar.subtype_invitation",
             )
-        return self.write({'state': 'declined'})
+        return self.write({"state": "declined"})
