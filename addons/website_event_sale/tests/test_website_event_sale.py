@@ -86,7 +86,7 @@ class TestWebsiteEventSale(HttpCaseWithUserPortal, TestWebsiteEventSaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestRegistrationSaleBranches(HttpCaseWithUserPortal, TestWebsiteEventSaleCommon):
-    """Ticketless registrations and zero-total order auto-confirmation."""
+    """Zero-total order auto-confirmation."""
 
     def _questions(self):
         qs = self.event.question_ids
