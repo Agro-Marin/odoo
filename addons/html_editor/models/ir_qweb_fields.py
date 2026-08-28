@@ -145,18 +145,7 @@ class IrQweb(models.AbstractModel):
     def _render_install_placeholder(
         self, key, name, thumbnail, image_preview, group, label
     ):
-        """Emit the "install this module" placeholder, deciding at render time.
-
-        Both decisions used to be taken while compiling. `_generate_code_cached`
-        is an ormcache keyed on `(ref, _template_cache_signature())`, and that
-        signature carries no uid, so `self.env.user.has_group('base.group_system')`
-        at compile time let whichever user warmed the cache decide for everyone:
-        with an administrator first, a plain internal user was served the module's
-        name, id and display name; with a plain user first, the administrator
-        never saw the placeholder at all. The module's `state` was baked in the
-        same way. `_compile_directive_groups` is the pattern this now follows --
-        emit the test, evaluate it per render.
-        """
+        """Emit the "install this module" placeholder, deciding at render time."""
         if not self.env.user.has_group("base.group_system"):
             return
         module = self.env["ir.module.module"].search([("name", "=", key)])
