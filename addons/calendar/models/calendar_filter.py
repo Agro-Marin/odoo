@@ -2,17 +2,28 @@ from odoo import fields, models
 
 
 class CalendarFilters(models.Model):
-    _name = 'calendar.filters'
-    _description = 'Calendar Filters'
+    _name = "calendar.filters"
+    _description = "Calendar Filters"
 
-    user_id = fields.Many2one('res.users', 'Me', required=True, default=lambda self: self.env.user, index=True, ondelete='cascade')
-    partner_id = fields.Many2one('res.partner', 'Employee', required=True, index=True)
-    active = fields.Boolean('Active', default=True)
-    partner_checked = fields.Boolean('Checked', default=True)  # used to know if the partner is checked in the filter of the calendar view for the user_id.
+    user_id = fields.Many2one(
+        "res.users",
+        "Me",
+        required=True,
+        default=lambda self: self.env.user,
+        index=True,
+        ondelete="cascade",
+    )
+    partner_id = fields.Many2one(
+        "res.partner", "Employee", required=True, index=True, ondelete="cascade"
+    )
+    active = fields.Boolean("Active", default=True)
+    partner_checked = fields.Boolean(
+        "Checked", default=True
+    )  # used to know if the partner is checked in the filter of the calendar view for the user_id.
 
     _user_id_partner_id_unique = models.Constraint(
-        'UNIQUE(user_id, partner_id)',
-        'A user cannot have the same contact twice.',
+        "UNIQUE(user_id, partner_id)",
+        "A user cannot have the same contact twice.",
     )
 
     # `unlink_from_partner_id(partner_id)` used to live here: an @api.model
