@@ -20,16 +20,29 @@ class TestGeoLocalize(TransactionCase):
         self.assertTrue(float(test_partner.partner_longitude) != 0.0)
         self.assertTrue(float(test_partner.partner_latitude) != 0.0)
 
+
+@odoo.tests.tagged("-at_install", "post_install")
+class TestGeoLocalizeNoApiKey(TransactionCase):
+    """No network call: the missing-API-key check raises before any request."""
+
     def test_googlemap_without_api_key(self):
         """Without providing API key to google maps,
         the service doesn't work."""
-        test_partner = self.env.ref("base.res_partner_address_4")
+        test_partner = self.env["res.partner"].create(
+            {
+                "name": "Test partner without google api key",
+                "street": "215 Vine St",
+                "city": "Scranton",
+                "zip": "18503",
+                "country_id": self.env.ref("base.us").id,
+            }
+        )
         google_map = self.env.ref("base_geolocalize.geoprovider_google_map").id
         self.env["ir.config_parameter"].set_param(
             "base_geolocalize.geo_provider", google_map
         )
         with self.assertRaises(UserError):
-            test_partner.geo_localize()
+            test_partner.with_context(force_geo_localize=True).geo_localize()
         self.assertFalse(test_partner.partner_longitude)
         self.assertFalse(test_partner.partner_latitude)
         self.assertFalse(test_partner.date_localization)
