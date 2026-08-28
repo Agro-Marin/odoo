@@ -82,7 +82,7 @@ CalendarFilterSection.subTemplates  odoo enterprise  :keep
 CalendarModel.addFilterFields  enterprise  :triage
 CalendarModel.buildRawRecord  odoo enterprise  :keep
 CalendarModel.canCreate  enterprise  :triage
-CalendarModel.canEdit  enterprise  :generalize
+CalendarModel.canEdit  enterprise  :triage
 CalendarModel.computeDomain  odoo  :triage
 CalendarModel.computeRangeDomain  odoo enterprise  :keep
 CalendarModel.defaultFilterLabel  odoo enterprise  :keep
@@ -90,7 +90,7 @@ CalendarModel.fetchFilters  enterprise  :triage
 CalendarModel.fetchRecords  odoo  :triage
 CalendarModel.fetchUnusualDays  odoo  :triage
 CalendarModel.getAllDayDates  enterprise  :triage
-CalendarModel.hasAllDaySlot  enterprise  :generalize
+CalendarModel.hasAllDaySlot  enterprise  :triage
 CalendarModel.hasMultiCreate  enterprise  :triage
 CalendarModel.load  odoo enterprise  :keep
 CalendarModel.loadFilterSection  odoo  :triage
@@ -103,7 +103,7 @@ CalendarModel.multiCreateRecords  odoo enterprise  :keep
 CalendarModel.normalizeRecord  odoo enterprise  :keep
 CalendarModel.services  odoo enterprise  :keep
 CalendarModel.setup  odoo enterprise  :keep
-CalendarModel.showMultiCreateTimeRange  enterprise  :generalize
+CalendarModel.showMultiCreateTimeRange  enterprise  :triage
 CalendarModel.updateData  odoo  :keep
 CalendarModel.updateRecord  odoo enterprise  :keep
 CalendarRendererBase.eventClassNames  odoo  :triage
@@ -252,11 +252,11 @@ KanbanRenderer.archiveRecord  odoo enterprise  :keep
 KanbanRenderer.canCreateGroup  odoo enterprise  :keep
 KanbanRenderer.canMoveRecords  enterprise  :triage
 KanbanRenderer.canResequenceGroups  enterprise  :keep
-KanbanRenderer.canUseSortable  enterprise  :generalize
+KanbanRenderer.canUseSortable  enterprise  :triage
 KanbanRenderer.cancelQuickCreate  enterprise  :triage
 KanbanRenderer.focusNextCard  odoo  :triage
 KanbanRenderer.getGroupClasses  odoo  :triage
-KanbanRenderer.getGroupUnloadedCount  enterprise  :generalize
+KanbanRenderer.getGroupUnloadedCount  enterprise  :triage
 KanbanRenderer.getGroupsOrRecords  odoo enterprise  :keep
 KanbanRenderer.isMovableField  odoo  :triage
 KanbanRenderer.setup  odoo enterprise  :keep
@@ -277,8 +277,7 @@ ListController.onRecordSaved  enterprise  :triage
 ListController.openRecord  odoo enterprise  :keep
 ListRenderer.add  odoo  :keep
 ListRenderer.buildRowApi  odoo enterprise  :keep
-ListRenderer.canCreate  enterprise  :generalize
-ListRenderer.canResequenceRows  enterprise  :generalize
+ListRenderer.canCreate  enterprise  :triage
 ListRenderer.computeOptionalActiveFields  enterprise  :keep
 ListRenderer.createControlsTemplate  odoo  :keep
 ListRenderer.createViewKey  enterprise  :triage

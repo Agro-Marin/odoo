@@ -422,6 +422,29 @@ and only the second half is what the seeding rule can see. `--check` therefore
 does not try to second-guess a `keep` by counting its consumers: a single-use
 knob and a seed whose consumers have fallen away are indistinguishable that way.
 
+**Worked to zero, and the rule is narrower than it looked.** Of the sixteen that
+survived the first correction, two generalized — `CharField.shouldTrim` onto the
+field-registry descriptor that already fills `isPassword`, and
+`Many2XAutocomplete.createDialogSize` onto `Dialog.defaultProps.size`, which was
+restating the caller's constant anyway. One was **dead**:
+`ListRenderer.canResequenceRows`, whose one overrider is `web_studio`'s list
+editor, which sets `readonly: true` on its own view props — and the base already
+returns false for that. The remaining six went back to `triage`, because a
+constant body turned out not to be the test. What decides `generalize` is whether
+the value has somewhere declared to live:
+
+| point | why it is not generalizable today |
+|---|---|
+| `ListRenderer.canCreate` (esg) | the controller repurposes New to another model, so `create="0"` would remove the action the view wants. `activeActions.create` drives both the inline row and the button; web does not separate them. |
+| `KanbanRenderer.canUseSortable` (web_studio) | readonly does not reach it — `x2many_field` strips `recordsDraggable` a layer up instead, so there is no readonly path to hang it on. |
+| `KanbanRenderer.getGroupUnloadedCount` (web_studio) | the editor renders one sampled record of many on purpose; "Load more (N remaining)" is meaningless there, and nothing declares "this is a sample". |
+| `CalendarModel.canEdit`, `hasAllDaySlot` (knowledge) | each defeats a specific guard — a readonly `date_start`, an absent `all_day` mapping — not an arch value. |
+| `CalendarModel.showMultiCreateTimeRange` (planning) | derived from the date field types; no attribute expresses "not for this view". |
+
+Each is a mode the framework does not model. Recording that is the point: the
+next session reads six sentences instead of re-deriving them, and `generalize`
+now means something a reader can check.
+
 Two things the triage that produced it found, neither of them in this document
 before: **no single-use point is a vacuous override** — the five that look like
 pass-throughs each add real logic to the `super` result, so there is no free
