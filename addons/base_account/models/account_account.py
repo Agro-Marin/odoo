@@ -15,6 +15,8 @@ ACCOUNT_CODE_NUMBER_REGEX = re.compile(r"(.*?)(\d*)(\D*?)$")
 
 
 class AccountAccount(models.Model):
+    """Chart of Accounts foundation: code, type, tags, and multi-company support."""
+
     _name = "account.account"
     _description = "Account"
     _order = "code, placeholder_code"
@@ -131,6 +133,8 @@ class AccountAccount(models.Model):
         comodel_name="account.code.mapping",
         inverse_name="account_id",
     )
+    # Write after company_ids so _ensure_code_is_unique does not fire before
+    # both fields are set together.
     code_mapping_ids.write_sequence = 19
     tag_ids = fields.Many2many(
         comodel_name="account.account.tag",
@@ -174,6 +178,9 @@ class AccountAccount(models.Model):
                 code_store=SQL.identifier(
                     alias, "code_store", to_flush=self._fields["code_store"]
                 ),
+                # Inlined as a literal, not a bound parameter: two bound
+                # parameters would be distinct nodes to Postgres, breaking
+                # ORDER BY/GROUP BY matching against this expression elsewhere.
                 root_company_id=SQL(f"'{int(self.env.company.root_id.id)}'"),
             )
         if field_expr == "placeholder_code":
@@ -214,6 +221,8 @@ class AccountAccount(models.Model):
                     )
                 """,
                 code_store=SQL.identifier(alias, "code_store"),
+                # Same literal-vs-bound-parameter requirement as the "code"
+                # branch above.
                 active_company_root_id=SQL(f"'{int(self.env.company.root_id.id)}'"),
                 account_first_company_name=SQL.identifier(
                     "account_first_company",
