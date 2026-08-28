@@ -91,6 +91,9 @@ class TestGeocoderEdges(TransactionCase):
         )
         self.assertIn("Democratic Republic of the Congo", query)
         self.assertNotIn("Congo,", query)
+        self.assertNotIn(
+            "  ", query, "flipped country name must not leave a double space"
+        )
 
     def test_network_error_raises_query_error(self):
         """A requests failure surfaces as a UserError, never a raw exception."""
