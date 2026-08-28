@@ -399,6 +399,22 @@ class TestImportModule(odoo.tests.TransactionCase):
             with self.assertRaises(UserError):
                 self.import_zipfile(files)
 
+    def test_import_zip_per_file_size_cap(self):
+        """t27114 audit: MAX_FILE_SIZE (the per-entry cap, checked against
+        each zip entry's own declared `ZipInfo.file_size` before any
+        extraction happens) had no test of its own — the only test patching
+        a size constant covered MAX_TOTAL_EXTRACTED_SIZE instead, leaving
+        this guard's own effect undemonstrated. Patched down to a tiny cap
+        here so a normal small fixture file trips it without fabricating an
+        actual large file."""
+        files = [("foo/__manifest__.py", self.manifest_content(data=["data.xml"]))]
+        with patch(
+            "odoo.addons.base_import_module.models.ir_module.MAX_FILE_SIZE",
+            10,
+        ):
+            with self.assertRaisesRegex(UserError, "exceed maximum allowed file size"):
+                self.import_zipfile(files)
+
     def test_get_modules_from_apps_reapplies_local_domain(self):
         """t27114: `state` is computed locally (from local install status),
         so apps.odoo.com cannot filter on it — a domain condition on `state`
