@@ -5,7 +5,7 @@ from ast import literal_eval
 from dateutil.relativedelta import relativedelta
 
 from odoo import Command, _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 
 from odoo.addons.auth_signup.models.res_partner import SignupError
@@ -177,6 +177,31 @@ class ResUsers(models.Model):
                     "There was an error when trying to deliver your Email, please check your configuration"
                 )
             ) from mde
+
+    def get_reset_password_link(self):
+        """Return a fresh reset-password link for this user.
+
+        For when the mail server is down or was never configured: an
+        administrator hands the link over by another channel instead of
+        relying on ``action_reset_password`` reaching an inbox.
+
+        This mints a live account-takeover URL, so the refusals below have to
+        come BEFORE ``signup_prepare``: our signup tokens are signed payloads
+        derived from ``signup_type`` rather than a stored column, so preparing
+        one silently turns a pending invitation into a password reset.
+        """
+        self.ensure_one()
+        if not self.env.is_admin():
+            raise AccessError(
+                _("Only administrators can generate a reset password link.")
+            )
+        if self.id == self.env.user.id:
+            raise UserError(_("You cannot perform this action on your own user."))
+        if not self.active:
+            raise UserError(_("You cannot perform this action on an archived user."))
+
+        self.partner_id.signup_prepare(signup_type="reset")
+        return self.partner_id._get_signup_url()
 
     def _action_reset_password(self, signup_type="reset"):
         """create signup token for each user, and send their signup url by email"""
