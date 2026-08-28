@@ -18,6 +18,8 @@ from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
+from odoo.addons.base_encryption_mixin.models.mixin_encryption import MixinEncryption
+
 _KEY = "7ftr9ALjwK7f4IqWwnpFxWx4Wn8vetsznoGT3Oh46eU="
 
 
@@ -133,6 +135,85 @@ class TestEncryptionMixin(TransactionCase):
                 self.env[name]._abstract,
                 f"{name} is abstract and cannot hold rows to re-encrypt",
             )
+
+    def test_reencrypt_with_current_key_stamps_the_version_itself(self):
+        """A consumer that calls only `_reencrypt_with_current_key` (and never
+        remembers the separate stamp call) must not end up with a stale
+        `encryption_key_version` -- the method has to be self-contained."""
+
+        class FakeRecord:
+            _ENCRYPTED_FIELD_PAIRS = (("content", "content_encrypted", False),)
+            _ENCRYPTED_FALLBACK_FIELDS: dict = {}
+
+            def __init__(self):
+                self._data = {"content_encrypted": b"cipher"}
+                self.stamped_with = None
+
+            def ensure_one(self):
+                pass
+
+            def with_context(self, **kwargs):
+                return self
+
+            def __getitem__(self, key):
+                return self._data.get(key)
+
+            def __setitem__(self, key, value):
+                self._data[key] = value
+
+            def _decrypt_value(self, value):
+                return "plaintext"
+
+            def _encrypt_value(self, value):
+                return b"reencrypted"
+
+            def _promote_cleartext_field(self, plain_field, encrypted_field, is_binary):
+                return False
+
+            def _get_current_encryption_key_version(self):
+                return 3
+
+            def _stamp_encryption_key_version(self, version):
+                self.stamped_with = version
+
+        fake = FakeRecord()
+        touched = MixinEncryption._reencrypt_with_current_key(fake)
+
+        self.assertTrue(touched)
+        self.assertEqual(fake.stamped_with, 3)
+
+    def test_reencrypt_with_current_key_does_not_stamp_when_untouched(self):
+        class FakeRecord:
+            _ENCRYPTED_FIELD_PAIRS = (("content", "content_encrypted", False),)
+            _ENCRYPTED_FALLBACK_FIELDS: dict = {}
+
+            def __init__(self):
+                self._data = {"content_encrypted": None}
+                self.stamped_with = "untouched"
+
+            def ensure_one(self):
+                pass
+
+            def with_context(self, **kwargs):
+                return self
+
+            def __getitem__(self, key):
+                return self._data.get(key)
+
+            def __setitem__(self, key, value):
+                self._data[key] = value
+
+            def _promote_cleartext_field(self, plain_field, encrypted_field, is_binary):
+                return False
+
+            def _stamp_encryption_key_version(self, version):
+                self.stamped_with = version
+
+        fake = FakeRecord()
+        touched = MixinEncryption._reencrypt_with_current_key(fake)
+
+        self.assertFalse(touched)
+        self.assertEqual(fake.stamped_with, "untouched")
 
     def test_the_payload_stamp_is_reachable_without_importing_a_consumer(self):
         self.assertIsNone(self.mixin._stamp_encrypted_payload([{"content": b"x"}]))
