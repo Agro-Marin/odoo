@@ -1016,7 +1016,8 @@
                                 <field name="invoice_date_due"
                                     force_save="1"
                                     placeholder="Date"
-                                    invisible="invoice_payment_term_id" />
+                                    invisible="invoice_payment_term_id"
+                                    decoration-danger="invoice_date_due and invoice_date_due &lt; context_today().strftime('%Y-%m-%d') and payment_state not in ('paid', 'in_payment', 'reversed')" />
                                 <span class="o_form_label mx-3 oe_edit_only text-center"
                                     style="width: 6ch;"
                                     invisible="state != 'draft' or invoice_payment_term_id">or</span>
@@ -1418,7 +1419,8 @@
                                     <field name="date_maturity"
                                         optional="hide"
                                         invisible="display_type in ('line_section', 'line_note')"
-                                        column_invisible="context.get('view_no_maturity')" />
+                                        column_invisible="context.get('view_no_maturity')"
+                                        decoration-danger="date_maturity and date_maturity &lt; context_today().strftime('%Y-%m-%d') and parent.payment_state not in ('paid', 'in_payment', 'reversed')" />
                                     <field name="amount_currency"
                                         groups="base.group_multi_currency"
                                         optional="hide" />
