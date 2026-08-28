@@ -69,4 +69,4 @@ export const assetsWatchdogService = {
     },
 };
 
-registry.category("services").add("assetsWatchdog", assetsWatchdogService);
+registry.category("services").add("bus.assets_watchdog", assetsWatchdogService);
