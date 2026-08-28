@@ -167,7 +167,6 @@ export class Many2XAutocomplete extends Component {
                     autoCompleteInput.focus();
                 },
                 component: this.createDialog,
-                size: this.createDialogSize,
             });
 
         this.selectCreate = useSelectCreate({
@@ -224,11 +223,6 @@ export class Many2XAutocomplete extends Component {
     /** @returns {import("@odoo/owl").ComponentConstructor} */
     get createDialog() {
         return getFormViewDialog();
-    }
-
-    /** @returns {string} */
-    get createDialogSize() {
-        return "lg";
     }
 
     /**
@@ -635,7 +629,7 @@ export class Many2XAutocomplete extends Component {
  * @param {boolean} params.isToMany
  * @param {Function} [params.onClose]
  * @param {import("@odoo/owl").ComponentConstructor | null} [params.component]
- * @param {string} [params.size]
+ * @param {string} [params.size] left unset, the dialog's own default applies
  * @returns {Function}
  */
 export function useOpenMany2XRecord({
@@ -647,7 +641,7 @@ export function useOpenMany2XRecord({
     isToMany,
     onClose = (isNew) => {},
     component = null,
-    size = "lg",
+    size,
 }) {
     component ??= getFormViewDialog();
     const addDialog = useOwnedDialogs();

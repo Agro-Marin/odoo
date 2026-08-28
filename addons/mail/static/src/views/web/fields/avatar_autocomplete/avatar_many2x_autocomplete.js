@@ -32,10 +32,6 @@ export class Many2XAvatarUserAutocomplete extends Many2XAutocomplete {
         return AvatarUserFormViewDialog;
     }
 
-    get createDialogSize() {
-        return "md";
-    }
-
     /**
      * @param {string} request
      * @returns {Promise<any>}

@@ -328,7 +328,6 @@ Many2OneField.m2oProps  odoo  :triage
 Many2XAutocomplete.actionSuggestions  odoo  :triage
 Many2XAutocomplete.addSearchMoreSuggestion  odoo  :keep
 Many2XAutocomplete.createDialog  odoo  :keep
-Many2XAutocomplete.createDialogSize  odoo  :generalize
 Many2XAutocomplete.getCreationContext  odoo  :triage
 Many2XAutocomplete.onQuickCreateError  odoo  :triage
 Many2XAutocomplete.onSearchMore  odoo  :keep

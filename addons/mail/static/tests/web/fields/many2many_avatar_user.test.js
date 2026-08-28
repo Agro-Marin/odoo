@@ -2,6 +2,7 @@ import {
     click,
     contains,
     defineMailModels,
+    insertText,
     openFormView,
     openKanbanView,
     openListView,
@@ -443,4 +444,17 @@ test("many2many_avatar_user widget in form view", async () => {
     await contains(".o_card_user_infos > span", { text: "Mario" });
     await contains(".o_card_user_infos > a", { text: "Mario@partner.com" });
     await contains(".o_card_user_infos > a", { text: "+45687468" });
+});
+
+test("the invite dialog opens at the size its own class declares", async () => {
+    const pyEnv = await startServer();
+    const avatarUserId = pyEnv["m2x.avatar.user"].create({});
+    await start();
+    await openFormView("m2x.avatar.user", avatarUserId, {
+        arch: "<form><field name='user_id' widget='many2one_avatar_user'/></form>",
+    });
+    await insertText(".o_field_widget[name=user_id] input", "Zoubida");
+    await click(".o_m2o_dropdown_option_create");
+    await contains(".modal-dialog.modal-md");
+    await contains(".modal-dialog.modal-lg", { count: 0 });
 });

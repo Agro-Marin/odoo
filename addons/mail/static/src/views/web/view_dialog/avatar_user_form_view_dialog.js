@@ -3,6 +3,8 @@ import { onMounted, onWillUnmount } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { FormViewDialog } from "@web/views/view_dialogs";
 export class AvatarUserFormViewDialog extends FormViewDialog {
+    static defaultProps = { ...FormViewDialog.defaultProps, size: "md" };
+
     setup() {
         super.setup();
         Object.assign(this.viewProps, {

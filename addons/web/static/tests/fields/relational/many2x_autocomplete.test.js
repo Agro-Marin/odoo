@@ -12,7 +12,10 @@ import {
     models,
     mountView,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
+import { FormViewDialog } from "@web/views/view_dialogs";
 
 describe.current.tags("desktop");
 
@@ -383,6 +386,50 @@ describe("search more", () => {
                 ".o-autocomplete--dropdown-item:not(.o_m2o_dropdown_option)",
         ).toHaveCount(2);
         expect(".o_m2o_dropdown_option_search_more").toHaveCount(0);
+    });
+});
+
+describe("creation dialog size", () => {
+    const INPUT_SELECTOR = ".o_field_widget[name=product_id] input";
+
+    test("the default dialog opens at its own size", async () => {
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await contains(INPUT_SELECTOR).edit("Bar", { confirm: false });
+        await runAllTimers();
+        await clickFieldDropdownItem("product_id", "Create and edit...");
+        await animationFrame();
+        expect(".modal-dialog.modal-lg").toHaveCount(1);
+    });
+
+    test("a dialog that declares a size opens at it, with nothing passed", async () => {
+        class NarrowFormViewDialog extends FormViewDialog {
+            static defaultProps = { ...FormViewDialog.defaultProps, size: "md" };
+        }
+        patchWithCleanup(Many2XAutocomplete.prototype, {
+            get createDialog() {
+                return NarrowFormViewDialog;
+            },
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        await contains(INPUT_SELECTOR).edit("Bar", { confirm: false });
+        await runAllTimers();
+        await clickFieldDropdownItem("product_id", "Create and edit...");
+        await animationFrame();
+        expect(".modal-dialog.modal-md").toHaveCount(1);
+        expect(".modal-dialog.modal-lg").toHaveCount(0);
     });
 });
 
