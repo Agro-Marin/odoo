@@ -171,6 +171,11 @@ class MixinOrderLineFields(models.AbstractModel):
         help="Is true if the order line comes from an expense or a vendor bill",
     )
 
+    # Both constraints below also reference `price_unit`/`product_qty`/
+    # `product_uom_qty`, which this mixin does not declare -- they come from
+    # `mixin.order.line.amount`. A model inheriting `mixin.order.line.fields`
+    # without also inheriting `mixin.order.line.amount` would fail table
+    # creation on these columns being missing.
     _accountable_required_fields = models.Constraint(
         """CHECK(
             display_type IS NOT NULL
