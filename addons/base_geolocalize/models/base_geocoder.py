@@ -231,7 +231,7 @@ class BaseGeocoder(models.AbstractModel):
         # put country qualifier in front, otherwise GMap gives wrong# results
         #  e.g. 'Congo, Democratic Republic of the' =>  'Democratic Republic of the Congo'
         if country and "," in country and country.endswith((" of", " of the")):
-            country = "{1} {0}".format(*country.split(",", 1))
+            country = "{1} {0}".format(*(p.strip() for p in country.split(",", 1)))
         return self._geo_query_address_default(
             street=street, zip_code=zip_code, city=city, state=state, country=country
         )
