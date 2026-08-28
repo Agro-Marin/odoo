@@ -67,14 +67,12 @@
                         </group>
                         <group invisible="not res_model_id">
                             <div class="alert alert-warning" role="alert" colspan="2"
-                                 invisible="time_field_id or (domain and domain != '[]')">
-                                This rule has no filter and no time field, so it selects every record
-                                of the model. Add one before running it.
+                                 invisible="domain and domain != '[]'">
+                                This rule has no filter, so it selects every record of the model.
+                                Add one before running it &#8212; an age condition is a filter on a
+                                date field, such as <em>Created on &#8804; today -1y</em>.
                             </div>
                             <field name="domain" widget="domain" options="{'model': 'res_model_name'}"/>
-                            <field name="time_field_id"/>
-                            <field name="time_field_delta"/>
-                            <field name="time_field_delta_unit"/>
                         </group>
                     </sheet>
                 </form>

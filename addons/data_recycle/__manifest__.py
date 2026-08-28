@@ -1,6 +1,6 @@
 {
     'name': 'Data Recycle',
-    'version': '1.3',
+    'version': '1.4',
     'category': 'Productivity/Data Cleaning',
     'summary': 'Find old records and archive/delete them',
     'description': """Find old records and archive/delete them""",

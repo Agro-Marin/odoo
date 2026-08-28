@@ -17,9 +17,7 @@ class TestDataRecycle(TransactionCase):
         cls.recycle_model = cls.env['data_recycle.model'].create({
             'name': 'Recycle Test Server',
             'res_model_id': cls.server_model.id,
-            'time_field_id': cls.env['ir.model.fields'].search([('name', '=', 'date'), ('model_id', '=', cls.server_model.id)], limit=1).id,
-            'time_field_delta': 1,
-            'time_field_delta_unit': 'years',
+            'domain': "[('date', '<=', 'now -1y')]",
             'recycle_action': 'archive',
         })
 
@@ -45,7 +43,7 @@ class TestDataRecycle(TransactionCase):
         self.assertEqual(self.recycle_model.recycle_record_ids[0].name, '**Record Deleted**')
 
     def test_recycle_domain(self):
-        self.recycle_model.domain = "[('name', 'not ilike', '0')]"
+        self.recycle_model.domain = "[('date', '<=', 'now -1y'), ('name', 'not ilike', '0')]"
         self.recycle_model._recycle_records()
 
         self.assertEqual(len(self.recycle_model.recycle_record_ids), 4)
@@ -113,7 +111,6 @@ class TestDataRecycle(TransactionCase):
 
         self.recycle_model.write({
             'res_model_id': self.env['ir.model']._get('res.partner').id,
-            'time_field_id': False,
             'domain': "[('name', '=', 'a name no partner has')]",
         })
         self.recycle_model._recycle_records()
@@ -175,11 +172,20 @@ class TestDataRecycle(TransactionCase):
         self.assertEqual(
             len(everything.recycle_record_ids), len(self.old_servers) + len(self.new_servers))
 
-    def test_a_time_field_needs_a_positive_delta(self):
-        with self.assertRaises(ValidationError):
-            self.recycle_model.time_field_delta = 0
-        with self.assertRaises(ValidationError):
-            self.recycle_model.time_field_delta = -1
+    def test_an_age_condition_is_expressed_in_the_filter(self):
+        """`now -Ny` on a Datetime, `today -Ny` on a Date: what replaced the triple."""
+        self.assertEqual(
+            set(self.recycle_model.recycle_record_ids.mapped('res_id')), set())
+        self.recycle_model._recycle_records()
+        self.assertEqual(
+            set(self.recycle_model.recycle_record_ids.mapped('res_id')),
+            set(self.old_servers.ids),
+            "the two-year-old servers, and only those")
+
+        self.recycle_model.domain = "[('date', '<=', 'now -3y')]"
+        self.recycle_model._recycle_records()
+        self.assertFalse(
+            self.recycle_model.recycle_record_ids, "nothing is three years old")
 
     def test_an_invalid_filter_is_refused_at_save_time(self):
         with self.assertRaises(ValidationError):

@@ -17,9 +17,8 @@ _logger = logging.getLogger(__name__)
 RECYCLE_BATCH_AUTOMATIC = 5000
 RECYCLE_BATCH_MANUAL = 50000
 
-# Both selections spell their values as `relativedelta` keyword arguments, which
-# is what lets a period become a delta without a branch per period.
-DELTA_PERIODS = [('days', 'Days'), ('weeks', 'Weeks'), ('months', 'Months'), ('years', 'Years')]
+# The values are `relativedelta` keyword arguments, which is what lets a period
+# become a delta without a branch per period.
 NOTIFY_PERIODS = [('days', 'Days'), ('weeks', 'Weeks'), ('months', 'Months')]
 
 
@@ -49,13 +48,13 @@ class Data_RecycleModel(models.Model):
     ], string="Recycle Action", default='unlink', required=True)
 
     # Rule block
+    #
+    # Age is expressed in the filter, not in fields of its own. A `date` or
+    # `datetime` condition takes a relative value natively -- `('date', '<=',
+    # 'today -1y')` -- so the `time_field_id` / `time_field_delta` /
+    # `time_field_delta_unit` triple this replaces was a second, weaker spelling
+    # of a domain the widget already writes. Migration: 1.4.
     domain = fields.Char(string="Filter", compute='_compute_domain', readonly=False, store=True)
-    time_field_id = fields.Many2one(
-        'ir.model.fields', string='Time Field',
-        domain="[('model_id', '=', res_model_id), ('ttype', 'in', ('date', 'datetime')), ('store', '=', True)]",
-        ondelete='cascade')
-    time_field_delta = fields.Integer(string='Delta', default=1)
-    time_field_delta_unit = fields.Selection(DELTA_PERIODS, string='Delta Unit', default='months')
     include_archived = fields.Boolean(
         help='Propose archived records for deletion as well. Ignored when the action is Archive, '
              'where an already archived record has nothing left to recycle.')
@@ -89,27 +88,12 @@ class Data_RecycleModel(models.Model):
                     model=recycle_model.res_model_id.display_name,
                 ))
 
-    @api.constrains('time_field_id', 'time_field_delta', 'time_field_delta_unit')
-    def _check_time_field_delta(self):
-        for recycle_model in self:
-            if not recycle_model.time_field_id or recycle_model._is_time_rule_usable():
-                continue
-            # A non-positive or unit-less delta used to make the whole time
-            # condition vanish, turning "records older than X" into "every record".
-            raise ValidationError(self.env._(
-                "Rule %(rule)s uses a time field, so its delta must be a positive "
-                "number of days, weeks, months or years.",
-                rule=recycle_model.display_name,
-            ))
-
-    @api.constrains('domain', 'res_model_id', 'time_field_id')
+    @api.constrains('domain', 'res_model_id')
     def _check_domain(self):
         for recycle_model in self:
             model = recycle_model._get_model_target()
             if model is None:
                 continue
-            if recycle_model.time_field_id and not recycle_model._is_time_rule_usable():
-                continue  # `_check_time_field_delta` owns that error
             try:
                 recycle_model._get_domain_candidates().validate(model)
             except (ValueError, SyntaxError, TypeError) as error:
@@ -152,23 +136,10 @@ class Data_RecycleModel(models.Model):
         name = self.res_model_name
         return self.env[name] if name and name in self.env else None
 
-    def _is_time_rule_usable(self):
-        """Whether the time field actually narrows anything down."""
-        self.ensure_one()
-        return bool(self.time_field_id and self.time_field_delta > 0 and self.time_field_delta_unit)
-
     def _get_domain_candidates(self):
         """The domain selecting the records this rule proposes for recycling."""
         self.ensure_one()
-        domain = Domain(ast.literal_eval(self.domain or '[]'))
-        if self._is_time_rule_usable():
-            if self.time_field_id.ttype == 'date':
-                now = fields.Date.today()
-            else:
-                now = fields.Datetime.now()
-            delta = relativedelta(**{self.time_field_delta_unit: self.time_field_delta})
-            domain &= Domain(self.time_field_id.name, '<=', now - delta)
-        return domain
+        return Domain(ast.literal_eval(self.domain or '[]'))
 
     def _cron_recycle_records(self):
         # One misconfigured or failing rule must not cost every other rule its
@@ -219,12 +190,6 @@ class Data_RecycleModel(models.Model):
                     rule=recycle_model.display_name,
                     model=recycle_model.res_model_id.display_name,
                 ))
-            if recycle_model.time_field_id and not recycle_model._is_time_rule_usable():
-                raise UserError(self.env._(
-                    "Rule %(rule)s uses a time field with no usable delta, so the age "
-                    "condition it is named for would simply not apply.",
-                    rule=recycle_model.display_name,
-                ))
             domain = recycle_model._get_domain_candidates()
             if domain.is_true():
                 # An empty filter and an explicit `[(1, '=', 1)]` are the same domain
@@ -232,9 +197,9 @@ class Data_RecycleModel(models.Model):
                 # who really does mean every record.
                 raise UserError(self.env._(
                     "Rule %(rule)s selects every %(model)s record: its filter matches "
-                    "everything and it has no time field. Narrow it down, or -- if every "
-                    "record really is the target -- say so explicitly with a filter such "
-                    "as [('id', '>', 0)].",
+                    "everything. Narrow it down -- an age condition is written as "
+                    "('date', '<=', 'today -1y') -- or, if every record really is the "
+                    "target, say so explicitly with a filter such as [('id', '>', 0)].",
                     rule=recycle_model.display_name,
                     model=recycle_model.res_model_id.display_name,
                 ))

@@ -22,7 +22,7 @@ class TestDataRecycleUi(HttpCase):
         self.assertFalse(any(bank.active for bank in banks))
 
     def test_the_unfiltered_warning_tracks_the_filter(self):
-        """`invisible="time_field_id or (domain and domain != '[]')"` -- both branches."""
+        """`invisible="domain and domain != '[]'"` -- both branches."""
         bank_model = self.env['ir.model']._get('res.bank')
         unfiltered = self.env['data_recycle.model'].create({
             'name': 'No filter at all',
@@ -36,15 +36,14 @@ class TestDataRecycleUi(HttpCase):
             'recycle_action': 'archive',
             'domain': "[('name', 'like', 'x')]",
         })
-        by_time = self.env['data_recycle.model'].create({
-            'name': 'With a time field',
+        by_age = self.env['data_recycle.model'].create({
+            'name': 'With an age condition',
             'res_model_id': bank_model.id,
             'recycle_action': 'archive',
-            'time_field_id': self.env['ir.model.fields'].search(
-                [('name', '=', 'create_date'), ('model_id', '=', bank_model.id)], limit=1).id,
+            'domain': "[('create_date', '<=', 'now -1y')]",
         })
 
         form = '/odoo/action-data_recycle.action_data_recycle_config/%s'
         self.start_tour(form % unfiltered.id, 'data_recycle_unfiltered_warning', login='admin')
         self.start_tour(form % filtered.id, 'data_recycle_filtered_no_warning', login='admin')
-        self.start_tour(form % by_time.id, 'data_recycle_filtered_no_warning', login='admin')
+        self.start_tour(form % by_age.id, 'data_recycle_filtered_no_warning', login='admin')
