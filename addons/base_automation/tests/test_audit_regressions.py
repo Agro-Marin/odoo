@@ -238,6 +238,42 @@ class TestProcessRespectsDependencies(AutomationAuditCommon):
         partner = self.env["res.partner"].create({"name": "independent target"})
         self.assertEqual(partner.ref, "BA")
 
+    def test_recordless_webhook_respects_dependency_order_too(self):
+        """`_run_webhook_recordless` had its own copy of the sequence-only bug.
+
+        A webhook with no ``record_getter`` runs its actions with no active
+        record, through its own loop rather than `_process`. That loop used
+        plain ``sorted("sequence")``, reintroducing the exact bug this class
+        already covers for the normal path.
+        """
+        automation = self._automation(
+            "recordless webhook", trigger="on_webhook", webhook_uuid="test-uuid-order"
+        )
+        first = self._action(
+            automation,
+            "first",
+            sequence=50,
+            code="env['res.partner'].create({'name': 'order-marker', 'ref': 'A'})",
+        )
+        self._action(
+            automation,
+            "second",
+            sequence=10,
+            code="env['res.partner'].create({'name': 'order-marker', 'ref': 'B'})",
+            predecessor_ids=[Command.link(first.id)],
+        )
+
+        automation._execute_webhook({})
+
+        markers = self.env["res.partner"].search(
+            [("name", "=", "order-marker")], order="id"
+        )
+        self.assertEqual(
+            markers.mapped("ref"),
+            ["A", "B"],
+            "sequence must not override the graph on the recordless webhook path either",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestRuleLookupCache(AutomationAuditCommon):
