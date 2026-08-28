@@ -232,3 +232,7 @@ class TestEncryptionMixin(TransactionCase):
         with patch.object(type(self.mixin), "_stamp_encryption_key_version") as stamp:
             self.mixin.browse([1])._stamp_encrypted_payload([{"content": b"x"}])
         stamp.assert_not_called()
+
+    def test_a_records_vals_length_mismatch_raises_instead_of_truncating(self):
+        with self.assertRaises(ValueError):
+            self.mixin.browse([1, 2])._stamp_encrypted_payload([{"content": b"x"}])
