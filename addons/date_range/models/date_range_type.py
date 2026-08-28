@@ -118,7 +118,10 @@ class DateRangeType(models.Model):
 
         :raises ValidationError: if a referenced range belongs to a different company
         """
-        # Bypassable via the 'bypass_company_validation' context key.
+        # Reserved escape hatch for code that legitimately needs to move a
+        # type's company without this check (e.g. a future migration or
+        # import script): pass {'bypass_company_validation': True} in
+        # context. Nothing in this fork sets it today.
         if self.env.context.get("bypass_company_validation", False):
             return
         for rec in self.sudo():
