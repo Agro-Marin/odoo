@@ -499,6 +499,21 @@ export class ListRenderer extends Component {
     }
 
     /**
+     * Fold or unfold a group.
+     *
+     * On the renderer rather than in `listGroupRenderingMixin` because its
+     * whole body reaches `groupOps`, which the renderer owns -- and because
+     * `KanbanRenderer` already keeps the identical method on the renderer
+     * itself. Having it in the mixin was the list view's own divergence, and
+     * it was the only name the renderer reached into that mixin for.
+     *
+     * @param {any} group
+     */
+    toggleGroup(group) {
+        return this.groupOps.toggleGroup(group);
+    }
+
+    /**
      * @param {any} group
      */
     resolveRowGroup(group) {

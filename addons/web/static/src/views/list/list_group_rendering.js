@@ -141,13 +141,6 @@ export const listGroupRenderingMixin = {
     },
 
     /**
-     * @param {Object} group
-     */
-    toggleGroup(group) {
-        this.groupOps.toggleGroup(group);
-    },
-
-    /**
      * @param {string} value
      */
     addNewGroup(value) {
