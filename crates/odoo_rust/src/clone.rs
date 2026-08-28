@@ -42,6 +42,14 @@
 //! `orjson` before reaching here), which is why this is a documented boundary
 //! rather than a supported case.
 //!
+//! **Dict keys are shared, not cloned** — only values are rebuilt. That is
+//! sound rather than an oversight: a key has to be hashable, hashable means
+//! immutable all the way down for every type reachable here, and so there is
+//! nothing a caller could mutate through the shared key. It is stated because
+//! everything else on this page says exactly what is copied and what is not,
+//! and a reader checking that list should not have to read `clone_inner` to
+//! find the one entry it left out.
+//!
 //! Aliasing *between* slots is not preserved either: `copy.deepcopy` memoizes,
 //! so a substructure reachable twice stays one object in the copy, while this
 //! clone duplicates it. For a tree — which JSON is — the two agree.
