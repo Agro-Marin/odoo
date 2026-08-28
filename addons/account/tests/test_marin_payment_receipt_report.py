@@ -89,3 +89,23 @@ class TestPaymentReceiptReport(AccountTestInvoicingCommon):
         payment.action_post()
         html = self._render(payment)
         self.assertIn(self.partner_a.name, html)
+
+    def test_receipt_title_names_the_kind_of_document(self):
+        """The receipt heading must name the document, not always "Payment Receipt"."""
+        cases = {
+            ("inbound", "customer"): "Payment Receipt",
+            ("outbound", "supplier"): "Remittance Advice",
+            ("outbound", "customer"): "Refund Confirmation",
+            ("inbound", "supplier"): "Refund Confirmation",
+        }
+        for (payment_type, partner_type), expected in cases.items():
+            with self.subTest(payment_type=payment_type, partner_type=partner_type):
+                payment = self.env["account.payment"].create(
+                    {
+                        "payment_type": payment_type,
+                        "partner_type": partner_type,
+                        "partner_id": self.partner_a.id,
+                        "amount": 100.0,
+                    }
+                )
+                self.assertEqual(payment.payment_receipt_title, expected)
