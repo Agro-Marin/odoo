@@ -17,32 +17,55 @@ class EventSlot(models.Model):
     _description = "Event Slot"
     _order = "event_id, date, start_hour, end_hour, id"
 
-    event_id = fields.Many2one("event.event", "Event", required=True, ondelete="cascade", index=True)
+    event_id = fields.Many2one(
+        "event.event", "Event", required=True, ondelete="cascade", index=True
+    )
     color = fields.Integer("Color", default=0)
     date = fields.Date("Date", required=True)
     date_tz = fields.Selection(related="event_id.date_tz")
-    start_hour = fields.Float("Starting Hour", required=True, help="Expressed in the event timezone.")
-    end_hour = fields.Float("Ending Hour", required=True, help="Expressed in the event timezone.")
-    start_datetime = fields.Datetime("Start Datetime", compute="_compute_datetimes", store=True)
-    end_datetime = fields.Datetime("End Datetime", compute="_compute_datetimes", store=True)
+    start_hour = fields.Float(
+        "Starting Hour", required=True, help="Expressed in the event timezone."
+    )
+    end_hour = fields.Float(
+        "Ending Hour", required=True, help="Expressed in the event timezone."
+    )
+    start_datetime = fields.Datetime(
+        "Start Datetime", compute="_compute_datetimes", store=True
+    )
+    end_datetime = fields.Datetime(
+        "End Datetime", compute="_compute_datetimes", store=True
+    )
 
     # Registrations
     is_sold_out = fields.Boolean(
-        "Sold Out", compute="_compute_is_sold_out",
-        help="Whether seats are sold out for this slot.")
-    registration_ids = fields.One2many("event.registration", "event_slot_id", string="Attendees")
+        "Sold Out",
+        compute="_compute_is_sold_out",
+        help="Whether seats are sold out for this slot.",
+    )
+    registration_ids = fields.One2many(
+        "event.registration", "event_slot_id", string="Attendees"
+    )
     seats_available = fields.Integer(
-        string="Available Seats",
-        store=False, readonly=True, compute="_compute_seats")
+        string="Available Seats", store=False, readonly=True, compute="_compute_seats"
+    )
     seats_reserved = fields.Integer(
         string="Number of Registrations",
-        store=False, readonly=True, compute="_compute_seats")
+        store=False,
+        readonly=True,
+        compute="_compute_seats",
+    )
     seats_taken = fields.Integer(
         string="Number of Taken Seats",
-        store=False, readonly=True, compute="_compute_seats")
+        store=False,
+        readonly=True,
+        compute="_compute_seats",
+    )
     seats_used = fields.Integer(
         string="Number of Attendees",
-        store=False, readonly=True, compute="_compute_seats")
+        store=False,
+        readonly=True,
+        compute="_compute_seats",
+    )
 
     @api.constrains("start_hour", "end_hour")
     def _check_hours(self):
@@ -50,7 +73,12 @@ class EventSlot(models.Model):
             if not (0 <= slot.start_hour <= 23.99 and 0 <= slot.end_hour <= 23.99):
                 raise ValidationError(_("A slot hour must be between 0:00 and 23:59."))
             if slot.end_hour <= slot.start_hour:
-                raise ValidationError(_("A slot end hour must be later than its start hour.\n%s", slot.display_name))
+                raise ValidationError(
+                    _(
+                        "A slot end hour must be later than its start hour.\n%s",
+                        slot.display_name,
+                    )
+                )
 
     def _is_within_event_range(self):
         """Whether this slot lies inside its event's own time range.
@@ -74,14 +102,26 @@ class EventSlot(models.Model):
     def _check_time_range(self):
         for slot in self:
             if not slot._is_within_event_range():
-                raise ValidationError(_(
-                    "A slot cannot be scheduled outside of its event time range.\n\n"
-                    "Event:\t\t%(event_start)s - %(event_end)s\n"
-                    "Slot:\t\t%(slot_name)s",
-                    event_start=format_datetime(self.env, slot.event_id.date_begin, tz=slot.date_tz, dt_format='medium'),
-                    event_end=format_datetime(self.env, slot.event_id.date_end, tz=slot.date_tz, dt_format='medium'),
-                    slot_name=slot.display_name,
-                ))
+                raise ValidationError(
+                    _(
+                        "A slot cannot be scheduled outside of its event time range.\n\n"
+                        "Event:\t\t%(event_start)s - %(event_end)s\n"
+                        "Slot:\t\t%(slot_name)s",
+                        event_start=format_datetime(
+                            self.env,
+                            slot.event_id.date_begin,
+                            tz=slot.date_tz,
+                            dt_format="medium",
+                        ),
+                        event_end=format_datetime(
+                            self.env,
+                            slot.event_id.date_end,
+                            tz=slot.date_tz,
+                            dt_format="medium",
+                        ),
+                        slot_name=slot.display_name,
+                    )
+                )
 
     @api.depends("date", "date_tz", "start_hour", "end_hour")
     def _compute_datetimes(self):
@@ -89,11 +129,15 @@ class EventSlot(models.Model):
             event_tz = timezone(slot.date_tz)
             start = datetime.combine(slot.date, float_to_time(slot.start_hour))
             end = datetime.combine(slot.date, float_to_time(slot.end_hour))
-            slot.start_datetime = start.replace(tzinfo=event_tz).astimezone(UTC).replace(tzinfo=None)
-            slot.end_datetime = end.replace(tzinfo=event_tz).astimezone(UTC).replace(tzinfo=None)
+            slot.start_datetime = (
+                start.replace(tzinfo=event_tz).astimezone(UTC).replace(tzinfo=None)
+            )
+            slot.end_datetime = (
+                end.replace(tzinfo=event_tz).astimezone(UTC).replace(tzinfo=None)
+            )
 
     @api.depends("seats_available")
-    @api.depends_context('name_with_seats_availability')
+    @api.depends_context("name_with_seats_availability")
     def _compute_display_name(self):
         """Adds slot seats availability if requested by context.
         Always display the name without availabilities if the event is multi slots
@@ -102,19 +146,27 @@ class EventSlot(models.Model):
         """
         for slot in self:
             date = format_date(self.env, slot.date, date_format="medium")
-            start = format_time(self.env, float_to_time(slot.start_hour), time_format="short")
-            end = format_time(self.env, float_to_time(slot.end_hour), time_format="short")
+            start = format_time(
+                self.env, float_to_time(slot.start_hour), time_format="short"
+            )
+            end = format_time(
+                self.env, float_to_time(slot.end_hour), time_format="short"
+            )
             name = f"{date}, {start} - {end}"
             if (
-                self.env.context.get('name_with_seats_availability') and slot.event_id.seats_limited
+                self.env.context.get("name_with_seats_availability")
+                and slot.event_id.seats_limited
                 and not slot.event_id.is_multi_slots
             ):
-                name = _('%(slot_name)s (Sold out)', slot_name=name) if not slot.seats_available else \
-                    _(
-                        '%(slot_name)s (%(count)s seats remaining)',
+                name = (
+                    _("%(slot_name)s (Sold out)", slot_name=name)
+                    if not slot.seats_available
+                    else _(
+                        "%(slot_name)s (%(count)s seats remaining)",
                         slot_name=name,
                         count=formatLang(self.env, slot.seats_available, digits=0),
                     )
+                )
             slot.display_name = name
 
     @api.depends("event_id.seats_limited", "seats_available")
@@ -122,10 +174,15 @@ class EventSlot(models.Model):
         for slot in self:
             slot.is_sold_out = slot.event_id.seats_limited and not slot.seats_available
 
-    @api.depends("event_id", "event_id.seats_max", "registration_ids.state", "registration_ids.active")
+    @api.depends(
+        "event_id",
+        "event_id.seats_max",
+        "registration_ids.state",
+        "registration_ids.active",
+    )
     def _compute_seats(self):
         base_vals = {"seats_reserved": 0, "seats_used": 0}
-        results = self.env['event.registration']._count_taken_seats_by(
+        results = self.env["event.registration"]._count_taken_seats_by(
             "event_slot_id", self.ids
         )
         for slot in self:
@@ -133,12 +190,17 @@ class EventSlot(models.Model):
             slot.update(results.get(slot._origin.id or slot.id, base_vals))
             # seats_max is the per-slot cap on multi-slot events
             if slot.event_id.seats_max > 0:
-                slot.seats_available = slot.event_id.seats_max - (slot.seats_reserved + slot.seats_used)
+                slot.seats_available = slot.event_id.seats_max - (
+                    slot.seats_reserved + slot.seats_used
+                )
             slot.seats_taken = slot.seats_reserved + slot.seats_used
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_if_registrations(self):
         if self.registration_ids:
-            raise UserError(_(
-                "The following slots cannot be deleted while they have one or more registrations linked to them:\n- %s",
-                '\n- '.join(self.mapped('display_name'))))
+            raise UserError(
+                _(
+                    "The following slots cannot be deleted while they have one or more registrations linked to them:\n- %s",
+                    "\n- ".join(self.mapped("display_name")),
+                )
+            )

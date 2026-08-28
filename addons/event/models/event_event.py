@@ -851,9 +851,7 @@ class EventEvent(models.Model):
         events_w_slots_outside_bounds = [
             event
             for event in multi_slots_events
-            if not all(
-                slot._is_within_event_range() for slot in event.event_slot_ids
-            )
+            if not all(slot._is_within_event_range() for slot in event.event_slot_ids)
         ]
         if events_w_slots_outside_bounds:
             raise ValidationError(

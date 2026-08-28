@@ -9,10 +9,13 @@ from odoo import api, fields, models
 
 
 class ResPartner(models.Model):
-    _inherit = 'res.partner'
+    _inherit = "res.partner"
 
     event_count = fields.Integer(
-        '# Events', compute='_compute_event_count', groups='event.group_event_registration_desk')
+        "# Events",
+        compute="_compute_event_count",
+        groups="event.group_event_registration_desk",
+    )
     static_map_url = fields.Char(compute="_compute_static_map_url")
     static_map_url_is_valid = fields.Boolean(compute="_compute_static_map_url_is_valid")
 
@@ -28,9 +31,9 @@ class ResPartner(models.Model):
         if not self.ids:
             return
         events_per_attendee = {}
-        for attendee, event in self.env['event.registration']._read_group(
-            domain=[('partner_id', 'child_of', self.ids)],
-            groupby=['partner_id', 'event_id'],
+        for attendee, event in self.env["event.registration"]._read_group(
+            domain=[("partner_id", "child_of", self.ids)],
+            groupby=["partner_id", "event_id"],
         ):
             events_per_attendee.setdefault(attendee.id, set()).add(event.id)
         if not events_per_attendee:
@@ -57,12 +60,14 @@ class ResPartner(models.Model):
         for partner in self:
             partner.event_count = len(events_per_partner[partner.id])
 
-    @api.depends('zip', 'city', 'country_id', 'street')
+    @api.depends("zip", "city", "country_id", "street")
     def _compute_static_map_url(self):
         for partner in self:
-            partner.static_map_url = partner._google_map_signed_img(zoom=13, width=598, height=200)
+            partner.static_map_url = partner._google_map_signed_img(
+                zoom=13, width=598, height=200
+            )
 
-    @api.depends('static_map_url')
+    @api.depends("static_map_url")
     def _compute_static_map_url_is_valid(self):
         """Compute whether the link is valid.
 
@@ -80,7 +85,7 @@ class ResPartner(models.Model):
             # If the response isn't strictly successful, assume invalid url
             try:
                 res = session.get(url, timeout=2)
-                if res.ok and not res.headers.get('X-Staticmap-API-Warning'):
+                if res.ok and not res.headers.get("X-Staticmap-API-Warning"):
                     is_valid = True
             except requests.exceptions.RequestException:
                 pass
@@ -88,9 +93,11 @@ class ResPartner(models.Model):
             partner.static_map_url_is_valid = is_valid
 
     def action_event_view(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("event.action_event_view")
-        action['context'] = {}
-        action['domain'] = [('registration_ids.partner_id', 'child_of', self.ids)]
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "event.action_event_view"
+        )
+        action["context"] = {}
+        action["domain"] = [("registration_ids.partner_id", "child_of", self.ids)]
         return action
 
     @api.model
@@ -108,25 +115,37 @@ class ResPartner(models.Model):
 
     def _google_map_signed_img(self, zoom=13, width=298, height=298):
         """Create a signed static image URL for the location of this partner."""
-        GOOGLE_MAPS_STATIC_API_KEY = self.env['ir.config_parameter'].sudo().get_param('google_maps.signed_static_api_key')
-        GOOGLE_MAPS_STATIC_API_SECRET = self.env['ir.config_parameter'].sudo().get_param('google_maps.signed_static_api_secret')
+        GOOGLE_MAPS_STATIC_API_KEY = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("google_maps.signed_static_api_key")
+        )
+        GOOGLE_MAPS_STATIC_API_SECRET = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("google_maps.signed_static_api_secret")
+        )
         if not GOOGLE_MAPS_STATIC_API_KEY or not GOOGLE_MAPS_STATIC_API_SECRET:
             return None
-        api_secret_bytes = self._decode_google_maps_secret(GOOGLE_MAPS_STATIC_API_SECRET)
+        api_secret_bytes = self._decode_google_maps_secret(
+            GOOGLE_MAPS_STATIC_API_SECRET
+        )
         if api_secret_bytes is None:
             return None
         # generate signature as per https://developers.google.com/maps/documentation/maps-static/digital-signature#server-side-signing
         location_string = f"{self.street}, {self.city} {self.zip}, {(self.country_id and self.country_id.display_name) or ''}"
         params = {
-            'center': location_string,
-            'markers': f'size:mid|{location_string}',
-            'size': f"{width}x{height}",
-            'zoom': zoom,
-            'sensor': "false",
-            'key': GOOGLE_MAPS_STATIC_API_KEY,
+            "center": location_string,
+            "markers": f"size:mid|{location_string}",
+            "size": f"{width}x{height}",
+            "zoom": zoom,
+            "sensor": "false",
+            "key": GOOGLE_MAPS_STATIC_API_KEY,
         }
-        unsigned_path = '/maps/api/staticmap?' + urlencode(params)
-        url_signature_bytes = hmac.digest(api_secret_bytes, unsigned_path.encode(), 'sha1')
-        params['signature'] = base64.urlsafe_b64encode(url_signature_bytes)
+        unsigned_path = "/maps/api/staticmap?" + urlencode(params)
+        url_signature_bytes = hmac.digest(
+            api_secret_bytes, unsigned_path.encode(), "sha1"
+        )
+        params["signature"] = base64.urlsafe_b64encode(url_signature_bytes)
 
-        return 'https://maps.googleapis.com/maps/api/staticmap?' + urlencode(params)
+        return "https://maps.googleapis.com/maps/api/staticmap?" + urlencode(params)

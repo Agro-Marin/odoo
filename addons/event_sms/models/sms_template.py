@@ -3,7 +3,7 @@ from odoo.fields import Domain
 
 
 class SmsTemplate(models.Model):
-    _inherit = 'sms.template'
+    _inherit = "sms.template"
 
     @api.model
     def _search(self, domain, *args, **kwargs):
@@ -14,13 +14,17 @@ class SmsTemplate(models.Model):
         key is set, we add our domain in the `domain` in the `_search`
         method to filtrate the SMS templates.
         """
-        if self.env.context.get('filter_template_on_event'):
-            domain = Domain('model', '=', 'event.registration') & Domain(domain)
+        if self.env.context.get("filter_template_on_event"):
+            domain = Domain("model", "=", "event.registration") & Domain(domain)
         return super()._search(domain, *args, **kwargs)
 
     def unlink(self):
         res = super().unlink()
-        domain = ('template_ref', 'in', [f"{template._name},{template.id}" for template in self])
-        self.env['event.mail'].sudo().search([domain]).unlink()
-        self.env['event.type.mail'].sudo().search([domain]).unlink()
+        domain = (
+            "template_ref",
+            "in",
+            [f"{template._name},{template.id}" for template in self],
+        )
+        self.env["event.mail"].sudo().search([domain]).unlink()
+        self.env["event.type.mail"].sudo().search([domain]).unlink()
         return res
