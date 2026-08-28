@@ -276,6 +276,52 @@ class TestProcessRespectsDependencies(AutomationAuditCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestFeedbackFlagReachesProcess(AutomationAuditCommon):
+    """`__action_feedback` was set on `records` but checked on `self` in `_process`.
+
+    `_filter_pre`/`_filter_post_export_domain` tag the *records* they return
+    with `__action_feedback` when a caller passes `feedback=True`; `_process`
+    used to check it on `self` (the automation) instead -- a different object
+    that never received the flag through any call site, making the
+    mutate-in-place recursion-guard branch unreachable.
+    """
+
+    def test_process_mutates_the_shared_done_dict_in_place_under_feedback(self):
+        """`_process` must observe `__action_feedback` via `records`, not `self`.
+
+        Every caller that passes `feedback=True` to `_filter_pre`/
+        `_filter_post_export_domain` gets the flag set on the *records* those
+        methods return -- never on `self` (the automation), which is a
+        different object with an independently-managed context. Checking
+        `self.env.context` made the mutate-in-place branch unreachable through
+        any real caller. Reproduced directly here: pass in one shared
+        `automation_done` dict via context, tag only `records` with the
+        feedback flag (exactly as the real callers do), and confirm `_process`
+        mutates that same dict object rather than silently working on a copy
+        the caller's own reference never sees.
+        """
+        automation = self._automation("feedback-direct", trigger="on_hand")
+        self._action(automation, "noop")
+        partner = self.env["res.partner"].create({"name": "feedback direct target"})
+
+        shared_done = {}
+        automation_ctx = automation.with_context(__action_done=shared_done)
+        records = partner.with_context(
+            __action_done=shared_done, __action_feedback=True
+        )
+
+        automation_ctx._process(records)
+
+        self.assertIn(
+            automation_ctx,
+            shared_done,
+            "_process must mutate the caller's own automation_done dict in "
+            "place when __action_feedback is set on records, not silently "
+            "work on an unrelated copy",
+        )
+
+
+@tagged("post_install", "-at_install")
 class TestRuleLookupCache(AutomationAuditCommon):
     """_get_actions ran one SELECT per ORM call on every watched model."""
 
