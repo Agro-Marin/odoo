@@ -11,9 +11,80 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    @api.model
+    def _get_import_source_attachment(self, selected_file_data):
+        """The attachment to keep so the import can be replayed.
+
+        An embedded file (an XML inside a PDF) has no attachment record of its
+        own, so keep the file it was extracted from -- reloading unwraps it
+        again.
+        """
+        return selected_file_data.get("attachment") or selected_file_data.get(
+            "origin_attachment"
+        )
+
+    def _should_store_import_source_attachment(self, selected_file_data):
+        """Hook for modules that decode a document but own the reload
+        themselves; overriding this to False opts out."""
+        return True
+
+    def _set_import_source_attachment(self, file_data_group, new=False):
+        self.ensure_one()
+        selected_file_data = self._get_selected_import_file_data(
+            file_data_group, new=new
+        )
+        if self._should_store_import_source_attachment(selected_file_data):
+            self.import_source_attachment_id = self._get_import_source_attachment(
+                selected_file_data
+            )
+
+    def _reset_fields_for_reload(self):
+        """Clear what the import fills in, so reloading restores rather than
+        merges. Anything the user owns outright -- the journal, the company --
+        is left alone."""
+        with self._get_edi_creation() as move_form:
+            move_form.partner_id = False
+            move_form.invoice_date = False
+            move_form.invoice_payment_term_id = False
+            move_form.invoice_date_due = False
+
+            if move_form.is_purchase_document(include_receipts=True):
+                move_form.ref = False
+            elif (
+                move_form.is_sale_document(include_receipts=True)
+                and move_form.quick_edit_mode
+            ):
+                move_form.name = False
+
+            move_form.payment_reference = False
+            move_form.currency_id = move_form.company_currency_id
+            move_form.invoice_line_ids = [Command.clear()]
+
+    def action_reload_imported_data(self):
+        """Decode the source file again, discarding edits made since."""
+        self.ensure_one()
+        record = self.with_context(skip_is_manually_modified=True)
+        try:
+            record._reset_fields_for_reload()
+
+            files_data = record._to_files_data(record.import_source_attachment_id)
+            files_data.extend(record._unwrap_attachments(files_data))
+            file_data_groups = record._group_files_data_into_groups_of_mixed_types(
+                files_data
+            )
+            record._extend_with_attachments(file_data_groups[0])
+        except Exception as e:
+            _logger.warning(
+                "Error while reloading imported data on account.move %d: %s", self.id, e
+            )
+            raise UserError(self.env._("Couldn't reload data.")) from e
+
     def _extend_with_attachments(self, files_data, new=False):
         existing_lines = self.invoice_line_ids
         res = super()._extend_with_attachments(files_data, new)
+
+        if res:
+            self._set_import_source_attachment(files_data, new=new)
 
         if new_lines := (self.invoice_line_ids - existing_lines):
             new_lines.is_imported = True

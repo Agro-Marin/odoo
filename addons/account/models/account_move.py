@@ -793,6 +793,13 @@ class AccountMove(models.Model):
         readonly=False,
     )
     user_id = fields.Many2one(string="User", related="invoice_user_id")
+    import_source_attachment_id = fields.Many2one(
+        comodel_name="ir.attachment",
+        string="Import Source",
+        copy=False,
+        help="The file this document was decoded from. Kept so the imported "
+        "values can be read again after the document has been edited.",
+    )
     invoice_origin = fields.Char(
         string="Origin",
         readonly=True,

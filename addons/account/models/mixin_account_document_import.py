@@ -219,20 +219,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
         if not files_data:
             return None
 
-        for file_data in files_data:
-            if "decoder_info" not in file_data:
-                file_data["decoder_info"] = self._get_edi_decoder(file_data, new=new)
-
-        sorted_files_data = sorted(
-            files_data,
-            key=lambda file_data: (
-                file_data["decoder_info"] is not None,
-                (file_data["decoder_info"] or {}).get("priority", 0),
-            ),
-            reverse=True,
-        )
-
-        file_data = sorted_files_data[0]
+        file_data = self._get_selected_import_file_data(files_data, new=new)
 
         if (
             file_data["decoder_info"] is None
@@ -278,6 +265,26 @@ class MixinAccountDocumentImport(models.AbstractModel):
             )
             return None
         return True
+
+    def _get_selected_import_file_data(self, files_data, new=False):
+        """Pick the file the import should actually decode.
+
+        Highest decoder priority wins, and a file with no decoder always loses.
+        Extracted so that a record can ask which file was chosen without
+        decoding it again -- that is what lets the origin be stored and the
+        import replayed later.
+        """
+        for file_data in files_data:
+            if "decoder_info" not in file_data:
+                file_data["decoder_info"] = self._get_edi_decoder(file_data, new=new)
+
+        return max(
+            files_data,
+            key=lambda file_data: (
+                file_data["decoder_info"] is not None,
+                (file_data["decoder_info"] or {}).get("priority", 0),
+            ),
+        )
 
     def _get_edi_decoder(self, file_data, new=False):
         pass

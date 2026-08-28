@@ -5,7 +5,7 @@ import uuid
 from email import message_from_string
 from unittest.mock import patch
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import ValidationError
 from odoo.tests import RecordCapturer, tagged
 from odoo.tools.misc import mute_logger
@@ -1276,3 +1276,96 @@ class TestAccountIncomingSupplierInvoice(
         self.assertEqual(
             self.env["account.move"].browse(move_id).attachment_ids, attachment
         )
+
+    def test_import_records_the_source_attachment(self):
+        """A decoded document remembers the file it came from.
+
+        Without this there is nothing to reload: the attachment that produced
+        the values is not distinguishable from any other file on the record.
+        """
+        bill = self.env["account.move"].create({"move_type": "in_invoice"})
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "vendor_invoice.xml",
+                "raw": b"<Invoice/>",
+                "mimetype": "application/xml",
+                "res_model": "account.move",
+                "res_id": bill.id,
+            }
+        )
+        files_data = bill._to_files_data(attachment)
+
+        def decoder(record, file_data, new):
+            record.ref = "FROM-THE-FILE"
+
+        with patch.object(
+            self.env.registry["account.move"],
+            "_get_edi_decoder",
+            lambda self, file_data, new=False: {"priority": 20, "decoder": decoder},
+        ):
+            self.assertTrue(bill._extend_with_attachments(files_data))
+
+        self.assertEqual(bill.ref, "FROM-THE-FILE")
+        self.assertEqual(bill.import_source_attachment_id, attachment)
+
+    def test_action_reload_imported_data(self):
+        """Reloading restores the decoded values and drops what was typed over
+        them -- it is a revert, not a merge, so the old lines must not survive.
+        """
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "invoice_date": "2019-04-01",
+                "date": "2019-04-01",
+                "ref": "EDITED-BY-HAND",
+                "payment_reference": "+++111/2222/33333+++",
+                "partner_id": self.partner_b.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "typed over the imported line",
+                            "price_unit": 13.0,
+                            "quantity": 2.0,
+                            "account_id": self.company_data[
+                                "default_account_expense"
+                            ].id,
+                        }
+                    )
+                ],
+            }
+        )
+        bill.import_source_attachment_id = self.env["ir.attachment"].create(
+            {
+                "name": "vendor_invoice.xml",
+                "raw": b"<Invoice/>",
+                "mimetype": "application/xml",
+            }
+        )
+
+        def decoded(move, files_data, new=False):
+            move.partner_id = self.partner_a
+            move.invoice_date = "2019-04-12"
+            move.ref = "INV0001"
+            move.payment_reference = "+++123/1234/12345+++"
+            move.invoice_line_ids = [
+                Command.create(
+                    {
+                        "name": name,
+                        "price_unit": price,
+                        "quantity": 1,
+                        "account_id": self.company_data["default_account_expense"].id,
+                    }
+                )
+                for name, price in (("Test 1", 100), ("Test 2", 200))
+            ]
+
+        with patch.object(
+            self.env.registry["account.move"], "_extend_with_attachments", decoded
+        ):
+            bill.action_reload_imported_data()
+
+        self.assertEqual(bill.partner_id, self.partner_a)
+        self.assertEqual(bill.invoice_date, fields.Date.from_string("2019-04-12"))
+        self.assertEqual(bill.payment_reference, "+++123/1234/12345+++")
+        self.assertEqual(bill.ref, "INV0001")
+        self.assertEqual(bill.invoice_line_ids.mapped("name"), ["Test 1", "Test 2"])
