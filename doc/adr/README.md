@@ -243,6 +243,8 @@ enforce them.
 | [0070](0070-payment-names-nine-things-and-a-channel-is-not-a-method.md) | "Payment" names nine things, and a channel is not a method | 2026-08-26 | Accepted |
 | [0071](0071-one-edge-one-column-and-the-sequence-is-told-directly.md) | One edge, one column — and the sequence is told directly | 2026-08-26 | Accepted |
 | [0072](0072-the-cross-repo-gate-checks-names-not-only-modules.md) | The cross-repo gate checks names, not only modules | 2026-08-28 | Accepted |
+| [0073](0073-a-python-import-across-repositories-must-resolve.md) | A Python import across repositories must resolve too | 2026-08-28 | Accepted |
+| [0074](0074-a-shipped-static-source-reaches-a-bundle.md) | A shipped static source reaches a bundle | 2026-08-28 | Accepted |
 
 ## Template
 

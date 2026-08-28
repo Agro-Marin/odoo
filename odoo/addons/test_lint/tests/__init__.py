@@ -5,6 +5,7 @@ from . import test_python_lint
 from . import test_bundle_token_defs
 from . import test_color_scheme_reads
 from . import test_dark_sibling_scope
+from . import test_orphan_assets
 from . import test_orphan_test_registrations
 from . import test_setup_bundle_has_no_tests
 from . import test_grey_ramp_token
@@ -14,8 +15,10 @@ from . import test_docstring
 from . import test_index
 from . import test_jstranslate
 from . import test_l10n
+from . import test_machine_doc_identifiers
 from . import test_manifests
 from . import test_xml_records
+from . import test_button_targets
 from . import test_view_hygiene
 from . import test_pretty_xml
 from . import test_fixers

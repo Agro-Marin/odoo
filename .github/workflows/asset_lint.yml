@@ -46,6 +46,17 @@ name: Asset & Palette Lint (DB-backed)
 # (project.webclient's theme globs, web_enterprise's navbar) are not reachable
 # from this repo and stay a manual check.
 #
+# TestOrphanAssets is the reverse of TestAssetPathsExist and joins it here for
+# the same reason the others are here: it resolves bundles, so it needs a
+# registry. The forward question -- does a declared path match a file -- was
+# asked; the reverse -- does a shipped file reach a bundle -- was asked by
+# nothing, and that is where a feature disappears without a trace.
+# `purchase_mrp` declared `mrp/static/src/**/*.js`, another module's paths, so
+# its own BoM Overview patch sat in no bundle: the *buy* route link rendered,
+# was clickable, and did nothing, with no console error. Its coverage is the
+# INSTALL set below, exactly like TestBundleTokenDefs -- widen that rather than
+# assume the tree is checked.
+#
 # TestBundlesAssemble and TestSetupBundleHasNoTests were in NEITHER lane's wide
 # scope: they ran only under test_lint.yml, where TestBundlesAssemble logs its own
 # verdict -- "22 of 118 declared bundle(s) resolve their own relative imports; the
@@ -109,10 +120,11 @@ env:
   INSTALL: >-
     web,mail,portal,project,im_livechat,website,
     point_of_sale,hr_attendance,mrp_subcontracting,spreadsheet,test_lint,
-    base_automation,calendar,documents,event,hr_gamification,hr_recruitment,
+    automation,calendar,documents,event,hr_gamification,hr_recruitment,
     hr_skills_slides,sale,survey,website_sale
   TEST_TAGS: >-
     /test_lint:TestAssetPathsExist,
+    /test_lint:TestOrphanAssets,
     /test_lint:TestBundleTokenDefs,
     /test_lint:TestDarkSiblingScope,
     /test_lint:TestEsmSpecifiers,
