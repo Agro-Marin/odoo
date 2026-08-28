@@ -2,7 +2,7 @@ import base64
 import json
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from zipfile import ZipFile
 
 import odoo.tests
@@ -398,6 +398,35 @@ class TestImportModule(odoo.tests.TransactionCase):
         ):
             with self.assertRaises(UserError):
                 self.import_zipfile(files)
+
+    def test_get_modules_from_apps_reapplies_local_domain(self):
+        """t27114: `state` is computed locally (from local install status),
+        so apps.odoo.com cannot filter on it — a domain condition on `state`
+        must still be honored locally rather than silently dropped."""
+        self.env["ir.module.module"].create(
+            {"name": "module_a", "state": "installed", "imported": True}
+        )
+        fake_response = MagicMock()
+        fake_response.json.return_value = {
+            "result": [
+                {"name": "module_a"},
+                {"name": "module_b"},
+            ]
+        }
+        IrModuleModule = type(self.env["ir.module.module"])
+        with patch.object(IrModuleModule, "_call_apps", return_value=fake_response):
+            modules_list = self.env["ir.module.module"]._get_modules_from_apps(
+                ["name", "state"],
+                "industries",
+                False,
+                domain=[("state", "=", "installed")],
+            )
+        self.assertEqual(
+            [mod["name"] for mod in modules_list],
+            ["module_a"],
+            "module_b (locally uninstalled) must be filtered out by the "
+            "`state` domain condition, not silently returned",
+        )
 
     def test_import_and_uninstall_module(self):
         bundle = "web.assets_backend"
