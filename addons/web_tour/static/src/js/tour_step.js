@@ -23,7 +23,7 @@ export class TourStep {
 
     /**
      * Check if a step is active dependant on step.isActive property
-     * Note that when step.isActive is not defined, the step is active by default.
+     * When step.isActive is not defined, the step is active by default.
      * When a step is not active, it's just skipped and the tour continues to the next step.
      */
     get active() {
