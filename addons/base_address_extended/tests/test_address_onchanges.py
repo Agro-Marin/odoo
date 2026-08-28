@@ -64,3 +64,17 @@ class TestAddressExtendedOnchanges(TransactionCase):
         self.assertFalse(partner.city)
         self.assertFalse(partner.zip)
         self.assertFalse(partner.state_id)
+
+    def test_onchange_city_id_clears_on_new_record(self):
+        """Unselecting city_id clears city/zip/state on a new, unsaved record too."""
+        partner = self.env["res.partner"].new({})
+        partner.city_id = self.city
+        partner._onchange_city_id()
+        self.assertEqual(partner.city, "Springfield")
+        self.assertEqual(partner.zip, "62701")
+
+        partner.city_id = False
+        partner._onchange_city_id()
+        self.assertFalse(partner.city)
+        self.assertFalse(partner.zip)
+        self.assertFalse(partner.state_id)
