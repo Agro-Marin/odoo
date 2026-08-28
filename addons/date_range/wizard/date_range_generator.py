@@ -248,6 +248,12 @@ class DateRangeGenerator(models.TransientModel):
             )
             if not value
         ]
+        # `duration_count` above only tests falsiness, so a negative value
+        # (truthy) slips through and reaches dateutil.rrule's `interval`,
+        # which raises a raw ValueError instead of this method's clean
+        # ValidationError/UserError.
+        if not missing and self.duration_count < 0:
+            missing.append(self.env._("a positive duration"))
         if not missing and not self.date_end and not self.count:
             missing.append(self.env._("end date or number of ranges to generate"))
         if not missing and not self.name_expr and not self.name_prefix:

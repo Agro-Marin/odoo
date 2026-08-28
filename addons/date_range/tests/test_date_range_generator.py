@@ -148,6 +148,27 @@ class DateRangeGeneratorTest(TransactionCase):
         with self.assertRaisesRegex(UserError, "date range type"):
             wizard.action_apply()
 
+    def test_negative_duration_reports_clean_error(self):
+        """A negative duration is refused up front, not as a raw ValueError.
+
+        `duration_count` used to only be checked for falsiness, so `-1`
+        (truthy) slipped past `_check_settings_complete` and reached
+        `dateutil.rrule`'s `interval`, which raises `ValueError` instead of
+        the wizard's usual `UserError`/`ValidationError`.
+        """
+        wizard = self.generator.create(
+            {
+                "date_start": "2024-01-01",
+                "duration_count": -1,
+                "unit_of_time": str(MONTHLY),
+                "count": 3,
+                "name_prefix": "F05-",
+                "type_id": self.type.id,
+            }
+        )
+        with self.assertRaisesRegex(UserError, "duration"):
+            wizard.action_apply()
+
     def test_preview_agrees_with_generated_names(self):
         """The type preview, the wizard preview and the result all agree.
 
