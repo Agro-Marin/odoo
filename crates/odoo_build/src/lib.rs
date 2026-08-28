@@ -19,6 +19,17 @@
 //! Python and Rust implementations must agree byte for byte; three copies of
 //! that agreement would be two too many.
 //!
+//! The **profile** is stamped beside the fingerprint, and is a second axis the
+//! CRC cannot see: a debug and a release build of identical sources fingerprint
+//! identically. `maturin develop` -- the command five places in this repository
+//! name -- defaults to the `dev` profile, and a debug `odoo_rust` is not merely
+//! slow. Measured against the pure-Python references it replaces, four of its
+//! exports are SLOWER than the code they exist to delete: `origin_ids` 4.08x,
+//! `sort_ids_by_values` 3.84x, `to_prefetch_ids` 2.53x, `sort_ids_by_cache`
+//! 2.41x. `test_native_acceleration_pays` catches that in 1.36s, but it reports
+//! it as an algorithm that stopped paying for itself, which sends the reader
+//! into `sort.rs` rather than into `maturin`.
+//!
 //! CRC32 is deliberate. The threat is an out-of-date file, not a forged one, so
 //! a checksum is the right instrument; it also lets the Python side use
 //! `zlib.crc32` from the standard library, which is ~500x faster than a
@@ -65,20 +76,35 @@ fn collect_rust_sources(dir: &Path, found: &mut Vec<PathBuf>) {
     }
 }
 
-/// Fingerprint the calling crate's `Cargo.toml` + `src/**/*.rs` and emit it as
-/// the compile-time environment variable `var`.
+/// Stamp the calling crate's build identity: `{prefix}_SOURCE_CRC` and
+/// `{prefix}_PROFILE`.
+///
+/// The fingerprint covers `../Cargo.lock`, `Cargo.toml` and `src/**/*.rs`.
 ///
 /// Call from a build script; it reads `CARGO_MANIFEST_DIR` to find the crate.
 ///
 /// # Panics
 /// If the crate's `src/` is unreadable — a build script has no way to continue
 /// usefully from that, and failing the build is the intended outcome.
-pub fn stamp_source_crc(var: &str) {
+pub fn stamp_build_identity(prefix: &str) {
     let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
 
-    // Cargo.toml is an input: a dependency or feature change alters the built
-    // artifact without touching a single line of Rust.
+    // Cargo.toml is an input: a feature change alters the built artifact without
+    // touching a line of Rust. It is not enough on its own, though, and saying
+    // it was is what left a hole here: a manifest names a RANGE. These crates
+    // ask for `pyo3 = "0.28.2"` and the lock has already resolved 0.28.3, so a
+    // `cargo update` changes the artifact and leaves the fingerprint untouched
+    // — exactly the silent staleness this file exists to make loud.
+    //
+    // The lock is the WORKSPACE's, so an `odoo_lint` dependency bump also
+    // invalidates `odoo_rust`'s stamp. That is the safe direction: both are
+    // built by one `cargo build`, every CI lane builds both fresh, and the cost
+    // of the false positive is one rebuild nobody needed against a false
+    // negative that reports wrong answers.
     let mut sources = vec![root.join("Cargo.toml")];
+    if root.join("../Cargo.lock").is_file() {
+        sources.push(root.join("../Cargo.lock"));
+    }
     collect_rust_sources(&root.join("src"), &mut sources);
 
     // Sort by the *relative* path so the order cannot depend on where the
@@ -86,11 +112,13 @@ pub fn stamp_source_crc(var: &str) {
     let mut inputs: Vec<(String, PathBuf)> = sources
         .into_iter()
         .map(|path| {
-            let rel = path
-                .strip_prefix(&root)
-                .expect("source under crate root")
-                .to_string_lossy()
-                .replace('\\', "/");
+            // `../Cargo.lock` is labelled literally rather than stripped: it is
+            // the one input outside the crate, and the Python side spells the
+            // same string.
+            let rel = match path.strip_prefix(&root) {
+                Ok(under) => under.to_string_lossy().replace('\\', "/"),
+                Err(_) => "../Cargo.lock".to_owned(),
+            };
             (rel, path)
         })
         .collect();
@@ -103,6 +131,7 @@ pub fn stamp_source_crc(var: &str) {
     // survive a rebuild while the Python side already saw the new file — a
     // mismatch that rebuilding would not clear.
     println!("cargo:rerun-if-changed=src");
+    println!("cargo:rerun-if-changed=../Cargo.lock");
 
     // Length-delimited so that renaming a file, or moving bytes across a file
     // boundary, cannot leave the concatenation unchanged.
@@ -115,7 +144,11 @@ pub fn stamp_source_crc(var: &str) {
         println!("cargo:rerun-if-changed={}", path.display());
     }
 
-    println!("cargo:rustc-env={var}={:08x}", crc32(&blob));
+    println!("cargo:rustc-env={prefix}_SOURCE_CRC={:08x}", crc32(&blob));
+
+    // `PROFILE` is "debug" or "release"; cargo sets it for every build script.
+    let profile = std::env::var("PROFILE").expect("PROFILE");
+    println!("cargo:rustc-env={prefix}_PROFILE={profile}");
 }
 
 #[cfg(test)]

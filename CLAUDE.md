@@ -56,8 +56,16 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
 - **`crates/odoo_rust` must be built into the environment.** with a Rust toolchain on `PATH`:
 
   ```bash
-  cd crates/odoo_rust && maturin develop
+  cd crates/odoo_rust && maturin develop --release
   ```
+
+  **`--release` is not optional.** `maturin develop` defaults to the `dev`
+  profile, and a debug build of this crate is not merely slower: four of its
+  exports come in slower than the pure Python they exist to delete
+  (`origin_ids` 4.08x, `sort_ids_by_values` 3.84x, `to_prefetch_ids` 2.53x,
+  `sort_ids_by_cache` 2.41x). The profile is stamped beside the source
+  fingerprint and `odoo/libs/native.py` refuses to start on a debug build;
+  `ODOO_ALLOW_DEBUG_RUST=1` is the escape hatch for attaching a debugger.
 
   **A build that has fallen behind the crate is worse than a missing one**: with
   no fallback, a stale `.so` segfaults on a cyclic `fast_clone` and silently
@@ -76,7 +84,7 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
   those gates:
 
   ```bash
-  cd crates/odoo_lint && maturin develop
+  cd crates/odoo_lint && maturin develop --release
   ```
 
   It is a separate wheel because it is test-only and dominated the runtime one:

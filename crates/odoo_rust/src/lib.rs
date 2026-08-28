@@ -60,6 +60,9 @@ fn odoo_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // to start on a mismatch, so a stale build reports itself instead of
     // segfaulting or silently computing the wrong answer.
     m.add("__source_crc__", env!("ODOO_RUST_SOURCE_CRC"))?;
+    // "debug" or "release". A debug build fingerprints identically to a
+    // release one, so the crc cannot see it; `odoo/libs/native.py` reads this.
+    m.add("__profile__", env!("ODOO_RUST_PROFILE"))?;
     // clone
     m.add_function(wrap_pyfunction!(clone::fast_clone, m)?)?;
     // cache. There is deliberately no `scalar_cache_get` here: the single-record

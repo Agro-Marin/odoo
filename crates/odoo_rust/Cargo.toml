@@ -1,7 +1,7 @@
 [package]
 name = "odoo_rust"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "Rust-accelerated hot paths for the Odoo ORM"
 
 [lib]
@@ -16,7 +16,7 @@ doctest = false
 # extension-module is opt-in: bare `cargo test`/`cargo clippy` leave it off so
 # the test harness links libpython; maturin turns it on for the wheel (see
 # pyproject.toml [tool.maturin]).
-pyo3 = { version = "0.28.2" }
+pyo3.workspace = true
 
 [build-dependencies]
 odoo_build = { path = "../odoo_build" }

@@ -45,6 +45,9 @@ fn odoo_lint(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // ratchet failure that sends you looking through the tree for a change
     // nobody made.
     m.add("__source_crc__", env!("ODOO_LINT_SOURCE_CRC"))?;
+    // "debug" or "release". A debug build fingerprints identically to a
+    // release one, so the crc cannot see it; `odoo/libs/native.py` reads this.
+    m.add("__profile__", env!("ODOO_LINT_PROFILE"))?;
     m.add_function(wrap_pyfunction!(scan::scan_byte_patterns, m)?)?;
     m.add_function(wrap_pyfunction!(scan::scan_regex_patterns, m)?)?;
     Ok(())

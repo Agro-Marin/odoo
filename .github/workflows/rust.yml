@@ -144,4 +144,18 @@ jobs:
               if not getattr(module, "__source_crc__", None):
                   raise SystemExit(f"{module.__name__} has no __source_crc__")
           print("both extensions are fingerprinted")
+
+          # ...and the profile they were built with, which the fingerprint
+          # cannot encode: identical sources hash identically whether or not
+          # the optimiser ran. The wheels above are `maturin build --release`,
+          # so anything else here means the stamp is not wired up.
+          for module in required:
+              profile = getattr(module, "__profile__", None)
+              if profile != "release":
+                  raise SystemExit(
+                      f"{module.__name__}.__profile__ is {profile!r}, expected "
+                      f"'release' -- odoo/libs/native.py refuses to start on a "
+                      f"debug build and needs this stamp to see one"
+                  )
+          print("both extensions are release builds")
           PY

@@ -1,3 +1,3 @@
 fn main() {
-    odoo_build::stamp_source_crc("ODOO_LINT_SOURCE_CRC");
+    odoo_build::stamp_build_identity("ODOO_LINT");
 }

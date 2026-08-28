@@ -4,7 +4,7 @@ from pathlib import Path
 import odoo_rust
 import pytest
 
-from odoo.libs.native import assert_fresh, source_crc
+from odoo.libs.native import assert_fresh, assert_optimised, source_crc
 
 _rust_source_crc = source_crc
 
@@ -39,9 +39,11 @@ def test_every_native_crate_is_covered_by_a_freshness_check():
         f"assert_fresh() at its import site, and this list updated"
     )
     for name in sorted(extensions):
-        assert (CRATES / name / "build.rs").read_text().find("stamp_source_crc") > 0, (
-            f"{name}/build.rs does not stamp a source crc, so nothing can "
-            f"detect a stale build of it"
+        assert (CRATES / name / "build.rs").read_text().find(
+            "stamp_build_identity"
+        ) > 0, (
+            f"{name}/build.rs does not stamp a build identity, so nothing can "
+            f"detect a stale or unoptimised build of it"
         )
 
 
@@ -91,6 +93,69 @@ def test_the_fingerprint_covers_every_build_input(tmp_path):
 
     (copy / "src" / "added.rs").write_text("// added\n")
     assert _rust_source_crc(copy) != baseline, "a new source file is not hashed"
+
+
+def test_the_fingerprint_covers_the_resolved_dependency_versions(tmp_path):
+    """`Cargo.toml` names a RANGE; `Cargo.lock` names what was built.
+
+    The manifests ask for `pyo3 = "0.28.2"` and the lock already resolves
+    0.28.3. Hashing only the manifest lets a `cargo update` change the built
+    artifact while every hashed byte stays identical -- silent staleness, which
+    is the one thing this fingerprint exists to prevent.
+    """
+    workspace = tmp_path / "crates"
+    crate = workspace / "odoo_rust"
+    (crate / "src").mkdir(parents=True)
+    (crate / "Cargo.toml").write_text("[package]\n")
+    (crate / "src" / "lib.rs").write_text("// lib\n")
+
+    without_lock = _rust_source_crc(crate)
+
+    lock = workspace / "Cargo.lock"
+    lock.write_text('[[package]]\nname = "pyo3"\nversion = "0.28.2"\n')
+    with_lock = _rust_source_crc(crate)
+    assert with_lock != without_lock, "the lock file is not hashed"
+
+    lock.write_text('[[package]]\nname = "pyo3"\nversion = "0.28.3"\n')
+    assert _rust_source_crc(crate) != with_lock, (
+        "a resolved dependency version change does not move the fingerprint"
+    )
+
+
+def test_a_debug_build_is_refused_by_name(monkeypatch):
+    """The crc cannot see the profile: both builds hash identically.
+
+    `maturin develop` defaults to `dev`, and four `odoo_rust` exports are then
+    slower than the pure Python they replace. `test_native_acceleration_pays`
+    does catch it, but reports it as an algorithm that stopped paying.
+    """
+
+    class Module:
+        __name__ = "pretend_ext"
+        __profile__ = "debug"
+
+    monkeypatch.delenv("ODOO_ALLOW_DEBUG_RUST", raising=False)
+    module = Module()
+    with pytest.raises(RuntimeError, match="--release"):
+        assert_optimised(module)
+
+    module.__profile__ = "release"
+    assert_optimised(module)
+
+    # A wheel built before the stamp existed carries no profile at all; refusing
+    # to start on it would make upgrading harder than what is being checked for.
+    del Module.__profile__
+    assert_optimised(Module())
+
+    # And the escape hatch, for attaching a debugger to the crate.
+    monkeypatch.setenv("ODOO_ALLOW_DEBUG_RUST", "1")
+    debug = Module()
+    debug.__profile__ = "debug"
+    assert_optimised(debug)
+
+
+def test_the_installed_extension_is_optimised():
+    assert_optimised(odoo_rust)
 
 
 def test_the_fingerprint_does_not_depend_on_where_the_checkout_lives(tmp_path):

@@ -6,3 +6,14 @@
 [workspace]
 resolver = "3"
 members = ["odoo_build", "odoo_lint", "odoo_rust"]
+
+# Inherited by the members rather than repeated in each. `pyo3` in particular
+# was spelled twice, so a version bump had to be made twice and could be made
+# once — and the two extensions MUST agree on it: they are loaded into one
+# interpreter, and pyo3 links the same CPython ABI from both.
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+pyo3 = { version = "0.28.2" }

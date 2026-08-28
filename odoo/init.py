@@ -2,7 +2,7 @@ import gc
 import sys
 from pathlib import Path
 
-from .libs.native import assert_fresh
+from .libs.native import assert_fresh, assert_optimised
 from .release import MIN_PY_VERSION
 
 if sys.version_info[:2] < MIN_PY_VERSION:
@@ -17,7 +17,7 @@ except ImportError as exc:
     raise ImportError(
         "The required 'odoo_rust' native extension is not importable. This fork "
         "depends on it (ORM cache/read/sort paths, db cursor, JSON fast-clone, "
-        "CSV export). Build and install it with maturin (e.g. `maturin develop` "
+        "CSV export). Build and install it with maturin (e.g. `maturin develop --release` "
         "in crates/odoo_rust) into the active virtualenv. The lint scanner is a "
         "SEPARATE extension, odoo_lint, needed only to run the test_lint gates."
     ) from exc
@@ -28,6 +28,9 @@ _CRATES = Path(__file__).resolve().parents[1] / "crates"
 # Fails loudly rather than silently misbehaving when the wheel predates the
 # crate. See odoo/libs/native.py for why this exists at all.
 assert_fresh(odoo_rust, _CRATES / "odoo_rust")
+# ...and loudly rather than mysteriously when it is a debug build: the crc is
+# blind to the profile, and `maturin develop` defaults to it.
+assert_optimised(odoo_rust)
 
 
 if gc.get_threshold()[0] in (700, 2000):
