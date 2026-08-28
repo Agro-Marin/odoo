@@ -93,7 +93,7 @@ class OrderPortalMixin:
             else Order
         )
 
-        request.session[cfg["session_key"]] = orders.ids[: self._items_per_page]
+        request.session[cfg["session_key"]] = orders.ids
 
         values.update(
             {
