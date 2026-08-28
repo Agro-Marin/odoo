@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, useRef } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -10,7 +10,6 @@ export class BusLogsMenuItem extends Component {
 
     setup() {
         this.busLogsService = useService("bus.logs_service");
-        this.downloadButton = useRef("downloadButton");
     }
 
     onClickToggle() {
