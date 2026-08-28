@@ -1022,7 +1022,9 @@ class CredentialCredential(models.Model):
     def _onchange_category_id(self):
         if self.category_id:
             category = self.category_id.sudo()
-            self.decrypt_rate_limit_enabled = category.default_decrypt_rate_limit_enabled
+            self.decrypt_rate_limit_enabled = (
+                category.default_decrypt_rate_limit_enabled
+            )
             self.decrypt_rate_limit_max = category.default_decrypt_rate_limit_max
             self.auto_validate_health = category.default_auto_validate_health
             self.allow_key_fallback = category.default_allow_key_fallback
@@ -1489,7 +1491,9 @@ class CredentialCredential(models.Model):
         if not self.id:
             return
         config = self.sudo()
-        if not (config.decrypt_rate_limit_enabled and config.decrypt_rate_limit_max > 0):
+        if not (
+            config.decrypt_rate_limit_enabled and config.decrypt_rate_limit_max > 0
+        ):
             return
 
         cap = config.decrypt_rate_limit_max
