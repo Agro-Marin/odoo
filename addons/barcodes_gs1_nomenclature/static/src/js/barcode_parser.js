@@ -87,14 +87,12 @@ patch(BarcodeParser.prototype, {
             }
         } else if (rule.gs1_content_type === 'identifier'){
             if (parseInt(match[2][match[2].length - 1]) !== this.get_barcode_check_digit("0".repeat(18 - match[2].length) + match[2])){
-                throw new Error(_t("Invalid barcode: the check digit is incorrect"));
-                // return {error: _t("Invalid barcode: the check digit is incorrect")};
+                return null;
             }
             result.value = match[2];
         } else if (rule.gs1_content_type === 'date'){
             if (match[2].length !== 6){
-                throw new Error(_t("Invalid barcode: can't be formated as date"));
-                // return {error: _t("Invalid barcode: can't be formated as date")};
+                return null;
             }
             result.value = this.gs1_date_to_date(match[2]);
         } else {
@@ -128,9 +126,9 @@ patch(BarcodeParser.prototype, {
                         if (barcode.length === 0) {
                             return results; // Barcode completly parsed, no need to keep looping.
                         }
-                    } else {
-                        throw new GS1BarcodeError(_t("This barcode can't be parsed by any barcode rules."));
                     }
+                    // else: the match fails its content check (e.g. invalid check digit or
+                    // date length) -> not this rule, keep trying the remaining ones.
                 }
             }
             if (barcodeLength === barcode.length) {
