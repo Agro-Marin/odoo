@@ -100,8 +100,7 @@ patch(Thread, threadStaticPatch);
  * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
  */
 const threadPatch = {
-    setup() {
-        super.setup();
+    _setupMembershipFields() {
         this.channel_member_ids = fields.Many("discuss.channel.member", {
             inverse: "channel_id",
             onDelete: (r) => r.delete(),
@@ -124,6 +123,8 @@ const threadPatch = {
         /** @type {"not_fetched"|"fetching"|"fetched"} */
         this.fetchChannelInfoState = "not_fetched";
         this.group_ids = fields.Many("res.groups");
+    },
+    _setupSeenStateFields() {
         this.hasOtherMembersTyping = fields.Attr(false, {
             /** @this {import("models").Thread} */
             compute() {
@@ -141,30 +142,7 @@ const threadPatch = {
         this.firstUnreadMessage = fields.One("mail.message", {
             /** @this {import("models").Thread} */
             compute() {
-                if (!this.self_member_id) {
-                    return null;
-                }
-                const messages = this.messages.filter((m) => !m.isNotification);
-                const separator = this.self_member_id.new_message_separator_ui;
-                if (separator === 0 && !this.loadOlder) {
-                    return messages[0];
-                }
-                if (
-                    !separator ||
-                    messages.length === 0 ||
-                    messages.at(-1).id < separator
-                ) {
-                    return null;
-                }
-                let message = this.store["mail.message"].get({ id: separator });
-                if (!message || this.notEq(message.thread)) {
-                    message = nearestGreaterThanOrEqual(
-                        messages,
-                        separator,
-                        /** @param {import("models").Message} msg */ (msg) => msg.id,
-                    );
-                }
-                return message;
+                return this._computeFirstUnreadMessage();
             },
             inverse: "threadAsFirstUnread",
         });
@@ -183,89 +161,29 @@ const threadPatch = {
         this.lastMessageSeenByAllId = fields.Attr(undefined, {
             /** @this {import("models").Thread} */
             compute() {
-                if (!this.hasSeenFeature) {
-                    return;
-                }
-                return this.channel_member_ids.reduce(
-                    (lastMessageSeenByAllId, member) => {
-                        if (
-                            member.notEq(this.self_member_id) &&
-                            member.seen_message_id
-                        ) {
-                            return lastMessageSeenByAllId
-                                ? Math.min(
-                                      lastMessageSeenByAllId,
-                                      member.seen_message_id.id,
-                                  )
-                                : member.seen_message_id.id;
-                        } else {
-                            return lastMessageSeenByAllId;
-                        }
-                    },
-                    undefined,
-                );
+                return this._computeLastMessageSeenByAllId();
             },
         });
         this.maxSeenMessageIdByOthers = fields.Attr(0, {
             /** @this {import("models").Thread} */
             compute() {
-                if (!this.hasSeenFeature) {
-                    return 0;
-                }
-                let max = 0;
-                for (const member of this.channel_member_ids) {
-                    if (
-                        member.notEq(this.self_member_id) &&
-                        member.persona &&
-                        member.seen_message_id
-                    ) {
-                        max = Math.max(max, member.seen_message_id.id);
-                    }
-                }
-                return max;
+                return this._computeMaxSeenMessageIdByOthers();
             },
         });
         this.maxFetchedMessageIdByOthers = fields.Attr(0, {
             /** @this {import("models").Thread} */
             compute() {
-                if (!this.hasSeenFeature) {
-                    return 0;
-                }
-                let max = 0;
-                for (const member of this.channel_member_ids) {
-                    if (
-                        member.notEq(this.self_member_id) &&
-                        member.persona &&
-                        member.fetched_message_id
-                    ) {
-                        max = Math.max(max, member.fetched_message_id.id);
-                    }
-                }
-                return max;
+                return this._computeMaxFetchedMessageIdByOthers();
             },
         });
         this.lastSelfMessageSeenByEveryone = fields.One("mail.message", {
             /** @this {import("models").Thread} */
             compute() {
-                if (!this.lastMessageSeenByAllId) {
-                    return false;
-                }
-                let res;
-                for (let i = this.persistentMessages.length - 1; i >= 0; i--) {
-                    const message = this.persistentMessages[i];
-                    if (
-                        !message.isSelfAuthored ||
-                        message.isNotification ||
-                        message.id > this.lastMessageSeenByAllId
-                    ) {
-                        continue;
-                    }
-                    res = message;
-                    break;
-                }
-                return res;
+                return this._computeLastSelfMessageSeenByEveryone();
             },
         });
+    },
+    _setupChannelStateFields() {
         this.markReadSequential = makeSequential();
         this.markedAsUnread = false;
         this.markingAsRead = false;
@@ -321,6 +239,104 @@ const threadPatch = {
         this.typingMembers = fields.Many("discuss.channel.member", {
             inverse: "threadAsTyping",
         });
+    },
+    setup() {
+        super.setup();
+        this._setupMembershipFields();
+        this._setupSeenStateFields();
+        this._setupChannelStateFields();
+    },
+    /** @this {import("models").Thread} */
+    _computeFirstUnreadMessage() {
+        if (!this.self_member_id) {
+            return null;
+        }
+        const messages = this.messages.filter((m) => !m.isNotification);
+        const separator = this.self_member_id.new_message_separator_ui;
+        if (separator === 0 && !this.loadOlder) {
+            return messages[0];
+        }
+        if (!separator || messages.length === 0 || messages.at(-1).id < separator) {
+            return null;
+        }
+        let message = this.store["mail.message"].get({ id: separator });
+        if (!message || this.notEq(message.thread)) {
+            message = nearestGreaterThanOrEqual(
+                messages,
+                separator,
+                /** @param {import("models").Message} msg */ (msg) => msg.id,
+            );
+        }
+        return message;
+    },
+    /** @this {import("models").Thread} */
+    _computeLastMessageSeenByAllId() {
+        if (!this.hasSeenFeature) {
+            return;
+        }
+        return this.channel_member_ids.reduce((lastMessageSeenByAllId, member) => {
+            if (member.notEq(this.self_member_id) && member.seen_message_id) {
+                return lastMessageSeenByAllId
+                    ? Math.min(lastMessageSeenByAllId, member.seen_message_id.id)
+                    : member.seen_message_id.id;
+            } else {
+                return lastMessageSeenByAllId;
+            }
+        }, undefined);
+    },
+    /** @this {import("models").Thread} */
+    _computeMaxSeenMessageIdByOthers() {
+        if (!this.hasSeenFeature) {
+            return 0;
+        }
+        let max = 0;
+        for (const member of this.channel_member_ids) {
+            if (
+                member.notEq(this.self_member_id) &&
+                member.persona &&
+                member.seen_message_id
+            ) {
+                max = Math.max(max, member.seen_message_id.id);
+            }
+        }
+        return max;
+    },
+    /** @this {import("models").Thread} */
+    _computeMaxFetchedMessageIdByOthers() {
+        if (!this.hasSeenFeature) {
+            return 0;
+        }
+        let max = 0;
+        for (const member of this.channel_member_ids) {
+            if (
+                member.notEq(this.self_member_id) &&
+                member.persona &&
+                member.fetched_message_id
+            ) {
+                max = Math.max(max, member.fetched_message_id.id);
+            }
+        }
+        return max;
+    },
+    /** @this {import("models").Thread} */
+    _computeLastSelfMessageSeenByEveryone() {
+        if (!this.lastMessageSeenByAllId) {
+            return false;
+        }
+        let res;
+        for (let i = this.persistentMessages.length - 1; i >= 0; i--) {
+            const message = this.persistentMessages[i];
+            if (
+                !message.isSelfAuthored ||
+                message.isNotification ||
+                message.id > this.lastMessageSeenByAllId
+            ) {
+                continue;
+            }
+            res = message;
+            break;
+        }
+        return res;
     },
     /** @returns {import("models").ChannelMember[]} */
     _computeOfflineMembers() {

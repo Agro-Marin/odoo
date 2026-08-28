@@ -168,3 +168,65 @@ test("splice() clamps start and deleteCount like Array.prototype.splice", async 
     john.tasks.splice(5, 1);
     expect(john.tasks.map((t) => t.name)).toEqual(["t2"]);
 });
+
+test("assigning at an index swaps the record and keeps the inverse in step", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    const t1 = store.Task.insert("t1");
+    const t2 = store.Task.insert("t2");
+    john.tasks.add(t1);
+    expect(t1.contact.eq(john)).toBe(true);
+
+    john.tasks[0] = t2;
+    expect(john.tasks.length).toBe(1);
+    expect(john.tasks[0].eq(t2)).toBe(true);
+    expect(t2.contact.eq(john)).toBe(true);
+    expect(t1.contact).toBe(undefined);
+});
+
+test("assigning the record already at that index changes nothing", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    const t1 = store.Task.insert("t1");
+    john.tasks.add(t1);
+    Record.onChange(john, "tasks", () => expect.step("tasks changed"));
+
+    john.tasks[0] = t1;
+    expect(john.tasks.length).toBe(1);
+    expect(john.tasks[0].eq(t1)).toBe(true);
+    expect.verifySteps([]);
+});
+
+test("assigning a nullish value at an index is rejected", async () => {
+    defineContactTask();
+    const store = await start();
+    store.logErrors = false;
+    const john = store.Contact.insert("John");
+    john.tasks.add(store.Task.insert("t1"));
+    for (const nullish of [undefined, null, false]) {
+        expect(() => {
+            john.tasks[0] = nullish;
+        }).toThrow(/use delete\(\)\/splice\(\) to remove records/);
+    }
+    expect(john.tasks.length).toBe(1);
+});
+
+test("assigning one past the end appends rather than being out of range", async () => {
+    defineContactTask();
+    const store = await start();
+    store.logErrors = false;
+    const john = store.Contact.insert("John");
+    const t1 = store.Task.insert("t1");
+    const t2 = store.Task.insert("t2");
+    john.tasks.add(t1);
+
+    john.tasks[1] = t2;
+    expect(john.tasks.length).toBe(2);
+    expect(john.tasks[1].eq(t2)).toBe(true);
+    expect(t2.contact.eq(john)).toBe(true);
+    expect(() => {
+        john.tasks[5] = store.Task.insert("t3");
+    }).toThrow(/out of range/);
+});

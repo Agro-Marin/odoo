@@ -295,62 +295,62 @@ class ThreadController(http.Controller):
             if body and not isinstance(body, str):
                 raise NotFound
             res["body"] = Markup(body) if body else body
-        partner_ids = post_data.get("partner_ids")
-        partner_emails = post_data.get("partner_emails")
-        role_ids = post_data.get("role_ids")
-        if (
-            partner_ids is not None
-            or partner_emails is not None
-            or role_ids is not None
+        if any(
+            post_data.get(key) is not None
+            for key in ("partner_ids", "partner_emails", "role_ids")
         ):
-            partners = request.env["res.partner"].browse(to_record_ids(partner_ids))
-            if partner_emails:
-                if isinstance(partner_emails, str) or not isinstance(
-                    partner_emails, (list, tuple)
-                ):
-                    raise NotFound
-                if len(partner_emails) > MAX_EMAILS_PER_REQUEST:
-                    raise NotFound
-                partners |= thread._partner_find_from_emails_single(
-                    partner_emails,
-                    no_create=not request.env.user.has_group(
-                        "base.group_partner_manager"
-                    ),
-                )
-            if role_ids:
-                partners |= (
-                    request.env["res.users"]
-                    .sudo()
-                    .search_fetch(
-                        [("role_ids", "in", to_record_ids(role_ids))],
-                        ["partner_id"],
-                    )
-                    .partner_id
-                )
-            readable_ids = (
-                set(partners._filtered_access("read").ids)
-                if not request.env.user.share
-                else set()
-            )
-            mention_tokens = post_data.get("partner_ids_mention_token") or {}
-            mentionable_ids = self._mentionable_partner_ids(thread)
-            res["partner_ids"] = partners.filtered(
-                lambda p: (
-                    p.id in readable_ids
-                    or (
-                        verify_limited_field_access_token(
-                            p,
-                            "id",
-                            mention_tokens.get(str(p.id), ""),
-                            scope="mail.message_mention",
-                        )
-                        and (mentionable_ids is None or p.id in mentionable_ids)
-                    )
-                ),
-            ).ids
+            res["partner_ids"] = self._get_message_partner_ids(post_data, thread)
         if from_create:
             res.setdefault("message_type", "comment")
         return res
+
+    def _get_message_partner_ids(self, post_data: dict, thread: models.Model) -> list:
+        partners = request.env["res.partner"].browse(
+            to_record_ids(post_data.get("partner_ids"))
+        )
+        partner_emails = post_data.get("partner_emails")
+        if partner_emails:
+            if isinstance(partner_emails, str) or not isinstance(
+                partner_emails, (list, tuple)
+            ):
+                raise NotFound
+            if len(partner_emails) > MAX_EMAILS_PER_REQUEST:
+                raise NotFound
+            partners |= thread._partner_find_from_emails_single(
+                partner_emails,
+                no_create=not request.env.user.has_group("base.group_partner_manager"),
+            )
+        if role_ids := post_data.get("role_ids"):
+            partners |= (
+                request.env["res.users"]
+                .sudo()
+                .search_fetch(
+                    [("role_ids", "in", to_record_ids(role_ids))],
+                    ["partner_id"],
+                )
+                .partner_id
+            )
+        readable_ids = (
+            set(partners._filtered_access("read").ids)
+            if not request.env.user.share
+            else set()
+        )
+        mention_tokens = post_data.get("partner_ids_mention_token") or {}
+        mentionable_ids = self._mentionable_partner_ids(thread)
+        return partners.filtered(
+            lambda p: (
+                p.id in readable_ids
+                or (
+                    verify_limited_field_access_token(
+                        p,
+                        "id",
+                        mention_tokens.get(str(p.id), ""),
+                        scope="mail.message_mention",
+                    )
+                    and (mentionable_ids is None or p.id in mentionable_ids)
+                )
+            ),
+        ).ids
 
     @http.route("/mail/message/post", methods=["POST"], type="jsonrpc", auth="public")
     @add_guest_to_context

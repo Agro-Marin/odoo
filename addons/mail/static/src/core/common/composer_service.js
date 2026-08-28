@@ -1,44 +1,64 @@
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+const HTML_ENABLED_KEY = "mail.html_composer.enabled";
+
+export class ComposerService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {Partial<import("services").Services>} services
+     */
+    constructor(env, services) {
+        this.env = env;
+        this.multiTab = services.legacy_multi_tab;
+        this.htmlEnabled = this.readHtmlEnabled();
+    }
+
+    setup() {
+        this.multiTab.bus.addEventListener(
+            "shared_value_updated",
+            /** @param {CustomEvent<{key: string}>} ev */ ({ detail }) => {
+                if (detail.key === HTML_ENABLED_KEY) {
+                    this.htmlEnabled = this.readHtmlEnabled();
+                }
+            },
+        );
+    }
+
+    readHtmlEnabled() {
+        return this.multiTab.getSharedValue(HTML_ENABLED_KEY, false) === true;
+    }
+
+    setHtmlComposer() {
+        this._setHtmlEnabled(true);
+    }
+
+    setTextComposer() {
+        this._setHtmlEnabled(false);
+    }
+
+    /**
+     * @param {boolean} htmlEnabled
+     */
+    _setHtmlEnabled(htmlEnabled) {
+        if (this.htmlEnabled === htmlEnabled) {
+            return;
+        }
+        this.htmlEnabled = htmlEnabled;
+        this.multiTab.setSharedValue(HTML_ENABLED_KEY, htmlEnabled);
+    }
+}
+
 export const composerService = {
     dependencies: ["mail.store", "legacy_multi_tab"],
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {Partial<import("services").Services>} services
      */
-    start(env, { legacy_multi_tab }) {
-        const readHtmlEnabled = () =>
-            legacy_multi_tab.getSharedValue("mail.html_composer.enabled", false) ===
-            true;
-        const state = reactive({
-            htmlEnabled: readHtmlEnabled(),
-            setHtmlComposer() {
-                if (state.htmlEnabled) {
-                    return;
-                }
-                state.htmlEnabled = true;
-                legacy_multi_tab.setSharedValue("mail.html_composer.enabled", true);
-            },
-            setTextComposer() {
-                if (!state.htmlEnabled) {
-                    return;
-                }
-                state.htmlEnabled = false;
-                legacy_multi_tab.setSharedValue("mail.html_composer.enabled", false);
-            },
-        });
-
-        legacy_multi_tab.bus.addEventListener(
-            "shared_value_updated",
-            /** @param {CustomEvent<{key: string}>} ev */ ({ detail }) => {
-                if (detail.key === "mail.html_composer.enabled") {
-                    state.htmlEnabled = readHtmlEnabled();
-                }
-            },
-        );
-
-        return state;
+    start(env, services) {
+        const composer = reactive(new ComposerService(env, services));
+        composer.setup();
+        return composer;
     },
 };
 

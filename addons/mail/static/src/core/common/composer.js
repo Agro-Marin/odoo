@@ -115,8 +115,7 @@ export class Composer extends Component {
     ];
     static template = "mail.Composer";
 
-    setup() {
-        super.setup();
+    _setupServices() {
         this.dialogService = useService("dialog");
         /** @type {import("@html_editor/editor").Editor} */
         this.editor = undefined;
@@ -149,6 +148,8 @@ export class Composer extends Component {
         this.root = useRef("root");
         this.fullComposer = useFullComposer();
         this.draft = useComposerDraft();
+    }
+    _setupSelection() {
         this.selection = useSelection({
             refName: "textarea",
             model: this.props.composer.selection,
@@ -166,6 +167,8 @@ export class Composer extends Component {
                 );
             },
         });
+    }
+    _setupInputHandlers() {
         this.suggestion = useSuggestion();
         this.markEventHandled = markEventHandled;
         this.onDropFile = this.onDropFile.bind(this);
@@ -201,6 +204,8 @@ export class Composer extends Component {
                     (!this.store.rtc.state.isFullscreen || this.env.inMeetingView),
             );
         }
+    }
+    _setupEffects() {
         useChildSubEnv({ inComposer: true });
         useEffect(
             /** @param {number} focus */
@@ -264,6 +269,8 @@ export class Composer extends Component {
             this.props.composer.isFocused = false;
             this.editor = undefined;
         });
+    }
+    _setupComposerSync() {
         const composerProxy = reactive(this.props.composer, () => {
             if (status(this) === "destroyed") {
                 return;
@@ -280,6 +287,14 @@ export class Composer extends Component {
             this.editor.shared.history.addStep();
         });
         void composerProxy.composerHtml;
+    }
+    setup() {
+        super.setup();
+        this._setupServices();
+        this._setupSelection();
+        this._setupInputHandlers();
+        this._setupEffects();
+        this._setupComposerSync();
     }
 
     setEditorCursorEnd() {

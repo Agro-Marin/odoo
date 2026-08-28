@@ -32,7 +32,7 @@ export class CallPreview extends Component {
     static props = ["activateCamera?", "activateMicrophone?", "onSettingsChanged?"];
     static components = { ActionList };
 
-    setup() {
+    _setupServicesAndRefs() {
         this.dialog = useService("dialog");
         this.notification = useService("notification");
         this.rtc = useService("discuss.rtc");
@@ -45,6 +45,8 @@ export class CallPreview extends Component {
         });
         this.audioRef = useRef("audio");
         this.videoRef = useRef("video");
+    }
+    _setupPreviewEffect() {
         useEffect(
             /**
              * @param {HTMLVideoElement|null} videoEl
@@ -70,6 +72,8 @@ export class CallPreview extends Component {
                 this.state.blurStream,
             ],
         );
+    }
+    _setupRtcPreview() {
         if (this.hasRtcSupport) {
             useOnChange(this.rtc, "microphonePermission", () => {
                 if (this.rtc.microphonePermission !== "granted") {
@@ -142,6 +146,11 @@ export class CallPreview extends Component {
                 () => [this.props.activateMicrophone],
             );
         }
+    }
+    setup() {
+        this._setupServicesAndRefs();
+        this._setupPreviewEffect();
+        this._setupRtcPreview();
     }
 
     get hasRtcSupport() {

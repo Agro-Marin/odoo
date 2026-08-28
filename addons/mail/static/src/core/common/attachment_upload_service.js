@@ -3,6 +3,11 @@ import { EventBus } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
+
+/**
+ * @typedef {{data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}} Upload
+ */
+
 export class AttachmentUploadService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -31,86 +36,104 @@ export class AttachmentUploadService {
         this._fileUploadBus = new EventBus();
         /** @type {Map<number, {composer: import("models").Composer, thread: import("models").Thread}>} */
         this.targetsByTmpId = new Map();
-        this.fileUploadService.bus.addEventListener(
-            "FILE_UPLOAD_ADDED",
-            /** @param {CustomEvent<{upload: {data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}}>} ev */
-            ({ detail: { upload } }) => {
-                const tmpId = parseInt(upload.data.get("temporary_id"));
-                if (!this.uploadingAttachmentIds.has(tmpId)) {
-                    return;
-                }
-                const { thread, composer } = this.targetsByTmpId.get(tmpId);
-                const tmpUrl = upload.data.get("tmp_url");
-                this.abortByAttachmentId.set(tmpId, upload.xhr.abort.bind(upload.xhr));
-                const attachment = this.store["ir.attachment"].insert(
-                    this._makeAttachmentData(
-                        upload,
-                        tmpId,
-                        composer ? undefined : thread,
-                        tmpUrl,
-                    ),
-                );
-                composer?.attachments.push(attachment);
-            },
+        for (const [event, handler] of [
+            ["FILE_UPLOAD_ADDED", this._onUploadAdded],
+            ["FILE_UPLOAD_LOADED", this._onUploadLoaded],
+            ["FILE_UPLOAD_ERROR", this._onUploadError],
+        ]) {
+            this.fileUploadService.bus.addEventListener(
+                event,
+                /** @param {CustomEvent<{upload: Upload}>} ev */
+                ({ detail: { upload } }) => {
+                    const tmpId = parseInt(upload.data.get("temporary_id"));
+                    if (this.uploadingAttachmentIds.has(tmpId)) {
+                        handler.call(this, upload, tmpId);
+                    }
+                },
+            );
+        }
+    }
+
+    /**
+     * @param {Upload} upload
+     * @param {number} tmpId
+     */
+    _onUploadAdded(upload, tmpId) {
+        const { thread, composer } = this.targetsByTmpId.get(tmpId);
+        const tmpUrl = upload.data.get("tmp_url");
+        this.abortByAttachmentId.set(tmpId, upload.xhr.abort.bind(upload.xhr));
+        const attachment = this.store["ir.attachment"].insert(
+            this._makeAttachmentData(
+                upload,
+                tmpId,
+                composer ? undefined : thread,
+                tmpUrl,
+            ),
         );
-        this.fileUploadService.bus.addEventListener(
-            "FILE_UPLOAD_LOADED",
-            /** @param {CustomEvent<{upload: {data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}}>} ev */
-            ({ detail: { upload } }) => {
-                const tmpId = parseInt(upload.data.get("temporary_id"));
-                if (!this.uploadingAttachmentIds.has(tmpId)) {
-                    return;
-                }
-                const def = this.deferredByAttachmentId.get(tmpId);
-                if (upload.xhr.status === 413) {
-                    this.notificationService.add(_t("File too large"), {
-                        type: "danger",
-                    });
-                    def.resolve();
-                    this._cleanupUploading(tmpId);
-                    return;
-                }
-                if (upload.xhr.status !== 200) {
-                    this.notificationService.add(_t("Server error"), {
-                        type: "danger",
-                    });
-                    def.resolve();
-                    this._cleanupUploading(tmpId);
-                    return;
-                }
-                let response;
-                try {
-                    response = JSON.parse(upload.xhr.response);
-                } catch {
-                    this.notificationService.add(_t("Server error"), {
-                        type: "danger",
-                    });
-                    def.resolve();
-                    this._cleanupUploading(tmpId);
-                    return;
-                }
-                if (response.error) {
-                    this.notificationService.add(response.error, { type: "danger" });
-                    def.resolve();
-                    this._cleanupUploading(tmpId);
-                    return;
-                }
-                const { thread, composer } = this.targetsByTmpId.get(tmpId);
-                this._processLoaded(thread, composer, response, tmpId, def);
-            },
+        composer?.attachments.push(attachment);
+    }
+
+    /**
+     * @param {Upload} upload
+     * @param {number} tmpId
+     */
+    _onUploadLoaded(upload, tmpId) {
+        const response = this._parseUploadResponse(upload, tmpId);
+        if (!response) {
+            return;
+        }
+        const { thread, composer } = this.targetsByTmpId.get(tmpId);
+        this._processLoaded(
+            thread,
+            composer,
+            response,
+            tmpId,
+            this.deferredByAttachmentId.get(tmpId),
         );
-        this.fileUploadService.bus.addEventListener(
-            "FILE_UPLOAD_ERROR",
-            /** @param {CustomEvent<{upload: {data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}}>} ev */
-            ({ detail: { upload } }) => {
-                const tmpId = parseInt(upload.data.get("temporary_id"));
-                if (!this.uploadingAttachmentIds.has(tmpId)) {
-                    return;
-                }
-                this.deferredByAttachmentId.get(tmpId).resolve();
-                this._cleanupUploading(tmpId);
-            },
-        );
+    }
+
+    /**
+     * @param {Upload} upload
+     * @param {number} tmpId
+     */
+    _onUploadError(upload, tmpId) {
+        this.deferredByAttachmentId.get(tmpId).resolve();
+        this._cleanupUploading(tmpId);
+    }
+
+    /**
+     * @param {Upload} upload
+     * @param {number} tmpId
+     * @returns {Object|undefined} the parsed body, or undefined once the
+     *  failure has been reported and the upload cleaned up
+     */
+    _parseUploadResponse(upload, tmpId) {
+        if (upload.xhr.status === 413) {
+            return this._abandonUpload(tmpId, _t("File too large"));
+        }
+        if (upload.xhr.status !== 200) {
+            return this._abandonUpload(tmpId, _t("Server error"));
+        }
+        let response;
+        try {
+            response = JSON.parse(upload.xhr.response);
+        } catch {
+            return this._abandonUpload(tmpId, _t("Server error"));
+        }
+        if (response.error) {
+            return this._abandonUpload(tmpId, response.error);
+        }
+        return response;
+    }
+
+    /**
+     * @param {number} tmpId
+     * @param {string} message
+     */
+    _abandonUpload(tmpId, message) {
+        this.notificationService.add(message, { type: "danger" });
+        this.deferredByAttachmentId.get(tmpId).resolve();
+        this._cleanupUploading(tmpId);
     }
 
     /**

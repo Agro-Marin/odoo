@@ -271,3 +271,51 @@ test("suggested recipients should not be added as follower when posting a messag
     await contains(".o-mail-Message");
     await contains(".o-mail-Followers-counter", { text: "0" });
 });
+
+test("the recipients dropdown labels a partner with its email, and without one when it has none", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].create({ name: "Zorg Withmail", email: "zorg@example.com" });
+    pyEnv["res.partner"].create({ name: "Zorg Nomail", email: false });
+    const fakeId = pyEnv["res.fake"].create({});
+    registerArchs(archs);
+    await start();
+    await openFormView("res.fake", fakeId);
+    await click("button", { text: "Send message" });
+    await insertText(".o-mail-RecipientsInput .o-autocomplete--input", "Zorg");
+    await contains(".o-autocomplete--dropdown-item", {
+        text: "Zorg Withmail <zorg@example.com>",
+    });
+    await contains(".o-autocomplete--dropdown-item", { text: "Zorg Nomail" });
+});
+
+test("the recipients dropdown offers 'Search More...' only once the limit is reached", async () => {
+    const pyEnv = await startServer();
+    for (let i = 0; i < 8; i++) {
+        pyEnv["res.partner"].create({
+            name: `Zorg ${i}`,
+            email: `zorg${i}@example.com`,
+        });
+    }
+    const fakeId = pyEnv["res.fake"].create({});
+    registerArchs(archs);
+    await start();
+    await openFormView("res.fake", fakeId);
+    await click("button", { text: "Send message" });
+    await insertText(".o-mail-RecipientsInput .o-autocomplete--input", "Zorg");
+    await contains(".o_m2o_dropdown_option_search_more");
+});
+
+test("the recipients dropdown does not offer 'Search More...' below the limit", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].create({ name: "Zorg Only", email: "only@example.com" });
+    const fakeId = pyEnv["res.fake"].create({});
+    registerArchs(archs);
+    await start();
+    await openFormView("res.fake", fakeId);
+    await click("button", { text: "Send message" });
+    await insertText(".o-mail-RecipientsInput .o-autocomplete--input", "Zorg");
+    await contains(".o-autocomplete--dropdown-item", {
+        text: "Zorg Only <only@example.com>",
+    });
+    await contains(".o_m2o_dropdown_option_search_more", { count: 0 });
+});

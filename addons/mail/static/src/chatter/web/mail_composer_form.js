@@ -21,11 +21,47 @@ export class MailComposerFormController extends formView.Controller {
     }
 }
 
+/**
+ * @param {SuggestedRecipient} recipient
+ * @param {Object[]} selectedPartners
+ * @returns {SuggestedRecipient}
+ */
+function withCorrespondingPartner(recipient, selectedPartners) {
+    const partner = selectedPartners.find(
+        (partner) =>
+            partner.id === recipient.partner_id || partner.email === recipient.email,
+    );
+    if (!partner) {
+        return recipient;
+    }
+    return {
+        ...recipient,
+        email: partner.email,
+        lang: partner.lang,
+        name: partner.name,
+        partner_id: partner.id,
+    };
+}
 export class MailComposerFormRenderer extends formView.Renderer {
-    setup() {
-        super.setup();
-        this.orm = useService("orm");
-        this.root = useRef("compiled_view_root");
+    /** @returns {import("models").Thread[]} */
+    _getActiveMailThreads() {
+        let resIds;
+        if (this.props.record.resModel === "mail.scheduled.message") {
+            resIds = [this.props.record.data.res_id.resId];
+        } else {
+            resIds = this.props.record.data.res_ids
+                ? JSON.parse(this.props.record.data.res_ids)
+                : this.props.record.context.active_ids;
+        }
+        return resIds.map((resId) => {
+            const thread = this.mailStore.Thread.insert({
+                model: this.props.record.data.model,
+                id: resId,
+            });
+            return thread;
+        });
+    }
+    _setupReplyAllFocus() {
         useEffect(
             /**
              * @param {boolean} isInEdition
@@ -50,25 +86,8 @@ export class MailComposerFormRenderer extends formView.Renderer {
                 this.props.record.resId,
             ],
         );
-
-        const getActiveMailThreads = () => {
-            let resIds;
-            if (this.props.record.resModel === "mail.scheduled.message") {
-                resIds = [this.props.record.data.res_id.resId];
-            } else {
-                resIds = this.props.record.data.res_ids
-                    ? JSON.parse(this.props.record.data.res_ids)
-                    : this.props.record.context.active_ids;
-            }
-            return resIds.map((resId) => {
-                const thread = this.mailStore.Thread.insert({
-                    model: this.props.record.data.model,
-                    id: resId,
-                });
-                return thread;
-            });
-        };
-
+    }
+    _setupAttachmentDropzone() {
         this.attachmentUploadService = useService("mail.attachment_upload");
         this.operations = useX2ManyCrud(
             () => this.props.record.data["attachment_ids"],
@@ -78,7 +97,7 @@ export class MailComposerFormRenderer extends formView.Renderer {
         useCustomDropzone(this.root, MailAttachmentDropzone, {
             /** @param {Event} event */
             onDrop: async (event) => {
-                const [thread] = getActiveMailThreads();
+                const [thread] = this._getActiveMailThreads();
                 if (!thread) {
                     return;
                 }
@@ -96,89 +115,64 @@ export class MailComposerFormRenderer extends formView.Renderer {
                 }
             },
         });
-
-        /** @param {function} callback */
-        const onCloseWizardModal = (callback) => {
-            this.env.dialogData.dismiss = callback;
-        };
-
-        onCloseWizardModal(async () => {
-            if (this.props.record.resModel === "mail.scheduled.message") {
-                return;
+    }
+    /**
+     * @param {import("models").Thread} thread
+     * @param {Object[]} selectedPartners
+     * @param {number[]} selectedPartnerIds
+     */
+    _updateThreadRecipients(thread, selectedPartners, selectedPartnerIds) {
+        /** @param {SuggestedRecipient} recipient */
+        const isSelected = (recipient) =>
+            selectedPartnerIds.includes(recipient.partner_id);
+        /** @param {SuggestedRecipient} recipient */
+        const merged = (recipient) =>
+            withCorrespondingPartner(recipient, selectedPartners);
+        thread.suggestedRecipients = thread.suggestedRecipients
+            .map(merged)
+            .filter(isSelected);
+        thread.additionalRecipients = thread.additionalRecipients
+            .map(merged)
+            .filter(isSelected);
+        for (const partner of selectedPartners) {
+            const allRecipients = [
+                ...thread.suggestedRecipients,
+                ...thread.additionalRecipients,
+            ];
+            if (
+                !allRecipients.some((recipient) => recipient.partner_id === partner.id)
+            ) {
+                thread.additionalRecipients.push({
+                    display_name: partner.display_name,
+                    email: partner.email,
+                    lang: partner.lang,
+                    name: partner.name,
+                    partner_id: partner.id,
+                });
             }
-
-            const selectedPartnerIds = this.props.record.data.partner_ids.currentIds;
-            const selectedPartners = await this.orm.searchRead(
-                "res.partner",
-                [["id", "in", selectedPartnerIds]],
-                ["email", "id", "lang", "name"],
-            );
-
-            /**
-             * @param {SuggestedRecipient} recipient
-             * @returns {SuggestedRecipient}
-             */
-            const updateRecipientWithCorrespondingPartner = (recipient) => {
-                const partner = selectedPartners.find(
-                    (partner) =>
-                        partner.id === recipient.partner_id ||
-                        partner.email === recipient.email,
-                );
-                if (partner) {
-                    return {
-                        ...recipient,
-                        email: partner.email,
-                        lang: partner.lang,
-                        name: partner.name,
-                        partner_id: partner.id,
-                    };
-                }
-                return recipient;
-            };
-
-            /**
-             * @param {SuggestedRecipient} recipient
-             * @returns {boolean}
-             */
-            const isRecipientSelectedFromFullMailComposer = (recipient) =>
-                selectedPartnerIds.includes(recipient.partner_id);
-
-            for (const thread of getActiveMailThreads()) {
-                thread.suggestedRecipients = thread.suggestedRecipients.map(
-                    updateRecipientWithCorrespondingPartner,
-                );
-                thread.additionalRecipients = thread.additionalRecipients.map(
-                    updateRecipientWithCorrespondingPartner,
-                );
-
-                thread.suggestedRecipients = thread.suggestedRecipients.filter(
-                    isRecipientSelectedFromFullMailComposer,
-                );
-                thread.additionalRecipients = thread.additionalRecipients.filter(
-                    isRecipientSelectedFromFullMailComposer,
-                );
-
-                for (const partner of selectedPartners) {
-                    const allRecipients = [
-                        ...thread.suggestedRecipients,
-                        ...thread.additionalRecipients,
-                    ];
-                    if (
-                        !allRecipients.some(
-                            (recipient) => recipient.partner_id === partner.id,
-                        )
-                    ) {
-                        thread.additionalRecipients.push({
-                            display_name: partner.display_name,
-                            email: partner.email,
-                            lang: partner.lang,
-                            name: partner.name,
-                            partner_id: partner.id,
-                        });
-                    }
-                }
-            }
-        });
+        }
+    }
+    async _syncRecipientsFromFullComposer() {
+        if (this.props.record.resModel === "mail.scheduled.message") {
+            return;
+        }
+        const selectedPartnerIds = this.props.record.data.partner_ids.currentIds;
+        const selectedPartners = await this.orm.searchRead(
+            "res.partner",
+            [["id", "in", selectedPartnerIds]],
+            ["email", "id", "lang", "name"],
+        );
+        for (const thread of this._getActiveMailThreads()) {
+            this._updateThreadRecipients(thread, selectedPartners, selectedPartnerIds);
+        }
+    }
+    setup() {
+        super.setup();
+        this.orm = useService("orm");
+        this.root = useRef("compiled_view_root");
+        this._setupReplyAllFocus();
+        this._setupAttachmentDropzone();
+        this.env.dialogData.dismiss = () => this._syncRecipientsFromFullComposer();
     }
 }
 

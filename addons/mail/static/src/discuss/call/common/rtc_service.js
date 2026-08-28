@@ -58,6 +58,134 @@ const UNAVAILABLE_AS_REMOTE = _t("This action can only be done in the call tab."
 const CALL_FULLSCREEN_ID = Symbol("CALL_FULLSCREEN");
 
 /**
+ * @param {import("models").Rtc} rtc
+ * @param {import("services").ServiceFactories} services
+ */
+function bindPipMode(rtc, services) {
+    rtc.pipService = services["discuss.pip_service"];
+    onChange(rtc.pipService.state, "active", () => {
+        const isPipMode = rtc.pipService.state.active;
+        if (!isPipMode) {
+            rtc.channel?.openChatWindow();
+        }
+        rtc.state.isPipMode = isPipMode;
+        rtc.crossTab?.notifyPipChange(isPipMode);
+    });
+}
+/**
+ * @param {import("models").Rtc} rtc
+ * @param {import("services").ServiceFactories} services
+ */
+function bindFullscreen(rtc, services) {
+    rtc.fullscreen = services["mail.fullscreen"];
+    onChange(rtc.fullscreen, "id", () => {
+        const wasFullscreen = rtc.state.isFullscreen;
+        rtc.state.isFullscreen = rtc.fullscreen.id === CALL_FULLSCREEN_ID;
+        if (
+            rtc.state.screenTrack &&
+            rtc.displaySurface !== "browser" &&
+            rtc.fullscreen.id === CALL_FULLSCREEN_ID
+        ) {
+            rtc.showMirroringWarning();
+        } else if (!rtc.state.isFullscreen) {
+            rtc.removeMirroringWarning?.();
+            if (wasFullscreen && rtc.state.screenTrack) {
+                rtc.state.screenTrack.enabled = true;
+            }
+        }
+    });
+}
+/**
+ * @param {import("models").Rtc} rtc
+ * @param {PermissionName} name
+ * @param {string} field
+ */
+function trackPermission(rtc, name, field) {
+    browser.navigator.permissions
+        ?.query({ name })
+        .then((status) => {
+            rtc[field] = status.state;
+            status.onchange = () => (rtc[field] = status.state);
+        })
+        .catch(() => {});
+}
+/**
+ * @param {import("models").Rtc} rtc
+ * @param {import("services").ServiceFactories} services
+ * @param {import("models").Store} store
+ */
+function bindP2pService(rtc, services, store) {
+    rtc.p2pService = services["discuss.p2p"];
+    rtc.p2pService.acceptOffer =
+        /**
+         * @param {number|string} id
+         * @param {number} sequence
+         * @returns {Promise<boolean>}
+         */ async (id, sequence) => {
+            const session = await store["discuss.channel.rtc.session"].getWhenReady(
+                Number(id),
+            );
+            return sequence >= session?.sequence;
+        };
+}
+/**
+ * @param {import("models").Rtc} rtc
+ * @param {import("services").ServiceFactories} services
+ * @param {import("@web/env").OdooEnv} env
+ */
+function bindRtcBusEvents(rtc, services, env) {
+    services["bus_service"].subscribe(
+        "discuss.channel.rtc.session/sfu_hot_swap",
+        /** @param {{serverInfo: Object}} payload */
+        async ({ serverInfo }) => {
+            if (!rtc.localSession) {
+                return;
+            }
+            if (rtc.serverInfo?.channelUUID === serverInfo.channelUUID) {
+                rtc.p2pService.removeAllPeers();
+                return;
+            }
+            rtc.serverInfo = serverInfo;
+            await rtc._initConnection();
+        },
+    );
+    services["bus_service"].subscribe(
+        "discuss.channel.rtc.session/ended",
+        /** @param {{sessionId: number}} payload */
+        ({ sessionId }) => {
+            if (rtc.localSession?.id === sessionId) {
+                rtc.notifyServerDisconnect();
+                rtc.endCall();
+            }
+        },
+    );
+    services["bus_service"].subscribe(
+        "res.users.settings.volumes",
+        /** @param {Object} payload */ (payload) => {
+            if (payload) {
+                rtc.store.Volume.insert(payload);
+            }
+        },
+    );
+    services["bus_service"].subscribe(
+        "discuss.channel.rtc.session/update_and_broadcast",
+        /** @param {{data: Object, channelId: number}} payload */
+        (payload) => {
+            const { data, channelId } = payload;
+            if (channelId !== rtc.channel?.id) {
+                rtc.store.insert(data);
+            }
+        },
+    );
+    services["presence"].bus.addEventListener(
+        "presence",
+        () => {
+            env.bus.trigger("RTC-SERVICE:PLAY_MEDIA");
+        },
+        { once: true },
+    );
+}
+/**
  * @typedef {Object} RtcCallState
  * @property {string} [connectionType]
  * @property {boolean} hasPendingRequest
@@ -245,14 +373,8 @@ export class Rtc extends Record {
         });
     }
 
-    start() {
-        const services = this.store.env.services;
-        this.notification = services.notification;
-        this.overlay = services.overlay;
-        this.dialog = services.dialog;
-        this.soundEffectsService = services["mail.sound_effects"];
-        this.pttExtService = services["discuss.ptt_extension"];
-        this.transport = new CallTransport({
+    _createTransport() {
+        return new CallTransport({
             getP2p: () => this.p2pService,
             state: this.state,
             hooks: {
@@ -287,7 +409,9 @@ export class Rtc extends Record {
                 leaveCall: () => this.leaveCall(),
             },
         });
-        this.media = new LocalMediaController({
+    }
+    _createMediaController() {
+        return new LocalMediaController({
             state: this.state,
             hooks: {
                 getSettings: () => this.store.settings,
@@ -304,7 +428,9 @@ export class Rtc extends Record {
                 refreshMicAudioStatus: () => this.refreshMicAudioStatus(),
             },
         });
-        this.crossTab = new CrossTabSync({
+    }
+    _createCrossTabSync() {
+        return new CrossTabSync({
             state: this.state,
             hooks: {
                 isHost: () => this.isHost,
@@ -338,7 +464,8 @@ export class Rtc extends Record {
                 log: (entry, options) => this.log(this.selfSession, entry, options),
             },
         });
-        this.crossTab.start();
+    }
+    _bindSettingsChanges() {
         onChange(this.store.settings, "useBlur", () => {
             if (this.state.sendCamera) {
                 this.toggleVideo("camera", { force: true });
@@ -378,6 +505,8 @@ export class Rtc extends Record {
                 await this.toggleVideo("camera", { force: true, refreshStream: true });
             }
         });
+    }
+    _bindBrowserEvents() {
         this.store.env.bus.addEventListener("RTC-SERVICE:PLAY_MEDIA", () => {
             const channel = this.state.channel;
             if (!channel) {
@@ -418,6 +547,20 @@ export class Rtc extends Record {
                 this.sfuClient?.disconnect();
             }
         });
+    }
+    start() {
+        const services = this.store.env.services;
+        this.notification = services.notification;
+        this.overlay = services.overlay;
+        this.dialog = services.dialog;
+        this.soundEffectsService = services["mail.sound_effects"];
+        this.pttExtService = services["discuss.ptt_extension"];
+        this.transport = this._createTransport();
+        this.media = this._createMediaController();
+        this.crossTab = this._createCrossTabSync();
+        this.crossTab.start();
+        this._bindSettingsChanges();
+        this._bindBrowserEvents();
     }
 
     _startPing() {
@@ -1032,25 +1175,7 @@ export class Rtc extends Record {
         }
         switch (name) {
             case "broadcast":
-                {
-                    const {
-                        senderId,
-                        message: { sequence },
-                    } = payload;
-                    if (!sequence) {
-                        return;
-                    }
-                    const session =
-                        await this.store["discuss.channel.rtc.session"].getWhenReady(
-                            senderId,
-                        );
-                    if (!session) {
-                        return;
-                    }
-                    if (!session.sequence || session.sequence < sequence) {
-                        session.sequence = sequence;
-                    }
-                }
+                await this._onNetworkBroadcast(payload);
                 return;
             case "connection_change":
                 {
@@ -1077,52 +1202,71 @@ export class Rtc extends Record {
                 this.updateSessionInfo(payload);
                 return;
             case "track":
-                {
-                    const { sessionId, type, track, active, sequence } = payload;
-                    const session =
-                        await this.store["discuss.channel.rtc.session"].getWhenReady(
-                            sessionId,
-                        );
-                    if (!session || !this.state.channel) {
-                        this.log(
-                            this.selfSession,
-                            `track received for unknown session ${sessionId} (${this.state.connectionType})`,
-                        );
-                        return;
-                    }
-                    if (sequence && sequence < session.sequence) {
-                        this.log(
-                            session,
-                            `track received for old sequence ${sequence} (${this.state.connectionType})`,
-                        );
-                        return;
-                    }
-                    this.log(
-                        session,
-                        `${type} track received (${this.state.connectionType})`,
-                    );
-                    try {
-                        await this.handleRemoteTrack({ session, track, type, active });
-                    } catch {}
-                    browser.setTimeout(() => {
-                        this.updateVideoDownload(session);
-                    }, 2000);
-                }
+                await this._onNetworkTrack(payload);
                 return;
-            case "recovery": {
-                const { id } = payload;
-                const session = this.store["discuss.channel.rtc.session"].get(id);
-                if (
-                    this.selfSession?.partner_id?.main_user_id?.share !== false ||
-                    this.serverInfo ||
-                    this.state.fallbackMode ||
-                    !session?.channel.eq(this.state.channel)
-                ) {
-                    return;
-                }
-                this.transport.onP2pRecovery(hasTurn(this.iceServers));
-            }
+            case "recovery":
+                this._onNetworkRecovery(payload);
+                return;
         }
+    }
+    /** @param {Object} payload */
+    async _onNetworkBroadcast(payload) {
+        const {
+            senderId,
+            message: { sequence },
+        } = payload;
+        if (!sequence) {
+            return;
+        }
+        const session =
+            await this.store["discuss.channel.rtc.session"].getWhenReady(senderId);
+        if (!session) {
+            return;
+        }
+        if (!session.sequence || session.sequence < sequence) {
+            session.sequence = sequence;
+        }
+    }
+    /** @param {Object} payload */
+    async _onNetworkTrack(payload) {
+        const { sessionId, type, track, active, sequence } = payload;
+        const session =
+            await this.store["discuss.channel.rtc.session"].getWhenReady(sessionId);
+        if (!session || !this.state.channel) {
+            this.log(
+                this.selfSession,
+                `track received for unknown session ${sessionId} (${this.state.connectionType})`,
+            );
+            return;
+        }
+        if (sequence && sequence < session.sequence) {
+            this.log(
+                session,
+                `track received for old sequence ${sequence} (${this.state.connectionType})`,
+            );
+            return;
+        }
+        this.log(session, `${type} track received (${this.state.connectionType})`);
+        try {
+            await this.handleRemoteTrack({ session, track, type, active });
+        } catch {}
+        browser.setTimeout(() => {
+            this.updateVideoDownload(session);
+        }, 2000);
+    }
+    /** @param {Object} payload */
+    _onNetworkRecovery(payload) {
+        const { id } = payload;
+        const session = this.store["discuss.channel.rtc.session"].get(id);
+        if (
+            this.selfSession?.partner_id?.main_user_id?.share !== false ||
+            this.serverInfo ||
+            this.state.fallbackMode ||
+            !session?.channel.eq(this.state.channel)
+        ) {
+            return;
+        }
+        this.transport.onP2pRecovery(hasTurn(this.iceServers));
     }
 
     /** @param {Object|undefined} payload */
@@ -1213,6 +1357,20 @@ export class Rtc extends Record {
         }
         this.pttExtService.subscribe();
         this.state.hasPendingRequest = true;
+        const data = await this._requestCallJoin(channel, camera);
+        this.clear();
+        this.state.channel = channel;
+        this.store.insert(data);
+        this.newLogs();
+        this._installUpdateAndBroadcastDebounce();
+        await this._startCallSession(audio, camera);
+    }
+    /**
+     * @param {import("models").Thread} channel
+     * @param {boolean} camera
+     * @returns {Promise<Object|undefined>}
+     */
+    async _requestCallJoin(channel, camera) {
         let data;
         try {
             data = await rpc(
@@ -1232,10 +1390,9 @@ export class Rtc extends Record {
         } finally {
             this.state.hasPendingRequest = false;
         }
-        this.clear();
-        this.state.channel = channel;
-        this.store.insert(data);
-        this.newLogs();
+        return data;
+    }
+    _installUpdateAndBroadcastDebounce() {
         this.state.updateAndBroadcastDebounce = debounce(
             async () => {
                 if (!this.localSession) {
@@ -1259,6 +1416,12 @@ export class Rtc extends Record {
             3000,
             { leading: true, trailing: true },
         );
+    }
+    /**
+     * @param {boolean} audio
+     * @param {boolean} camera
+     */
+    async _startCallSession(audio, camera) {
         if (this.state.channel.self_member_id) {
             this.state.channel.self_member_id.rtc_inviting_session_id = undefined;
         }
@@ -1563,6 +1726,19 @@ export class Rtc extends Record {
         if (!this.state.channel?.id) {
             return;
         }
+        await this._applyVideoToggle(type, { force, env, refreshStream });
+        if (this.localSession) {
+            await this._broadcastVideoState(type);
+        }
+        const updatedTrack =
+            type === "camera" ? this.state.cameraTrack : this.state.screenTrack;
+        await this._updateTrackUpload(type, updatedTrack);
+    }
+    /**
+     * @param {"camera"|"screen"} type
+     * @param {Object} options
+     */
+    async _applyVideoToggle(type, { force, env, refreshStream }) {
         switch (type) {
             case "camera": {
                 if (this.cameraPermission === "prompt" && !this.state.cameraTrack) {
@@ -1590,54 +1766,46 @@ export class Rtc extends Record {
                 break;
             }
         }
-        if (this.localSession) {
-            switch (type) {
-                case "camera": {
+    }
+    /** @param {"camera"|"screen"} type */
+    async _broadcastVideoState(type) {
+        switch (type) {
+            case "camera": {
+                this.removeVideoFromSession(this.localSession, {
+                    type: "camera",
+                    cleanup: false,
+                });
+                if (this.state.cameraTrack) {
+                    await this.updateStream(this.localSession, this.state.cameraTrack);
+                }
+                break;
+            }
+            case "screen": {
+                if (!this.state.screenTrack) {
                     this.removeVideoFromSession(this.localSession, {
-                        type: "camera",
+                        type: "screen",
                         cleanup: false,
                     });
-                    if (this.state.cameraTrack) {
-                        await this.updateStream(
-                            this.localSession,
-                            this.state.cameraTrack,
-                        );
-                    }
-                    break;
+                } else {
+                    await this.updateStream(this.localSession, this.state.screenTrack);
                 }
-                case "screen": {
-                    if (!this.state.screenTrack) {
-                        this.removeVideoFromSession(this.localSession, {
-                            type: "screen",
-                            cleanup: false,
-                        });
-                    } else {
-                        await this.updateStream(
-                            this.localSession,
-                            this.state.screenTrack,
-                        );
-                    }
-                    break;
-                }
-            }
-            switch (type) {
-                case "camera": {
-                    this.updateAndBroadcast({
-                        is_camera_on: !!this.state.sendCamera,
-                    });
-                    break;
-                }
-                case "screen": {
-                    this.updateAndBroadcast({
-                        is_screen_sharing_on: !!this.state.sendScreen,
-                    });
-                    break;
-                }
+                break;
             }
         }
-        const updatedTrack =
-            type === "camera" ? this.state.cameraTrack : this.state.screenTrack;
-        await this._updateTrackUpload(type, updatedTrack);
+        switch (type) {
+            case "camera": {
+                this.updateAndBroadcast({
+                    is_camera_on: !!this.state.sendCamera,
+                });
+                break;
+            }
+            case "screen": {
+                this.updateAndBroadcast({
+                    is_screen_sharing_on: !!this.state.sendScreen,
+                });
+                break;
+            }
+        }
     }
 
     /** @param {Object} data */
@@ -1865,108 +2033,12 @@ export const rtcService = {
     start(env, services) {
         const store = env.services["mail.store"];
         const rtc = store.rtc;
-        rtc.pipService = services["discuss.pip_service"];
-        onChange(rtc.pipService.state, "active", () => {
-            const isPipMode = rtc.pipService.state.active;
-            if (!isPipMode) {
-                rtc.channel?.openChatWindow();
-            }
-            rtc.state.isPipMode = isPipMode;
-            rtc.crossTab?.notifyPipChange(isPipMode);
-        });
-        rtc.fullscreen = services["mail.fullscreen"];
-        onChange(rtc.fullscreen, "id", () => {
-            const wasFullscreen = rtc.state.isFullscreen;
-            rtc.state.isFullscreen = rtc.fullscreen.id === CALL_FULLSCREEN_ID;
-            if (
-                rtc.state.screenTrack &&
-                rtc.displaySurface !== "browser" &&
-                rtc.fullscreen.id === CALL_FULLSCREEN_ID
-            ) {
-                rtc.showMirroringWarning();
-            } else if (!rtc.state.isFullscreen) {
-                rtc.removeMirroringWarning?.();
-                if (wasFullscreen && rtc.state.screenTrack) {
-                    rtc.state.screenTrack.enabled = true;
-                }
-            }
-        });
-        browser.navigator.permissions
-            ?.query({ name: "microphone" })
-            .then((status) => {
-                rtc.microphonePermission = status.state;
-                status.onchange = () => (rtc.microphonePermission = status.state);
-            })
-            .catch(() => {});
-        browser.navigator.permissions
-            ?.query({ name: "camera" })
-            .then((status) => {
-                rtc.cameraPermission = status.state;
-                status.onchange = () => (rtc.cameraPermission = status.state);
-            })
-            .catch(() => {});
-        rtc.p2pService = services["discuss.p2p"];
-        rtc.p2pService.acceptOffer =
-            /**
-             * @param {number|string} id
-             * @param {number} sequence
-             * @returns {Promise<boolean>}
-             */ async (id, sequence) => {
-                const session = await store["discuss.channel.rtc.session"].getWhenReady(
-                    Number(id),
-                );
-                return sequence >= session?.sequence;
-            };
-        services["bus_service"].subscribe(
-            "discuss.channel.rtc.session/sfu_hot_swap",
-            /** @param {{serverInfo: Object}} payload */
-            async ({ serverInfo }) => {
-                if (!rtc.localSession) {
-                    return;
-                }
-                if (rtc.serverInfo?.channelUUID === serverInfo.channelUUID) {
-                    rtc.p2pService.removeAllPeers();
-                    return;
-                }
-                rtc.serverInfo = serverInfo;
-                await rtc._initConnection();
-            },
-        );
-        services["bus_service"].subscribe(
-            "discuss.channel.rtc.session/ended",
-            /** @param {{sessionId: number}} payload */
-            ({ sessionId }) => {
-                if (rtc.localSession?.id === sessionId) {
-                    rtc.notifyServerDisconnect();
-                    rtc.endCall();
-                }
-            },
-        );
-        services["bus_service"].subscribe(
-            "res.users.settings.volumes",
-            /** @param {Object} payload */ (payload) => {
-                if (payload) {
-                    rtc.store.Volume.insert(payload);
-                }
-            },
-        );
-        services["bus_service"].subscribe(
-            "discuss.channel.rtc.session/update_and_broadcast",
-            /** @param {{data: Object, channelId: number}} payload */
-            (payload) => {
-                const { data, channelId } = payload;
-                if (channelId !== rtc.channel?.id) {
-                    rtc.store.insert(data);
-                }
-            },
-        );
-        services["presence"].bus.addEventListener(
-            "presence",
-            () => {
-                env.bus.trigger("RTC-SERVICE:PLAY_MEDIA");
-            },
-            { once: true },
-        );
+        bindPipMode(rtc, services);
+        bindFullscreen(rtc, services);
+        trackPermission(rtc, "microphone", "microphonePermission");
+        trackPermission(rtc, "camera", "cameraPermission");
+        bindP2pService(rtc, services, store);
+        bindRtcBusEvents(rtc, services, env);
         return rtc;
     },
 };

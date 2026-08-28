@@ -55,67 +55,6 @@ class MailMessage(models.Model):
 
         pid = self.env.user.partner_id.id
 
-        def fetch(query: Query):
-            rel_alias = query.make_alias(self._table, "partner_ids")
-            query.add_join(
-                "LEFT JOIN",
-                rel_alias,
-                "mail_message_res_partner_rel",
-                SQL(
-                    "%s = %s AND %s = %s",
-                    SQL.identifier(self._table, "id"),
-                    SQL.identifier(rel_alias, "mail_message_id"),
-                    SQL.identifier(rel_alias, "res_partner_id"),
-                    pid,
-                ),
-            )
-            notif_alias = query.make_alias(self._table, "notification_ids")
-            query.add_join(
-                "LEFT JOIN",
-                notif_alias,
-                "mail_notification",
-                SQL(
-                    "%s = %s AND %s = %s",
-                    SQL.identifier(self._table, "id"),
-                    SQL.identifier(notif_alias, "mail_message_id"),
-                    SQL.identifier(notif_alias, "res_partner_id"),
-                    pid,
-                ),
-            )
-            return self.env.execute_query(
-                query.select(
-                    SQL.identifier(self._table, "id"),
-                    SQL.identifier(self._table, "model"),
-                    SQL.identifier(self._table, "res_id"),
-                    SQL.identifier(self._table, "author_id"),
-                    SQL.identifier(self._table, "message_type"),
-                    SQL.identifier(self._table, "create_uid"),
-                    SQL(
-                        "COALESCE(%s, %s)",
-                        SQL.identifier(rel_alias, "res_partner_id"),
-                        SQL.identifier(notif_alias, "res_partner_id"),
-                    ),
-                )
-            )
-
-        def allowed(rows: list[tuple]):
-            direct_allowed = set()
-            model_ids = defaultdict(lambda: defaultdict(set))
-            for (
-                id_,
-                model,
-                res_id,
-                author_id,
-                message_type,
-                create_uid,
-                partner_id,
-            ) in rows:
-                if pid in (author_id, partner_id) or create_uid == self.env.uid:
-                    direct_allowed.add(id_)
-                elif model and res_id and message_type != "user_notification":
-                    model_ids[model][res_id].add(id_)
-            return direct_allowed | self._find_allowed_doc_ids(model_ids)
-
         return scan_accessible_query(
             self,
             domain,
@@ -123,13 +62,74 @@ class MailMessage(models.Model):
             limit,
             order,
             super()._search,
-            fetch=fetch,
-            allowed=allowed,
+            fetch=lambda query: self._get_search_access_rows(query, pid),
+            allowed=lambda rows: self._get_search_allowed_ids(rows, pid),
             chunk_min=self._SEARCH_ACCESS_CHUNK_MIN,
             chunk_max=self._SEARCH_ACCESS_CHUNK_MAX,
             tiebreak="id desc",
             **kwargs,
         )
+
+    def _get_search_access_rows(self, query: Query, pid: int) -> list[tuple]:
+        rel_alias = query.make_alias(self._table, "partner_ids")
+        query.add_join(
+            "LEFT JOIN",
+            rel_alias,
+            "mail_message_res_partner_rel",
+            SQL(
+                "%s = %s AND %s = %s",
+                SQL.identifier(self._table, "id"),
+                SQL.identifier(rel_alias, "mail_message_id"),
+                SQL.identifier(rel_alias, "res_partner_id"),
+                pid,
+            ),
+        )
+        notif_alias = query.make_alias(self._table, "notification_ids")
+        query.add_join(
+            "LEFT JOIN",
+            notif_alias,
+            "mail_notification",
+            SQL(
+                "%s = %s AND %s = %s",
+                SQL.identifier(self._table, "id"),
+                SQL.identifier(notif_alias, "mail_message_id"),
+                SQL.identifier(notif_alias, "res_partner_id"),
+                pid,
+            ),
+        )
+        return self.env.execute_query(
+            query.select(
+                SQL.identifier(self._table, "id"),
+                SQL.identifier(self._table, "model"),
+                SQL.identifier(self._table, "res_id"),
+                SQL.identifier(self._table, "author_id"),
+                SQL.identifier(self._table, "message_type"),
+                SQL.identifier(self._table, "create_uid"),
+                SQL(
+                    "COALESCE(%s, %s)",
+                    SQL.identifier(rel_alias, "res_partner_id"),
+                    SQL.identifier(notif_alias, "res_partner_id"),
+                ),
+            )
+        )
+
+    def _get_search_allowed_ids(self, rows: list[tuple], pid: int) -> set[int]:
+        direct_allowed = set()
+        model_ids = defaultdict(lambda: defaultdict(set))
+        for (
+            id_,
+            model,
+            res_id,
+            author_id,
+            message_type,
+            create_uid,
+            partner_id,
+        ) in rows:
+            if pid in (author_id, partner_id) or create_uid == self.env.uid:
+                direct_allowed.add(id_)
+            elif model and res_id and message_type != "user_notification":
+                model_ids[model][res_id].add(id_)
+        return direct_allowed | self._find_allowed_doc_ids(model_ids)
 
     def _get_search_domain_non_internal(self) -> Domain:
         return Domain("message_type", "!=", "comment") | self._get_search_domain_share()

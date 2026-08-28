@@ -200,3 +200,67 @@ test("toData() emits one row per record when several fields reach the same one",
     expect(data.Leaf[0].tag).toBe("t");
     expect(data.Root).toHaveLength(1);
 });
+
+test("a model named after a store property is refused at boot", async () => {
+    const env = await start2();
+    (class Env extends Record {
+        static _name = "env";
+        static id = "name";
+        name;
+    }).register(badRegistry);
+    expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
+        "There must be no duplicated Model Names (duplicate found: env)",
+    );
+});
+
+test("a relation naming an unregistered target model is refused at boot", async () => {
+    const env = await start2();
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        members = fields.Many("Ghost");
+    }).register(badRegistry);
+    expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
+        "No target model Ghost exists",
+    );
+});
+
+test("an inverse pair disagreeing on the target model is refused at boot", async () => {
+    const env = await start2();
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        members = fields.Many("Member", { inverse: "thread" });
+    }).register(badRegistry);
+    (class Member extends Record {
+        static id = "name";
+        name;
+        thread = fields.One("Other", { inverse: "members" });
+    }).register(badRegistry);
+    (class Other extends Record {
+        static id = "name";
+        name;
+        members = fields.Many("Member");
+    }).register(badRegistry);
+    expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
+        /has wrong targetModel/,
+    );
+});
+
+test("an inverse pair disagreeing on the inverse name is refused at boot", async () => {
+    const env = await start2();
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        members = fields.Many("Member", { inverse: "thread" });
+        watchers = fields.Many("Member");
+    }).register(badRegistry);
+    (class Member extends Record {
+        static id = "name";
+        name;
+        thread = fields.One("Thread", { inverse: "watchers" });
+    }).register(badRegistry);
+    expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
+        /has wrong inverse/,
+    );
+});

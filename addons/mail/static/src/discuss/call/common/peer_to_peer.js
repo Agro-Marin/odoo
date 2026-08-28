@@ -466,7 +466,7 @@ export class PeerToPeer extends EventTarget {
         if (channelId !== this.channelId) {
             return;
         }
-        let peer = this.peers.get(id);
+        const peer = this.peers.get(id);
         if (event !== INTERNAL_EVENT.OFFER && !peer?.connection) {
             this._emitLog(
                 id,
@@ -476,60 +476,26 @@ export class PeerToPeer extends EventTarget {
             return;
         }
         switch (event) {
-            case INTERNAL_EVENT.ANSWER: {
-                this._emitLog(id, `received answer`, LOG_LEVEL.DEBUG);
-                if (
-                    INVALID_ICE_CONNECTION_STATES.has(
-                        peer.connection.iceConnectionState,
-                    ) ||
-                    peer.connection.signalingState === "stable" ||
-                    peer.connection.signalingState === "have-remote-offer"
-                ) {
-                    return;
-                }
-                const description = new window.RTCSessionDescription(payload.sdp);
-                try {
-                    await peer.connection.setRemoteDescription(description);
-                } catch {
-                    this._recover(
-                        id,
-                        "answer handling: Failed at setting remoteDescription",
-                    );
-                }
+            case INTERNAL_EVENT.ANSWER:
+                await this._handleAnswer(id, peer, payload);
                 break;
-            }
-            case INTERNAL_EVENT.BROADCAST: {
+            case INTERNAL_EVENT.BROADCAST:
                 this._emitUpdate({
                     name: UPDATE_EVENT.BROADCAST,
                     payload: { senderId: id, message: payload },
                 });
                 peer.ready.resolve(true);
                 break;
-            }
-            case INTERNAL_EVENT.DISCONNECT: {
+            case INTERNAL_EVENT.DISCONNECT:
                 this.removePeer(id);
                 this._emitUpdate({
                     name: UPDATE_EVENT.DISCONNECT,
                     payload: { sessionId: id },
                 });
                 break;
-            }
-            case INTERNAL_EVENT.ICE_CANDIDATE: {
-                if (
-                    INVALID_ICE_CONNECTION_STATES.has(
-                        peer.connection.iceConnectionState,
-                    )
-                ) {
-                    return;
-                }
-                const rtcIceCandidate = new window.RTCIceCandidate(payload.candidate);
-                try {
-                    await peer.connection.addIceCandidate(rtcIceCandidate);
-                } catch {
-                    this._recover(id, "failed at adding ice candidate");
-                }
+            case INTERNAL_EVENT.ICE_CANDIDATE:
+                await this._handleIceCandidate(id, peer, payload);
                 break;
-            }
             case INTERNAL_EVENT.INFO: {
                 const { isTalking, isCameraOn, isScreenSharingOn } = payload;
                 peer.medias[STREAM_TYPE.AUDIO].active = isTalking;
@@ -541,100 +507,157 @@ export class PeerToPeer extends EventTarget {
                 });
                 break;
             }
-            case INTERNAL_EVENT.OFFER: {
-                try {
-                    const accepted = await this.acceptOffer(id, payload.sequence);
-                    if (!accepted) {
-                        this._emitLog(id, "offer rejected", LOG_LEVEL.INFO);
-                        return;
-                    }
-                } catch (error) {
-                    this._emitLog(id, `offer rejected: ${error}`, LOG_LEVEL.INFO);
-                    return;
-                }
-                if (!peer) {
-                    peer = this._createPeer(id, { sequence: payload.sequence });
-                }
-                if (
-                    !peer.connection ||
-                    INVALID_ICE_CONNECTION_STATES.has(
-                        peer.connection.iceConnectionState,
-                    ) ||
-                    peer.connection.signalingState === "have-remote-offer"
-                ) {
-                    return;
-                }
-                const isStable =
-                    peer.connection.signalingState === "stable" ||
-                    peer.isBuildingAnswer;
-                const hasOfferCollision = !isStable || peer.isBuildingOffer;
-                if (hasOfferCollision && peer.hasPriority && this._isAntiGlareEnabled) {
-                    this._emitLog(
-                        peer.id,
-                        `rolling back due to offer collision: ${peer.connection.signalingState}`,
-                        LOG_LEVEL.WARN,
-                    );
-                    try {
-                        await peer.connection.setLocalDescription({ type: "rollback" });
-                    } catch {
-                        this._recover(id, `failed rollback`);
-                    }
-                }
-                const description = new window.RTCSessionDescription(payload.sdp);
-                try {
-                    await peer.connection.setRemoteDescription(description);
-                } catch {
-                    this._recover(id, "failed at setting remoteDescription");
-                    return;
-                }
-                if (!peer.connection) {
-                    this._emitLog(
-                        id,
-                        "the peer connection was closed during offer negotiation",
-                        LOG_LEVEL.WARN,
-                    );
-                    return;
-                }
-                if (this._isStreamingEnabled) {
-                    if (peer.connection.getTransceivers().length === 0) {
-                        for (const streamType of ORDERED_TRANSCEIVER_TYPES) {
-                            const type =
-                                streamType === STREAM_TYPE.AUDIO ? "audio" : "video";
-                            peer.connection.addTransceiver(type);
-                        }
-                    }
-                    for (const transceiverName of ORDERED_TRANSCEIVER_TYPES) {
-                        await this._updateRemote(peer, transceiverName);
-                    }
-                }
-                peer.isBuildingAnswer = true;
-                try {
-                    await peer.connection.setLocalDescription(
-                        await peer.connection.createAnswer(),
-                    );
-                } catch {
-                    peer.isBuildingAnswer = false;
-                    this._recover(
-                        id,
-                        "offer handling: failed at setting answer localDescription",
-                    );
-                    return;
-                }
-                peer.isBuildingAnswer = false;
-                if (!this.isActive || !this.peers.has(id)) {
-                    return;
-                }
-                this._emitLog(id, `sending answer`, LOG_LEVEL.DEBUG);
-                await this._busNotify(INTERNAL_EVENT.ANSWER, {
-                    payload: {
-                        sdp: peer.connection.localDescription,
-                    },
-                    targets: [peer.id],
-                });
-                this._recover(peer.id, "standard answer timeout");
+            case INTERNAL_EVENT.OFFER:
+                await this._handleOffer(id, peer, payload);
                 break;
+        }
+    }
+    /**
+     * @param {number} id
+     * @param {Peer} peer
+     * @param {NotificationPayload} payload
+     */
+    async _handleAnswer(id, peer, payload) {
+        this._emitLog(id, `received answer`, LOG_LEVEL.DEBUG);
+        if (
+            INVALID_ICE_CONNECTION_STATES.has(peer.connection.iceConnectionState) ||
+            peer.connection.signalingState === "stable" ||
+            peer.connection.signalingState === "have-remote-offer"
+        ) {
+            return;
+        }
+        const description = new window.RTCSessionDescription(payload.sdp);
+        try {
+            await peer.connection.setRemoteDescription(description);
+        } catch {
+            this._recover(id, "answer handling: Failed at setting remoteDescription");
+        }
+    }
+    /**
+     * @param {number} id
+     * @param {Peer} peer
+     * @param {NotificationPayload} payload
+     */
+    async _handleIceCandidate(id, peer, payload) {
+        if (INVALID_ICE_CONNECTION_STATES.has(peer.connection.iceConnectionState)) {
+            return;
+        }
+        const rtcIceCandidate = new window.RTCIceCandidate(payload.candidate);
+        try {
+            await peer.connection.addIceCandidate(rtcIceCandidate);
+        } catch {
+            this._recover(id, "failed at adding ice candidate");
+        }
+    }
+    /** @param {Peer} peer */
+    async _rollbackOnOfferCollision(peer) {
+        const isStable =
+            peer.connection.signalingState === "stable" || peer.isBuildingAnswer;
+        const hasOfferCollision = !isStable || peer.isBuildingOffer;
+        if (!hasOfferCollision || !peer.hasPriority || !this._isAntiGlareEnabled) {
+            return;
+        }
+        this._emitLog(
+            peer.id,
+            `rolling back due to offer collision: ${peer.connection.signalingState}`,
+            LOG_LEVEL.WARN,
+        );
+        try {
+            await peer.connection.setLocalDescription({ type: "rollback" });
+        } catch {
+            this._recover(peer.id, `failed rollback`);
+        }
+    }
+    /** @param {Peer} peer */
+    async _syncTransceivers(peer) {
+        if (!this._isStreamingEnabled) {
+            return;
+        }
+        if (peer.connection.getTransceivers().length === 0) {
+            for (const streamType of ORDERED_TRANSCEIVER_TYPES) {
+                const type = streamType === STREAM_TYPE.AUDIO ? "audio" : "video";
+                peer.connection.addTransceiver(type);
             }
         }
+        for (const transceiverName of ORDERED_TRANSCEIVER_TYPES) {
+            await this._updateRemote(peer, transceiverName);
+        }
+    }
+    /**
+     * @param {number} id
+     * @param {Peer} peer
+     */
+    async _sendAnswer(id, peer) {
+        peer.isBuildingAnswer = true;
+        try {
+            await peer.connection.setLocalDescription(
+                await peer.connection.createAnswer(),
+            );
+        } catch {
+            peer.isBuildingAnswer = false;
+            this._recover(
+                id,
+                "offer handling: failed at setting answer localDescription",
+            );
+            return;
+        }
+        peer.isBuildingAnswer = false;
+        if (!this.isActive || !this.peers.has(id)) {
+            return;
+        }
+        this._emitLog(id, `sending answer`, LOG_LEVEL.DEBUG);
+        await this._busNotify(INTERNAL_EVENT.ANSWER, {
+            payload: {
+                sdp: peer.connection.localDescription,
+            },
+            targets: [peer.id],
+        });
+        this._recover(peer.id, "standard answer timeout");
+    }
+    /**
+     * @param {number} id
+     * @param {Peer|undefined} peer
+     * @param {NotificationPayload} payload
+     */
+    async _handleOffer(id, peer, payload) {
+        try {
+            const accepted = await this.acceptOffer(id, payload.sequence);
+            if (!accepted) {
+                this._emitLog(id, "offer rejected", LOG_LEVEL.INFO);
+                return;
+            }
+        } catch (error) {
+            this._emitLog(id, `offer rejected: ${error}`, LOG_LEVEL.INFO);
+            return;
+        }
+        if (!peer) {
+            peer = this._createPeer(id, { sequence: payload.sequence });
+        }
+        if (
+            !peer.connection ||
+            INVALID_ICE_CONNECTION_STATES.has(peer.connection.iceConnectionState) ||
+            peer.connection.signalingState === "have-remote-offer"
+        ) {
+            return;
+        }
+        await this._rollbackOnOfferCollision(peer);
+        const description = new window.RTCSessionDescription(payload.sdp);
+        try {
+            await peer.connection.setRemoteDescription(description);
+        } catch {
+            this._recover(id, "failed at setting remoteDescription");
+            return;
+        }
+        if (!peer.connection) {
+            this._emitLog(
+                id,
+                "the peer connection was closed during offer negotiation",
+                LOG_LEVEL.WARN,
+            );
+            return;
+        }
+        await this._syncTransceivers(peer);
+        await this._sendAnswer(id, peer);
     }
     /** @param {LOG_LEVEL[keyof LOG_LEVEL]} logLevel */
     setLoggingLevel(logLevel) {
@@ -874,29 +897,10 @@ export class PeerToPeer extends EventTarget {
     }
     /**
      * @param {number} id
-     * @param {object} [options={}]
-     * @returns {Peer}
+     * @param {Peer} peer
+     * @param {RTCPeerConnection} peerConnection
      */
-    _createPeer(id, options = {}) {
-        this.removePeer(id);
-        const peerConnection = new window.RTCPeerConnection({
-            iceServers: this._iceServers,
-        });
-        const dataChannel = peerConnection.createDataChannel("notifications", {
-            negotiated: true,
-            id: 1,
-        });
-        const peer = new Peer(id, {
-            ...options,
-            connection: peerConnection,
-            dataChannel,
-            hasPriority: id > this.selfId,
-        });
-        this._emitUpdate({
-            name: UPDATE_EVENT.CONNECTION_CHANGE,
-            payload: { id, peer, state: "searching for network" },
-        });
-        this.peers.set(id, peer);
+    _bindConnectionStateEvents(id, peer, peerConnection) {
         peerConnection.addEventListener(
             "icecandidate",
             /** @param {RTCPeerConnectionIceEvent} event */
@@ -960,6 +964,13 @@ export class PeerToPeer extends EventTarget {
                 this._recover(id, `ice candidate error: ${error.errorText}`);
             },
         );
+    }
+    /**
+     * @param {number} id
+     * @param {Peer} peer
+     * @param {RTCPeerConnection} peerConnection
+     */
+    _bindMediaNegotiationEvents(id, peer, peerConnection) {
         peerConnection.addEventListener("negotiationneeded", async () => {
             peer.isBuildingOffer = true;
             try {
@@ -1014,6 +1025,13 @@ export class PeerToPeer extends EventTarget {
                 });
             },
         );
+    }
+    /**
+     * @param {number} id
+     * @param {Peer} peer
+     * @param {RTCDataChannel} dataChannel
+     */
+    _bindDataChannelEvents(id, peer, dataChannel) {
         dataChannel.addEventListener(
             "message",
             /** @param {MessageEvent} event */
@@ -1034,6 +1052,35 @@ export class PeerToPeer extends EventTarget {
             );
             this.broadcast({ sequence: peer.sequence });
         });
+    }
+    /**
+     * @param {number} id
+     * @param {object} [options={}]
+     * @returns {Peer}
+     */
+    _createPeer(id, options = {}) {
+        this.removePeer(id);
+        const peerConnection = new window.RTCPeerConnection({
+            iceServers: this._iceServers,
+        });
+        const dataChannel = peerConnection.createDataChannel("notifications", {
+            negotiated: true,
+            id: 1,
+        });
+        const peer = new Peer(id, {
+            ...options,
+            connection: peerConnection,
+            dataChannel,
+            hasPriority: id > this.selfId,
+        });
+        this._emitUpdate({
+            name: UPDATE_EVENT.CONNECTION_CHANGE,
+            payload: { id, peer, state: "searching for network" },
+        });
+        this.peers.set(id, peer);
+        this._bindConnectionStateEvents(id, peer, peerConnection);
+        this._bindMediaNegotiationEvents(id, peer, peerConnection);
+        this._bindDataChannelEvents(id, peer, dataChannel);
         return peer;
     }
 }

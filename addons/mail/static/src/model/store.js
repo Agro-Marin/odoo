@@ -102,6 +102,245 @@ export class Store extends Record {
      */
     logErrors = true;
 
+    /** @param {Map} FC_QUEUE */
+    _drainForcedComputes(FC_QUEUE) {
+        while (FC_QUEUE.size > 0) {
+            const [record, recMap] = /** @type {[Record, Map<string, true>]} */ (
+                FC_QUEUE.entries().next().value
+            );
+            FC_QUEUE.delete(record);
+            for (const fieldName of recMap.keys()) {
+                record._.requestCompute(record, fieldName, { force: true });
+            }
+        }
+    }
+    /** @param {Map} FS_QUEUE */
+    _drainForcedSorts(FS_QUEUE) {
+        while (FS_QUEUE.size > 0) {
+            const [record, recMap] = /** @type {[Record, Map<string, true>]} */ (
+                FS_QUEUE.entries().next().value
+            );
+            FS_QUEUE.delete(record);
+            for (const fieldName of recMap.keys()) {
+                record._.requestSort(record, fieldName, { force: true });
+            }
+        }
+    }
+    /** @param {Map} FA_QUEUE */
+    _drainOnAdd(FA_QUEUE) {
+        while (FA_QUEUE.size > 0) {
+            const [record, recMap] =
+                /** @type {[Record, Map<string, Map<Record, true>>]} */ (
+                    FA_QUEUE.entries().next().value
+                );
+            FA_QUEUE.delete(record);
+            while (recMap.size > 0) {
+                const [fieldName, fieldMap] =
+                    /** @type {[string, Map<Record, true>]} */ (
+                        recMap.entries().next().value
+                    );
+                recMap.delete(fieldName);
+                const onAdd = record.Model._.fieldsOnAdd.get(fieldName);
+                for (const addedRec of fieldMap.keys()) {
+                    try {
+                        onAdd?.call(record._proxy, addedRec._proxy);
+                    } catch (err) {
+                        this.handleError(err);
+                    }
+                }
+            }
+        }
+    }
+    /** @param {Map} FD_QUEUE */
+    _drainOnDelete(FD_QUEUE) {
+        while (FD_QUEUE.size > 0) {
+            const [record, recMap] =
+                /** @type {[Record, Map<string, Map<Record, true>>]} */ (
+                    FD_QUEUE.entries().next().value
+                );
+            FD_QUEUE.delete(record);
+            while (recMap.size > 0) {
+                const [fieldName, fieldMap] =
+                    /** @type {[string, Map<Record, true>]} */ (
+                        recMap.entries().next().value
+                    );
+                recMap.delete(fieldName);
+                const onDelete = record.Model._.fieldsOnDelete.get(fieldName);
+                for (const removedRec of fieldMap.keys()) {
+                    try {
+                        onDelete?.call(record._proxy, removedRec._proxy);
+                    } catch (err) {
+                        this.handleError(err);
+                    }
+                }
+            }
+        }
+    }
+    /** @param {Map} FU_QUEUE */
+    _drainOnUpdate(FU_QUEUE) {
+        while (FU_QUEUE.size > 0) {
+            const [record, map] = /** @type {[Record, Map<string, true>]} */ (
+                FU_QUEUE.entries().next().value
+            );
+            FU_QUEUE.delete(record);
+            for (const fieldName of map.keys()) {
+                record._.onUpdate(record, fieldName);
+            }
+        }
+    }
+    /** @param {Map} RO_QUEUE */
+    _drainCallbacks(RO_QUEUE) {
+        while (RO_QUEUE.size > 0) {
+            /** @type {Function} */
+            const cb = RO_QUEUE.keys().next().value;
+            RO_QUEUE.delete(cb);
+            try {
+                cb();
+            } catch (err) {
+                this.handleError(err);
+            }
+        }
+    }
+    /**
+     * @param {Map} RD_QUEUE
+     * @param {Map} deletingRecordsByLocalId
+     */
+    _drainDeletes(RD_QUEUE, deletingRecordsByLocalId) {
+        while (RD_QUEUE.size > 0) {
+            /** @type {Record} */
+            const record = RD_QUEUE.keys().next().value;
+            RD_QUEUE.delete(record);
+            for (const [usingRecord, names] of record._.uses.data.entries()) {
+                const aliveProxy = toRaw(this.recordByLocalId).get(usingRecord.localId);
+                const alive =
+                    (aliveProxy && toRaw(aliveProxy)._raw === usingRecord) ||
+                    deletingRecordsByLocalId.get(usingRecord.localId) === usingRecord;
+                if (!alive) {
+                    record._.uses.data.delete(usingRecord);
+                    continue;
+                }
+                for (const [name2, count] of names.entries()) {
+                    for (let c = 0; c < count; c++) {
+                        /** @type {RecordFields} */ (
+                            /** @type {unknown} */ (usingRecord)
+                        )[name2].delete(record);
+                    }
+                }
+            }
+            for (const fieldName of record.Model._.fields.keys()) {
+                if (!isRelation(record.Model, fieldName)) {
+                    continue;
+                }
+                const reclist = /** @type {RecordFields} */ (
+                    /** @type {unknown} */ (record)
+                )[fieldName];
+                for (const localId of reclist.data) {
+                    const targetProxy = toRaw(this.recordByLocalId).get(localId);
+                    const target = targetProxy
+                        ? toRaw(targetProxy)._raw
+                        : deletingRecordsByLocalId.get(localId);
+                    target?._.uses.delete(reclist);
+                }
+            }
+            deletingRecordsByLocalId.set(record.localId, record);
+            this.recordByLocalId.delete(record.localId);
+            record._proxy[IS_DELETED_SYM] = true;
+            delete record.Model.records[record.localId];
+            this._.ADD_QUEUE("hard_delete", record);
+        }
+    }
+    /**
+     * @param {Map} RHD_QUEUE
+     * @param {Map} deletingRecordsByLocalId
+     */
+    _drainHardDeletes(RHD_QUEUE, deletingRecordsByLocalId) {
+        while (RHD_QUEUE.size > 0) {
+            /** @type {Record} */
+            const record = RHD_QUEUE.keys().next().value;
+            RHD_QUEUE.delete(record);
+            deletingRecordsByLocalId.delete(record.localId);
+        }
+    }
+    /** @returns {boolean} */
+    _hasQueuedWork() {
+        return (
+            this._.FC_QUEUE.size > 0 ||
+            this._.FS_QUEUE.size > 0 ||
+            this._.FA_QUEUE.size > 0 ||
+            this._.FD_QUEUE.size > 0 ||
+            this._.FU_QUEUE.size > 0 ||
+            this._.RO_QUEUE.size > 0 ||
+            this._.RD_QUEUE.size > 0 ||
+            this._.RHD_QUEUE.size > 0
+        );
+    }
+    /**
+     * Take one snapshot of every queue, clear them all, then drain the
+     * snapshots in the order below. The order is load-bearing and pinned by
+     * "@mail/core/store_update"; the clear happens before any drain so that
+     * work a hook queues is picked up by the next iteration rather than by
+     * this one.
+     *
+     * @param {Map} deletingRecordsByLocalId
+     */
+    _drainQueuesOnce(deletingRecordsByLocalId) {
+        const FC_QUEUE = new Map(this._.FC_QUEUE);
+        const FS_QUEUE = new Map(this._.FS_QUEUE);
+        const FA_QUEUE = new Map(this._.FA_QUEUE);
+        const FD_QUEUE = new Map(this._.FD_QUEUE);
+        const FU_QUEUE = new Map(this._.FU_QUEUE);
+        const RO_QUEUE = new Map(this._.RO_QUEUE);
+        const RD_QUEUE = new Map(this._.RD_QUEUE);
+        const RHD_QUEUE = new Map(this._.RHD_QUEUE);
+        this._.FC_QUEUE.clear();
+        this._.FS_QUEUE.clear();
+        this._.FA_QUEUE.clear();
+        this._.FD_QUEUE.clear();
+        this._.FU_QUEUE.clear();
+        this._.RO_QUEUE.clear();
+        this._.RD_QUEUE.clear();
+        this._.RHD_QUEUE.clear();
+        this._drainForcedComputes(FC_QUEUE);
+        this._drainForcedSorts(FS_QUEUE);
+        this._drainOnAdd(FA_QUEUE);
+        this._drainOnDelete(FD_QUEUE);
+        this._drainOnUpdate(FU_QUEUE);
+        this._drainCallbacks(RO_QUEUE);
+        this._drainDeletes(RD_QUEUE, deletingRecordsByLocalId);
+        this._drainHardDeletes(RHD_QUEUE, deletingRecordsByLocalId);
+    }
+    _flushQueues() {
+        const deletingRecordsByLocalId = new Map();
+        this._.UPDATE++;
+        let flushIterations = 0;
+        try {
+            while (this._hasQueuedWork()) {
+                if (++flushIterations > 1000) {
+                    this.handleError(
+                        new Error("Store flush did not converge (1000 iterations)"),
+                    );
+                    break;
+                }
+                this._drainQueuesOnce(deletingRecordsByLocalId);
+            }
+        } finally {
+            this._.UPDATE--;
+        }
+    }
+    _throwFirstQueuedError() {
+        if (!this._.ERRORS.length) {
+            return;
+        }
+        if (this.logErrors) {
+            console.warn("Store data insert aborted due to following errors:");
+            for (const err of this._.ERRORS) {
+                console.warn(err);
+            }
+        }
+        const [error1] = this._.ERRORS;
+        this._.ERRORS = [];
+        throw error1;
+    }
     /** @param {() => any} fn */
     MAKE_UPDATE(fn) {
         const outermost = this._.UPDATE === 0;
@@ -118,199 +357,8 @@ export class Store extends Record {
             this._.UPDATE--;
         }
         if (this._.UPDATE === 0) {
-            const deletingRecordsByLocalId = new Map();
-            this._.UPDATE++;
-            let flushIterations = 0;
-            try {
-                while (
-                    this._.FC_QUEUE.size > 0 ||
-                    this._.FS_QUEUE.size > 0 ||
-                    this._.FA_QUEUE.size > 0 ||
-                    this._.FD_QUEUE.size > 0 ||
-                    this._.FU_QUEUE.size > 0 ||
-                    this._.RO_QUEUE.size > 0 ||
-                    this._.RD_QUEUE.size > 0 ||
-                    this._.RHD_QUEUE.size > 0
-                ) {
-                    if (++flushIterations > 1000) {
-                        this.handleError(
-                            new Error("Store flush did not converge (1000 iterations)"),
-                        );
-                        break;
-                    }
-                    const FC_QUEUE = new Map(this._.FC_QUEUE);
-                    const FS_QUEUE = new Map(this._.FS_QUEUE);
-                    const FA_QUEUE = new Map(this._.FA_QUEUE);
-                    const FD_QUEUE = new Map(this._.FD_QUEUE);
-                    const FU_QUEUE = new Map(this._.FU_QUEUE);
-                    const RO_QUEUE = new Map(this._.RO_QUEUE);
-                    const RD_QUEUE = new Map(this._.RD_QUEUE);
-                    const RHD_QUEUE = new Map(this._.RHD_QUEUE);
-                    this._.FC_QUEUE.clear();
-                    this._.FS_QUEUE.clear();
-                    this._.FA_QUEUE.clear();
-                    this._.FD_QUEUE.clear();
-                    this._.FU_QUEUE.clear();
-                    this._.RO_QUEUE.clear();
-                    this._.RD_QUEUE.clear();
-                    this._.RHD_QUEUE.clear();
-                    while (FC_QUEUE.size > 0) {
-                        const [record, recMap] =
-                            /** @type {[Record, Map<string, true>]} */ (
-                                FC_QUEUE.entries().next().value
-                            );
-                        FC_QUEUE.delete(record);
-                        for (const fieldName of recMap.keys()) {
-                            record._.requestCompute(record, fieldName, { force: true });
-                        }
-                    }
-                    while (FS_QUEUE.size > 0) {
-                        const [record, recMap] =
-                            /** @type {[Record, Map<string, true>]} */ (
-                                FS_QUEUE.entries().next().value
-                            );
-                        FS_QUEUE.delete(record);
-                        for (const fieldName of recMap.keys()) {
-                            record._.requestSort(record, fieldName, { force: true });
-                        }
-                    }
-                    while (FA_QUEUE.size > 0) {
-                        const [record, recMap] =
-                            /** @type {[Record, Map<string, Map<Record, true>>]} */ (
-                                FA_QUEUE.entries().next().value
-                            );
-                        FA_QUEUE.delete(record);
-                        while (recMap.size > 0) {
-                            const [fieldName, fieldMap] =
-                                /** @type {[string, Map<Record, true>]} */ (
-                                    recMap.entries().next().value
-                                );
-                            recMap.delete(fieldName);
-                            const onAdd = record.Model._.fieldsOnAdd.get(fieldName);
-                            for (const addedRec of fieldMap.keys()) {
-                                try {
-                                    onAdd?.call(record._proxy, addedRec._proxy);
-                                } catch (err) {
-                                    this.handleError(err);
-                                }
-                            }
-                        }
-                    }
-                    while (FD_QUEUE.size > 0) {
-                        const [record, recMap] =
-                            /** @type {[Record, Map<string, Map<Record, true>>]} */ (
-                                FD_QUEUE.entries().next().value
-                            );
-                        FD_QUEUE.delete(record);
-                        while (recMap.size > 0) {
-                            const [fieldName, fieldMap] =
-                                /** @type {[string, Map<Record, true>]} */ (
-                                    recMap.entries().next().value
-                                );
-                            recMap.delete(fieldName);
-                            const onDelete =
-                                record.Model._.fieldsOnDelete.get(fieldName);
-                            for (const removedRec of fieldMap.keys()) {
-                                try {
-                                    onDelete?.call(record._proxy, removedRec._proxy);
-                                } catch (err) {
-                                    this.handleError(err);
-                                }
-                            }
-                        }
-                    }
-                    while (FU_QUEUE.size > 0) {
-                        const [record, map] =
-                            /** @type {[Record, Map<string, true>]} */ (
-                                FU_QUEUE.entries().next().value
-                            );
-                        FU_QUEUE.delete(record);
-                        for (const fieldName of map.keys()) {
-                            record._.onUpdate(record, fieldName);
-                        }
-                    }
-                    while (RO_QUEUE.size > 0) {
-                        /** @type {Function} */
-                        const cb = RO_QUEUE.keys().next().value;
-                        RO_QUEUE.delete(cb);
-                        try {
-                            cb();
-                        } catch (err) {
-                            this.handleError(err);
-                        }
-                    }
-                    while (RD_QUEUE.size > 0) {
-                        /** @type {Record} */
-                        const record = RD_QUEUE.keys().next().value;
-                        RD_QUEUE.delete(record);
-                        for (const [
-                            usingRecord,
-                            names,
-                        ] of record._.uses.data.entries()) {
-                            const aliveProxy = toRaw(this.recordByLocalId).get(
-                                usingRecord.localId,
-                            );
-                            const alive =
-                                (aliveProxy &&
-                                    toRaw(aliveProxy)._raw === usingRecord) ||
-                                deletingRecordsByLocalId.get(usingRecord.localId) ===
-                                    usingRecord;
-                            if (!alive) {
-                                record._.uses.data.delete(usingRecord);
-                                continue;
-                            }
-                            for (const [name2, count] of names.entries()) {
-                                for (let c = 0; c < count; c++) {
-                                    /** @type {RecordFields} */ (
-                                        /** @type {unknown} */ (usingRecord)
-                                    )[name2].delete(record);
-                                }
-                            }
-                        }
-                        for (const fieldName of record.Model._.fields.keys()) {
-                            if (!isRelation(record.Model, fieldName)) {
-                                continue;
-                            }
-                            const reclist = /** @type {RecordFields} */ (
-                                /** @type {unknown} */ (record)
-                            )[fieldName];
-                            for (const localId of reclist.data) {
-                                const targetProxy = toRaw(this.recordByLocalId).get(
-                                    localId,
-                                );
-                                const target = targetProxy
-                                    ? toRaw(targetProxy)._raw
-                                    : deletingRecordsByLocalId.get(localId);
-                                target?._.uses.delete(reclist);
-                            }
-                        }
-                        deletingRecordsByLocalId.set(record.localId, record);
-                        this.recordByLocalId.delete(record.localId);
-                        record._proxy[IS_DELETED_SYM] = true;
-                        delete record.Model.records[record.localId];
-                        this._.ADD_QUEUE("hard_delete", record);
-                    }
-                    while (RHD_QUEUE.size > 0) {
-                        /** @type {Record} */
-                        const record = RHD_QUEUE.keys().next().value;
-                        RHD_QUEUE.delete(record);
-                        deletingRecordsByLocalId.delete(record.localId);
-                    }
-                }
-            } finally {
-                this._.UPDATE--;
-            }
-            if (this._.ERRORS.length) {
-                if (this.logErrors) {
-                    console.warn("Store data insert aborted due to following errors:");
-                    for (const err of this._.ERRORS) {
-                        console.warn(err);
-                    }
-                }
-                const [error1] = this._.ERRORS;
-                this._.ERRORS = [];
-                throw error1;
-            }
+            this._flushQueues();
+            this._throwFirstQueuedError();
         }
         return res;
     }

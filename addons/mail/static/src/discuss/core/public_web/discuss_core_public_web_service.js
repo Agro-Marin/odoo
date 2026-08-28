@@ -22,83 +22,94 @@ export class DiscussCorePublicWeb {
             this.sidebarCategoriesBroadcast.addEventListener(
                 "message",
                 /** @param {MessageEvent<{id: number, open: boolean}>} ev */
-                ({ data: { id, open } }) => {
-                    const category = this.store.DiscussAppCategory.get(id);
-                    category?.applyBroadcastedOpen(open);
-                },
+                ({ data: { id, open } }) =>
+                    this.store.DiscussAppCategory.get(id)?.applyBroadcastedOpen(open),
             );
         } catch {}
-        this.busService.subscribe(
-            "discuss.channel/joined",
-            /**
-             * @param {Object} payload
-             * @param {Object} payload.data
-             * @param {number} payload.channel_id
-             * @param {boolean} [payload.invite_to_rtc_call]
-             * @param {number} [payload.invited_by_user_id]
-             */
-            async (payload) => {
-                const {
-                    data,
-                    channel_id,
-                    invite_to_rtc_call,
-                    invited_by_user_id: invitedByUserId,
-                } = payload;
-                this.store.insert(data);
-                await this.store.fetchChannel(channel_id);
-                const thread = this.store.Thread.get({
-                    id: channel_id,
-                    model: "discuss.channel",
-                });
-                if (
-                    thread &&
-                    invitedByUserId &&
-                    invitedByUserId !== this.store.self_partner?.main_user_id?.id &&
-                    !invite_to_rtc_call
-                ) {
-                    this.notificationService.add(
-                        _t("You have been invited to #%s", thread.displayName),
-                        { type: "info" },
-                    );
-                }
-            },
+        this.busService.subscribe("discuss.channel/joined", (payload) =>
+            this.onChannelJoined(payload),
         );
         browser.navigator.serviceWorker?.addEventListener(
             "message",
             /** @param {MessageEvent<{action: string, data: Object}>} ev */
-            async ({ data: { action, data } }) => {
-                if (action === "OPEN_CHANNEL") {
-                    const channel = await this.store.Thread.getOrFetch({
-                        model: "discuss.channel",
-                        id: data.id,
-                    });
-                    channel?.open({ focus: true });
-                    if (
-                        !data.joinCall ||
-                        !channel ||
-                        this.rtcService.state.channel?.eq(channel)
-                    ) {
-                        return;
-                    }
-                    if (this.rtcService.state.channel) {
-                        await this.rtcService.leaveCall();
-                    }
-                    this.rtcService.joinCall(channel);
-                } else if (action === "POST_RTC_LOGS") {
-                    const logs = data || {};
-                    logs.odooInfo = odoo.info;
-                    const string = JSON.stringify(logs);
-                    const blob = new Blob([string], { type: "application/json" });
-                    const downloadLink = document.createElement("a");
-                    const now = luxon.DateTime.now().toFormat("yyyy-LL-dd_HH-mm");
-                    downloadLink.download = `RtcLogs_${now}.json`;
-                    const url = URL.createObjectURL(blob);
-                    downloadLink.href = url;
-                    downloadLink.click();
-                    URL.revokeObjectURL(url);
-                }
-            },
+            ({ data: { action, data } }) => this.onServiceWorkerMessage(action, data),
         );
+    }
+
+    /**
+     * @param {Object} payload
+     * @param {Object} payload.data
+     * @param {number} payload.channel_id
+     * @param {boolean} [payload.invite_to_rtc_call]
+     * @param {number} [payload.invited_by_user_id]
+     */
+    async onChannelJoined({
+        data,
+        channel_id,
+        invite_to_rtc_call,
+        invited_by_user_id: invitedByUserId,
+    }) {
+        this.store.insert(data);
+        await this.store.fetchChannel(channel_id);
+        const thread = this.store.Thread.get({
+            id: channel_id,
+            model: "discuss.channel",
+        });
+        if (
+            thread &&
+            invitedByUserId &&
+            invitedByUserId !== this.store.self_partner?.main_user_id?.id &&
+            !invite_to_rtc_call
+        ) {
+            this.notificationService.add(
+                _t("You have been invited to #%s", thread.displayName),
+                { type: "info" },
+            );
+        }
+    }
+
+    /**
+     * @param {string} action
+     * @param {Object} data
+     */
+    async onServiceWorkerMessage(action, data) {
+        if (action === "OPEN_CHANNEL") {
+            await this.openPushedChannel(data);
+        } else if (action === "POST_RTC_LOGS") {
+            this.downloadRtcLogs(data);
+        }
+    }
+
+    /**
+     * @param {{id: number, joinCall: boolean}} data
+     */
+    async openPushedChannel(data) {
+        const channel = await this.store.Thread.getOrFetch({
+            model: "discuss.channel",
+            id: data.id,
+        });
+        channel?.open({ focus: true });
+        if (!data.joinCall || !channel || this.rtcService.state.channel?.eq(channel)) {
+            return;
+        }
+        if (this.rtcService.state.channel) {
+            await this.rtcService.leaveCall();
+        }
+        this.rtcService.joinCall(channel);
+    }
+
+    /** @param {Object} [data] whatever the worker collected, possibly nothing */
+    downloadRtcLogs(data) {
+        const logs = data || {};
+        logs.odooInfo = odoo.info;
+        const blob = new Blob([JSON.stringify(logs)], { type: "application/json" });
+        const downloadLink = document.createElement("a");
+        const now = luxon.DateTime.now().toFormat("yyyy-LL-dd_HH-mm");
+        downloadLink.download = `RtcLogs_${now}.json`;
+        const url = URL.createObjectURL(blob);
+        downloadLink.href = url;
+        downloadLink.click();
+        URL.revokeObjectURL(url);
     }
 
     /** @param {import("models").DiscussAppCategory} category */

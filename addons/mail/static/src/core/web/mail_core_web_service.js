@@ -13,7 +13,7 @@ export class MailCoreWeb {
         this.store = services["mail.store"];
     }
 
-    setup() {
+    _subscribeActivityUpdated() {
         this.busService.subscribe(
             "mail.activity/updated",
             /**
@@ -42,6 +42,8 @@ export class MailCoreWeb {
                 this.store.activity_counter_bus_id = notifId;
             },
         );
+    }
+    _subscribeMessageDeleted() {
         this.env.bus.addEventListener(
             "mail.message/delete",
             /** @param {CustomEvent<{message: import("models").Message, notifId: number}>} ev */
@@ -64,6 +66,8 @@ export class MailCoreWeb {
                 }
             },
         );
+    }
+    _subscribeInboxMessages() {
         this.busService.subscribe(
             "mail.message/inbox",
             /**
@@ -89,6 +93,8 @@ export class MailCoreWeb {
                 this.store.env.services["mail.out_of_focus"].notify(message);
             },
         );
+    }
+    _subscribeMarkedAsRead() {
         this.busService.subscribe(
             "mail.message/mark_as_read",
             /**
@@ -125,6 +131,12 @@ export class MailCoreWeb {
                 }
             },
         );
+    }
+    setup() {
+        this._subscribeActivityUpdated();
+        this._subscribeMessageDeleted();
+        this._subscribeInboxMessages();
+        this._subscribeMarkedAsRead();
     }
 }
 

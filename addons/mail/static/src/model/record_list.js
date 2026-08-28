@@ -67,6 +67,158 @@ function cursorOf(receiver) {
 }
 
 /**
+ * @param {RecordList<any>} recordList
+ * @param {string|symbol} name
+ * @param {RecordList<any>} receiver
+ */
+function recordListGet(recordList, name, receiver) {
+    const recordListFullProxy = recordList._.downgradeProxy(recordList, receiver);
+    if (
+        typeof name === "symbol" ||
+        (name !== "length" && Object.prototype.hasOwnProperty.call(recordList, name)) ||
+        Object.prototype.hasOwnProperty.call(recordList.constructor.prototype, name)
+    ) {
+        let res = Reflect.get(recordList, name, receiver);
+        if (typeof res === "function") {
+            res = res.bind(recordListFullProxy);
+        }
+        return res;
+    }
+    if (name === "length") {
+        return recordListFullProxy.data.length;
+    }
+    if (typeof name !== "symbol" && !window.isNaN(parseInt(name))) {
+        const index = parseInt(name);
+        return recordListFullProxy._store.recordByLocalId.get(
+            recordListFullProxy.data[index],
+        );
+    }
+    const array = [...recordList[Symbol.iterator].call(recordListFullProxy)];
+    return /** @type {Object<string, Function>} */ (/** @type {unknown} */ (array))[
+        name
+    ]?.bind(array);
+}
+/**
+ * @param {RecordList<any>} recordList
+ * @param {RecordList<any>} recordListProxy
+ * @param {string} name
+ * @param {any} val
+ */
+function recordListSetIndex(recordList, recordListProxy, name, val) {
+    const store = recordList._store;
+    const index = parseInt(name);
+    if (index < 0 || index > recordList.data.length) {
+        throw new Error(
+            `Cannot assign index ${index} on record list "${recordList._.owner.Model.getName()}/${
+                recordList._.name
+            }": out of range (length: ${recordList.data.length})`,
+        );
+    }
+    if (val === undefined || val === null || val === false) {
+        throw new Error(
+            `Cannot assign "${val}" at index ${index} on record list "${recordList._.owner.Model.getName()}/${
+                recordList._.name
+            }": use delete()/splice() to remove records`,
+        );
+    }
+    recordList._.insert(
+        recordList,
+        val,
+        /** @param {Record} newRecord */
+        function recordListSet_Insert(newRecord) {
+            const oldLocalId = recordList.data[index];
+            const oldRecordProxy =
+                oldLocalId && toRaw(recordList._store.recordByLocalId).get(oldLocalId);
+            const oldRecord = oldRecordProxy ? toRaw(oldRecordProxy)._raw : undefined;
+            if (oldRecord?.eq(newRecord)) {
+                return;
+            }
+            recordListProxy.data[index] = newRecord?.localId;
+            recordList._.syncLength(recordList);
+            const inverse = getInverse(recordList);
+            if (oldRecord) {
+                oldRecord._.uses.delete(recordList);
+                store._.ADD_QUEUE(
+                    "onDelete",
+                    recordList._.owner,
+                    recordList._.name,
+                    oldRecord,
+                );
+                if (inverse) {
+                    relationOf(oldRecord, inverse).delete(recordList._.owner);
+                }
+            }
+            if (newRecord) {
+                newRecord._.uses.add(recordList);
+                store._.ADD_QUEUE(
+                    "onAdd",
+                    recordList._.owner,
+                    recordList._.name,
+                    newRecord,
+                );
+                if (inverse) {
+                    relationOf(newRecord, inverse).add?.(recordList._.owner);
+                }
+            }
+        },
+    );
+}
+/**
+ * @param {RecordList<any>} recordList
+ * @param {RecordList<any>} recordListProxy
+ * @param {any} val
+ */
+function recordListSetLength(recordList, recordListProxy, val) {
+    const newLength = parseInt(val);
+    if (newLength > recordList.data.length) {
+        throw new Error(
+            `Cannot grow record list "${recordList._.owner.Model.getName()}/${
+                recordList._.name
+            }" from ${
+                recordList.data.length
+            } to ${newLength} by assigning length: use add()/push() to insert records`,
+        );
+    }
+    if (newLength < recordList.data.length) {
+        recordList.splice.call(
+            recordListProxy,
+            newLength,
+            recordList.data.length - newLength,
+        );
+    }
+}
+/**
+ * @param {RecordList<any>} recordList
+ * @param {string|symbol} name
+ * @param {any} val
+ * @param {RecordList<any>} recordListProxy
+ * @returns {boolean}
+ */
+function recordListSet(recordList, name, val, recordListProxy) {
+    const store = recordList._store;
+    return store.MAKE_UPDATE(function recordListSet() {
+        if (typeof name !== "symbol" && !window.isNaN(parseInt(name))) {
+            recordListSetIndex(recordList, recordListProxy, name, val);
+        } else if (name === "length") {
+            recordListSetLength(recordList, recordListProxy, val);
+        } else {
+            return Reflect.set(recordList, name, val, recordListProxy);
+        }
+        return true;
+    });
+}
+/**
+ * @param {RecordList<any>} recordList
+ * @returns {RecordList<any>}
+ */
+function makeRecordListProxy(recordList) {
+    return new Proxy(recordList, {
+        get: (recordList, name, receiver) => recordListGet(recordList, name, receiver),
+        set: (recordList, name, val, recordListProxy) =>
+            recordListSet(recordList, name, val, recordListProxy),
+    });
+}
+/**
  * @template {Record} R
  * @param {RecordList<R>} receiver
  * @returns {{list: RecordList<R>, proxy: RecordList<R>, store: import("models").Store}}
@@ -348,149 +500,7 @@ export class RecordList extends Array {
         super();
         const recordList = this;
         recordList._raw = recordList;
-        const recordListProxyInternal = new Proxy(recordList, {
-            /**
-             * @param {RecordList<R>} recordList
-             * @param {string|symbol} name
-             * @param {RecordList<R>} receiver
-             */
-            get(recordList, name, receiver) {
-                const recordListFullProxy = recordList._.downgradeProxy(
-                    recordList,
-                    receiver,
-                );
-                if (
-                    typeof name === "symbol" ||
-                    (name !== "length" &&
-                        Object.prototype.hasOwnProperty.call(recordList, name)) ||
-                    Object.prototype.hasOwnProperty.call(
-                        recordList.constructor.prototype,
-                        name,
-                    )
-                ) {
-                    let res = Reflect.get(recordList, name, receiver);
-                    if (typeof res === "function") {
-                        res = res.bind(recordListFullProxy);
-                    }
-                    return res;
-                }
-                if (name === "length") {
-                    return recordListFullProxy.data.length;
-                }
-                if (typeof name !== "symbol" && !window.isNaN(parseInt(name))) {
-                    const index = parseInt(name);
-                    return recordListFullProxy._store.recordByLocalId.get(
-                        recordListFullProxy.data[index],
-                    );
-                }
-                const array = [
-                    ...recordList[Symbol.iterator].call(recordListFullProxy),
-                ];
-                return /** @type {Object<string, Function>} */ (
-                    /** @type {unknown} */ (array)
-                )[name]?.bind(array);
-            },
-            /**
-             * @param {RecordList<R>} recordList
-             * @param {string|symbol} name
-             * @param {R|any} val
-             * @param {RecordList<R>} recordListProxy
-             * @returns {boolean}
-             */
-            set(recordList, name, val, recordListProxy) {
-                const store = recordList._store;
-                return store.MAKE_UPDATE(function recordListSet() {
-                    if (typeof name !== "symbol" && !window.isNaN(parseInt(name))) {
-                        const index = parseInt(name);
-                        if (index < 0 || index > recordList.data.length) {
-                            throw new Error(
-                                `Cannot assign index ${index} on record list "${recordList._.owner.Model.getName()}/${
-                                    recordList._.name
-                                }": out of range (length: ${recordList.data.length})`,
-                            );
-                        }
-                        if (val === undefined || val === null || val === false) {
-                            throw new Error(
-                                `Cannot assign "${val}" at index ${index} on record list "${recordList._.owner.Model.getName()}/${
-                                    recordList._.name
-                                }": use delete()/splice() to remove records`,
-                            );
-                        }
-                        recordList._.insert(
-                            recordList,
-                            val,
-                            /** @param {Record} newRecord */
-                            function recordListSet_Insert(newRecord) {
-                                const oldLocalId = recordList.data[index];
-                                const oldRecordProxy =
-                                    oldLocalId &&
-                                    toRaw(recordList._store.recordByLocalId).get(
-                                        oldLocalId,
-                                    );
-                                const oldRecord = oldRecordProxy
-                                    ? toRaw(oldRecordProxy)._raw
-                                    : undefined;
-                                if (oldRecord?.eq(newRecord)) {
-                                    return;
-                                }
-                                recordListProxy.data[index] = newRecord?.localId;
-                                recordList._.syncLength(recordList);
-                                const inverse = getInverse(recordList);
-                                if (oldRecord) {
-                                    oldRecord._.uses.delete(recordList);
-                                    store._.ADD_QUEUE(
-                                        "onDelete",
-                                        recordList._.owner,
-                                        recordList._.name,
-                                        oldRecord,
-                                    );
-                                    if (inverse) {
-                                        relationOf(oldRecord, inverse).delete(
-                                            recordList._.owner,
-                                        );
-                                    }
-                                }
-                                if (newRecord) {
-                                    newRecord._.uses.add(recordList);
-                                    store._.ADD_QUEUE(
-                                        "onAdd",
-                                        recordList._.owner,
-                                        recordList._.name,
-                                        newRecord,
-                                    );
-                                    if (inverse) {
-                                        relationOf(newRecord, inverse).add?.(
-                                            recordList._.owner,
-                                        );
-                                    }
-                                }
-                            },
-                        );
-                    } else if (name === "length") {
-                        const newLength = parseInt(val);
-                        if (newLength > recordList.data.length) {
-                            throw new Error(
-                                `Cannot grow record list "${recordList._.owner.Model.getName()}/${
-                                    recordList._.name
-                                }" from ${
-                                    recordList.data.length
-                                } to ${newLength} by assigning length: use add()/push() to insert records`,
-                            );
-                        }
-                        if (newLength < recordList.data.length) {
-                            recordList.splice.call(
-                                recordListProxy,
-                                newLength,
-                                recordList.data.length - newLength,
-                            );
-                        }
-                    } else {
-                        return Reflect.set(recordList, name, val, recordListProxy);
-                    }
-                    return true;
-                });
-            },
-        });
+        const recordListProxyInternal = makeRecordListProxy(recordList);
         recordList._proxyInternal = recordListProxyInternal;
         recordList._proxy = reactive(recordListProxyInternal);
         return recordList;

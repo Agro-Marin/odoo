@@ -8,6 +8,121 @@ import { useService } from "@web/core/utils/hooks";
 import { getFieldDomain } from "@web/model/relational_model";
 import { useCommand } from "@web/ui/commands";
 
+/**
+ * @param {import("@odoo/owl").Component} component
+ * @param {string} type
+ * @returns {number[]}
+ */
+function getCurrentAssignedIds(component, type) {
+    const value = component.props.record.data[component.props.name];
+    if (type === "many2one" && value) {
+        return [value.id];
+    }
+    if (type === "many2many") {
+        return value.currentIds;
+    }
+    return [];
+}
+/**
+ * @param {import("@odoo/owl").Component} component
+ * @param {string} type
+ * @param {[number, string]} record
+ */
+function updateAssignment(component, type, record) {
+    if (type === "many2one") {
+        component.props.record.update({
+            [component.props.name]: { id: record[0], display_name: record[1] },
+        });
+    } else if (type === "many2many") {
+        component.props.record.data[component.props.name].linkTo(record[0], {
+            display_name: record[1],
+        });
+    }
+}
+/**
+ * @param {import("@odoo/owl").Component} component
+ * @param {string} type
+ * @param {[number, string]} record
+ */
+function clearAssignment(component, type, record) {
+    if (type === "many2one") {
+        component.props.record.update({ [component.props.name]: false });
+    } else if (type === "many2many") {
+        component.props.record.data[component.props.name].unlinkFrom(record[0]);
+    }
+}
+/**
+ * @param {{component: any, type: string, orm: any, keepLast: KeepLast}} ctx
+ * @param {{searchValue: string}} options
+ * @returns {Promise<Object[]>}
+ */
+async function provideAssignableUsers({ component, type, orm, keepLast }, options) {
+    let domain = getFieldDomain(
+        component.props.record,
+        component.props.name,
+        component.props.domain,
+    );
+    if (type === "many2many") {
+        const selectedUserIds = getCurrentAssignedIds(component, type);
+        if (selectedUserIds.length) {
+            domain = Domain.and([domain, [["id", "not in", selectedUserIds]]]).toList();
+        }
+    }
+    let searchResult;
+    try {
+        searchResult = await keepLast.add(
+            orm.call(component.relation, "name_search", [], {
+                name: options.searchValue.trim(),
+                domain,
+                operator: "ilike",
+                limit: 80,
+                context: component.props.context,
+            }),
+        );
+    } catch (error) {
+        if (error instanceof SupersededError) {
+            return [];
+        }
+        throw error;
+    }
+    return searchResult.map((record) => ({
+        name: record[1],
+        action: async () => updateAssignment(component, type, record),
+    }));
+}
+/**
+ * @param {import("@odoo/owl").Component} component
+ * @param {string} type
+ * @param {Object} options
+ * @param {() => number[]} getCurrentIds
+ * @param {(record: [number, string]) => void} remove
+ */
+function useUnassignCommands(component, type, options, getCurrentIds, remove) {
+    const unassignFromMe = {
+        ...options,
+        isAvailable: () =>
+            options.isAvailable() && getCurrentIds().includes(user.userId),
+    };
+    if (component.props.record.id === component.props.record.model.root.id) {
+        useCommand(_t("Unassign from me"), () => remove([user.userId, user.name]), {
+            ...unassignFromMe,
+            hotkey: "alt+shift+i",
+        });
+        return;
+    }
+    if (type === "many2one") {
+        useCommand(_t("Unassign"), () => remove([user.userId, user.name]), {
+            ...options,
+            isAvailable: () => options.isAvailable() && getCurrentIds().length > 0,
+            hotkey: "alt+shift+u",
+        });
+        return;
+    }
+    useCommand(_t("Unassign from me"), () => remove([user.userId, user.name]), {
+        ...unassignFromMe,
+        hotkey: "alt+shift+u",
+    });
+}
 export function useAssignUserCommand() {
     const component = useComponent();
     const orm = useService("orm");
@@ -15,87 +130,12 @@ export function useAssignUserCommand() {
     if (component.relation !== "res.users") {
         return;
     }
-
     const keepLast = new KeepLast({ rejectSuperseded: true });
-
-    const getCurrentIds = () => {
-        if (type === "many2one" && component.props.record.data[component.props.name]) {
-            return [component.props.record.data[component.props.name].id];
-        } else if (type === "many2many") {
-            return component.props.record.data[component.props.name].currentIds;
-        }
-        return [];
-    };
-
+    const getCurrentIds = () => getCurrentAssignedIds(component, type);
     /** @param {[number, string]} record */
-    const add = async (record) => {
-        if (type === "many2one") {
-            component.props.record.update({
-                [component.props.name]: {
-                    id: record[0],
-                    display_name: record[1],
-                },
-            });
-        } else if (type === "many2many") {
-            component.props.record.data[component.props.name].linkTo(record[0], {
-                display_name: record[1],
-            });
-        }
-    };
-
+    const add = async (record) => updateAssignment(component, type, record);
     /** @param {[number, string]} record */
-    const remove = async (record) => {
-        if (type === "many2one") {
-            component.props.record.update({ [component.props.name]: false });
-        } else if (type === "many2many") {
-            component.props.record.data[component.props.name].unlinkFrom(record[0]);
-        }
-    };
-
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     * @param {{searchValue: string}} options
-     * @returns {Promise<Object[]>}
-     */
-    const provide = async (env, options) => {
-        const value = options.searchValue.trim();
-        let domain = getFieldDomain(
-            component.props.record,
-            component.props.name,
-            component.props.domain,
-        );
-        const context = component.props.context;
-        if (type === "many2many") {
-            const selectedUserIds = getCurrentIds();
-            if (selectedUserIds.length) {
-                domain = Domain.and([
-                    domain,
-                    [["id", "not in", selectedUserIds]],
-                ]).toList();
-            }
-        }
-        let searchResult;
-        try {
-            searchResult = await keepLast.add(
-                orm.call(component.relation, "name_search", [], {
-                    name: value,
-                    domain: domain,
-                    operator: "ilike",
-                    limit: 80,
-                    context,
-                }),
-            );
-        } catch (error) {
-            if (error instanceof SupersededError) {
-                return [];
-            }
-            throw error;
-        }
-        return searchResult.map((record) => ({
-            name: record[1],
-            action: add.bind(null, record),
-        }));
-    };
+    const remove = async (record) => clearAssignment(component, type, record);
     const options = {
         category: "smart_action",
         global: true,
@@ -118,68 +158,21 @@ export function useAssignUserCommand() {
             placeholder: _t("Select a user..."),
             providers: [
                 {
-                    provide,
+                    provide: (env, providerOptions) =>
+                        provideAssignableUsers(
+                            { component, type, orm, keepLast },
+                            providerOptions,
+                        ),
                 },
             ],
         }),
-        {
-            ...options,
-            hotkey: "alt+i",
-        },
+        { ...options, hotkey: "alt+i" },
     );
-
-    useCommand(
-        _t("Assign to me"),
-        () => {
-            add([user.userId, user.name]);
-        },
-        {
-            ...options,
-            isAvailable: () =>
-                options.isAvailable() && !getCurrentIds().includes(user.userId),
-            hotkey: "alt+shift+i",
-        },
-    );
-    if (component.props.record.id === component.props.record.model.root.id) {
-        useCommand(
-            _t("Unassign from me"),
-            () => {
-                remove([user.userId, user.name]);
-            },
-            {
-                ...options,
-                isAvailable: () =>
-                    options.isAvailable() && getCurrentIds().includes(user.userId),
-                hotkey: "alt+shift+i",
-            },
-        );
-    } else {
-        if (type === "many2one") {
-            useCommand(
-                _t("Unassign"),
-                () => {
-                    remove([user.userId, user.name]);
-                },
-                {
-                    ...options,
-                    isAvailable: () =>
-                        options.isAvailable() && getCurrentIds().length > 0,
-                    hotkey: "alt+shift+u",
-                },
-            );
-        } else {
-            useCommand(
-                _t("Unassign from me"),
-                () => {
-                    remove([user.userId, user.name]);
-                },
-                {
-                    ...options,
-                    isAvailable: () =>
-                        options.isAvailable() && getCurrentIds().includes(user.userId),
-                    hotkey: "alt+shift+u",
-                },
-            );
-        }
-    }
+    useCommand(_t("Assign to me"), () => add([user.userId, user.name]), {
+        ...options,
+        isAvailable: () =>
+            options.isAvailable() && !getCurrentIds().includes(user.userId),
+        hotkey: "alt+shift+i",
+    });
+    useUnassignCommands(component, type, options, getCurrentIds, remove);
 }

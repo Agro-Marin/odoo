@@ -62,8 +62,7 @@ export class Thread extends Component {
     };
     static template = "mail.Thread";
 
-    setup() {
-        super.setup();
+    _setupServicesAndRefs() {
         this.onScroll = useThrottleForAnimation(this.onScroll);
         this.registerMessageRef = this.registerMessageRef.bind(this);
         this.store = useService("mail.store");
@@ -105,6 +104,8 @@ export class Thread extends Component {
         this.presentThresholdState = useVisible("present-treshold", () =>
             this.updateShowJumpPresent(),
         );
+    }
+    _setupScrollTracking() {
         this.threadScroll = useThreadScroll({
             scrollableRef: this.scrollableRef,
             getThread: () => this.props.thread,
@@ -128,6 +129,8 @@ export class Thread extends Component {
             getCurrentThread: () => this.props.thread,
             onImageLoaded: this.threadScroll.applyScroll,
         });
+    }
+    _setupMessageEffects() {
         useEffect(
             /** @param {number} focus */
             (focus) => {
@@ -192,6 +195,8 @@ export class Thread extends Component {
                 this.props.thread.isFocusedByThread = false;
             }
         });
+    }
+    _setupJumpEffects() {
         useEffect(
             /** @param {boolean} isLoaded */
             (isLoaded) => {
@@ -230,6 +235,8 @@ export class Thread extends Component {
             },
             () => [this.props.jumpToNewMessage],
         );
+    }
+    _setupThreadListeners() {
         useBus(
             this.env.bus,
             "MAIL:RELOAD-THREAD",
@@ -255,6 +262,14 @@ export class Thread extends Component {
                 }
             },
         );
+    }
+    setup() {
+        super.setup();
+        this._setupServicesAndRefs();
+        this._setupScrollTracking();
+        this._setupMessageEffects();
+        this._setupJumpEffects();
+        this._setupThreadListeners();
     }
 
     computeJumpPresentPosition() {

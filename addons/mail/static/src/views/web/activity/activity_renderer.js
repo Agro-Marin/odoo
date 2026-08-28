@@ -67,10 +67,9 @@ export class ActivityRenderer extends Component {
     }
 
     /**
-     * @param {{id: number, name: string}} activityType
-     * @returns {Object}
+     * @returns {Object} the four activity states, labelled from the selection
      */
-    getGroupInfo(activityType) {
+    getActivityStateTypes() {
         const types = {
             done: {
                 color: "secondary",
@@ -97,52 +96,69 @@ export class ActivityRenderer extends Component {
         for (const [type, label] of this.props.fields.activity_state.selection) {
             types[type].label = label;
         }
-        const typeId = activityType.id;
-        const isColumnFiltered = this.activeFilter.activityTypeId === activityType.id;
-        const progressValue = isColumnFiltered
-            ? this.activeFilter.progressValue
-            : { active: null };
+        return types;
+    }
 
+    /**
+     * @param {Object} types as returned by {@link getActivityStateTypes}, filled in place
+     * @param {number} typeId
+     * @returns {number} the tally of every state but done
+     */
+    countActivityStates(types, typeId) {
         let totalCountWithoutDone = 0;
         for (const activities of Object.values(this.props.groupedActivities)) {
-            if (typeId in activities) {
-                for (const [state, stateCount] of Object.entries(
-                    activities[typeId].count_by_state,
-                )) {
-                    types[state].value += stateCount;
-                    if (state !== "done") {
-                        totalCountWithoutDone += stateCount;
-                    }
+            if (!(typeId in activities)) {
+                continue;
+            }
+            for (const [state, stateCount] of Object.entries(
+                activities[typeId].count_by_state,
+            )) {
+                types[state].value += stateCount;
+                if (state !== "done") {
+                    totalCountWithoutDone += stateCount;
                 }
             }
         }
+        return totalCountWithoutDone;
+    }
 
-        const progressBar = {
-            bars: [],
-            activeBar: isColumnFiltered ? this.activeFilter.progressValue.active : null,
-            isReady: true,
-        };
-        for (const [value, count] of Object.entries(types)) {
-            if (count.inProgressBar) {
-                progressBar.bars.push({
-                    count: count.value,
+    /**
+     * @param {Object} types as returned by {@link getActivityStateTypes}
+     * @param {string|null} activeBar
+     * @returns {Object}
+     */
+    getStateProgressBar(types, activeBar) {
+        const bars = [];
+        for (const [value, type] of Object.entries(types)) {
+            if (type.inProgressBar) {
+                bars.push({
+                    count: type.value,
                     value,
-                    string: types[value].label,
-                    color: count.color,
+                    string: type.label,
+                    color: type.color,
                 });
             }
         }
+        return { bars, activeBar, isReady: true };
+    }
+
+    /**
+     * @param {{id: number, name: string}} activityType
+     * @returns {Object}
+     */
+    getGroupInfo(activityType) {
+        const types = this.getActivityStateTypes();
+        const typeId = activityType.id;
+        const isColumnFiltered = this.activeFilter.activityTypeId === typeId;
+        const progressValue = isColumnFiltered
+            ? this.activeFilter.progressValue
+            : { active: null };
+        const totalCountWithoutDone = this.countActivityStates(types, typeId);
 
         const ongoingActivityCount =
             types.overdue.value + types.today.value + types.planned.value;
         const ongoingAndDoneCount = ongoingActivityCount + types.done.value;
         const labelAggregate = `${types.overdue.label} + ${types.today.label} + ${types.planned.label}`;
-        const aggregateOn = ongoingAndDoneCount
-            ? {
-                  title: `${types.done.label} + ${labelAggregate}`,
-                  value: ongoingAndDoneCount,
-              }
-            : undefined;
         return {
             aggregate: {
                 title: labelAggregate,
@@ -150,12 +166,17 @@ export class ActivityRenderer extends Component {
                     ? types[progressValue.active].value
                     : ongoingActivityCount,
             },
-            aggregateOn: aggregateOn,
+            aggregateOn: ongoingAndDoneCount
+                ? {
+                      title: `${types.done.label} + ${labelAggregate}`,
+                      value: ongoingAndDoneCount,
+                  }
+                : undefined,
             data: {
                 count: totalCountWithoutDone,
                 /** @param {string} name */
                 filterProgressValue: (name) => this.onSetProgressBarState(typeId, name),
-                progressBar,
+                progressBar: this.getStateProgressBar(types, progressValue.active),
                 progressValue,
             },
         };

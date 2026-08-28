@@ -260,7 +260,7 @@ function attachmentThumbnailToLinkImg(element) {
     }
 }
 /** @param {Element} element */
-export function bootstrapToTable(element) {
+function _flattenNestedRows(element) {
     for (const rowInColumn of [
         .../** @type {NodeListOf<HTMLElement>} */ (element.querySelectorAll(".row")),
     ].filter((row) => RE_COL_MATCH.test(row.parentElement.className))) {
@@ -287,7 +287,9 @@ export function bootstrapToTable(element) {
             }
         }
     }
-
+}
+/** @param {Element} element */
+function _normalizeMasonryGrids(element) {
     for (const masonryTopInnerContainer of /** @type {NodeListOf<HTMLElement>} */ (
         element.querySelectorAll(".s_masonry_block > .container")
     )) {
@@ -311,185 +313,176 @@ export function bootstrapToTable(element) {
         masonryRow.style.removeProperty("height");
         masonryRow.parentElement.style.setProperty("height", "100%");
     }
+}
+/**
+ * @param {HTMLElement} container
+ * @returns {HTMLTableElement}
+ */
+function _replaceContainerWithTable(container) {
+    const table = _createTable(container.attributes);
+    for (const child of [...container.childNodes]) {
+        table.append(child);
+    }
+    table.classList.remove("container", "container-fluid", "o_fake_table");
+    if (!table.className) {
+        table.removeAttribute("class");
+    }
+    container.before(table);
+    container.remove();
+    return table;
+}
+/**
+ * @param {HTMLElement} tr
+ * @returns {HTMLElement[]}
+ */
+function _normalizeBootstrapColumns(tr) {
+    const bootstrapColumns = [...tr.children].filter((column) => {
+        let match = column.className && column.className.match(RE_COL_MATCH);
+        const size = match ? _getColumnSize(column) : undefined;
+        while (match) {
+            column.classList.remove(match[0].trim());
+            match = column.className && column.className.match(RE_COL_MATCH);
+        }
+        if (size !== undefined) {
+            column.classList.add(`col${size ? `-${size}` : ``}`);
+        }
+        return size !== undefined;
+    });
 
-    const containers = /** @type {NodeListOf<HTMLElement>} */ (
-        element.querySelectorAll(".container, .container-fluid, .o_fake_table")
+    const flexColumns = bootstrapColumns.filter(
+        (column) => !/\d/.test(column.className.match(RE_COL_MATCH)[0] || "0"),
     );
-    for (const container of containers) {
-        container.setAttribute("o-temp-width", String(_getWidth(container)));
+    const colTotalSize = bootstrapColumns
+        .map((child) => _getColumnSize(child) + _getColumnOffsetSize(child))
+        .reduce((a, b) => a + b, 0);
+    const colSize = Math.max(1, Math.round((12 - colTotalSize) / flexColumns.length));
+    for (const flexColumn of flexColumns) {
+        flexColumn.classList.remove(flexColumn.className.match(RE_COL_MATCH)[0].trim());
+        flexColumn.classList.add(`col-${colSize}`);
     }
-    for (const container of [...containers].filter((n) =>
-        [...n.children].some((c) => c.classList.contains("row")),
-    )) {
-        const containerWidth = parseFloat(container.getAttribute("o-temp-width"));
 
-        const table = _createTable(container.attributes);
-        for (const child of [...container.childNodes]) {
-            table.append(child);
-        }
-        table.classList.remove("container", "container-fluid", "o_fake_table");
-        if (!table.className) {
-            table.removeAttribute("class");
-        }
-        container.before(table);
-        container.remove();
-
-        for (const row of [...table.children].filter(
-            (child) => isBlock(child) && !child.classList.contains("row"),
-        )) {
-            const newCol = _wrap(row, "div", "col-12");
-            _wrap(newCol, "div", "row");
-        }
-
-        for (const bootstrapRow of [...table.children].filter((c) =>
-            c.classList.contains("row"),
-        )) {
-            const tr = document.createElement("tr");
-            _markGenerated(tr);
-            for (const attr of bootstrapRow.attributes) {
-                tr.setAttribute(attr.name, attr.value);
+    let columnIndex = 0;
+    for (const bootstrapColumn of [...bootstrapColumns]) {
+        const offsetSize = _getColumnOffsetSize(bootstrapColumn);
+        if (offsetSize) {
+            const newColumn = document.createElement("div");
+            _markGenerated(newColumn);
+            newColumn.classList.add(`col-${offsetSize}`);
+            let match = bootstrapColumn.className.match(RE_OFFSET_MATCH);
+            while (match) {
+                bootstrapColumn.classList.remove(match[0].trim());
+                match = bootstrapColumn.className.match(RE_OFFSET_MATCH);
             }
-            tr.classList.remove("row");
-            if (!tr.className) {
-                tr.removeAttribute("class");
-            }
-            for (const child of [...bootstrapRow.childNodes]) {
-                tr.append(child);
-            }
-            bootstrapRow.before(tr);
-            bootstrapRow.remove();
-
-            const bootstrapColumns = [...tr.children].filter((column) => {
-                let match = column.className && column.className.match(RE_COL_MATCH);
-                const size = match ? _getColumnSize(column) : undefined;
-                while (match) {
-                    column.classList.remove(match[0].trim());
-                    match = column.className && column.className.match(RE_COL_MATCH);
-                }
-                if (size !== undefined) {
-                    column.classList.add(`col${size ? `-${size}` : ``}`);
-                }
-                return size !== undefined;
-            });
-
-            const flexColumns = bootstrapColumns.filter(
-                (column) => !/\d/.test(column.className.match(RE_COL_MATCH)[0] || "0"),
-            );
-            const colTotalSize = bootstrapColumns
-                .map((child) => _getColumnSize(child) + _getColumnOffsetSize(child))
-                .reduce((a, b) => a + b, 0);
-            const colSize = Math.max(
-                1,
-                Math.round((12 - colTotalSize) / flexColumns.length),
-            );
-            for (const flexColumn of flexColumns) {
-                flexColumn.classList.remove(
-                    flexColumn.className.match(RE_COL_MATCH)[0].trim(),
+            bootstrapColumn.before(newColumn);
+            bootstrapColumns.splice(columnIndex, 0, newColumn);
+            columnIndex++;
+        }
+        columnIndex++;
+    }
+    return bootstrapColumns;
+}
+/**
+ * @param {HTMLTableRowElement} tr
+ * @param {HTMLElement[]} bootstrapColumns
+ * @param {number} containerWidth
+ */
+function _layoutColumnsIntoGrid(tr, bootstrapColumns, containerWidth) {
+    let grid = _createColumnGrid();
+    let gridIndex = 0;
+    let currentRow = /** @type {HTMLTableRowElement} */ (tr.cloneNode());
+    tr.after(currentRow);
+    /** @type {HTMLTableCellElement|undefined} */
+    let currentCol;
+    let columnIndex = 0;
+    for (const bootstrapColumn of bootstrapColumns) {
+        const columnSize = _getColumnSize(bootstrapColumn);
+        if (gridIndex + columnSize < 12) {
+            currentCol = grid[gridIndex];
+            _applyColspan(currentCol, columnSize, containerWidth);
+            gridIndex += columnSize;
+        } else if (gridIndex + columnSize === 12) {
+            currentCol = grid[gridIndex];
+            _applyColspan(currentCol, columnSize, containerWidth);
+            currentRow.append(...grid.filter((td) => td.getAttribute("colspan")));
+            if (columnIndex !== bootstrapColumns.length - 1) {
+                const previousRow = currentRow;
+                currentRow = /** @type {HTMLTableRowElement} */ (
+                    currentRow.cloneNode()
                 );
-                flexColumn.classList.add(`col-${colSize}`);
+                currentRow.removeAttribute("id");
+                previousRow.after(currentRow);
+                grid = _createColumnGrid();
+                gridIndex = 0;
             }
-
-            let columnIndex = 0;
-            for (const bootstrapColumn of [...bootstrapColumns]) {
-                const offsetSize = _getColumnOffsetSize(bootstrapColumn);
-                if (offsetSize) {
-                    const newColumn = document.createElement("div");
-                    _markGenerated(newColumn);
-                    newColumn.classList.add(`col-${offsetSize}`);
-                    let match = bootstrapColumn.className.match(RE_OFFSET_MATCH);
-                    while (match) {
-                        bootstrapColumn.classList.remove(match[0].trim());
-                        match = bootstrapColumn.className.match(RE_OFFSET_MATCH);
-                    }
-                    bootstrapColumn.before(newColumn);
-                    bootstrapColumns.splice(columnIndex, 0, newColumn);
-                    columnIndex++;
-                }
-                columnIndex++;
+        } else {
+            if (gridIndex < 12) {
+                _applyColspan(grid[gridIndex], 12 - gridIndex, containerWidth);
             }
-            let grid = _createColumnGrid();
-            let gridIndex = 0;
-            let currentRow = /** @type {HTMLTableRowElement} */ (tr.cloneNode());
-            tr.after(currentRow);
-            /** @type {HTMLTableCellElement|undefined} */
-            let currentCol;
-            columnIndex = 0;
-            for (const bootstrapColumn of bootstrapColumns) {
-                const columnSize = _getColumnSize(bootstrapColumn);
-                if (gridIndex + columnSize < 12) {
-                    currentCol = grid[gridIndex];
-                    _applyColspan(currentCol, columnSize, containerWidth);
-                    gridIndex += columnSize;
-                } else if (gridIndex + columnSize === 12) {
-                    currentCol = grid[gridIndex];
-                    _applyColspan(currentCol, columnSize, containerWidth);
-                    currentRow.append(
-                        ...grid.filter((td) => td.getAttribute("colspan")),
-                    );
-                    if (columnIndex !== bootstrapColumns.length - 1) {
-                        const previousRow = currentRow;
-                        currentRow = /** @type {HTMLTableRowElement} */ (
-                            currentRow.cloneNode()
-                        );
-                        currentRow.removeAttribute("id");
-                        previousRow.after(currentRow);
-                        grid = _createColumnGrid();
-                        gridIndex = 0;
-                    }
-                } else {
-                    if (gridIndex < 12) {
-                        _applyColspan(grid[gridIndex], 12 - gridIndex, containerWidth);
-                    }
-                    currentRow.append(
-                        ...grid.filter((td) => td.getAttribute("colspan")),
-                    );
-                    const previousRow = currentRow;
-                    currentRow = /** @type {HTMLTableRowElement} */ (
-                        currentRow.cloneNode()
-                    );
-                    currentRow.removeAttribute("id");
-                    previousRow.after(currentRow);
-                    grid = _createColumnGrid();
-                    currentCol = grid[0];
-                    _applyColspan(currentCol, columnSize, containerWidth);
-                    gridIndex = columnSize;
-                }
-                if (columnIndex === bootstrapColumns.length - 1) {
-                    if (gridIndex < 12) {
-                        _applyColspan(grid[gridIndex], 12 - gridIndex, containerWidth);
-                    }
-                    currentRow.append(
-                        ...grid.filter((td) => td.getAttribute("colspan")),
-                    );
-                }
-                if (currentCol) {
-                    for (const attr of bootstrapColumn.attributes) {
-                        if (attr.name !== "colspan") {
-                            currentCol.setAttribute(attr.name, attr.value);
-                        }
-                    }
-                    const colMatch = bootstrapColumn.className.match(RE_COL_MATCH);
-                    currentCol.classList.remove(colMatch[0].trim());
-                    if (!currentCol.className) {
-                        currentCol.removeAttribute("class");
-                    }
-                    for (const child of [...bootstrapColumn.childNodes]) {
-                        currentCol.append(child);
-                    }
-                    _applyColspan(
-                        currentCol,
-                        +currentCol.getAttribute("colspan"),
-                        containerWidth,
-                    );
-                }
-                columnIndex++;
-            }
-            tr.remove();
+            currentRow.append(...grid.filter((td) => td.getAttribute("colspan")));
+            const previousRow = currentRow;
+            currentRow = /** @type {HTMLTableRowElement} */ (currentRow.cloneNode());
+            currentRow.removeAttribute("id");
+            previousRow.after(currentRow);
+            grid = _createColumnGrid();
+            currentCol = grid[0];
+            _applyColspan(currentCol, columnSize, containerWidth);
+            gridIndex = columnSize;
         }
+        if (columnIndex === bootstrapColumns.length - 1) {
+            if (gridIndex < 12) {
+                _applyColspan(grid[gridIndex], 12 - gridIndex, containerWidth);
+            }
+            currentRow.append(...grid.filter((td) => td.getAttribute("colspan")));
+        }
+        if (currentCol) {
+            for (const attr of bootstrapColumn.attributes) {
+                if (attr.name !== "colspan") {
+                    currentCol.setAttribute(attr.name, attr.value);
+                }
+            }
+            const colMatch = bootstrapColumn.className.match(RE_COL_MATCH);
+            currentCol.classList.remove(colMatch[0].trim());
+            if (!currentCol.className) {
+                currentCol.removeAttribute("class");
+            }
+            for (const child of [...bootstrapColumn.childNodes]) {
+                currentCol.append(child);
+            }
+            _applyColspan(
+                currentCol,
+                +currentCol.getAttribute("colspan"),
+                containerWidth,
+            );
+        }
+        columnIndex++;
     }
-    for (const node of element.querySelectorAll("[o-temp-width]")) {
-        node.removeAttribute("o-temp-width");
+}
+/**
+ * @param {HTMLElement} bootstrapRow
+ * @param {number} containerWidth
+ */
+function _convertBootstrapRowToRows(bootstrapRow, containerWidth) {
+    const tr = document.createElement("tr");
+    _markGenerated(tr);
+    for (const attr of bootstrapRow.attributes) {
+        tr.setAttribute(attr.name, attr.value);
     }
+    tr.classList.remove("row");
+    if (!tr.className) {
+        tr.removeAttribute("class");
+    }
+    for (const child of [...bootstrapRow.childNodes]) {
+        tr.append(child);
+    }
+    bootstrapRow.before(tr);
+    bootstrapRow.remove();
+
+    const bootstrapColumns = _normalizeBootstrapColumns(tr);
+    _layoutColumnsIntoGrid(tr, bootstrapColumns, containerWidth);
+    tr.remove();
+}
+/** @param {Element} element */
+function _stackTablesInCells(element) {
     const tds = [...element.querySelectorAll("td")]
         .filter(
             (td) =>
@@ -507,6 +500,41 @@ export function bootstrapToTable(element) {
         trs[0].before(table);
         table.append(...trs);
     }
+}
+/** @param {Element} element */
+export function bootstrapToTable(element) {
+    _flattenNestedRows(element);
+    _normalizeMasonryGrids(element);
+
+    const containers = /** @type {NodeListOf<HTMLElement>} */ (
+        element.querySelectorAll(".container, .container-fluid, .o_fake_table")
+    );
+    for (const container of containers) {
+        container.setAttribute("o-temp-width", String(_getWidth(container)));
+    }
+    for (const container of [...containers].filter((n) =>
+        [...n.children].some((c) => c.classList.contains("row")),
+    )) {
+        const containerWidth = parseFloat(container.getAttribute("o-temp-width"));
+        const table = _replaceContainerWithTable(container);
+
+        for (const row of [...table.children].filter(
+            (child) => isBlock(child) && !child.classList.contains("row"),
+        )) {
+            const newCol = _wrap(row, "div", "col-12");
+            _wrap(newCol, "div", "row");
+        }
+
+        for (const bootstrapRow of [...table.children].filter((c) =>
+            c.classList.contains("row"),
+        )) {
+            _convertBootstrapRowToRows(bootstrapRow, containerWidth);
+        }
+    }
+    for (const node of element.querySelectorAll("[o-temp-width]")) {
+        node.removeAttribute("o-temp-width");
+    }
+    _stackTablesInCells(element);
 }
 /** @param {Element} element */
 export function cardToTable(element) {
@@ -581,33 +609,40 @@ export function cardToTable(element) {
 }
 /**
  * @param {HTMLElement} element
- * @param {CssRule[]} cssRules
+ * @returns {{tags: Set<string>, classes: Set<string>, ids: Set<string>}}
  */
-export function classToStyle(element, cssRules) {
-    /** @type {(() => void)[]} */
-    const writes = [];
+function _collectSubtreeSelectorTokens(element) {
+    const tags = new Set();
+    const classes = new Set();
+    const ids = new Set();
+    for (const node of element.querySelectorAll("*")) {
+        tags.add(node.nodeName.toLowerCase());
+        if (node.id) {
+            ids.add(node.id);
+        }
+        for (const className of node.classList) {
+            classes.add(className);
+        }
+    }
+    return { tags, classes, ids };
+}
+/**
+ * @param {HTMLElement} element
+ * @param {CssRule[]} cssRules
+ * @returns {Map<HTMLElement, CssRule[]>}
+ */
+function _matchRulesToNodes(element, cssRules) {
+    const subtree = _collectSubtreeSelectorTokens(element);
     /** @type {Map<HTMLElement, CssRule[]>} */
     const nodeToRules = new Map();
     /** @type {CssRule[]} */
     const rulesToProcess = [];
-    const subtreeTags = new Set();
-    const subtreeClasses = new Set();
-    const subtreeIds = new Set();
-    for (const node of element.querySelectorAll("*")) {
-        subtreeTags.add(node.nodeName.toLowerCase());
-        if (node.id) {
-            subtreeIds.add(node.id);
-        }
-        for (const className of node.classList) {
-            subtreeClasses.add(className);
-        }
-    }
     for (const rule of cssRules) {
         const { tag, classes, ids } = _getRightmostSelectorTokens(rule.selector);
         if (
-            (tag && !subtreeTags.has(tag)) ||
-            classes.some((className) => !subtreeClasses.has(className)) ||
-            ids.some((id) => !subtreeIds.has(id))
+            (tag && !subtree.tags.has(tag)) ||
+            classes.some((className) => !subtree.classes.has(className)) ||
+            ids.some((id) => !subtree.ids.has(id))
         ) {
             continue;
         }
@@ -637,92 +672,77 @@ export function classToStyle(element, cssRules) {
     for (const rules of nodeToRules.values()) {
         rules.sort((a, b) => a.specificity - b.specificity);
     }
-
-    const styleProbe = document.createElement("span");
-
-    for (const node of nodeToRules.keys()) {
-        const nodeRules = nodeToRules.get(node);
-        const css = nodeRules ? _getMatchedCSSRules(node, nodeRules) : {};
-
-        let style = node.getAttribute("style") || "";
-        style = style.replace(/!important/g, "");
-        style = style
-            .split(";")
-            .filter((declaration) => {
-                const separator = declaration.indexOf(":");
-                if (separator === -1) {
-                    return true;
-                }
-                const name = declaration.slice(0, separator).trim();
-                const value = declaration.slice(separator + 1).trim();
-                return !isDroppedFlexDeclaration(name, value);
-            })
-            .join(";");
-        styleProbe.style.cssText = style;
-        for (const [key, value] of Object.entries(css)) {
-            if (!styleProbe.style.getPropertyValue(key)) {
-                style = `${key}:${value};${style}`;
+    return nodeToRules;
+}
+/**
+ * @param {HTMLElement} node
+ * @param {StyleMap} css
+ * @param {HTMLElement} styleProbe
+ * @param {(() => void)[]} writes
+ */
+function _prepareStyleAttributeWrite(node, css, styleProbe, writes) {
+    let style = node.getAttribute("style") || "";
+    style = style.replace(/!important/g, "");
+    style = style
+        .split(";")
+        .filter((declaration) => {
+            const separator = declaration.indexOf(":");
+            if (separator === -1) {
+                return true;
             }
+            const name = declaration.slice(0, separator).trim();
+            const value = declaration.slice(separator + 1).trim();
+            return !isDroppedFlexDeclaration(name, value);
+        })
+        .join(";");
+    styleProbe.style.cssText = style;
+    for (const [key, value] of Object.entries(css)) {
+        if (!styleProbe.style.getPropertyValue(key)) {
+            style = `${key}:${value};${style}`;
         }
-        style = correctBorderAttributes(style);
-        if (!style.trim() || node.nodeName === "T") {
-            writes.push(() => {
-                node.removeAttribute("style");
-            });
-        } else {
-            writes.push(() => {
-                node.setAttribute("style", style);
-                if (node.style.width) {
-                    node.setAttribute(
-                        "width",
-                        node.style.width.replace("px", "").trim(),
-                    );
-                }
-            });
+    }
+    style = correctBorderAttributes(style);
+    if (!style.trim() || node.nodeName === "T") {
+        writes.push(() => {
+            node.removeAttribute("style");
+        });
+    } else {
+        writes.push(() => {
+            node.setAttribute("style", style);
+            if (node.style.width) {
+                node.setAttribute("width", node.style.width.replace("px", "").trim());
+            }
+        });
+    }
+}
+/**
+ * @param {HTMLElement} node
+ * @param {(() => void)[]} writes
+ */
+function _prepareThemeColorClassWrite(node, writes) {
+    const themeColorClasses = [...node.classList].filter((c) =>
+        RE_THEME_COLOR_CLASS.test(c),
+    );
+    if (!themeColorClasses.length) {
+        return;
+    }
+    writes.push(() => {
+        for (const cls of themeColorClasses) {
+            node.classList.remove(cls);
         }
-
-        const themeColorClasses = [...node.classList].filter((c) =>
-            RE_THEME_COLOR_CLASS.test(c),
-        );
-        if (themeColorClasses.length) {
-            writes.push(() => {
-                for (const cls of themeColorClasses) {
-                    node.classList.remove(cls);
-                }
-                if (!node.classList.length) {
-                    node.removeAttribute("class");
-                }
-            });
+        if (!node.classList.length) {
+            node.removeAttribute("class");
         }
-
-        if (node.nodeName === "IMG") {
-            writes.push(() => {
-                if (node.classList.contains("s_media_list_img")) {
-                    node.style.removeProperty("height");
-                }
-                if (
-                    node.style.getPropertyValue("width") === "100%" &&
-                    node.style.getPropertyValue("object-fit") === ""
-                ) {
-                    node.style.setProperty("object-fit", "cover");
-                }
-            });
-        }
-        if (node.nodeName === "TD" && !node.childNodes.length) {
-            writes.push(() => {
-                node.appendChild(document.createTextNode("\u00A0"));
-            });
-        }
-        if (
-            node.nodeName === "A" &&
-            node.classList.contains("btn") &&
-            !node.classList.contains("btn-link") &&
-            !node.children.length &&
-            !_isMsoComment(node.previousSibling)
-        ) {
-            writes.push(() => {
-                node.before(
-                    createMso(`<table align="center" border="0"
+    });
+}
+/**
+ * @param {HTMLElement} node
+ * @param {(() => void)[]} writes
+ */
+function _prepareOutlookButtonWrite(node, writes) {
+    writes.push(() => {
+        node.before(
+            createMso(`<table align="center" border="0"
                     role="presentation" cellpadding="0" cellspacing="0"
                     style="border-radius: 6px; border-collapse: separate !important;">
                         <tbody>
@@ -735,70 +755,91 @@ export function classToStyle(element, cssRules) {
                                         : ""
                                 }bgcolor="${blendColors(node.style.backgroundColor)}">
                     `),
-                );
-                node.after(
-                    createMso(`</td>
+        );
+        node.after(
+            createMso(`</td>
                         </tr>
                     </tbody>
                 </table>`),
-                );
-            });
-        } else if (
-            node.nodeName === "IMG" &&
-            node.classList.contains("mx-auto") &&
-            node.classList.contains("d-block") &&
-            !node.parentElement.classList.contains("o_outlook_hack")
-        ) {
-            writes.push(() => {
-                _wrap(node, "p", "o_outlook_hack", "text-align:center;margin:0");
-            });
-        }
-
-        const matchedBlacklistRules = nodeRules?.filter((rule) =>
-            CONVERT_INLINE_BLACKLIST_CLASSES.some(
-                (cls) => rule.selector.includes(cls) && node.classList.contains(cls),
-            ),
         );
-
-        /** @type {StyleMap} */
-        const blacklistedStyles = {};
-        for (const rule of matchedBlacklistRules) {
-            for (const [key, value] of Object.entries(rule.style)) {
-                if (
-                    !blacklistedStyles[key] ||
-                    !blacklistedStyles[key].includes("important") ||
-                    value.includes("important")
-                ) {
-                    blacklistedStyles[key] = value;
-                }
-            }
-        }
-
-        for (const [key, value] of Object.entries(blacklistedStyles)) {
-            if (value && value.endsWith("important")) {
-                blacklistedStyles[key] = value.replace(/\s*!important\s*$/, "");
-            }
-        }
-
-        const stylesToRemove = Object.fromEntries(
-            Object.entries(css).filter(
-                ([key, value]) => blacklistedStyles[key] === value,
-            ),
-        );
-        const nodeStyle = /** @type {IndexableStyle} */ (node.style);
+    });
+}
+/**
+ * @param {HTMLElement} node
+ * @param {(() => void)[]} writes
+ */
+function _prepareElementFixupWrites(node, writes) {
+    if (node.nodeName === "IMG") {
         writes.push(() => {
-            for (const [key] of Object.entries(stylesToRemove)) {
-                if (nodeStyle[key]) {
-                    node.style.removeProperty(key);
-                }
+            if (node.classList.contains("s_media_list_img")) {
+                node.style.removeProperty("height");
+            }
+            if (
+                node.style.getPropertyValue("width") === "100%" &&
+                node.style.getPropertyValue("object-fit") === ""
+            ) {
+                node.style.setProperty("object-fit", "cover");
             }
         });
     }
-    writes.forEach((fn) => fn());
+    if (node.nodeName === "TD" && !node.childNodes.length) {
+        writes.push(() => {
+            node.appendChild(document.createTextNode("\u00A0"));
+        });
+    }
+    if (
+        node.nodeName === "A" &&
+        node.classList.contains("btn") &&
+        !node.classList.contains("btn-link") &&
+        !node.children.length &&
+        !_isMsoComment(node.previousSibling)
+    ) {
+        _prepareOutlookButtonWrite(node, writes);
+    } else if (
+        node.nodeName === "IMG" &&
+        node.classList.contains("mx-auto") &&
+        node.classList.contains("d-block") &&
+        !node.parentElement.classList.contains("o_outlook_hack")
+    ) {
+        writes.push(() => {
+            _wrap(node, "p", "o_outlook_hack", "text-align:center;margin:0");
+        });
+    }
+}
+/**
+ * @param {HTMLElement} node
+ * @param {CssRule[]|undefined} nodeRules
+ * @param {StyleMap} css
+ * @param {(() => void)[]} writes
+ */
+function _prepareBlacklistedStyleWrite(node, nodeRules, css, writes) {
+    const matchedBlacklistRules = nodeRules?.filter((rule) =>
+        CONVERT_INLINE_BLACKLIST_CLASSES.some(
+            (cls) => rule.selector.includes(cls) && node.classList.contains(cls),
+        ),
+    );
 
+    const blacklistedStyles = _mergeStyleMaps(
+        matchedBlacklistRules.map((rule) => rule.style),
+    );
+
+    const stylesToRemove = Object.fromEntries(
+        Object.entries(css).filter(([key, value]) => blacklistedStyles[key] === value),
+    );
+    const nodeStyle = /** @type {IndexableStyle} */ (node.style);
+    writes.push(() => {
+        for (const [key] of Object.entries(stylesToRemove)) {
+            if (nodeStyle[key]) {
+                node.style.removeProperty(key);
+            }
+        }
+    });
+}
+/** @param {Iterable<HTMLElement>} nodes */
+function _resolveComputedStyles(nodes) {
     /** @type {(() => void)[]} */
     const computedWrites = [];
-    for (const node of nodeToRules.keys()) {
+    for (const node of nodes) {
         /** @type {IndexableStyle|undefined} */
         let computedStyle;
         /** @type {[string, string][]} */
@@ -842,6 +883,27 @@ export function classToStyle(element, cssRules) {
         }
     }
     computedWrites.forEach((fn) => fn());
+}
+/**
+ * @param {HTMLElement} element
+ * @param {CssRule[]} cssRules
+ */
+export function classToStyle(element, cssRules) {
+    /** @type {(() => void)[]} */
+    const writes = [];
+    const nodeToRules = _matchRulesToNodes(element, cssRules);
+    const styleProbe = document.createElement("span");
+
+    for (const [node, nodeRules] of nodeToRules) {
+        const css = nodeRules ? _getMatchedCSSRules(node, nodeRules) : {};
+        _prepareStyleAttributeWrite(node, css, styleProbe, writes);
+        _prepareThemeColorClassWrite(node, writes);
+        _prepareElementFixupWrites(node, writes);
+        _prepareBlacklistedStyleWrite(node, nodeRules, css, writes);
+    }
+    writes.forEach((fn) => fn());
+
+    _resolveComputedStyles(nodeToRules.keys());
 }
 /** @param {Element} element */
 function enforceTablesResponsivity(element) {
@@ -903,106 +965,117 @@ function enforceTablesResponsivity(element) {
         tr.prepend(topTd);
     }
 }
-/** @param {Element} element */
+/**
+ * Give the cells of one masonry row a shared height, and let a row that asks
+ * for the full height take its share of the parent.
+ *
+ * @param {HTMLElement} tr
+ */
+function sizeMasonryRow(tr) {
+    const height = _getHeight(tr);
+    const tds = [.../** @type {HTMLCollectionOf<HTMLElement>} */ (tr.children)].filter(
+        (child) => child.nodeName === "TD",
+    );
+    const tdsWithTable = tds.filter((td) =>
+        [...td.children].some((child) => child.nodeName === "TABLE"),
+    );
+    if (tdsWithTable.length) {
+        for (const tdWithTable of tdsWithTable) {
+            tdWithTable.classList.add("o_desktop_h100");
+            tdWithTable.style.setProperty("height", "100%");
+        }
+        tds.forEach((td) => td.style.setProperty("height", height + "px"));
+    }
+    const trSiblings = [...tr.parentElement.children].filter(
+        (child) => child.nodeName === "TR",
+    );
+    if (
+        trSiblings.length > 1 &&
+        (tr.classList.contains("h-100") ||
+            tr.style.getPropertyValue("height") === "100%")
+    ) {
+        tr.style.setProperty(
+            "height",
+            `${_getHeight(tr.parentElement) / trSiblings.length}px`,
+        );
+    }
+}
+/** @param {HTMLElement} tr */
+function markMasonryRowFullHeight(tr) {
+    const height = tr.style.height.includes("px")
+        ? parseFloat(tr.style.height.replace("px", "").trim())
+        : _getHeight(tr);
+    tr.closest("table").classList.add("o_desktop_h100");
+    tr.classList.add("o_desktop_h100");
+    for (const td of [
+        .../** @type {HTMLCollectionOf<HTMLElement>} */ (tr.children),
+    ].filter((child) => child.nodeName === "TD")) {
+        td.classList.add("o_desktop_h100");
+        td.style.setProperty("height", "100%");
+        const children = [...td.children];
+        const childrenNames = children.map((child) => child.nodeName);
+        if (
+            !childrenNames.includes("TABLE") &&
+            !children.some(
+                (child) =>
+                    child.nodeName === "DIV" && child.hasAttribute(GENERATED_ATTRIBUTE),
+            )
+        ) {
+            const wrapper = document.createElement("div");
+            _markGenerated(wrapper);
+            wrapper.style.setProperty("display", "inline-block");
+            wrapper.style.setProperty("width", "100%");
+            const tdStyle = getComputedStyle(td);
+            wrapper.style.setProperty("color", tdStyle.color);
+            const firstNonCommentChild = [...td.childNodes].find(
+                (child) => child.nodeType !== Node.COMMENT_NODE,
+            );
+            let anchor;
+            if (firstNonCommentChild) {
+                anchor = getAdjacentPreviousSiblings(firstNonCommentChild)
+                    .filter((sib) => sib.nodeType !== Node.TEXT_NODE)
+                    .shift();
+            }
+            for (const child of [...td.childNodes].filter(
+                (child) => child.nodeType !== Node.COMMENT_NODE,
+            )) {
+                wrapper.append(child);
+            }
+            anchor ? anchor.after(wrapper) : td.append(wrapper);
+            const centeringSpan = document.createElement("span");
+            _markGenerated(centeringSpan);
+            centeringSpan.style.setProperty("height", "100%");
+            centeringSpan.style.setProperty("display", "inline-block");
+            centeringSpan.style.setProperty("vertical-align", "middle");
+            td.prepend(centeringSpan);
+            if (td.style.height.includes("%")) {
+                const newHeight =
+                    (height * parseFloat(td.style.height.replace("%").trim())) / 100;
+                td.style.setProperty("height", newHeight + "px");
+                td.style.setProperty("max-height", newHeight + "px");
+                wrapper.style.setProperty("max-height", newHeight + "px");
+                const firstChild = /** @type {HTMLElement} */ (
+                    wrapper.firstElementChild
+                );
+                if (
+                    wrapper.childElementCount === 1 &&
+                    firstChild.nodeName === "IMG" &&
+                    firstChild.style.height === "100%"
+                ) {
+                    firstChild.style.setProperty("max-height", newHeight + "px");
+                }
+            }
+        }
+    }
+}
+/** @param {HTMLElement} element */
 function handleMasonry(element) {
     const masonryTrs = element.querySelectorAll(".s_masonry_block tr");
     for (const tr of masonryTrs) {
-        const height = _getHeight(tr);
-        const tds = [
-            .../** @type {HTMLCollectionOf<HTMLElement>} */ (tr.children),
-        ].filter((child) => child.nodeName === "TD");
-        const tdsWithTable = tds.filter((td) =>
-            [...td.children].some((child) => child.nodeName === "TABLE"),
-        );
-        if (tdsWithTable.length) {
-            for (const tdWithTable of tdsWithTable) {
-                tdWithTable.classList.add("o_desktop_h100");
-                tdWithTable.style.setProperty("height", "100%");
-            }
-            tds.forEach((td) => td.style.setProperty("height", height + "px"));
-        }
-        const trSiblings = [...tr.parentElement.children].filter(
-            (child) => child.nodeName === "TR",
-        );
-        if (
-            trSiblings.length > 1 &&
-            (tr.classList.contains("h-100") ||
-                tr.style.getPropertyValue("height") === "100%")
-        ) {
-            tr.style.setProperty(
-                "height",
-                `${_getHeight(tr.parentElement) / trSiblings.length}px`,
-            );
-        }
+        sizeMasonryRow(tr);
     }
     for (const tr of masonryTrs) {
-        const height = tr.style.height.includes("px")
-            ? parseFloat(tr.style.height.replace("px", "").trim())
-            : _getHeight(tr);
-        tr.closest("table").classList.add("o_desktop_h100");
-        tr.classList.add("o_desktop_h100");
-        for (const td of [
-            .../** @type {HTMLCollectionOf<HTMLElement>} */ (tr.children),
-        ].filter((child) => child.nodeName === "TD")) {
-            td.classList.add("o_desktop_h100");
-            td.style.setProperty("height", "100%");
-            const children = [...td.children];
-            const childrenNames = children.map((child) => child.nodeName);
-            if (
-                !childrenNames.includes("TABLE") &&
-                !children.some(
-                    (child) =>
-                        child.nodeName === "DIV" &&
-                        child.hasAttribute(GENERATED_ATTRIBUTE),
-                )
-            ) {
-                const wrapper = document.createElement("div");
-                _markGenerated(wrapper);
-                wrapper.style.setProperty("display", "inline-block");
-                wrapper.style.setProperty("width", "100%");
-                const tdStyle = getComputedStyle(td);
-                wrapper.style.setProperty("color", tdStyle.color);
-                const firstNonCommentChild = [...td.childNodes].find(
-                    (child) => child.nodeType !== Node.COMMENT_NODE,
-                );
-                let anchor;
-                if (firstNonCommentChild) {
-                    anchor = getAdjacentPreviousSiblings(firstNonCommentChild)
-                        .filter((sib) => sib.nodeType !== Node.TEXT_NODE)
-                        .shift();
-                }
-                for (const child of [...td.childNodes].filter(
-                    (child) => child.nodeType !== Node.COMMENT_NODE,
-                )) {
-                    wrapper.append(child);
-                }
-                anchor ? anchor.after(wrapper) : td.append(wrapper);
-                const centeringSpan = document.createElement("span");
-                _markGenerated(centeringSpan);
-                centeringSpan.style.setProperty("height", "100%");
-                centeringSpan.style.setProperty("display", "inline-block");
-                centeringSpan.style.setProperty("vertical-align", "middle");
-                td.prepend(centeringSpan);
-                if (td.style.height.includes("%")) {
-                    const newHeight =
-                        (height * parseFloat(td.style.height.replace("%").trim())) /
-                        100;
-                    td.style.setProperty("height", newHeight + "px");
-                    td.style.setProperty("max-height", newHeight + "px");
-                    wrapper.style.setProperty("max-height", newHeight + "px");
-                    const firstChild = /** @type {HTMLElement} */ (
-                        wrapper.firstElementChild
-                    );
-                    if (
-                        wrapper.childElementCount === 1 &&
-                        firstChild.nodeName === "IMG" &&
-                        firstChild.style.height === "100%"
-                    ) {
-                        firstChild.style.setProperty("max-height", newHeight + "px");
-                    }
-                }
-            }
-        }
+        markMasonryRowFullHeight(tr);
     }
 }
 /** @param {Element} element */
@@ -1024,27 +1097,22 @@ function enforceImagesResponsivity(element) {
         image.removeAttribute("height");
     }
 }
-/**
- * @param {HTMLElement} element
- * @param {CssRule[]} cssRules
- */
-export async function toInline(element, cssRules) {
-    await waitUntilImagesLoaded(element);
+/** @param {HTMLElement} element */
+function pinCardImageHeights(element) {
     for (const imgTop of element.querySelectorAll(".card-img-top")) {
         imgTop.style.setProperty("height", _getHeight(imgTop) + "px");
     }
-
+}
+/** @param {HTMLElement} element */
+function pinEmptyBorderedHeights(element) {
     for (const el of element.querySelectorAll(
         ".o_not_editable[class*='border-']:empty",
     )) {
         el.style.height = getComputedStyle(el).height;
     }
-
-    attachmentThumbnailToLinkImg(element);
-    fontToImg(element);
-    await svgToPng(element);
-    await webpToPng(element);
-
+}
+/** @param {HTMLElement} element */
+function duplicateFluidImagesForOutlook(element) {
     for (const image of element.querySelectorAll("img.img-fluid")) {
         if ((image.getAttribute("style") || "").includes("mso-hide")) {
             continue;
@@ -1057,24 +1125,17 @@ export async function toInline(element, cssRules) {
         image.before(createMso(clone.outerHTML));
         _hideForOutlook(image);
     }
-
-    classToStyle(element, cssRules);
-    bootstrapToTable(element);
-    cardToTable(element);
-    listGroupToTable(element);
-    addTables(element);
-    handleMasonry(element);
+}
+/** @param {HTMLElement} element */
+function normalizeRemFromRoot(element) {
     const rootFontSizeProperty = getComputedStyle(
         element.ownerDocument.documentElement,
     ).fontSize;
     const rootFontSize = parseFloat(rootFontSizeProperty.replace(/[^\d.]/g, ""));
     normalizeRem(element, rootFontSize);
-    enforceImagesResponsivity(element);
-    enforceTablesResponsivity(element);
-    flattenBackgroundImages(element);
-    formatTables(element);
-    normalizeColors(element);
-    responsiveToStaticForOutlook(element);
+}
+/** @param {HTMLElement} element */
+function pinImageDimensions(element) {
     for (const attributeName of ["width", "height"]) {
         const images = element.querySelectorAll("img");
         for (const image of images) {
@@ -1090,18 +1151,23 @@ export async function toInline(element, cssRules) {
             }
         }
     }
+}
+/** @param {HTMLElement} element */
+function centreLoneImagesInCells(element) {
     for (const centeredImage of element.querySelectorAll("td > img.mx-auto")) {
         if (centeredImage.parentElement.children.length === 1) {
             centeredImage.parentElement.style.setProperty("text-align", "center");
         }
     }
-
+}
+/** @param {HTMLElement} element */
+function stripContentEditable(element) {
     [element, ...element.querySelectorAll("[contenteditable]")].forEach((node) =>
         node.removeAttribute("contenteditable"),
     );
-
-    element.querySelectorAll(".mso-hide").forEach((node) => _hideForOutlook(node));
-
+}
+/** @param {HTMLElement} element */
+function normalizeFontFamilyQuoting(element) {
     element
         .querySelectorAll("[style*=font-family]")
         .forEach((n) =>
@@ -1109,10 +1175,45 @@ export async function toInline(element, cssRules) {
                 ? n.style.removeProperty("font-family")
                 : n.setAttribute("style", n.getAttribute("style").replaceAll('"', "'")),
         );
-
+}
+/** @param {HTMLElement} element */
+function stripConvertedColMarkers(element) {
     element
         .querySelectorAll(".o_converted_col")
         .forEach((node) => node.classList.remove("o_converted_col"));
+}
+/**
+ * @param {HTMLElement} element
+ * @param {CssRule[]} cssRules
+ */
+export async function toInline(element, cssRules) {
+    await waitUntilImagesLoaded(element);
+    pinCardImageHeights(element);
+    pinEmptyBorderedHeights(element);
+    attachmentThumbnailToLinkImg(element);
+    fontToImg(element);
+    await svgToPng(element);
+    await webpToPng(element);
+    duplicateFluidImagesForOutlook(element);
+    classToStyle(element, cssRules);
+    bootstrapToTable(element);
+    cardToTable(element);
+    listGroupToTable(element);
+    addTables(element);
+    handleMasonry(element);
+    normalizeRemFromRoot(element);
+    enforceImagesResponsivity(element);
+    enforceTablesResponsivity(element);
+    flattenBackgroundImages(element);
+    formatTables(element);
+    normalizeColors(element);
+    responsiveToStaticForOutlook(element);
+    pinImageDimensions(element);
+    centreLoneImagesInCells(element);
+    stripContentEditable(element);
+    element.querySelectorAll(".mso-hide").forEach((node) => _hideForOutlook(node));
+    normalizeFontFamilyQuoting(element);
+    stripConvertedColMarkers(element);
 }
 /** @param {Element} element */
 function flattenBackgroundImages(element) {
@@ -1131,152 +1232,220 @@ function flattenBackgroundImages(element) {
     }
 }
 /**
+ * @param {HTMLElement} font
+ * @returns {{icon: string|undefined, content: string|undefined}}
+ */
+function findIconGlyph(font) {
+    /** @type {string|undefined} */
+    let icon;
+    /** @type {string|undefined} */
+    let content;
+    fonts.fontIcons.find((fontIcon) =>
+        fonts.getCssSelectors(fontIcon.parser, fontIcon.cssFilter).find(
+            /** @param {{selector: string, names: string[], css: string}} data */
+            (data) => {
+                if (font.matches(data.selector.replace(/::?before/g, ""))) {
+                    icon = data.names[0].split("-").shift();
+                    const glyphMatch = data.css.match(
+                        /(?:--fa|content):\s*(['"])((?:\\[0-9a-f]+|.)?)\1/i,
+                    );
+                    if (glyphMatch) {
+                        content = glyphMatch[2].startsWith("\\")
+                            ? String.fromCodePoint(parseInt(glyphMatch[2].slice(1), 16))
+                            : glyphMatch[2];
+                    }
+                    return true;
+                }
+            },
+        ),
+    );
+    return { icon, content };
+}
+/**
+ * @param {HTMLElement} font
+ * @returns {string}
+ */
+function getIconBackgroundColor(font) {
+    let backgroundColoredElement = font;
+    let bg, isTransparent;
+    do {
+        bg = _getStylePropertyValue(
+            backgroundColoredElement,
+            "background-color",
+        ).replace(/\s/g, "");
+        isTransparent = bg === "transparent" || bg === "rgba(0,0,0,0)";
+        backgroundColoredElement = backgroundColoredElement.parentElement;
+    } while (isTransparent && backgroundColoredElement);
+    if (bg === "rgba(0,0,0,0)" && isTransparent) {
+        bg = "rgb(255,255,255)";
+    }
+    return bg;
+}
+/**
+ * Read the icon as authored, then let it size to its glyph so the intrinsic
+ * dimensions can be measured. The style attribute is captured first on
+ * purpose: the image carries what the author wrote, not "fit-content".
+ *
+ * @param {HTMLElement} font
+ */
+function measureIcon(font) {
+    const style = font.getAttribute("style");
+    const width = _getWidth(font);
+    const height = _getHeight(font);
+    const lineHeight = _getStylePropertyValue(font, "line-height");
+    font.style.setProperty("height", "fit-content");
+    font.style.setProperty("width", "fit-content");
+    font.style.setProperty("line-height", "normal");
+    return {
+        style,
+        width,
+        height,
+        lineHeight,
+        intrinsicWidth: _getWidth(font),
+        intrinsicHeight: _getHeight(font),
+    };
+}
+/**
+ * @param {{width: number, height: number, intrinsicWidth: number, intrinsicHeight: number}} measures
+ * @returns {string}
+ */
+function getIconPadding({ width, height, intrinsicWidth, intrinsicHeight }) {
+    const hPadding = width && intrinsicWidth && (width - intrinsicWidth) / 2;
+    const vPadding = height && intrinsicHeight && (height - intrinsicHeight) / 2;
+    if (!hPadding && !vPadding) {
+        return "";
+    }
+    return (vPadding ? vPadding + "px " : "0 ") + (hPadding ? hPadding + "px" : "0");
+}
+/**
+ * @param {HTMLElement} font
+ * @param {string} icon
+ * @param {string} content
+ */
+function replaceIconWithImage(font, icon, content) {
+    const color = _getStylePropertyValue(font, "color").replace(/\s/g, "");
+    const bg = getIconBackgroundColor(font);
+    const { style, width, height, lineHeight, intrinsicWidth, intrinsicHeight } =
+        measureIcon(font);
+    const padding = getIconPadding({
+        width,
+        height,
+        intrinsicWidth,
+        intrinsicHeight,
+    });
+    const image = document.createElement("img");
+    image.setAttribute("width", String(intrinsicWidth));
+    image.setAttribute("height", String(intrinsicHeight));
+    image.setAttribute(
+        "src",
+        `/mail/font_to_img/${content.charCodeAt(0)}/${encodeURIComponent(
+            color,
+        )}/${encodeURIComponent(bg)}/${Math.max(1, Math.round(intrinsicWidth))}x${Math.max(
+            1,
+            Math.round(intrinsicHeight),
+        )}`,
+    );
+    image.setAttribute("data-class", font.getAttribute("class"));
+    image.setAttribute("data-style", style);
+    image.setAttribute("style", style);
+    image.style.setProperty("box-sizing", "border-box");
+    image.style.setProperty("line-height", lineHeight);
+    image.style.setProperty("width", intrinsicWidth + "px");
+    image.style.setProperty("height", intrinsicHeight + "px");
+    image.style.setProperty("vertical-align", "unset");
+    if (!padding) {
+        image.style.setProperty("margin", _getStylePropertyValue(font, "margin"));
+    }
+    const wrapper = document.createElement("span");
+    wrapper.style.setProperty("display", "inline-block");
+    wrapper.append(image);
+    font.before(wrapper);
+    if (font.classList.contains("mx-auto")) {
+        wrapper.parentElement.style.textAlign = "center";
+    }
+    font.remove();
+    wrapper.style.setProperty("padding", padding);
+    const wrapperWidth =
+        width +
+        ["left", "right"].reduce(
+            (sum, side) =>
+                sum +
+                (+_getStylePropertyValue(image, `margin-${side}`).replace("px", "") ||
+                    0),
+            0,
+        );
+    wrapper.style.setProperty("width", wrapperWidth + "px");
+    wrapper.style.setProperty("height", height + "px");
+    wrapper.style.setProperty("vertical-align", "text-bottom");
+    wrapper.style.setProperty("background-color", image.style.backgroundColor);
+    wrapper.setAttribute(
+        "class",
+        "oe_unbreakable " +
+            font
+                .getAttribute("class")
+                .replace(new RegExp("(^|\\s+)" + icon + "(-[^\\s]+)?", "gi"), ""),
+    );
+}
+/**
  * @param {HTMLElement} element
  */
 function fontToImg(element) {
     for (const font of element.querySelectorAll(
         ".fa, .fa-solid, .fa-regular, .fa-brands",
     )) {
-        /** @type {string|undefined} */
-        let icon;
-        /** @type {string|undefined} */
-        let content;
-        fonts.fontIcons.find((fontIcon) =>
-            fonts.getCssSelectors(fontIcon.parser, fontIcon.cssFilter).find(
-                /** @param {{selector: string, names: string[], css: string}} data */
-                (data) => {
-                    if (font.matches(data.selector.replace(/::?before/g, ""))) {
-                        icon = data.names[0].split("-").shift();
-                        const glyphMatch = data.css.match(
-                            /(?:--fa|content):\s*(['"])((?:\\[0-9a-f]+|.)?)\1/i,
-                        );
-                        if (glyphMatch) {
-                            content = glyphMatch[2].startsWith("\\")
-                                ? String.fromCodePoint(
-                                      parseInt(glyphMatch[2].slice(1), 16),
-                                  )
-                                : glyphMatch[2];
-                        }
-                        return true;
-                    }
-                },
-            ),
-        );
+        const { icon, content } = findIconGlyph(font);
         if (content) {
-            const color = _getStylePropertyValue(font, "color").replace(/\s/g, "");
-            let backgroundColoredElement = font;
-            let bg, isTransparent;
-            do {
-                bg = _getStylePropertyValue(
-                    backgroundColoredElement,
-                    "background-color",
-                ).replace(/\s/g, "");
-                isTransparent = bg === "transparent" || bg === "rgba(0,0,0,0)";
-                backgroundColoredElement = backgroundColoredElement.parentElement;
-            } while (isTransparent && backgroundColoredElement);
-            if (bg === "rgba(0,0,0,0)" && isTransparent) {
-                bg = "rgb(255,255,255)";
-            }
-            const style = font.getAttribute("style");
-            const width = _getWidth(font);
-            const height = _getHeight(font);
-            const lineHeight = _getStylePropertyValue(font, "line-height");
-            font.style.setProperty("height", "fit-content");
-            font.style.setProperty("width", "fit-content");
-            font.style.setProperty("line-height", "normal");
-            const intrinsicWidth = _getWidth(font);
-            const intrinsicHeight = _getHeight(font);
-            const hPadding = width && intrinsicWidth && (width - intrinsicWidth) / 2;
-            const vPadding =
-                height && intrinsicHeight && (height - intrinsicHeight) / 2;
-            let padding = "";
-            if (hPadding || vPadding) {
-                padding = vPadding ? vPadding + "px " : "0 ";
-                padding += hPadding ? hPadding + "px" : "0";
-            }
-            const image = document.createElement("img");
-            image.setAttribute("width", String(intrinsicWidth));
-            image.setAttribute("height", String(intrinsicHeight));
-            image.setAttribute(
-                "src",
-                `/mail/font_to_img/${content.charCodeAt(0)}/${encodeURIComponent(
-                    color,
-                )}/${encodeURIComponent(bg)}/${Math.max(1, Math.round(intrinsicWidth))}x${Math.max(
-                    1,
-                    Math.round(intrinsicHeight),
-                )}`,
-            );
-            image.setAttribute("data-class", font.getAttribute("class"));
-            image.setAttribute("data-style", style);
-            image.setAttribute("style", style);
-            image.style.setProperty("box-sizing", "border-box");
-            image.style.setProperty("line-height", lineHeight);
-            image.style.setProperty("width", intrinsicWidth + "px");
-            image.style.setProperty("height", intrinsicHeight + "px");
-            image.style.setProperty("vertical-align", "unset");
-            if (!padding) {
-                image.style.setProperty(
-                    "margin",
-                    _getStylePropertyValue(font, "margin"),
-                );
-            }
-            const wrapper = document.createElement("span");
-            wrapper.style.setProperty("display", "inline-block");
-            wrapper.append(image);
-            font.before(wrapper);
-            if (font.classList.contains("mx-auto")) {
-                wrapper.parentElement.style.textAlign = "center";
-            }
-            font.remove();
-            wrapper.style.setProperty("padding", padding);
-            const wrapperWidth =
-                width +
-                ["left", "right"].reduce(
-                    (sum, side) =>
-                        sum +
-                        (+_getStylePropertyValue(image, `margin-${side}`).replace(
-                            "px",
-                            "",
-                        ) || 0),
-                    0,
-                );
-            wrapper.style.setProperty("width", wrapperWidth + "px");
-            wrapper.style.setProperty("height", height + "px");
-            wrapper.style.setProperty("vertical-align", "text-bottom");
-            wrapper.style.setProperty("background-color", image.style.backgroundColor);
-            wrapper.setAttribute(
-                "class",
-                "oe_unbreakable " +
-                    font
-                        .getAttribute("class")
-                        .replace(
-                            new RegExp("(^|\\s+)" + icon + "(-[^\\s]+)?", "gi"),
-                            "",
-                        ),
-            );
+            replaceIconWithImage(font, icon, content);
         } else {
             font.remove();
         }
     }
 }
+/**
+ * @param {HTMLElement} table
+ * @returns {Record<string, number>}
+ */
+function _getTablePadding(table) {
+    const read = (side) =>
+        parseFloat(
+            _getStylePropertyValue(table, `padding-${side}`).match(RE_PADDING)[1],
+        );
+    return {
+        top: read("top"),
+        right: read("right"),
+        bottom: read("bottom"),
+        left: read("left"),
+    };
+}
+/**
+ * @param {HTMLElement} column
+ * @param {Record<string, number>} tablePadding
+ * @param {Record<string, boolean>} atEdge
+ * @param {(() => void)[]} writes
+ */
+function _addTablePaddingToCell(column, tablePadding, atEdge, writes) {
+    const columnStyle = /** @type {IndexableStyle} */ (column.style);
+    for (const [side, isAtEdge] of Object.entries(atEdge)) {
+        if (!isAtEdge) {
+            continue;
+        }
+        const match = _getStylePropertyValue(column, `padding-${side}`).match(
+            RE_PADDING,
+        );
+        const columnPadding = match ? parseFloat(match[1]) : 0;
+        writes.push(() => {
+            columnStyle[`padding-${side}`] = `${columnPadding + tablePadding[side]}px`;
+        });
+    }
+}
 /** @param {HTMLElement} element */
-export function formatTables(element) {
+function _moveTablePaddingToCells(element) {
+    /** @type {(() => void)[]} */
     const writes = [];
     for (const table of element.querySelectorAll(
         "table.o_mail_snippet_general, .o_mail_snippet_general table",
     )) {
-        const tablePaddingTop = parseFloat(
-            _getStylePropertyValue(table, "padding-top").match(RE_PADDING)[1],
-        );
-        const tablePaddingRight = parseFloat(
-            _getStylePropertyValue(table, "padding-right").match(RE_PADDING)[1],
-        );
-        const tablePaddingBottom = parseFloat(
-            _getStylePropertyValue(table, "padding-bottom").match(RE_PADDING)[1],
-        );
-        const tablePaddingLeft = parseFloat(
-            _getStylePropertyValue(table, "padding-left").match(RE_PADDING)[1],
-        );
+        const tablePadding = _getTablePadding(table);
         const rows = [...table.querySelectorAll("tr")].filter(
             (tr) => tr.closest("table") === table,
         );
@@ -1284,60 +1453,31 @@ export function formatTables(element) {
             (td) => td.closest("table") === table,
         );
         for (const column of columns) {
-            const columnStyle = /** @type {IndexableStyle} */ (column.style);
             const columnsInRow = [
                 ...column.closest("tr").querySelectorAll("td"),
             ].filter((td) => td.closest("table") === table);
             const columnIndex = columnsInRow.findIndex((col) => col === column);
             const rowIndex = rows.findIndex((row) => row === column.closest("tr"));
-
-            if (!rowIndex) {
-                const match = _getStylePropertyValue(column, "padding-top").match(
-                    RE_PADDING,
-                );
-                const columnPaddingTop = match ? parseFloat(match[1]) : 0;
-                writes.push(() => {
-                    columnStyle["padding-top"] =
-                        `${columnPaddingTop + tablePaddingTop}px`;
-                });
-            }
-            if (columnIndex === columnsInRow.length - 1) {
-                const match = _getStylePropertyValue(column, "padding-right").match(
-                    RE_PADDING,
-                );
-                const columnPaddingRight = match ? parseFloat(match[1]) : 0;
-                writes.push(() => {
-                    columnStyle["padding-right"] =
-                        `${columnPaddingRight + tablePaddingRight}px`;
-                });
-            }
-            if (rowIndex === rows.length - 1) {
-                const match = _getStylePropertyValue(column, "padding-bottom").match(
-                    RE_PADDING,
-                );
-                const columnPaddingBottom = match ? parseFloat(match[1]) : 0;
-                writes.push(() => {
-                    columnStyle["padding-bottom"] = `${
-                        columnPaddingBottom + tablePaddingBottom
-                    }px`;
-                });
-            }
-            if (!columnIndex) {
-                const match = _getStylePropertyValue(column, "padding-left").match(
-                    RE_PADDING,
-                );
-                const columnPaddingLeft = match ? parseFloat(match[1]) : 0;
-                writes.push(() => {
-                    columnStyle["padding-left"] =
-                        `${columnPaddingLeft + tablePaddingLeft}px`;
-                });
-            }
+            _addTablePaddingToCell(
+                column,
+                tablePadding,
+                {
+                    top: !rowIndex,
+                    right: columnIndex === columnsInRow.length - 1,
+                    bottom: rowIndex === rows.length - 1,
+                    left: !columnIndex,
+                },
+                writes,
+            );
         }
         writes.push(() => {
             table.style.removeProperty("padding");
         });
     }
     writes.forEach((fn) => fn());
+}
+/** @param {HTMLElement} element */
+function _addMissingTableBodies(element) {
     for (const table of [...element.querySelectorAll("table")].filter(
         (n) => ![...n.children].some((c) => c.nodeName === "TBODY"),
     )) {
@@ -1348,6 +1488,9 @@ export function formatTables(element) {
         table.prepend(tbody);
         tbody.append(...contents);
     }
+}
+/** @param {HTMLElement} element */
+function _resolvePercentageHeights(element) {
     for (const node of [...element.querySelectorAll("*")].filter(
         (n) =>
             n.style &&
@@ -1368,6 +1511,9 @@ export function formatTables(element) {
             );
         }
     }
+}
+/** @param {HTMLElement} element */
+function _cellAlignmentToVerticalAlign(element) {
     for (const cell of element.querySelectorAll("td")) {
         const alignSelf = cell.style.alignSelf;
         const justifyContent = cell.style.justifyContent;
@@ -1392,6 +1538,9 @@ export function formatTables(element) {
             cell.style.verticalAlign = "bottom";
         }
     }
+}
+/** @param {HTMLElement} element */
+function _rowAlignmentToVerticalAlign(element) {
     for (const row of element.querySelectorAll("tr")) {
         const alignItems = row.style.alignItems;
         if (alignItems === "flex-start") {
@@ -1413,29 +1562,39 @@ export function formatTables(element) {
             }
         }
     }
+}
+/** @param {HTMLElement} element */
+function _inheritTableFontProperties(element) {
     for (const table of element.querySelectorAll("table")) {
         const tableStyle = /** @type {IndexableStyle} */ (table.style);
         const propsToConvert = FONT_PROPERTIES_TO_INHERIT.filter(
             (prop) => tableStyle[prop] === "inherit" || !tableStyle[prop],
         );
-        if (propsToConvert.length) {
-            for (const prop of propsToConvert) {
-                /** @type {HTMLElement} */
-                let ancestor = table;
-                let ancestorStyle = /** @type {IndexableStyle} */ (ancestor.style);
-                while (
-                    ancestor &&
-                    (!ancestorStyle[prop] || ancestorStyle[prop] === "inherit")
-                ) {
-                    ancestor = ancestor.parentElement;
-                    ancestorStyle = /** @type {IndexableStyle} */ (ancestor?.style);
-                }
-                if (ancestor) {
-                    table.style.setProperty(prop, ancestorStyle[prop]);
-                }
+        for (const prop of propsToConvert) {
+            /** @type {HTMLElement} */
+            let ancestor = table;
+            let ancestorStyle = /** @type {IndexableStyle} */ (ancestor.style);
+            while (
+                ancestor &&
+                (!ancestorStyle[prop] || ancestorStyle[prop] === "inherit")
+            ) {
+                ancestor = ancestor.parentElement;
+                ancestorStyle = /** @type {IndexableStyle} */ (ancestor?.style);
+            }
+            if (ancestor) {
+                table.style.setProperty(prop, ancestorStyle[prop]);
             }
         }
     }
+}
+/** @param {HTMLElement} element */
+export function formatTables(element) {
+    _moveTablePaddingToCells(element);
+    _addMissingTableBodies(element);
+    _resolvePercentageHeights(element);
+    _cellAlignmentToVerticalAlign(element);
+    _rowAlignmentToVerticalAlign(element);
+    _inheritTableFontProperties(element);
 }
 /**
  * @param {Document} doc
@@ -1946,54 +2105,36 @@ function _getColumnOffsetSize(column) {
     return offsetSize;
 }
 /**
- * @param {HTMLElement} node
- * @param {CssRule[]} cssRules
+ * @param {StyleMap[]} styleMaps
  * @returns {StyleMap}
  */
-function _getMatchedCSSRules(node, cssRules) {
-    const legacyNode = /** @type {Record<string, typeof node.matches>} */ (
-        /** @type {unknown} */ (node)
-    );
-    node.matches =
-        node.matches ||
-        legacyNode.webkitMatchesSelector ||
-        legacyNode.mozMatchesSelector ||
-        legacyNode.msMatchesSelector ||
-        legacyNode.oMatchesSelector;
-
-    const styles = cssRules
-        .map((rule) => removeBlacklistedStyles(rule, node))
-        .filter(Boolean);
-
-    if (node.style.length) {
-        /** @type {StyleMap} */
-        const inlineStyles = {};
-        for (const styleName of node.style) {
-            inlineStyles[styleName] = node.style.getPropertyValue(styleName);
-        }
-        styles.push(inlineStyles);
-    }
-
+function _mergeStyleMaps(styleMaps) {
     /** @type {StyleMap} */
-    const processedStyle = {};
-    for (const style of styles) {
+    const merged = {};
+    for (const style of styleMaps) {
         for (const [key, value] of Object.entries(style)) {
             if (
-                !processedStyle[key] ||
-                !processedStyle[key].includes("important") ||
+                !merged[key] ||
+                !merged[key].includes("important") ||
                 value.includes("important")
             ) {
-                processedStyle[key] = value;
+                merged[key] = value;
             }
         }
     }
-
-    for (const [key, value] of Object.entries(processedStyle)) {
+    for (const [key, value] of Object.entries(merged)) {
         if (value && value.endsWith("important")) {
-            processedStyle[key] = value.replace(/\s*!important\s*$/, "");
+            merged[key] = value.replace(/\s*!important\s*$/, "");
         }
     }
-
+    return merged;
+}
+/**
+ * @param {HTMLElement} node
+ * @param {CssRule[]} cssRules
+ * @param {StyleMap} processedStyle
+ */
+function _resolveGroupedDynamicStyles(node, cssRules, processedStyle) {
     let computedStyle;
     for (const groupName in GROUPED_STYLES) {
         const groupProperties = [
@@ -2021,17 +2162,9 @@ function _getMatchedCSSRules(node, cssRules) {
             }
         }
     }
-
-    if (
-        processedStyle.display === "block" &&
-        !(node.classList && node.classList.contains("oe-nested"))
-    ) {
-        delete processedStyle.display;
-    }
-    if (!processedStyle["box-sizing"]) {
-        processedStyle["box-sizing"] = "border-box";
-    }
-
+}
+/** @param {StyleMap} processedStyle */
+function _collapsePositionalShorthands(processedStyle) {
     for (const info of [
         { name: "margin" },
         { name: "padding" },
@@ -2075,7 +2208,9 @@ function _getMatchedCSSRules(node, cssRules) {
             delete processedStyle[key];
         }
     }
-
+}
+/** @param {StyleMap} processedStyle */
+function _dropUnusableDeclarations(processedStyle) {
     for (const styleName in processedStyle) {
         if (styleName.includes("border") && processedStyle[styleName] === "initial") {
             delete processedStyle[styleName];
@@ -2095,6 +2230,51 @@ function _getMatchedCSSRules(node, cssRules) {
             delete processedStyle[styleName];
         }
     }
+}
+/**
+ * @param {HTMLElement} node
+ * @param {CssRule[]} cssRules
+ * @returns {StyleMap}
+ */
+function _getMatchedCSSRules(node, cssRules) {
+    const legacyNode = /** @type {Record<string, typeof node.matches>} */ (
+        /** @type {unknown} */ (node)
+    );
+    node.matches =
+        node.matches ||
+        legacyNode.webkitMatchesSelector ||
+        legacyNode.mozMatchesSelector ||
+        legacyNode.msMatchesSelector ||
+        legacyNode.oMatchesSelector;
+
+    const styles = cssRules
+        .map((rule) => removeBlacklistedStyles(rule, node))
+        .filter(Boolean);
+
+    if (node.style.length) {
+        /** @type {StyleMap} */
+        const inlineStyles = {};
+        for (const styleName of node.style) {
+            inlineStyles[styleName] = node.style.getPropertyValue(styleName);
+        }
+        styles.push(inlineStyles);
+    }
+
+    const processedStyle = _mergeStyleMaps(styles);
+    _resolveGroupedDynamicStyles(node, cssRules, processedStyle);
+
+    if (
+        processedStyle.display === "block" &&
+        !(node.classList && node.classList.contains("oe-nested"))
+    ) {
+        delete processedStyle.display;
+    }
+    if (!processedStyle["box-sizing"]) {
+        processedStyle["box-sizing"] = "border-box";
+    }
+
+    _collapsePositionalShorthands(processedStyle);
+    _dropUnusableDeclarations(processedStyle);
 
     return processedStyle;
 }

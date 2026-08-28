@@ -112,35 +112,95 @@ export function onExternalClick(refName, cb) {
  */
 
 /**
- * @param {string | string[] | Function} refNames
- * @param {Object} param1
- * @param {() => void} [param1.onHover]
- * @param {() => void} [param1.onAway]
- * @param {[number, () => void]} [param1.onHovering]
- * @param {() => any[]} [param1.stateObserver]
- * @returns {({ isHover: boolean })}
+ * @param {HoverTarget[]} rawTargets
+ * @param {EventTarget|null} node
+ * @returns {HoverTarget|null}
  */
-export function useHover(
-    refNames,
-    { onHover, onAway, stateObserver, onHovering } = {},
-) {
-    const refNameList = Array.isArray(refNames) ? refNames : [refNames];
-    /** @type {HoverTarget[]} */
-    const targets = [];
+function hoverTargetContaining(rawTargets, node) {
+    for (const target of rawTargets) {
+        if (target.ref.el?.contains(/** @type {Node} */ (node))) {
+            return target;
+        }
+    }
+    return null;
+}
+/**
+ * @param {((target: EventTarget|null) => boolean)[]} containsFns
+ * @param {EventTarget|null} node
+ * @returns {boolean}
+ */
+function overlayContaining(containsFns, node) {
+    return containsFns.some((contains) => contains(node));
+}
+/**
+ * @param {string|string[]|Function|Function[]} refNames
+ * @returns {HoverTarget[]}
+ */
+/**
+ * @param {any} state
+ * @param {Object} callbacks
+ * @param {() => void} [callbacks.onHover]
+ * @param {() => void} [callbacks.onAway]
+ * @param {[number, () => void]} [callbacks.onHovering]
+ * @returns {{setHover: (hovering: boolean) => void, clearTimers: () => void}}
+ */
+function makeHoverSwitch(state, { onHover, onAway, onHovering }) {
     let wasHovering = false;
     /** @type {ReturnType<typeof setTimeout>} */
     let hoveringTimeout;
     /** @type {ReturnType<typeof setTimeout>} */
     let awayTimeout;
-    /** @type {HoverTarget|null} */
-    let lastHoveredTarget;
+    return {
+        /** @param {boolean} hovering */
+        setHover(hovering) {
+            if (hovering && !wasHovering) {
+                state.isHover = true;
+                clearTimeout(awayTimeout);
+                clearTimeout(hoveringTimeout);
+                if (typeof onHover === "function") {
+                    onHover();
+                }
+                if (Array.isArray(onHovering)) {
+                    const [delay, cb] = onHovering;
+                    hoveringTimeout = setTimeout(() => {
+                        cb();
+                    }, delay);
+                }
+            } else if (!hovering) {
+                state.isHover = false;
+                clearTimeout(awayTimeout);
+                clearTimeout(hoveringTimeout);
+                if (typeof onAway === "function") {
+                    awayTimeout = setTimeout(() => {
+                        onAway();
+                    }, 100);
+                }
+            }
+            wasHovering = hovering;
+        },
+        clearTimers() {
+            clearTimeout(hoveringTimeout);
+            clearTimeout(awayTimeout);
+        },
+    };
+}
+function useHoverTargets(refNames) {
+    const refNameList = Array.isArray(refNames) ? refNames : [refNames];
+    /** @type {HoverTarget[]} */
+    const targets = [];
     for (const refName of refNameList) {
-        if (typeof refName === "function") {
-            targets.push({ ref: refName });
-            continue;
-        }
-        targets.push({ ref: useRef(refName) });
+        targets.push({
+            ref: typeof refName === "function" ? refName : useRef(refName),
+        });
     }
+    return targets;
+}
+/**
+ * @param {HoverTarget[]} targets
+ * @param {(ev: MouseEvent) => void} onEnter
+ * @param {(ev: MouseEvent) => void} onLeave
+ */
+function makeHoverState(targets, onEnter, onLeave) {
     const state = useState({
         /** @param {boolean} newIsHover */
         set isHover(newIsHover) {
@@ -163,8 +223,8 @@ export function useHover(
          */
         addTarget(target) {
             state._targets.push(target);
-            const handleMouseenter = (/** @type {MouseEvent} */ ev) => onmouseenter(ev);
-            const handleMouseleave = (/** @type {MouseEvent} */ ev) => onmouseleave(ev);
+            const handleMouseenter = (/** @type {MouseEvent} */ ev) => onEnter(ev);
+            const handleMouseleave = (/** @type {MouseEvent} */ ev) => onLeave(ev);
             target.ref.el.addEventListener("mouseenter", handleMouseenter, true);
             target.ref.el.addEventListener("mouseleave", handleMouseleave, true);
             return () => {
@@ -177,98 +237,88 @@ export function useHover(
             };
         },
     });
-    /** @param {boolean} hovering */
-    function setHover(hovering) {
-        if (hovering && !wasHovering) {
-            state.isHover = true;
-            clearTimeout(awayTimeout);
-            clearTimeout(hoveringTimeout);
-            if (typeof onHover === "function") {
-                onHover();
-            }
-            if (Array.isArray(onHovering)) {
-                const [delay, cb] = onHovering;
-                hoveringTimeout = setTimeout(() => {
-                    cb();
-                }, delay);
-            }
-        } else if (!hovering) {
-            state.isHover = false;
-            clearTimeout(awayTimeout);
-            clearTimeout(hoveringTimeout);
-            if (typeof onAway === "function") {
-                awayTimeout = setTimeout(() => {
-                    onAway();
-                }, 100);
-            }
-        }
-        wasHovering = hovering;
+    return state;
+}
+/**
+ * @param {HoverTarget[]} targets
+ * @param {(ev: MouseEvent) => void} onEnter
+ * @param {(ev: MouseEvent) => void} onLeave
+ */
+function bindHoverListeners(targets, onEnter, onLeave) {
+    for (const target of targets) {
+        useLazyExternalListener(
+            () => target.ref.el,
+            "mouseenter",
+            (ev) => onEnter(/** @type {MouseEvent} */ (ev)),
+            true,
+        );
+        useLazyExternalListener(
+            () => target.ref.el,
+            "mouseleave",
+            (ev) => onLeave(/** @type {MouseEvent} */ (ev)),
+            true,
+        );
     }
+}
+/**
+ * @param {string | string[] | Function} refNames
+ * @param {Object} param1
+ * @param {() => void} [param1.onHover]
+ * @param {() => void} [param1.onAway]
+ * @param {[number, () => void]} [param1.onHovering]
+ * @param {() => any[]} [param1.stateObserver]
+ * @returns {({ isHover: boolean })}
+ */
+export function useHover(
+    refNames,
+    { onHover, onAway, stateObserver, onHovering } = {},
+) {
+    const targets = useHoverTargets(refNames);
+    /** @type {HoverTarget|null} */
+    let lastHoveredTarget;
+    const state = makeHoverState(
+        targets,
+        (ev) => onmouseenter(ev),
+        (ev) => onmouseleave(ev),
+    );
+    const { setHover, clearTimers } = makeHoverSwitch(state, {
+        onHover,
+        onAway,
+        onHovering,
+    });
     /** @param {MouseEvent} ev */
     function onmouseenter(ev) {
         if (state.isHover) {
             return;
         }
         const rawState = toRaw(state);
-        for (const target of rawState._targets) {
-            if (!target.ref.el) {
-                continue;
-            }
-            if (target.ref.el.contains(/** @type {Node} */ (ev.target))) {
-                setHover(true);
-                lastHoveredTarget = target;
-                return;
-            }
+        const target = hoverTargetContaining(rawState._targets, ev.target);
+        if (target) {
+            setHover(true);
+            lastHoveredTarget = target;
+            return;
         }
-        for (const contains of rawState._contains) {
-            if (contains(ev.target)) {
-                setHover(true);
-                return;
-            }
+        if (overlayContaining(rawState._contains, ev.target)) {
+            setHover(true);
         }
     }
-    onWillUnmount(() => {
-        clearTimeout(hoveringTimeout);
-        clearTimeout(awayTimeout);
-    });
     /** @param {MouseEvent} ev */
     function onmouseleave(ev) {
         if (!state.isHover) {
             return;
         }
         const rawState = toRaw(state);
-        for (const target of rawState._targets) {
-            if (!target.ref.el) {
-                continue;
-            }
-            if (target.ref.el.contains(/** @type {Node} */ (ev.relatedTarget))) {
-                return;
-            }
+        if (hoverTargetContaining(rawState._targets, ev.relatedTarget)) {
+            return;
         }
-        for (const contains of rawState._contains) {
-            if (contains(ev.relatedTarget)) {
-                return;
-            }
+        if (overlayContaining(rawState._contains, ev.relatedTarget)) {
+            return;
         }
         setHover(false);
         lastHoveredTarget = null;
     }
-
-    for (const target of targets) {
-        useLazyExternalListener(
-            () => target.ref.el,
-            "mouseenter",
-            (ev) => onmouseenter(/** @type {MouseEvent} */ (ev)),
-            true,
-        );
-        useLazyExternalListener(
-            () => target.ref.el,
-            "mouseleave",
-            (ev) => onmouseleave(/** @type {MouseEvent} */ (ev)),
-            true,
-        );
-    }
-
+    onWillUnmount(clearTimers);
+    bindHoverListeners(targets, onmouseenter, onmouseleave);
     if (stateObserver) {
         useEffect(
             /** @param {any} open */ (open) => {

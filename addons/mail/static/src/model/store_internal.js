@@ -37,6 +37,42 @@ export class StoreInternal extends RecordInternal {
      * @param {"delete"|"compute"|"sort"|"onAdd"|"onDelete"|"onUpdate"|"hard_delete"} type
      * @param {...any} params
      */
+    /**
+     * @param {Map} queue
+     * @param {import("./record").Record} record
+     * @param {string} fieldName
+     */
+    _queueField(queue, record, fieldName) {
+        let recMap = queue.get(record);
+        if (!recMap) {
+            recMap = new Map();
+            queue.set(record, recMap);
+        }
+        recMap.set(fieldName, true);
+    }
+    /**
+     * @param {Map} queue
+     * @param {import("./record").Record} record
+     * @param {string} fieldName
+     * @param {import("./record").Record} relatedRecord
+     */
+    _queueRelatedRecord(queue, record, fieldName, relatedRecord) {
+        let recMap = queue.get(record);
+        if (!recMap) {
+            recMap = new Map();
+            queue.set(record, recMap);
+        }
+        let fieldMap = recMap.get(fieldName);
+        if (!fieldMap) {
+            fieldMap = new Map();
+            recMap.set(fieldName, fieldMap);
+        }
+        fieldMap.set(relatedRecord, true);
+    }
+    /**
+     * @param {"delete"|"compute"|"sort"|"onAdd"|"onDelete"|"onUpdate"|"hard_delete"} type
+     * @param {...any} params
+     */
     ADD_QUEUE(type, ...params) {
         switch (type) {
             case "delete": {
@@ -46,26 +82,29 @@ export class StoreInternal extends RecordInternal {
                 }
                 break;
             }
+            case "hard_delete": {
+                const [record] = /** @type {[import("./record").Record]} */ (params);
+                if (!this.RHD_QUEUE.has(record)) {
+                    this.RHD_QUEUE.set(record, true);
+                }
+                break;
+            }
             case "compute": {
                 const [record, fieldName] =
                     /** @type {[import("./record").Record, string]} */ (params);
-                let recMap = this.FC_QUEUE.get(record);
-                if (!recMap) {
-                    recMap = new Map();
-                    this.FC_QUEUE.set(record, recMap);
-                }
-                recMap.set(fieldName, true);
+                this._queueField(this.FC_QUEUE, record, fieldName);
                 break;
             }
             case "sort": {
                 const [record, fieldName] =
                     /** @type {[import("./record").Record, string]} */ (params);
-                let recMap = this.FS_QUEUE.get(record);
-                if (!recMap) {
-                    recMap = new Map();
-                    this.FS_QUEUE.set(record, recMap);
-                }
-                recMap.set(fieldName, true);
+                this._queueField(this.FS_QUEUE, record, fieldName);
+                break;
+            }
+            case "onUpdate": {
+                const [record, fieldName] =
+                    /** @type {[import("./record").Record, string]} */ (params);
+                this._queueField(this.FU_QUEUE, record, fieldName);
                 break;
             }
             case "onAdd": {
@@ -73,24 +112,13 @@ export class StoreInternal extends RecordInternal {
                     /** @type {[import("./record").Record, string, import("./record").Record]} */ (
                         params
                     );
-                const Model = record.Model;
-                if (Model._.fieldsSort.get(fieldName)) {
+                if (record.Model._.fieldsSort.get(fieldName)) {
                     this.ADD_QUEUE("sort", record, fieldName);
                 }
-                if (!Model._.fieldsOnAdd.get(fieldName)) {
+                if (!record.Model._.fieldsOnAdd.get(fieldName)) {
                     return;
                 }
-                let recMap = this.FA_QUEUE.get(record);
-                if (!recMap) {
-                    recMap = new Map();
-                    this.FA_QUEUE.set(record, recMap);
-                }
-                let fieldMap = recMap.get(fieldName);
-                if (!fieldMap) {
-                    fieldMap = new Map();
-                    recMap.set(fieldName, fieldMap);
-                }
-                fieldMap.set(addedRec, true);
+                this._queueRelatedRecord(this.FA_QUEUE, record, fieldName, addedRec);
                 break;
             }
             case "onDelete": {
@@ -98,39 +126,10 @@ export class StoreInternal extends RecordInternal {
                     /** @type {[import("./record").Record, string, import("./record").Record]} */ (
                         params
                     );
-                const Model = record.Model;
-                if (!Model._.fieldsOnDelete.get(fieldName)) {
+                if (!record.Model._.fieldsOnDelete.get(fieldName)) {
                     return;
                 }
-                let recMap = this.FD_QUEUE.get(record);
-                if (!recMap) {
-                    recMap = new Map();
-                    this.FD_QUEUE.set(record, recMap);
-                }
-                let fieldMap = recMap.get(fieldName);
-                if (!fieldMap) {
-                    fieldMap = new Map();
-                    recMap.set(fieldName, fieldMap);
-                }
-                fieldMap.set(removedRec, true);
-                break;
-            }
-            case "onUpdate": {
-                const [record, fieldName] =
-                    /** @type {[import("./record").Record, string]} */ (params);
-                let recMap = this.FU_QUEUE.get(record);
-                if (!recMap) {
-                    recMap = new Map();
-                    this.FU_QUEUE.set(record, recMap);
-                }
-                recMap.set(fieldName, true);
-                break;
-            }
-            case "hard_delete": {
-                const [record] = /** @type {[import("./record").Record]} */ (params);
-                if (!this.RHD_QUEUE.has(record)) {
-                    this.RHD_QUEUE.set(record, true);
-                }
+                this._queueRelatedRecord(this.FD_QUEUE, record, fieldName, removedRec);
                 break;
             }
         }

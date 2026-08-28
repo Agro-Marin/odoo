@@ -1,13 +1,13 @@
 import io
 import logging
-from functools import lru_cache
+from functools import lru_cache, partial
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import send_file
 
-from odoo import http
+from odoo import http, models
 from odoo.exceptions import AccessError
 from odoo.http import STATIC_CACHE, Response, request
 from odoo.tools import consteq
@@ -130,105 +130,126 @@ class MailController(http.Controller):
         uid = request.session.uid
         user = request.env["res.users"].sudo().browse(uid)
         cids = []
+        fallback = partial(
+            cls._redirect_to_generic_fallback,
+            model,
+            res_id,
+            access_token=access_token,
+            **kwargs,
+        )
+        login = partial(
+            cls._redirect_to_login_with_mail_view,
+            model,
+            res_id,
+            access_token=access_token,
+            **kwargs,
+        )
 
         if not model or not res_id or model not in request.env:
-            return cls._redirect_to_generic_fallback(
-                model,
-                res_id,
-                access_token=access_token,
-                **kwargs,
-            )
+            return fallback()
 
         RecordModel = request.env[model]
         record_sudo = RecordModel.sudo().browse(res_id).exists()
         if not record_sudo:
-            return cls._redirect_to_generic_fallback(
-                model,
-                res_id,
-                access_token=access_token,
-                **kwargs,
-            )
+            return fallback()
 
         suggested_company = record_sudo._get_redirect_suggested_company()
         if uid is not None:
             if not RecordModel.with_user(uid).has_access("read"):
-                return cls._redirect_to_generic_fallback(
-                    model,
-                    res_id,
-                    access_token=access_token,
-                    **kwargs,
-                )
+                return fallback()
             try:
-                cids_str = request.cookies.get("cids", str(user.company_id.id))
-                try:
-                    cids = [int(cid) for cid in cids_str.split("-")]
-                except ValueError:
-                    cids = [user.company_id.id]
-                try:
-                    record_sudo.with_user(uid).with_context(
-                        allowed_company_ids=cids
-                    ).check_access("read")
-                except AccessError:
-                    if not suggested_company:
-                        raise AccessError(
-                            request.env._(
-                                "There is no candidate company that has read access to the record."
-                            )
-                        ) from None
-                    cids += [suggested_company.id]
-                    record_sudo.with_user(uid).with_context(
-                        allowed_company_ids=cids
-                    ).check_access("read")
-                    request.future_response.set_cookie(
-                        "cids", "-".join([str(cid) for cid in cids])
-                    )
-            except AccessError:
-                return cls._redirect_to_generic_fallback(
-                    model,
-                    res_id,
-                    access_token=access_token,
-                    **kwargs,
+                cids = cls._get_allowed_company_ids(
+                    record_sudo, uid, user, suggested_company
                 )
-            else:
-                record_action = record_sudo._get_access_action(access_uid=uid)
+            except AccessError:
+                return fallback()
+            record_action = record_sudo._get_access_action(access_uid=uid)
         else:
             record_action = record_sudo._get_access_action()
             if (
                 record_action["type"] == "ir.actions.act_url"
                 and record_action.get("target_type") != "public"
             ):
-                return cls._redirect_to_login_with_mail_view(
-                    model,
-                    res_id,
-                    access_token=access_token,
-                    **kwargs,
-                )
+                return login()
 
         record_action.pop("target_type", None)
         if record_action["type"] == "ir.actions.act_url":
-            url = record_action["url"]
-            if highlight_message_id := kwargs.get("highlight_message_id"):
-                parsed_url = urlparse(url)
-                url = parsed_url._replace(
-                    query=urlencode(
-                        parse_qsl(parsed_url.query)
-                        + [("highlight_message_id", highlight_message_id)]
-                    )
-                ).geturl()
-            return request.redirect(url)
+            return request.redirect(
+                cls._get_url_with_highlight(
+                    record_action["url"], kwargs.get("highlight_message_id")
+                )
+            )
         elif record_action["type"] != "ir.actions.act_window":
             return cls._redirect_to_messaging()
 
-        if uid is None or request.env.user._is_public():
-            has_access = record_sudo.with_user(request.env.user).has_access("read")
-            if not has_access:
-                return cls._redirect_to_login_with_mail_view(
-                    model,
-                    res_id,
-                    access_token=access_token,
-                    **kwargs,
-                )
+        if (uid is None or request.env.user._is_public()) and not record_sudo.with_user(
+            request.env.user
+        ).has_access("read"):
+            return login()
 
+        if cids:
+            request.future_response.set_cookie(
+                "cids", "-".join([str(cid) for cid in cids])
+            )
+        return request.redirect(
+            cls._get_record_backend_url(
+                model, res_id, record_sudo, kwargs.get("highlight_message_id")
+            )
+        )
+
+    @classmethod
+    def _get_allowed_company_ids(
+        cls,
+        record_sudo: models.Model,
+        uid: int,
+        user: models.Model,
+        suggested_company: models.Model,
+    ) -> list[int]:
+        cids_str = request.cookies.get("cids", str(user.company_id.id))
+        try:
+            cids = [int(cid) for cid in cids_str.split("-")]
+        except ValueError:
+            cids = [user.company_id.id]
+        try:
+            record_sudo.with_user(uid).with_context(
+                allowed_company_ids=cids
+            ).check_access("read")
+        except AccessError:
+            if not suggested_company:
+                raise AccessError(
+                    request.env._(
+                        "There is no candidate company that has read access to the record."
+                    )
+                ) from None
+            cids += [suggested_company.id]
+            record_sudo.with_user(uid).with_context(
+                allowed_company_ids=cids
+            ).check_access("read")
+            request.future_response.set_cookie(
+                "cids", "-".join([str(cid) for cid in cids])
+            )
+        return cids
+
+    @classmethod
+    def _get_url_with_highlight(cls, url: str, highlight_message_id: int | None) -> str:
+        if not highlight_message_id:
+            return url
+        parsed_url = urlparse(url)
+        return parsed_url._replace(
+            query=urlencode(
+                parse_qsl(parsed_url.query)
+                + [("highlight_message_id", highlight_message_id)]
+            )
+        ).geturl()
+
+    @classmethod
+    def _get_record_backend_url(
+        cls,
+        model: str,
+        res_id: int,
+        record_sudo: models.Model,
+        highlight_message_id: int | None,
+    ) -> str:
         url_params = {}
         menu_id = request.env["ir.ui.menu"]._get_best_backend_root_menu_id_for_model(
             model
@@ -238,16 +259,10 @@ class MailController(http.Controller):
         view_id = record_sudo.get_formview_id()
         if view_id:
             url_params["view_id"] = view_id
-        if highlight_message_id := kwargs.get("highlight_message_id"):
+        if highlight_message_id:
             url_params["highlight_message_id"] = highlight_message_id
-        if cids:
-            request.future_response.set_cookie(
-                "cids", "-".join([str(cid) for cid in cids])
-            )
-
         model_in_url = model if "." in model else "m-" + model
-        url = f"/odoo/{model_in_url}/{res_id}?{urlencode(sorted(url_params.items()))}"
-        return request.redirect(url)
+        return f"/odoo/{model_in_url}/{res_id}?{urlencode(sorted(url_params.items()))}"
 
     @http.route("/mail/view", type="http", auth="public")
     def mail_action_view(

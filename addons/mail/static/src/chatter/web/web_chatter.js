@@ -79,9 +79,7 @@ export class WebChatter extends Chatter {
         isInFormSheetBg: true,
     };
 
-    setup() {
-        this.messageHighlight = useMessageScrolling();
-        super.setup(...arguments);
+    _setupServicesAndState() {
         this.orm = useService("orm");
         this.keepLastSuggestedRecipientsUpdate = new KeepLast();
         this.mailImpactingFields = { recordFields: [], emailFields: [] };
@@ -114,6 +112,8 @@ export class WebChatter extends Chatter {
         this.loadingAttachmentTimeout = null;
         /** @type {Map<string, Function>} */
         this.uploadHandlers = new Map();
+    }
+    _setupChatterDropzone() {
         useCustomDropzone(
             this.rootRef,
             MailAttachmentDropzone,
@@ -155,6 +155,8 @@ export class WebChatter extends Chatter {
                 (!this.store.meetingViewOpened || this.env.inMeetingView) &&
                 (this.state.thread?.isTransient || this.state.thread?.canPostMessage),
         );
+    }
+    _setupChatterEffects() {
         useEffect(
             () => {
                 if (!this.state.thread) {
@@ -195,6 +197,13 @@ export class WebChatter extends Chatter {
             },
             () => [this.props.isChatterAside],
         );
+    }
+    setup() {
+        this.messageHighlight = useMessageScrolling();
+        super.setup(...arguments);
+        this._setupServicesAndState();
+        this._setupChatterDropzone();
+        this._setupChatterEffects();
     }
 
     /**

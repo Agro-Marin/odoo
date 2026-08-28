@@ -1,4 +1,4 @@
 {
-  "count": 49,
-  "note": "UNIT CHANGE, NOT A TREE CHANGE, and the same one as jsfunclen: js_function_length.py now passes skipComments: true, and this floor rides the same script through --addon mail. 51 -> 49. Measured at this tree both ways -- the old unit still reports 51, the floor it replaces -- so nothing in addons/mail/static/src moved.\n\nThe two that left the budget were over the limit on their JSDoc alone:\n\n  discuss/core/common/discuss_core_common_service.js:16  Method setup\n  utils/common/format.js:441                             trimEmptyBlocksAround\n\nThe rationale is on jsfunclen, which carries it in full: counting documentation as complexity makes documenting a function cost ratchet budget, and this floor was the one that already inherited a mismatch for an unrelated reason. Both are now measured in the same unit as the tree they describe."
+  "count": 3,
+  "note": "discuss_core_public_web constructor 82 -> 25: the three listeners it registered inline became onChannelJoined, onServiceWorkerMessage (splitting again into openPushedChannel and downloadRtcLogs) and a one-expression broadcast handler. downloadRtcLogs was covered by nothing until the preceding commit."
 }

@@ -126,32 +126,35 @@ export class UseSuggestion {
         });
         this.state.items = undefined;
     }
-    detect() {
-        let start = 0;
-        let end;
-        let text = "";
-        if (this.comp.composerService.htmlEnabled) {
-            const selection = this.comp.editor.shared.selection.getEditableSelection();
-            if (
-                !isTextNode(selection.startContainer) ||
-                !isContentEditable(selection.startContainer) ||
-                !selection.isCollapsed
-            ) {
-                this.clearSearch();
-                return;
-            }
-            start = selection.startOffset;
-            end = selection.endOffset;
-            text = selection.anchorNode.textContent;
-        } else {
-            start = this.composer.selection.start;
-            end = this.composer.selection.end;
-            text = this.composer.composerText;
+    /** @returns {{start: number, end: number, text: string}|null} */
+    _getCaretContext() {
+        if (!this.comp.composerService.htmlEnabled) {
+            return {
+                start: this.composer.selection.start,
+                end: this.composer.selection.end,
+                text: this.composer.composerText,
+            };
         }
-        if (start !== end) {
-            this.clearSearch();
-            return;
+        const selection = this.comp.editor.shared.selection.getEditableSelection();
+        if (
+            !isTextNode(selection.startContainer) ||
+            !isContentEditable(selection.startContainer) ||
+            !selection.isCollapsed
+        ) {
+            return null;
         }
+        return {
+            start: selection.startOffset,
+            end: selection.endOffset,
+            text: selection.anchorNode.textContent,
+        };
+    }
+    /**
+     * @param {number} start
+     * @param {string} text
+     * @returns {number[]}
+     */
+    _getCandidatePositions(start, text) {
         const candidatePositions = [];
         let numberOfSpaces = 0;
         for (let index = start - 1; index >= 0; --index) {
@@ -166,6 +169,48 @@ export class UseSuggestion {
         if (this.search.position !== undefined && this.search.position < start) {
             candidatePositions.push(this.search.position);
         }
+        return candidatePositions;
+    }
+    /**
+     * @param {string} text
+     * @param {number} candidatePosition
+     * @param {number} start
+     * @param {Array} supportedDelimiters
+     * @returns {string|undefined}
+     */
+    _findDelimiterAt(text, candidatePosition, start, supportedDelimiters) {
+        let goodCandidate;
+        for (const [
+            delimiter,
+            allowedPosition,
+            minCharCountAfter,
+        ] of supportedDelimiters) {
+            if (
+                text.substring(candidatePosition).startsWith(delimiter) &&
+                (allowedPosition === undefined ||
+                    allowedPosition === candidatePosition) &&
+                (minCharCountAfter === undefined ||
+                    start - candidatePosition - delimiter.length + 1 >
+                        minCharCountAfter) &&
+                (!goodCandidate || delimiter.length > goodCandidate.length)
+            ) {
+                goodCandidate = delimiter;
+            }
+        }
+        return goodCandidate;
+    }
+    detect() {
+        const caret = this._getCaretContext();
+        if (!caret) {
+            this.clearSearch();
+            return;
+        }
+        const { start, end, text } = caret;
+        if (start !== end) {
+            this.clearSearch();
+            return;
+        }
+        const candidatePositions = this._getCandidatePositions(start, text);
         const supportedDelimiters = this.suggestionService.getSupportedDelimiters(
             this.thread,
             this.comp.env,
@@ -174,30 +219,12 @@ export class UseSuggestion {
             if (candidatePosition < 0 || candidatePosition >= text.length) {
                 continue;
             }
-
-            const findAppropriateDelimiter = () => {
-                let goodCandidate;
-                for (const [
-                    delimiter,
-                    allowedPosition,
-                    minCharCountAfter,
-                ] of supportedDelimiters) {
-                    if (
-                        text.substring(candidatePosition).startsWith(delimiter) &&
-                        (allowedPosition === undefined ||
-                            allowedPosition === candidatePosition) &&
-                        (minCharCountAfter === undefined ||
-                            start - candidatePosition - delimiter.length + 1 >
-                                minCharCountAfter) &&
-                        (!goodCandidate || delimiter.length > goodCandidate.length)
-                    ) {
-                        goodCandidate = delimiter;
-                    }
-                }
-                return goodCandidate;
-            };
-
-            const candidateDelimiter = findAppropriateDelimiter();
+            const candidateDelimiter = this._findDelimiterAt(
+                text,
+                candidatePosition,
+                start,
+                supportedDelimiters,
+            );
             if (!candidateDelimiter) {
                 continue;
             }
@@ -337,6 +364,46 @@ export function useSuggestion() {
 }
 
 /**
+ * @param {Object[]} suggestions
+ * @param {string} classList
+ * @param {Object} [options]
+ * @param {import("models").Thread} [options.thread]
+ * @returns {Object}
+ */
+function mapPartnerSuggestionsToOptions(suggestions, classList, { thread } = {}) {
+    return {
+        optionTemplate: "mail.Composer.suggestionPartner",
+        options:
+            /**
+             * @type {(import("models").ResPartner | import("models").ResRole | import("@mail/core/common/store_service").SpecialMention)[]}
+             */ (suggestions).map((suggestion) => {
+                if ("isSpecial" in suggestion) {
+                    return {
+                        ...suggestion,
+                        group: 1,
+                        optionTemplate: "mail.Composer.suggestionSpecial",
+                        classList,
+                    };
+                }
+                if (suggestion?.Model?.getName?.() === "res.role") {
+                    return {
+                        label: suggestion.name,
+                        role: suggestion,
+                        thread,
+                        optionTemplate: "mail.Composer.suggestionRole",
+                        classList,
+                    };
+                }
+                return {
+                    label: thread?.getPersonaName(suggestion) ?? suggestion.name,
+                    partner: suggestion,
+                    thread,
+                    classList,
+                };
+            }),
+    };
+}
+/**
  * @param {string} type
  * @param {Suggestion[]} suggestions
  * @param {Object} [params]
@@ -347,38 +414,9 @@ export function mapSuggestionsToOptions(type, suggestions, { thread } = {}) {
     const classList = "o-mail-Composer-suggestion";
     switch (type) {
         case "Partner":
-            return {
-                optionTemplate: "mail.Composer.suggestionPartner",
-                options:
-                    /**
-                     * @type {(import("models").ResPartner | import("models").ResRole | import("@mail/core/common/store_service").SpecialMention)[]}
-                     */ (suggestions).map((suggestion) => {
-                        if ("isSpecial" in suggestion) {
-                            return {
-                                ...suggestion,
-                                group: 1,
-                                optionTemplate: "mail.Composer.suggestionSpecial",
-                                classList,
-                            };
-                        }
-                        if (suggestion?.Model?.getName?.() === "res.role") {
-                            return {
-                                label: suggestion.name,
-                                role: suggestion,
-                                thread,
-                                optionTemplate: "mail.Composer.suggestionRole",
-                                classList,
-                            };
-                        }
-                        return {
-                            label:
-                                thread?.getPersonaName(suggestion) ?? suggestion.name,
-                            partner: suggestion,
-                            thread,
-                            classList,
-                        };
-                    }),
-            };
+            return mapPartnerSuggestionsToOptions(suggestions, classList, {
+                thread,
+            });
         case "Thread":
             return {
                 optionTemplate: "mail.Composer.suggestionThread",

@@ -22,7 +22,7 @@ export class LinkNavigation {
     /**
      * @param {MouseEvent} ev
      * @param {import("models").Thread} [thread]
-     * @returns {boolean}
+     * @returns {boolean} whether the click was handled here
      */
     handleClickOnLink(ev, thread) {
         // The body of an EMAIL message is rendered into a shadow root
@@ -42,81 +42,127 @@ export class LinkNavigation {
         const id = Number(link.dataset.oeId);
         if (link.classList.contains("o_channel_redirect") && model && id) {
             ev.preventDefault();
-            this.store.Thread.getOrFetch({ model, id }).then((thread) => {
-                if (thread) {
-                    thread.open({ focus: true });
-                } else {
-                    this.env.services.notification.add(
-                        _t("This thread is no longer available."),
-                        { type: "danger" },
-                    );
-                }
-            });
+            this.openRedirectedThread(model, id);
             return true;
-        } else if (link.classList.contains("o_mail_redirect") && id) {
+        }
+        if (link.classList.contains("o_mail_redirect") && id) {
             ev.preventDefault();
             this.onClickPartnerMention(ev, id);
             return true;
-        } else if (link.classList.contains("o_message_redirect")) {
-            const message = this.store["mail.message"].get(id);
-            const targetThread = message?.thread;
-            const showAccessError = () =>
-                this.env.services.notification.add(
-                    _t("This conversation isn’t available."),
-                    { type: "danger" },
-                );
-            if (targetThread) {
-                targetThread.checkReadAccess().then((hasAccess) => {
-                    if (hasAccess) {
-                        targetThread.highlightMessage = message;
-                        let isOpen = targetThread.eq(thread);
-                        if (!isOpen) {
-                            isOpen = targetThread.open({
-                                focus: true,
-                                swapOpened: false,
-                            });
-                        }
-                        if (!isOpen) {
-                            window.open(link.href);
-                        }
-                    } else {
-                        if (this.store.self_partner) {
-                            showAccessError();
-                        } else {
-                            window.open(link.href);
-                        }
-                    }
-                });
-                ev.preventDefault();
-                return true;
-            } else if (
-                link.href &&
-                new URL(link.href, getOrigin()).origin === getOrigin()
-            ) {
-                showAccessError();
-                ev.preventDefault();
-                return true;
-            }
-        } else if (
+        }
+        if (link.classList.contains("o_message_redirect")) {
+            return this.openRedirectedMessage(ev, link, id, thread);
+        }
+        if (
             this.env.services.ui.isSmall &&
             ev.target.closest(".o-mail-ChatWindow") &&
             link.href &&
             !link.href.startsWith("#")
         ) {
-            let url;
-            try {
-                url = new URL(link.href);
-            } catch {
-                return false;
-            }
-            if (
-                browser.location.host === url.host &&
-                browser.location.pathname.startsWith("/odoo")
-            ) {
-                this.store.ChatWindow.get({ thread })?.fold();
-            }
+            this.foldChatWindowForInternalLink(link, thread);
         }
         return false;
+    }
+
+    /**
+     * @param {string} model
+     * @param {number} id
+     */
+    openRedirectedThread(model, id) {
+        this.store.Thread.getOrFetch({ model, id }).then((thread) => {
+            if (thread) {
+                thread.open({ focus: true });
+            } else {
+                this.env.services.notification.add(
+                    _t("This thread is no longer available."),
+                    { type: "danger" },
+                );
+            }
+        });
+    }
+
+    /**
+     * @param {MouseEvent} ev
+     * @param {HTMLAnchorElement} link
+     * @param {number} id
+     * @param {import("models").Thread} [thread] the one the link was clicked in
+     * @returns {boolean} whether the click was handled here
+     */
+    openRedirectedMessage(ev, link, id, thread) {
+        const message = this.store["mail.message"].get(id);
+        const targetThread = message?.thread;
+        if (targetThread) {
+            targetThread
+                .checkReadAccess()
+                .then((hasAccess) =>
+                    hasAccess
+                        ? this.revealMessage(message, targetThread, link, thread)
+                        : this.refuseMessage(link),
+                );
+            ev.preventDefault();
+            return true;
+        }
+        if (link.href && new URL(link.href, getOrigin()).origin === getOrigin()) {
+            this.notifyConversationUnavailable();
+            ev.preventDefault();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param {import("models").Message} message
+     * @param {import("models").Thread} targetThread
+     * @param {HTMLAnchorElement} link
+     * @param {import("models").Thread} [thread] the one the link was clicked in
+     */
+    revealMessage(message, targetThread, link, thread) {
+        targetThread.highlightMessage = message;
+        let isOpen = targetThread.eq(thread);
+        if (!isOpen) {
+            isOpen = targetThread.open({ focus: true, swapOpened: false });
+        }
+        if (!isOpen) {
+            window.open(link.href);
+        }
+    }
+
+    /**
+     * A reader with no partner of their own cannot be told anything useful, so
+     * the link is followed and the backend decides what they may see.
+     * @param {HTMLAnchorElement} link
+     */
+    refuseMessage(link) {
+        if (this.store.self_partner) {
+            this.notifyConversationUnavailable();
+        } else {
+            window.open(link.href);
+        }
+    }
+
+    notifyConversationUnavailable() {
+        this.env.services.notification.add(_t("This conversation isn’t available."), {
+            type: "danger",
+        });
+    }
+
+    /**
+     * @param {HTMLAnchorElement} link
+     * @param {import("models").Thread} [thread]
+     */
+    foldChatWindowForInternalLink(link, thread) {
+        let url;
+        try {
+            url = new URL(link.href);
+        } catch {
+            return;
+        }
+        if (
+            browser.location.host === url.host &&
+            browser.location.pathname.startsWith("/odoo")
+        ) {
+            this.store.ChatWindow.get({ thread })?.fold();
+        }
     }
 
     /**

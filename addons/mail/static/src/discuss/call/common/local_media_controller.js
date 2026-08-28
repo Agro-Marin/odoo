@@ -88,42 +88,144 @@ export class LocalMediaController {
     /**
      * @param {MediaStreamTrack|undefined} track
      * @param {"camera"|"screen"} type
+     */
+    async _stopVideo(track, type) {
+        if (track) {
+            track.stop();
+        }
+        switch (type) {
+            case "camera": {
+                this.state.cameraTrack = undefined;
+                closeStream(this.state.sourceCameraStream);
+                this.state.sourceCameraStream = null;
+                break;
+            }
+            case "screen": {
+                this.state.screenTrack = undefined;
+                this.state.screenAudioTrack?.stop();
+                this.state.screenAudioTrack = undefined;
+                closeStream(this.state.sourceScreenStream);
+                this.state.sourceScreenStream = null;
+                await this.updateAudioTrack();
+                break;
+            }
+        }
+    }
+    /**
+     * @param {SetVideoOptions|boolean} [options]
+     * @returns {{activateVideo: boolean, env: any, refreshStream: boolean}}
+     */
+    _getSetVideoOptions(options) {
+        if (typeof options === "boolean") {
+            return {
+                activateVideo: options ?? false,
+                env: undefined,
+                refreshStream: undefined,
+            };
+        }
+        return {
+            activateVideo: options?.activateVideo ?? false,
+            env: options?.env,
+            refreshStream: options?.refreshStream,
+        };
+    }
+    /**
+     * @param {"camera"|"screen"} type
+     * @param {Object} settings
+     * @param {any} env
+     * @param {boolean} refreshStream
+     * @returns {Promise<MediaStream|undefined>}
+     */
+    async _acquireVideoStream(type, settings, env, refreshStream) {
+        const sourceWindow = env?.pipWindow ?? browser;
+        if (type === "camera") {
+            if (this.state.sourceCameraStream && !refreshStream) {
+                return this.state.sourceCameraStream;
+            }
+            closeStream(this.state.sourceCameraStream);
+            return await sourceWindow.navigator.mediaDevices.getUserMedia({
+                video: settings.cameraConstraints,
+            });
+        }
+        if (type === "screen") {
+            let sourceStream;
+            if (this.state.sourceScreenStream) {
+                sourceStream = this.state.sourceScreenStream;
+            } else {
+                sourceStream =
+                    await sourceWindow.navigator.mediaDevices.getDisplayMedia({
+                        video: SCREEN_CONFIG,
+                        audio: true,
+                    });
+            }
+            this.hooks.playSound("screen-sharing");
+            return sourceStream;
+        }
+        return undefined;
+    }
+    /**
+     * @param {MediaStream} sourceStream
+     * @param {Object} settings
+     * @returns {Promise<MediaStreamTrack>}
+     */
+    async _applyBlurToStream(sourceStream, settings) {
+        this.blurManager?.close();
+        this.blurManager = undefined;
+        try {
+            this.blurManager = await this.applyBlurEffect(sourceStream);
+            const blurredStream = await Promise.race([
+                this.blurManager.stream,
+                new Promise((_, reject) =>
+                    browser.setTimeout(
+                        () => reject(new Error(_t("Blur is unavailable"))),
+                        10_000,
+                    ),
+                ),
+            ]);
+            return blurredStream.getVideoTracks()[0];
+        } catch (_e) {
+            this.hooks.notify(_e.message);
+            settings.setUseBlur(false);
+            this.blurManager?.close();
+            this.blurManager = undefined;
+            return sourceStream.getVideoTracks()[0];
+        }
+    }
+    /**
+     * @param {"camera"|"screen"} type
+     * @param {MediaStream|undefined} sourceStream
+     * @param {MediaStreamTrack|undefined} outputTrack
+     * @param {MediaStreamTrack|undefined} screenAudioTrack
+     */
+    _storeVideoState(type, sourceStream, outputTrack, screenAudioTrack) {
+        switch (type) {
+            case "camera": {
+                Object.assign(this.state, {
+                    sourceCameraStream: sourceStream,
+                    cameraTrack: outputTrack,
+                    sendCamera: Boolean(outputTrack),
+                });
+                break;
+            }
+            case "screen": {
+                Object.assign(this.state, {
+                    sourceScreenStream: sourceStream,
+                    screenTrack: outputTrack,
+                    screenAudioTrack: screenAudioTrack,
+                    sendScreen: Boolean(outputTrack),
+                });
+                break;
+            }
+        }
+    }
+    /**
+     * @param {MediaStreamTrack|undefined} track
+     * @param {"camera"|"screen"} type
      * @param {SetVideoOptions|boolean} [options]
      */
     async _setVideo(track, type, options) {
         const settings = this.hooks.getSettings();
-        let activateVideo;
-        let env;
-        let refreshStream;
-        if (typeof options === "boolean") {
-            activateVideo = options ?? false;
-        } else {
-            activateVideo = options?.activateVideo ?? false;
-            env = options?.env;
-            refreshStream = options?.refreshStream;
-        }
-        const stopVideo = async () => {
-            if (track) {
-                track.stop();
-            }
-            switch (type) {
-                case "camera": {
-                    this.state.cameraTrack = undefined;
-                    closeStream(this.state.sourceCameraStream);
-                    this.state.sourceCameraStream = null;
-                    break;
-                }
-                case "screen": {
-                    this.state.screenTrack = undefined;
-                    this.state.screenAudioTrack?.stop();
-                    this.state.screenAudioTrack = undefined;
-                    closeStream(this.state.sourceScreenStream);
-                    this.state.sourceScreenStream = null;
-                    await this.updateAudioTrack();
-                    break;
-                }
-            }
-        };
+        const { activateVideo, env, refreshStream } = this._getSetVideoOptions(options);
         if (!activateVideo) {
             if (type === "screen") {
                 this.hooks.playSound("screen-sharing");
@@ -132,41 +234,23 @@ export class LocalMediaController {
                 this.blurManager.close();
                 this.blurManager = undefined;
             }
-            await stopVideo();
+            await this._stopVideo(track, type);
             return;
         }
         let sourceStream;
-        const sourceWindow = env?.pipWindow ?? browser;
         try {
-            if (type === "camera") {
-                if (this.state.sourceCameraStream && !refreshStream) {
-                    sourceStream = this.state.sourceCameraStream;
-                } else {
-                    closeStream(this.state.sourceCameraStream);
-                    sourceStream =
-                        await sourceWindow.navigator.mediaDevices.getUserMedia({
-                            video: settings.cameraConstraints,
-                        });
-                }
-            }
-            if (type === "screen") {
-                if (this.state.sourceScreenStream) {
-                    sourceStream = this.state.sourceScreenStream;
-                } else {
-                    sourceStream =
-                        await sourceWindow.navigator.mediaDevices.getDisplayMedia({
-                            video: SCREEN_CONFIG,
-                            audio: true,
-                        });
-                }
-                this.hooks.playSound("screen-sharing");
-            }
+            sourceStream = await this._acquireVideoStream(
+                type,
+                settings,
+                env,
+                refreshStream,
+            );
         } catch {
             this.hooks.onMediaUnavailable({
                 camera: type === "camera",
                 screen: type === "screen",
             });
-            await stopVideo();
+            await this._stopVideo(track, type);
             return;
         }
         if (!this.hooks.getSelfSession()) {
@@ -191,50 +275,12 @@ export class LocalMediaController {
             }
         }
         if (settings.useBlur && type === "camera") {
-            this.blurManager?.close();
-            this.blurManager = undefined;
-            try {
-                this.blurManager = await this.applyBlurEffect(sourceStream);
-                const blurredStream = await Promise.race([
-                    this.blurManager.stream,
-                    new Promise((_, reject) =>
-                        browser.setTimeout(
-                            () => reject(new Error(_t("Blur is unavailable"))),
-                            10_000,
-                        ),
-                    ),
-                ]);
-                outputTrack = blurredStream.getVideoTracks()[0];
-            } catch (_e) {
-                this.hooks.notify(_e.message);
-                settings.setUseBlur(false);
-                this.blurManager?.close();
-                this.blurManager = undefined;
-                outputTrack = sourceStream.getVideoTracks()[0];
-            }
+            outputTrack = await this._applyBlurToStream(sourceStream, settings);
         } else if (!settings.useBlur && type === "camera") {
             this.blurManager?.close();
             this.blurManager = undefined;
         }
-        switch (type) {
-            case "camera": {
-                Object.assign(this.state, {
-                    sourceCameraStream: sourceStream,
-                    cameraTrack: outputTrack,
-                    sendCamera: Boolean(outputTrack),
-                });
-                break;
-            }
-            case "screen": {
-                Object.assign(this.state, {
-                    sourceScreenStream: sourceStream,
-                    screenTrack: outputTrack,
-                    screenAudioTrack: screenAudioTrack,
-                    sendScreen: Boolean(outputTrack),
-                });
-                break;
-            }
-        }
+        this._storeVideoState(type, sourceStream, outputTrack, screenAudioTrack);
         if (this.state.screenAudioTrack) {
             await this.updateAudioTrack();
         }

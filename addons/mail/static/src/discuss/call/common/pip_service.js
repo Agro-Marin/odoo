@@ -1,8 +1,77 @@
 /** @odoo-module native */
-import { reactive } from "@odoo/owl";
+import { markRaw, reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 
 import { Meeting } from "./meeting.js";
+
+export class CallPipService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {import("services").ServiceFactories} services
+     */
+    constructor(env, services) {
+        this.env = env;
+        this.popout = services["mail.popout"].createManager(
+            Symbol("discuss.native.pip"),
+        );
+        /** @type {Window|null} */
+        this.pipWindow = null;
+        this.state = reactive({ active: false });
+    }
+
+    setup() {
+        this.popout.addHooks(
+            () => {},
+            () => {
+                this.state.active = false;
+                this.env.services["discuss.rtc"]?.channel?.openChatWindow();
+            },
+        );
+    }
+
+    get isNativePipAvailable() {
+        return Boolean(window.documentPictureInPicture);
+    }
+
+    closePip() {
+        this.state.active = false;
+        this.pipWindow?.close();
+    }
+
+    /**
+     * @param {Object} [param0]
+     * @param {Component} [param0.context]
+     */
+    async openPip({ context }) {
+        const rtc = this.env.services["discuss.rtc"];
+        if (!rtc?.channel) {
+            return;
+        }
+        this.state.active = true;
+        const isShadowRoot = context?.root?.el?.getRootNode() instanceof ShadowRoot;
+        const pipWindow = await this.popout.pip(Meeting, {
+            props: { isPip: true },
+            options: { useAlternativeAssets: isShadowRoot },
+        });
+        this.pipWindow = markRaw(pipWindow);
+        pipWindow.addEventListener(
+            "keydown",
+            /** @param {KeyboardEvent} ev */ (ev) => {
+                rtc.onKeyDown(ev);
+            },
+        );
+        pipWindow.addEventListener(
+            "keyup",
+            /** @param {KeyboardEvent} ev */ (ev) => {
+                rtc.onKeyUp(ev);
+            },
+        );
+        pipWindow.document.body.style.backgroundColor = "black";
+        pipWindow.document.body.style.overflow = "hidden";
+        pipWindow.document.body.style.display = "block";
+    }
+}
+
 export const callPipService = {
     dependencies: ["mail.popout"],
 
@@ -11,65 +80,9 @@ export const callPipService = {
      * @param {import("services").ServiceFactories} services
      */
     start(env, services) {
-        const popoutService = services["mail.popout"];
-        const popout = popoutService.createManager(Symbol("discuss.native.pip"));
-        let pipWindow = null;
-        const state = reactive({
-            active: false,
-        });
-        popout.addHooks(
-            () => {},
-            () => {
-                state.active = false;
-                env.services["discuss.rtc"]?.channel?.openChatWindow();
-            },
-        );
-        function closePip() {
-            state.active = false;
-            pipWindow?.close();
-        }
-        /**
-         * @param {Object} [param0]
-         * @param {Component} [param0.context]
-         */
-        async function openPip({ context }) {
-            const rtc = env.services["discuss.rtc"];
-            if (!rtc?.channel) {
-                return;
-            }
-            state.active = true;
-            const isShadowRoot = context?.root?.el?.getRootNode() instanceof ShadowRoot;
-            pipWindow = await popout.pip(Meeting, {
-                props: { isPip: true },
-                options: { useAlternativeAssets: isShadowRoot },
-            });
-            pipWindow.addEventListener(
-                "keydown",
-                /** @param {KeyboardEvent} ev */ (ev) => {
-                    rtc.onKeyDown(ev);
-                },
-            );
-            pipWindow.addEventListener(
-                "keyup",
-                /** @param {KeyboardEvent} ev */ (ev) => {
-                    rtc.onKeyUp(ev);
-                },
-            );
-            pipWindow.document.body.style.backgroundColor = "black";
-            pipWindow.document.body.style.overflow = "hidden";
-            pipWindow.document.body.style.display = "block";
-        }
-        return reactive({
-            get isNativePipAvailable() {
-                return Boolean(window.documentPictureInPicture);
-            },
-            get pipWindow() {
-                return pipWindow;
-            },
-            state,
-            closePip,
-            openPip,
-        });
+        const pip = reactive(new CallPipService(env, services));
+        pip.setup();
+        return pip;
     },
 };
 

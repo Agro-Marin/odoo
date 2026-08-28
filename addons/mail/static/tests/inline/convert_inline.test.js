@@ -1830,3 +1830,73 @@ describe("Convert to inline (full pipeline)", () => {
         }
     });
 });
+
+test("a font-awesome icon becomes an image the mail client can fetch", async () => {
+    editable = document.createElement("div");
+    editable.style.setProperty("width", TEST_WIDTH + "px");
+    getFixture().append(editable);
+    editable.innerHTML = '<div class="o_layout"><span class="fa fa-star"></span></div>';
+    await toInline(editable, getCSSRules(document));
+    expect(editable.querySelectorAll(".fa")).toHaveLength(0);
+    const image = editable.querySelector("img");
+    expect(image.getAttribute("src")).toMatch(/^\/mail\/font_to_img\/61445\//);
+    expect(image.getAttribute("data-class")).toBe("fa fa-star");
+    expect(image.parentElement.nodeName).toBe("SPAN");
+    expect(image.parentElement.style.display).toBe("inline-block");
+});
+
+test("the icon's own style reaches the image, measured before it is resized", async () => {
+    editable = document.createElement("div");
+    editable.style.setProperty("width", TEST_WIDTH + "px");
+    getFixture().append(editable);
+    editable.innerHTML =
+        '<div class="o_layout">' +
+        '<span class="fa fa-star" style="color: rgb(255, 0, 0);"></span>' +
+        "</div>";
+    await toInline(editable, getCSSRules(document));
+    const image = editable.querySelector("img");
+    expect(image.getAttribute("data-style")).toInclude("color");
+    expect(image.getAttribute("data-style")).not.toInclude("fit-content");
+    expect(image.getAttribute("style")).toInclude("box-sizing: border-box");
+});
+
+test("a centred icon centres the block that holds its wrapper", async () => {
+    editable = document.createElement("div");
+    editable.style.setProperty("width", TEST_WIDTH + "px");
+    getFixture().append(editable);
+    editable.innerHTML =
+        '<div class="o_layout"><p><span class="fa fa-star mx-auto"></span></p></div>';
+    await toInline(editable, getCSSRules(document));
+    const image = editable.querySelector("img");
+    expect(image.parentElement.parentElement.style.textAlign).toBe("center");
+});
+
+test("a masonry block marks its table, row and cells for full height", async () => {
+    editable = document.createElement("div");
+    editable.style.setProperty("width", TEST_WIDTH + "px");
+    getFixture().append(editable);
+    editable.innerHTML =
+        '<div class="o_layout"><div class="s_masonry_block">' +
+        '<div class="container"><div class="row">' +
+        '<div class="col-6">a</div><div class="col-6">b</div>' +
+        "</div></div></div></div>";
+    await toInline(editable, getCSSRules(document));
+    const marked = [...editable.querySelectorAll(".o_desktop_h100")];
+    expect(marked.map((node) => node.nodeName)).toEqual(["TABLE", "TR", "TD", "TD"]);
+});
+
+test("a masonry row asking for full height is given a share of its parent", async () => {
+    editable = document.createElement("div");
+    editable.style.setProperty("width", TEST_WIDTH + "px");
+    getFixture().append(editable);
+    editable.innerHTML =
+        '<div class="o_layout"><div class="s_masonry_block">' +
+        '<div class="container">' +
+        '<div class="row h-100"><div class="col-12">a</div></div>' +
+        '<div class="row"><div class="col-12">b</div></div>' +
+        "</div></div></div>";
+    await toInline(editable, getCSSRules(document));
+    const rows = [...editable.querySelectorAll(".s_masonry_block tr")];
+    expect(rows.length).toBe(2);
+    expect(rows[0].style.height).toMatch(/^[\d.]+px$/);
+});

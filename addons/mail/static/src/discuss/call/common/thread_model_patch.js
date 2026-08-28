@@ -38,32 +38,7 @@ const ThreadPatch = {
             },
             /** @this {import("models").Thread} */
             async onUpdate() {
-                const hadSelfSession = this.hadSelfSession;
-                const lastSessionIds = this.lastSessionIds;
-                this.hadSelfSession = Boolean(
-                    this.store.rtc.selfSession?.in(this.rtc_session_ids),
-                );
-                this.lastSessionIds = new Set(this.rtc_session_ids.map((s) => s.id));
-                const shouldPlayJoinSound = [...this.lastSessionIds].some(
-                    (id) => !lastSessionIds.has(id),
-                );
-                const shouldPlayLeaveSound = [...lastSessionIds].some(
-                    (id) => !this.lastSessionIds.has(id),
-                );
-                if (
-                    !hadSelfSession ||
-                    !this.hadSelfSession ||
-                    !(await this.store.env.services["multi_tab"].isOnMainTab())
-                ) {
-                    return;
-                }
-                if (shouldPlayJoinSound) {
-                    this.store.env.services["mail.sound_effects"].play("call-join");
-                    this.store.rtc.call({ asFallback: true });
-                }
-                if (shouldPlayLeaveSound) {
-                    this.store.env.services["mail.sound_effects"].play("member-leave");
-                }
+                await this._onRtcSessionIdsUpdate();
             },
         });
         this.videoCountNotSelf = fields.Attr(0, {
@@ -95,81 +70,13 @@ const ThreadPatch = {
         this.visibleCards = fields.Attr([], {
             /** @this {import("models").Thread} */
             compute() {
-                const raisingHandCards = [];
-                const sessionCards = [];
-                const invitationCards = [];
-                const filterVideos =
-                    this.store.settings.showOnlyVideo && this.videoCount > 0;
-                for (const session of this.rtc_session_ids) {
-                    const target = session.raisingHand
-                        ? raisingHandCards
-                        : sessionCards;
-                    const cameraStream = session.is_camera_on
-                        ? session.videoStreams.get("camera")
-                        : undefined;
-                    if (!filterVideos || cameraStream) {
-                        target.push({
-                            key: "session_main_" + session.id,
-                            session,
-                            type: "camera",
-                            videoStream: cameraStream,
-                        });
-                    }
-                    const screenStream = session.is_screen_sharing_on
-                        ? session.videoStreams.get("screen")
-                        : undefined;
-                    if (screenStream) {
-                        target.push({
-                            key: "session_secondary_" + session.id,
-                            session,
-                            type: "screen",
-                            videoStream: screenStream,
-                        });
-                    }
-                }
-                if (!filterVideos) {
-                    for (const member of this.invited_member_ids) {
-                        invitationCards.push({ key: "member_" + member.id, member });
-                    }
-                }
-                raisingHandCards.sort(
-                    (c1, c2) => c1.session.raisingHand - c2.session.raisingHand,
-                );
-                sessionCards.sort(
-                    (c1, c2) =>
-                        c1.session.channel_member_id?.persona?.name?.localeCompare(
-                            c2.session.channel_member_id?.persona?.name,
-                        ) ?? 1,
-                );
-                invitationCards.sort(
-                    (c1, c2) =>
-                        c1.member.persona?.name?.localeCompare(
-                            c2.member.persona?.name,
-                        ) ?? 1,
-                );
-                return raisingHandCards.concat(sessionCards, invitationCards);
+                return this._computeVisibleCards();
             },
         });
         this.useCameraByDefault = fields.Attr(null, {
             /** @this {import("models").Thread} */
             compute() {
-                if (
-                    this.channel_type === "chat" &&
-                    this.store.rtc.selfSession?.channel?.eq(this)
-                ) {
-                    return this.store.rtc.selfSession.is_camera_on;
-                }
-                const raw = localStorage.getItem(
-                    `discuss_channel_camera_default_${this.id}`,
-                );
-                if (!raw || raw === "undefined") {
-                    return null;
-                }
-                try {
-                    return JSON.parse(raw);
-                } catch {
-                    return null;
-                }
+                return this._computeUseCameraByDefault();
             },
             /** @this {import("models").Thread} */
             onUpdate() {
@@ -181,6 +88,103 @@ const ThreadPatch = {
                 }
             },
         });
+    },
+    /** @returns {any} */
+    _computeUseCameraByDefault() {
+        if (
+            this.channel_type === "chat" &&
+            this.store.rtc.selfSession?.channel?.eq(this)
+        ) {
+            return this.store.rtc.selfSession.is_camera_on;
+        }
+        const raw = localStorage.getItem(`discuss_channel_camera_default_${this.id}`);
+        if (!raw || raw === "undefined") {
+            return null;
+        }
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    },
+    /** @returns {import("@mail/discuss/call/common/call").CardData[]} */
+    _computeVisibleCards() {
+        const raisingHandCards = [];
+        const sessionCards = [];
+        const invitationCards = [];
+        const filterVideos = this.store.settings.showOnlyVideo && this.videoCount > 0;
+        for (const session of this.rtc_session_ids) {
+            const target = session.raisingHand ? raisingHandCards : sessionCards;
+            const cameraStream = session.is_camera_on
+                ? session.videoStreams.get("camera")
+                : undefined;
+            if (!filterVideos || cameraStream) {
+                target.push({
+                    key: "session_main_" + session.id,
+                    session,
+                    type: "camera",
+                    videoStream: cameraStream,
+                });
+            }
+            const screenStream = session.is_screen_sharing_on
+                ? session.videoStreams.get("screen")
+                : undefined;
+            if (screenStream) {
+                target.push({
+                    key: "session_secondary_" + session.id,
+                    session,
+                    type: "screen",
+                    videoStream: screenStream,
+                });
+            }
+        }
+        if (!filterVideos) {
+            for (const member of this.invited_member_ids) {
+                invitationCards.push({ key: "member_" + member.id, member });
+            }
+        }
+        raisingHandCards.sort(
+            (c1, c2) => c1.session.raisingHand - c2.session.raisingHand,
+        );
+        sessionCards.sort(
+            (c1, c2) =>
+                c1.session.channel_member_id?.persona?.name?.localeCompare(
+                    c2.session.channel_member_id?.persona?.name,
+                ) ?? 1,
+        );
+        invitationCards.sort(
+            (c1, c2) =>
+                c1.member.persona?.name?.localeCompare(c2.member.persona?.name) ?? 1,
+        );
+        return raisingHandCards.concat(sessionCards, invitationCards);
+    },
+    async _onRtcSessionIdsUpdate() {
+        const hadSelfSession = this.hadSelfSession;
+        const lastSessionIds = this.lastSessionIds;
+        this.hadSelfSession = Boolean(
+            this.store.rtc.selfSession?.in(this.rtc_session_ids),
+        );
+        this.lastSessionIds = new Set(this.rtc_session_ids.map((s) => s.id));
+        const shouldPlayJoinSound = [...this.lastSessionIds].some(
+            (id) => !lastSessionIds.has(id),
+        );
+        const shouldPlayLeaveSound = [...lastSessionIds].some(
+            (id) => !this.lastSessionIds.has(id),
+        );
+        if (
+            !hadSelfSession ||
+            !this.hadSelfSession ||
+            !(await this.store.env.services["multi_tab"].isOnMainTab())
+        ) {
+            return;
+        }
+        if (shouldPlayJoinSound) {
+            this.store.env.services["mail.sound_effects"].play("call-join");
+            this.store.rtc.call({ asFallback: true });
+        }
+        if (shouldPlayLeaveSound) {
+            this.store.env.services["mail.sound_effects"].play("member-leave");
+        }
     },
     get isCallDisplayedInChatWindow() {
         return this.chat_window?.isOpen && !this.store.meetingViewOpened;

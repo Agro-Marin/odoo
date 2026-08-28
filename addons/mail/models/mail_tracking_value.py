@@ -102,132 +102,111 @@ class MailTrackingValue(models.Model):
         if not field:
             raise ValueError(f"Unknown field {col_name} on model {record._name}")
 
-        values = {"field_id": field.id}
-
-        if col_info["type"] in {"integer", "float", "char", "text", "datetime"}:
-            values.update(
-                {
-                    f"old_value_{col_info['type']}": initial_value,
-                    f"new_value_{col_info['type']}": new_value,
-                }
+        col_type = col_info["type"]
+        if col_type in {"integer", "float", "char", "text", "datetime"}:
+            values = {
+                f"old_value_{col_type}": initial_value,
+                f"new_value_{col_type}": new_value,
+            }
+        elif col_type == "monetary":
+            values = {
+                "currency_id": record[col_info["currency_field"]].id,
+                "old_value_float": initial_value,
+                "new_value_float": new_value,
+            }
+        elif col_type == "date":
+            values = self._prepare_tracking_values_date(initial_value, new_value)
+        elif col_type == "boolean":
+            values = {
+                "old_value_integer": initial_value,
+                "new_value_integer": new_value,
+            }
+        elif col_type == "selection":
+            values = self._prepare_tracking_values_selection(
+                initial_value, new_value, col_info
             )
-        elif col_info["type"] == "monetary":
-            values.update(
-                {
-                    "currency_id": record[col_info["currency_field"]].id,
-                    "old_value_float": initial_value,
-                    "new_value_float": new_value,
-                }
-            )
-        elif col_info["type"] == "date":
-            values.update(
-                {
-                    "old_value_datetime": (
-                        initial_value
-                        and fields.Datetime.to_string(
-                            datetime.combine(
-                                fields.Date.from_string(initial_value),
-                                datetime.min.time(),
-                            )
-                        )
-                    )
-                    or False,
-                    "new_value_datetime": (
-                        new_value
-                        and fields.Datetime.to_string(
-                            datetime.combine(
-                                fields.Date.from_string(new_value), datetime.min.time()
-                            )
-                        )
-                    )
-                    or False,
-                }
-            )
-        elif col_info["type"] == "boolean":
-            values.update(
-                {"old_value_integer": initial_value, "new_value_integer": new_value}
-            )
-        elif col_info["type"] == "selection":
-            values.update(
-                {
-                    "old_value_char": (
-                        initial_value
-                        and dict(col_info["selection"]).get(
-                            initial_value, initial_value
-                        )
-                    )
-                    or "",
-                    "new_value_char": (
-                        new_value
-                        and dict(col_info["selection"]).get(new_value, new_value)
-                    )
-                    or "",
-                }
-            )
-        elif col_info["type"] == "many2one":
-            if not initial_value:
-                initial_value = (0, "")
-            elif isinstance(initial_value, models.BaseModel):
-                initial_value = (initial_value.id, initial_value.display_name)
-
-            if not new_value:
-                new_value = (0, "")
-            elif isinstance(new_value, models.BaseModel):
-                new_value = (new_value.id, new_value.display_name)
-
-            values.update(
-                {
-                    "old_value_integer": initial_value[0],
-                    "new_value_integer": new_value[0],
-                    "old_value_char": initial_value[1],
-                    "new_value_char": new_value[1],
-                }
-            )
-        elif col_info["type"] in {"one2many", "many2many", "tags"}:
-            model_name = self.env["ir.model"]._get(field.relation).display_name
-            if not initial_value:
-                old_value_char = ""
-            elif isinstance(initial_value, models.BaseModel):
-                old_value_char = ", ".join(
-                    value.display_name
-                    or self.env._(
-                        "Unnamed %(record_model_name)s (%(record_id)s)",
-                        record_model_name=model_name,
-                        record_id=value.id,
-                    )
-                    for value in initial_value
-                )
-            else:
-                old_value_char = ", ".join(value[1] for value in initial_value)
-            if not new_value:
-                new_value_char = ""
-            elif isinstance(new_value, models.BaseModel):
-                new_value_char = ", ".join(
-                    value.display_name
-                    or self.env._(
-                        "Unnamed %(record_model_name)s (%(record_id)s)",
-                        record_model_name=model_name,
-                        record_id=value.id,
-                    )
-                    for value in new_value
-                )
-            else:
-                new_value_char = ", ".join(value[1] for value in new_value)
-
-            values.update(
-                {
-                    "old_value_char": old_value_char,
-                    "new_value_char": new_value_char,
-                }
+        elif col_type == "many2one":
+            values = self._prepare_tracking_values_many2one(initial_value, new_value)
+        elif col_type in {"one2many", "many2many", "tags"}:
+            values = self._prepare_tracking_values_x2many(
+                initial_value, new_value, field
             )
         else:
             raise NotImplementedError(
-                f"Unsupported tracking on field {field.name} (type {col_info['type']}"
+                f"Unsupported tracking on field {field.name} (type {col_type}"
             )
 
-        return values
+        return {"field_id": field.id, **values}
 
-    @api.model
+    def _prepare_tracking_values_date(self, initial_value: Any, new_value: Any) -> dict:
+        def as_datetime_string(value: Any) -> str | Literal[False]:
+            if not value:
+                return False
+            return fields.Datetime.to_string(
+                datetime.combine(fields.Date.from_string(value), datetime.min.time())
+            )
+
+        return {
+            "old_value_datetime": as_datetime_string(initial_value),
+            "new_value_datetime": as_datetime_string(new_value),
+        }
+
+    def _prepare_tracking_values_selection(
+        self, initial_value: Any, new_value: Any, col_info: dict
+    ) -> dict:
+        labels = dict(col_info["selection"])
+        return {
+            "old_value_char": (
+                initial_value and labels.get(initial_value, initial_value)
+            )
+            or "",
+            "new_value_char": (new_value and labels.get(new_value, new_value)) or "",
+        }
+
+    def _prepare_tracking_values_many2one(
+        self, initial_value: Any, new_value: Any
+    ) -> dict:
+        def as_id_and_name(value: Any) -> tuple:
+            if not value:
+                return (0, "")
+            if isinstance(value, models.BaseModel):
+                return (value.id, value.display_name)
+            return value
+
+        old_id, old_name = as_id_and_name(initial_value)
+        new_id, new_name = as_id_and_name(new_value)
+        return {
+            "old_value_integer": old_id,
+            "new_value_integer": new_id,
+            "old_value_char": old_name,
+            "new_value_char": new_name,
+        }
+
+    def _prepare_tracking_values_x2many(
+        self, initial_value: Any, new_value: Any, field: models.Model
+    ) -> dict:
+        model_name = self.env["ir.model"]._get(field.relation).display_name
+
+        def as_names(value: Any) -> str:
+            if not value:
+                return ""
+            if isinstance(value, models.BaseModel):
+                return ", ".join(
+                    record.display_name
+                    or self.env._(
+                        "Unnamed %(record_model_name)s (%(record_id)s)",
+                        record_model_name=model_name,
+                        record_id=record.id,
+                    )
+                    for record in value
+                )
+            return ", ".join(item[1] for item in value)
+
+        return {
+            "old_value_char": as_names(initial_value),
+            "new_value_char": as_names(new_value),
+        }
+
     def _create_tracking_values_property(
         self,
         initial_value: dict,

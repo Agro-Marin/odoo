@@ -750,21 +750,12 @@ class MailTemplate(models.Model):
 
         if self.use_default_to and self.model:
             if allow_suggested:
-                suggested_recipients = self._get_records(
-                    res_ids
-                )._message_get_suggested_recipients_batch(
-                    reply_discussion=True,
-                    no_create=not find_or_create_partners,
+                self._update_recipient_vals_suggested(
+                    res_ids,
+                    contribution,
+                    emails_by_res_id,
+                    find_or_create_partners,
                 )
-                for res_id, suggested_list in suggested_recipients.items():
-                    contribution.setdefault(res_id, {})["partner_ids"] = [
-                        r["partner_id"] for r in suggested_list if r["partner_id"]
-                    ]
-                    emails_by_res_id.setdefault(res_id, {})["email_to"] = ", ".join(
-                        tools.mail.formataddr((r["name"] or "", r["email"] or ""))
-                        for r in suggested_list
-                        if not r["partner_id"]
-                    )
             else:
                 default_recipients = self._get_records(
                     res_ids
@@ -797,19 +788,9 @@ class MailTemplate(models.Model):
                 partner_to_by_res_id.setdefault(res_id, incoming.pop("partner_to"))
 
         if find_or_create_partners:
-            records = self._get_records(res_ids)
-            records_emails = {}
-            for record in records:
-                emails = emails_by_res_id.pop(record.id, {})
-                records_emails[record] = tools.email_split(
-                    emails.get("email_to", "")
-                ) + tools.email_split(emails.get("email_cc", ""))
-            for res_id, partners in records._partner_find_from_emails(
-                records_emails
-            ).items():
-                contribution.setdefault(res_id, {}).setdefault(
-                    "partner_ids", []
-                ).extend(partners.ids)
+            self._update_recipient_vals_partner_ids(
+                res_ids, contribution, emails_by_res_id
+            )
 
         for res_id, emails in emails_by_res_id.items():
             contribution.setdefault(res_id, {}).update(emails)
@@ -819,6 +800,49 @@ class MailTemplate(models.Model):
         return _merge_render_results(
             {} if render_results is None else render_results, contribution
         )
+
+    def _update_recipient_vals_suggested(
+        self,
+        res_ids: list[int],
+        contribution: RenderResults,
+        emails_by_res_id: dict[int, dict[str, str]],
+        find_or_create_partners: bool,
+    ) -> None:
+        suggested_recipients = self._get_records(
+            res_ids
+        )._message_get_suggested_recipients_batch(
+            reply_discussion=True,
+            no_create=not find_or_create_partners,
+        )
+        for res_id, suggested_list in suggested_recipients.items():
+            contribution.setdefault(res_id, {})["partner_ids"] = [
+                r["partner_id"] for r in suggested_list if r["partner_id"]
+            ]
+            emails_by_res_id.setdefault(res_id, {})["email_to"] = ", ".join(
+                tools.mail.formataddr((r["name"] or "", r["email"] or ""))
+                for r in suggested_list
+                if not r["partner_id"]
+            )
+
+    def _update_recipient_vals_partner_ids(
+        self,
+        res_ids: list[int],
+        contribution: RenderResults,
+        emails_by_res_id: dict[int, dict[str, str]],
+    ) -> None:
+        records = self._get_records(res_ids)
+        records_emails = {}
+        for record in records:
+            emails = emails_by_res_id.pop(record.id, {})
+            records_emails[record] = tools.email_split(
+                emails.get("email_to", "")
+            ) + tools.email_split(emails.get("email_cc", ""))
+        for res_id, partners in records._partner_find_from_emails(
+            records_emails
+        ).items():
+            contribution.setdefault(res_id, {}).setdefault("partner_ids", []).extend(
+                partners.ids
+            )
 
     def _resolve_partner_to(
         self, partner_to_by_res_id: dict[int, str], contribution: RenderResults

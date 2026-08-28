@@ -15,73 +15,90 @@ export class MailFullscreen extends Component {
     }
 }
 
-export const fullscreenService = {
+export class MailFullscreenService {
     /**
      * @param {import("@web/env").OdooEnv} env
      */
-    start(env) {
-        const state = reactive({ enter, exit, id: undefined, closeOverlay: undefined });
-        /** @param {any} [id=state.id] */
-        async function exit(id = state.id) {
-            if (!id || id !== state.id) {
-                return;
-            }
-            state.closeOverlay?.();
-            state.id = undefined;
-            state.closeOverlay = undefined;
-            const fullscreenElement =
-                document.webkitFullscreenElement || document.fullscreenElement;
-            if (fullscreenElement) {
-                if (document.exitFullscreen) {
-                    await document.exitFullscreen();
-                } else if (document.mozCancelFullScreen) {
-                    await document.mozCancelFullScreen();
-                } else if (document.webkitCancelFullScreen) {
-                    await document.webkitCancelFullScreen();
-                }
-            }
-        }
-        /**
-         * @param {object} [options]
-         * @param {any} [options.id]
-         * @param {boolean} [options.keepBrowserHeader]
-         * @param {string} [options.rootId]
-         * @returns {Promise<void>}
-         */
-        async function enter(
-            component,
-            { keepBrowserHeader = false, props, rootId, id = DEFAULT_ID } = {},
-        ) {
-            state.closeOverlay?.();
-            state.id = id;
-            state.closeOverlay = env.services.overlay.add(
-                MailFullscreen,
-                { component, props },
-                { rootId },
-            );
-            const el = document.body;
-            if (keepBrowserHeader) {
-                return;
-            }
-            try {
-                if (el.requestFullscreen) {
-                    await el.requestFullscreen();
-                } else if (el.mozRequestFullScreen) {
-                    await el.mozRequestFullScreen();
-                } else if (el.webkitRequestFullscreen) {
-                    await el.webkitRequestFullscreen();
-                }
-            } catch {}
-        }
+    constructor(env) {
+        this.env = env;
+        this.id = undefined;
+        this.closeOverlay = undefined;
+    }
+
+    setup() {
         browser.addEventListener("fullscreenchange", () => {
             const isFullscreen = Boolean(
                 document.webkitFullscreenElement || document.fullscreenElement,
             );
             if (!isFullscreen) {
-                state.exit();
+                this.exit();
             }
         });
-        return state;
+    }
+
+    /**
+     * @param {object} [options]
+     * @param {any} [options.id]
+     * @param {boolean} [options.keepBrowserHeader]
+     * @param {string} [options.rootId]
+     * @returns {Promise<void>}
+     */
+    async enter(
+        component,
+        { keepBrowserHeader = false, props, rootId, id = DEFAULT_ID } = {},
+    ) {
+        this.closeOverlay?.();
+        this.id = id;
+        this.closeOverlay = this.env.services.overlay.add(
+            MailFullscreen,
+            { component, props },
+            { rootId },
+        );
+        const el = document.body;
+        if (keepBrowserHeader) {
+            return;
+        }
+        try {
+            if (el.requestFullscreen) {
+                await el.requestFullscreen();
+            } else if (el.mozRequestFullScreen) {
+                await el.mozRequestFullScreen();
+            } else if (el.webkitRequestFullscreen) {
+                await el.webkitRequestFullscreen();
+            }
+        } catch {}
+    }
+
+    /** @param {any} [id=this.id] */
+    async exit(id = this.id) {
+        if (!id || id !== this.id) {
+            return;
+        }
+        this.closeOverlay?.();
+        this.id = undefined;
+        this.closeOverlay = undefined;
+        const fullscreenElement =
+            document.webkitFullscreenElement || document.fullscreenElement;
+        if (fullscreenElement) {
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                await document.mozCancelFullScreen();
+            } else if (document.webkitCancelFullScreen) {
+                await document.webkitCancelFullScreen();
+            }
+        }
+    }
+}
+
+export const fullscreenService = {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     */
+    start(env) {
+        const fullscreen = reactive(new MailFullscreenService(env));
+        fullscreen.setup();
+        return fullscreen;
     },
 };
 

@@ -83,55 +83,38 @@ export class PopoutAttachmentView extends AbstractAttachmentView {
     static template = "mail.PopoutAttachmentView";
 }
 
+/** @returns {DOMTokenList|null} */
+function attachmentViewParentElementClassList() {
+    const attachmentViewEl = document.querySelector(".o-mail-Attachment");
+    return attachmentViewEl?.parentElement?.classList ?? null;
+}
+/** @param {boolean} hidden */
+function setAttachmentViewHidden(hidden) {
+    attachmentViewParentElementClassList()?.toggle("d-none", hidden);
+}
+/**
+ * @param {{threadId: number, threadModel: string}} props
+ * @returns {{threadId: number, threadModel: string}}
+ */
+function extractPopoutProps(props) {
+    return {
+        threadId: props.threadId,
+        threadModel: props.threadModel,
+    };
+}
 export function usePopoutAttachment() {
     const component = useComponent();
     const uiService = useService("ui");
     const mailPopoutService = useService("mail.popout");
 
-    function attachmentViewParentElementClassList() {
-        const attachmentViewEl = document.querySelector(".o-mail-Attachment");
-        let parentElementClassList;
-        if ((parentElementClassList = attachmentViewEl?.parentElement?.classList)) {
-            return parentElementClassList;
-        }
-        return null;
-    }
-
-    function showAttachmentView() {
-        const parentElementClassList = attachmentViewParentElementClassList();
-        const hiddenClass = "d-none";
-        if (parentElementClassList?.contains(hiddenClass)) {
-            parentElementClassList.remove(hiddenClass);
-        }
-    }
-
-    function hideAttachmentView() {
-        const parentElementClassList = attachmentViewParentElementClassList();
-        const hiddenClass = "d-none";
-        if (!parentElementClassList?.contains(hiddenClass)) {
-            parentElementClassList?.add(hiddenClass);
-        }
-    }
-
-    /**
-     * @param {{threadId: number, threadModel: string}} props
-     * @returns {{threadId: number, threadModel: string}}
-     */
-    function extractPopoutProps(props) {
-        return {
-            threadId: props.threadId,
-            threadModel: props.threadModel,
-        };
-    }
-
     function popout() {
         mailPopoutService.addHooks(
             () => {
-                hideAttachmentView();
+                setAttachmentViewHidden(true);
                 uiService.bus.trigger("resize");
             },
             () => {
-                showAttachmentView();
+                setAttachmentViewHidden(false);
                 uiService.bus.trigger("resize");
             },
         );
@@ -144,7 +127,7 @@ export function usePopoutAttachment() {
     /** @param {{threadId: number, threadModel: string}} [newProps=component.props] */
     function updatePopout(newProps = component.props) {
         if (mailPopoutService.externalWindow) {
-            hideAttachmentView();
+            setAttachmentViewHidden(true);
             mailPopoutService.popout(
                 PopoutAttachmentView,
                 extractPopoutProps(newProps),

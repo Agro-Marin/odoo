@@ -111,8 +111,7 @@ export class Message extends Component {
      */
     subtypeDescriptionCache;
 
-    setup() {
-        super.setup();
+    _setupServicesAndRefs() {
         this.store = useService("mail.store");
         this.linkNavigation = useService("mail.link_navigation");
         this.popover = usePopover(this.constructor.components.Popover, {
@@ -158,6 +157,8 @@ export class Message extends Component {
             message: this.props.message,
             alignedRight: this.isAlignedRight,
         });
+    }
+    _setupMessageEffects() {
         useEffect(
             () => {
                 const el = this.shadowBody.el;
@@ -209,6 +210,11 @@ export class Message extends Component {
                 this.message.richTranslationValue,
             ],
         );
+    }
+    setup() {
+        super.setup();
+        this._setupServicesAndRefs();
+        this._setupMessageEffects();
     }
 
     /** @param {ShadowRoot} shadowRoot */

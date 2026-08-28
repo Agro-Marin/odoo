@@ -199,6 +199,14 @@ class ResPartner(models.Model):
         if sort_key:
             partners = partners.sorted(key=sort_key, reverse=sort_reverse)
 
+        return self._get_partner_per_email(name_emails, emails, partners)
+
+    def _get_partner_per_email(
+        self,
+        name_emails: list[tuple[str, str]],
+        emails: list[str],
+        partners: Self,
+    ) -> list:
         empty = self.env["res.partner"]
         by_email_normalized, by_email, by_name = {}, {}, {}
         for partner in partners:

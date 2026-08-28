@@ -1090,15 +1090,65 @@ class MailComposeMessage(models.TransientModel):
         self.ensure_one()
         RecordsModel = self.env[self.model].with_prefetch(res_ids)
         email_mode = self.composition_mode == "mass_mail"
-
-        companies = RecordsModel.browse(res_ids)._mail_get_companies(
-            default=self.env.company
-        )
-        alias_domains = RecordsModel.browse(res_ids)._mail_get_alias_domains(
-            default_company=self.env.company
-        )
+        records = RecordsModel.browse(res_ids)
 
         langs = self._render_lang(res_ids)
+        emails_from = self._render_field("email_from", res_ids)
+        mail_values_all = self._prepare_mail_values_per_record(
+            records, res_ids, langs, emails_from, email_mode
+        )
+
+        if self.template_id:
+            self._update_mail_values_from_template(mail_values_all, res_ids)
+        elif not self.partner_ids and email_mode:
+            default_recipients = records._message_get_default_recipients()
+            for res_id in res_ids:
+                mail_values_all[res_id].update(default_recipients.get(res_id, {}))
+
+        if self.reply_to_force_new:
+            reply_to_values = self._render_field("reply_to", res_ids)
+        else:
+            reply_to_values = records._notify_get_reply_to_batch(
+                defaults=emails_from,
+                author_ids=dict.fromkeys(res_ids, self.author_id.id),
+            )
+
+        for res_id, mail_values in mail_values_all.items():
+            record = RecordsModel.browse(res_id)
+            self._update_mail_values_attachments(mail_values, record, email_mode)
+
+            if email_mode:
+                mail_values["headers"] = record._notify_by_email_get_headers()
+                recipient_ids_all = set(mail_values.pop("partner_ids", [])) | set(
+                    self.partner_ids.ids
+                )
+                mail_values["recipient_ids"] = [(4, pid) for pid in recipient_ids_all]
+
+            reply_to = reply_to_values.get(res_id)
+            if not reply_to and email_mode:
+                reply_to = mail_values.get("email_from", False)
+            if reply_to:
+                mail_values["reply_to"] = reply_to
+
+            if email_mode and self.email_layout_xmlid and mail_values["recipient_ids"]:
+                self._update_mail_values_layout_body(
+                    mail_values, record, res_id, langs[res_id]
+                )
+
+        return mail_values_all
+
+    def _prepare_mail_values_per_record(
+        self,
+        records: models.Model,
+        res_ids: list[int],
+        langs: dict,
+        emails_from: dict,
+        email_mode: bool,
+    ) -> dict:
+        companies = records._mail_get_companies(default=self.env.company)
+        alias_domains = records._mail_get_alias_domains(
+            default_company=self.env.company
+        )
         subjects = self._render_field(
             "subject", res_ids, compute_lang=True, res_ids_lang=langs
         )
@@ -1109,9 +1159,8 @@ class MailComposeMessage(models.TransientModel):
             res_ids_lang=langs,
             options={"preserve_comments": email_mode},
         )
-        emails_from = self._render_field("email_from", res_ids)
 
-        mail_values_all = {
+        return {
             res_id: {
                 "body": bodies[res_id],
                 "email_from": emails_from[res_id],
@@ -1138,128 +1187,91 @@ class MailComposeMessage(models.TransientModel):
             for res_id in res_ids
         }
 
+    def _update_mail_values_from_template(
+        self, mail_values_all: dict, res_ids: list[int]
+    ) -> None:
+        template_values = self._prepare_template_vals(
+            res_ids,
+            [
+                "email_to",
+                "email_cc",
+                "partner_ids",
+                "report_template_ids",
+                "scheduled_date",
+            ],
+            allow_suggested=(
+                self.composition_mode == "comment"
+                and not self.composition_batch
+                and self.message_type == "comment"
+                and not self.subtype_is_log
+            ),
+            find_or_create_partners=self.env.context.get(
+                "mail_composer_force_partners", True
+            ),
+        )
+        for res_id in res_ids:
+            template_values[res_id].pop("attachment_ids", None)
+            mail_values_all[res_id].update(template_values[res_id])
+
+    def _update_mail_values_attachments(
+        self, mail_values: dict, record: models.Model, email_mode: bool
+    ) -> None:
+        attachment_ids = self.attachment_ids.copy(
+            {"res_model": self._name, "res_id": self.id}
+        ).ids
+        attachment_ids.reverse()
+        decoded_attachments = [
+            (name, base64.b64decode(enc_cont))
+            for name, enc_cont in mail_values.pop("attachments", [])
+        ]
+        if not email_mode:
+            mail_values["attachments"] = decoded_attachments
+            mail_values["attachment_ids"] = attachment_ids
+            return
+
+        record_posts_attachments = hasattr(record, "_process_attachments_for_post")
+        process_record = (
+            record if record_posts_attachments else record.env["mixin.mail.thread"]
+        )
+        detach_from_record = not record_posts_attachments or (
+            self.auto_delete and not self.auto_delete_keep_log
+        )
+        mail_values["attachment_ids"] = process_record._process_attachments_for_post(
+            decoded_attachments,
+            attachment_ids,
+            {"model": "mail.message", "res_id": 0} if detach_from_record else {},
+        )["attachment_ids"]
+
+    def _update_mail_values_layout_body(
+        self, mail_values: dict, record: models.Model, res_id: int, lang: str
+    ) -> None:
+        recipient_ids = [command[1] for command in mail_values["recipient_ids"]]
+        msg_vals = {
+            "email_layout_xmlid": self.email_layout_xmlid,
+            "model": self.model,
+            "res_id": res_id,
+        }
+        new_mail_message_values = {"body": mail_values["body"]}
         if self.template_id:
-            template_values = self._prepare_template_vals(
-                res_ids,
-                [
-                    "email_to",
-                    "email_cc",
-                    "partner_ids",
-                    "report_template_ids",
-                    "scheduled_date",
-                ],
-                allow_suggested=(
-                    self.composition_mode == "comment"
-                    and not self.composition_batch
-                    and self.message_type == "comment"
-                    and not self.subtype_is_log
-                ),
-                find_or_create_partners=self.env.context.get(
-                    "mail_composer_force_partners", True
-                ),
+            new_mail_message_values["email_add_signature"] = False
+        message_inmem = self.env["mail.message"].new(new_mail_message_values)
+        for (
+            _lang,
+            render_values,
+            recipients_group_data,
+        ) in record._notify_get_classified_recipients_iterator(
+            message_inmem,
+            [build_recipient_data(partner_id=pid, lang=lang) for pid in recipient_ids],
+            msg_vals=msg_vals,
+            model_description=False,
+            force_email_lang=lang,
+        ):
+            mail_values["body_html"] = record._notify_by_email_render_layout(
+                message_inmem,
+                recipients_group_data,
+                msg_vals=msg_vals,
+                render_values=render_values,
             )
-            for res_id in res_ids:
-                template_values[res_id].pop("attachment_ids", None)
-                mail_values_all[res_id].update(template_values[res_id])
-
-        if not self.template_id and not self.partner_ids and email_mode:
-            default_recipients = RecordsModel.browse(
-                res_ids
-            )._message_get_default_recipients()
-            for res_id in res_ids:
-                mail_values_all[res_id].update(default_recipients.get(res_id, {}))
-
-        if not self.reply_to_force_new:
-            reply_to_values = RecordsModel.browse(res_ids)._notify_get_reply_to_batch(
-                defaults=emails_from,
-                author_ids=dict.fromkeys(res_ids, self.author_id.id),
-            )
-        if self.reply_to_force_new:
-            reply_to_values = self._render_field("reply_to", res_ids)
-
-        for res_id, mail_values in mail_values_all.items():
-            record = RecordsModel.browse(res_id)
-
-            attachment_ids = self.attachment_ids.copy(
-                {"res_model": self._name, "res_id": self.id}
-            ).ids
-            attachment_ids.reverse()
-            decoded_attachments = [
-                (name, base64.b64decode(enc_cont))
-                for name, enc_cont in mail_values.pop("attachments", [])
-            ]
-            if email_mode:
-                process_record = (
-                    record
-                    if hasattr(record, "_process_attachments_for_post")
-                    else record.env["mixin.mail.thread"]
-                )
-                mail_values["attachment_ids"] = (
-                    process_record._process_attachments_for_post(
-                        decoded_attachments,
-                        attachment_ids,
-                        {"model": "mail.message", "res_id": 0}
-                        if (
-                            not hasattr(record, "_process_attachments_for_post")
-                            or (self.auto_delete and not self.auto_delete_keep_log)
-                        )
-                        else {},
-                    )["attachment_ids"]
-                )
-            else:
-                mail_values["attachments"] = decoded_attachments
-                mail_values["attachment_ids"] = attachment_ids
-
-            if email_mode:
-                mail_values["headers"] = record._notify_by_email_get_headers()
-
-            if email_mode:
-                recipient_ids_all = set(mail_values.pop("partner_ids", [])) | set(
-                    self.partner_ids.ids
-                )
-                mail_values["recipient_ids"] = [(4, pid) for pid in recipient_ids_all]
-
-            reply_to = reply_to_values.get(res_id)
-            if not reply_to and email_mode:
-                reply_to = mail_values.get("email_from", False)
-            if reply_to:
-                mail_values["reply_to"] = reply_to
-
-            if email_mode and self.email_layout_xmlid and mail_values["recipient_ids"]:
-                lang = langs[res_id]
-                recipient_ids = [command[1] for command in mail_values["recipient_ids"]]
-                msg_vals = {
-                    "email_layout_xmlid": self.email_layout_xmlid,
-                    "model": self.model,
-                    "res_id": res_id,
-                }
-                new_mail_message_values = {"body": mail_values["body"]}
-                if self.template_id:
-                    new_mail_message_values["email_add_signature"] = False
-                message_inmem = self.env["mail.message"].new(new_mail_message_values)
-                for (
-                    _lang,
-                    render_values,
-                    recipients_group_data,
-                ) in record._notify_get_classified_recipients_iterator(
-                    message_inmem,
-                    [
-                        build_recipient_data(partner_id=pid, lang=lang)
-                        for pid in recipient_ids
-                    ],
-                    msg_vals=msg_vals,
-                    model_description=False,
-                    force_email_lang=lang,
-                ):
-                    mail_body = record._notify_by_email_render_layout(
-                        message_inmem,
-                        recipients_group_data,
-                        msg_vals=msg_vals,
-                        render_values=render_values,
-                    )
-                    mail_values["body_html"] = mail_body
-
-        return mail_values_all
 
     def _prepare_mail_values_rendered(self, res_ids: list[int]) -> dict:
         self.ensure_one()
