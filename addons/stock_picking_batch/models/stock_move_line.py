@@ -30,9 +30,9 @@ class StockMoveLine(models.Model):
 
     def _add_to_wave(self, wave=False, description=False):
         """Detach lines (and corresponding stock move from a picking to another). If wave is
-        passed, attach new picking into it. If not attach line to their original picking.
+        passed, attach the new picking into it; otherwise create a new wave and attach it there.
 
-        :param int wave: id of the wave picking on which to put the move lines."""
+        :param recordset wave: stock.picking.batch record on which to put the move lines."""
 
         if not wave:
             wave = self.env["stock.picking.batch"].create(
@@ -210,8 +210,11 @@ class StockMoveLine(models.Model):
         return True
 
     def _auto_wave_lines_into_existing_waves(self, nearest_parent_locations=False):
-        """Try to add move lines to existing waves if possible, return move lines of which no appropriate waves were found to link to
-        :param nearest_parent_locations (defaultdict): the key is the move line and the value is the nearest parent location in the wave locations list"""
+        """Try to add move lines to existing waves if possible.
+
+        :param defaultdict nearest_parent_locations: move line -> nearest parent location in the wave locations list
+        :return: ids of move lines for which no appropriate wave was found
+        :rtype: list"""
         remaining_lines = OrderedSet()
         batches_to_validate_ids = self.env.context.get("batches_to_validate", False)
         for picking_type, lines in self.grouped(lambda l: l.picking_type_id).items():
