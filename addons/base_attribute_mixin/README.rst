@@ -106,22 +106,33 @@ model there is nothing to be in use *by*.
 Name uniqueness
 ===============
 
-Deliberately **not** declared by these mixins, and a consumer must not declare
-it as a plain ``UNIQUE(name)`` / ``UNIQUE(attribute_id, name)`` constraint.
-
-``name`` is ``translate=True``, so it is stored as a ``jsonb`` column and a
-UNIQUE constraint compares whole translation *documents* rather than names. Two
-records both called "Whitefly" are distinct rows the moment their translation
-sets differ -- and they differ as soon as a second language is active, because
-Odoo writes the active language alongside the source term on create. A user
-working in Spanish creating "Mosca blanca" stores ``{"en_US": .., "es_MX": ..}``
-where an English colleague stored ``{"en_US": ..}``, and the constraint sees no
-duplicate.
+A consumer must not declare this as a plain ``UNIQUE(name)`` /
+``UNIQUE(attribute_id, name)`` constraint -- ``name`` is ``translate=True``, so
+it is stored as a ``jsonb`` column and a UNIQUE constraint compares whole
+translation *documents* rather than names. Two records both called "Whitefly"
+are distinct rows the moment their translation sets differ -- and they differ
+as soon as a second language is active, because Odoo writes the active
+language alongside the source term on create. A user working in Spanish
+creating "Mosca blanca" stores ``{"en_US": .., "es_MX": ..}`` where an English
+colleague stored ``{"en_US": ..}``, and the constraint sees no duplicate.
 
 The rule has to compare the *source term*, which means an expression, and
-PostgreSQL does not allow expressions in a UNIQUE constraint. Consumers should
-therefore declare a ``models.UniqueIndex`` over ``(name->>'en_US')``, scoped to
-the parent where values are only unique within their attribute.
+PostgreSQL does not allow expressions in a UNIQUE constraint over a plain
+column, so the enforcement point is a ``models.UniqueIndex`` over
+``(name->>'en_US')`` -- but which side declares it differs per mixin:
+
+* ``mixin.attribute`` declares **none of its own**: it inherits
+  ``mixin.catalog``'s unscoped ``name_uniq_index()``, so a consumer's
+  attributes are unique by name across the whole model. A consumer whose
+  names are legitimately reused across differently-scoped catalogs opts out
+  with ``no_name_uniq_index()`` on the concrete model, as ``product.attribute``
+  does.
+* ``mixin.attribute.value`` **already declares one**, scoped to
+  ``attribute_id`` (``_name_src_uniq = name_uniq_index("attribute_id", ...)``
+  in ``mixin_attribute_value.py``), because a value is only unique within its
+  attribute -- "Large" belongs to both Size and Format. A consumer must **not**
+  add a second index here: the mixin's own index is already the scoped one
+  this section used to ask consumers to write themselves.
 
 Gotcha: unstated field attributes are inherited
 ===============================================
