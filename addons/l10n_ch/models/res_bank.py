@@ -8,7 +8,7 @@ from odoo.tools import LazyTranslate, street_split
 from odoo.tools.misc import mod10r
 
 from odoo.addons.base.models.res_bank import sanitize_account_number
-from odoo.addons.base_iban.models.res_partner_bank import (
+from odoo.addons.account_iban.models.res_partner_bank import (
     get_iban_part,
     normalize_iban,
     pretty_iban,

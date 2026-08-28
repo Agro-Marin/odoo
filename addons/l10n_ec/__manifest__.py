@@ -39,7 +39,7 @@ Master Data:
     'license': 'LGPL-3',
     'depends': [
         'base',
-        'base_iban',
+        'account_iban',
         'account_debit_note',
         'l10n_latam_invoice_document',
         'l10n_latam_base',

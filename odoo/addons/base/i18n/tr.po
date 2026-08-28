@@ -2801,7 +2801,7 @@ msgid ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 msgstr ""
@@ -2868,7 +2868,7 @@ msgstr ""
 "menüsünden incelenebilir ve etkinleştirilebilir/devre dışı bırakılabilir.\n"
 "\n"
 "Bu modül, birden fazla kimlik türünü yönetme imkanı olan veya olmayan her "
-"ülke için KDV numaralarını doğrulayabilmek için base_vat modülü ile "
+"ülke için KDV numaralarını doğrulayabilmek için account_vat modülü ile "
 "uyumludur.\n"
 
 #. module: base
@@ -4022,14 +4022,14 @@ msgid ""
 "\n"
 "Automatically sort your documents.\n"
 "This module is only used to sort documents automatically and cannot be used "
-"for any ai-documents related features since it relies on base_automation as "
+"for any ai-documents related features since it relies on automation as "
 "well.\n"
 "It should be renamed later to ai_documents_automation.\n"
 msgstr ""
 "\n"
 "Belgelerinizi otomatik olarak sıralayın.\n"
 "Bu modül yalnızca belgeleri otomatik olarak sıralamak için kullanılır ve "
-"base_automation'a da dayandığından ai-documents ile ilgili herhangi bir "
+"automation'a da dayandığından ai-documents ile ilgili herhangi bir "
 "özellik için kullanılamaz.\n"
 "Daha sonra ai_documents_automation olarak yeniden adlandırılmalıdır.\n"
 
@@ -4865,7 +4865,7 @@ msgstr ""
 "Proje ve görev, şirket genelinde yapılandırılabilir.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr
+#: model:ir.module.module,description:base.module_automation_hr
 msgid ""
 "\n"
 "Bridge to add contract calendar on automation rules\n"
@@ -10041,7 +10041,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -13017,7 +13017,7 @@ msgstr ""
 "oluşturabilirsiniz.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement automation rules for any object.\n"
@@ -13759,7 +13759,7 @@ msgstr ""
 "Bu hizmet Odoo Satın Alma Uygulama platformu tarafından sağlanır.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible "
@@ -14180,7 +14180,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) "
@@ -15134,7 +15134,7 @@ msgstr ""
 "=======================================================================\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -17861,7 +17861,7 @@ msgid "Adds free shipping mechanism in sales orders"
 msgstr "Satış siparişlerine ücretsiz kargo mekanizması ekler"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr "Kişinin harita görünümünü özellikle ekler"
 
@@ -21171,12 +21171,12 @@ msgid "Automation"
 msgstr "Otomasyon"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automation Rules"
 msgstr "Otomasyon Kuralları"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr
+#: model:ir.module.module,shortdesc:base.module_automation_hr
 msgid "Automation Rules based on Employee Contracts"
 msgstr "Çalışan Sözleşmelerine Dayalı Otomasyon Kuralları"
 
@@ -21607,7 +21607,7 @@ msgid "Base - Module Install Request"
 msgstr "Base - Modül Yükleme İsteği"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr "Base Automation Tests: Ensure Flow Robustness"
 
@@ -23001,7 +23001,7 @@ msgid "Centralize employee information"
 msgstr "Çalışan bilgilerini merkezileştirin"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr "Adres defterinizi merkezileştirin"
 
@@ -24218,14 +24218,14 @@ msgstr "Gerekirse erişim istemek için yöneticinize başvurun."
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr "Kontaklar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr "Şirket hakkında"
 
@@ -27180,7 +27180,7 @@ msgstr ""
 "* Maliyet Yapısı raporu (mrp_account)"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr "Kişilerdeki kurumsal özellikler"
 
@@ -30660,7 +30660,7 @@ msgid "IAP / Mail"
 msgstr "IAP / Mail"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr "IBAN Banka Hesapları"
 
@@ -40193,7 +40193,7 @@ msgid "Partners"
 msgstr "İş Ortakları"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr "İş Ortağı Coğrafik Konumu"
 
@@ -46202,7 +46202,7 @@ msgid "Terms &amp; Conditions"
 msgstr "Şartlar &amp; Koşullar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr "Test - Base Automation"
 
@@ -47672,7 +47672,7 @@ msgstr ""
 "diğer modellerin işlevsel yönlerine bağımsız olarak test eder. "
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -49742,7 +49742,7 @@ msgid "VAT"
 msgstr "VKN/TCKN"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr "KDV Numara Doğrulaması"
 
@@ -52191,7 +52191,7 @@ msgstr "“%(attribute)s” değeri bir tamsayı olmalı (%(value)s)"
 #~ "All the defined identification types can be reviewed and activate/"
 #~ "deactivate in \"Contacts / Configuration / Identification Type\" menu.\n"
 #~ "\n"
-#~ "This module is compatible with base_vat module in order to be able to "
+#~ "This module is compatible with account_vat module in order to be able to "
 #~ "validate VAT numbers for each country that have or not have the "
 #~ "possibility to manage multiple identification types.\n"
 #~ msgstr ""
@@ -52258,7 +52258,7 @@ msgstr "“%(attribute)s” değeri bir tamsayı olmalı (%(value)s)"
 #~ "bırakılabilir.\n"
 #~ "\n"
 #~ "Bu modül, birden fazla kimlik türünü yönetme olanağı olan veya olmayan "
-#~ "her ülke için KDV numaralarını doğrulayabilmek amacıyla 'base_vat' "
+#~ "her ülke için KDV numaralarını doğrulayabilmek amacıyla 'account_vat' "
 #~ "modülüyle uyumludur.\n"
 
 #~ msgid ""

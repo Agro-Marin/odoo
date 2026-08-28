@@ -4,8 +4,8 @@
     'version': '0.8',
     'depends': [
         'account',
-        'base_iban',
-        'base_vat',
+        'account_iban',
+        'account_vat',
         'account_edi_ubl_cii',
     ],
     'auto_install': ['account'],

@@ -35,7 +35,7 @@ position.
     """,
     'depends': [
         'account',
-        'base_iban',
+        'account_iban',
     ],
     'auto_install': ['account'],
     'data': [

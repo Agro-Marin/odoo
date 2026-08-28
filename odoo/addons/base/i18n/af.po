@@ -2234,7 +2234,7 @@ msgid ""
 "\n"
 "All the defined identification types can be reviewed and activate/deactivate in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to validate VAT numbers for each country that have or not have the possibility to manage multiple identification types.\n"
+"This module is compatible with account_vat module in order to be able to validate VAT numbers for each country that have or not have the possibility to manage multiple identification types.\n"
 msgstr ""
 
 #. module: base
@@ -3004,7 +3004,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr_contract
+#: model:ir.module.module,description:base.module_automation_hr_contract
 msgid ""
 "\n"
 "Bridge to add contract calendar on automated actions\n"
@@ -5154,7 +5154,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -6385,7 +6385,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement action rules for any object.\n"
@@ -6644,7 +6644,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible from your home page.\n"
@@ -6710,7 +6710,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) bank accounts and checks for it's validity.\n"
@@ -7021,7 +7021,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -9489,7 +9489,7 @@ msgid "Adds free shipping mechanism in sales orders"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr ""
 
@@ -10423,12 +10423,12 @@ msgid "Auto-complete partner companies' data"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automated Action Rules"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr_contract
+#: model:ir.module.module,shortdesc:base.module_automation_hr_contract
 msgid "Automated Action based on Employee Contracts"
 msgstr ""
 
@@ -10761,7 +10761,7 @@ msgid "Base - Module Install Request"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr ""
 
@@ -11613,7 +11613,7 @@ msgid "Centralize employee information"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr ""
 
@@ -12441,7 +12441,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr ""
@@ -12452,7 +12452,7 @@ msgid "Contacts & Addresses"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr ""
 
@@ -14599,7 +14599,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr ""
 
@@ -16838,7 +16838,7 @@ msgid "IAP / Mail"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr ""
 
@@ -22714,7 +22714,7 @@ msgid "Partners"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr ""
 
@@ -26934,7 +26934,7 @@ msgid "Terms &amp; Conditions"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr ""
 
@@ -27865,7 +27865,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -29195,7 +29195,7 @@ msgid "VAT"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr ""
 

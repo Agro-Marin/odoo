@@ -10,7 +10,7 @@ Malta basic package that contains the chart of accounts, the taxes, tax reports,
     'category': 'Accounting/Localizations/Account Charts',
     'depends': [
         'account',
-        'base_vat',
+        'account_vat',
         'account_edi_ubl_cii',
     ],
     'auto_install': ['account'],

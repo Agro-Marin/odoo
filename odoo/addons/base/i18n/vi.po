@@ -2763,7 +2763,7 @@ msgid ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 msgstr ""
@@ -2828,7 +2828,7 @@ msgstr ""
 "Tất cả loại định danh đã xác định có thể được xem lại và kích hoạt/hủy kích "
 "hoạt trong menu \"Liên hệ/Cấu hình/Loại định danh\".\n"
 "\n"
-"Phân hệ này tương thích với phân hệ base_vat để có thể xác thực số VAT cho "
+"Phân hệ này tương thích với phân hệ account_vat để có thể xác thực số VAT cho "
 "từng quốc gia có hoặc không có khả năng quản lý nhiều loại định danh.\n"
 
 #. module: base
@@ -3986,7 +3986,7 @@ msgid ""
 "\n"
 "Automatically sort your documents.\n"
 "This module is only used to sort documents automatically and cannot be used "
-"for any ai-documents related features since it relies on base_automation as "
+"for any ai-documents related features since it relies on automation as "
 "well.\n"
 "It should be renamed later to ai_documents_automation.\n"
 msgstr ""
@@ -3994,7 +3994,7 @@ msgstr ""
 "Tự động sắp xếp tài liệu của bạn.\n"
 "Phân hệ này chỉ được sử dụng để sắp xếp tài liệu tự động và không thể sử "
 "dụng cho bất kỳ tính năng nào liên quan đến ai-documents vì nó phụ thuộc vào "
-"base_automation.\n"
+"automation.\n"
 "Nó nên được đổi tên sau này thành ai_documents_automation.\n"
 
 #. module: base
@@ -4821,7 +4821,7 @@ msgstr ""
 "nghỉ phép. Dự án và nhiệm vụ có thể được cấu hình trên toàn công ty.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr
+#: model:ir.module.module,description:base.module_automation_hr
 msgid ""
 "\n"
 "Bridge to add contract calendar on automation rules\n"
@@ -10004,7 +10004,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -12991,7 +12991,7 @@ msgstr ""
 "bằng cách chọn số lượng biến thể sản phẩm thông qua Mục nhập dạng lưới.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement automation rules for any object.\n"
@@ -13734,7 +13734,7 @@ msgstr ""
 "Dịch vụ được cung cấp bởi nền tảng Mua trong Ứng dụng Odoo.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible "
@@ -14156,7 +14156,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) "
@@ -15121,7 +15121,7 @@ msgstr ""
 "=======================================================================\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -17863,7 +17863,7 @@ msgid "Adds free shipping mechanism in sales orders"
 msgstr "Thêm cơ chế giao hàng miễn phí trong các đơn bán hàng"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr "Đáng chú ý, bổ sung chế độ xem bản đồ của liên hệ"
 
@@ -21163,12 +21163,12 @@ msgid "Automation"
 msgstr "Tự động hoá"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automation Rules"
 msgstr "Quy tắc tự động"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr
+#: model:ir.module.module,shortdesc:base.module_automation_hr
 msgid "Automation Rules based on Employee Contracts"
 msgstr "Hành động Tự động dựa trên Hợp đồng lao động"
 
@@ -21602,7 +21602,7 @@ msgid "Base - Module Install Request"
 msgstr "Cơ sở - Yêu cầu Cài đặt Phân hệ"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr "Bản kiểm thử Tự động hóa Cơ sở: Đảm bảo Độ bền của Quy trình"
 
@@ -22996,7 +22996,7 @@ msgid "Centralize employee information"
 msgstr "Tập trung thông tin nhân viên"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr "Tập trung sổ địa chỉ của bạn"
 
@@ -24208,14 +24208,14 @@ msgstr "Liên hệ với quản trị viên của bạn để yêu cầu quyền
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr "Liên hệ"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr "Liên hệ Enterprise"
 
@@ -27166,7 +27166,7 @@ msgstr ""
 "* Báo cáo Cấu trúc Chi phí (mrp_account)"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr "Các tính năng Enterprise cho phần liên hệ"
 
@@ -30641,7 +30641,7 @@ msgid "IAP / Mail"
 msgstr "IAP/Mail"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr "Tài khoản Ngân hàng IBAN"
 
@@ -40173,7 +40173,7 @@ msgid "Partners"
 msgstr "Đối tác"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr "Định vị Đối tác"
 
@@ -46192,7 +46192,7 @@ msgid "Terms &amp; Conditions"
 msgstr "Điều khoản &amp; Điều kiện"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr "Kiểm thử - Tự động hóa Cơ sở"
 
@@ -47680,7 +47680,7 @@ msgstr ""
 "kiểm thử độc lập với các khía cạnh chức năng của những mô hình khác. "
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -49776,7 +49776,7 @@ msgid "VAT"
 msgstr "Mã số thuế"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr "Xác thực mã số thuế"
 
@@ -52237,7 +52237,7 @@ msgstr "Giá trị “%(attribute)s” phải là một số nguyên (%(value)s)
 #~ "All the defined identification types can be reviewed and activate/"
 #~ "deactivate in \"Contacts / Configuration / Identification Type\" menu.\n"
 #~ "\n"
-#~ "This module is compatible with base_vat module in order to be able to "
+#~ "This module is compatible with account_vat module in order to be able to "
 #~ "validate VAT numbers for each country that have or not have the "
 #~ "possibility to manage multiple identification types.\n"
 #~ msgstr ""
@@ -52303,7 +52303,7 @@ msgstr "Giá trị “%(attribute)s” phải là một số nguyên (%(value)s)
 #~ "Tất cả loại định danh đã xác định có thể được xem lại và kích hoạt/hủy "
 #~ "kích hoạt trong menu \"Liên hệ/Cấu hình/Loại định danh\".\n"
 #~ "\n"
-#~ "Phân hệ này tương thích với phân hệ base_vat để có thể xác thực số thuế "
+#~ "Phân hệ này tương thích với phân hệ account_vat để có thể xác thực số thuế "
 #~ "GTGT cho từng quốc gia có hoặc không có khả năng quản lý nhiều loại định "
 #~ "danh.\n"
 

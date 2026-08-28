@@ -9,7 +9,7 @@
     'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/philippines.html',
     'depends': [
         'account',
-        'base_vat',
+        'account_vat',
         'l10n_account_withholding_tax',
     ],
     'auto_install': ['account'],

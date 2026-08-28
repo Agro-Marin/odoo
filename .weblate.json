@@ -42,6 +42,11 @@
                 "new_base": "addons/account_fleet/i18n/account_fleet.pot"
             },
             {
+                "name": "account_iban",
+                "filemask": "addons/account_iban/i18n/*.po",
+                "new_base": "addons/account_iban/i18n/account_iban.pot"
+            },
+            {
                 "name": "account_payment",
                 "filemask": "addons/account_payment/i18n/*.po",
                 "new_base": "addons/account_payment/i18n/account_payment.pot"
@@ -75,6 +80,11 @@
                 "name": "account_update_tax_tags",
                 "filemask": "addons/account_update_tax_tags/i18n/*.po",
                 "new_base": "addons/account_update_tax_tags/i18n/account_update_tax_tags.pot"
+            },
+            {
+                "name": "account_vat",
+                "filemask": "addons/account_vat/i18n/*.po",
+                "new_base": "addons/account_vat/i18n/account_vat.pot"
             },
             {
                 "name": "analytic",
@@ -147,6 +157,11 @@
                 "new_base": "addons/auth_totp_mail/i18n/auth_totp_mail.pot"
             },
             {
+                "name": "automation",
+                "filemask": "addons/automation/i18n/*.po",
+                "new_base": "addons/automation/i18n/automation.pot"
+            },
+            {
                 "name": "barcodes",
                 "filemask": "addons/barcodes/i18n/*.po",
                 "new_base": "addons/barcodes/i18n/barcodes.pot"
@@ -160,26 +175,6 @@
                 "name": "base",
                 "filemask": "odoo/addons/base/i18n/*.po",
                 "new_base": "odoo/addons/base/i18n/base.pot"
-            },
-            {
-                "name": "base_address_extended",
-                "filemask": "addons/base_address_extended/i18n/*.po",
-                "new_base": "addons/base_address_extended/i18n/base_address_extended.pot"
-            },
-            {
-                "name": "base_automation",
-                "filemask": "addons/base_automation/i18n/*.po",
-                "new_base": "addons/base_automation/i18n/base_automation.pot"
-            },
-            {
-                "name": "base_geolocalize",
-                "filemask": "addons/base_geolocalize/i18n/*.po",
-                "new_base": "addons/base_geolocalize/i18n/base_geolocalize.pot"
-            },
-            {
-                "name": "base_iban",
-                "filemask": "addons/base_iban/i18n/*.po",
-                "new_base": "addons/base_iban/i18n/base_iban.pot"
             },
             {
                 "name": "base_import",
@@ -200,11 +195,6 @@
                 "name": "base_sparse_field",
                 "filemask": "addons/base_sparse_field/i18n/*.po",
                 "new_base": "addons/base_sparse_field/i18n/base_sparse_field.pot"
-            },
-            {
-                "name": "base_vat",
-                "filemask": "addons/base_vat/i18n/*.po",
-                "new_base": "addons/base_vat/i18n/base_vat.pot"
             },
             {
                 "name": "board",
@@ -245,11 +235,6 @@
                 "name": "cloud_storage_google",
                 "filemask": "addons/cloud_storage_google/i18n/*.po",
                 "new_base": "addons/cloud_storage_google/i18n/cloud_storage_google.pot"
-            },
-            {
-                "name": "contacts",
-                "filemask": "addons/contacts/i18n/*.po",
-                "new_base": "addons/contacts/i18n/contacts.pot"
             },
             {
                 "name": "crm",
@@ -360,6 +345,11 @@
                 "name": "gamification_sale_crm",
                 "filemask": "addons/gamification_sale_crm/i18n/*.po",
                 "new_base": "addons/gamification_sale_crm/i18n/gamification_sale_crm.pot"
+            },
+            {
+                "name": "geocoding",
+                "filemask": "addons/geocoding/i18n/*.po",
+                "new_base": "addons/geocoding/i18n/geocoding.pot"
             },
             {
                 "name": "google_account",
@@ -735,6 +725,16 @@
                 "name": "onboarding",
                 "filemask": "addons/onboarding/i18n/*.po",
                 "new_base": "addons/onboarding/i18n/onboarding.pot"
+            },
+            {
+                "name": "partner",
+                "filemask": "addons/partner/i18n/*.po",
+                "new_base": "addons/partner/i18n/partner.pot"
+            },
+            {
+                "name": "partner_address_extended",
+                "filemask": "addons/partner_address_extended/i18n/*.po",
+                "new_base": "addons/partner_address_extended/i18n/partner_address_extended.pot"
             },
             {
                 "name": "partner_autocomplete",

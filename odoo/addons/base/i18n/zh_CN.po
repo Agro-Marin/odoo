@@ -2722,7 +2722,7 @@ msgid ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 msgstr ""
@@ -3774,14 +3774,14 @@ msgid ""
 "\n"
 "Automatically sort your documents.\n"
 "This module is only used to sort documents automatically and cannot be used "
-"for any ai-documents related features since it relies on base_automation as "
+"for any ai-documents related features since it relies on automation as "
 "well.\n"
 "It should be renamed later to ai_documents_automation.\n"
 msgstr ""
 "\n"
 "自动对文档进行排序.\n"
 "该模块仅用于自动对文档进行排序，不能用于任何与人工智能文档相关的功能，因为它"
-"也依赖于 base_automation.\n"
+"也依赖于 automation.\n"
 "稍后应重命名为 ai_documents_automation.\n"
 
 #. module: base
@@ -4505,7 +4505,7 @@ msgstr ""
 "请假。可在全公司范围内配置项目和任务。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr
+#: model:ir.module.module,description:base.module_automation_hr
 msgid ""
 "\n"
 "Bridge to add contract calendar on automation rules\n"
@@ -9279,7 +9279,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -12097,7 +12097,7 @@ msgstr ""
 "通过网格输入选择产品变体数量。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement automation rules for any object.\n"
@@ -12777,7 +12777,7 @@ msgstr ""
 "这一服务是由应用内采购 Odoo 平台提供的。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible "
@@ -13191,7 +13191,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) "
@@ -14087,7 +14087,7 @@ msgstr ""
 "=======================================================================\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -16688,7 +16688,7 @@ msgid "Adds free shipping mechanism in sales orders"
 msgstr "在销售订单中添加免费送货机制"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr "显著增加了联系人的地图视图"
 
@@ -19912,12 +19912,12 @@ msgid "Automation"
 msgstr "自动化"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automation Rules"
 msgstr "自动化规则"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr
+#: model:ir.module.module,shortdesc:base.module_automation_hr
 msgid "Automation Rules based on Employee Contracts"
 msgstr "基于员工合同的自动化规则"
 
@@ -20342,7 +20342,7 @@ msgid "Base - Module Install Request"
 msgstr "基础 - 模块安装申请"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr "基本自动化测试：确保流量稳定"
 
@@ -21703,7 +21703,7 @@ msgid "Centralize employee information"
 msgstr "集中管理员工信息"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr "集中管理地址簿"
 
@@ -22885,14 +22885,14 @@ msgstr "如有必要，请联系您的管理员申请访问权限。"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr "联系人"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr "联系人-企业"
 
@@ -25781,7 +25781,7 @@ msgstr ""
 "* 成本结构报表 (mrp_account)"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr "联系人的企业功能"
 
@@ -29201,7 +29201,7 @@ msgid "IAP / Mail"
 msgstr "IAP / 邮件"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr "IBAN 银行账户"
 
@@ -38383,7 +38383,7 @@ msgid "Partners"
 msgstr "合作伙伴"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr "合作伙伴地理定位"
 
@@ -44306,7 +44306,7 @@ msgid "Terms &amp; Conditions"
 msgstr "条款 &amp; 条件"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr "测试 - 基础自动化"
 
@@ -45681,7 +45681,7 @@ msgstr ""
 "独立于其他模型功能方面的测试。 "
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -47673,7 +47673,7 @@ msgid "VAT"
 msgstr "增值税"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr "增值税号验证"
 

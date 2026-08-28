@@ -678,8 +678,8 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
 
     def test_vat_placeholder_comes_from_a_seam_not_a_reverse_import(self):
-        # base_vat DEPENDS ON account, so account must not import its private
-        # _ref_vat dict; it asks through a method base_vat overrides.
+        # account_vat DEPENDS ON account, so account must not import its private
+        # _ref_vat dict; it asks through a method account_vat overrides.
         Partner = self.env["res.partner"]
         japan = self.env["res.country"].search([("code", "=", "JP")], limit=1)
         self.assertEqual(Partner._get_expected_vat_format(False), "")
@@ -691,13 +691,13 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         expected = Partner._get_expected_vat_format("JP")
 
         if self.env["ir.module.module"].search_count(
-            [("name", "=", "base_vat"), ("state", "=", "installed")]
+            [("name", "=", "account_vat"), ("state", "=", "installed")]
         ):
-            self.assertTrue(expected, "base_vat installed: the seam answers")
+            self.assertTrue(expected, "account_vat installed: the seam answers")
             self.assertIn(expected, partner.partner_vat_placeholder)
             self.assertIn(expected, company.company_vat_placeholder)
         else:
-            # base_vat DEPENDS ON account, so `-i account` alone leaves it out.
+            # account_vat DEPENDS ON account, so `-i account` alone leaves it out.
             # The old module-level import leaked its data anyway; the seam must not.
             self.assertEqual(expected, "")
             self.assertNotIn("7000012050002", partner.partner_vat_placeholder)
@@ -708,7 +708,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
                 f"account/models/{module}.py", "r", filter_ext=(".py",)
             ).read()
             self.assertNotIn(
-                "base_vat",
+                "account_vat",
                 source,
                 f"account/models/{module}.py imports from a module that depends on it",
             )

@@ -2813,7 +2813,7 @@ msgid ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 msgstr ""
@@ -2881,7 +2881,7 @@ msgstr ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 
@@ -4040,7 +4040,7 @@ msgid ""
 "\n"
 "Automatically sort your documents.\n"
 "This module is only used to sort documents automatically and cannot be used "
-"for any ai-documents related features since it relies on base_automation as "
+"for any ai-documents related features since it relies on automation as "
 "well.\n"
 "It should be renamed later to ai_documents_automation.\n"
 msgstr ""
@@ -4845,7 +4845,7 @@ msgstr ""
 "компании.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr
+#: model:ir.module.module,description:base.module_automation_hr
 msgid ""
 "\n"
 "Bridge to add contract calendar on automation rules\n"
@@ -9986,7 +9986,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -12944,7 +12944,7 @@ msgstr ""
 "выбирая количество вариантов товаров через сетку ввода.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement automation rules for any object.\n"
@@ -13683,7 +13683,7 @@ msgstr ""
 "Услуга предоставляется через платформу покупок внутри приложения Odoo.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible "
@@ -14104,7 +14104,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) "
@@ -15056,7 +15056,7 @@ msgstr ""
 "=======================================================================\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -17742,7 +17742,7 @@ msgid "Adds free shipping mechanism in sales orders"
 msgstr "Добавляет механизм бесплатной доставки в заказы на продажу"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr "Добавляет, в частности, картографическое представление контакта"
 
@@ -21039,12 +21039,12 @@ msgid "Automation"
 msgstr "Автоматизация"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automation Rules"
 msgstr "Правила автоматизации"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr
+#: model:ir.module.module,shortdesc:base.module_automation_hr
 msgid "Automation Rules based on Employee Contracts"
 msgstr "Правила автоматизации на основе контрактов сотрудников"
 
@@ -21474,7 +21474,7 @@ msgid "Base - Module Install Request"
 msgstr "База — Запрос на установку модуля"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr "Тесты базовой автоматизации: обеспечение надёжности процессов"
 
@@ -22859,7 +22859,7 @@ msgid "Centralize employee information"
 msgstr "Централизация данных о сотрудниках"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr "Централизация адресной книги"
 
@@ -24067,14 +24067,14 @@ msgstr "Обратитесь к администратору для запрос
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr "Контакты"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr "Контакты для предприятий"
 
@@ -27010,7 +27010,7 @@ msgstr ""
 "* Отчет о структуре затрат (mrp_account)"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr "Функции предприятия для контактов"
 
@@ -30461,7 +30461,7 @@ msgid "IAP / Mail"
 msgstr "IAP / Почта"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr "Банковские счета IBAN"
 
@@ -40029,7 +40029,7 @@ msgid "Partners"
 msgstr "Партнеры"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr "Геолокация партнеров"
 
@@ -46012,7 +46012,7 @@ msgid "Terms &amp; Conditions"
 msgstr "Соглашение"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr "Тест — Базовая автоматизация"
 
@@ -47472,7 +47472,7 @@ msgstr ""
 "тестов независимо от функциональных аспектов других моделей. "
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -49543,7 +49543,7 @@ msgid "VAT"
 msgstr "НДС"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr "Проверка номера НДС"
 
@@ -51996,7 +51996,7 @@ msgstr "Значение “%(attribute)s” должно быть целым ч
 #~ "All the defined identification types can be reviewed and activate/"
 #~ "deactivate in \"Contacts / Configuration / Identification Type\" menu.\n"
 #~ "\n"
-#~ "This module is compatible with base_vat module in order to be able to "
+#~ "This module is compatible with account_vat module in order to be able to "
 #~ "validate VAT numbers for each country that have or not have the "
 #~ "possibility to manage multiple identification types.\n"
 #~ msgstr ""
@@ -52063,7 +52063,7 @@ msgstr "Значение “%(attribute)s” должно быть целым ч
 #~ "Все заданные типы идентификации можно просмотреть и активировать/"
 #~ "деактивировать в меню Контакты > Конфигурация > Тип идентификации.\n"
 #~ "\n"
-#~ "Модуль совместим с модулем base_vat, что позволяет проверять номера НДС "
+#~ "Модуль совместим с модулем account_vat, что позволяет проверять номера НДС "
 #~ "для стран, поддерживающих или не поддерживающих управление несколькими "
 #~ "типами идентификации.\n"
 

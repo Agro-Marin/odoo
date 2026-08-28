@@ -12,7 +12,7 @@ This module applies to companies based in Algeria.
 """,
     'author': 'Osis',
     'depends': [
-        'base_vat',
+        'account_vat',
         'account',
     ],
     'auto_install': ['account'],

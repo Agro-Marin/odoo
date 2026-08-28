@@ -8,7 +8,7 @@
         'account_edi',
         'account_edi_ubl_cii',
         'l10n_sa',
-        'base_vat',
+        'account_vat',
         'certificate',
     ],
     'summary': """

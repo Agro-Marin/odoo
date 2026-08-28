@@ -2744,7 +2744,7 @@ msgid ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 msgstr ""
@@ -2812,7 +2812,7 @@ msgstr ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 
@@ -3972,7 +3972,7 @@ msgid ""
 "\n"
 "Automatically sort your documents.\n"
 "This module is only used to sort documents automatically and cannot be used "
-"for any ai-documents related features since it relies on base_automation as "
+"for any ai-documents related features since it relies on automation as "
 "well.\n"
 "It should be renamed later to ai_documents_automation.\n"
 msgstr ""
@@ -3980,7 +3980,7 @@ msgstr ""
 "تمكن من فرز مستنداتك تلقائيًا.\n"
 "يستخدم هذا التطبيق فقط لفرز المستندات تلقائيًا ولا يمكن استخدامه لأي ميزات "
 "متعلقة بالمستندات المنشأة باستخدام الذكاء الاصطناعي، لأنه يعتمد أيضًا على "
-"base_automation.\n"
+"automation.\n"
 "يجب إعادة تسميته لاحقًا إلى ai_documents_automation.\n"
 
 #. module: base
@@ -4801,7 +4801,7 @@ msgstr ""
 "في إجازات. يمكن تهيئة المشروع والمهمة على مستوى الشركة.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr
+#: model:ir.module.module,description:base.module_automation_hr
 msgid ""
 "\n"
 "Bridge to add contract calendar on automation rules\n"
@@ -9928,7 +9928,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -12884,7 +12884,7 @@ msgstr ""
 "عن طريق اختيار كمية متغيرات المنتجات من خلال قيد الشبكة.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement automation rules for any object.\n"
@@ -13613,7 +13613,7 @@ msgstr ""
 "هذه الخدمة مقدمة من قِبَل منصة أودو للشراء داخل التطبيق.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible "
@@ -14031,7 +14031,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) "
@@ -14974,7 +14974,7 @@ msgstr ""
 "=======================================================================\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -17666,7 +17666,7 @@ msgid "Adds free shipping mechanism in sales orders"
 msgstr "يضيف آلية الشحن المجاني في أوامر البيع"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr "يضيف نافذة عرض الخريطة لجهة الاتصال"
 
@@ -20937,12 +20937,12 @@ msgid "Automation"
 msgstr "تشغيل تلقائي"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automation Rules"
 msgstr "قواعد الأتمتة"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr
+#: model:ir.module.module,shortdesc:base.module_automation_hr
 msgid "Automation Rules based on Employee Contracts"
 msgstr "قواعد الأتمتة بناء على عقود الموظفين"
 
@@ -21369,7 +21369,7 @@ msgid "Base - Module Install Request"
 msgstr "الأساس - طلب تثبيت التطبيق"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr "اختبارات الأتمتة الأساسية: ضمان متانة سير العمل"
 
@@ -22750,7 +22750,7 @@ msgid "Centralize employee information"
 msgstr "مركزة معلومات الموظف"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr "قم بمركزة دفتر عناوينك"
 
@@ -23959,14 +23959,14 @@ msgstr "تواصل مع مديرك لطلب صلاحيات الوصول، إذا
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr "جهات الاتصال"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr "مؤسسة جهات الاتصال"
 
@@ -26905,7 +26905,7 @@ msgstr ""
 "* تقرير هيكل التكاليف (mrp_account)"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr "خصائص المؤسسات في جهات الاتصال"
 
@@ -30363,7 +30363,7 @@ msgid "IAP / Mail"
 msgstr "الوكيل المدرك للهوية / البريد الإلكتروني"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr "حسابات البنك IBAN"
 
@@ -39728,7 +39728,7 @@ msgid "Partners"
 msgstr "الشركاء"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr "التموضع الجغرافي للشركاء"
 
@@ -45707,7 +45707,7 @@ msgid "Terms &amp; Conditions"
 msgstr "الشروط والأحكام"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr "اختبار - أتمتة الأساس"
 
@@ -47164,7 +47164,7 @@ msgstr ""
 "الاختبارات بشكل مستقل للجوانب الوظيفية للنماذج الأخرى. "
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -49216,7 +49216,7 @@ msgid "VAT"
 msgstr "ضريبة القيمة المضافة"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr "التحقق من رقم ضريبة القيمة المضافة"
 

@@ -43,7 +43,7 @@ There are 2 main Payment Methods additions:
     'license': 'LGPL-3',
     'depends': [
         'account',
-        'base_vat',
+        'account_vat',
     ],
     'external_dependencies': {
         'python': ['python-stdnum'],

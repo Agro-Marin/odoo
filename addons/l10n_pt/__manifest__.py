@@ -10,7 +10,7 @@
     'depends': [
         'base',
         'account',
-        'base_vat',
+        'account_vat',
         'account_edi_ubl_cii',
     ],
     'auto_install': ['account'],

@@ -13,7 +13,7 @@
     "website": "https://www.odoo.com",
     'author': 'Odoo S.A.',
     "license": "LGPL-3",
-    "depends": ["l10n_tw", "base_vat"],
+    "depends": ["l10n_tw", "account_vat"],
     "data": [
         "security/ir.model.access.csv",
         "views/res_config_setting_view.xml",

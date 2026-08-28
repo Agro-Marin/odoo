@@ -7,8 +7,8 @@
     'author': 'Onestein (http://www.onestein.eu)',
     'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/netherlands.html',
     'depends': [
-        'base_iban',
-        'base_vat',
+        'account_iban',
+        'account_vat',
         'account',
         'account_edi_ubl_cii',
     ],

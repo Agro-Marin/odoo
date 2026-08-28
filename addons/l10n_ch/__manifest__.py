@@ -23,7 +23,7 @@ The generation of the QR-bill is automatic if you meet the previous criteria. Th
     'depends': [
         'account',
         'account_edi_ubl_cii',
-        'base_iban',
+        'account_iban',
         'l10n_din5008',
     ],
     'external_dependencies': {

@@ -13,7 +13,7 @@ This is the latest basic South African localisation necessary to run Odoo in ZA:
     'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
     'depends': [
         'account',
-        'base_vat',
+        'account_vat',
     ],
     'auto_install': ['account'],
     'data': [

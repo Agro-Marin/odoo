@@ -10,7 +10,7 @@ Accounting chart and localization for Hungary
     """,
     'depends': [
         'account',
-        'base_vat',
+        'account_vat',
     ],
     'auto_install': ['account'],
     'data': [

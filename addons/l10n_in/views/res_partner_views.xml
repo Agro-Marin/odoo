@@ -61,7 +61,7 @@
     <record id="l10n_in_view_partner_base_vat_form" model="ir.ui.view">
         <field name="name">l10n.in.gstin.status.view.partner.inherit</field>
         <field name="model">res.partner</field>
-        <field name="inherit_id" ref="base_vat.view_partner_base_vat_form" />
+        <field name="inherit_id" ref="account_vat.view_partner_account_vat_form" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='vies_valid']" position="after">
                 <span invisible="country_code != 'IN' or not l10n_in_gstin_status_feature_enabled or not vat or 'IN' not in fiscal_country_codes">

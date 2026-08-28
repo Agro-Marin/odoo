@@ -85,8 +85,8 @@ Produktopsætning:
 **Købskonto:**      4010 Restaurationsbesøg
     """,
     'depends': [
-        'base_iban',
-        'base_vat',
+        'account_iban',
+        'account_vat',
         'account',
         'account_edi_ubl_cii',
     ],

@@ -1000,7 +1000,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_attribute_mixin
+#: model:ir.module.module,description:base.module_mixin_attribute
 msgid ""
 "\n"
 "Abstract building blocks for an Entity-Attribute-Value family: an attribute\n"
@@ -2130,7 +2130,7 @@ msgid ""
 "\n"
 "All the defined identification types can be reviewed and activate/deactivate in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to validate VAT numbers for each country that have or not have the possibility to manage multiple identification types.\n"
+"This module is compatible with account_vat module in order to be able to validate VAT numbers for each country that have or not have the possibility to manage multiple identification types.\n"
 msgstr ""
 
 #. module: base
@@ -2912,7 +2912,7 @@ msgstr ""
 msgid ""
 "\n"
 "Automatically sort your documents.\n"
-"This module is only used to sort documents automatically and cannot be used for any ai-documents related features since it relies on base_automation as well.\n"
+"This module is only used to sort documents automatically and cannot be used for any ai-documents related features since it relies on automation as well.\n"
 "It should be renamed later to ai_documents_automation.\n"
 msgstr ""
 
@@ -2923,7 +2923,7 @@ msgid ""
 "Automation Account\n"
 "==================\n"
 "\n"
-"Accounting steps for ``base_automation``'s DAG runtime.\n"
+"Accounting steps for ``automation``'s DAG runtime.\n"
 "\n"
 "* ``automation.runtime`` -- adds ``st_line_id`` (bank statement line) and\n"
 "  ``diff_partner_id`` to the workflow execution context\n"
@@ -2962,7 +2962,7 @@ msgid ""
 "payment method are read from the step's trigger data when ``approval``,\n"
 "``telegram_bot_approval`` and ``l10n_mx_edi`` happen to be installed -- none of\n"
 "them is required, and the step works without them. The workflow itself is a\n"
-"``base.automation`` record and each step an ``ir.actions.server`` -- this module\n"
+"``automation.rule`` record and each step an ``ir.actions.server`` -- this module\n"
 "adds no workflow engine of its own.\n"
 msgstr ""
 
@@ -3705,7 +3705,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr
+#: model:ir.module.module,description:base.module_automation_hr
 msgid ""
 "\n"
 "Bridge to add contract calendar on automation rules\n"
@@ -3725,7 +3725,7 @@ msgid ""
 "Endpoints\n"
 "---------\n"
 "* ``POST /web/hook/<uuid>`` -- Confirm-Tarima ingest through a\n"
-"  ``base.automation`` on_webhook rule, HMAC-SHA256 verified; delegates to the\n"
+"  ``automation.rule`` on_webhook rule, HMAC-SHA256 verified; delegates to the\n"
 "  transport-agnostic ``stock.scale._create_from_confirm()``\n"
 "* ``POST /api/webhook/<uuid>`` -- compatibility alias for the same rule, kept\n"
 "  because the deployed RPi stations hardcode the path the retired\n"
@@ -3738,7 +3738,7 @@ msgid ""
 "* ``POST /api/v1/validate-picking`` -- picking validation; bearer auth\n"
 "\n"
 "Inbound auth, replay protection and rate limiting come from core\n"
-"``base.automation``; encrypted secrets from ``credential``.\n"
+"``automation.rule``; encrypted secrets from ``credential``.\n"
 msgstr ""
 
 #. module: base
@@ -4230,7 +4230,7 @@ msgid ""
 "  absorbed both ``api_communication`` and ``api_gateway``.\n"
 "* Import the shared primitives from ``tools/`` (authentication/signature\n"
 "  verification, endpoint + credential rate limiters, session cache,\n"
-"  connection manager) — see ``base_automation`` webhooks, ``telegram_bot``\n"
+"  connection manager) — see ``automation`` webhooks, ``telegram_bot``\n"
 "  and ``remote``.\n"
 "\n"
 "Requires the ``ODOO_API_ENCRYPTION_KEY`` environment variable (a Fernet key);\n"
@@ -5207,7 +5207,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_encryption_mixin
+#: model:ir.module.module,description:base.module_mixin_encryption
 msgid ""
 "\n"
 "Encrypted Field Mixin\n"
@@ -7686,7 +7686,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -8712,7 +8712,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_tax
+#: model:ir.module.module,description:base.module_account_tax
 msgid ""
 "\n"
 "Tax Computation Engine\n"
@@ -8724,7 +8724,7 @@ msgid ""
 "journal accounts, tax tags, exigibility, and CABA handling.\n"
 "\n"
 "Modules that need tax computation without the full accounting stack (e.g.\n"
-"``base_order``, ``sale``, ``purchase``) can depend on ``base_tax`` directly.\n"
+"``base_order``, ``sale``, ``purchase``) can depend on ``account_tax`` directly.\n"
 "\n"
 "Models:\n"
 "-------\n"
@@ -8767,7 +8767,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_recurrence
+#: model:ir.module.module,description:base.module_mixin_recurrence
 msgid ""
 "\n"
 "The \"every N units, until ...\" half of a recurrence, in one place.\n"
@@ -9839,7 +9839,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement automation rules for any object.\n"
@@ -10281,7 +10281,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible from your home page.\n"
@@ -10533,7 +10533,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) bank accounts and checks for it's validity.\n"
@@ -11138,7 +11138,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -13404,7 +13404,7 @@ msgid ""
 "   - ``api_ai`` - Vendor clients, including the Claude SDK subprocess client\n"
 "   - ``api_ai_agent`` - Registers Claude as a provider ``ai.agent`` can select\n"
 "   - ``project`` - Project management\n"
-"   - ``base_encryption_mixin`` - Field-level encryption for stored tokens\n"
+"   - ``mixin_encryption`` - Field-level encryption for stored tokens\n"
 "   - ``api_github`` - GitHub REST client for the pull-request flow\n"
 "\n"
 "2. **Python Packages:**\n"
@@ -17492,7 +17492,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.module.module,summary:base.module_automation_account
-msgid "Accounting workflow automation using base_automation DAG engine"
+msgid "Accounting workflow automation using automation DAG engine"
 msgstr ""
 
 #. module: base
@@ -18113,7 +18113,7 @@ msgid "Adds free shipping mechanism in sales orders"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr ""
 
@@ -21057,7 +21057,7 @@ msgid "Attract visitors to subscribe to mailing lists"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_attribute_mixin
+#: model:ir.module.module,shortdesc:base.module_mixin_attribute
 msgid "Attribute Mixins"
 msgstr ""
 
@@ -21402,12 +21402,12 @@ msgid "Automation Account"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automation Rules"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr
+#: model:ir.module.module,shortdesc:base.module_automation_hr
 msgid "Automation Rules based on Employee Contracts"
 msgstr ""
 
@@ -21851,7 +21851,7 @@ msgid "Base Approval"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr ""
 
@@ -23377,7 +23377,7 @@ msgid "Centralize employee information"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr ""
 
@@ -24572,14 +24572,14 @@ msgstr ""
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr ""
 
@@ -27507,7 +27507,7 @@ msgid "Enark Theme"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_encryption_mixin
+#: model:ir.module.module,shortdesc:base.module_mixin_encryption
 msgid "Encrypted Field Mixin"
 msgstr ""
 
@@ -27590,7 +27590,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr ""
 
@@ -28937,7 +28937,7 @@ msgid "Fening"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_encryption_mixin
+#: model:ir.module.module,summary:base.module_mixin_encryption
 msgid "Fernet encryption at rest for any model's fields"
 msgstr ""
 
@@ -31222,7 +31222,7 @@ msgid "IAP / Mail"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr ""
 
@@ -39834,7 +39834,7 @@ msgid "Partners"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr ""
 
@@ -42111,7 +42111,7 @@ msgid "Recruitment tracking on appointments"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_recurrence
+#: model:ir.module.module,shortdesc:base.module_mixin_recurrence
 msgid "Recurrence Mixins"
 msgstr ""
 
@@ -42588,12 +42588,12 @@ msgid "Retry"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_attribute_mixin
+#: model:ir.module.module,summary:base.module_mixin_attribute
 msgid "Reusable EAV mixins: attribute, attribute value and attribute line."
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_recurrence
+#: model:ir.module.module,summary:base.module_mixin_recurrence
 msgid ""
 "Reusable recurrence rule mixin: repeat every N units, forever or until a "
 "date."
@@ -45168,7 +45168,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_tax
+#: model:ir.module.module,summary:base.module_account_tax
 msgid "Standalone tax computation for order types"
 msgstr ""
 
@@ -45940,7 +45940,7 @@ msgid "Task Logs"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_tax
+#: model:ir.module.module,shortdesc:base.module_account_tax
 msgid "Tax Computation Engine"
 msgstr ""
 
@@ -46139,7 +46139,7 @@ msgid "Tenge"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr ""
 
@@ -47613,7 +47613,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -49639,7 +49639,7 @@ msgid "VAT"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr ""
 

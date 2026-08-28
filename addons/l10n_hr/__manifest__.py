@@ -15,7 +15,7 @@ https://www.rrif.hr/dok/preuzimanje/RRIF-RP2021-ENG.PDF
     'category': 'Accounting/Localizations/Account Charts',
     'depends': [
         'account',
-        'base_vat',
+        'account_vat',
     ],
     'auto_install': ['account'],
     'data': [

@@ -2781,7 +2781,7 @@ msgid ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 msgstr ""
@@ -2853,7 +2853,7 @@ msgstr ""
 "disattivati dal menù \"Contatti / Configurazione / Tipo di "
 "identificazione\".\n"
 "\n"
-"Questo modulo è compatibile con il modulo base_vat, in modo da poter "
+"Questo modulo è compatibile con il modulo account_vat, in modo da poter "
 "convalidare i numeri di partita IVA per ogni Paese che abbia o meno la "
 "possibilità di gestire più tipi di identificazione.\n"
 
@@ -4026,7 +4026,7 @@ msgid ""
 "\n"
 "Automatically sort your documents.\n"
 "This module is only used to sort documents automatically and cannot be used "
-"for any ai-documents related features since it relies on base_automation as "
+"for any ai-documents related features since it relies on automation as "
 "well.\n"
 "It should be renamed later to ai_documents_automation.\n"
 msgstr ""
@@ -4034,7 +4034,7 @@ msgstr ""
 "Ordinamento automatico dei documenti.\n"
 "Questo modulo è usato solo per ordinare automaticamente i documenti e non "
 "può essere usato per nessuna funzione relativa ad ai-documents, poiché si "
-"basa anche su base_automation.\n"
+"basa anche su automation.\n"
 "Dovrebbe essere rinominato in seguito in ai_documents_automation.\n"
 
 #. module: base
@@ -4876,7 +4876,7 @@ msgstr ""
 "l'azienda.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr
+#: model:ir.module.module,description:base.module_automation_hr
 msgid ""
 "\n"
 "Bridge to add contract calendar on automation rules\n"
@@ -10133,7 +10133,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -13145,7 +13145,7 @@ msgstr ""
 "griglia.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement automation rules for any object.\n"
@@ -13907,7 +13907,7 @@ msgstr ""
 "Il servizio è proposto dalla piattaforma di acquisti integrati di Odoo.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible "
@@ -14329,7 +14329,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) "
@@ -15302,7 +15302,7 @@ msgstr ""
 "=======================================================================\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -18061,7 +18061,7 @@ msgstr ""
 "Aggiungi il meccanismo per la spedizione gratuita agli ordini di vendita"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr "Aggiunge in particolare la visualizzazione del contatto nella mappa."
 
@@ -21382,12 +21382,12 @@ msgid "Automation"
 msgstr "Automazione"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automation Rules"
 msgstr "Regole di automazione"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr
+#: model:ir.module.module,shortdesc:base.module_automation_hr
 msgid "Automation Rules based on Employee Contracts"
 msgstr "Regole di automazione basate sui contratti dipendenti"
 
@@ -21817,7 +21817,7 @@ msgid "Base - Module Install Request"
 msgstr "Base-Richiesta installazione modulo"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr "Test per automazione di base: garantiscono la robustezza del flusso"
 
@@ -23214,7 +23214,7 @@ msgid "Centralize employee information"
 msgstr "Informazioni centralizzate sui dipendenti"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr "Rubrica degli indirizzi centralizzata"
 
@@ -24433,14 +24433,14 @@ msgstr "Se necessario, contattare l'amministratore per richiedere l'accesso."
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr "Contatti"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr "Contatti per Enterprise"
 
@@ -27405,7 +27405,7 @@ msgstr ""
 "* Resoconto sulla struttura dei costi (mrp_account)"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr "Funzionalità Enterprise per i contatti"
 
@@ -30903,7 +30903,7 @@ msgid "IAP / Mail"
 msgstr "Acquisti integrati / E-mail"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr "Conti bancari IBAN"
 
@@ -40500,7 +40500,7 @@ msgid "Partners"
 msgstr "Partner"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr "Geolocalizzazione partner"
 
@@ -46526,7 +46526,7 @@ msgid "Terms &amp; Conditions"
 msgstr "Termini e condizioni"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr "Test- Automazione di base"
 
@@ -48031,7 +48031,7 @@ msgstr ""
 "test indipendentemente dagli aspetti funzionali di altri modelli. "
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -50126,7 +50126,7 @@ msgid "VAT"
 msgstr "Partita IVA"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr "Convalida della partita IVA"
 
@@ -52591,7 +52591,7 @@ msgstr "Il valore “%(attribute)s” deve essere un intero (%(value)s)"
 #~ "All the defined identification types can be reviewed and activate/"
 #~ "deactivate in \"Contacts / Configuration / Identification Type\" menu.\n"
 #~ "\n"
-#~ "This module is compatible with base_vat module in order to be able to "
+#~ "This module is compatible with account_vat module in order to be able to "
 #~ "validate VAT numbers for each country that have or not have the "
 #~ "possibility to manage multiple identification types.\n"
 #~ msgstr ""
@@ -52664,7 +52664,7 @@ msgstr "Il valore “%(attribute)s” deve essere un intero (%(value)s)"
 #~ "attivati/disattivati dal menù \"Contatti / Configurazione / Tipo di "
 #~ "identificazione\".\n"
 #~ "\n"
-#~ "Questo modulo è compatibile con il modulo base_vat, in modo da poter "
+#~ "Questo modulo è compatibile con il modulo account_vat, in modo da poter "
 #~ "convalidare i numeri di partita IVA per ogni Paese che abbia o meno la "
 #~ "possibilità di gestire più tipi di identificazione.\n"
 

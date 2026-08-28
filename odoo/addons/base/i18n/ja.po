@@ -2750,7 +2750,7 @@ msgid ""
 "All the defined identification types can be reviewed and activate/deactivate "
 "in \"Contacts / Configuration / Identification Type\" menu.\n"
 "\n"
-"This module is compatible with base_vat module in order to be able to "
+"This module is compatible with account_vat module in order to be able to "
 "validate VAT numbers for each country that have or not have the possibility "
 "to manage multiple identification types.\n"
 msgstr ""
@@ -2811,7 +2811,7 @@ msgstr ""
 "定義されたすべての識別タイプは、「連絡先 / 設定 / 識別タイプ」メニューで確認"
 "し、有効化／無効化することができます。\n"
 "\n"
-"このモジュールは base_vat モジュールと互換性があり、複数の識別タイプを管理で"
+"このモジュールは account_vat モジュールと互換性があり、複数の識別タイプを管理で"
 "きる国でも、できない国でも、各国のVAT番号(登録番号)を検証できるようになってい"
 "ます。\n"
 
@@ -3966,13 +3966,13 @@ msgid ""
 "\n"
 "Automatically sort your documents.\n"
 "This module is only used to sort documents automatically and cannot be used "
-"for any ai-documents related features since it relies on base_automation as "
+"for any ai-documents related features since it relies on automation as "
 "well.\n"
 "It should be renamed later to ai_documents_automation.\n"
 msgstr ""
 "\n"
 "ドキュメントを自動で整理します。\n"
-"このモジュールはドキュメントの自動整理にのみ使用され、base_automation に依存"
+"このモジュールはドキュメントの自動整理にのみ使用され、automation に依存"
 "しているため、AI ドキュメント関連の機能には利用できません。\n"
 "今後、ai_documents_automation に名称変更される予定です。\n"
 
@@ -4793,7 +4793,7 @@ msgstr ""
 "す。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation_hr
+#: model:ir.module.module,description:base.module_automation_hr
 msgid ""
 "\n"
 "Bridge to add contract calendar on automation rules\n"
@@ -9881,7 +9881,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_geolocalize
+#: model:ir.module.module,description:base.module_geocoding
 msgid ""
 "\n"
 "Partners Geolocation\n"
@@ -12822,7 +12822,7 @@ msgstr ""
 "の数量を選択することで販売オーダを迅速に処理できます。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_automation
+#: model:ir.module.module,description:base.module_automation
 msgid ""
 "\n"
 "This module allows to implement automation rules for any object.\n"
@@ -13544,7 +13544,7 @@ msgstr ""
 "サービスはInApp PurchaseOdooプラットフォームによって提供されます。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts
+#: model:ir.module.module,description:base.module_partner
 msgid ""
 "\n"
 "This module gives you a quick view of your contacts directory, accessible "
@@ -13964,7 +13964,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_iban
+#: model:ir.module.module,description:base.module_account_iban
 msgid ""
 "\n"
 "This module installs the base for IBAN (International Bank Account Number) "
@@ -14900,7 +14900,7 @@ msgstr ""
 "=======================================================================\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_vat
+#: model:ir.module.module,description:base.module_account_vat
 msgid ""
 "\n"
 "VAT validation for Partner's VAT numbers.\n"
@@ -17587,7 +17587,7 @@ msgid "Adds free shipping mechanism in sales orders"
 msgstr "販売オーダに無料配送の仕組みを追加します。"
 
 #. module: base
-#: model:ir.module.module,description:base.module_contacts_enterprise
+#: model:ir.module.module,description:base.module_partner_enterprise
 msgid "Adds notably the map view of contact"
 msgstr "特に連絡先のマップビューを追加します"
 
@@ -20851,12 +20851,12 @@ msgid "Automation"
 msgstr "自動化"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation
+#: model:ir.module.module,shortdesc:base.module_automation
 msgid "Automation Rules"
 msgstr "自動化ルール"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_automation_hr
+#: model:ir.module.module,shortdesc:base.module_automation_hr
 msgid "Automation Rules based on Employee Contracts"
 msgstr "従業員契約に基づく自動化ルール"
 
@@ -21283,7 +21283,7 @@ msgid "Base - Module Install Request"
 msgstr "ベース - モジュールインストール要求"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_automation
+#: model:ir.module.module,summary:base.module_test_automation
 msgid "Base Automation Tests: Ensure Flow Robustness"
 msgstr "基本自動化テスト:フローの堅牢性を確認します"
 
@@ -22666,7 +22666,7 @@ msgid "Centralize employee information"
 msgstr "従業員情報を一元管理"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts
+#: model:ir.module.module,summary:base.module_partner
 msgid "Centralize your address book"
 msgstr "アドレス帳を一元管理"
 
@@ -23873,14 +23873,14 @@ msgstr "必要に応じて、管理者に連絡してアクセスを要求して
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__partner_ids
-#: model:ir.module.module,shortdesc:base.module_contacts
+#: model:ir.module.module,shortdesc:base.module_partner
 #: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_partner_tree
 msgid "Contacts"
 msgstr "連絡先"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_contacts_enterprise
+#: model:ir.module.module,shortdesc:base.module_partner_enterprise
 msgid "Contacts Enterprise"
 msgstr "連絡先企業版"
 
@@ -26813,7 +26813,7 @@ msgstr ""
 "ビューによる計画の確認*トレーサビリティレポート*原価構造レポート(mrp_account)"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_contacts_enterprise
+#: model:ir.module.module,summary:base.module_partner_enterprise
 msgid "Enterprise features on contacts"
 msgstr "企業版連絡先機能"
 
@@ -30265,7 +30265,7 @@ msgid "IAP / Mail"
 msgstr "IAP / Mail"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_iban
+#: model:ir.module.module,shortdesc:base.module_account_iban
 msgid "IBAN Bank Accounts"
 msgstr "IBAN銀行口座"
 
@@ -39541,7 +39541,7 @@ msgid "Partners"
 msgstr "取引先"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_geolocalize
+#: model:ir.module.module,shortdesc:base.module_geocoding
 msgid "Partners Geolocation"
 msgstr "取引先ジオロケーション"
 
@@ -45514,7 +45514,7 @@ msgid "Terms &amp; Conditions"
 msgstr "諸条件"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_automation
+#: model:ir.module.module,shortdesc:base.module_test_automation
 msgid "Test - Base Automation"
 msgstr "テスト-基本の自動化"
 
@@ -46976,7 +46976,7 @@ msgstr ""
 "ルを含んでいるため、別のモジュールに存在します。 "
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_automation
+#: model:ir.module.module,description:base.module_test_automation
 msgid ""
 "This module contains tests related to base automation. Those are\n"
 "present in a separate module as it contains models used only to perform\n"
@@ -49040,7 +49040,7 @@ msgid "VAT"
 msgstr "VAT（Value Added Tax）"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_vat
+#: model:ir.module.module,shortdesc:base.module_account_vat
 msgid "VAT Number Validation"
 msgstr "VAT番号検査"
 
@@ -51482,7 +51482,7 @@ msgstr "“%(attribute)s” 値は整数でなければなりません (%(value)
 #~ "All the defined identification types can be reviewed and activate/"
 #~ "deactivate in \"Contacts / Configuration / Identification Type\" menu.\n"
 #~ "\n"
-#~ "This module is compatible with base_vat module in order to be able to "
+#~ "This module is compatible with account_vat module in order to be able to "
 #~ "validate VAT numbers for each country that have or not have the "
 #~ "possibility to manage multiple identification types.\n"
 #~ msgstr ""
@@ -51545,7 +51545,7 @@ msgstr "“%(attribute)s” 値は整数でなければなりません (%(value)
 #~ "し、有効化/無効化することができます。\n"
 #~ "\n"
 #~ "このモジュールは、複数の識別タイプを管理する可能性がある国とない国のVAT番"
-#~ "号を検証できるように、base_vatモジュールと互換性があります。\n"
+#~ "号を検証できるように、account_vatモジュールと互換性があります。\n"
 
 #~ msgid ""
 #~ "\n"

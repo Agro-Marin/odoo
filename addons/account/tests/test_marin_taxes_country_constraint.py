@@ -68,9 +68,9 @@ class TestTaxesCountryConstraint(AccountTestInvoicingCommon):
             {
                 "name": "Foreign VAT registration",
                 "country_id": self.foreign_country.id,
-                # `base_vat` validates a fiscal position's foreign_vat through the
+                # `account_vat` validates a fiscal position's foreign_vat through the
                 # same checksum as a partner's, so this has to be a real German
-                # number -- it is the one base_vat's own error message offers.
+                # number -- it is the one account_vat's own error message offers.
                 "foreign_vat": "DE123456788",
                 "company_id": self.company_data["company"].id,
             }
