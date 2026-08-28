@@ -1,4 +1,3 @@
-
 from lxml import etree, html
 
 from odoo import _, api, models
