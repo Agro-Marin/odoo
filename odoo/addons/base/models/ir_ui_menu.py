@@ -284,42 +284,17 @@ class IrUiMenu(models.Model):
         for menu in visible_menus:
             children_dict[menu.parent_id.id].append(menu.id)
 
-        app_info = {}
-
-        def _set_app_id(menu_app_id, menu_id):
-            if menu_id in app_info:
-                return
-            app_info[menu_id] = menu_app_id
-            for child_id in children_dict[menu_id]:
-                _set_app_id(menu_app_id, child_id)
-
-        for root_menu_id in children_dict[False]:
-            _set_app_id(root_menu_id, root_menu_id)
-
+        app_info = self._get_menu_app_ids(children_dict)
         visible_menus = visible_menus.filtered(lambda menu: menu.id in app_info)
 
         xmlids = visible_menus._get_menuitems_xmlids()
-        icon_attachments = (
-            self.env["ir.attachment"]
-            .sudo()
-            .search_read(
-                domain=[
-                    ("res_model", "=", "ir.ui.menu"),
-                    ("res_id", "in", visible_menus._ids),
-                    ("res_field", "=", "web_icon_data"),
-                ],
-                fields=["res_id", "datas", "mimetype"],
-            )
-        )
-        icon_attachments_res_id = {
-            attachment["res_id"]: attachment for attachment in icon_attachments
-        }
+        icons_by_menu = self._get_menu_icons(visible_menus)
 
         menus_dict = {}
         action_ids_by_type = defaultdict(list)
         for menu in visible_menus:
             menu_id = menu.id
-            attachment = icon_attachments_res_id.get(menu_id)
+            attachment = icons_by_menu.get(menu_id)
 
             if action := menu.action:
                 action_model = action._name
@@ -347,12 +322,7 @@ class IrUiMenu(models.Model):
                 "xmlid": xmlids.get(menu_id, ""),
             }
 
-        action_path_by_action = {}
-        for model_name, action_ids in action_ids_by_type.items():
-            actions = self.env[model_name].sudo().browse(action_ids)
-            actions.fetch(["path"])
-            for action in actions:
-                action_path_by_action[model_name, action.id] = action.path
+        action_path_by_action = self._get_action_paths(action_ids_by_type)
 
         for menu_dict in menus_dict.values():
             if menu_dict["action_model"]:
@@ -369,6 +339,47 @@ class IrUiMenu(models.Model):
             "children": children_dict[False],
         }
         return menus_dict
+
+    @classmethod
+    def _get_menu_app_ids(cls, children_dict: dict) -> dict[int, int]:
+        app_info: dict[int, int] = {}
+        for root_menu_id in children_dict[False]:
+            cls._set_app_id(app_info, children_dict, root_menu_id, root_menu_id)
+        return app_info
+
+    @classmethod
+    def _set_app_id(
+        cls, app_info: dict, children_dict: dict, menu_app_id: int, menu_id: int
+    ) -> None:
+        if menu_id in app_info:
+            return
+        app_info[menu_id] = menu_app_id
+        for child_id in children_dict[menu_id]:
+            cls._set_app_id(app_info, children_dict, menu_app_id, child_id)
+
+    def _get_menu_icons(self, visible_menus: Any) -> dict[int, dict]:
+        icon_attachments = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search_read(
+                domain=[
+                    ("res_model", "=", "ir.ui.menu"),
+                    ("res_id", "in", visible_menus._ids),
+                    ("res_field", "=", "web_icon_data"),
+                ],
+                fields=["res_id", "datas", "mimetype"],
+            )
+        )
+        return {attachment["res_id"]: attachment for attachment in icon_attachments}
+
+    def _get_action_paths(self, action_ids_by_type: dict) -> dict[tuple, Any]:
+        action_path_by_action = {}
+        for model_name, action_ids in action_ids_by_type.items():
+            actions = self.env[model_name].sudo().browse(action_ids)
+            actions.fetch(["path"])
+            for action in actions:
+                action_path_by_action[model_name, action.id] = action.path
+        return action_path_by_action
 
     def _get_menuitems_xmlids(self) -> dict[int, str]:
         menuitems = (

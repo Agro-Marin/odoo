@@ -627,8 +627,6 @@ class IrCron(models.Model):
     def _run_job_within_budget(
         cls, job: CronJob, *, deadline: float | None = None
     ) -> CompletionStatus:
-        timed_out_counter = job.timed_out_counter
-
         with cls.pool.cursor() as job_cr:
             start_time = time.monotonic()
             end_time, hard_deadline = cls._get_budget(start_time, deadline)
@@ -643,65 +641,14 @@ class IrCron(models.Model):
             )
             cron = env[cls._name].browse(job.id)
 
-            loop_count = 0
-            watermark = _Watermark()
-            progress = None
-            done_total, remaining = 0, 0
             _logger.info("Job %r (%s) starting", job.cron_name, job.id)
             status = (
                 CompletionStatus.FAILED if cls._refuse_archived_user(job, env) else None
             )
 
-            while cls._can_keep_running(
-                status=status,
-                loop_count=loop_count,
-                now=time.monotonic(),
-                end_time=env.context["cron_end_time"],
-                hard_deadline=hard_deadline,
-            ):
-                if progress is None:
-                    cron, progress = cron._add_progress(
-                        timed_out_counter=timed_out_counter
-                    )
-                    job_cr.commit()
-                done_before = progress.done
-
-                success = False
-                try:
-                    cls._run_callback(cron, job, env)
-                    success = True
-                except Exception as exc:
-                    _logger.exception(
-                        "Job %r (%s) server action #%s failed",
-                        job.cron_name,
-                        job.id,
-                        job.ir_actions_server_id,
-                    )
-                    if job.run_exception is None:
-                        job.run_exception = exc
-                finally:
-                    done_total, remaining = progress.done, progress.remaining
-                    status = cls._resolve_attempt(
-                        job,
-                        success=success,
-                        done=done_total - done_before,
-                        remaining=remaining,
-                        deactivate=progress.deactivate,
-                        loop_count=loop_count,
-                        progress_watermark=watermark,
-                    )
-                    loop_count += 1
-                    if progress.timed_out_counter:
-                        progress.timed_out_counter = 0
-                    job_cr.commit()
-
-                    _logger.debug(
-                        "Job %r (%s) processed %s records, %s records remaining",
-                        job.cron_name,
-                        job.id,
-                        done_total,
-                        remaining,
-                    )
+            status, loop_count, done_total, remaining = cls._drain_cron_job(
+                cron, job, env, job_cr, hard_deadline, status
+            )
 
             status = status or CompletionStatus.PARTIALLY_DONE
             _logger.info(
@@ -716,6 +663,73 @@ class IrCron(models.Model):
             )
 
         return status
+
+    @classmethod
+    def _drain_cron_job(
+        cls,
+        cron: Self,
+        job: CronJob,
+        env: api.Environment,
+        job_cr: BaseCursor,
+        hard_deadline: float | None,
+        status: CompletionStatus | None,
+    ) -> tuple[CompletionStatus | None, int, int, int]:
+        timed_out_counter = job.timed_out_counter
+        loop_count = 0
+        watermark = _Watermark()
+        progress = None
+        done_total, remaining = 0, 0
+
+        while cls._can_keep_running(
+            status=status,
+            loop_count=loop_count,
+            now=time.monotonic(),
+            end_time=env.context["cron_end_time"],
+            hard_deadline=hard_deadline,
+        ):
+            if progress is None:
+                cron, progress = cron._add_progress(timed_out_counter=timed_out_counter)
+                job_cr.commit()
+            done_before = progress.done
+
+            success = False
+            try:
+                cls._run_callback(cron, job, env)
+                success = True
+            except Exception as exc:
+                _logger.exception(
+                    "Job %r (%s) server action #%s failed",
+                    job.cron_name,
+                    job.id,
+                    job.ir_actions_server_id,
+                )
+                if job.run_exception is None:
+                    job.run_exception = exc
+            finally:
+                done_total, remaining = progress.done, progress.remaining
+                status = cls._resolve_attempt(
+                    job,
+                    success=success,
+                    done=done_total - done_before,
+                    remaining=remaining,
+                    deactivate=progress.deactivate,
+                    loop_count=loop_count,
+                    progress_watermark=watermark,
+                )
+                loop_count += 1
+                if progress.timed_out_counter:
+                    progress.timed_out_counter = 0
+                job_cr.commit()
+
+                _logger.debug(
+                    "Job %r (%s) processed %s records, %s records remaining",
+                    job.cron_name,
+                    job.id,
+                    done_total,
+                    remaining,
+                )
+
+        return status, loop_count, done_total, remaining
 
     @api.model
     def _get_now(self) -> datetime:

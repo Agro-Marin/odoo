@@ -1,6 +1,6 @@
 {
     "name": "Base Order Management",
-    "version": "19.0.3.4.0",
+    "version": "19.0.3.5.0",
     "category": "Hidden",
     "summary": "Foundation mixins for sale and purchase order types",
     "description": """
@@ -33,7 +33,9 @@ their reports participate, via ``_get_order_edi_report_map``.
 Two non-order models carry order-shaped helpers that both concrete modules
 call, rather than each writing its own copy:
 
-* **res.partner** — order counts and the application-statistics tile
+* **res.partner** — order counts, the application-statistics tile, and the
+  order-activity figures (``recent_orders_count``, ``days_since_last_order``)
+  measured against the company's order cycle
 * **product.product** — the catalog "already on this order" flag (compute and
   search), and the order-line side of a unit-of-measure change
 

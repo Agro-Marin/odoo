@@ -399,6 +399,62 @@ class IrJob(models.Model):
         after: models.BaseModel | None = None,
         name: str | None = None,
     ) -> models.BaseModel:
+        job_config = self._check_job_method(records, method_name)
+        args_json, kwargs_json = self._dump_job_arguments(
+            records, method_name, args, kwargs
+        )
+
+        env = self.env
+        now = env.cr.now().replace(microsecond=0)
+        state, eta, dep_ids = self._resolve_enqueue_state(eta, after)
+
+        context = {
+            key: env.context[key] for key in ALLOWED_CONTEXT_KEYS if key in env.context
+        }
+        row = self._insert_job_row(
+            [
+                name,
+                channel or job_config["channel"],
+                state,
+                priority if priority is not None else job_config["priority"],
+                eta or None,
+                identity_key,
+                records._name,
+                method_name,
+                json.dumps(records.ids),
+                args_json,
+                kwargs_json,
+                env.uid,
+                env.company.id,
+                json.dumps(context),
+                max_retries if max_retries is not None else job_config["max_retries"],
+                job_config["max_defers"],
+                env.uid,
+                now,
+                env.uid,
+                now,
+            ]
+        )
+        if row is None:
+            row = self._reuse_deduplicated_job(
+                records, method_name, identity_key, dep_ids
+            )
+        elif dep_ids:
+            env.cr.execute(
+                SQL(
+                    "INSERT INTO ir_job_dependency (job_id, depends_on_id)"
+                    " SELECT %s, dep FROM unnest(%s::int[]) AS dep",
+                    row[0],
+                    dep_ids,
+                )
+            )
+        if state == JobState.PENDING:
+            self._notify_after_commit(env.cr)
+        return self.browse(row[0])
+
+    def _check_job_method(
+        self, records: models.BaseModel, method_name: str
+    ) -> dict[str, Any]:
         job_config = _job_config_of(type(records), method_name)
         if job_config is None:
             raise UserError(
@@ -418,9 +474,17 @@ class IrJob(models.Model):
                     method=method_name,
                 )
             )
+        return job_config
+
+    def _dump_job_arguments(
+        self,
+        records: models.BaseModel,
+        method_name: str,
+        args: tuple,
+        kwargs: dict | None,
+    ) -> tuple[str, str]:
         try:
-            args_json = json.dumps(list(args))
-            kwargs_json = json.dumps(dict(kwargs or {}))
+            return json.dumps(list(args)), json.dumps(dict(kwargs or {}))
         except (TypeError, ValueError) as exc:
             raise UserError(
                 self.env._(
@@ -432,8 +496,9 @@ class IrJob(models.Model):
                 )
             ) from exc
 
-        env = self.env
-        now = env.cr.now().replace(microsecond=0)
+    def _resolve_enqueue_state(
+        self, eta: Any, after: models.BaseModel | None
+    ) -> tuple[str, Any, list[int]]:
         state = JobState.PENDING
         if eta is not None:
             clock_now = self._clock_now()
@@ -441,33 +506,35 @@ class IrJob(models.Model):
                 eta = clock_now.replace(microsecond=0) + timedelta(seconds=eta)
             if eta and eta > clock_now:
                 state = JobState.SCHEDULED
+
         dep_ids: list[int] = []
-        if after:
-            if after._name != self._name:
-                raise UserError(self.env._("Job dependencies must be ir.job records."))
-            env.cr.execute(
-                SQL(
-                    "SELECT id, state FROM ir_job WHERE id IN %s",
-                    tuple(after.ids),
+        if not after:
+            return state, eta, dep_ids
+
+        if after._name != self._name:
+            raise UserError(self.env._("Job dependencies must be ir.job records."))
+        self.env.cr.execute(
+            SQL(
+                "SELECT id, state FROM ir_job WHERE id IN %s",
+                tuple(after.ids),
+            )
+        )
+        dep_rows = self.env.cr.fetchall()
+        dep_ids = [row[0] for row in dep_rows]
+        dep_states = {row[1] for row in dep_rows}
+        if dep_states & set(DEAD_DEPENDENCY_STATES):
+            raise UserError(
+                self.env._(
+                    "Cannot enqueue after a failed or cancelled job; "
+                    "requeue the dependency first."
                 )
             )
-            dep_rows = env.cr.fetchall()
-            dep_ids = [row[0] for row in dep_rows]
-            dep_states = {row[1] for row in dep_rows}
-            if dep_states & set(DEAD_DEPENDENCY_STATES):
-                raise UserError(
-                    self.env._(
-                        "Cannot enqueue after a failed or cancelled job; "
-                        "requeue the dependency first."
-                    )
-                )
-            if dep_states - {JobState.DONE}:
-                state = JobState.WAIT_DEPS
+        if dep_states - {JobState.DONE}:
+            state = JobState.WAIT_DEPS
+        return state, eta, dep_ids
 
-        context = {
-            key: env.context[key] for key in ALLOWED_CONTEXT_KEYS if key in env.context
-        }
-        env.cr.execute(
+    def _insert_job_row(self, values: list) -> tuple | None:
+        self.env.cr.execute(
             SQL(
                 f"""
                 INSERT INTO ir_job (
@@ -489,62 +556,39 @@ class IrJob(models.Model):
                     DO NOTHING
                 RETURNING id
                 """,
-                name,
-                channel or job_config["channel"],
-                state,
-                priority if priority is not None else job_config["priority"],
-                eta or None,
-                identity_key,
-                records._name,
-                method_name,
-                json.dumps(records.ids),
-                args_json,
-                kwargs_json,
-                env.uid,
-                env.company.id,
-                json.dumps(context),
-                max_retries if max_retries is not None else job_config["max_retries"],
-                job_config["max_defers"],
-                env.uid,
-                now,
-                env.uid,
-                now,
+                *values,
             )
         )
-        row = env.cr.fetchone()
-        if row is None:
-            env.cr.execute(
-                SQL(
-                    "SELECT id FROM ir_job WHERE identity_key = %s"
-                    f" AND state IN {QUEUED_STATES_SQL}"
-                    " ORDER BY id DESC LIMIT 1",
-                    identity_key,
-                )
+        return self.env.cr.fetchone()
+
+    def _reuse_deduplicated_job(
+        self,
+        records: models.BaseModel,
+        method_name: str,
+        identity_key: str | None,
+        dep_ids: list[int],
+    ) -> tuple | None:
+        self.env.cr.execute(
+            SQL(
+                "SELECT id FROM ir_job WHERE identity_key = %s"
+                f" AND state IN {QUEUED_STATES_SQL}"
+                " ORDER BY id DESC LIMIT 1",
+                identity_key,
             )
-            row = env.cr.fetchone()
-            if dep_ids:
-                _logger.warning(
-                    "ir.job %s.%s deduplicated on identity key %r: the job it "
-                    "was chained after (%s) is NOT a dependency of the "
-                    "existing job %s, which may therefore run first",
-                    records._name,
-                    method_name,
-                    identity_key,
-                    dep_ids,
-                    row[0] if row else None,
-                )
-        elif dep_ids:
-            env.cr.execute(
-                SQL(
-                    "INSERT INTO ir_job_dependency (job_id, depends_on_id)"
-                    " SELECT %s, dep FROM unnest(%s::int[]) AS dep",
-                    row[0],
-                    dep_ids,
-                )
+        )
+        row = self.env.cr.fetchone()
+        if dep_ids:
+            _logger.warning(
+                "ir.job %s.%s deduplicated on identity key %r: the job it "
+                "was chained after (%s) is NOT a dependency of the "
+                "existing job %s, which may therefore run first",
+                records._name,
+                method_name,
+                identity_key,
+                dep_ids,
+                row[0] if row else None,
             )
-        if state == JobState.PENDING:
-            self._notify_after_commit(env.cr)
-        return self.browse(row[0])
+        return row
 
     @api.model
     def _defer(self, seconds: int, reason: str = "") -> None:

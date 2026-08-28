@@ -1,6 +1,6 @@
 {
     "name": "Base Order Test",
-    "version": "19.0.1.1.0",
+    "version": "19.0.1.2.0",
     "author": "AgroMarin",
     "category": "Hidden/Tests",
     "summary": "Concrete test models exercising base_order mixins",

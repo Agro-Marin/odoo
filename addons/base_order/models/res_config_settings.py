@@ -1,9 +1,18 @@
-from odoo import models
+from odoo import fields, models
 from odoo.tools.translate import _
 
 
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
+
+    order_cycle_interval_number = fields.Integer(
+        related="company_id.order_cycle_interval_number",
+        readonly=False,
+    )
+    order_cycle_interval_type = fields.Selection(
+        related="company_id.order_cycle_interval_type",
+        readonly=False,
+    )
 
     def _clamp_validity_days(self, field_name, label):
         self.ensure_one()

@@ -122,6 +122,14 @@ class NameManager:
         return access_groups
 
     def check(self, view: Any) -> None:
+        self._check_used_names(view)
+        self._check_available_fields(view)
+        self._check_must_exist_actions(view)
+        self._check_must_exist_groups(view)
+        self._check_used_fields(view)
+        self._check_group_consistency(view)
+
+    def _check_used_names(self, view: Any) -> None:
         for name, use in self.used_names.items():
             if (
                 name not in self.available_actions
@@ -145,11 +153,13 @@ class NameManager:
                 )
                 view._raise_view_error(msg)
 
+    def _check_available_fields(self, view: Any) -> None:
         for name in self.available_fields:
             if name not in self.model._fields and name not in self.field_info:
                 message = _("Field `%(name)s` does not exist", name=name)
                 view._raise_view_error(message)
 
+    def _check_must_exist_actions(self, view: Any) -> None:
         for name, node in self.must_exist_actions.items():
             try:
                 action_id = int(name)
@@ -179,6 +189,7 @@ class NameManager:
                 )
                 view._raise_view_error(msg, node)
 
+    def _check_must_exist_groups(self, view: Any) -> None:
         for name, node in self.must_exist_groups.items():
             if self.group_definitions.get_id(name) is None:
                 msg = _(
@@ -187,6 +198,7 @@ class NameManager:
                 )
                 view._log_view_warning(msg, node)
 
+    def _check_used_fields(self, view: Any) -> None:
         for name, groups_uses in self.used_fields.items():
             use, node = next(iter(groups_uses.values()))
             if "." in name:
@@ -213,6 +225,7 @@ class NameManager:
                 )
                 view._raise_view_error(msg, node)
 
+    def _check_group_consistency(self, view: Any) -> None:
         for name, (
             missing_groups,
             reasons,
@@ -243,6 +256,35 @@ class NameManager:
             for _item_groups, _use, node in reasons
         ]
 
+        debug = self._prepare_inconsistency_debug(name, does_not_exist, reasons)
+
+        message = Markup("<b>{header}</b><br/>{body}<br/>{footer}<br/>{debug}").format(
+            header=_("Access Rights Inconsistency"),
+            body=_(
+                "This view may not work for all users: some users may have a "
+                "combination of groups where the elements %(elements)s are displayed, "
+                "but they depend on the field %(field)s that is not accessible. "
+                "You might fix this by modifying user groups to make sure that all users "
+                "who have access to those elements also have access to the field, "
+                "typically via group implications. Alternatively, you could "
+                "adjust the \u201c%(groups)s\u201d or \u201c%(invisible)s\u201d attributes for these fields, "
+                "to make sure they are always available together.",
+                elements=Markup(", ").join(
+                    Markup("<b><tt>%s</tt></b>") % element for element in elements
+                ),
+                field=Markup("<b><tt>%s</tt></b>") % name,
+                groups=Markup("<i>groups</i>"),
+                invisible=Markup("<i>invisible</i>"),
+            ),
+            footer=_("Debugging information:"),
+            debug=Markup("<br/>").join(debug),
+        )
+
+        return message, "does_not_exist" if does_not_exist else "inconsistency"
+
+    def _prepare_inconsistency_debug(
+        self, name: str, does_not_exist: bool, reasons: list[tuple]
+    ) -> list[str]:
         debug = []
         if does_not_exist:
             debug.append(
@@ -285,30 +327,7 @@ class NameManager:
                     ),
                 )
             )
-
-        message = Markup("<b>{header}</b><br/>{body}<br/>{footer}<br/>{debug}").format(
-            header=_("Access Rights Inconsistency"),
-            body=_(
-                "This view may not work for all users: some users may have a "
-                "combination of groups where the elements %(elements)s are displayed, "
-                "but they depend on the field %(field)s that is not accessible. "
-                "You might fix this by modifying user groups to make sure that all users "
-                "who have access to those elements also have access to the field, "
-                "typically via group implications. Alternatively, you could "
-                "adjust the \u201c%(groups)s\u201d or \u201c%(invisible)s\u201d attributes for these fields, "
-                "to make sure they are always available together.",
-                elements=Markup(", ").join(
-                    Markup("<b><tt>%s</tt></b>") % element for element in elements
-                ),
-                field=Markup("<b><tt>%s</tt></b>") % name,
-                groups=Markup("<i>groups</i>"),
-                invisible=Markup("<i>invisible</i>"),
-            ),
-            footer=_("Debugging information:"),
-            debug=Markup("<br/>").join(debug),
-        )
-
-        return message, "does_not_exist" if does_not_exist else "inconsistency"
+        return debug
 
     def update_available_fields(self) -> None:
         for name, info in self.available_fields.items():

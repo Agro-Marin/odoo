@@ -72,12 +72,16 @@ from . import mixin_image
 from . import mixin_avatar
 from . import mixin_catalog
 from . import mixin_merge
+from . import mixin_favorite
+from . import mixin_user_favorite
+from . import mixin_band
 from . import mixin_tag
 from . import mixin_tag_nested
 from . import tag_tag
 
 from . import mixin_format_vat_label
 from . import mixin_format_address
+from . import res_partner_age_range
 from . import res_partner_category
 from . import res_partner_industry
 from . import res_country

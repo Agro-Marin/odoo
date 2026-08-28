@@ -755,27 +755,9 @@ class WeasyPrintEngine:
                 ]
 
             if not wants_pdfa and len(processed) > self._native_merge_max:
-                _logger.info(
-                    "WeasyPrint: %d bodies exceeds the native-merge threshold "
-                    "(%d); serializing incrementally and merging with pypdf to "
-                    "bound peak memory.",
-                    len(processed),
-                    self._native_merge_max,
+                return self._render_and_merge_incrementally(
+                    processed, fetcher, db_state, image_cache
                 )
-                streams = [
-                    io.BytesIO(
-                        self._render_and_serialize_body(
-                            html_str,
-                            fetcher,
-                            body_css,
-                            None,
-                            db_state,
-                            image_cache,
-                        )
-                    )
-                    for html_str, body_css in processed
-                ]
-                return self._merge_pdfs(streams).getvalue()
 
             documents = [
                 self._render_body_document(
@@ -806,6 +788,35 @@ class WeasyPrintEngine:
             except Exception as e:
                 _logger.exception("WeasyPrint PDF serialization failed")
                 raise self._prepare_pdf_render_error(str(e)) from None
+
+    def _render_and_merge_incrementally(
+        self,
+        processed: list[tuple[str, Any]],
+        fetcher: Any,
+        db_state: Any,
+        image_cache: dict[str, Any],
+    ) -> bytes:
+        _logger.info(
+            "WeasyPrint: %d bodies exceeds the native-merge threshold "
+            "(%d); serializing incrementally and merging with pypdf to "
+            "bound peak memory.",
+            len(processed),
+            self._native_merge_max,
+        )
+        streams = [
+            io.BytesIO(
+                self._render_and_serialize_body(
+                    html_str,
+                    fetcher,
+                    body_css,
+                    None,
+                    db_state,
+                    image_cache,
+                )
+            )
+            for html_str, body_css in processed
+        ]
+        return self._merge_pdfs(streams).getvalue()
 
     def _render_and_serialize_body(
         self,
@@ -1308,37 +1319,47 @@ class IrActionsReport(models.Model):
 
         articles = _xpath_article(html_root)
 
-        bodies = []
-        res_ids = []
-
         if not articles:
-            main_nodes = _xpath_main(html_root)
-            if not main_nodes:
-                raise UserError(
-                    _("Report HTML has no <main> element. Check the report template.")
-                )
-            body_parent = main_nodes[0]
-            body_html = "".join(
-                lxml.html.tostring(c, encoding="unicode") for c in body_parent
-            )
-            body = self.env["ir.qweb"]._render(
-                layout.id,
-                {
-                    "subst": False,
-                    "body": Markup(body_html),
-                    "base_url": base_url,
-                    "report_xml_id": self.xml_id,
-                    "title": self.name or "",
-                    "debug": self.env.context.get("debug"),
-                },
-                raise_if_not_found=False,
-            )
-            bodies.append(body)
-            res_ids.append(None)
-            return bodies, res_ids, specific_paperformat_args
+            body = self._render_whole_document_body(layout, html_root, base_url)
+            return [body], [None], specific_paperformat_args
 
+        bodies, res_ids = self._render_article_bodies(
+            layout, articles, base_url, report_model
+        )
+        return bodies, res_ids, specific_paperformat_args
+
+    def _render_whole_document_body(
+        self, layout: Any, html_root: Any, base_url: str
+    ) -> str:
+        main_nodes = _xpath_main(html_root)
+        if not main_nodes:
+            raise UserError(
+                _("Report HTML has no <main> element. Check the report template.")
+            )
+        body_parent = main_nodes[0]
+        body_html = "".join(
+            lxml.html.tostring(c, encoding="unicode") for c in body_parent
+        )
+        return self.env["ir.qweb"]._render(
+            layout.id,
+            {
+                "subst": False,
+                "body": Markup(body_html),
+                "base_url": base_url,
+                "report_xml_id": self.xml_id,
+                "title": self.name or "",
+                "debug": self.env.context.get("debug"),
+            },
+            raise_if_not_found=False,
+        )
+
+    def _render_article_bodies(
+        self, layout: Any, articles: list, base_url: str, report_model: str | bool
+    ) -> tuple[list[str], list[int | None]]:
         titles_by_res_id = self._get_document_titles(articles, report_model)
 
+        bodies = []
+        res_ids = []
         for article_node in articles:
             header_node, footer_node = self._get_article_header_footer(article_node)
 
@@ -1375,7 +1396,7 @@ class IrActionsReport(models.Model):
             bodies.append(body)
             res_ids.append(article_res_id)
 
-        return bodies, res_ids, specific_paperformat_args
+        return bodies, res_ids
 
     @staticmethod
     def _has_html_class(node: Any, name: str) -> bool:
@@ -1895,80 +1916,127 @@ class IrActionsReport(models.Model):
                 report_model=report_sudo.model,
             )
 
-            if (
-                not has_duplicated_ids
-                and report_sudo.attachment
-                and set(res_ids_wo_stream) != set(html_ids)
-            ):
-                raise UserError(
-                    _(
-                        "Report template \u201c%s\u201d has an issue, please contact your administrator. \n\n"
-                        "Cannot separate file to save as attachment because the report\u2019s template does not contain the"
-                        " attributes 'data-oe-model' and 'data-oe-id' as part of the div with 'article' classname.",
-                        report_sudo.name,
-                    )
-                )
-
-            landscape = self.env.context.get("landscape")
-
-            html_ids_valid = [x for x in html_ids if x is not None]
-            can_split = (
-                not has_duplicated_ids
-                and res_ids
-                and html_ids_valid
-                and len(html_ids_valid) == len(set(html_ids_valid))
-                and set(html_ids_valid) == set(res_ids_wo_stream)
+            self._check_attachment_split_ids(
+                report_sudo, has_duplicated_ids, res_ids_wo_stream, html_ids
             )
 
-            if can_split:
-                render_bodies = []
-                render_res_ids = []
-                for body, res_id in zip(bodies, html_ids, strict=True):
-                    if res_id is not None and res_id in res_ids_wo_stream:
-                        render_bodies.append(body)
-                        render_res_ids.append(res_id)
-                if render_bodies:
-                    pdf_contents = self._render_html_to_pdf(
-                        render_bodies,
-                        report_ref=report_sudo,
-                        landscape=landscape,
-                        specific_paperformat_args=specific_paperformat_args,
-                        _split=True,
-                        **render_pdf_kwargs,
-                    )
-                    for pdf_content, res_id in zip(
-                        pdf_contents, render_res_ids, strict=True
-                    ):
-                        collected_streams[res_id]["stream"] = io.BytesIO(pdf_content)
-            else:
-                pdf_content = self._render_html_to_pdf(
+            render_kwargs = {
+                "report_ref": report_sudo,
+                "landscape": self.env.context.get("landscape"),
+                "specific_paperformat_args": specific_paperformat_args,
+                **render_pdf_kwargs,
+            }
+
+            if self._can_split_pdf(
+                has_duplicated_ids, res_ids, html_ids, res_ids_wo_stream
+            ):
+                self._collect_split_pdf_streams(
                     bodies,
-                    report_ref=report_sudo,
-                    landscape=landscape,
-                    specific_paperformat_args=specific_paperformat_args,
-                    **render_pdf_kwargs,
+                    html_ids,
+                    res_ids_wo_stream,
+                    collected_streams,
+                    render_kwargs,
                 )
-                pdf_content_stream = io.BytesIO(pdf_content)
-
-                if not res_ids or has_duplicated_ids:
-                    return {
-                        False: {
-                            "stream": pdf_content_stream,
-                            "attachment": None,
-                        }
-                    }
-
-                if len(res_ids_wo_stream) == 1:
-                    collected_streams[res_ids_wo_stream[0]]["stream"] = (
-                        pdf_content_stream
-                    )
-                else:
-                    collected_streams[False] = {
-                        "stream": pdf_content_stream,
-                        "attachment": None,
-                    }
+            else:
+                collected_streams = self._collect_single_pdf_stream(
+                    bodies,
+                    res_ids,
+                    res_ids_wo_stream,
+                    has_duplicated_ids,
+                    collected_streams,
+                    render_kwargs,
+                )
 
         return collected_streams
+
+    def _collect_single_pdf_stream(
+        self,
+        bodies: list,
+        res_ids: list[int] | None,
+        res_ids_wo_stream: list[int],
+        has_duplicated_ids: bool,
+        collected_streams: dict[int | bool, dict[str, Any]],
+        render_kwargs: dict[str, Any],
+    ) -> dict[int | bool, dict[str, Any]]:
+        pdf_content_stream = io.BytesIO(
+            self._render_html_to_pdf(bodies, **render_kwargs)
+        )
+
+        if not res_ids or has_duplicated_ids:
+            return {
+                False: {
+                    "stream": pdf_content_stream,
+                    "attachment": None,
+                }
+            }
+
+        if len(res_ids_wo_stream) == 1:
+            collected_streams[res_ids_wo_stream[0]]["stream"] = pdf_content_stream
+        else:
+            collected_streams[False] = {
+                "stream": pdf_content_stream,
+                "attachment": None,
+            }
+        return collected_streams
+
+    @staticmethod
+    def _check_attachment_split_ids(
+        report_sudo: Self,
+        has_duplicated_ids: bool,
+        res_ids_wo_stream: list[int],
+        html_ids: list[int | None],
+    ) -> None:
+        if (
+            not has_duplicated_ids
+            and report_sudo.attachment
+            and set(res_ids_wo_stream) != set(html_ids)
+        ):
+            raise UserError(
+                _(
+                    "Report template \u201c%s\u201d has an issue, please contact your administrator. \n\n"
+                    "Cannot separate file to save as attachment because the report\u2019s template does not contain the"
+                    " attributes 'data-oe-model' and 'data-oe-id' as part of the div with 'article' classname.",
+                    report_sudo.name,
+                )
+            )
+
+    @staticmethod
+    def _can_split_pdf(
+        has_duplicated_ids: bool,
+        res_ids: list[int] | None,
+        html_ids: list[int | None],
+        res_ids_wo_stream: list[int],
+    ) -> bool:
+        html_ids_valid = [x for x in html_ids if x is not None]
+        return bool(
+            not has_duplicated_ids
+            and res_ids
+            and html_ids_valid
+            and len(html_ids_valid) == len(set(html_ids_valid))
+            and set(html_ids_valid) == set(res_ids_wo_stream)
+        )
+
+    def _collect_split_pdf_streams(
+        self,
+        bodies: list,
+        html_ids: list[int | None],
+        res_ids_wo_stream: list[int],
+        collected_streams: dict[int | bool, dict[str, Any]],
+        render_kwargs: dict[str, Any],
+    ) -> None:
+        render_bodies = []
+        render_res_ids = []
+        for body, res_id in zip(bodies, html_ids, strict=True):
+            if res_id is not None and res_id in res_ids_wo_stream:
+                render_bodies.append(body)
+                render_res_ids.append(res_id)
+        if not render_bodies:
+            return
+        pdf_contents = self._render_html_to_pdf(
+            render_bodies, _split=True, **render_kwargs
+        )
+        for pdf_content, res_id in zip(pdf_contents, render_res_ids, strict=True):
+            collected_streams[res_id]["stream"] = io.BytesIO(pdf_content)
 
     def _prepare_pdf_report_attachment_vals_list(
         self, report: Self, streams: dict[int | bool, dict[str, Any]]
@@ -2212,9 +2280,9 @@ class IrActionsReport(models.Model):
         if not render_func:
             raise UserError(
                 _(
-                    "Unknown report type %s for report %s.",
-                    report.report_type,
-                    report.report_name,
+                    "Unknown report type %(type)s for report %(report)s.",
+                    type=report.report_type,
+                    report=report.report_name,
                 )
             )
         return render_func(report, res_ids, data=data)

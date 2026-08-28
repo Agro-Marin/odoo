@@ -222,7 +222,6 @@
                         name="parent_id"
                         widget="res_partner_many2one"
                         placeholder="Company Name..."
-                        domain="[('is_company', '=', True)]"
                         context="{'default_is_company': True, 'show_vat': True, 'default_user_id': user_id}"
                         invisible="is_company" />
                 </div>
@@ -399,10 +398,8 @@
                         <group name="left_col">
                             <field
                                 name="parent_id"
-                                string="Company"
                                 placeholder="Company Name..."
                                 widget="res_partner_many2one"
-                                domain="[('is_company', '=', True)]"
                                 context="{'default_is_company': True, 'default_user_id': user_id, 'show_address': False}"
                                 invisible="((is_company and not parent_id) or company_name) and company_name != ''" />
                             <div
@@ -502,7 +499,7 @@
                             <field
                                 name="child_ids"
                                 mode="kanban"
-                                context="{'default_parent_id': id, 'default_street': street, 'default_street2': street2, 'default_city': city, 'default_state_id': state_id, 'default_zip': zip, 'default_country_id': country_id, 'default_lang': lang, 'default_user_id': user_id, 'default_type': is_company and 'contact' or 'other'}">
+                                context="{'default_parent_id': id, 'default_street': street, 'default_street2': street2, 'default_city': city, 'default_state_id': state_id, 'default_zip': zip, 'default_country_id': country_id, 'default_lang': lang, 'default_user_id': user_id, 'default_type': 'contact'}">
                                 <kanban color="color">
                                     <field name="color" />
                                     <field name="type" />

@@ -7,6 +7,8 @@ from collections import defaultdict
 from typing import Any, Literal, Self
 from urllib.parse import urlsplit, urlunsplit
 
+from dateutil.relativedelta import relativedelta
+
 from odoo import Command, _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.db import FunctionStatus
@@ -125,35 +127,25 @@ class ResPartner(models.Model):
 
     _complete_name_displayed_types = ("invoice", "delivery", "other")
 
-    def _default_category_id(self) -> ResPartnerCategory:
-        return self.env["res.partner.category"].browse(
-            self.env.context.get("category_id")
-        )
-
-    @api.model
-    def default_get(self, fields: list[str]) -> dict[str, Any]:
-        values = super().default_get(fields)
-        if "company_id" in fields and "parent_id" in fields and values.get("parent_id"):
-            parent = self.browse(values.get("parent_id"))
-            values["company_id"] = parent.company_id.id
-        if "type" in fields and values.get("type"):
-            if values["type"] not in self._fields["type"].get_values(self.env):
-                values["type"] = self._fields["type"].default(self)
-        return values
-
     company_id = fields.Many2one(
         "res.company",
         "Company",
         index=True,
     )
-    name = fields.Char(index=True, default_export_compatible=True)
+    name = fields.Char(
+        index=True,
+        default_export_compatible=True,
+    )
     complete_name = fields.Char(
         compute="_compute_complete_name",
         store=True,
         index=True,
     )
     active = fields.Boolean(default=True)
-    color = fields.Integer(string="Color Index", default=0)
+    color = fields.Integer(
+        string="Color Index",
+        default=0,
+    )
     parent_id = fields.Many2one(
         "res.partner",
         string="Related Company",
@@ -184,14 +176,17 @@ class ResPartner(models.Model):
         column1="partner_id",
         column2="category_id",
         string="Tags",
-        default=_default_category_id,
+        default=lambda self: self._default_category_id(),
     )
     barcode = fields.Char(
         copy=False,
         company_dependent=True,
         help="Use a barcode to identify this contact.",
     )
-    ref = fields.Char(string="Reference", index=True)
+    ref = fields.Char(
+        string="Reference",
+        index=True,
+    )
     lang = fields.Selection(
         _lang_get,
         string="Language",
@@ -200,7 +195,9 @@ class ResPartner(models.Model):
         store=True,
         help="All the emails and documents sent to this contact will be translated in this language.",
     )
-    active_lang_count = fields.Integer(compute="_compute_active_lang_count")
+    active_lang_count = fields.Integer(
+        compute="_compute_active_lang_count",
+    )
     tz = fields.Selection(
         _tzs,
         string="Timezone",
@@ -304,9 +301,28 @@ class ResPartner(models.Model):
         help='Format email address "Name <email@domain>"',
     )
     phone = fields.Char()
+    mobile = fields.Char()
     industry_id = fields.Many2one(
         "res.partner.industry",
         "Industry",
+    )
+    gender = fields.Selection(
+        selection=[
+            ("male", "Male"),
+            ("female", "Female"),
+            ("other", "Other"),
+        ],
+    )
+    birthdate = fields.Date()
+    age = fields.Integer(
+        compute="_compute_age",
+        readonly=True,
+    )
+    age_range_id = fields.Many2one(
+        "res.partner.age.range",
+        string="Age Range",
+        compute="_compute_age_range_id",
+        store=True,
     )
     user_ids: ResUsers = fields.One2many(
         "res.users",
@@ -405,6 +421,22 @@ class ResPartner(models.Model):
     def _compute_avatar_128(self) -> None:
         super()._compute_avatar_128()
 
+    def _default_category_id(self) -> ResPartnerCategory:
+        return self.env["res.partner.category"].browse(
+            self.env.context.get("category_id")
+        )
+
+    @api.model
+    def default_get(self, fields: list[str]) -> dict[str, Any]:
+        values = super().default_get(fields)
+        if "company_id" in fields and "parent_id" in fields and values.get("parent_id"):
+            parent = self.browse(values.get("parent_id"))
+            values["company_id"] = parent.company_id.id
+        if "type" in fields and values.get("type"):
+            if values["type"] not in self._fields["type"].get_values(self.env):
+                values["type"] = self._fields["type"].default(self)
+        return values
+
     def _update_avatar(self, avatar_field: str, image_field: str) -> None:
         partners_with_internal_user = self.filtered(
             lambda partner: (
@@ -488,6 +520,33 @@ class ResPartner(models.Model):
             if (offset := tz_cache.get(tz)) is None:
                 offset = tz_cache[tz] = now(get_timezone(tz)).strftime("%z")
             partner.tz_offset = offset
+
+    @api.depends("birthdate")
+    def _compute_age(self) -> None:
+        for partner in self:
+            partner.age = False
+            if partner.birthdate:
+                partner.age = relativedelta(
+                    fields.Date.today(), partner.birthdate
+                ).years
+
+    @api.depends("birthdate")
+    def _compute_age_range_id(self) -> None:
+        # Keyed on birth year, not on age: a cohort is permanent, and depending
+        # on age made the value drift silently -- age is derived from today, so
+        # nothing invalidated it as a partner got older.
+        age_ranges = self.env["res.partner.age.range"].search([])
+        for partner in self:
+            if partner.birthdate:
+                age_range = age_ranges.filtered(
+                    lambda age_range, partner=partner: age_range._covers(
+                        partner.birthdate.year
+                    )
+                )[:1]
+            else:
+                age_range = self.env["res.partner.age.range"].browse()
+            if partner.age_range_id != age_range:
+                partner.age_range_id = age_range
 
     @api.depends("parent_id")
     def _compute_user_id(self) -> None:
@@ -1336,12 +1395,12 @@ class ResPartner(models.Model):
     @api.model
     def get_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
         if not email:
-            raise ValueError(_("An email is required for get_or_create to work"))
+            raise ValueError("An email is required for get_or_create to work")
 
         parsed_name, parsed_email_normalized = tools.parse_contact_from_email(email)
         if not parsed_email_normalized and assert_valid_email:
             raise ValueError(
-                _("A valid email is required for get_or_create to work properly.")
+                "A valid email is required for get_or_create to work properly."
             )
 
         if parsed_email_normalized:

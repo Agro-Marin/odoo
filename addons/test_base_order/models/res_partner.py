@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class ResPartner(models.Model):
@@ -27,3 +27,10 @@ class ResPartner(models.Model):
     def _get_base_order_test_domain_count(self):
         """Extension point mirroring sale's/purchase's own domain hooks."""
         return []
+
+    @api.model
+    def _get_order_activity_sources(self):
+        """Registers the test order type the way sale registers sale.order."""
+        return super()._get_order_activity_sources() + [
+            ("base.order.test", [("state", "=", "done")]),
+        ]

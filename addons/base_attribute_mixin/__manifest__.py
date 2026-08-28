@@ -2,7 +2,7 @@
     "name": "Attribute Mixins",
     "version": "19.0.1.1.0",
     "category": "Hidden",
-    "summary": "Reusable EAV and classification mixins: attribute, attribute value, attribute line and numeric band.",
+    "summary": "Reusable EAV mixins: attribute, attribute value and attribute line.",
     "description": """
 Abstract building blocks for an Entity-Attribute-Value family: an attribute
 (the dimension being profiled), its values, and a line binding one attribute

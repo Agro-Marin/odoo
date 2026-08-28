@@ -477,8 +477,40 @@ class IrModelInherit(models.Model):
     )
 
     def _reflect_inherits(self, model_names: list[str]) -> None:
-        IrModel = self.env["ir.model"]
-        get_model_id = IrModel._get_id
+        module_mapping = self._prepare_inherit_mapping(model_names)
+        if not module_mapping:
+            return
+
+        inh_ids = self._upsert_inherit_rows(model_names, module_mapping)
+
+        involved = self.env["ir.model"].browse(
+            id_ for item in module_mapping for id_ in item[:2]
+        )
+        involved.fetch(["model"])
+        xml_name = {rec.id: rec.model for rec in involved}
+        data_list = []
+        for (
+            model_id,
+            parent_id,
+            parent_field_id,
+        ), modules in module_mapping.items():
+            record_id = inh_ids[(model_id, parent_id, parent_field_id)]
+            data_list += [
+                {
+                    "xml_id": inherit_xmlid(
+                        module, xml_name[model_id], xml_name[parent_id]
+                    ),
+                    "record": self.browse(record_id),
+                }
+                for module in modules
+            ]
+
+        self.env["ir.model.data"]._update_xmlids(data_list)
+
+    def _prepare_inherit_mapping(
+        self, model_names: list[str]
+    ) -> dict[tuple[int, int, int | None], OrderedSet]:
+        get_model_id = self.env["ir.model"]._get_id
 
         module_mapping = defaultdict(OrderedSet)
         for model_name in model_names:
@@ -489,43 +521,55 @@ class IrModelInherit(models.Model):
             for cls in reversed(type(model).mro()):
                 if not models.is_model_definition(cls):
                     continue
-
-                inherit_parents = [
-                    parent_name
-                    for parent_name in cls._inherit
-                    if parent_name not in ("base", model_name)
-                ]
-                parent_ids = {}
-                for parent_name in (*inherit_parents, *cls._inherits):
-                    parent_id = get_model_id(parent_name)
-                    if parent_id is None:
-                        raise ValueError(
-                            f"Cannot reflect inheritance of {model_name!r}: parent "
-                            f"model {parent_name!r} is not present in ir_model."
-                        )
-                    parent_ids[parent_name] = parent_id
-
-                if overlap := set(inherit_parents) & set(cls._inherits):
-                    raise ValueError(
-                        f"Model {model_name!r} both inherits from and delegates "
-                        f"to {sorted(overlap)}: ir_model_inherit is unique on "
-                        "(model_id, parent_id) and cannot record both links."
-                    )
-
-                items = [
-                    (model_id, parent_ids[parent_name], None)
-                    for parent_name in inherit_parents
-                ] + [
-                    (model_id, parent_ids[parent_name], get_field_id(field))
-                    for parent_name, field in cls._inherits.items()
-                ]
-
+                items = self._inherit_items(
+                    cls, model_name, model_id, get_model_id, get_field_id
+                )
                 for item in items:
                     module_mapping[item].add(cls._module)
+        return module_mapping
 
-        if not module_mapping:
-            return
+    @staticmethod
+    def _inherit_items(
+        definition: type,
+        model_name: str,
+        model_id: int,
+        get_model_id: Any,
+        get_field_id: Any,
+    ) -> list[tuple[int, int, int | None]]:
+        inherit_parents = [
+            parent_name
+            for parent_name in definition._inherit
+            if parent_name not in ("base", model_name)
+        ]
+        parent_ids = {}
+        for parent_name in (*inherit_parents, *definition._inherits):
+            parent_id = get_model_id(parent_name)
+            if parent_id is None:
+                raise ValueError(
+                    f"Cannot reflect inheritance of {model_name!r}: parent "
+                    f"model {parent_name!r} is not present in ir_model."
+                )
+            parent_ids[parent_name] = parent_id
 
+        if overlap := set(inherit_parents) & set(definition._inherits):
+            raise ValueError(
+                f"Model {model_name!r} both inherits from and delegates "
+                f"to {sorted(overlap)}: ir_model_inherit is unique on "
+                "(model_id, parent_id) and cannot record both links."
+            )
+
+        return [
+            (model_id, parent_ids[parent_name], None) for parent_name in inherit_parents
+        ] + [
+            (model_id, parent_ids[parent_name], get_field_id(field))
+            for parent_name, field in definition._inherits.items()
+        ]
+
+    def _upsert_inherit_rows(
+        self,
+        model_names: list[str],
+        module_mapping: dict[tuple[int, int, int | None], OrderedSet],
+    ) -> dict[tuple[int, int, int | None], int]:
         cr = self.env.cr
         cr.execute(
             """
@@ -554,25 +598,4 @@ class IrModelInherit(models.Model):
             ids = upsert_en(self, cols, rows, ["model_id", "parent_id"])
             inh_ids.update(dict(zip(rows, ids, strict=True)))
             self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
-
-        involved = IrModel.browse(id_ for item in module_mapping for id_ in item[:2])
-        involved.fetch(["model"])
-        xml_name = {rec.id: rec.model for rec in involved}
-        data_list = []
-        for (
-            model_id,
-            parent_id,
-            parent_field_id,
-        ), modules in module_mapping.items():
-            record_id = inh_ids[(model_id, parent_id, parent_field_id)]
-            data_list += [
-                {
-                    "xml_id": inherit_xmlid(
-                        module, xml_name[model_id], xml_name[parent_id]
-                    ),
-                    "record": self.browse(record_id),
-                }
-                for module in modules
-            ]
-
-        self.env["ir.model.data"]._update_xmlids(data_list)
+        return inh_ids

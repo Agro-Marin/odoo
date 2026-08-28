@@ -80,6 +80,12 @@ class ResPartner(models.Model):
     def _get_sale_order_domain_count(self):
         return []
 
+    @api.model
+    def _get_order_activity_sources(self):
+        return super()._get_order_activity_sources() + [
+            ("sale.order", [("state", "=", "done")]),
+        ]
+
 
     def _has_order(self, partner_domain):
         self.ensure_one()

@@ -196,6 +196,27 @@ class IrModelConstraint(models.Model):
         return None
 
     def _reflect_constraints(self, model_names: list[str]) -> None:
+        expected = self._prepare_expected_constraints(model_names)
+        if not expected:
+            return
+
+        changed = self._get_changed_constraints(expected)
+        cons_ids = self._merge_constraints(changed) if changed else {}
+
+        data_list = []
+        for name, module in expected:
+            xml_id = f"{module}.constraint_{name}"
+            cons_id = cons_ids.get((name, module))
+            if cons_id:
+                data_list.append({"xml_id": xml_id, "record": self.browse(cons_id)})
+            else:
+                self.env["ir.model.data"]._load_xmlid(xml_id)
+        if data_list:
+            self.env["ir.model.data"]._update_xmlids(data_list)
+
+    def _prepare_expected_constraints(
+        self, model_names: list[str]
+    ) -> dict[tuple[str, str], dict[str, Any]]:
         expected: dict[tuple[str, str], dict[str, Any]] = {}
         for model_name in model_names:
             model = self.env[model_name]
@@ -213,9 +234,11 @@ class IrModelConstraint(models.Model):
                     "definition": cons.get_definition(model.pool),
                     "message": message,
                 }
-        if not expected:
-            return
+        return expected
 
+    def _get_changed_constraints(
+        self, expected: dict[tuple[str, str], dict[str, Any]]
+    ) -> dict[tuple[str, str], dict[str, Any]]:
         existing = {
             (name, module): row
             for name, module, *row in self.env.execute_query(
@@ -229,78 +252,68 @@ class IrModelConstraint(models.Model):
                 )
             )
         }
-        changed = {
+        return {
             key: vals
             for key, vals in expected.items()
             if existing.get(key) != [vals["type"], vals["definition"], vals["message"]]
         }
 
-        cons_ids: dict[tuple[str, str], int] = {}
-        if changed:
-            module_ids = dict(
-                self.env.execute_query(
-                    SQL(
-                        "SELECT name, id FROM ir_module_module WHERE name = ANY(%s)",
-                        list({module for _name, module in changed}),
-                    )
-                )
-            )
-            get_model_id = self.env["ir.model"]._get_id
-            values = SQL(", ").join(
+    def _merge_constraints(
+        self, changed: dict[tuple[str, str], dict[str, Any]]
+    ) -> dict[tuple[str, str], int]:
+        module_ids = dict(
+            self.env.execute_query(
                 SQL(
-                    "(%s, %s, %s, %s, %s, %s)",
-                    name,
-                    module_ids[module],
-                    get_model_id(vals["model"]),
-                    vals["type"],
-                    vals["definition"],
-                    Jsonb({"en_US": vals["message"]}),
-                )
-                for (name, module), vals in changed.items()
-            )
-            result = self.env.execute_query(
-                SQL(
-                    """
-                    MERGE INTO ir_model_constraint t
-                    USING (VALUES %(values)s)
-                        AS s(name, module, model, type, definition, message)
-                    ON t.name = s.name AND t.module = s.module
-                    WHEN MATCHED THEN
-                        UPDATE SET write_date = now() AT TIME ZONE 'UTC',
-                                   write_uid = %(uid)s,
-                                   type = s.type,
-                                   definition = s.definition,
-                                   message = s.message
-                    WHEN NOT MATCHED THEN
-                        INSERT (name, module, model, type, definition, message,
-                                create_date, write_date, create_uid, write_uid)
-                        VALUES (s.name, s.module, s.model, s.type, s.definition,
-                                s.message,
-                                now() AT TIME ZONE 'UTC',
-                                now() AT TIME ZONE 'UTC',
-                                %(uid)s, %(uid)s)
-                    RETURNING NEW.id, NEW.name, NEW.module
-                    """,
-                    values=values,
-                    uid=self.env.uid,
+                    "SELECT name, id FROM ir_module_module WHERE name = ANY(%s)",
+                    list({module for _name, module in changed}),
                 )
             )
-            module_names = {mid: mname for mname, mid in module_ids.items()}
-            cons_ids = {
-                (name, module_names[module_id]): cons_id
-                for cons_id, name, module_id in result
-            }
-
-        data_list = []
-        for name, module in expected:
-            xml_id = f"{module}.constraint_{name}"
-            cons_id = cons_ids.get((name, module))
-            if cons_id:
-                data_list.append({"xml_id": xml_id, "record": self.browse(cons_id)})
-            else:
-                self.env["ir.model.data"]._load_xmlid(xml_id)
-        if data_list:
-            self.env["ir.model.data"]._update_xmlids(data_list)
+        )
+        get_model_id = self.env["ir.model"]._get_id
+        values = SQL(", ").join(
+            SQL(
+                "(%s, %s, %s, %s, %s, %s)",
+                name,
+                module_ids[module],
+                get_model_id(vals["model"]),
+                vals["type"],
+                vals["definition"],
+                Jsonb({"en_US": vals["message"]}),
+            )
+            for (name, module), vals in changed.items()
+        )
+        result = self.env.execute_query(
+            SQL(
+                """
+                MERGE INTO ir_model_constraint t
+                USING (VALUES %(values)s)
+                    AS s(name, module, model, type, definition, message)
+                ON t.name = s.name AND t.module = s.module
+                WHEN MATCHED THEN
+                    UPDATE SET write_date = now() AT TIME ZONE 'UTC',
+                               write_uid = %(uid)s,
+                               type = s.type,
+                               definition = s.definition,
+                               message = s.message
+                WHEN NOT MATCHED THEN
+                    INSERT (name, module, model, type, definition, message,
+                            create_date, write_date, create_uid, write_uid)
+                    VALUES (s.name, s.module, s.model, s.type, s.definition,
+                            s.message,
+                            now() AT TIME ZONE 'UTC',
+                            now() AT TIME ZONE 'UTC',
+                            %(uid)s, %(uid)s)
+                RETURNING NEW.id, NEW.name, NEW.module
+                """,
+                values=values,
+                uid=self.env.uid,
+            )
+        )
+        module_names = {mid: mname for mname, mid in module_ids.items()}
+        return {
+            (name, module_names[module_id]): cons_id
+            for cons_id, name, module_id in result
+        }
 
 
 class IrModelRelation(models.Model):

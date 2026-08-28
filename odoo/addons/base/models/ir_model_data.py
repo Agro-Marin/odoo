@@ -298,101 +298,23 @@ class IrModelData(models.Model):
             **{MODULE_UNINSTALL_FLAG: True, "prefetch_fields": False}
         )
 
-        records_items = []
-        model_ids = []
-        field_ids = []
-        selection_ids = []
-        constraint_ids = []
-
         module_data = self.search(
             [("module", "in", modules_to_remove)], order="id DESC"
         )
-        for data in module_data:
-            match data.model:
-                case "ir.model":
-                    model_ids.append(data.res_id)
-                case "ir.model.fields":
-                    field_ids.append(data.res_id)
-                case "ir.model.fields.selection":
-                    selection_ids.append(data.res_id)
-                case "ir.model.constraint":
-                    constraint_ids.append(data.res_id)
-                case _:
-                    records_items.append((data.model, data.res_id))
+        records_items, model_ids, field_ids, selection_ids, constraint_ids = (
+            self._partition_module_data(module_data)
+        )
 
-        has_shared_field = False
-        for ir_field in self.env["ir.model.fields"].browse(field_ids):
-            model = self.pool.get(ir_field.model)
-            if model is not None:
-                field = model._fields.get(ir_field.name)
-                if field is not None and field.prefetch:
-                    if field._toplevel:
-                        field.prefetch = False
-                    else:
-                        Field = type(field)
-                        field_ = Field(_base_fields__=(field, Field(prefetch=False)))
-                        add_field(
-                            self.env.registry[ir_field.model],
-                            ir_field.name,
-                            field_,
-                        )
-                        field_.setup(model)
-                        has_shared_field = True
-        if has_shared_field:
-            reset_cached_properties(self.env.registry)
+        self._unshare_prefetched_fields(field_ids)
 
-        undeletable_ids = []
-
-        def delete(records):
-            ref_data = self.search(
-                [
-                    ("model", "=", records._name),
-                    ("res_id", "in", records.ids),
-                ]
-            )
-            cloc_exclude_data = ref_data.filtered(
-                lambda imd: imd.module == "__cloc_exclude__"
-            )
-            ref_data -= cloc_exclude_data
-            records -= records.browse((ref_data - module_data).mapped("res_id"))
-            if not records:
-                return
-
-            if records._name == "ir.model.fields":
-                missing = records - records.exists()
-                if missing:
-                    orphans = ref_data.filtered(lambda r: r.res_id in missing._ids)
-                    _logger.info("Deleting orphan ir_model_data %s", orphans)
-                    orphans.unlink()
-                    records -= missing
-                records -= records.filtered(
-                    lambda f: (
-                        f.name == "id"
-                        or (
-                            f.name in models.LOG_ACCESS_COLUMNS
-                            and f.model in self.env
-                            and self.env[f.model]._log_access
-                        )
-                    )
-                )
-
-            _logger.info("Deleting %s", records)
-            try:
-                with self.env.cr.savepoint():
-                    cloc_exclude_data.unlink()
-                    records.unlink()
-            except Exception:
-                if len(records) <= 1:
-                    undeletable_ids.extend(ref_data._ids)
-                else:
-                    half_size = len(records) // 2
-                    delete(records[:half_size])
-                    delete(records[half_size:])
+        undeletable_ids: list[int] = []
 
         for model, items in groupby(unique(records_items), itemgetter(0)):
             ids = [item[1] for item in items]
             if model in self.env:
-                delete(self.env[model].browse(ids))
+                self._remove_uninstalled(
+                    self.env[model].browse(ids), module_data, undeletable_ids
+                )
             else:
                 _logger.info(
                     "Orphan ir.model.data records %s refer to unavailable model '%s'",
@@ -405,21 +327,144 @@ class IrModelData(models.Model):
         )
         modules._remove_copied_views()
 
-        delete(self.env["ir.model.constraint"].browse(unique(constraint_ids)))
-
-        delete(
-            self.env["ir.model.fields.selection"].browse(unique(selection_ids)).exists()
+        self._remove_uninstalled(
+            self.env["ir.model.constraint"].browse(unique(constraint_ids)),
+            module_data,
+            undeletable_ids,
         )
-        delete(self.env["ir.model.fields"].browse(unique(field_ids)))
+        self._remove_uninstalled(
+            self.env["ir.model.fields.selection"]
+            .browse(unique(selection_ids))
+            .exists(),
+            module_data,
+            undeletable_ids,
+        )
+        self._remove_uninstalled(
+            self.env["ir.model.fields"].browse(unique(field_ids)),
+            module_data,
+            undeletable_ids,
+        )
         relations = self.env["ir.model.relation"].search(
             [("module", "in", modules.ids)]
         )
         relations._module_data_uninstall()
 
-        delete(self.env["ir.model"].browse(unique(model_ids)))
+        self._remove_uninstalled(
+            self.env["ir.model"].browse(unique(model_ids)),
+            module_data,
+            undeletable_ids,
+        )
 
         _logger.info("ir.model.data could not be deleted (%s)", undeletable_ids)
+        self._drop_uninstalled_xmlids(module_data, undeletable_ids)
 
+    @staticmethod
+    def _partition_module_data(
+        module_data: models.BaseModel,
+    ) -> tuple[list[tuple[str, int]], list[int], list[int], list[int], list[int]]:
+        records_items: list[tuple[str, int]] = []
+        model_ids: list[int] = []
+        field_ids: list[int] = []
+        selection_ids: list[int] = []
+        constraint_ids: list[int] = []
+        for data in module_data:
+            match data.model:
+                case "ir.model":
+                    model_ids.append(data.res_id)
+                case "ir.model.fields":
+                    field_ids.append(data.res_id)
+                case "ir.model.fields.selection":
+                    selection_ids.append(data.res_id)
+                case "ir.model.constraint":
+                    constraint_ids.append(data.res_id)
+                case _:
+                    records_items.append((data.model, data.res_id))
+        return records_items, model_ids, field_ids, selection_ids, constraint_ids
+
+    def _unshare_prefetched_fields(self, field_ids: list[int]) -> None:
+        has_shared_field = False
+        for ir_field in self.env["ir.model.fields"].browse(field_ids):
+            model = self.pool.get(ir_field.model)
+            if model is None:
+                continue
+            field = model._fields.get(ir_field.name)
+            if field is None or not field.prefetch:
+                continue
+            if field._toplevel:
+                field.prefetch = False
+            else:
+                Field = type(field)
+                field_ = Field(_base_fields__=(field, Field(prefetch=False)))
+                add_field(self.env.registry[ir_field.model], ir_field.name, field_)
+                field_.setup(model)
+                has_shared_field = True
+        if has_shared_field:
+            reset_cached_properties(self.env.registry)
+
+    def _remove_uninstalled(
+        self,
+        records: models.BaseModel,
+        module_data: models.BaseModel,
+        undeletable_ids: list[int],
+    ) -> None:
+        ref_data = self.search(
+            [
+                ("model", "=", records._name),
+                ("res_id", "in", records.ids),
+            ]
+        )
+        cloc_exclude_data = ref_data.filtered(
+            lambda imd: imd.module == "__cloc_exclude__"
+        )
+        ref_data -= cloc_exclude_data
+        records -= records.browse((ref_data - module_data).mapped("res_id"))
+        if not records:
+            return
+
+        if records._name == "ir.model.fields":
+            records = self._drop_undeletable_fields(records, ref_data)
+
+        _logger.info("Deleting %s", records)
+        try:
+            with self.env.cr.savepoint():
+                cloc_exclude_data.unlink()
+                records.unlink()
+        except Exception:
+            if len(records) <= 1:
+                undeletable_ids.extend(ref_data._ids)
+            else:
+                half_size = len(records) // 2
+                self._remove_uninstalled(
+                    records[:half_size], module_data, undeletable_ids
+                )
+                self._remove_uninstalled(
+                    records[half_size:], module_data, undeletable_ids
+                )
+
+    def _drop_undeletable_fields(
+        self, records: models.BaseModel, ref_data: models.BaseModel
+    ) -> models.BaseModel:
+        missing = records - records.exists()
+        if missing:
+            orphans = ref_data.filtered(lambda r: r.res_id in missing._ids)
+            _logger.info("Deleting orphan ir_model_data %s", orphans)
+            orphans.unlink()
+            records -= missing
+        records -= records.filtered(
+            lambda f: (
+                f.name == "id"
+                or (
+                    f.name in models.LOG_ACCESS_COLUMNS
+                    and f.model in self.env
+                    and self.env[f.model]._log_access
+                )
+            )
+        )
+        return records
+
+    def _drop_uninstalled_xmlids(
+        self, module_data: models.BaseModel, undeletable_ids: list[int]
+    ) -> None:
         for data in self.browse(undeletable_ids).exists():
             if data.model not in self.env.registry:
                 continue
@@ -491,7 +536,7 @@ class IrModelData(models.Model):
                     continue
 
                 parent_field = inheriting._inherits[model]
-                children = inheriting.with_context(active_test=False).search(
+                children = inheriting.with_context(active_test=False).search(  # noqa: E8507  inheriting varies
                     [(parent_field, "=", res_id)]
                 )
                 children_xids = {

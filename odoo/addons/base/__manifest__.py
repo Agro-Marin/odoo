@@ -1,6 +1,6 @@
 {
     "name": "Base",
-    "version": "1.9",
+    "version": "1.10",
     "category": "Hidden",
     "description": """
 The kernel of Odoo, needed for all installation.
@@ -80,11 +80,6 @@ The kernel of Odoo, needed for all installation.
         "views/tag_tag_views.xml",
         "security/ir.model.access.csv",
     ],
-    "assets": {
-        "web.assets_tests": [
-            "base/static/tests/**/*",
-        ],
-    },
     "demo": [
         "demo/res_users_demo.xml",
         "demo/res_partner_bank_demo.xml",
@@ -94,6 +89,11 @@ The kernel of Odoo, needed for all installation.
         "demo/res_partner_demo.xml",
         "demo/res_partner_image_demo.xml",
     ],
+    "assets": {
+        "web.assets_tests": [
+            "base/static/tests/**/*",
+        ],
+    },
     "installable": True,
     "auto_install": True,
     "post_init_hook": "post_init",
