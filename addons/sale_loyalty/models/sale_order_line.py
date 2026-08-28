@@ -55,12 +55,14 @@ class SaleOrderLine(models.Model):
             )
             line.tax_ids = fpos.map_tax(taxes)
 
-    def _get_price_display(self):
+    def _get_price_display(self, pricelist_price=None, base_price=None):
         # A product created from a promotion does not have a list_price.
         # The price_unit of a reward order line is computed by the promotion, so it can be used directly
         if self.is_reward_line and self.reward_id.reward_type != "product":
             return self.price_unit
-        return super()._get_price_display()
+        return super()._get_price_display(
+            pricelist_price=pricelist_price, base_price=base_price
+        )
 
     def _can_be_invoiced_alone(self):
         return super()._can_be_invoiced_alone() and not self.is_reward_line

@@ -474,28 +474,31 @@ class SaleOrderLine(models.Model):
             pricelist_price = False
             base_price = False
             is_combo_item = bool(line.combo_item_id)
-            is_combo_product = line.product_type == "combo"
 
             if not is_special_line and line.product_id and line.product_uom_id:
                 line_with_company = line.with_company(line.company_id)
 
-                if is_combo_product or is_combo_item:
+                # _get_price_display is the seam a line type overrides to price
+                # itself off something other than its product -- event_sale off
+                # the ticket, event_booth_sale off the booth, sale_loyalty off
+                # the reward. The regular-item case used to be inlined here
+                # instead, an exact copy of _get_price_display_regular_item
+                # (needs_base_price and _show_discount are equivalent, the
+                # latter already testing the discount feature), so all three
+                # overrides were dead for every non-combo line.
+                if is_combo_item or line.product_type == "combo":
                     display_price = line_with_company._get_price_display()
                 else:
+                    # the discount below needs these two anyway; hand them to
+                    # the seam so it does not price the line a second time
                     pricelist_price = line_with_company._get_pricelist_price()
-
-                    needs_base_price = (
-                        discount_enabled
-                        and line.order_id.pricelist_id
-                        and line.pricelist_item_id._show_discount()
-                    )
-                    if needs_base_price:
+                    if line.pricelist_item_id._show_discount():
                         base_price = (
                             line_with_company._get_pricelist_price_before_discount()
                         )
-                        display_price = max(base_price, pricelist_price)
-                    else:
-                        display_price = pricelist_price
+                    display_price = line_with_company._get_price_display(
+                        pricelist_price=pricelist_price, base_price=base_price
+                    )
 
                 auto_price = display_price
                 if auto_price and line.order_id.fiscal_position_id:
@@ -1036,14 +1039,24 @@ class SaleOrderLine(models.Model):
         return f"({commercial_partner.ref or commercial_partner.name})"
 
 
-    def _get_price_display(self):
+    def _get_price_display(self, pricelist_price=None, base_price=None):
+        """The price this line displays before its own discount.
+
+        :param pricelist_price: the line's pricelist price, when the caller has
+          already computed it. Purely an optimisation -- it is recomputed when
+          not given, and it is meaningless for a combo line, which prices
+          itself off the line it is linked to.
+        :param base_price: likewise for the pre-discount price.
+        """
         self.ensure_one()
 
         if self.product_type == "combo":
             return 0
         if self.combo_item_id:
             return self._get_price_display_combo_item()
-        return self._get_price_display_regular_item()
+        return self._get_price_display_regular_item(
+            pricelist_price=pricelist_price, base_price=base_price
+        )
 
     def _get_price_display_combo_item(self):
         self.ensure_one()
@@ -1090,15 +1103,17 @@ class SaleOrderLine(models.Model):
         )
         return combo_prices[self.combo_item_id.combo_id] + extra_price
 
-    def _get_price_display_regular_item(self):
+    def _get_price_display_regular_item(self, pricelist_price=None, base_price=None):
         self.ensure_one()
 
-        pricelist_price = self._get_pricelist_price()
+        if pricelist_price is None:
+            pricelist_price = self._get_pricelist_price()
 
         if not self.pricelist_item_id._show_discount():
             return pricelist_price
 
-        base_price = self._get_pricelist_price_before_discount()
+        if base_price is None:
+            base_price = self._get_pricelist_price_before_discount()
 
         return max(base_price, pricelist_price)
 

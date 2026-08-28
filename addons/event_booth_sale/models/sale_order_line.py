@@ -94,7 +94,7 @@ class SaleOrderLine(models.Model):
             return False
         return super()._use_template_name()
 
-    def _get_price_display(self):
+    def _get_price_display(self, pricelist_price=None, base_price=None):
         if self.event_booth_pending_ids and self.event_id:
             company = self.event_id.company_id or self.env.company
             if not self.pricelist_item_id._show_discount():
@@ -104,4 +104,6 @@ class SaleOrderLine(models.Model):
                 total_price = sum(booth.price for booth in self.event_booth_pending_ids)
 
             return self._convert_to_sol_currency(total_price, company.currency_id)
-        return super()._get_price_display()
+        return super()._get_price_display(
+            pricelist_price=pricelist_price, base_price=base_price
+        )

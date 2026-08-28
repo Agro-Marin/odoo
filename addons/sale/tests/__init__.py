@@ -5,6 +5,7 @@ from . import test_controllers
 from . import test_credit_limit
 from . import test_ir_config_parameter
 from . import test_onchange
+from . import test_price_display_seam
 from . import test_payment_flow
 from . import test_performance_price_computation
 from . import test_product_attribute_value
