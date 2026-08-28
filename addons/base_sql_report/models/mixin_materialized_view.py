@@ -10,15 +10,26 @@ from odoo.libs.sql import SQL
 _logger = logging.getLogger(__name__)
 
 # Marker prefix for the definition hash stored as the COMMENT of every
-# relation managed by this mixin (see _mv_definition_hash).
+# relation managed by this mixin (see _relation_definition_hash).
 _MV_COMMENT_PREFIX = "odoo-mv:v1:"
 
 _RELKIND_LABELS = {"v": "view", "m": "materialized view", "r": "table"}
+
+# PostgreSQL truncates identifiers at NAMEDATALEN-1. Two generated index names
+# sharing a 63-byte prefix would collide silently under CREATE ... IF NOT
+# EXISTS, so _relation_index_name folds the overflow into a digest instead.
+_MAX_IDENTIFIER = 63
 
 
 # Transient Postgres errors that are safe to surface as "retry on next cron".
 # Anything else (programming errors, auth, corruption) must propagate so the
 # cron's error log actually records it.
+#
+# All three are psycopg OperationalError subclasses, which means the cron's own
+# `retrying()` wrapper would also roll back and retry them. The savepoint in
+# refresh() is not for these: it is for the errors that DO propagate, so a
+# programming error leaves the cursor usable and ir.cron can still write its
+# bookkeeping instead of dying in InFailedSqlTransaction.
 _TRANSIENT_REFRESH_ERRORS = (
     psycopg.errors.SerializationFailure,
     psycopg.errors.LockNotAvailable,
@@ -26,74 +37,76 @@ _TRANSIENT_REFRESH_ERRORS = (
 )
 
 
-# Provides idempotent ``_create_materialized_view()``, safe ``refresh()`` with
-# a fallback between CONCURRENTLY and blocking variants, and a cron entry
-# point.  Introspection queries are scoped to ``current_schema`` so
+# Provides idempotent ``_create_relation()``, self-healing ``refresh()``, and a
+# cron entry point.  Introspection queries are scoped to ``current_schema`` so
 # multi-schema databases are handled correctly.
+#
+# Vocabulary: everything here is spelled ``_relation_*`` rather than ``_mv_*``
+# because ``_relation_kind`` lets one implementation own both storage kinds --
+# ``mixin.rolling.report`` sets it to ``'r'`` and gets a real table from these
+# same methods.  ``_cron_refresh_materialized_view`` is the exception and keeps
+# its name: it is referenced from ``ir.cron.code`` in a ``noupdate="1"`` data
+# file, so renaming it would break already-installed crons with no upgrade path.
 class MixinMaterializedView(models.AbstractModel):
-    """Abstract mixin for models backed by PostgreSQL materialized views."""
+    """Abstract mixin for models backed by a PostgreSQL relation this mixin owns."""
 
     _name = "mixin.materialized.view"
     _description = "Materialized View Mixin"
 
     # Composition marker for `_inherit = ["mixin.sql.report",
-    # "mixin.materialized.view"]`.  Consumed by sql.report.mixin._table_query:
-    # True makes the ORM read the physical MV at self._table (fast) instead of
-    # re-inlining the analytical query as a subquery (slow).
-    # _create_materialized_view still populates the MV from the registry-built
-    # SQL via _query().  Stand-alone (no mixin.sql.report) requires overriding
-    # _query().
+    # "mixin.materialized.view"]`.  Consumed by mixin.sql.report._table_query:
+    # True makes the ORM read the physical relation at self._table (fast)
+    # instead of re-inlining the analytical query as a subquery (slow).
+    # _create_relation still populates it from _query().  Stand-alone (no
+    # mixin.sql.report) requires overriding _query() -- and, because the ORM
+    # consults _table_query and not this marker, must NOT set _table_query.
     _materialized = True
 
     # Column (or list of columns) for the UNIQUE index that REFRESH ...
-    # CONCURRENTLY requires.  Consumed by the default ``init()`` below; a
-    # concrete model may override this attribute instead of writing its own
-    # ``init()``.
-    _mv_index_field = "id"
+    # CONCURRENTLY requires.  A concrete model normally overrides only this.
+    _relation_index_field = "id"
 
     # pg_class.relkind this model owns at self._table.  'm' (materialized view)
     # here; mixin.rolling.report sets 'r' because a rolling window has to
     # DELETE and INSERT rows, which REFRESH MATERIALIZED VIEW cannot express.
-    # Everything below introspects and drops through this attribute so the two
-    # storage kinds share one implementation instead of two parallel ones.
     _relation_kind = "m"
+
+    # Whether an empty relation is itself a reason to rebuild.  True here: an
+    # unpopulated materialized view cannot be SELECTed at all.  A rolling
+    # report sets False -- a table that is empty because the source is empty is
+    # simply correct, and rebuilding to rediscover that is a scan for nothing.
+    _relation_rebuild_when_empty = True
 
     # ------------------------------------------------------------------
     # QUERY ACCESSOR
     # ------------------------------------------------------------------
 
-    def _query(self):
-        """Return the defining ``SQL`` for the materialized view.
+    def _query(self) -> SQL:
+        """Return the defining ``SQL`` for this relation.
 
-        Resolves from ``_prepare_table_query`` (``mixin.sql.report``) when
-        present, else the ``_table_query`` attribute; stand-alone subclasses
-        (no ``mixin.sql.report``) must override this method.
+        Cooperative: resolves to ``mixin.sql.report._query`` whenever that mixin
+        is composed in, in either ``_inherit`` order.  A stand-alone subclass
+        overrides this method.
 
-        :return: non-empty defining SQL
-        :rtype: SQL
-        :raises NotImplementedError: if no source query is available
+        It deliberately does NOT fall back to ``_table_query``.  Setting that
+        attribute makes the ORM inline the query as a subquery, so the relation
+        this mixin builds and refreshes would never be read — see the guard in
+        ``_create_relation``.
         """
-        build = getattr(self, "_prepare_table_query", None)
-        if callable(build):
-            sql_obj = build()
-            if isinstance(sql_obj, SQL) and sql_obj:
-                return sql_obj
-        table_query = getattr(self, "_table_query", None)
-        if isinstance(table_query, SQL) and table_query:
-            return table_query
-        if isinstance(table_query, str) and table_query:
-            return SQL(table_query)
+        inherited = getattr(super(), "_query", None)
+        if inherited is not None:
+            return inherited()
         raise NotImplementedError(
-            f"{self._name}: override _query() to return a non-empty SQL object, "
-            "or inherit 'mixin.sql.report' for the registry pattern."
+            f"{self._name}: inherit 'mixin.sql.report' for the registry pattern, "
+            "or override _query() to return a non-empty SQL object."
         )
 
     # ------------------------------------------------------------------
     # POSTGRES INTROSPECTION (schema-scoped)
     # ------------------------------------------------------------------
 
-    def _view_exists(self, table) -> bool:
-        """True if a relation of kind ``self._relation_kind`` named ``table`` exists in the current schema."""
+    def _relation_exists(self, table) -> bool:
+        """True if a relation of kind ``self._relation_kind`` named ``table`` exists here."""
         self.env.cr.execute(
             SQL(
                 "SELECT 1 FROM pg_class "
@@ -156,45 +169,38 @@ class MixinMaterializedView(models.AbstractModel):
     # REFRESH
     # ------------------------------------------------------------------
 
-    def refresh(self) -> bool:
-        """Refresh the materialized view.
+    def refresh(self, force_rebuild=False) -> bool:
+        """Bring the relation's contents up to date, rebuilding it if it must.
 
-        :return: True on success; False if the view doesn't exist or a
-            transient error occurred.  Non-transient errors propagate so the
-            cron's error log records them.
+        Self-healing: a missing relation, a relation of the wrong kind, or one
+        whose stored definition no longer matches ``_query()`` is rebuilt here
+        rather than reported and left broken.  That matters because the
+        definition of a materialized view is frozen at CREATE — a parameter
+        bound into ``_get_where_conditions`` becomes a literal, and only a
+        rebuild can move it.  The cron is the only thing that runs regularly,
+        so the cron is where the check belongs.
+
+        :param force_rebuild: rebuild from the source regardless of the hash.
+        :return: True on success; False if a transient error occurred.  Errors
+            that are not transient propagate so the cron's log records them —
+            the SAVEPOINT is what keeps the cursor usable when they do.
         """
-        if not self._view_exists(self._table):
-            _logger.warning(
-                "Materialized view %s does not exist — skipping refresh. "
-                "Run init() to create it.",
-                self._table,
-            )
-            return False
-
-        table_name = SQL.identifier(self._table)
-        # First refresh must be blocking: PostgreSQL rejects REFRESH ...
-        # CONCURRENTLY on an unpopulated MV with ObjectNotInPrerequisiteState.
-        concurrently = self._is_populated(self._table)
         try:
-            # Run inside a SAVEPOINT: a failed statement aborts the whole
-            # transaction, so a swallowed transient error would otherwise leave
-            # the cursor in InFailedSqlTransaction and break every later
-            # statement (e.g. the next MV in a loop-over-many cron).  ROLLBACK
-            # TO SAVEPOINT localises the failure to this one refresh.
-            # flush=False: the MV is defined over committed data, so pending ORM
-            # writes are intentionally not flushed here; callers needing them
-            # reflected must flush explicitly beforehand.
+            # Both branches inside the SAVEPOINT: a failed statement aborts the
+            # whole transaction, so without this a propagating error would leave
+            # the cursor in InFailedSqlTransaction and ir.cron's own bookkeeping
+            # write (_resolve_attempt, then commit, in its `finally`) would fail
+            # too -- losing the record of the failure along with the refresh.
+            # The rebuild is DDL and can fail just as readily as the refresh, so
+            # covering only the latter would leave the same hole open.
+            # flush=False: the relation is defined over committed data, so
+            # pending ORM writes are intentionally not flushed here; callers
+            # needing them reflected must flush explicitly beforehand.
             with self.env.cr.savepoint(flush=False):
-                if concurrently:
-                    _logger.info("Refreshing %s (CONCURRENTLY)", self._table)
-                    self.env.cr.execute(
-                        SQL("REFRESH MATERIALIZED VIEW CONCURRENTLY %s", table_name),
-                    )
+                if force_rebuild or self._relation_definition_changed():
+                    self._create_relation()
                 else:
-                    _logger.info("Refreshing %s (blocking, first refresh)", self._table)
-                    self.env.cr.execute(
-                        SQL("REFRESH MATERIALIZED VIEW %s", table_name),
-                    )
+                    self._refresh_contents()
         except _TRANSIENT_REFRESH_ERRORS as exc:
             _logger.warning(
                 "Transient refresh failure on %s: %s. Cron will retry.",
@@ -207,8 +213,27 @@ class MixinMaterializedView(models.AbstractModel):
         self.invalidate_model()
         return True
 
+    def _refresh_contents(self) -> None:
+        """Replace the relation's rows in place.  Runs inside ``refresh``'s savepoint."""
+        table_name = SQL.identifier(self._table)
+        # First refresh must be blocking: PostgreSQL rejects REFRESH ...
+        # CONCURRENTLY on an unpopulated MV with ObjectNotInPrerequisiteState.
+        if self._is_populated(self._table):
+            _logger.info("Refreshing %s (CONCURRENTLY)", self._table)
+            self.env.cr.execute(
+                SQL("REFRESH MATERIALIZED VIEW CONCURRENTLY %s", table_name),
+            )
+        else:
+            _logger.info("Refreshing %s (blocking, first refresh)", self._table)
+            self.env.cr.execute(SQL("REFRESH MATERIALIZED VIEW %s", table_name))
+
     def _cron_refresh_materialized_view(self) -> bool:
-        """Cron entry point.  Thin wrapper around ``refresh()``."""
+        """Cron entry point.
+
+        Referenced by name from ``ir.cron.code`` in ``noupdate="1"`` data, so
+        the name is a stored contract — rename it and installed crons break
+        with no upgrade path.
+        """
         return self.refresh()
 
     # ------------------------------------------------------------------
@@ -216,24 +241,30 @@ class MixinMaterializedView(models.AbstractModel):
     # ------------------------------------------------------------------
 
     def init(self):
-        """Default schema hook: (re)create the MV on install / upgrade.
+        """Default schema hook: (re)create the relation on install / upgrade.
 
         Reads ``with_data`` from context (default True) and uses
-        ``_mv_index_field`` for the unique index.  A concrete model normally
-        only sets ``_mv_index_field``; override this method directly only for
-        non-default ``with_data`` logic.
+        ``_relation_index_field`` for the unique index.  A concrete model
+        normally sets only that attribute, and puts any DDL of its own in
+        ``_relation_prepare_schema()`` — overriding ``init()`` forfeits the
+        hash-skip and the end-of-load deferral below.
         """
         # registry.init_models calls init() on every model, including this
         # abstract mixin, which has no table.
         if self._abstract:
             return
+        # Unconditionally, before any early return: a schema object this report
+        # depends on has its own lifetime, and an edit to it does not move the
+        # relation's definition hash. Running it only before a CREATE would mean
+        # a changed function body never reached a deployment whose relation was
+        # already up to date. It is idempotent, so _create_relation runs it
+        # again on the paths that do not come through here (refresh's self-heal).
+        self._relation_prepare_schema()
         with_data = self.env.context.get("with_data", True)
-        # View missing: create immediately — data loading and at_install tests
-        # may SELECT it before the end-of-load hook runs.
-        if not self._view_exists(self._table):
-            self._create_materialized_view(
-                with_data=with_data, index_field=self._mv_index_field
-            )
+        # Relation missing: create immediately — data loading and at_install
+        # tests may SELECT it before the end-of-load hook runs.
+        if not self._relation_exists(self._table):
+            self._create_relation(with_data=with_data)
             return
         # Registry still loading: defer to _register_hook (end of load), where
         # the final model definition builds the query exactly once.  init() runs
@@ -245,12 +276,8 @@ class MixinMaterializedView(models.AbstractModel):
                 pending = self.pool._pending_materialized_views = {}
             pending[self._name] = with_data
             return
-        # Ready registry (e.g. reload_schema on a running server): rebuild only
-        # if the stored definition hash differs.
-        if self._mv_needs_rebuild(with_data=with_data):
-            self._create_materialized_view(
-                with_data=with_data, index_field=self._mv_index_field
-            )
+        # Ready registry (e.g. reload_schema on a running server).
+        self._sync_existing_relation(with_data)
 
     def _register_hook(self) -> None:
         """Process a rebuild deferred by ``init()`` during module loading.
@@ -265,23 +292,57 @@ class MixinMaterializedView(models.AbstractModel):
         pending = getattr(self.pool, "_pending_materialized_views", None)
         if pending is None or self._name not in pending:
             return
-        with_data = pending.pop(self._name)
-        if self._mv_needs_rebuild(with_data=with_data):
-            self._create_materialized_view(
-                with_data=with_data, index_field=self._mv_index_field
-            )
+        self._sync_existing_relation(pending.pop(self._name))
 
-    def _mv_index_cols(self, index_field=None) -> list:
-        """Normalize ``_mv_index_field`` (or an explicit value) to a list."""
-        index_field = index_field if index_field is not None else self._mv_index_field
+    def _sync_existing_relation(self, with_data=True) -> None:
+        """Rebuild the existing relation if stale, else just reconcile its indexes.
+
+        The index reconciliation is the reason this is not simply an ``if``:
+        an index plan that changed between versions must land on deployments
+        whose definition hash still matches, and ``CREATE INDEX IF NOT EXISTS``
+        is cheap enough to run on every load.
+        """
+        if self._relation_needs_rebuild(with_data=with_data):
+            self._create_relation(with_data=with_data)
+        else:
+            self._relation_ensure_indexes()
+
+    def _relation_prepare_schema(self) -> None:
+        """Hook for DDL this relation depends on — functions, types, extensions.
+
+        Runs on every ``init()`` and again immediately before every CREATE, so
+        it **must be idempotent** (``CREATE OR REPLACE``, ``IF NOT EXISTS``).
+        Exists so a model needing such DDL does not have to override ``init()``
+        and lose the definition-hash skip and the end-of-load deferral with it.
+        """
+
+    def _relation_index_cols(self, index_field=None) -> list:
+        """Normalize ``_relation_index_field`` (or an explicit value) to a list."""
+        if index_field is None:
+            index_field = self._relation_index_field
         return [index_field] if isinstance(index_field, str) else list(index_field)
 
-    def _mv_definition_hash(self, query_sql: SQL, index_cols: list) -> str:
-        """Return the marker comment identifying this MV definition.
+    def _relation_index_name(self, suffix) -> str:
+        """Deterministic index name for ``self._table``, within PostgreSQL's limit."""
+        name = f"{self._table}__{suffix}"
+        if len(name.encode()) <= _MAX_IDENTIFIER:
+            return name
+        digest = hashlib.sha256(name.encode()).hexdigest()[:8]
+        keep = _MAX_IDENTIFIER - len(digest) - 1
+        return f"{name.encode()[:keep].decode(errors='ignore')}_{digest}"
 
-        Hashes the defining SQL (code and parameters) and the unique-index
-        columns; stored as ``COMMENT ON MATERIALIZED VIEW`` by
-        ``_create_materialized_view`` and compared by ``_mv_needs_rebuild``.
+    def _relation_extra_indexes(self) -> list:
+        """Secondary indexes as ``(name_suffix, [columns])``.  None by default."""
+        return []
+
+    def _relation_definition_hash(self, query_sql: SQL, index_cols: list) -> str:
+        """Return the marker comment identifying this relation's definition.
+
+        Hashes the defining SQL (code *and* parameters) and the unique-index
+        columns; stored as a relation COMMENT by ``_create_relation`` and
+        compared by ``_relation_definition_changed``.  Parameters are in scope
+        deliberately: a materialized view inlines them as literals, so a changed
+        parameter is a changed relation even though the SQL text is identical.
         """
         payload = "\x00".join(
             (query_sql.code, repr(query_sql.params), ",".join(index_cols))
@@ -289,8 +350,8 @@ class MixinMaterializedView(models.AbstractModel):
         digest = hashlib.sha256(payload.encode()).hexdigest()
         return f"{_MV_COMMENT_PREFIX}{digest}"
 
-    def _mv_stored_comment(self):
-        """Return the comment stored on the MV, or None."""
+    def _relation_stored_comment(self):
+        """Return the comment stored on the relation, or None."""
         self.env.cr.execute(
             SQL(
                 "SELECT obj_description(c.oid, 'pg_class') FROM pg_class c "
@@ -303,37 +364,68 @@ class MixinMaterializedView(models.AbstractModel):
         row = self.env.cr.fetchone()
         return row[0] if row else None
 
-    def _mv_needs_rebuild(self, with_data=True) -> bool:
-        """Whether the existing relation matches the current definition.
+    def _relation_definition_changed(self) -> bool:
+        """Whether the relation on disk was built from a different definition.
 
-        True when the stored definition hash differs (including legacy MVs
-        created before hashes were stamped, and plain views pending migration),
-        or when the MV is unpopulated while ``with_data`` is requested.
+        True for a missing relation, one of the wrong kind, one created before
+        hashes were stamped, and one whose ``_query()`` — code or bound
+        parameters — has moved since.
         """
         if self._relkind(self._table) != self._relation_kind:
             return True
-        query_sql = self._query()
-        index_cols = self._mv_index_cols()
-        if self._mv_stored_comment() != self._mv_definition_hash(query_sql, index_cols):
+        return self._relation_stored_comment() != self._relation_definition_hash(
+            self._query(), self._relation_index_cols()
+        )
+
+    def _relation_needs_rebuild(self, with_data=True) -> bool:
+        """``_relation_definition_changed``, plus emptiness where that matters."""
+        if self._relation_definition_changed():
             return True
-        return bool(with_data) and not self._is_populated(self._table)
+        if not (with_data and self._relation_rebuild_when_empty):
+            return False
+        return not self._is_populated(self._table)
 
-    def _create_materialized_view(self, with_data=True, index_field="id"):
-        """(Re)create the materialized view and its unique index.
+    def _relation_create_sql(self, table_name, query_sql, with_data) -> SQL:
+        """The CREATE statement for this relation kind."""
+        if with_data:
+            return SQL("CREATE MATERIALIZED VIEW %s AS %s", table_name, query_sql)
+        return SQL(
+            "CREATE MATERIALIZED VIEW %s AS %s WITH NO DATA", table_name, query_sql
+        )
 
-        :param with_data: If True (default), populate immediately
-            (``WITH DATA``).  PostgreSQL rejects SELECT on unpopulated MVs with
+    def _relation_comment_sql(self, table_name, digest) -> SQL:
+        """The COMMENT statement that stamps the definition hash.
+
+        A literal per relation kind, like ``_drop_existing_relation``'s three
+        branches and for the same reason: test_lint's SQL checker reads the
+        first argument of ``SQL()`` and cannot see through
+        ``SQL(label_for(kind))``.
+        """
+        return SQL("COMMENT ON MATERIALIZED VIEW %s IS %s", table_name, digest)
+
+    def _create_relation(self, with_data=True, index_field=None):
+        """(Re)create the relation and its indexes.
+
+        :param with_data: If True (default), populate immediately.  PostgreSQL
+            rejects SELECT on unpopulated materialized views with
             ``ObjectNotInPrerequisiteState``, which would make reports fail hard
             between install and the first cron refresh.  Pass ``False`` only for
-            MVs so large that install latency outweighs availability, and queue
-            a refresh immediately after module install.
-        :param index_field: Column (``str``) or columns (list/tuple of ``str``)
-            for the UNIQUE index required by REFRESH MATERIALIZED VIEW
-            CONCURRENTLY.  A composite key must be unique across the MV rows.
-        :raises UserError: if ``self._table`` is already used by a regular table
-            or any relation kind other than view / materialized view.
+            relations so large that install latency outweighs availability, and
+            queue a refresh immediately after module install.
+        :param index_field: Override for ``_relation_index_field`` — a column or
+            a list of columns for the UNIQUE index that REFRESH ... CONCURRENTLY
+            requires.  A composite key must be unique across the rows.
+        :raises UserError: if ``self._table`` is taken by a relation kind this
+            model does not own, or if the model also sets ``_table_query``.
         """
-        table_name = SQL.identifier(self._table)
+        self._check_orm_reads_this_relation()
+        index_cols = self._relation_index_cols(index_field)
+        if not index_cols:
+            raise ValueError(
+                f"{self._name}: index_field must name at least one column "
+                "for the unique index REFRESH ... CONCURRENTLY requires."
+            )
+
         query_sql = self._query()
         if not isinstance(query_sql, SQL) or not query_sql:
             raise TypeError(
@@ -341,65 +433,117 @@ class MixinMaterializedView(models.AbstractModel):
                 f"got {type(query_sql).__name__}: {query_sql!r}",
             )
 
-        self._drop_existing_relation(table_name)
+        self._relation_prepare_schema()
+        self._drop_existing_relation()
 
-        if with_data:
-            _logger.info("Creating materialized view %s WITH DATA", self._table)
-            self.env.cr.execute(
-                SQL("CREATE MATERIALIZED VIEW %s AS %s", table_name, query_sql),
-            )
-        else:
+        table_name = SQL.identifier(self._table)
+        _logger.info(
+            "Creating %s %s %s DATA",
+            _RELKIND_LABELS.get(self._relation_kind, self._relation_kind),
+            self._table,
+            "WITH" if with_data else "WITH NO",
+        )
+        self.env.cr.execute(self._relation_create_sql(table_name, query_sql, with_data))
+        if not with_data and self._relation_kind == "m":
             _logger.warning(
-                "Creating %s WITH NO DATA — SELECT on this MV will raise "
+                "%s was created WITH NO DATA — SELECT on it raises "
                 "ObjectNotInPrerequisiteState until the first refresh().",
                 self._table,
             )
-            self.env.cr.execute(
-                SQL(
-                    "CREATE MATERIALIZED VIEW %s AS %s WITH NO DATA",
-                    table_name,
-                    query_sql,
-                ),
-            )
 
-        index_cols = self._mv_index_cols(index_field)
-        if not index_cols:
-            raise ValueError(
-                f"{self._name}: index_field must name at least one column "
-                "for the unique index REFRESH ... CONCURRENTLY requires."
+        self._relation_ensure_indexes(index_cols)
+
+        # Stamp the definition hash so later init() calls can recognize an
+        # up-to-date relation and skip the rebuild.
+        self.env.cr.execute(
+            self._relation_comment_sql(
+                table_name, self._relation_definition_hash(query_sql, index_cols)
             )
-        index_name = SQL.identifier(f"id_{self._table}")
-        index_cols_sql = SQL(", ").join(SQL.identifier(col) for col in index_cols)
+        )
+
+    def _check_orm_reads_this_relation(self) -> None:
+        """Refuse to build a relation the ORM has been told to bypass.
+
+        ``BaseModel._table_sql`` inlines ``_table_query`` as a subquery when it
+        is truthy, ignoring ``_materialized`` — so a model that sets it gets a
+        relation that is created, indexed and refreshed by this mixin and never
+        read by anything.  That failed silently; it fails loudly now.
+        """
+        if not self._table_query:
+            return
+        raise UserError(
+            _(
+                "Model '%(model)s' sets _table_query, so the ORM inlines its "
+                "query as a subquery and would never read the %(kind)s this "
+                "mixin builds at '%(table)s'. Override _query() instead, or "
+                "inherit 'mixin.sql.report'.",
+                model=self._name,
+                kind=_RELKIND_LABELS.get(self._relation_kind, self._relation_kind),
+                table=self._table,
+            )
+        )
+
+    def _relation_ensure_indexes(self, index_cols=None) -> None:
+        """Create the unique index, an ``id`` index, and any extras — idempotently.
+
+        The ``id`` index is not optional.  Every ORM read of a report ends in
+        ``WHERE id IN (...)``, so a relation whose unique index is on some other
+        column has no usable access path: measured on 400k rows, one 80-row page
+        costs ~15 ms sequentially scanned against ~0.6 ms indexed.
+        """
+        if index_cols is None:
+            index_cols = self._relation_index_cols()
+        table_name = SQL.identifier(self._table)
+
+        unique_name = self._relation_index_name("_".join(index_cols) + "_uidx")
         _logger.info(
-            "Creating unique index id_%s on %s(%s)",
-            self._table,
+            "Creating unique index %s on %s(%s)",
+            unique_name,
             self._table,
             ", ".join(index_cols),
         )
         self.env.cr.execute(
             SQL(
                 "CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (%s)",
-                index_name,
+                SQL.identifier(unique_name),
                 table_name,
-                index_cols_sql,
-            ),
-        )
-
-        # Stamp the definition hash so later init() calls can recognize an
-        # up-to-date MV and skip the rebuild (see _mv_needs_rebuild).
-        self.env.cr.execute(
-            SQL(
-                "COMMENT ON MATERIALIZED VIEW %s IS %s",
-                table_name,
-                self._mv_definition_hash(query_sql, index_cols),
+                SQL(", ").join(SQL.identifier(col) for col in index_cols),
             )
         )
 
-    def _drop_existing_relation(self, table_name_sql):
+        if index_cols[0] != "id":
+            self.env.cr.execute(
+                SQL(
+                    "CREATE INDEX IF NOT EXISTS %s ON %s (%s)",
+                    SQL.identifier(self._relation_index_name("id_idx")),
+                    table_name,
+                    SQL.identifier("id"),
+                )
+            )
+
+        for suffix, columns in self._relation_extra_indexes():
+            self.env.cr.execute(
+                SQL(
+                    "CREATE INDEX IF NOT EXISTS %s ON %s (%s)",
+                    SQL.identifier(self._relation_index_name(suffix)),
+                    table_name,
+                    SQL(", ").join(SQL.identifier(col) for col in columns),
+                )
+            )
+
+        # Older versions of this mixin named the unique index id_<table>
+        # whatever its columns were. Dropped only after its replacement exists.
+        legacy_name = f"id_{self._table}"
+        if legacy_name != unique_name:
+            self.env.cr.execute(
+                SQL("DROP INDEX IF EXISTS %s", SQL.identifier(legacy_name))
+            )
+
+    def _drop_existing_relation(self):
         """Drop the relation currently sitting at ``self._table``, safely.
 
         Warns loudly when dependent objects would be CASCADE-dropped; refuses
-        to proceed when the name is used by a regular table this model does not
+        to proceed when the name is used by a relation kind this model does not
         own (data-loss risk).  A model whose ``_relation_kind`` *is* ``'r'``
         owns its table and may replace it -- that is how a rolling report
         rebuilds, and how one migrates from a materialized view to a table.
@@ -425,7 +569,7 @@ class MixinMaterializedView(models.AbstractModel):
         if dependents:
             _logger.warning(
                 "Dropping %s %s will CASCADE %d dependent relation(s): %s",
-                "materialized view" if kind == "m" else "view",
+                _RELKIND_LABELS.get(kind, kind),
                 self._table,
                 len(dependents),
                 [f"{name} (kind={relkind})" for name, relkind in dependents],
@@ -433,19 +577,20 @@ class MixinMaterializedView(models.AbstractModel):
 
         _logger.info(
             "Dropping %s at %s (relkind %r) to recreate it as %r",
-            _RELKIND_LABELS[kind],
+            _RELKIND_LABELS.get(kind, kind),
             self._table,
             kind,
             self._relation_kind,
         )
+        table_name = SQL.identifier(self._table)
         # Literal statements per branch rather than a table of them: the SQL
         # checker reads the first argument of SQL() and cannot see through a
         # lookup, and three short branches are clearer than earning a waiver.
         if kind == "v":
-            self.env.cr.execute(SQL("DROP VIEW IF EXISTS %s CASCADE", table_name_sql))
+            self.env.cr.execute(SQL("DROP VIEW IF EXISTS %s CASCADE", table_name))
         elif kind == "m":
             self.env.cr.execute(
-                SQL("DROP MATERIALIZED VIEW IF EXISTS %s CASCADE", table_name_sql),
+                SQL("DROP MATERIALIZED VIEW IF EXISTS %s CASCADE", table_name),
             )
         else:
-            self.env.cr.execute(SQL("DROP TABLE IF EXISTS %s CASCADE", table_name_sql))
+            self.env.cr.execute(SQL("DROP TABLE IF EXISTS %s CASCADE", table_name))

@@ -15,9 +15,12 @@ _logger = logging.getLogger(__name__)
 # reached 69s and 2.7 GB of temp spill per hourly tick to produce the 95 rows
 # that could change out of 7,404.
 #
-# So this stores the report in a real table and refreshes a trailing window:
-# ``DELETE`` the rows at or after a cutoff, ``INSERT`` them back from the
-# source.  Everything older is left alone.
+# So this stores the report in a real table (``_relation_kind = 'r'``) and
+# refreshes a trailing window: ``DELETE`` the rows at or after a cutoff,
+# ``INSERT`` them back from the source.  Everything older is left alone.
+# Creation, drop, hashing, index maintenance and the savepoint around a refresh
+# all come from the parent -- only the CREATE statement, the extra index and
+# the contents of one refresh differ.
 #
 # Two things make that give the same answer as a full rebuild rather than
 # merely a similar one, and both are mandatory:
@@ -41,17 +44,46 @@ _logger = logging.getLogger(__name__)
 # does the window; ``refresh(full=True)`` rebuilds from scratch, which is what
 # to call when something feeding the settled part changes.
 #
-# Compose with ``mixin.sql.report``: the window refresh names the report's
-# columns explicitly on both sides of its ``INSERT ... SELECT``, and takes
-# them from ``_get_fields_select()``.
+# Why the scope travels in the context
+# ------------------------------------
+# ``_rolling_query`` sets ``rolling_scope`` on the environment and
+# ``_rolling_scope_sql`` reads it back, so one registry serves both the full
+# rebuild and the window refresh.  A parameter would say it better, but the
+# value has to reach ``_get_from_tables`` / ``_with_cte`` several frames down
+# in subclass code, and threading it through every registry hook would change
+# their signatures for every report that never uses a window.  The key is read
+# in exactly one place, and reads are unaffected by a stray one because
+# ``_table_query`` returns ``None`` on a materialized model.
 class MixinRollingReport(models.AbstractModel):
     """A report whose oldest rows never change, refreshed one window at a time."""
 
     _name = "mixin.rolling.report"
+    # Only the MV mixin, though mixin.sql.report is a hard requirement too --
+    # the window refresh names the report's columns on each side of its
+    # INSERT ... SELECT and takes them from _get_fields_select().
+    #
+    # It cannot be declared here. Consumers write
+    # `_inherit = ["mixin.sql.report", "mixin.rolling.report"]`, which asks for
+    # mixin.sql.report BEFORE this model; a parent is always linearized AFTER
+    # its child, so naming it as a parent makes both orders impossible at once
+    # and the registry refuses the model outright:
+    #
+    #   TypeError: Cannot create a consistent method resolution order (MRO) for
+    #   bases BaseModel, mixin.sql.report, mixin.rolling.report, base
+    #
+    # So the requirement is enforced instead of declared: _rolling_columns()
+    # raises with instructions, and _create_relation calls it at install time
+    # rather than letting it surface on the second cron tick -- the first finds
+    # the table unpopulated and rebuilds in full, never reaching the column list.
     _inherit = ["mixin.materialized.view"]
     _description = "Rolling-Window Report Mixin"
 
     _relation_kind = "r"
+
+    # An empty table because the source is empty is correct, not a defect: the
+    # parent's reason for rebuilding on empty (an unpopulated materialized view
+    # cannot be SELECTed at all) does not apply to a table.
+    _relation_rebuild_when_empty = False
 
     #: Report column holding the closed-period grain.  Rows at or after the
     #: cutoff are rewritten; rows before it are never touched.
@@ -106,64 +138,60 @@ class MixinRollingReport(models.AbstractModel):
         """The report query restricted to the window, seed rows included."""
         return self.with_context(rolling_scope=self._rolling_scope())._query()
 
+    def _rolling_columns(self) -> list:
+        """Report columns the window refresh writes, in order.
+
+        Both sides of the ``INSERT ... SELECT`` name them explicitly, so the
+        two lists cannot drift apart.  Taken from ``mixin.sql.report``'s
+        registry, which this mixin requires but cannot declare — see the class
+        comment for why, and ``_create_relation`` for where the requirement is
+        checked.
+        """
+        registry_fields = getattr(self, "_get_fields_select", None)
+        if registry_fields is None:
+            raise NotImplementedError(
+                f"{self._name}: a rolling report needs a column list for its "
+                "INSERT ... SELECT. Inherit 'mixin.sql.report' (list it FIRST "
+                "in _inherit) or override _rolling_columns()."
+            )
+        return list(registry_fields())
+
+    def _create_relation(self, with_data=True, index_field=None):
+        """Create the table, having first checked this report can refresh itself.
+
+        The column list is only reached by a *window* refresh, so a
+        mis-composed rolling report used to install cleanly, tick once against
+        an empty table, and fail on the second tick. Asking for it here moves
+        that to install time.
+        """
+        self._rolling_columns()
+        return super()._create_relation(with_data=with_data, index_field=index_field)
+
     # ------------------------------------------------------------------
     # REFRESH
     # ------------------------------------------------------------------
 
-    def _mv_needs_rebuild(self, with_data=True) -> bool:
-        """Whether the table on disk matches the current definition.
-
-        Unlike the parent, an *empty* table is not a reason to rebuild. A
-        materialized view that has never been refreshed cannot be read at all,
-        so the parent treats emptiness as a defect; a table that is empty
-        because the source is empty is simply correct, and rebuilding it on
-        every upgrade to rediscover that is a full scan for nothing.
-        """
-        if self._relkind(self._table) != self._relation_kind:
-            return True
-        query_sql = self._query()
-        return self._mv_stored_comment() != self._mv_definition_hash(
-            query_sql, self._mv_index_cols()
-        )
-
-    def _is_populated(self, table) -> bool:
-        """True when the backing table holds at least one row.
-
-        The parent reads ``pg_class.relispopulated``, which means something for
-        a materialized view and is always true for a table.
-        """
-        self.env.cr.execute(
-            SQL("SELECT EXISTS (SELECT 1 FROM %s)", SQL.identifier(table))
-        )
-        return bool(self.env.cr.fetchone()[0])
-
     def refresh(self, full=False) -> bool:
-        """Rewrite the trailing window, or every row when ``full``.
+        """Rewrite the trailing window, or every row when a full pass is needed.
 
         :param full: rebuild from the source.  Required after anything that
             changes already-settled periods.
-        :return: True on success, False when the table is missing.
+        :return: True on success, False on a transient failure.
         """
-        if not self._view_exists(self._table):
-            _logger.warning(
-                "Rolling report table %s does not exist — skipping refresh. "
-                "Run init() to create it.",
+        stale = self._rolling_pop_stale()
+        if stale:
+            _logger.info(
+                "%s was marked stale — rebuilding every period, not just the window",
                 self._table,
             )
-            return False
+        if not self._relation_exists(self._table):
+            return super().refresh(force_rebuild=True)
+        return super().refresh(
+            force_rebuild=full or stale or not self._is_populated(self._table)
+        )
 
-        stale = self._rolling_pop_stale()
-        if full or stale or not self._is_populated(self._table):
-            if stale:
-                _logger.info(
-                    "%s was marked stale — rebuilding every period, not just "
-                    "the window",
-                    self._table,
-                )
-            self._create_materialized_view(index_field=self._mv_index_field)
-            self.invalidate_model()
-            return True
-
+    def _refresh_contents(self) -> None:
+        """DELETE the window and re-INSERT it.  Inside the parent's savepoint."""
         table = SQL.identifier(self._table)
         key = SQL.identifier(self._rolling_key_field)
         cutoff = self._rolling_cutoff_sql()
@@ -172,7 +200,7 @@ class MixinRollingReport(models.AbstractModel):
         deleted = self.env.cr.rowcount
 
         columns = SQL(", ").join(
-            SQL.identifier(name) for name in self._get_fields_select()
+            SQL.identifier(name) for name in self._rolling_columns()
         )
         self.env.cr.execute(
             SQL(
@@ -185,25 +213,13 @@ class MixinRollingReport(models.AbstractModel):
                 cutoff,
             )
         )
-        inserted = self.env.cr.rowcount
-
-        # The rows were replaced under the ORM's feet. Their ids are stable by
-        # construction (the grain's MIN(id)), so a cached record reads as
-        # present and current while holding pre-refresh values -- a stale
-        # report that looks like a fresh one.
-        self.invalidate_model()
-
         _logger.info(
             "Rolling refresh of %s: %d row(s) replaced by %d over the last %d day(s)",
             self._table,
             deleted,
-            inserted,
+            self.env.cr.rowcount,
             self._rolling_window_days,
         )
-        return True
-
-    def _cron_refresh_materialized_view(self) -> bool:
-        return self.refresh()
 
     # ------------------------------------------------------------------
     # STALENESS
@@ -240,61 +256,30 @@ class MixinRollingReport(models.AbstractModel):
     # CREATION
     # ------------------------------------------------------------------
 
-    def _create_materialized_view(self, with_data=True, index_field="id"):
-        """(Re)create the backing table, fully populated, plus its indexes.
+    def _is_populated(self, table) -> bool:
+        """True when the backing table holds at least one row.
 
-        Keeps the parent's hook name so ``init()`` and ``_register_hook()`` are
-        inherited unchanged.  ``with_data=False`` creates an empty table; the
-        next ``refresh()`` finds it unpopulated and rebuilds.
+        The parent reads ``pg_class.relispopulated``, which means something for
+        a materialized view and is always true for a table.
         """
-        table = SQL.identifier(self._table)
-        query_sql = self._query()
-        if not isinstance(query_sql, SQL) or not query_sql:
-            raise TypeError(
-                f"{self._name}._query() must return a non-empty SQL object, "
-                f"got {type(query_sql).__name__}: {query_sql!r}",
-            )
+        self.env.cr.execute(
+            SQL("SELECT EXISTS (SELECT 1 FROM %s)", SQL.identifier(table))
+        )
+        return bool(self.env.cr.fetchone()[0])
 
-        self._drop_existing_relation(table)
-
+    def _relation_create_sql(self, table_name, query_sql, with_data) -> SQL:
         if with_data:
-            _logger.info("Creating rolling report table %s WITH DATA", self._table)
-            self.env.cr.execute(SQL("CREATE TABLE %s AS %s", table, query_sql))
-        else:
-            _logger.info("Creating rolling report table %s WITH NO DATA", self._table)
-            self.env.cr.execute(
-                SQL("CREATE TABLE %s AS %s WITH NO DATA", table, query_sql)
-            )
+            return SQL("CREATE TABLE %s AS %s", table_name, query_sql)
+        return SQL("CREATE TABLE %s AS %s WITH NO DATA", table_name, query_sql)
 
-        index_cols = self._mv_index_cols(index_field)
-        if not index_cols:
-            raise ValueError(
-                f"{self._name}: index_field must name at least one column "
-                "for the unique index the ORM reads this report by."
-            )
-        self.env.cr.execute(
-            SQL(
-                "CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (%s)",
-                SQL.identifier(f"id_{self._table}"),
-                table,
-                SQL(", ").join(SQL.identifier(col) for col in index_cols),
-            )
-        )
+    def _relation_comment_sql(self, table_name, digest) -> SQL:
+        return SQL("COMMENT ON TABLE %s IS %s", table_name, digest)
+
+    def _relation_extra_indexes(self) -> list:
         # The window refresh deletes and re-inserts by the grain column on
-        # every tick, which is a sequential scan of the whole report without an
-        # index on it.
-        self.env.cr.execute(
-            SQL(
-                "CREATE INDEX IF NOT EXISTS %s ON %s (%s)",
-                SQL.identifier(f"{self._table}__{self._rolling_key_field}_idx"),
-                table,
-                SQL.identifier(self._rolling_key_field),
-            )
-        )
-        self.env.cr.execute(
-            SQL(
-                "COMMENT ON TABLE %s IS %s",
-                table,
-                self._mv_definition_hash(query_sql, index_cols),
-            )
-        )
+        # every tick, which is a sequential scan of the whole report without
+        # an index on it.
+        return [
+            *super()._relation_extra_indexes(),
+            (f"{self._rolling_key_field}_idx", [self._rolling_key_field]),
+        ]

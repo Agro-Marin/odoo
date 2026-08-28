@@ -17,7 +17,7 @@ approval.category                       [inherits mixin.mail.thread, mixin.catal
     +-- allowed_group_ids -> res.groups (m2m)
     +-- approver_group_id -> res.groups
     +-- escalation_user_id -> res.users
-    +-- automation_id ----> base.automation
+    +-- automation_id ----> automation.rule
     +-- sequence_id ------> ir.sequence
 
 approval.request
@@ -146,7 +146,7 @@ so category names are unique per company, archived rows included.
 | `sla_target_hours` | Integer | Yes | No | default=0, tracking |
 | `sla_warning_pct` | Integer | Yes | No | default=80, tracking |
 | `consent_approval_hours` | Integer | Yes | No | default=0, tracking |
-| `automation_id` | Many2one(`base.automation`) | Yes | No | |
+| `automation_id` | Many2one(`automation.rule`) | Yes | No | |
 
 ### Key Methods
 
@@ -787,10 +787,10 @@ Approving is a 1-click action that never opens this wizard.
 | Order | `category_id, avg_approval_hours` |
 
 The model does **not** write `_table_query` itself. `mixin.sql.report`
-(`odoo/addons/base_sql_report`) owns `_table_query` / `_build_table_query`
-and assembles the statement from four overrides this model supplies:
-`_get_select_fields()`, `_get_from_tables()`, `_get_where_conditions()`,
-`_get_group_by_fields()`. Add a field here and you must add its SELECT
+(`odoo/addons/base_sql_report`) owns `_table_query` and assembles the
+statement in `_query()` from four overrides this model supplies:
+`_get_fields_select()`, `_get_from_tables()`, `_get_where_conditions()`,
+`_get_fields_group_by()`. Add a field here and you must add its SELECT
 entry there — nothing links them automatically.
 
 ### Fields

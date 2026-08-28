@@ -251,6 +251,31 @@ env:
   CRM_INSTALL: crm
   CRM_TEST_TAGS: /crm
 
+  # base_sql_report, added 2026-08-28 -- another suite nothing ran, found by
+  # auditing the module rather than by a failure. It shipped 30 tests and no
+  # lane executed one of them: not integration_tests (its tags name /base,
+  # /test_http, /test_orm, /mrp, /certificate, /stock and /rpc), not
+  # module_installability (which enables only /test_lint:TestBundlesAssemble),
+  # and not pytest (its cases are TransactionCase, and testpaths holds the
+  # DB-free leaf suites).
+  #
+  # What the dark suite cost, all five found in one audit and all invisible to
+  # a green run of those 30 tests: a stand-alone materialized view the ORM
+  # never read; a rolling refresh with no SAVEPOINT, so a failure left the
+  # cursor aborted and ir.cron could not even record it; a rolling report that
+  # needed mixin.sql.report, did not say so, and failed on the *second* tick;
+  # a SQL table expression plus an alias rendering `(...) x a`, which
+  # PostgreSQL rejects; and a materialized view whose unique index was on some
+  # other column, leaving `id` -- what every ORM read filters on -- unindexed.
+  #
+  # The suite now runs against concrete fixture models rather than patched
+  # abstract mixins, which is what makes those reachable at all.
+  #
+  # Its own database, same reasoning as the suites above. base_sql_report
+  # depends on base alone, so this is the cheapest lane here.
+  SQL_REPORT_INSTALL: base_sql_report
+  SQL_REPORT_TEST_TAGS: /base_sql_report
+
 jobs:
   base-smoke:
     name: base suite (PostgreSQL 18)
@@ -608,6 +633,42 @@ jobs:
           echo "data_recycle tests run: $RAN (floor: 25)"
           if [ "$RAN" -lt 25 ]; then
             echo "::error::only $RAN data_recycle tests ran, below the floor of 25 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run base_sql_report suite
+        # Its own database (ci_sql_report), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_sql_report \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${SQL_REPORT_INSTALL}" \
+            --test-enable --test-tags "${SQL_REPORT_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/sql-report-suite.log
+
+      - name: Assert the base_sql_report suite actually ran
+        # Same guard as the suites above, and it matters more here than most:
+        # part of this suite is post_install (init() branches on
+        # registry.loaded, so the ready path cannot be measured at_install), and
+        # a tag change that drops the post_install half would otherwise pass.
+        # 78 tests today; the floor sits above what the at_install half alone
+        # reports, so losing the other half fails here.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/sql-report-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — base_sql_report did not report a count"
+            exit 1
+          fi
+          echo "base_sql_report tests run: $RAN (floor: 70)"
+          if [ "$RAN" -lt 70 ]; then
+            echo "::error::only $RAN base_sql_report tests ran, below the floor of 70 —"
             echo "::error::something was skipped rather than failed."
             exit 1
           fi
