@@ -113,7 +113,7 @@ class BarcodeNomenclature(models.Model):
             # Reject the barcode if its check digit (last char) is invalid
             if match.group(2)[-1] != str(
                 get_barcode_check_digit(
-                    "0" * (18 - len(match.group(2))) + match.group(2)
+                    "0" * max(0, 18 - len(match.group(2))) + match.group(2)
                 )
             ):
                 return None
