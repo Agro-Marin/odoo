@@ -146,6 +146,15 @@ export class WorkerService {
             this._state = WORKER_STATE.FAILED;
             this.connectionInitializedDeferred.resolve();
             console.warn("Worker service failed to initialize: ", e);
+        } else {
+            // The worker crashed after a successful handshake
+            // (_state === INITIALIZED): `connectionInitializedDeferred` is
+            // already resolved, so it cannot signal this. Transition to
+            // FAILED anyway so later callers (`send`, `registerHandler`,
+            // `workerKind`) see the dead worker instead of silently acting as
+            // if it were still alive.
+            this._state = WORKER_STATE.FAILED;
+            console.warn("Worker crashed after initialization: ", e);
         }
     }
 
