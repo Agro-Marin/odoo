@@ -112,19 +112,25 @@ export const barcodeService = {
                 return;
             }
 
-            currentTarget = ev.target;
+            const target = ev.target;
             // Don't catch events targeting elements that are editable because we
             // have no way of redispatching 'genuine' key events. Resent events
             // don't trigger native event handlers of elements. So this means that
             // our fake events will not appear in eg. an <input> element.
+            //
+            // `currentTarget` is only committed once this guard has decided the
+            // keydown belongs to a scan: an ordinary keystroke that lands here
+            // and returns early must not overwrite the target of a scan whose
+            // debounce timer is still pending.
             if (
-                currentTarget !== barcodeInput &&
-                isEditable(currentTarget) &&
-                !currentTarget.dataset.enableBarcode &&
-                currentTarget.getAttribute("barcode_events") !== "true"
+                target !== barcodeInput &&
+                isEditable(target) &&
+                !target.dataset.enableBarcode &&
+                target.getAttribute("barcode_events") !== "true"
             ) {
                 return;
             }
+            currentTarget = target;
 
             clearTimeout(timeout);
             if (isEndCharacter) {
