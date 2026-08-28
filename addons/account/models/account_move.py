@@ -184,6 +184,11 @@ class AccountMove(models.Model):
         check_company=True,
         domain="journal_id_domain",
     )
+    journal_company_id = fields.Many2one(
+        comodel_name="res.company",
+        string="Company of the Journal",
+        related="journal_id.company_id",
+    )
     journal_group_id = fields.Many2one(
         "account.journal.group",
         string="Ledger",

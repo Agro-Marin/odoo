@@ -1543,7 +1543,8 @@
                                     <field name="delivery_date" readonly="state != 'draft'" />
                                 </group>
                                 <group name="accounting_info_group" string="Accounting">
-                                    <field name="company_id" groups="base.group_multi_company" />
+                                    <field name="company_id" groups="base.group_multi_company"
+                                        domain="[('id', 'child_of', journal_company_id)]" />
                                     <field name="invoice_incoterm_placeholder" invisible="1" />    <!--
                                     Needed for placeholder_field -->
                                     <field name="invoice_incoterm_id"
