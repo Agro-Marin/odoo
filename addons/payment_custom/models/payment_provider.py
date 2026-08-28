@@ -47,7 +47,7 @@ class PaymentProvider(models.Model):
     def action_recompute_pending_msg(self):
         """Recompute the pending message to include the existing bank accounts.
 
-        No-op if `account_payment` is not installed.
+        No-op if `account_payment_provider` is not installed.
         """
         account_payment_module = self.env["ir.module.module"]._get(
             "account_payment_provider"
