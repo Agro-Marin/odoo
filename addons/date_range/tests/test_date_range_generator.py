@@ -46,6 +46,31 @@ class DateRangeGeneratorTest(TransactionCase):
         self.assertEqual(range4.date_end, datetime.date(1943, 12, 31))
         self.assertEqual(range4.type_id, self.type)
 
+    def test_generate_clamps_last_range_to_date_end(self):
+        """The last generated range never runs past a non-aligned date_end.
+
+        Without a clamp, the last range's end came from one more interval
+        past the last occurrence, regardless of where the requested date_end
+        actually fell.
+        """
+        generator = self.generator.create(
+            {
+                "date_start": "2024-01-01",
+                "date_end": "2024-03-15",
+                "name_prefix": "2024-",
+                "type_id": self.type.id,
+                "duration_count": 1,
+                "unit_of_time": str(MONTHLY),
+            }
+        )
+        generator.action_apply()
+        ranges = self.env["date.range"].search(
+            [("type_id", "=", self.type.id)], order="date_start"
+        )
+        self.assertEqual(len(ranges), 3)
+        self.assertEqual(ranges[-1].date_start, datetime.date(2024, 3, 1))
+        self.assertEqual(ranges[-1].date_end, datetime.date(2024, 3, 15))
+
     def test_generator_multicompany_1(self):
         with self.assertRaises(ValidationError):
             self.generator.create(
