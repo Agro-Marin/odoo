@@ -179,7 +179,7 @@ class BarcodeNomenclature(models.Model):
         significant digits of the parsed value.
         """
         domain = Domain(domain)
-        nomenclature = self.env.company.nomenclature_id
+        nomenclature = self.env.company.sudo().nomenclature_id
         if not self.env.context.get("skip_preprocess_gs1"):
 
             def map_gs1_barcode(condition):
