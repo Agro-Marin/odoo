@@ -6603,3 +6603,36 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 }
             ],
         )
+
+    def test_journal_item_on_receivable_account(self):
+        """A receivable account on a line that is not the payment term line is a
+        missing-due-date problem, and the message must name the account."""
+        move_form = Form(
+            self.env["account.move"].with_context(default_move_type="out_invoice")
+        )
+
+        with move_form.line_ids.new() as line_form:
+            line_form.account_id = self.company_data["default_account_receivable"]
+
+        with self.assertRaisesRegex(
+            UserError,
+            r"Any journal item on '.*' \(Receivable\) must have a due date\.",
+        ):
+            move_form.save()
+
+    def test_payment_term_line_on_non_receivable_account(self):
+        """The opposite mistake -- a payment term line pointing at an account that
+        is not receivable -- used to raise the very same '...and vice versa'
+        sentence as the test above. The two are now distinct, and each names the
+        offending account."""
+        invoice = self.init_invoice("out_invoice", products=self.product_a, post=False)
+        term_line = invoice.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )
+        self.assertTrue(term_line, "the invoice should carry a payment term line")
+
+        with self.assertRaisesRegex(
+            UserError,
+            r"Account '.*' used for receivable line is not of receivable type\.",
+        ):
+            term_line.account_id = self.company_data["default_account_revenue"]

@@ -3708,6 +3708,8 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         self.assertEqual(credit_note.amount_total, invoice.amount_total)
 
     def test_journal_item_on_payable_account(self):
+        """A payable account on a line that is not the payment term line is a
+        missing-due-date problem, and the message must name the account."""
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
@@ -3717,9 +3719,26 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
 
         with self.assertRaisesRegex(
             UserError,
-            "Any journal item on a payable account must have a due date and vice versa.",
+            r"Any journal item on '.*' \(Payable\) must have a due date\.",
         ):
             move_form.save()
+
+    def test_payment_term_line_on_non_payable_account(self):
+        """The opposite mistake -- a payment term line pointing at an account that
+        is not payable -- used to raise the very same '...and vice versa' sentence
+        as test_journal_item_on_payable_account above. The two are now distinct,
+        and each names the offending account."""
+        bill = self.init_invoice("in_invoice", products=self.product_a, post=False)
+        term_line = bill.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )
+        self.assertTrue(term_line, "the bill should carry a payment term line")
+
+        with self.assertRaisesRegex(
+            UserError,
+            r"Account '.*' used for payable line is not of payable type\.",
+        ):
+            term_line.account_id = self.company_data["default_account_expense"]
 
     def test_default_tax_and_default_fiscal_position(self):
         receipt_fiscal_position = self.env["account.fiscal.position"].create(
