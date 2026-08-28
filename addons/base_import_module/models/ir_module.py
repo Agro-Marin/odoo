@@ -369,9 +369,7 @@ class IrModuleModule(models.Model):
                             module_name=module,
                         )
                     )
-                path = (
-                    path if path.startswith("/") else "/" + path
-                )  # Ensures a '/' at the start
+                path = path if path.startswith("/") else "/" + path
                 assets_vals.append(
                     {
                         "name": f"{module}.{bundle}.{path}",
