@@ -1055,7 +1055,7 @@ class ResCompany(models.Model):
             "journal_id": default_journal.id,
             "date": (
                 self.account_opening_date
-                or fields.Date.start_of(fields.Date.today(), "year")
+                or fields.Date.start_of(fields.Date.context_today(self), "year")
             )
             - timedelta(days=1),
         }

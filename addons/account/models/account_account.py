@@ -558,7 +558,7 @@ class AccountAccount(models.Model):
                 "date",
                 ">=",
                 fields.Date.add(
-                    fields.Date.today(),
+                    fields.Date.context_today(self),
                     days=-365 * 2,
                 ),
             ),
