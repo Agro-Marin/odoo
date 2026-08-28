@@ -229,6 +229,14 @@ class AutomationRuntime(models.Model):
         ``in_progress`` — indistinguishable from success to every caller — so a
         run that can no longer advance is now marked ``error`` explicitly.
 
+        A step failing mid-batch stops the rest of that batch immediately
+        (siblings with no dependency on the failed step used to keep
+        executing anyway, with real side effects, even though the run was
+        already recorded as failed) and settles every line the failure leaves
+        stranded (a successor gated on the failed step used to sit in
+        ``waiting`` forever, since leaving ``in_progress`` skips the
+        no-ready-line branch above that would otherwise have caught it).
+
         :return: the runtime ``state`` after execution stops
         """
         self.ensure_one()
@@ -253,6 +261,16 @@ class AutomationRuntime(models.Model):
                 break
             for line in ready_lines:
                 line.action_execute()
+                if self.state != "in_progress":
+                    break
+
+        stranded = self.line_ids.filtered(
+            lambda l: l.state not in ("done", "cancel", "error"),
+        )
+        if stranded and self.state != "in_progress":
+            stranded.action_mark_error(
+                _("Step never ran: the workflow already failed."),
+            )
 
         return self.state
 
