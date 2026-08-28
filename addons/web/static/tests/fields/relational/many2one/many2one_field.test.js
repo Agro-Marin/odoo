@@ -2253,7 +2253,7 @@ test("list in form: call button in sub view", async () => {
 
     const def = new Deferred();
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             const { name, resModel, resId, resIds } = params;
             expect.step(name);
             expect(resModel).toBe("product");

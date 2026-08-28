@@ -81,7 +81,7 @@ test("FileUploader multi-upload continues past a too-large file and resets input
     await waitUntil(() => uploaded.length === 2);
 
     expect(uploaded).toEqual(["small_1.txt", "small_2.txt"]);
-    expect(queryOne(".o_input_file").value).toBe("");
+    expect(/** @type {HTMLInputElement} */ (queryOne(".o_input_file")).value).toBe("");
 });
 
 test("FileUploader checkSize accepts a per-file predicate", async () => {

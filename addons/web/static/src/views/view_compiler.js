@@ -843,7 +843,13 @@ function getArchKey(template) {
 }
 
 /**
- * @param {typeof ViewCompiler} ViewCompiler
+ * The compiler is described by what this function uses of it -- a constructor
+ * taking the templates, and a `compile` returning an element -- rather than by
+ * the concrete `ViewCompiler` class. Naming the class demanded every one of its
+ * members from anything passed here, so a conforming compiler that does not
+ * extend it, which is exactly what the tests build, was rejected.
+ *
+ * @param {new (templates: Record<string, Element>) => { compile(name: string, params?: any): Element }} ViewCompiler
  * @param {Record<string, Element>} templates
  * @param {Record<string, any>} [params]
  * @returns {Record<string, string>}

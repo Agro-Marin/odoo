@@ -55,7 +55,10 @@ ladder, URL generation, and the frontend error page.
 
 `request.lang` is resolved first, in priority order: **URL** → `frontend_lang`
 cookie → context → site default. The ladder then decides what to do about the
-URL itself. Cases are numbered as in `_match`'s docstring.
+URL itself. Each case below is marked `# See /N` on its own branch of
+`_reroute_for_lang`, and `factcheck.sh` asserts all eight are still there. They
+used to live in `_match`'s docstring, where 869409d761a's docstring strip took
+all eight at once -- on the branch, that cannot happen.
 
 | # | URL carries a lang | Requested lang | May redirect | Outcome |
 |---|---|---|---|---|

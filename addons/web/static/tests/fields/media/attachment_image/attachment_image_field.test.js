@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryFirst } from "@odoo/hoot-dom";
+import { queryOne } from "@odoo/hoot-dom";
 import {
     defineModels,
     fields,
@@ -47,7 +47,7 @@ test("renders the wrapper but no image when the field is empty", async () => {
 
 test("no tooltip outside debug mode", async () => {
     await mountView({ type: "form", resModel: "res.partner", resId: 1, arch: ARCH });
-    expect(queryFirst(".o_attachment_image img").hasAttribute("title")).toBe(false);
+    expect(queryOne(".o_attachment_image img").hasAttribute("title")).toBe(false);
 });
 
 test("the attachment name is a tooltip in debug mode", async () => {

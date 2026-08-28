@@ -17,7 +17,7 @@ import {
 import { useService, useServiceProtectMethodHandling } from "@web/core/utils/hooks";
 
 /**
- * @param {string} resModel
+ * @param {typeof models.Model} resModel
  */
 function getModelInfo(resModel) {
     return {
@@ -27,7 +27,7 @@ function getModelInfo(resModel) {
 }
 
 /**
- * @param {string} resModel
+ * @param {string} [resModel]
  */
 function getDefinitions(resModel) {
     const fieldDefs = {};
@@ -213,7 +213,7 @@ test("loadPath", async () => {
 
     for (const { resModel, path } of errorToTest) {
         try {
-            await getService("field").loadPath(resModel, path);
+            await getService("field").loadPath(resModel, /** @type {any} */ (path));
         } catch {
             expect.step("error");
         }
@@ -340,7 +340,11 @@ test("loadPath follow relational properties", async () => {
 
     for (const { resModel, path } of errorToTest) {
         try {
-            await getService("field").loadPath(resModel, path, true);
+            await getService("field").loadPath(
+                resModel,
+                /** @type {any} */ (path),
+                true,
+            );
         } catch {
             expect.step("error");
         }
@@ -393,6 +397,7 @@ test("async method loadFields is protected", async () => {
     patchWithCleanup(useServiceProtectMethodHandling, {
         fn: useServiceProtectMethodHandling.original,
     });
+    /** @type {() => Promise<void>} */
     let callFieldService;
     class Child extends Component {
         static template = xml`

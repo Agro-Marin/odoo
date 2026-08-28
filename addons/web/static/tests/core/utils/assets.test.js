@@ -17,10 +17,16 @@ import {
 describe.current.tags("headless");
 
 /**
- * @param {(node: Node) => void} callback
+ * `loadBundle` appends `<link>` and `<script>` elements, and every callback
+ * below reads `tagName`, `type` or `getAttribute` off the argument -- all
+ * Element members that a bare Node does not have. Several are async, so the
+ * return is whatever they hand back.
+ *
+ * @param {(node: HTMLLinkElement | HTMLScriptElement) => any} callback
+ * @param {HTMLHeadElement} [head] the iframe cases pass their own
  */
-const mockHeadAppendChild = (callback) => {
-    patchWithCleanup(document.head, {
+const mockHeadAppendChild = (callback, head = document.head) => {
+    patchWithCleanup(head, {
         appendChild: callback,
     });
 };
@@ -188,7 +194,8 @@ test("loadJS: a failed script is detached from the head", async () => {
 });
 
 test("loadBundle: load js and css files", async () => {
-    mockFetch((route) => {
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
         expect.step(`fetch bundle: ${route.pathname}`);
         return bundles[route.pathname];
     });
@@ -212,7 +219,8 @@ test("loadBundle: load js and css files", async () => {
 });
 
 test("loadBundle: load only js files", async () => {
-    mockFetch((route) => {
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
         expect.step(`fetch bundle: ${route.pathname}`);
         return bundles[route.pathname];
     });
@@ -234,7 +242,8 @@ test("loadBundle: load only js files", async () => {
 });
 
 test("loadBundle: load only css files", async () => {
-    mockFetch((route) => {
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
         expect.step(`fetch bundle: ${route.pathname}`);
         return bundles[route.pathname];
     });
@@ -256,7 +265,8 @@ test("loadBundle: load only css files", async () => {
 });
 
 test("loadBundle: load same bundle in main document and an iframe", async () => {
-    mockFetch((route) => {
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
         expect.step(`fetch bundle: ${route.pathname}`);
         return bundles[route.pathname];
     });
@@ -271,16 +281,14 @@ test("loadBundle: load same bundle in main document and an iframe", async () => 
     const iframe = document.createElement("iframe");
     document.body.appendChild(iframe);
     const iframeDocument = iframe.contentDocument;
-    patchWithCleanup(iframeDocument.head, {
-        appendChild: (node) => {
-            const srcAttribute = node.tagName === "LINK" ? "href" : "src";
-            expect.step(
-                `add iframe document ${node.tagName} - ${node.type} - ${node.getAttribute(
-                    srcAttribute,
-                )}`,
-            );
-        },
-    });
+    mockHeadAppendChild((node) => {
+        const srcAttribute = node.tagName === "LINK" ? "href" : "src";
+        expect.step(
+            `add iframe document ${node.tagName} - ${node.type} - ${node.getAttribute(
+                srcAttribute,
+            )}`,
+        );
+    }, iframeDocument.head);
 
     startLoad(loadBundle("test.bundle"));
     await animationFrame();
@@ -306,7 +314,8 @@ test("loadBundle: load same bundle in main document and an iframe", async () => 
 });
 
 test("loadBundle: load same bundles in 2 iframes", async () => {
-    mockFetch((route) => {
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
         expect.step(`fetch bundle: ${route.pathname}`);
         return bundles[route.pathname];
     });
@@ -324,26 +333,22 @@ test("loadBundle: load same bundles in 2 iframes", async () => {
     document.body.appendChild(iframeSecond);
     const iframeDocumentFirst = iframeFirst.contentDocument;
     const iframeDocumentSecond = iframeSecond.contentDocument;
-    patchWithCleanup(iframeDocumentFirst.head, {
-        appendChild: (node) => {
-            const srcAttribute = node.tagName === "LINK" ? "href" : "src";
-            expect.step(
-                `add iframe document ${node.tagName} - ${node.type} - ${node.getAttribute(
-                    srcAttribute,
-                )}`,
-            );
-        },
-    });
-    patchWithCleanup(iframeDocumentSecond.head, {
-        appendChild: (node) => {
-            const srcAttribute = node.tagName === "LINK" ? "href" : "src";
-            expect.step(
-                `add iframe document ${node.tagName} - ${node.type} - ${node.getAttribute(
-                    srcAttribute,
-                )}`,
-            );
-        },
-    });
+    mockHeadAppendChild((node) => {
+        const srcAttribute = node.tagName === "LINK" ? "href" : "src";
+        expect.step(
+            `add iframe document ${node.tagName} - ${node.type} - ${node.getAttribute(
+                srcAttribute,
+            )}`,
+        );
+    }, iframeDocumentFirst.head);
+    mockHeadAppendChild((node) => {
+        const srcAttribute = node.tagName === "LINK" ? "href" : "src";
+        expect.step(
+            `add iframe document ${node.tagName} - ${node.type} - ${node.getAttribute(
+                srcAttribute,
+            )}`,
+        );
+    }, iframeDocumentSecond.head);
 
     const firstLoad = loadBundle("test.bundle", { targetDoc: iframeDocumentFirst });
     await animationFrame();
@@ -372,7 +377,8 @@ test("loadBundle: load same bundles in 2 iframes", async () => {
 
 test("getBundle: non-ok JSON response rejects and is not cached", async () => {
     let failRequests = true;
-    mockFetch((route) => {
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
         expect.step(`fetch bundle: ${route.pathname}`);
         if (failRequests) {
             return new Response(JSON.stringify({ error: "Bad Gateway" }), {
@@ -396,7 +402,8 @@ test("getBundle: non-ok JSON response rejects and is not cached", async () => {
 });
 
 test("getBundle: successful response is cached (single fetch for two calls)", async () => {
-    mockFetch((route) => {
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
         expect.step(`fetch bundle: ${route.pathname}`);
         return bundles[route.pathname];
     });
@@ -571,7 +578,8 @@ test("loadESMBundle: cross-document rejects with the injected script's error det
 });
 
 test("loadBundle: an iframe's own assets are not requested again", async () => {
-    mockFetch((route) => {
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
         expect.step(`fetch bundle: ${route.pathname}`);
         return bundles[route.pathname];
     });
@@ -587,12 +595,10 @@ test("loadBundle: an iframe's own assets are not requested again", async () => {
     existingScript.setAttribute("src", "file1.js");
     iframeDocument.head.appendChild(existingScript);
 
-    patchWithCleanup(iframeDocument.head, {
-        appendChild: (node) => {
-            const srcAttribute = node.tagName === "LINK" ? "href" : "src";
-            expect.step(`add ${node.tagName} ${node.getAttribute(srcAttribute)}`);
-        },
-    });
+    mockHeadAppendChild((node) => {
+        const srcAttribute = node.tagName === "LINK" ? "href" : "src";
+        expect.step(`add ${node.tagName} ${node.getAttribute(srcAttribute)}`);
+    }, iframeDocument.head);
 
     const iframeLoad = loadBundle("test.bundle", { targetDoc: iframeDocument });
     await animationFrame();

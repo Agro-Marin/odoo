@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, getFixture, test } from "@odoo/hoot";
-import { click, queryOne } from "@odoo/hoot-dom";
+import { click, queryOne, queryValue } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, mockTouch } from "@odoo/hoot-mock";
 import { Component, onMounted, reactive, useRef, useState, xml } from "@odoo/owl";
 import {
@@ -863,13 +863,13 @@ describe("useSyncedInputProperty", () => {
 
     test("a value the user typed over is written back on the next patch", async () => {
         const host = await mountWithCleanup(makeHost("a"));
-        queryOne("input").value = "typed over";
+        /** @type {HTMLInputElement} */ (queryOne("input")).value = "typed over";
 
         host.state.v = "a";
         host.render();
         await animationFrame();
 
-        expect(queryOne("input").value).toBe("a");
+        expect(queryValue("input")).toBe("a");
     });
 
     test("undefined means the component is not the authority", async () => {
@@ -886,22 +886,22 @@ describe("useSyncedInputProperty", () => {
             }
         }
         const host = await mountWithCleanup(Host);
-        queryOne("input").value = "user owns this";
+        /** @type {HTMLInputElement} */ (queryOne("input")).value = "user owns this";
 
         expect(host.sync()).toBe(false);
         host.render();
         await animationFrame();
 
-        expect(queryOne("input").value).toBe("user owns this");
+        expect(queryValue("input")).toBe("user owns this");
     });
 
     test("the returned sync reports whether it had to write", async () => {
         const host = await mountWithCleanup(makeHost("a"));
 
         expect(host.sync()).toBe(false);
-        queryOne("input").value = "drifted";
+        /** @type {HTMLInputElement} */ (queryOne("input")).value = "drifted";
         expect(host.sync()).toBe(true);
-        expect(queryOne("input").value).toBe("a");
+        expect(queryValue("input")).toBe("a");
         expect(host.sync()).toBe(false);
     });
 

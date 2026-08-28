@@ -247,7 +247,7 @@ export class CommandPalette extends Component {
         /** @type {import("@web/core/hotkeys/hotkey_service").HotkeyOptions} */
         const inPalette = {
             bypassEditableProtection: true,
-            scope: () => this.modalRef.el,
+            scope: () => this.modalRef.el ?? null,
         };
 
         useHotkey("Enter", () => this.executeSelectedCommand(), inPalette);

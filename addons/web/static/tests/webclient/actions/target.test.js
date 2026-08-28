@@ -869,7 +869,9 @@ describe("new", () => {
         patchWithCleanup(ClientErrorDialog.prototype, {
             setup() {
                 super.setup(...arguments);
-                onMounted(() => errorDialogOpened.resolve());
+                onMounted(() => {
+                    errorDialogOpened.resolve();
+                });
             },
         });
 

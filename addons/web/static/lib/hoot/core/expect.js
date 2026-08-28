@@ -1791,7 +1791,7 @@ export class Matcher {
     }
 
     /**
-     * @param {ReturnType<typeof getNodeValue>} [value]
+     * @param {ReturnType<typeof getNodeValue> | RegExp} [value]
      * @param {ExpectOptions & { raw?: boolean }} [options]
      */
     toHaveValue(value, options) {

@@ -7,6 +7,7 @@ import {
     queryAllAttributes,
     queryAllTexts,
     queryOne,
+    queryValue,
 } from "@odoo/hoot-dom";
 import { animationFrame, mockDate, mockTimeZone, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
@@ -2624,7 +2625,7 @@ test(`datetime: "in range" operator`, async () => {
     ]);
 
     await selectValue("custom range");
-    expect(queryOne(`${SELECTORS.valueEditor} select`).value).toBe('"custom range"');
+    expect(queryValue(`${SELECTORS.valueEditor} select`)).toBe('"custom range"');
     expect.verifySteps([
         `["&", ("datetime", ">=", "2023-04-20 00:00:00"), ("datetime", "<=", "2023-04-20 23:59:59")]`,
     ]);
@@ -2705,7 +2706,7 @@ test(`date: "in range" operator`, async () => {
     ]);
 
     await selectValue("custom range");
-    expect(queryOne(`${SELECTORS.valueEditor} select`).value).toBe('"custom range"');
+    expect(queryValue(`${SELECTORS.valueEditor} select`)).toBe('"custom range"');
     expect.verifySteps([
         `["&", ("date", ">=", "2023-04-20"), ("date", "<=", "2023-04-20")]`,
     ]);

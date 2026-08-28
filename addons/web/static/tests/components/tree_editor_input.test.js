@@ -12,6 +12,8 @@ class Host extends Component {
     static template = xml`<Input value="displayed" update.bind="update" startEmpty="props.startEmpty"/>`;
     static components = { Input };
     static props = ["*"];
+    /** @type {{ value: number }} */
+    state;
     setup() {
         /** @type {{ value: number }} */
         this.state = useState({ value: 7 });

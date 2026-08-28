@@ -38,7 +38,6 @@ const getFormat = (val, displayNames) => {
     return { text, colorIndex };
 };
 
-// @ts-expect-error - OWL Component static props typing
 export class DomainSelectorAutocomplete extends MultiRecordSelector {
     static props = {
         ...MultiRecordSelector.props,

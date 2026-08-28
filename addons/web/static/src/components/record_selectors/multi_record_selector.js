@@ -13,11 +13,16 @@ import { useTagNavigation } from "./tag_navigation_hook.js";
 
 /**
  * @typedef {{ id?: number, text: string, onDelete: Function, img: string | false,
- * colorIndex?: number }} RecordTag
+ * colorIndex?: number, canEdit?: boolean }} RecordTag
  */
 /** @typedef {{ resIds: number[], [key: string]: any }} MultiRecordSelectorProps */
 
 export class MultiRecordSelector extends BaseRecordSelector {
+    // OWL's props schema is runtime validation, not a type. Left to inference
+    // it becomes a structural static member, and any subclass declaring its
+    // own -- which every one of them does -- is then an incompatible static
+    // side. DomainSelectorAutocomplete carried a `@ts-expect-error` for that.
+    /** @type {Record<string, any>} */
     static props = {
         resIds: { type: Array, element: Number },
         resModel: String,

@@ -29,6 +29,8 @@ test("two domain updates in flight land in the order they were asked for", async
         static components = { DomainSelector };
         static template = xml`<DomainSelector resModel="'partner'" domain="state.domain" readonly="true" update="() => {}"/>`;
         static props = ["*"];
+        /** @type {{ domain: string }} */
+        state;
         setup() {
             this.state = useState({ domain: `[("foo", "=", "first")]` });
         }

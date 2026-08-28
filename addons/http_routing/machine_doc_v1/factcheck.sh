@@ -82,7 +82,10 @@ while read -r cited; do
 done < <(grep -hoP '\bTest[A-Z]\w+' "${DOCS[@]}" | sort -u)
 
 # ------------------------------------------------------- ladder cases exist --
-# The docs describe cases /2../9; _match's docstring is their source.
+# The docs describe cases /2../9. Each is anchored on its own branch of
+# `_reroute_for_lang`. They were in `_match`'s docstring until 869409d761a
+# stripped docstrings "keeping the directives" and took all eight with them --
+# which is why they are branch comments now and not a docstring again.
 for case_no in 2 3 4 5 6 7 8 9; do
     if grep -q "See /$case_no," "$MOD/models/ir_http.py"; then ok
     else bad "ladder case /$case_no is no longer marked in models/ir_http.py"; fi

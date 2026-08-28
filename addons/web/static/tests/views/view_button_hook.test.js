@@ -19,7 +19,7 @@ test("action can be prevented", async () => {
         {
             start() {
                 return {
-                    doActionButton() {
+                    async doActionButton() {
                         expect.step("doActionButton");
                     },
                 };
@@ -84,7 +84,7 @@ test("ViewButton clicked in Dropdown close the Dropdown", async () => {
         {
             start() {
                 return {
-                    doActionButton() {
+                    async doActionButton() {
                         expect.step("doActionButton");
                     },
                 };
@@ -123,7 +123,7 @@ test("ViewButton clicked in Dropdown close the Dropdown", async () => {
 
 test("execute action in new window", async () => {
     mockService("action", {
-        doActionButton(params, options) {
+        async doActionButton(params, options) {
             expect.step(options);
         },
     });
@@ -153,7 +153,7 @@ test("execute action in new window", async () => {
 
 test("execute action in new window - 2", async () => {
     mockService("action", {
-        doActionButton(params, options) {
+        async doActionButton(params, options) {
             expect.step(options);
         },
     });

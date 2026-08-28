@@ -1749,7 +1749,7 @@ test(`trying to leave an invalid form view should not change the navbar`, async 
 test.tags("desktop");
 test(`rendering stat buttons with action on desktop`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step("doActionButton");
             expect(params.name).toBe("someaction");
             expect(params.type).toBe("action");
@@ -1787,7 +1787,7 @@ test(`rendering stat buttons with action on desktop`, async () => {
 test.tags("mobile");
 test(`rendering stat buttons with action on mobile`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step("doActionButton");
             expect(params.name).toBe("someaction");
             expect(params.type).toBe("action");
@@ -3109,7 +3109,7 @@ test(`buttons in form view`, async () => {
     expect.errors(1);
 
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(params.name);
             if (params.name === "post") {
                 expect(params.resId).toBe(2);
@@ -3244,7 +3244,7 @@ test(`buttons should be in .o_statusbar_buttons in form view header on mobile`, 
 
 test(`button in form view and long willStart`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             params.onClose();
         },
     });
@@ -3300,7 +3300,7 @@ test.tags("desktop");
 test(`buttons in form view, new record`, async () => {
     let resId = null;
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step("execute_action");
             expect(params.resId).toBe(resId);
             params.onClose();
@@ -3339,7 +3339,7 @@ test(`buttons in form view, new record`, async () => {
 test(`buttons in form view, new record, with field id in view`, async () => {
     let resId = null;
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step("execute_action");
             expect(params.resId).toBe(resId);
             params.onClose();
@@ -3381,7 +3381,7 @@ test(`buttons in form view, new record, with field id in view`, async () => {
 
 test(`buttons with data-hotkey attribute`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(params.name);
         },
     });
@@ -4351,7 +4351,7 @@ test(`editing a translatable field in a duplicate record overrides translations`
 test.tags("desktop");
 test(`clicking on stat buttons in edit mode on desktop`, async () => {
     mockService("action", {
-        doActionButton() {
+        async doActionButton() {
             expect.step("doActionButton");
         },
     });
@@ -4394,7 +4394,7 @@ test(`clicking on stat buttons in edit mode on desktop`, async () => {
 test.tags("mobile");
 test(`clicking on stat buttons in edit mode on mobile`, async () => {
     mockService("action", {
-        doActionButton() {
+        async doActionButton() {
             expect.step("doActionButton");
         },
     });
@@ -4439,7 +4439,7 @@ test(`clicking on stat buttons in edit mode on mobile`, async () => {
 test.tags("desktop");
 test(`clicking on stat buttons save and reload in edit mode on desktop`, async () => {
     mockService("action", {
-        doActionButton() {},
+        async doActionButton() {},
     });
 
     onRpc("web_save", ({ args }) => {
@@ -4475,7 +4475,7 @@ test(`clicking on stat buttons save and reload in edit mode on desktop`, async (
 test.tags("mobile");
 test(`clicking on stat buttons save and reload in edit mode on mobile`, async () => {
     mockService("action", {
-        doActionButton() {},
+        async doActionButton() {},
     });
 
     onRpc("web_save", ({ args }) => {
@@ -4511,7 +4511,7 @@ test(`clicking on stat buttons save and reload in edit mode on mobile`, async ()
 
 test(`buttons with attr "special" do not trigger a save`, async () => {
     mockService("action", {
-        doActionButton() {
+        async doActionButton() {
             expect.step("doActionButton");
         },
     });
@@ -4540,7 +4540,7 @@ test(`buttons with attr "special" do not trigger a save`, async () => {
 
 test(`buttons with attr "special=save" save`, async () => {
     mockService("action", {
-        doActionButton() {
+        async doActionButton() {
             expect.step("execute_action");
         },
     });
@@ -6977,7 +6977,7 @@ test(`context of onchanges contains the context of changed fields`, async () => 
 test.tags("desktop");
 test(`clicking on a stat button with a context on desktop`, async () => {
     mockService("action", {
-        doActionButton({ buttonContext }) {
+        async doActionButton({ buttonContext }) {
             expect(buttonContext).toEqual({ test: 2 });
             expect.step("doActionButton");
         },
@@ -7006,7 +7006,7 @@ test(`clicking on a stat button with a context on desktop`, async () => {
 test.tags("mobile");
 test(`clicking on a stat button with a context on mobile`, async () => {
     mockService("action", {
-        doActionButton({ buttonContext }) {
+        async doActionButton({ buttonContext }) {
             expect(buttonContext).toEqual({ test: 2 });
             expect.step("doActionButton");
         },
@@ -7038,7 +7038,7 @@ test(`clicking on a stat button with x2many in context on desktop`, async () => 
     Partner._records[1].type_ids = [12];
 
     mockService("action", {
-        doActionButton({ buttonContext }) {
+        async doActionButton({ buttonContext }) {
             expect(buttonContext).toEqual({ test: [12] });
             expect.step("doActionButton");
         },
@@ -7071,7 +7071,7 @@ test(`clicking on a stat button with x2many in context on mobile`, async () => {
     Partner._records[1].type_ids = [12];
 
     mockService("action", {
-        doActionButton({ buttonContext }) {
+        async doActionButton({ buttonContext }) {
             expect(buttonContext).toEqual({ test: [12] });
             expect.step("doActionButton");
         },
@@ -7103,7 +7103,7 @@ test(`clicking on a stat button with x2many in context on mobile`, async () => {
 test.tags("desktop");
 test(`clicking on a stat button with no context on desktop`, async () => {
     mockService("action", {
-        doActionButton({ buttonContext }) {
+        async doActionButton({ buttonContext }) {
             expect(buttonContext).toEqual({});
             expect.step("doActionButton");
         },
@@ -7133,7 +7133,7 @@ test(`clicking on a stat button with no context on desktop`, async () => {
 test.tags("mobile");
 test(`clicking on a stat button with no context on mobile`, async () => {
     mockService("action", {
-        doActionButton({ buttonContext }) {
+        async doActionButton({ buttonContext }) {
             expect(buttonContext).toEqual({});
             expect.step("doActionButton");
         },
@@ -8345,7 +8345,7 @@ test(`required field inside a nested notebook marks the outer page invalid`, asy
 
 test(`support anchor tags with action type`, async () => {
     mockService("action", {
-        doActionButton(action) {
+        async doActionButton(action) {
             expect.step("doActionButton");
             expect(action.name).toBe("42");
         },
@@ -8957,7 +8957,7 @@ test(`buttons are disabled until status bar action is resolved`, async () => {
 
 test(`buttons with "confirm" attribute save before calling the method`, async () => {
     mockService("action", {
-        doActionButton() {
+        async doActionButton() {
             expect.step("execute_action");
         },
     });
@@ -9018,7 +9018,7 @@ test(`buttons with "confirm-title" and "confirm-label" attributes`, async () => 
 test(`buttons with "confirm" attribute: click twice on "Ok"`, async () => {
     const deferred = new Deferred();
     mockService("action", {
-        doActionButton() {
+        async doActionButton() {
             expect.step("execute_action");
         },
     });
@@ -9646,7 +9646,7 @@ test(`can toggle column in x2many in sub form view`, async () => {
 
 test(`rainbowman attributes correctly passed on button click`, async () => {
     mockService("action", {
-        doActionButton({ effect }) {
+        async doActionButton({ effect }) {
             expect.step("doActionButton");
             expect(effect).toBe("{'message': 'Congrats!'}");
         },
@@ -9985,7 +9985,7 @@ test(`keep editing after call_button fail`, async () => {
 
     let values = null;
     mockService("action", {
-        doActionButton({ name, type }) {
+        async doActionButton({ name, type }) {
             expect([name, type]).toEqual(["post", "object"]);
             throw makeServerError();
         },
@@ -10304,7 +10304,7 @@ test(`one2many create record dialog shouldn't have a 'remove' button`, async () 
 
 test(`"bare" buttons in template should not trigger button click`, async () => {
     mockService("action", {
-        doActionButton(args) {
+        async doActionButton(args) {
             expect.step("doActionButton");
             delete args.onClose;
             expect(args).toEqual({
@@ -13020,7 +13020,7 @@ test("attach_document widget also works inside a dropdown", async () => {
 
 test(`do not perform button action for records with invalid datas`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step("Perform Action");
             expect(params.name).toBe("lovely action");
         },

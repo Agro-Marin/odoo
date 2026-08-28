@@ -337,8 +337,8 @@ test("clicking anchor when multi levels scrollables", async () => {
         const element = el.getBoundingClientRect();
         const scrollable = scrollableParent.getBoundingClientRect();
         return {
-            top: parseInt(element.top - scrollable.top),
-            bottom: parseInt(scrollable.bottom - element.bottom),
+            top: Math.trunc(element.top - scrollable.top),
+            bottom: Math.trunc(scrollable.bottom - element.bottom),
         };
     };
 
@@ -446,8 +446,8 @@ test("Simple scroll to HTML elements", async () => {
         const element = el.getBoundingClientRect();
         const scrollable = scrollableParent.getBoundingClientRect();
         return {
-            top: parseInt(element.top - scrollable.top),
-            bottom: parseInt(scrollable.bottom - element.bottom),
+            top: Math.trunc(element.top - scrollable.top),
+            bottom: Math.trunc(scrollable.bottom - element.bottom),
         };
     };
 

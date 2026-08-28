@@ -271,7 +271,7 @@ test("New record with a o2m also with 2 new records, ordered, and resequenced", 
 test.tags("desktop");
 test("resequence with NULL value", async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             params.onClose();
         },
     });
@@ -9206,7 +9206,7 @@ test("o2m add a line custom control create align with handle", async () => {
 test.tags("desktop");
 test("one2many form view with action button", async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             for (const record of MockServer.env["partner"].browse(params.resIds)) {
                 record.name = "new name";
                 record.timmy = [12];
@@ -9397,7 +9397,7 @@ test("create and edit on m2o in o2m, and press ESCAPE", async () => {
 test.tags("desktop");
 test("one2many add a line should not crash if orderedResIDs is not set on desktop", async () => {
     mockService("action", {
-        doActionButton(args) {
+        async doActionButton(args) {
             return Promise.reject();
         },
     });
@@ -9428,7 +9428,7 @@ test("one2many add a line should not crash if orderedResIDs is not set on deskto
 test.tags("mobile");
 test("one2many add a line should not crash if orderedResIDs is not set on mobile", async () => {
     mockService("action", {
-        doActionButton(args) {
+        async doActionButton(args) {
             return Promise.reject();
         },
     });

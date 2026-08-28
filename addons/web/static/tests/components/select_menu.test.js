@@ -1,7 +1,15 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, edit, press, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
+import {
+    click,
+    edit,
+    press,
+    queryAll,
+    queryAllTexts,
+    queryOne,
+    queryValue,
+} from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
@@ -1642,7 +1650,7 @@ test("the toggler picks up a value whose choice only arrives with the groups", a
     ];
     await animationFrame();
 
-    expect(queryOne(".o_select_menu_toggler").value).toBe("Option B");
+    expect(queryValue(".o_select_menu_toggler")).toBe("Option B");
 });
 
 test("a closed menu holds no rendered options", async () => {
@@ -2188,11 +2196,11 @@ test("a real value whose choice leaves the list still shows its label", async ()
         },
     });
     expect(".o_select_menu_toggler_slot, .o_select_menu_input").toHaveCount(1);
-    expect(queryOne(".o_select_menu_input").value).toBe("Apple");
+    expect(queryValue(".o_select_menu_input")).toBe("Apple");
 
     parent.state.choices = [{ value: "b", label: "Banana" }];
     await animationFrame();
-    expect(queryOne(".o_select_menu_input").value).toBe("Apple", {
+    expect(queryValue(".o_select_menu_input")).toBe("Apple", {
         message: "the label survives its choice leaving the list",
     });
 });
@@ -2208,11 +2216,11 @@ test("a cleared value does not inherit a label the list has stopped offering", a
             initialValue: false,
         },
     });
-    expect(queryOne(".o_select_menu_input").value).toBe("View");
+    expect(queryValue(".o_select_menu_input")).toBe("View");
 
     parent.state.choices = [{ value: 1, label: "Edit" }];
     await animationFrame();
-    expect(queryOne(".o_select_menu_input").value).toBe("", {
+    expect(queryValue(".o_select_menu_input")).toBe("", {
         message: "false is the empty scalar, not a remembered selection",
     });
 });

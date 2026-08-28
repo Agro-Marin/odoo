@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { queryAll } from "@odoo/hoot-dom";
+import { queryAll, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
@@ -243,7 +243,7 @@ test("model_selector: autofocus", async () => {
             onModelSelected: () => {},
         },
     });
-    const input = queryAll("input.o-autocomplete--input")[0];
+    const input = queryOne("input.o-autocomplete--input");
     expect(input).toBe(document.activeElement);
 });
 

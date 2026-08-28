@@ -1,7 +1,14 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { click, edit, press, queryAllTexts, queryOne } from "@odoo/hoot-dom";
+import {
+    click,
+    edit,
+    press,
+    queryAllTexts,
+    queryOne,
+    queryValue,
+} from "@odoo/hoot-dom";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import { getPickerCell } from "@web/../tests/components/datetime/datetime_test_helpers";
@@ -553,7 +560,7 @@ test(`date: "in range" operator`, async () => {
     ]);
 
     await selectValue("custom range");
-    expect(queryOne(`${SELECTORS.valueEditor} select`).value).toBe('"custom range"');
+    expect(queryValue(`${SELECTORS.valueEditor} select`)).toBe('"custom range"');
     expect.verifySteps([formatExpr(`date >= "2023-04-20" and date <= "2023-04-20"`)]);
 
     await contains(".o_datetime_input:last").click();
@@ -680,7 +687,7 @@ test(`datetime: "in range" operator`, async () => {
     ]);
 
     await selectValue("custom range");
-    expect(queryOne(`${SELECTORS.valueEditor} select`).value).toBe('"custom range"');
+    expect(queryValue(`${SELECTORS.valueEditor} select`)).toBe('"custom range"');
     expect.verifySteps([
         formatExpr(
             `datetime >= "2023-04-20 00:00:00" and datetime <= "2023-04-20 23:59:59"`,

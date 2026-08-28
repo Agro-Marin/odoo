@@ -7480,7 +7480,7 @@ test("support styling of anchor tags with action type", async function (assert) 
     expect.assertions(3);
 
     mockService("action", {
-        doActionButton(action) {
+        async doActionButton(action) {
             expect(action.name).toBe("42");
         },
     });
@@ -7562,7 +7562,7 @@ test("button executes action and check domain", async () => {
     }
 
     mockService("action", {
-        doActionButton({ onClose }) {
+        async doActionButton({ onClose }) {
             MockServer.env["partner"][0].active = false;
             onClose();
         },
@@ -11286,7 +11286,7 @@ test("kanban widget can extract props from attrs", async () => {
 
 test("action/type attributes on kanban arch, type='object'", async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(`doActionButton type ${params.type} name ${params.name}`);
             params.onClose();
         },
@@ -11320,7 +11320,7 @@ test("action/type attributes on kanban arch, type='object'", async () => {
 
 test("action/type attributes on kanban arch, type='action'", async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(`doActionButton type ${params.type} name ${params.name}`);
             params.onClose();
         },
@@ -13049,7 +13049,7 @@ test("scroll on group unfold and progressbar click", async () => {
 test.tags("desktop");
 test(`kanban view: press "hotkey" to execute header button action`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             const { name } = params;
             expect.step(`execute_action: ${name}`);
         },

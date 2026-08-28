@@ -1,7 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-import * as Bootstrap from "@web/../lib/bootstrap/bootstrap.esm.js";
+// Imported by absolute URL rather than as "@web/../lib/...": esbuild runs with
+// `--external:/web/static/lib/*`, and only this spelling matches it. Spelled the
+// other way the library is INLINED into every bundle that reaches it — and it is
+// reached from both `web.assets_frontend_minimal` and `web.assets_frontend_lazy`,
+// which both load on every frontend page. Two evaluations give two `EventHandler`
+// registries and two `Dropdown` classes, so the delegated
+// `click.bs.dropdown.data-api` handler and the page's markup bind to different
+// copies and no dropdown on the website opens.
+import * as Bootstrap from "/web/static/lib/bootstrap/bootstrap.esm.js";
 
 export const {
     Alert,

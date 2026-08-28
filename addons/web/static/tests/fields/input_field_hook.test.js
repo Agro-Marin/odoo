@@ -22,6 +22,7 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class Partner extends models.Model {
     _name = "res.partner";
+    /** @type {string[]} */
     _inherit = [];
 
     name = fields.Char({ string: "Name" });

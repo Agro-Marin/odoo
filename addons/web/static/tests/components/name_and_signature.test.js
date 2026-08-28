@@ -178,6 +178,9 @@ test("a signature model handed over without a name is normalised, not crashed on
 
 test("an auto-drawn name counts as a signature, and clearing it does not", async () => {
     const props = {
+        // The component writes isSignatureEmpty back onto this object, which is
+        // what the assertions below check; the literal alone does not say so.
+        /** @type {{ name: string, isSignatureEmpty?: boolean }} */
         signature: { name: "Brandon Freeman" },
         mode: "auto",
         signatureType: "signature",

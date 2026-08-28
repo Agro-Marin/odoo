@@ -44,6 +44,7 @@ class Currency extends models.Model {
 
 class Partner extends models.Model {
     _name = "res.partner";
+    /** @type {string[]} */
     _inherit = [];
 
     name = fields.Char({

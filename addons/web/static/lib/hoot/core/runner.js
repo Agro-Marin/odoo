@@ -281,6 +281,11 @@ export class Runner {
     /** @type {ReturnType<typeof makeExpect>[1]} */
     expectHooks;
     headless = false;
+    /**
+     * Suites whose last job was erased while they were still declaring.
+     * @type {Set<Suite>}
+     */
+    emptiedWhileDeclaring = new Set();
     /** @type {Record<string, Preset>} */
     presets = {
         [""]: { label: "No preset" },
@@ -533,6 +538,9 @@ export class Runner {
             throw suiteError(suite, error);
         } else if (result !== undefined) {
             throw suiteError(suite, `the suite function cannot return a value`);
+        }
+        if (this.emptiedWhileDeclaring.delete(suite) && !suite.jobs.length) {
+            this._erase(suite);
         }
 
         return suite;
@@ -1384,7 +1392,15 @@ export class Runner {
                 job.parent.jobs.splice(jobIndex, 1);
             }
             if (!job.parent.jobs.length) {
-                this._erase(job.parent);
+                // A parent still on the suite stack has not finished declaring:
+                // "empty" there means "nothing declared YET". Erasing it drops
+                // every job declared after this one, so defer the decision to
+                // the pop, when the job list is final.
+                if (this.suiteStack.includes(job.parent)) {
+                    this.emptiedWhileDeclaring.add(job.parent);
+                } else {
+                    this._erase(job.parent);
+                }
             }
         }
         return job;

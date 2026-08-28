@@ -249,7 +249,11 @@ const openNetworkInstances = new Set();
 
 /** @type {ReturnType<parseNetworkDelay>} */
 let getNetworkDelay = null;
-/** @type {(typeof fetch) | null} */
+// NOT `typeof fetch`. The result is awaited below, so a plain value is as
+// valid as a promise, and `mockFetch`'s own docstring says a return that "does
+// not meet the required format" is wrapped in a MockResponse -- which is what
+// nearly every call site relies on, returning a bare object literal.
+/** @type {((input: RequestInfo | URL, init?: RequestInit) => any) | null} */
 let mockFetchFn = null;
 /** @type {((websocket: ServerWebSocket) => any) | null} */
 let mockWebSocketConnection = null;

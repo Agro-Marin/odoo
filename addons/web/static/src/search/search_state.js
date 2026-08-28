@@ -14,7 +14,7 @@ export const SPECIAL = Symbol("special");
  */
 function toWire(value) {
     const json = JSON.stringify(value);
-    return json === undefined ? undefined : JSON.parse(json);
+    return json === undefined ? /** @type {T} */ (undefined) : JSON.parse(json);
 }
 
 export const SEARCH_MODEL_STATE_VERSION = 3;

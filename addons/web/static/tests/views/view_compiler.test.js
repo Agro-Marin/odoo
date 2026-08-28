@@ -377,7 +377,7 @@ test("a <details>/<summary> block compiles through with its field intact", async
             </details>
         </form>`;
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
-    const compiled = compiler.compileNode(doc, {});
+    const compiled = /** @type {Element} */ (compiler.compileNode(doc, {}));
 
     expect(compiled.querySelectorAll("details").length).toBe(1);
     expect(compiled.querySelector("details").getAttribute("id")).toBe("secret");
@@ -399,7 +399,7 @@ test("a bootstrap dropdown container compiles into an OWL Dropdown", async () =>
             </div>
         </form>`;
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
-    const compiled = compiler.compileNode(doc, {});
+    const compiled = /** @type {Element} */ (compiler.compileNode(doc, {}));
 
     const container = compiled.querySelector("div.dropdown");
     expect(container).not.toBe(null);
@@ -425,7 +425,9 @@ test("dropdown-menu-end becomes a Dropdown position instead of a class", async (
             </div>
         </form>`;
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
-    const dropdown = compiler.compileNode(doc, {}).querySelector("Dropdown");
+    const dropdown = /** @type {Element} */ (
+        compiler.compileNode(doc, {}).querySelector("Dropdown")
+    );
 
     expect(dropdown.getAttribute("position")).toInclude("bottom-end");
     expect(dropdown.getAttribute("menuClass")).toBe(null);
@@ -441,7 +443,7 @@ test("a positioning class with no dropdown inside is left alone", async () => {
             </div>
         </form>`;
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
-    const compiled = compiler.compileNode(doc, {});
+    const compiled = /** @type {Element} */ (compiler.compileNode(doc, {}));
 
     expect(compiled.querySelectorAll("Dropdown").length).toBe(0);
     expect(compiled.querySelectorAll("ViewButton").length).toBe(2);
@@ -539,7 +541,7 @@ test("the Odoo spelling drives the same dropdown construct as the Bootstrap one"
             </div>
         </form>`;
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
-    const compiled = compiler.compileNode(doc, {});
+    const compiled = /** @type {Element} */ (compiler.compileNode(doc, {}));
 
     expect(compiled.querySelectorAll("Dropdown").length).toBe(1);
     expect(compiled.querySelectorAll(".dropdown-menu").length).toBe(0);

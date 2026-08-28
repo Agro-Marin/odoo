@@ -167,7 +167,7 @@ test("shared_components (M2): validation schema installed; every entry is callab
 test("R2 probe: an OWL re-render of the button mid-action keeps it disabled", async () => {
     const def = new Deferred();
     mockService("action", {
-        doActionButton() {
+        async doActionButton() {
             return def;
         },
     });

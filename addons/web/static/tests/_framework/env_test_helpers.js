@@ -13,6 +13,8 @@ import { pick } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
 import { makeEnv, startServices } from "@web/env";
 
+/** @import { OdooEnv } from "@web/env" */
+
 import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
 
 /**
@@ -39,6 +41,7 @@ const registerRegistryForCleanup = (registry) => {
 
 const registriesContent = new WeakMap();
 /** @type {OdooEnv | null} */
+/** @type {OdooEnv | null} */
 let currentEnv = null;
 
 beforeEach(() => registerRegistryForCleanup(registry), { global: true });
@@ -53,8 +56,17 @@ export function clearRegistry(registry) {
     registry.entries = null;
 }
 
+/**
+ * The environment of the running test. Only meaningful inside one, where
+ * `makeMockEnv` has set it -- `getService` below dereferences it with no guard
+ * for the same reason, and 33 call sites read `.bus` or `.services` straight
+ * off this. Declaring it nullable here would push a check into every one of
+ * them for a case none of them can reach.
+ *
+ * @returns {OdooEnv}
+ */
 export function getMockEnv() {
-    return currentEnv;
+    return /** @type {OdooEnv} */ (currentEnv);
 }
 
 /**

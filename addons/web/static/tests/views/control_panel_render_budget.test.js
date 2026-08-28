@@ -54,14 +54,14 @@ function instrumentChain() {
             });
         },
     });
-    for (const [name, Cls] of [
+    for (const [name, Cls] of /** @type {[string, any][]} */ ([
         ["MultiRecordController", MultiRecordController],
         ["Layout", Layout],
         ["ControlPanel", ControlPanel],
         ["SearchBar", SearchBar],
         ["SearchBarMenu", SearchBarMenu],
-    ]) {
-        patchWithCleanup(/** @type {any} */ (Cls).prototype, {
+    ])) {
+        patchWithCleanup(Cls.prototype, {
             setup() {
                 super.setup();
                 onWillRender(() => {

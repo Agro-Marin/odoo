@@ -1329,7 +1329,7 @@ test(`list view: action button in controlPanel with display='always' on mobile`,
 
 test(`list view: give a context dependent on the current context to a header button`, async () => {
     mockService("action", {
-        doActionButton(action) {
+        async doActionButton(action) {
             expect.step("doActionButton");
             expect(action.buttonContext).toEqual({
                 active_domain: [],
@@ -1558,7 +1558,7 @@ test(`list view: action button executes action on click with domain selected: co
 test.tags("desktop");
 test(`list view: press "hotkey" to execute header button action`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             const { name } = params;
             expect.step(`execute_action: ${name}`);
         },
@@ -3525,7 +3525,7 @@ test(`don't exec a valid save with onWillSaveRecord in a list view`, async () =>
 
 test(`action/type attributes on tree arch, type='object'`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(`doActionButton type ${params.type} name ${params.name}`);
             params.onClose();
         },
@@ -3551,7 +3551,7 @@ test(`action/type attributes on tree arch, type='object'`, async () => {
 
 test(`action/type attributes on tree arch, type='action'`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(`doActionButton type ${params.type} name ${params.name}`);
             params.onClose();
         },
@@ -8073,7 +8073,7 @@ test(`groupby node with a button`, async () => {
     stepAllNetworkCalls();
 
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(params.name);
             expect(params.resId).toBe(1, { message: "should call with correct id" });
             expect(params.resModel).toBe("res.currency", {
@@ -8638,7 +8638,7 @@ test(`click on a button cell in a list view`, async () => {
     Foo._records[0].foo = "bar";
 
     mockService("action", {
-        doActionButton(action) {
+        async doActionButton(action) {
             expect.step("doActionButton");
             action.onClose();
         },
@@ -8665,7 +8665,7 @@ test(`click on a button cell in a list view`, async () => {
 
 test(`click on a button in a list view`, async () => {
     mockService("action", {
-        doActionButton(action) {
+        async doActionButton(action) {
             expect.step("doActionButton");
             expect(action.resId).toBe(1, { message: "should call with correct id" });
             expect(action.resModel).toBe("foo", {
@@ -10710,7 +10710,7 @@ test(`result of consecutive resequences is correctly sorted`, async () => {
 
 test("resequence with NULL values", async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             params.onClose();
         },
     });
@@ -10773,7 +10773,7 @@ test("resequence with NULL values", async () => {
 
 test("resequence with only NULL values", async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             params.onClose();
         },
     });
@@ -20079,7 +20079,7 @@ test(`multi_edit: edit field with operator with localization`, async () => {
 test.tags("desktop");
 test(`basic open record with allowOpenAction`, async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             const { name } = params;
             expect.step(`execute_action: ${name}`, params);
         },

@@ -1576,7 +1576,7 @@ export class Model extends Array {
     _filters = [];
     /** @type {string} */
     _fold_name = "fold";
-    /** @type {string | null} */
+    /** @type {string | string[] | null} */
     _inherit = null;
     /** @type {string} */
     _name = "";

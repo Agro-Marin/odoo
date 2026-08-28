@@ -46,7 +46,7 @@ export function indexQueryBySearchItem(query) {
 export function enrichSearchItem(searchItem, query, referenceMoment, intervalOptions) {
     const queryElements =
         query instanceof Map
-            ? query.get(searchItem.id) || []
+            ? query.get(/** @type {number} */ (searchItem.id)) || []
             : query.filter((queryElem) => queryElem.searchItemId === searchItem.id);
     const isActive = Boolean(queryElements.length);
     /** @type {EnrichedSearchItem} */

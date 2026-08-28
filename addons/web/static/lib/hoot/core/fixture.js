@@ -62,6 +62,13 @@ export function makeFixtureManager(runner) {
         }
     }
 
+    /**
+     * Never null: the branch below creates the fixture when there is none, so
+     * every caller may dereference the result. The inferred type came from
+     * `currentFixture` starting as null, which `cleanup` also resets it to.
+     *
+     * @returns {HTMLElement}
+     */
     function getFixture() {
         if (!allowFixture) {
             allowFixture = true;

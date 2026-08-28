@@ -28,7 +28,7 @@ test("one cache, read", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
 
     expect(await indexedDB.read("mytable", "test")).toBe(undefined);
 
@@ -43,11 +43,11 @@ test("two caches, read", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB1 = new IndexedDB(CACHE_NAME, "1");
     await indexedDB1.write("mytable", "test", "value for 'test'");
     expect(await indexedDB1.read("mytable", "test")).toBe("value for 'test'");
 
-    const indexedDB2 = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB2 = new IndexedDB(CACHE_NAME, "1");
     expect(await indexedDB2.read("mytable", "test")).toBe("value for 'test'");
 
     await indexedDB1.deleteDatabase();
@@ -59,8 +59,8 @@ test("two caches, read (2)", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
-    const indexedDB2 = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB1 = new IndexedDB(CACHE_NAME, "1");
+    const indexedDB2 = new IndexedDB(CACHE_NAME, "1");
 
     await indexedDB1.write("mytable", "test", "value for 'test'");
     await indexedDB1.write("mytable1", "test", "value for 'test'");
@@ -76,7 +76,7 @@ test("one cache, invalidate", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
 
     await indexedDB.write("mytable", "test", "value for 'test'");
     await indexedDB.write("mytable", "test2", "value for 'test2'");
@@ -95,7 +95,7 @@ test("one cache, invalidate multi-tables", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
 
     await indexedDB.write("mytable", "test", "value for 'test'");
     await indexedDB.write("mytable", "test2", "value for 'test2'");
@@ -120,7 +120,7 @@ test("one cache, invalidate all tables", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
 
     await indexedDB.write("mytable", "test", "value for 'test'");
     await indexedDB.write("mytable2", "test2", "value for 'test2'");
@@ -139,16 +139,16 @@ test("invalidate all tables, empty cache", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
     await indexedDB.execute((db) => {
         expect([...db.objectStoreNames]).toEqual(["__DBVersion__"]);
     });
-    expect(await indexedDB.read("__DBVersion__", "__version__")).toBe(1);
+    expect(await indexedDB.read("__DBVersion__", "__version__")).toBe("1");
     await indexedDB.invalidate();
     await indexedDB.execute((db) => {
         expect([...db.objectStoreNames]).toEqual(["__DBVersion__"]);
     });
-    expect(await indexedDB.read("__DBVersion__", "__version__")).toBe(1);
+    expect(await indexedDB.read("__DBVersion__", "__version__")).toBe("1");
 
     await indexedDB.deleteDatabase();
     await ensureDbIsAbsent();
@@ -158,7 +158,7 @@ test("invalidate non existing table", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
     await indexedDB.execute((db) => {
         expect([...db.objectStoreNames]).toEqual(["__DBVersion__"]);
     });
@@ -175,7 +175,7 @@ test("invalidate non existing and existing table", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
 
     await indexedDB.write("mytable", "test", "value for 'test'");
     await indexedDB.write("mytable", "test2", "value for 'test2'");
@@ -194,8 +194,8 @@ test("two caches, invalidate", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
-    const indexedDB2 = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB1 = new IndexedDB(CACHE_NAME, "1");
+    const indexedDB2 = new IndexedDB(CACHE_NAME, "1");
 
     await indexedDB1.write("mytable", "test", "value for 'test'");
     await indexedDB1.write("mytable", "test2", "value for 'test2'");
@@ -219,13 +219,13 @@ test("two caches, new DB version", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB1 = new IndexedDB(CACHE_NAME, "1");
     await indexedDB1.write("mytable", "test", "value for 'test'");
     await indexedDB1.write("mytable", "test2", "value for 'test2'");
     expect(await indexedDB1.read("mytable", "test")).toBe("value for 'test'");
     expect(await indexedDB1.read("mytable", "test2")).toBe("value for 'test2'");
 
-    const indexedDB2 = new IndexedDB(CACHE_NAME, 2);
+    const indexedDB2 = new IndexedDB(CACHE_NAME, "2");
     await indexedDB2.execute((db) => {
         expect([...db.objectStoreNames]).toEqual(["__DBVersion__"]);
     });
@@ -244,7 +244,7 @@ test("several tables", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
 
     await indexedDB.write("table1", "test", "value for 'test'");
     await indexedDB.write("table2", "test2", "value for 'test2'");
@@ -259,16 +259,16 @@ test("several caches, several tables", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB1 = new IndexedDB(CACHE_NAME, "1");
     await indexedDB1.write("table1", "test", "value for 'test'");
     expect(await indexedDB1.read("table1", "test")).toBe("value for 'test'");
 
-    const indexedDB2 = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB2 = new IndexedDB(CACHE_NAME, "1");
     await indexedDB2.write("table2", "test", "value for 'test'");
     expect(await indexedDB2.read("table1", "test")).toBe("value for 'test'");
     expect(await indexedDB2.read("table2", "test")).toBe("value for 'test'");
 
-    const diskCache3 = new IndexedDB(CACHE_NAME, 1);
+    const diskCache3 = new IndexedDB(CACHE_NAME, "1");
     expect(await diskCache3.read("table2", "test")).toBe("value for 'test'");
 
     await indexedDB1.deleteDatabase();
@@ -280,7 +280,7 @@ test("invalidateWhere, deletes only matching keys", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
     await indexedDB.write("mytable", JSON.stringify({ model: "a" }), "va");
     await indexedDB.write("mytable", JSON.stringify({ model: "b" }), "vb");
     await indexedDB.write("mytable", JSON.stringify({ model: "a", id: 2 }), "va2");
@@ -309,7 +309,7 @@ test("invalidateWhere, iterates across many entries without committing early", a
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
     const N = 32;
     for (let i = 0; i < N; i += 1) {
         await indexedDB.write("mytable", `key-${i}`, `v${i}`);
@@ -333,7 +333,7 @@ test("invalidateWhere, spans multiple tables in one transaction", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
     await indexedDB.write("t1", "a", "1");
     await indexedDB.write("t1", "b", "2");
     await indexedDB.write("t2", "a", "3");
@@ -356,7 +356,7 @@ test("invalidateWhere, predicate that throws keeps the entry", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
     await indexedDB.write("mytable", "valid", "v1");
     await indexedDB.write("mytable", "boom", "v2");
 
@@ -378,7 +378,7 @@ test("invalidateWhere, no-op when none of the tables exist", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    const indexedDB = new IndexedDB(CACHE_NAME, "1");
     await indexedDB.write("present", "k", "v");
 
     await indexedDB.invalidateWhere(["missing1", "missing2"], () => true);
@@ -428,7 +428,7 @@ test("blocked schema-upgrade open degrades to no-cache instead of hanging", asyn
 });
 
 test("_read rejects when the transaction aborts", async () => {
-    const idb = new IndexedDB(CACHE_NAME, 1);
+    const idb = new IndexedDB(CACHE_NAME, "1");
     idb._degraded = true;
 
     const abortError = new DOMException("Quota exceeded", "QuotaExceededError");
@@ -446,7 +446,7 @@ test("_read rejects when the transaction aborts", async () => {
 });
 
 test("_invalidate rejects when the transaction aborts", async () => {
-    const idb = new IndexedDB(CACHE_NAME, 1);
+    const idb = new IndexedDB(CACHE_NAME, "1");
     idb._degraded = true;
 
     const abortError = new DOMException("Quota exceeded", "QuotaExceededError");
@@ -509,7 +509,7 @@ test("a quota failure still surfaces IDBQuotaExceededError when the estimate is 
 
     for (const estimate of [{}, { usage: 10 }, null]) {
         patchWithCleanup(navigator.storage, { estimate: async () => estimate });
-        const idb = new IndexedDB(CACHE_NAME, 1);
+        const idb = new IndexedDB(CACHE_NAME, "1");
         idb._degraded = true;
         await expect(
             idb._runCallback(/** @type {any} */ ({}), () => {
@@ -533,7 +533,7 @@ test("a quota failure surfaces IDBQuotaExceededError when estimate() itself thro
         },
     });
 
-    const idb = new IndexedDB(CACHE_NAME, 1);
+    const idb = new IndexedDB(CACHE_NAME, "1");
     idb._degraded = true;
     await expect(
         idb._runCallback(/** @type {any} */ ({}), () => {

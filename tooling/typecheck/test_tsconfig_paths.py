@@ -151,6 +151,36 @@ def test_no_mapped_alias_is_dead():
     )
 
 
+def test_no_path_key_is_declared_twice():
+    # EVERY OTHER TEST HERE IS BLIND TO THIS, BY CONSTRUCTION. `_load_paths`
+    # goes through `json.loads`, which keeps the last of a repeated key and
+    # discards the rest -- the same lossy step TypeScript performs. So a
+    # duplicate cannot fail any assertion that reads the parsed object, and 59
+    # of them accumulated unnoticed: the generated block between the `>>>
+    # derived` markers re-declared 56 aliases that were already hand-written
+    # above it, plus 3 more written across several lines. tsconfig_paths.py
+    # could not catch it either -- its docstring says entries outside the
+    # markers are "never seen", so it has no way to know it is duplicating them.
+    #
+    # The cost was not a wrong path: every duplicate carried an identical
+    # value, so resolution never changed. It was 24 esbuild warnings on every
+    # bundle build, which is what a real `✘ [ERROR]` was buried under when
+    # `web.assets_web` failed to compile -- a syntax fault that read, three
+    # layers downstream, as a tour that would not start.
+    #
+    # Reads the raw text on purpose. Do not "simplify" this to _load_paths().
+    text = re.sub(r"//.*", "", TSCONFIG.read_text(encoding="utf8"))
+    keys = re.findall(r'^\s*"(@[^"]+)"\s*:', text, re.MULTILINE)
+    repeated = {key: n for key, n in Counter(keys).items() if n > 1}
+    assert not repeated, (
+        f"{len(repeated)} tsconfig path key(s) declared more than once: "
+        + ", ".join(f"{k} x{n}" for k, n in sorted(repeated.items())[:12])
+        + "\n  json.loads keeps the last and drops the rest, so the extra "
+        "declarations change nothing and warn on every esbuild run"
+        "\n  the derived block owns every `@<addon>/*`; delete the hand-written copy"
+    )
+
+
 @pytest.mark.parametrize("alias", ["web", "mail", "project", "point_of_sale"])
 def test_the_load_bearing_aliases_are_mapped(alias):
 

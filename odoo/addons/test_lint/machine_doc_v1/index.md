@@ -45,10 +45,22 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_orm_import.py` | `orm-import` |
 | `_checker_onchange.py` | `onchange-domain` |
 | `_checker_config_patch.py` | `config-chainmap-patch` |
+| `_checker_shadowed_def.py` | `shadowed-definition` |
 | `_checker_noqa_rationale.py` | `noqa-rationale` |
 | `_checker_translated_unique.py` | `unique-over-translated-column` (cross-unit) |
 | `_checker_pep649.py` | annotation resolution, used by `test_pep649` |
 | `_checker_shadowed_def.py` | `shadowed-definition` |
+
+`shadowed-definition` (E8513) runs `_anywhere` rather than inside addons, because
+a member defined twice is dead code wherever it sits: Python keeps the last
+definition and the earlier one still reads as live. `stock.product_template` is
+the case it was written for — two `_search_variant_quantity`, the live one calling
+a `_get_domain_locations` that no longer existed, so every quantity search on a
+template raised while a correct implementation sat 60 lines above it, unreachable.
+Four repetitions are legitimate and exempt: a `@typing.overload` stack, a
+`@property` group with its setter/deleter, a `@singledispatchmethod` and its
+`@x.register` implementations, and definitions guarded by `if`/`try` such as
+`if TYPE_CHECKING`, which are alternatives rather than overwrites.
 
 `unreadable-source` has no checker file of its own: the engine emits it when a
 file cannot be parsed or tokenised. Both used to be swallowed, and a file whose

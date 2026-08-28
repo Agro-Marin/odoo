@@ -13,6 +13,7 @@ import { defineAccountModels } from "./account_test_helpers.js";
 
 class Account extends models.Model {
     _name = "account.account";
+    /** @type {string[]} */
     _inherit = [];
 
     code = fields.Char({

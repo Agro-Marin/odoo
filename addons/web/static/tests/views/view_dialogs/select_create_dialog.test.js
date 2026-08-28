@@ -879,7 +879,7 @@ test("SelectCreateDialog with open action", async () => {
         });
     }
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             const { name } = params;
             expect.step(`execute_action: ${name}`, params);
         },

@@ -1398,7 +1398,7 @@ test("header without string or field", async () => {
 
 test("clicking a button with dirty settings -- save", async () => {
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(`action executed ${JSON.stringify(params)}`);
         },
     });
@@ -1525,7 +1525,7 @@ test("clicking a button with dirty settings -- discard", async () => {
     defineModels([Product]);
 
     mockService("action", {
-        doActionButton(params) {
+        async doActionButton(params) {
             expect.step(`action executed ${JSON.stringify(params)}`);
         },
     });

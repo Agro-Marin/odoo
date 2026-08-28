@@ -13,7 +13,8 @@
  *
  * Replaces the upstream UMD build (`umd/zxing-library.js` + the
  * `window.ZXing` global); resolved through the browser import map as the
- * `zxing-library` external bare specifier (see ODOO_EXTERNAL_LIBS).
+ * `zxing-library` external bare specifier, declared under the `esm.external_libs`
+ * key of web's own `__manifest__.py`.
  *
  * @license Apache-2.0 (see LICENSE in this directory)
  */
