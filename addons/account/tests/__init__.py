@@ -91,3 +91,4 @@ from . import test_res_currency
 from . import test_account_move_marin_depends
 from . import test_account_move_indexes
 from . import test_account_move_overdue_decoration
+from . import test_account_move_partner_columns
