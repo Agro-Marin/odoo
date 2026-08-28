@@ -2321,7 +2321,7 @@ class TestSaleCouponProgramNumbers(TestSaleCouponNumbersCommon):
         self._auto_rewards(order, program_b)
         self.assertAlmostEqual(order.amount_total, 18, 0, "Total should be 18$")
         self._auto_rewards(order, program_a)
-        # We essentially create a discount of -100% off of an already discounted product
+        # We create a discount of -100% off of an already discounted product
         # (11 - 2.4) = 8.6$ discount ~
         self.assertAlmostEqual(order.amount_total, 9.4, 1, "Total should be 9.4$")
 
