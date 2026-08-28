@@ -80,6 +80,54 @@ class TestBundlesAssemble(lint_case.LintCase):
             len(declared),
         )
 
+    def test_every_esm_bundle_compiles(self):
+        """A bare specifier can name a module that exists and an export that does not.
+
+        The two checks above ask whether the bundle's *file list* resolves and
+        whether its *relative* imports stay inside it. Neither reads a bare
+        `@addon/...` specifier's named bindings, so an import of a symbol its
+        module no longer exports passes both and then fails in esbuild, which
+        is the first thing that actually links them.
+
+        Measured on `bf19a83c9ab`, which renamed `resequenceRecords` to
+        `resequence` in `web` and left `enterprise/web_map` importing the old
+        name: `web.assets_web`, `web.assets_web_dark` and
+        `web.assets_web_print` all stopped compiling, so the backend answered
+        500 for every user of any database carrying enterprise. Both sibling
+        methods passed throughout, at every scope.
+
+        Compiles rather than trusting `_is_esbuild_fail_closed()`, which is off
+        unless `--test-enable` or `dev_mode=assets` is set: a gate that only
+        fires when a switch happens to be on is a gate whose absence looks like
+        a pass.
+        """
+        failures = []
+        with self.superuser_env() as env:
+            qweb = env["ir.qweb"]
+            bundles = self.served_bundle_names(env)
+            self.assertTrue(bundles, "no bundles found -- the scan reached nothing")
+
+            compiled = 0
+            for bundle in bundles:
+                if not qweb._can_compile_with_esbuild(bundle):
+                    continue
+                try:
+                    asset_bundle = qweb._get_asset_bundle(bundle, css=False, js=True)
+                    asset_bundle.esbuild_native_bundle()
+                except Exception as exc:
+                    failures.append(f"  {bundle}: {type(exc).__name__}: {exc}")
+                    continue
+                compiled += 1
+
+        self.assertFalse(
+            failures,
+            f"{len(failures)} bundle(s) do not compile. esbuild names the "
+            f"importing file and line; the usual cause is a bare specifier "
+            f"whose module was refactored and whose importer was not:\n"
+            + "\n".join(failures),
+        )
+        _logger.info("%s esm bundle(s) compile", compiled)
+
     # `web/static/src/libs/*` are third-party wrappers a bundle must list
     # explicitly: nothing pulls them in transitively, and a bare specifier that
     # names a module the bundle does not carry resolves to `undefined` rather
