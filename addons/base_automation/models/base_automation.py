@@ -1863,13 +1863,17 @@ class BaseAutomation(models.Model):
                 )
                 for automation in automations.with_context(old_values=None):
                     records = automation._filter_pre(self, feedback=True)
+                    records, domain_post = automation._filter_post_export_domain(
+                        records,
+                        feedback=True,
+                    )
                     _logger.debug(
                         "Processing automation rule %s (#%s) on %s records (_message_post)",
                         automation.sudo().name,
                         automation.sudo().id,
                         len(records),
                     )
-                    automation._process(records)
+                    automation._process(records, domain_post=domain_post)
 
                 return message
 
