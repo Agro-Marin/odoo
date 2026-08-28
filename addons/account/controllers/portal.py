@@ -40,7 +40,6 @@ class PortalAccount(CustomerPortal):
             values["bill_count"] = bill_count
         return values
 
-
     def _get_overdue_invoice_count(self):
         return (
             request.env["account.move"].search_count(
@@ -90,7 +89,7 @@ class PortalAccount(CustomerPortal):
                 "not in",
                 ("in_payment", "paid", "reversed", "blocked", "invoicing_legacy"),
             ),
-            ("invoice_date_due", "<", fields.Date.today()),
+            ("invoice_date_due", "<", fields.Date.context_today(request.env.user)),
             ("partner_id", "=", partner_id or request.env.user.partner_id.id),
         ]
 
@@ -339,7 +338,6 @@ class PortalAccount(CustomerPortal):
             )
 
         return _render({"journal": journal, "email": email_to_unsubscribe})
-
 
     def _prepare_my_account_rendering_values(self, *args, **kwargs):
         rendering_values = super()._prepare_my_account_rendering_values(*args, **kwargs)

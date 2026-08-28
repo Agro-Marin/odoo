@@ -863,7 +863,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 },
             )
 
-
         invoice_1 = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -889,7 +888,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         )
 
         check_invoice_values(invoice_1)
-
 
         invoice_2 = self.env["account.move"].create(
             {
@@ -961,7 +959,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             }
         )
 
-
         invoice_create = self.env["account.move"].create(
             {
                 "move_type": "out_invoice",
@@ -1002,7 +999,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
 
         check_invoice_values(invoice_onchange)
 
-
         product = self.env["product.product"].create(
             {
                 "name": "product",
@@ -1024,7 +1020,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         invoice_onchange = move_form.save()
 
         check_invoice_values(invoice_onchange)
-
 
         fiscal_position = self.env["account.fiscal.position"].create(
             {"name": "fiscal_position"}
@@ -1056,7 +1051,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 "price_include_override": "tax_included",
             }
         )
-
 
         move_form = Form(self.invoice)
         move_form.invoice_line_ids.remove(1)
@@ -1182,7 +1176,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 "amount_total": -2627.01,
             },
         )
-
 
         move_form = Form(self.invoice)
         move_form.currency_id = self.other_currency
@@ -1618,7 +1611,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             ],
             self.move_vals,
         )
-
 
         self.company_data["company"].country_id = self.env.ref("base.us")
 
@@ -4322,12 +4314,8 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
 
     def test_out_invoice_multiple_switch_payment_terms(self):
         with Form(self.invoice) as move_form:
-            move_form.invoice_payment_term_id = (
-                self.pay_terms_b
-            )
-            move_form.invoice_payment_term_id = (
-                self.pay_terms_a
-            )
+            move_form.invoice_payment_term_id = self.pay_terms_b
+            move_form.invoice_payment_term_id = self.pay_terms_a
 
     def test_out_invoice_copy_custom_date(self):
         invoice = self.env["account.move"].create(
@@ -4935,7 +4923,6 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         move_form.invoice_payment_term_id = epd_payment_term
 
         invoice = move_form.save()
-
 
         with Form(invoice) as move_form:
             move_form.quick_edit_total_amount = 120.58
@@ -6616,3 +6603,36 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 }
             ],
         )
+
+    def test_journal_item_on_receivable_account(self):
+        """A receivable account on a line that is not the payment term line is a
+        missing-due-date problem, and the message must name the account."""
+        move_form = Form(
+            self.env["account.move"].with_context(default_move_type="out_invoice")
+        )
+
+        with move_form.line_ids.new() as line_form:
+            line_form.account_id = self.company_data["default_account_receivable"]
+
+        with self.assertRaisesRegex(
+            UserError,
+            r"Any journal item on '.*' \(Receivable\) must have a due date\.",
+        ):
+            move_form.save()
+
+    def test_payment_term_line_on_non_receivable_account(self):
+        """The opposite mistake -- a payment term line pointing at an account that
+        is not receivable -- used to raise the very same '...and vice versa'
+        sentence as the test above. The two are now distinct, and each names the
+        offending account."""
+        invoice = self.init_invoice("out_invoice", products=self.product_a, post=False)
+        term_line = invoice.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )
+        self.assertTrue(term_line, "the invoice should carry a payment term line")
+
+        with self.assertRaisesRegex(
+            UserError,
+            r"Account '.*' used for receivable line is not of receivable type\.",
+        ):
+            term_line.account_id = self.company_data["default_account_revenue"]

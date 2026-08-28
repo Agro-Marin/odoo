@@ -165,7 +165,6 @@ class AccountMove(models.Model):
         ],
         string="Type",
         required=True,
-        readonly=True,
         tracking=True,
         change_default=True,
         index=True,
@@ -794,6 +793,13 @@ class AccountMove(models.Model):
         readonly=False,
     )
     user_id = fields.Many2one(string="User", related="invoice_user_id")
+    import_source_attachment_id = fields.Many2one(
+        comodel_name="ir.attachment",
+        string="Import Source",
+        copy=False,
+        help="The file this document was decoded from. Kept so the imported "
+        "values can be read again after the document has been edited.",
+    )
     invoice_origin = fields.Char(
         string="Origin",
         readonly=True,
@@ -6822,7 +6828,7 @@ class AccountMove(models.Model):
             ]
         elif allow_fallback:
             return [self._get_invoice_pdf_proforma()]
-        return None
+        return []
 
     def _get_report_filename(self, file_name, extension):
         self.ensure_one()

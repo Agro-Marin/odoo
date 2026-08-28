@@ -1,3 +1,5 @@
+from freezegun import freeze_time
+
 from odoo.fields import Command
 from odoo.tests.common import tagged
 
@@ -60,3 +62,40 @@ class TestPortalInvoice(AccountTestInvoicingHttpCommon):
         res = self.url_open(url)
         self.assertEqual(res.status_code, 200)
         self.assertIn("Proforma", res.content.decode("utf-8"))
+
+    @freeze_time("2026-01-16 02:00:00")
+    def test_overdue_filter_uses_the_customer_local_day(self):
+        """An invoice due today must not be listed as overdue.
+
+        The server runs on UTC. At 02:00 UTC on the 16th it is still 20:00 on the
+        15th in Mexico City, so an invoice due the 15th is due *today* for the
+        customer reading the page -- yet comparing against the UTC day made it
+        overdue. Every evening after 18:00 local, invoices fell into the overdue
+        filter a day early.
+        """
+        self.env.user.tz = "America/Mexico_City"
+        self.user_portal.tz = "America/Mexico_City"
+
+        def make_invoice(due):
+            invoice = self.env["account.move"].create(
+                {
+                    "move_type": "out_invoice",
+                    "partner_id": self.portal_partner.id,
+                    "invoice_date": "2026-01-01",
+                    "invoice_date_due": due,
+                    "invoice_line_ids": [Command.create({"price_unit": 100})],
+                }
+            )
+            invoice.action_post()
+            return invoice
+
+        due_today = make_invoice("2026-01-15")
+        genuinely_overdue = make_invoice("2026-01-14")
+
+        self.authenticate(self.user_portal.login, self.user_portal.login)
+        res = self.url_open("/my/invoices?filterby=overdue_invoices")
+        self.assertEqual(res.status_code, 200)
+        page = res.content.decode("utf-8")
+
+        self.assertIn(genuinely_overdue.name, page)
+        self.assertNotIn(due_today.name, page)

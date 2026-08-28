@@ -925,7 +925,6 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             self.move_vals,
         )
 
-
         self.company_data["company"].country_id = self.env.ref("base.us")
 
         tax_line_tag = self.env["account.account.tag"].create(
@@ -1766,9 +1765,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
                 ],
             }
         )
-        action_register_payment = (
-            move.action_force_register_payment()
-        )
+        action_register_payment = move.action_force_register_payment()
         self.assertTrue(action_register_payment)
         wizard = (
             self.env[action_register_payment["res_model"]]
@@ -3598,9 +3595,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             uom_gram,
             "the Units seller shares no reference unit with kg and must be skipped",
         )
-        self.assertAlmostEqual(
-            line.price_unit, 0.1, msg="100/kg restated per gram"
-        )
+        self.assertAlmostEqual(line.price_unit, 0.1, msg="100/kg restated per gram")
 
     def test_vendor_uom_falls_back_to_the_product_unit(self):
         uom_unit = self.env.ref("uom.product_uom_unit")
@@ -3713,6 +3708,8 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         self.assertEqual(credit_note.amount_total, invoice.amount_total)
 
     def test_journal_item_on_payable_account(self):
+        """A payable account on a line that is not the payment term line is a
+        missing-due-date problem, and the message must name the account."""
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
@@ -3722,9 +3719,26 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
 
         with self.assertRaisesRegex(
             UserError,
-            "Any journal item on a payable account must have a due date and vice versa.",
+            r"Any journal item on '.*' \(Payable\) must have a due date\.",
         ):
             move_form.save()
+
+    def test_payment_term_line_on_non_payable_account(self):
+        """The opposite mistake -- a payment term line pointing at an account that
+        is not payable -- used to raise the very same '...and vice versa' sentence
+        as test_journal_item_on_payable_account above. The two are now distinct,
+        and each names the offending account."""
+        bill = self.init_invoice("in_invoice", products=self.product_a, post=False)
+        term_line = bill.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )
+        self.assertTrue(term_line, "the bill should carry a payment term line")
+
+        with self.assertRaisesRegex(
+            UserError,
+            r"Account '.*' used for payable line is not of payable type\.",
+        ):
+            term_line.account_id = self.company_data["default_account_expense"]
 
     def test_default_tax_and_default_fiscal_position(self):
         receipt_fiscal_position = self.env["account.fiscal.position"].create(

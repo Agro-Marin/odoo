@@ -2609,9 +2609,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         wizard = (
             self.env["account.payment.register"]
             .with_context(
-                active_domain=[
-                    ["next_payment_date", "=", "2017-01-07"]
-                ],
+                active_domain=[["next_payment_date", "=", "2017-01-07"]],
                 active_model="account.move",
                 active_ids=invoice_2.ids,
             )

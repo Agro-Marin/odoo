@@ -17,12 +17,32 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         cls.other_currency = cls.setup_other_currency("EUR")
 
-        cls.payment_debit_account_id = (
-            cls.inbound_payment_channel.payment_account_id
+        # A commercial entity with the two contact shapes our customers actually
+        # use: an invoicing contact that receives the paperwork, and an ordinary
+        # contact under the same parent.
+        cls.commercial_partner = cls.env["res.partner"].create(
+            {
+                "name": "Agro Comercial",
+                "is_company": True,
+            }
         )
-        cls.payment_credit_account_id = (
-            cls.outbound_payment_channel.payment_account_id
+        cls.invoice_contact = cls.env["res.partner"].create(
+            {
+                "name": "Agro Comercial, Toluca",
+                "type": "invoice",
+                "parent_id": cls.commercial_partner.id,
+            }
         )
+        cls.sibling_contact = cls.env["res.partner"].create(
+            {
+                "name": "Agro Comercial, Sonora",
+                "type": "invoice",
+                "parent_id": cls.commercial_partner.id,
+            }
+        )
+
+        cls.payment_debit_account_id = cls.inbound_payment_channel.payment_account_id
+        cls.payment_credit_account_id = cls.outbound_payment_channel.payment_account_id
 
         cls.bank_journal_1 = cls.company_data["default_journal_bank"]
         cls.bank_journal_2 = cls.company_data["default_journal_bank"].copy()
@@ -138,17 +158,11 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
     def test_payment_move_sync_update_journal_custom_accounts(self):
         outstanding_payment_A = self.inbound_payment_channel.payment_account_id
-        outstanding_payment_B = (
-            self.inbound_payment_channel.payment_account_id.copy()
-        )
+        outstanding_payment_B = self.inbound_payment_channel.payment_account_id.copy()
         journal_A = self.company_data["default_journal_bank"]
-        journal_A.inbound_payment_channel_ids.payment_account_id = (
-            outstanding_payment_A
-        )
+        journal_A.inbound_payment_channel_ids.payment_account_id = outstanding_payment_A
         journal_B = self.company_data["default_journal_bank"].copy()
-        journal_B.inbound_payment_channel_ids.payment_account_id = (
-            outstanding_payment_B
-        )
+        journal_B.inbound_payment_channel_ids.payment_account_id = outstanding_payment_B
 
         pay_form = Form(
             self.env["account.payment"].with_context(
@@ -695,9 +709,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_reconciliation_with_old_oustanding_account(self):
-        outstanding_account_2 = (
-            self.inbound_payment_channel.payment_account_id.copy()
-        )
+        outstanding_account_2 = self.inbound_payment_channel.payment_account_id.copy()
 
         payment = self.env["account.payment"].create(
             {
@@ -753,9 +765,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 else self.bank_journal_1
             )
             payment.journal_id = other_journal
-            self.assertEqual(
-                payment.payment_channel_id.journal_id.id, other_journal.id
-            )
+            self.assertEqual(payment.payment_channel_id.journal_id.id, other_journal.id)
 
             payment.journal_id = default_journal
             self.assertEqual(
@@ -843,9 +853,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_channel_ids.payment_account_id = self.env[
-            "account.account"
-        ]
+        ].inbound_payment_channel_ids.payment_account_id = self.env["account.account"]
         invoice2 = invoice1.copy()
         invoice2.action_post()
         self.env["account.payment.register"].with_context(
@@ -886,9 +894,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_channel_ids.payment_account_id = self.env[
-            "account.account"
-        ]
+        ].inbound_payment_channel_ids.payment_account_id = self.env["account.account"]
 
         invoice_1 = self.env["account.move"].create(
             [
@@ -1067,9 +1073,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         with assert_paid_hook_call("without oustanding"):
             if self.env["account.move"]._get_invoice_in_payment_state() != "in_payment":
-                self.skipTest(
-                    "Accounting not installed"
-                )
+                self.skipTest("Accounting not installed")
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )
@@ -1088,9 +1092,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         with assert_paid_hook_call("with mixed oustanding"):
             if self.env["account.move"]._get_invoice_in_payment_state() != "in_payment":
-                self.skipTest(
-                    "Accounting not installed"
-                )
+                self.skipTest("Accounting not installed")
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )
@@ -1300,3 +1302,57 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         payment.action_draft()
         with self.assertRaises(UserError):
             payment.amount = 300.0
+
+    def test_payment_on_child_contact_keeps_accounting_on_the_commercial_entity(self):
+        """The payment is addressed to the contact, the ledger is not.
+
+        partner_id is what goes on the cheque, the receipt and the e-mail, so it
+        has to be allowed to name the invoicing contact. Every journal item, and
+        the destination account with them, must still land on the commercial
+        entity or the partner ledger splits one customer into several.
+        """
+        payment = self.init_payment(-100.0, partner=self.invoice_contact, post=True)
+
+        self.assertEqual(payment.partner_id, self.invoice_contact)
+        self.assertEqual(payment.commercial_partner_id, self.commercial_partner)
+        self.assertEqual(payment.move_id.partner_id, self.commercial_partner)
+        self.assertTrue(payment.move_id.line_ids)
+        self.assertEqual(
+            payment.move_id.line_ids.partner_id,
+            self.commercial_partner,
+            "every journal item belongs to the commercial entity",
+        )
+        self.assertEqual(
+            payment.destination_account_id,
+            self.commercial_partner.with_company(
+                payment.company_id
+            ).property_account_payable_id,
+        )
+
+    def test_payment_bank_accounts_come_from_the_commercial_entity(self):
+        """Bank accounts hang off the company, not off its invoicing contact."""
+        bank = self.env["res.partner.bank"].create(
+            {
+                "acc_number": "MX00COMMERCIAL0001",
+                "partner_id": self.commercial_partner.id,
+                "acc_type": "bank",
+            }
+        )
+        payment = self.init_payment(-100.0, partner=self.invoice_contact)
+        self.assertIn(bank, payment.available_partner_bank_ids)
+
+    def test_duplicate_payments_are_caught_across_sibling_contacts(self):
+        """Paying the same company twice on the same day for the same amount is
+        the duplicate this warning exists to catch. Routing it through two branch
+        contacts used to hide it, because the check compared the contacts."""
+        payment_1 = self.init_payment(
+            -100.0,
+            partner=self.invoice_contact,
+            date=fields.Date.from_string("2019-01-01"),
+        )
+        payment_2 = self.init_payment(
+            -100.0,
+            partner=self.sibling_contact,
+            date=fields.Date.from_string("2019-01-01"),
+        )
+        self.assertIn(payment_2, payment_1.duplicate_payment_ids)

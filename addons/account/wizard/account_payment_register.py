@@ -1285,6 +1285,20 @@ class AccountPaymentRegister(models.TransientModel):
         )
         return [vals for vals_list in counterpart_vals.values() for vals in vals_list]
 
+    @api.model
+    def _get_payment_display_partner(self, lines, fallback_partner_id):
+        """Return the contact a payment should be addressed to.
+
+        Journal items always carry the commercial entity (account_move_line
+        forces it), so the contact the documents were actually sent to has to be
+        read back off the move. Only meaningful when the batch is one contact;
+        otherwise keep the commercial entity the wizard already resolved.
+        """
+        display_partners = lines.move_id.partner_id
+        return (
+            display_partners.id if len(display_partners) == 1 else fallback_partner_id
+        )
+
     def _create_payment_vals_from_wizard(self, batch_result):
         payment_vals = {
             "date": self.payment_date,
@@ -1295,7 +1309,9 @@ class AccountPaymentRegister(models.TransientModel):
             "journal_id": self.journal_id.id,
             "company_id": self.company_id.id,
             "currency_id": self.currency_id.id,
-            "partner_id": self.partner_id.id,
+            "partner_id": self._get_payment_display_partner(
+                self.line_ids, self.partner_id.id
+            ),
             "partner_bank_id": self.partner_bank_id.id,
             "payment_channel_id": self.payment_channel_id.id,
             "destination_account_id": self.line_ids[0].account_id.id,
@@ -1328,7 +1344,7 @@ class AccountPaymentRegister(models.TransientModel):
                         {
                             "name": self.writeoff_label,
                             "account_id": self.writeoff_account_id.id,
-                            "partner_id": self.partner_id.id,
+                            "partner_id": self.partner_id.commercial_partner_id.id,
                             "currency_id": self.currency_id.id,
                             "amount_currency": write_off_amount_currency,
                             "balance": self.currency_id._convert(
@@ -1366,7 +1382,9 @@ class AccountPaymentRegister(models.TransientModel):
             "journal_id": self.journal_id.id,
             "company_id": self.company_id.id,
             "currency_id": batch_values["source_currency_id"],
-            "partner_id": batch_values["partner_id"],
+            "partner_id": self._get_payment_display_partner(
+                batch_result["lines"], batch_values["partner_id"]
+            ),
             "payment_channel_id": payment_channel.id,
             "destination_account_id": batch_result["lines"][0].account_id.id,
             "write_off_line_vals": [],

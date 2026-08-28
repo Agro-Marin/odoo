@@ -1,3 +1,5 @@
+from freezegun import freeze_time
+
 from odoo import Command, fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form, tagged
@@ -1416,3 +1418,18 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 rendered,
                 f"the {scheme} preview must quote what the invoice posts",
             )
+
+    @freeze_time("2026-01-16 02:00:00")
+    def test_due_date_fallback_uses_the_user_local_day(self):
+        """With no reference date, the due date falls back to "today".
+
+        The server runs on UTC and every user here is on Mexico time, so between
+        18:00 and midnight local the UTC day is already the next one. Falling back
+        to the server day dated the term a day ahead of the day the user was
+        looking at. At 02:00 UTC it is still the 15th in Mexico City.
+        """
+        self.env.user.tz = "America/Mexico_City"
+        self.assertEqual(
+            self.pay_term_today.line_ids._get_due_date(False),
+            fields.Date.to_date("2026-01-15"),
+        )

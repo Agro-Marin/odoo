@@ -126,7 +126,7 @@ class TestDownloadDocs(AccountTestInvoicingHttpCommon):
                 "datas": "test_bill",
             }
         )
-        attachment_names = [bill.message_main_attachment_id.name]
+        attachment_names = [bill.name.replace("/", "_")]
         self.authenticate(self.env.user.login, self.env.user.login)
         url = f"/account/download_move_attachments/{bill.id}"
         res = self.url_open(url)
@@ -135,55 +135,79 @@ class TestDownloadDocs(AccountTestInvoicingHttpCommon):
             file_names = sorted(zip_file.namelist())
             self.assertEqual(file_names, attachment_names)
 
-    def test_download_moves_attachments_with_duplicate_names(self):
+    def test_download_moves_attachments_named_after_each_move(self):
+        """Vendors all call their file "Attachment"/"factura.pdf", so a multi-bill
+        export used to be a bag of `Attachment`, `Attachment (1)`, `Attachment (2)`
+        with nothing tying a file back to the bill it documents. Each member is now
+        named after its own move, and the collision disappears with it."""
         bill_1 = self.init_invoice("in_invoice", products=self.product_a, post=True)
         bill_2 = self.init_invoice("in_invoice", products=self.product_a, post=True)
         bill_3 = self.init_invoice("in_invoice", products=self.product_a, post=True)
-        att_name = "Attachment"
-        bill_1.message_main_attachment_id = self.env["ir.attachment"].create(
-            {
-                "name": att_name,
-                "mimetype": "text/plain",
-                "res_model": "account.move",
-                "datas": "test_bill",
-            }
-        )
-        bill_2.message_main_attachment_id = self.env["ir.attachment"].create(
-            {
-                "name": att_name,
-                "mimetype": "text/plain",
-                "res_model": "account.move",
-                "datas": "test_bill",
-            }
-        )
-        bill_3.message_main_attachment_id = self.env["ir.attachment"].create(
-            {
-                "name": f"{att_name} (1)",
-                "mimetype": "text/plain",
-                "res_model": "account.move",
-                "datas": "test_bill",
-            }
-        )
-        attachment_names = [att_name, f"{att_name} (1)", f"{att_name} (1) (1)"]
+        for bill, name in (
+            (bill_1, "Attachment"),
+            (bill_2, "Attachment"),
+            (bill_3, "Attachment (1)"),
+        ):
+            bill.message_main_attachment_id = self.env["ir.attachment"].create(
+                {
+                    "name": name,
+                    "mimetype": "text/plain",
+                    "res_model": "account.move",
+                    "datas": "test_bill",
+                }
+            )
+        bills = bill_1 + bill_2 + bill_3
         self.authenticate(self.env.user.login, self.env.user.login)
 
-        url = f"/account/download_move_attachments/{bill_1.id},{bill_2.id},{bill_3.id}"
+        url = f"/account/download_move_attachments/{','.join(map(str, bills.ids))}"
         res = self.url_open(url)
         self.assertEqual(res.status_code, 200)
         with ZipFile(BytesIO(res.content)) as zip_file:
-            file_names = sorted(zip_file.namelist())
-            self.assertEqual(file_names, attachment_names)
+            self.assertEqual(
+                sorted(zip_file.namelist()),
+                sorted(bill.name.replace("/", "_") for bill in bills),
+            )
 
-        att_name = "Attachment.ext"
-        bill_1.message_main_attachment_id.name = att_name
-        bill_2.message_main_attachment_id.name = att_name
-        attachment_names = [
-            f"{att_name.split('.')[0]} (1).{att_name.split('.')[1]}",
-            att_name,
-        ]
-
-        url = f"/account/download_move_attachments/{bill_1.id},{bill_2.id}"
-        res = self.url_open(url)
+    def test_download_moves_attachments_keeps_the_extension(self):
+        """The move name replaces the stem only; the extension has to survive or
+        the file will not open."""
+        bill = self.init_invoice("in_invoice", products=self.product_a, post=True)
+        bill.message_main_attachment_id = self.env["ir.attachment"].create(
+            {
+                "name": "factura.pdf",
+                "mimetype": "application/pdf",
+                "res_model": "account.move",
+                "datas": "test_bill",
+            }
+        )
+        self.authenticate(self.env.user.login, self.env.user.login)
+        res = self.url_open(f"/account/download_move_attachments/{bill.id}")
         with ZipFile(BytesIO(res.content)) as zip_file:
-            file_names = sorted(zip_file.namelist())
-            self.assertEqual(file_names, attachment_names)
+            self.assertEqual(
+                zip_file.namelist(), [f"{bill.name.replace('/', '_')}.pdf"]
+            )
+
+    def test_download_moves_attachments_zip_named_by_document_type(self):
+        """The archive itself said "Invoices.zip" whatever it held. It now says
+        what kind of document is inside."""
+        bill = self.init_invoice("in_invoice", products=self.product_a, post=True)
+        bill.message_main_attachment_id = self.env["ir.attachment"].create(
+            {
+                "name": "factura.pdf",
+                "mimetype": "application/pdf",
+                "res_model": "account.move",
+                "datas": "test_bill",
+            }
+        )
+        self.authenticate(self.env.user.login, self.env.user.login)
+
+        res = self.url_open(f"/account/download_move_attachments/{bill.id}")
+        self.assertIn("VendorBills.zip", res.headers["Content-Disposition"])
+
+        url = f"/account/download_move_attachments/{','.join(map(str, self.invoices.ids))}"
+        res = self.url_open(url)
+        self.assertIn("CustomerInvoices.zip", res.headers["Content-Disposition"])
+
+        url = f"/account/download_move_attachments/{bill.id},{self.invoices[0].id}"
+        res = self.url_open(url)
+        self.assertIn("Documents.zip", res.headers["Content-Disposition"])

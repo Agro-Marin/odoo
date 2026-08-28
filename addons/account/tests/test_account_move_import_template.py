@@ -41,3 +41,19 @@ class TestAccountMoveImportTemplate(TransactionCase):
         self.assertEqual(template, [])
         template = self.fetch_template_for_type(None)
         self.assertEqual(template, [])
+
+    def test_move_type_is_mappable_in_the_import_wizard(self):
+        """`move_type` must be offered as a mappable column when importing moves.
+
+        `readonly=True` never stopped the value from being written: `create`,
+        `write` and therefore `load` ignore it entirely. What it did stop is
+        `base_import._get_fields_tree`, which skips every readonly field, so the
+        column simply never appeared in the wizard and no mapping could be made.
+        """
+        if "base_import.import" not in self.env.registry:
+            self.skipTest("base_import is not installed")
+        importable = [
+            field["id"]
+            for field in self.env["base_import.import"].get_fields_tree("account.move")
+        ]
+        self.assertIn("move_type", importable)
