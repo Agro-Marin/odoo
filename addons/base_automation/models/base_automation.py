@@ -1531,7 +1531,14 @@ class BaseAutomation(models.Model):
             return
 
         # mark the remaining records as done (to avoid recursive processing)
-        if self.env.context.get("__action_feedback"):
+        #
+        # `_filter_pre`/`_filter_post_export_domain` set `__action_feedback` on
+        # the `records` they return, not on `self` -- checking `self.env.context`
+        # here made this branch unreachable through any caller, since `self`
+        # (the automation) and `records` are different objects with independent
+        # contexts. Checking `records` is what actually observes the flag every
+        # current caller sets.
+        if records.env.context.get("__action_feedback"):
             # modify the context dict in place: this is useful when fields are
             # computed during the pre/post filtering, in order to know which
             # automations have already been run by the computation itself
