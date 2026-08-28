@@ -2,15 +2,7 @@ from odoo import _, api, fields, models
 
 
 class ProductValue(models.Model):
-    """This model represents the history of manual update of a value.
-    The potential update could be:
-        - Modification of the product standard price
-        - Modification of the lot standard price
-        - Modification of the move value
-    In case of modification of:
-        - standard price, value contains the new standard price (by unit).
-        - a move value: value contains the global value of the move.
-    """
+    """History of a manually-recorded value update for a product, lot, or move."""
 
     _name = "product.value"
     _description = "Product Value"
