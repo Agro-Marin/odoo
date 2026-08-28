@@ -191,6 +191,15 @@ class MixinOrderLineStockMatch(models.AbstractModel):
         return 1
 
     def _get_line_date_expected(self, order_line):
+        """Return the date `_rank_move_for_line` compares against `move.date`.
+
+        This is the ranking date, independent from `_select_order_line_date`
+        below, which feeds the grid's displayed `date_expected` column. The
+        two are not guaranteed to be the same value: a concrete model may
+        display one field (e.g. an order-level commitment date) while ranking
+        on another (e.g. a line-level planned date), when no single field
+        serves both purposes.
+        """
         if not self._date_expected_field:
             return False
         return order_line[self._date_expected_field]
@@ -328,6 +337,12 @@ class MixinOrderLineStockMatch(models.AbstractModel):
 
     @api.model
     def _select_order_line_date(self):
+        """Return the SQL expression for the grid's displayed `date_expected`.
+
+        This is the display date, independent from `_date_expected_field`/
+        `_get_line_date_expected` above, which feeds `_rank_move_for_line`'s
+        ranking. See that method's docstring for why the two may differ.
+        """
         return SQL("NULL::TIMESTAMP")
 
     @api.model
