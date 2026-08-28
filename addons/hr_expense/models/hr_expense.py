@@ -842,9 +842,7 @@ class HrExpense(models.Model):
     @api.depends("selectable_payment_channel_ids")
     def _compute_payment_channel_id(self):
         for expense in self:
-            expense.payment_channel_id = expense.selectable_payment_channel_ids[
-                :1
-            ]
+            expense.payment_channel_id = expense.selectable_payment_channel_ids[:1]
 
     @api.depends("company_id")
     def _compute_selectable_payment_channel_ids(self):
