@@ -2,31 +2,45 @@ from odoo import api, fields, models, tools
 
 
 class ResPartner(models.Model):
-    _inherit = 'res.partner'
+    _inherit = "res.partner"
 
     street_name = fields.Char(
-        'Street Name', compute='_compute_street_data', inverse='_inverse_street_data', store=True)
+        "Street Name",
+        compute="_compute_street_data",
+        inverse="_inverse_street_data",
+        store=True,
+    )
     street_number = fields.Char(
-        'House', compute='_compute_street_data', inverse='_inverse_street_data', store=True)
+        "House",
+        compute="_compute_street_data",
+        inverse="_inverse_street_data",
+        store=True,
+    )
     street_number2 = fields.Char(
-        'Door', compute='_compute_street_data', inverse='_inverse_street_data', store=True)
+        "Door",
+        compute="_compute_street_data",
+        inverse="_inverse_street_data",
+        store=True,
+    )
 
-    city_id = fields.Many2one(comodel_name='res.city', string='City ID')
-    country_enforce_cities = fields.Boolean(related='country_id.enforce_cities')
+    city_id = fields.Many2one(comodel_name="res.city", string="City ID")
+    country_enforce_cities = fields.Boolean(related="country_id.enforce_cities")
 
     @api.model
     def _address_fields(self):
-        return super()._address_fields() + ['city_id']
+        return super()._address_fields() + ["city_id"]
 
     def _inverse_street_data(self):
-        """ update self.street based on street_name, street_number and street_number2 """
+        """update self.street based on street_name, street_number and street_number2"""
         for partner in self:
-            street = ((partner.street_name or '') + " " + (partner.street_number or '')).strip()
+            street = (
+                (partner.street_name or "") + " " + (partner.street_number or "")
+            ).strip()
             if partner.street_number2:
                 street = street + " - " + partner.street_number2
             partner.street = street
 
-    @api.depends('street')
+    @api.depends("street")
     def _compute_street_data(self):
         """Split the street value into its sub-fields when `street` changes."""
         for partner in self:
@@ -35,12 +49,12 @@ class ResPartner(models.Model):
     def _get_street_split(self):
         self.ensure_one()
         return {
-            'street_name': self.street_name,
-            'street_number': self.street_number,
-            'street_number2': self.street_number2
+            "street_name": self.street_name,
+            "street_number": self.street_number,
+            "street_number2": self.street_number2,
         }
 
-    @api.onchange('city_id')
+    @api.onchange("city_id")
     def _onchange_city_id(self):
         if self.city_id:
             self.city = self.city_id.name
@@ -51,7 +65,7 @@ class ResPartner(models.Model):
             self.zip = False
             self.state_id = False
 
-    @api.onchange('country_id')
+    @api.onchange("country_id")
     def _onchange_country_id(self):
         super()._onchange_country_id()
         if self.country_id and self.country_id != self.city_id.country_id:
