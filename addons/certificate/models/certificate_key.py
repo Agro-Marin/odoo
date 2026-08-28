@@ -350,9 +350,13 @@ class CertificateKey(models.Model):
                 f"Unsupported hashing algorithm '{hashing_algorithm}'. Currently supported: sha1 and sha256."
             )
 
-        private_key = serialization.load_pem_private_key(
-            base64.b64decode(self.with_context(bin_size=False).pem_key), None
-        )
+        password = self.password.encode("utf-8") if self.password else None
+        try:
+            private_key = serialization.load_pem_private_key(
+                base64.b64decode(self.with_context(bin_size=False).pem_key), password
+            )
+        except (ValueError, TypeError) as exc:
+            raise UserError(_("The private key could not be loaded.")) from exc
         if not isinstance(private_key, rsa.RSAPrivateKey):
             raise UserError(
                 _(
