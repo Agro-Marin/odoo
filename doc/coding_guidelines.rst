@@ -950,7 +950,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 105 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,702 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,704 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. Semantic families are read off the table
 below, so the justification is computed from the rule it justifies. Census and
@@ -1453,7 +1453,7 @@ classes carry the decorator and agree on nothing.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (145 definitions) and ``_update_*`` (265) are
+and is wired to nothing. ``_set_*`` (145 definitions) and ``_update_*`` (266) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
@@ -1472,7 +1472,7 @@ the duplicate report this section exists to produce.
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
 for it this section had never named: **59** definitions spell it ``_sync_*`` and
-**13** spell it ``_synchronize_*``, against ``_update_*``'s **265**. It is not
+**13** spell it ``_synchronize_*``, against ``_update_*``'s **266**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.

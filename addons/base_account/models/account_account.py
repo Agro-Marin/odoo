@@ -777,26 +777,64 @@ class AccountAccount(models.Model):
             _("Please create new accounts from the Chart of Accounts menu."),
         )
 
+    def _sort_vals_for_company_grouping(self, vals_list):
+        """Order `vals_list` so grouping by ``company_ids`` merges every row.
+
+        ``itertools.groupby`` only merges *consecutive* equal keys, so a
+        ``vals_list`` where the same ``company_ids`` recurs non-contiguously
+        (e.g. built by interleaving rows from several companies) would
+        silently split into one extra group per interleaving instead of
+        merging. Sort by each key's first-occurrence position first: groups
+        already contiguous are left untouched, and a scattered one is
+        brought together at the position it first appeared, with a stable
+        sort keeping same-key rows in their original relative order.
+        """
+        first_seen = {}
+        for index, vals in enumerate(vals_list):
+            first_seen.setdefault(repr(vals.get("company_ids", [])), index)
+        return sorted(
+            vals_list,
+            key=lambda vals: first_seen[repr(vals.get("company_ids", []))],
+        )
+
+    def _update_vals_with_code(self, vals, companies, cache):
+        """Fill ``vals['code']`` from a prefix, or from a company's mapping.
+
+        A ``prefix`` asks for the next free code under it, and `cache` carries
+        the codes already handed out in this create so two rows of one batch
+        cannot be given the same one. Failing that, an explicit mapping for
+        the leading company supplies the code.
+        """
+        if "prefix" in vals:
+            prefix = vals.pop("prefix") or ""
+            digits = vals.pop("code_digits")
+            start_code = (
+                prefix.ljust(digits - 1, "0") + "1" if len(prefix) < digits else prefix
+            )
+            vals["code"] = self.with_company(
+                companies[0],
+            )._search_new_account_code(start_code, cache)
+            cache.add(vals["code"])
+
+        if "code" not in vals:
+            for mapping_command in vals.get("code_mapping_ids", []):
+                match mapping_command:
+                    case (
+                        Command.CREATE,
+                        _,
+                        {
+                            "company_id": company_id,
+                            "code": code,
+                        },
+                    ) if company_id == companies[0].id:
+                        vals["code"] = code
+                        break
+
     @api.model_create_multi
     def create(self, vals_list):
         """Create accounts, auto-generating codes when needed."""
         records_list = []
-
-        # ``itertools.groupby`` only merges *consecutive* equal keys, so a
-        # ``vals_list`` where the same ``company_ids`` recurs non-contiguously
-        # (e.g. built by interleaving rows from several companies) would
-        # silently split into one extra group per interleaving instead of
-        # merging. Sort by each key's first-occurrence position first: groups
-        # already contiguous are left untouched, and a scattered one is
-        # brought together at the position it first appeared, with a stable
-        # sort keeping same-key rows in their original relative order.
-        first_seen = {}
-        for index, vals in enumerate(vals_list):
-            first_seen.setdefault(repr(vals.get("company_ids", [])), index)
-        vals_list = sorted(
-            vals_list,
-            key=lambda vals: first_seen[repr(vals.get("company_ids", []))],
-        )
+        vals_list = self._sort_vals_for_company_grouping(vals_list)
 
         for company_ids, vals_list_for_company in itertools.groupby(
             vals_list,
@@ -814,32 +852,7 @@ class AccountAccount(models.Model):
                 companies = self.env.company | companies
 
             for vals in vals_list_for_company:
-                if "prefix" in vals:
-                    prefix = vals.pop("prefix") or ""
-                    digits = vals.pop("code_digits")
-                    start_code = (
-                        prefix.ljust(digits - 1, "0") + "1"
-                        if len(prefix) < digits
-                        else prefix
-                    )
-                    vals["code"] = self.with_company(
-                        companies[0],
-                    )._search_new_account_code(start_code, cache)
-                    cache.add(vals["code"])
-
-                if "code" not in vals:
-                    for mapping_command in vals.get("code_mapping_ids", []):
-                        match mapping_command:
-                            case (
-                                Command.CREATE,
-                                _,
-                                {
-                                    "company_id": company_id,
-                                    "code": code,
-                                },
-                            ) if company_id == companies[0].id:
-                                vals["code"] = code
-                                break
+                self._update_vals_with_code(vals, companies, cache)
 
             new_accounts = super(
                 AccountAccount,
