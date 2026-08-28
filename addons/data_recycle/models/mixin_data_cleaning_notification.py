@@ -50,6 +50,12 @@ class MixinDataCleaningNotification(models.AbstractModel):
     def _notify_pending_records(self):
         """Notify the watchers of every manual rule in `self` that is due."""
         mode_field = self._cleaning_mode_field
+        if not mode_field:
+            # Without this the filter below raises `KeyError: None` from inside a
+            # cron, which says nothing about what the consumer forgot to declare.
+            raise NotImplementedError(
+                "%s inherits mixin.data.cleaning.notification without setting "
+                "_cleaning_mode_field" % self._name)
         for rule in self.filtered(lambda r: r[mode_field] == 'manual'):
             if not rule.notify_user_ids or not rule.notify_frequency:
                 continue

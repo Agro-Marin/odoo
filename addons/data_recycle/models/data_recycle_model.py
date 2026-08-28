@@ -15,6 +15,7 @@ _logger = logging.getLogger(__name__)
 RECYCLE_BATCH_AUTOMATIC = 5000
 RECYCLE_BATCH_MANUAL = 50000
 
+
 class Data_RecycleModel(models.Model):
     _name = 'data_recycle.model'
     _inherit = ['mixin.data.cleaning.notification']
