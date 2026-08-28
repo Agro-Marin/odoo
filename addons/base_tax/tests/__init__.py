@@ -9,3 +9,5 @@ from . import test_tax_manual_amounts
 from . import test_tax_cascade_special_modes
 from . import test_tax_settings_company
 from . import test_tax_group_multi_company
+from . import test_dispatch_pipelines
+from . import test_tax_multi_currency
