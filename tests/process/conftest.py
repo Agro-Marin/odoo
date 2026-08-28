@@ -111,6 +111,22 @@ class ServerHandle:
         psutil.wait_procs(procs, timeout=10)
 
 
+#: Per-process PostgreSQL connection cap for the servers this suite boots.
+#: Small because these servers serve a handful of requests and open no
+#: registry; the point is to leave the cluster usable for everything else.
+DB_MAXCONN = 8
+
+#: Seconds the prefork master waits for a SIGINT'd worker before escalating to
+#: SIGKILL, forced small for this suite.
+#:
+#: The default is 60, which is also `test_reload_continuity`'s own budget for
+#: the reload to finish. Those being the same number means the escalation path
+#: is untestable: a worker that needs SIGKILL gets it at exactly the moment the
+#: test gives up waiting, so the suite can only ever report the timeout, never
+#: the recovery. Ten seconds puts the escalation well inside the window.
+GRACEFUL_STOP_TIMEOUT_S = 10.0
+
+
 @pytest.fixture
 def server(tmp_path):
     started = []
@@ -133,11 +149,34 @@ def server(tmp_path):
                 "0",
                 "--job-workers",
                 "0",
+                # Every server this fixture boots asks PostgreSQL for
+                # `db_maxconn` connections PER WORKER PROCESS, and the default
+                # is 64. Uncapped, a two-worker server here reserves more of a
+                # 100-connection cluster than it can be given while anything
+                # else is running, and this workspace normally has several
+                # sessions testing at once.
+                #
+                # It does not fail as a connection error. The worker blocks in
+                # connect, stops answering SIGINT promptly, and the reload it
+                # was part of runs past its deadline — so the suite reports
+                # "reload did not complete within 60s" and "server stopped
+                # serving after a worker died", which read as prefork
+                # supervision defects and are nothing of the kind. The only
+                # evidence is one line at the end of the server's own log:
+                # `FATAL: sorry, too many clients already`. Measured while
+                # these two were failing: 66 of 100 connections held, 15
+                # odoo-bin processes alive.
+                "--db_maxconn",
+                str(DB_MAXCONN),
                 *args,
             ]
             proc = subprocess.Popen(
                 cmd,
-                env={**os.environ, **(env or {})},
+                env={
+                    **os.environ,
+                    "ODOO_GRACEFUL_STOP_TIMEOUT": str(GRACEFUL_STOP_TIMEOUT_S),
+                    **(env or {}),
+                },
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )

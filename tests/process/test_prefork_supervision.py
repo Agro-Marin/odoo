@@ -41,7 +41,23 @@ class TestPreforkReplacesAKilledWorker:
             f"master did not replace worker {victim}: population went "
             f"{sorted(before)} -> {sorted(after)}"
         )
-        assert prefork.is_serving(), "server stopped serving after a worker died"
+        # Waited for, not sampled — the only assertion in this class that used
+        # to sample. The predicate above is satisfied when the replacement
+        # *process exists*, which psutil reports the moment the master forks;
+        # it says nothing about the worker having finished booting and reached
+        # `accept()` on the shared listen socket. With WORKERS=2 and one just
+        # SIGKILLed, a single `is_serving()` in that window depends on the one
+        # surviving worker answering within five seconds, and on a loaded box
+        # it does not: this failed 2 runs in 5, reporting "server stopped
+        # serving" for a server that was serving again a moment later.
+        #
+        # This is the property the message claims — a server that STAYS down —
+        # and it is the weaker of the two available. Asserting that not one
+        # connection was refused across the recycle would be stronger and needs
+        # a poller thread, the way `test_reload_continuity` does it.
+        assert prefork.wait_until(prefork.is_serving, timeout=30), (
+            "server stopped serving after a worker died"
+        )
 
     def test_the_dead_worker_is_reaped_not_left_defunct(self, prefork):
         victim = min(w.pid for w in prefork.http_workers())
