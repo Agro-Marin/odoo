@@ -49,3 +49,18 @@ class TestAddressExtendedOnchanges(TransactionCase):
         )
         partner._onchange_country_id()
         self.assertFalse(partner.city_id)
+
+    def test_onchange_country_clears_stale_city_zip_state(self):
+        """Clearing a mismatched city_id also clears city/zip/state_id."""
+        other = self.env["res.country"].search([("id", "!=", self.country.id)], limit=1)
+        partner = self.env["res.partner"].new({"city_id": self.city.id})
+        partner._onchange_city_id()
+        self.assertEqual(partner.city, "Springfield")
+        self.assertEqual(partner.zip, "62701")
+
+        partner.country_id = other
+        partner._onchange_country_id()
+        self.assertFalse(partner.city_id)
+        self.assertFalse(partner.city)
+        self.assertFalse(partner.zip)
+        self.assertFalse(partner.state_id)
