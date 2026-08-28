@@ -380,10 +380,10 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
 
     def test_bank_journal_with_default_account_as_outstanding_account_payments(self):
         bank_journal = self.company_data["default_journal_bank"].copy()
-        bank_journal.outbound_payment_method_line_ids[
+        bank_journal.outbound_payment_channel_ids[
             0
         ].payment_account_id = bank_journal.default_account_id
-        bank_journal.inbound_payment_method_line_ids[
+        bank_journal.inbound_payment_channel_ids[
             0
         ].payment_account_id = bank_journal.default_account_id
         payment = self.env["account.payment"].create(

@@ -27,7 +27,7 @@ class AccountPayment(models.Model):
         help="The selected journal is configured to print check numbers. If your pre-printed check paper already has numbers "
         "or if the current numbering is wrong, you can change it in the journal configuration page.",
     )
-    payment_method_line_id = fields.Many2one(index=True)
+    payment_channel_id = fields.Many2one(index=True)
     show_check_number = fields.Boolean(compute="_compute_show_check_number")
 
     check_layout_available = fields.Boolean(
@@ -43,11 +43,11 @@ class AccountPayment(models.Model):
         ),
     )
 
-    @api.depends("payment_method_line_id.code", "check_number")
+    @api.depends("payment_channel_id.code", "check_number")
     def _compute_show_check_number(self):
         for payment in self:
             payment.show_check_number = (
-                payment.payment_method_line_id.code == "check_printing"
+                payment.payment_channel_id.code == "check_printing"
                 and payment.check_number
             )
 
@@ -112,7 +112,7 @@ class AccountPayment(models.Model):
                 )
             )
 
-    @api.depends("payment_method_line_id", "currency_id", "amount")
+    @api.depends("payment_channel_id", "currency_id", "amount")
     def _compute_check_amount_in_words(self):
         for pay in self:
             if pay.currency_id:
@@ -191,7 +191,7 @@ class AccountPayment(models.Model):
         # Since this method can be called via a client_action_multi, we need to make sure the received records are what we expect
         valid_payments = self.filtered(
             lambda r: (
-                r.payment_method_line_id.code == "check_printing" and not r.is_sent
+                r.payment_channel_id.code == "check_printing" and not r.is_sent
             )
         )
 

@@ -5,7 +5,7 @@ from odoo.http import request
 from odoo.tools.json import scriptsafe as json_safe
 from odoo.tools.translate import LazyTranslate
 
-from odoo.addons.account_payment.controllers import portal as account_payment_portal
+from odoo.addons.account_payment_provider.controllers import portal as account_payment_portal
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.controllers import portal as payment_portal
 

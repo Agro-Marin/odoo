@@ -285,7 +285,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ._create_payments()
         )
 
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertEqual(
             payments.move_id.line_ids.sorted("balance").mapped("amount_currency"),
             [-1000.0, 100.0, 900.0],
@@ -337,7 +337,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ._create_payments()
         )
 
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -390,7 +390,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ._create_payments()
         )
 
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -438,7 +438,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ._create_payments()
         )
 
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -484,7 +484,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ._create_payments()
         )
 
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -529,7 +529,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             ._create_payments()
         )
 
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -590,7 +590,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             .create({"payment_date": "2019-01-01", "group_payment": True})
             ._create_payments()
         )
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -649,7 +649,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             .create({"payment_date": "2019-01-01", "group_payment": True})
             ._create_payments()
         )
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -708,7 +708,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             .create({"payment_date": "2019-01-01", "group_payment": True})
             ._create_payments()
         )
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -767,7 +767,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             .create({"payment_date": "2019-01-01", "group_payment": True})
             ._create_payments()
         )
-        self.assertTrue(payments.is_reconciled)
+        self.assertTrue(payments.is_invoice_reconciled)
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -1317,7 +1317,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             .create({"payment_date": "2019-01-01", "group_payment": False})
             ._create_payments()
         )
-        self.assertTrue(all(payments.mapped("is_reconciled")))
+        self.assertTrue(all(payments.mapped("is_invoice_reconciled")))
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [
@@ -1377,7 +1377,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
             .create({"payment_date": "2019-01-01", "group_payment": False})
             ._create_payments()
         )
-        self.assertTrue(all(payments.mapped("is_reconciled")))
+        self.assertTrue(all(payments.mapped("is_invoice_reconciled")))
         self.assertRecordValues(
             payments.move_id.line_ids.sorted("balance"),
             [

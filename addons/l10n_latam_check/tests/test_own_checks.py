@@ -13,7 +13,7 @@ class TestOwnChecks(L10nLatamCheckTest):
         with Form(self.env['account.payment'].with_context(default_payment_type='outbound')) as payment_form:
             payment_form.partner_id = self.partner_a
             payment_form.journal_id = self.bank_journal
-            payment_form.payment_method_line_id = self.bank_journal._get_available_payment_method_lines(
+            payment_form.payment_channel_id = self.bank_journal._get_available_payment_channels(
                 'outbound').filtered(lambda x: x.code == 'own_checks')[0]
             payment_form.memo = 'Deferred check'
             with payment_form.l10n_latam_new_check_ids.new() as check1:
@@ -45,7 +45,7 @@ class TestOwnChecks(L10nLatamCheckTest):
         with Form(self.env['account.payment'].with_context(default_payment_type='outbound')) as payment_form:
             payment_form.partner_id = self.partner_a
             payment_form.journal_id = self.bank_journal
-            payment_form.payment_method_line_id = self.bank_journal._get_available_payment_method_lines(
+            payment_form.payment_channel_id = self.bank_journal._get_available_payment_channels(
                 'outbound').filtered(lambda x: x.code == 'own_checks')[0]
 
             payment_form.memo = 'Deferred check'
@@ -67,13 +67,13 @@ class TestOwnChecks(L10nLatamCheckTest):
     def test_post_own_check_with_3_lines(self):
         foreign_currency = self.env.ref('base.EUR')
         foreign_currency.active = True
-        payment_method_line = self.bank_journal._get_available_payment_method_lines('outbound').filtered_domain([('code', '=', 'own_checks')])[:1]
+        payment_channel = self.bank_journal._get_available_payment_channels('outbound').filtered_domain([('code', '=', 'own_checks')])[:1]
         payment = self.env['account.payment'].create({
             'payment_type': 'outbound',
             'partner_id': self.partner_a.id,
             'journal_id': self.bank_journal.id,
             'currency_id': foreign_currency.id,
-            'payment_method_line_id': payment_method_line.id,
+            'payment_channel_id': payment_channel.id,
             'l10n_latam_new_check_ids': [
                 Command.create({
                     'payment_date': fields.Date.today(),

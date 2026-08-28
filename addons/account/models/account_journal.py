@@ -295,10 +295,10 @@ class AccountJournal(models.Model):
         r"e.g: ^(?P<prefix1>.*?)(?P<year>\d{4})(?P<prefix2>\D*?)(?P<month>\d{2})(?P<prefix3>\D+?)(?P<seq>\d+)(?P<suffix>\D*?)$"
     )
 
-    inbound_payment_method_line_ids = fields.One2many(
-        comodel_name="account.payment.method.line",
+    inbound_payment_channel_ids = fields.One2many(
+        comodel_name="account.payment.channel",
         domain=[("payment_type", "=", "inbound")],
-        compute="_compute_inbound_payment_method_line_ids",
+        compute="_compute_inbound_payment_channel_ids",
         store=True,
         readonly=False,
         string="Inbound Payment Methods",
@@ -310,10 +310,10 @@ class AccountJournal(models.Model):
         "Batch Deposit: Collect several customer checks at once generating and submitting a batch deposit to your bank. Module account_batch_payment is necessary.\n"
         "SEPA Direct Debit: Get paid in the SEPA zone thanks to a mandate your partner will have granted to you. Module account_sepa is necessary.\n",
     )
-    outbound_payment_method_line_ids = fields.One2many(
-        comodel_name="account.payment.method.line",
+    outbound_payment_channel_ids = fields.One2many(
+        comodel_name="account.payment.channel",
         domain=[("payment_type", "=", "outbound")],
-        compute="_compute_outbound_payment_method_line_ids",
+        compute="_compute_outbound_payment_channel_ids",
         store=True,
         readonly=False,
         string="Outbound Payment Methods",
@@ -483,7 +483,7 @@ class AccountJournal(models.Model):
             .search([("code", "in", list(method_information.keys()))])
         )
         manage_providers = (
-            "payment_provider_id" in self.env["account.payment.method.line"]._fields
+            "payment_provider_id" in self.env["account.payment.channel"]._fields
         )
 
         mapping, unique_ids, electronic_names = self._map_payment_methods(
@@ -543,7 +543,7 @@ class AccountJournal(models.Model):
         fnames = ["payment_method_id", "journal_id"]
         if manage_providers:
             fnames.append("payment_provider_id")
-        self.env["account.payment.method.line"].flush_model(fnames=fnames)
+        self.env["account.payment.channel"].flush_model(fnames=fnames)
 
         self.env.cr.execute(
             f"""
@@ -552,7 +552,7 @@ class AccountJournal(models.Model):
                     journal.company_id,
                     journal.id,
                     {"apml.payment_provider_id" if manage_providers else "NULL"}
-                FROM account_payment_method_line apml
+                FROM account_payment_channel apml
                 JOIN account_journal journal ON journal.id = apml.journal_id
                 JOIN account_payment_method apm ON apm.id = apml.payment_method_id
                 WHERE apm.id = ANY(%s)
@@ -575,7 +575,7 @@ class AccountJournal(models.Model):
                 journal_ids = company_journals.setdefault(company_id, [])
             journal_ids.append(journal_id)
 
-    @api.depends("outbound_payment_method_line_ids", "inbound_payment_method_line_ids")
+    @api.depends("outbound_payment_channel_ids", "inbound_payment_channel_ids")
     def _compute_available_payment_method_ids(self):
         (
             pay_methods,
@@ -595,7 +595,7 @@ class AccountJournal(models.Model):
             protected_provider_ids = set()
             protected_payment_method_ids = set()
             for payment_type in ("inbound", "outbound"):
-                lines = journal[f"{payment_type}_payment_method_line_ids"]
+                lines = journal[f"{payment_type}_payment_channel_ids"]
                 for line in lines:
                     values = method_information_mapping.get(line.payment_method_id.id)
                     if not values:
@@ -641,15 +641,15 @@ class AccountJournal(models.Model):
             journal.available_payment_method_ids = commands
 
     @api.depends("type", "currency_id")
-    def _compute_inbound_payment_method_line_ids(self):
-        self._compute_payment_method_line_ids("inbound")
+    def _compute_inbound_payment_channel_ids(self):
+        self._compute_payment_channel_ids("inbound")
 
     @api.depends("type", "currency_id")
-    def _compute_outbound_payment_method_line_ids(self):
-        self._compute_payment_method_line_ids("outbound")
+    def _compute_outbound_payment_channel_ids(self):
+        self._compute_payment_channel_ids("outbound")
 
-    def _compute_payment_method_line_ids(self, payment_type):
-        field_name = f"{payment_type}_payment_method_line_ids"
+    def _compute_payment_channel_ids(self, payment_type):
+        field_name = f"{payment_type}_payment_channel_ids"
         for journal in self:
             commands = [Command.clear()]
             if journal.type in LIQUIDITY_TYPES:
@@ -680,13 +680,13 @@ class AccountJournal(models.Model):
                     )
             journal[field_name] = commands
 
-    @api.depends("outbound_payment_method_line_ids", "inbound_payment_method_line_ids")
+    @api.depends("outbound_payment_channel_ids", "inbound_payment_channel_ids")
     def _compute_selected_payment_method_codes(self):
         for journal in self:
             codes = [
                 line.code
-                for line in journal.inbound_payment_method_line_ids
-                + journal.outbound_payment_method_line_ids
+                for line in journal.inbound_payment_channel_ids
+                + journal.outbound_payment_channel_ids
                 if line.code
             ]
             journal.selected_payment_method_codes = "," + ",".join(codes) + ","
@@ -851,8 +851,8 @@ class AccountJournal(models.Model):
             | self.non_deductible_account_id
             | self.profit_account_id
             | self.loss_account_id
-            | self.inbound_payment_method_line_ids.payment_account_id
-            | self.outbound_payment_method_line_ids.payment_account_id
+            | self.inbound_payment_channel_ids.payment_account_id
+            | self.outbound_payment_channel_ids.payment_account_id
         )
 
     def _is_account_allowed(self, account):
@@ -911,9 +911,9 @@ class AccountJournal(models.Model):
                 )
 
     @api.constrains(
-        "inbound_payment_method_line_ids", "outbound_payment_method_line_ids"
+        "inbound_payment_channel_ids", "outbound_payment_channel_ids"
     )
-    def _check_payment_method_line_ids_multiplicity(self):
+    def _check_payment_channel_ids_multiplicity(self):
         (
             pay_methods,
             manage_providers,
@@ -924,7 +924,7 @@ class AccountJournal(models.Model):
         for journal in self:
             for payment_type in ("inbound", "outbound"):
                 counter = {}
-                for line in journal[f"{payment_type}_payment_method_line_ids"]:
+                for line in journal[f"{payment_type}_payment_channel_ids"]:
                     values = method_information_mapping.get(line.payment_method_id.id)
                     if not values or values["mode"] not in ("electronic", "unique"):
                         continue
@@ -1028,7 +1028,7 @@ class AccountJournal(models.Model):
             ):
                 if set(journal_ids) <= self_ids:
                     bank_accounts += bank_account
-        self.env["account.payment.method.line"].search(
+        self.env["account.payment.channel"].search(
             [("journal_id", "in", self.ids)]
         ).unlink()
         ret = super().unlink()
@@ -1645,19 +1645,19 @@ class AccountJournal(models.Model):
 
     def _get_journal_inbound_outstanding_payment_accounts(self):
         self.ensure_one()
-        return self.inbound_payment_method_line_ids.payment_account_id
+        return self.inbound_payment_channel_ids.payment_account_id
 
     def _get_journal_outbound_outstanding_payment_accounts(self):
         self.ensure_one()
-        return self.outbound_payment_method_line_ids.payment_account_id
+        return self.outbound_payment_channel_ids.payment_account_id
 
-    def _get_available_payment_method_lines(self, payment_type):
+    def _get_available_payment_channels(self, payment_type):
         if not self:
-            return self.env["account.payment.method.line"]
+            return self.env["account.payment.channel"]
         self.ensure_one()
         if payment_type not in ("inbound", "outbound"):
             raise ValueError(f"Unknown payment type {payment_type!r}")
-        return self[f"{payment_type}_payment_method_line_ids"]
+        return self[f"{payment_type}_payment_channel_ids"]
 
     def _is_payment_method_available(self, payment_method_code, complete_domain=True):
         self.ensure_one()

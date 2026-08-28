@@ -158,7 +158,7 @@ class TestAccountPaymentDuplicateMoves(AccountTestInvoicingCommon):
         payment_in_1 = self.payment_in
         payment_out_1 = self.payment_out
         bank_journal_B = self.bank_journal.copy()
-        bank_journal_B.inbound_payment_method_line_ids.payment_account_id = self.env[
+        bank_journal_B.inbound_payment_channel_ids.payment_account_id = self.env[
             "account.account"
         ].create(
             {
@@ -232,7 +232,7 @@ class TestAccountPaymentDuplicateMoves(AccountTestInvoicingCommon):
                     "amount": 50.0,
                     "group_payment": True,
                     "payment_difference_handling": "open",
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
         )

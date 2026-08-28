@@ -230,14 +230,14 @@ class TestPostContract(AccountTestInvoicingCommon):
                         "partner_id": self.partner_a.id,
                         "amount": 100.0,
                         "journal_id": journal.id,
-                        "payment_method_line_id": journal.outbound_payment_method_line_ids[
+                        "payment_channel_id": journal.outbound_payment_channel_ids[
                             0
                         ].id,
                     }
                     for journal in journals
                 ]
             )
-            self.assertEqual(len(payments.payment_method_line_id), 2)
+            self.assertEqual(len(payments.payment_channel_id), 2)
             with self.assertRaises(UserError):
                 payments.action_post()
         finally:

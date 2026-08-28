@@ -213,12 +213,16 @@ class AccountMove(models.Model):
         string="Related reconciliation",
     )
 
+    # The edge is stored once, on `account.payment.move_id`. This is the head of
+    # `payment_ids`, kept under its own name because ~50 readers and fifteen
+    # localisations spell it, and because "the payment this entry was generated
+    # by" is what they mean -- `payment_ids` is the ORM's spelling of the
+    # inverse, not the concept.
     origin_payment_id = fields.Many2one(
         comodel_name="account.payment",
         string="Payment",
-        index="btree_not_null",
-        copy=False,
-        check_company=True,
+        compute="_compute_origin_payment_id",
+        search="_search_origin_payment_id",
     )
     matched_payment_ids = fields.Many2many(
         string="Matched Payments",
@@ -582,10 +586,10 @@ class AccountMove(models.Model):
         exportable=False,
     )
 
-    preferred_payment_method_line_id = fields.Many2one(
+    preferred_payment_channel_id = fields.Many2one(
         string="Preferred Payment Method Line",
-        comodel_name="account.payment.method.line",
-        compute="_compute_preferred_payment_method_line_id",
+        comodel_name="account.payment.channel",
+        compute="_compute_preferred_payment_channel_id",
         store=True,
         readonly=False,
     )
@@ -707,7 +711,7 @@ class AccountMove(models.Model):
         copy=False,
         tracking=True,
     )
-    status_in_payment = fields.Selection(
+    display_state = fields.Selection(
         selection=PAYMENT_STATE_SELECTION
         + [
             ("draft", "Draft"),
@@ -715,7 +719,7 @@ class AccountMove(models.Model):
             ("sent", "Sent"),
             ("cancel", "Cancelled"),
         ],
-        compute="_compute_status_in_payment",
+        compute="_compute_display_state",
         copy=False,
     )
     amount_total_words = fields.Char(
@@ -910,10 +914,10 @@ class AccountMove(models.Model):
     def _auto_init(self):
         super()._auto_init()
         if not column_exists(
-            self.env.cr, "account_move", "preferred_payment_method_line_id"
+            self.env.cr, "account_move", "preferred_payment_channel_id"
         ):
             create_column(
-                self.env.cr, "account_move", "preferred_payment_method_line_id", "int4"
+                self.env.cr, "account_move", "preferred_payment_channel_id", "int4"
             )
 
     @api.depends("move_type", "partner_id")
@@ -1009,6 +1013,14 @@ class AccountMove(models.Model):
                 move.company_id = (
                     move.journal_id.company_id or self.env.company
                 )._accessible_branches()[:1]
+
+    @api.depends("payment_ids")
+    def _compute_origin_payment_id(self):
+        for move in self:
+            move.origin_payment_id = move.payment_ids[:1]
+
+    def _search_origin_payment_id(self, operator, value):
+        return [("payment_ids", operator, value)]
 
     @api.depends("move_type", "origin_payment_id", "statement_line_id")
     def _compute_journal_id(self):
@@ -1214,7 +1226,7 @@ class AccountMove(models.Model):
                 ._get_fiscal_position(move.partner_id, delivery=delivery_partner)
             )
 
-    @api.depends("bank_partner_id", "currency_id", "preferred_payment_method_line_id")
+    @api.depends("bank_partner_id", "currency_id", "preferred_payment_channel_id")
     def _compute_partner_bank_id(self):
         def _bank_selection_key(bank):
             if bank.currency_id == move.currency_id or not bank.currency_id:
@@ -1228,8 +1240,8 @@ class AccountMove(models.Model):
                 move.is_inbound()
                 and (
                     payment_method := (
-                        move.preferred_payment_method_line_id
-                        or move.bank_partner_id.property_inbound_payment_method_line_id
+                        move.preferred_payment_channel_id
+                        or move.bank_partner_id.property_inbound_payment_channel_id
                     )
                 )
                 and payment_method.journal_id
@@ -1446,8 +1458,8 @@ class AccountMove(models.Model):
         "company_id",
         "reconciled_payment_ids.state",
         "matched_payment_ids.state",
-        "line_ids.matched_debit_ids.debit_move_id.move_id.origin_payment_id.is_matched",
-        "line_ids.matched_credit_ids.credit_move_id.move_id.origin_payment_id.is_matched",
+        "line_ids.matched_debit_ids.debit_move_id.move_id.origin_payment_id.is_bank_matched",
+        "line_ids.matched_credit_ids.credit_move_id.move_id.origin_payment_id.is_bank_matched",
     )
     def _compute_payment_state(self):
         def _invoice_qualifies(move):
@@ -1474,7 +1486,7 @@ class AccountMove(models.Model):
         stored_ids = list(invoices.ids)
         if stored_ids:
             self.env["account.partial.reconcile"].flush_model()
-            self.env["account.payment"].flush_model(["is_matched"])
+            self.env["account.payment"].flush_model(["is_bank_matched"])
 
             queries = []
             for source_field, counterpart_field in (
@@ -1489,8 +1501,8 @@ class AccountMove(models.Model):
                         source_line.move_id AS source_move_id,
                         account.account_type AS source_line_account_type,
                         ARRAY_AGG(counterpart_move.move_type) AS counterpart_move_types,
-                        COALESCE(BOOL_AND(COALESCE(pay.is_matched, FALSE))
-                            FILTER (WHERE counterpart_move.origin_payment_id IS NOT NULL), TRUE) AS all_payments_matched,
+                        COALESCE(BOOL_AND(COALESCE(pay.is_bank_matched, FALSE))
+                            FILTER (WHERE pay.id IS NOT NULL), TRUE) AS all_payments_matched,
                         BOOL_OR(COALESCE(BOOL(pay.id), FALSE)) as has_payment,
                         BOOL_OR(COALESCE(BOOL(counterpart_move.statement_line_id), FALSE)) as has_st_line
                     FROM account_partial_reconcile part
@@ -1498,7 +1510,7 @@ class AccountMove(models.Model):
                     JOIN account_account account ON account.id = source_line.account_id
                     JOIN account_move_line counterpart_line ON counterpart_line.id = part.%s
                     JOIN account_move counterpart_move ON counterpart_move.id = counterpart_line.move_id
-                    LEFT JOIN account_payment pay ON pay.id = counterpart_move.origin_payment_id
+                    LEFT JOIN account_payment pay ON pay.move_id = counterpart_move.id
                     WHERE source_line.move_id = ANY(%s) AND counterpart_line.move_id != source_line.move_id
                     GROUP BY source_line.id, source_line.move_id, account.account_type
                 """,
@@ -1567,22 +1579,22 @@ class AccountMove(models.Model):
             invoice.payment_state = new_pmt_state
 
     @api.depends("payment_state", "state", "is_move_sent")
-    def _compute_status_in_payment(self):
+    def _compute_display_state(self):
         for move in self:
             if move.state == "posted":
                 if move.payment_state in ("partial", "in_payment", "paid", "reversed"):
-                    move.status_in_payment = move.payment_state
+                    move.display_state = move.payment_state
                 elif move.is_move_sent:
-                    move.status_in_payment = "sent"
+                    move.display_state = "sent"
             elif move.state == "draft":
                 if move.payment_state in ("partial", "in_payment", "paid"):
-                    move.status_in_payment = move.payment_state
+                    move.display_state = move.payment_state
 
-            if not move.status_in_payment:
-                move.status_in_payment = move.state
+            if not move.display_state:
+                move.display_state = move.state
 
     def _field_to_sql(self, alias: str, fname: str, query=None) -> SQL:
-        if fname not in ("status_in_payment", "move_sent_values"):
+        if fname not in ("display_state", "move_sent_values"):
             return super()._field_to_sql(alias, fname, query=query)
         is_move_sent = super()._field_to_sql(alias, "is_move_sent", query)
         if fname == "move_sent_values":
@@ -1831,16 +1843,16 @@ class AccountMove(models.Model):
             )
 
     @api.depends("partner_id", "company_id", "move_type")
-    def _compute_preferred_payment_method_line_id(self):
+    def _compute_preferred_payment_channel_id(self):
         for move in self:
             partner = move.partner_id.with_company(move.company_id)
             if move.is_sale_document():
-                move.preferred_payment_method_line_id = (
-                    partner.property_inbound_payment_method_line_id
+                move.preferred_payment_channel_id = (
+                    partner.property_inbound_payment_channel_id
                 )
             else:
-                move.preferred_payment_method_line_id = (
-                    partner.property_outbound_payment_method_line_id
+                move.preferred_payment_channel_id = (
+                    partner.property_outbound_payment_channel_id
                 )
 
     @api.depends("move_type", "line_ids.amount_residual")
@@ -1889,7 +1901,7 @@ class AccountMove(models.Model):
                             "date": counterpart_line.date,
                             "partial_id": reconciled_partial["partial_id"],
                             "account_payment_id": counterpart_line.payment_id.id,
-                            "payment_method_name": counterpart_line.payment_id.payment_method_line_id.name,
+                            "payment_method_name": counterpart_line.payment_id.payment_channel_id.name,
                             "move_id": counterpart_line.move_id.id,
                             "is_refund": counterpart_line.move_id.move_type
                             in ["in_refund", "out_refund"],
@@ -6967,6 +6979,19 @@ class AccountMove(models.Model):
     @api.model
     def _get_invoice_in_payment_state(self):
         return "paid"
+
+    @api.model
+    def _has_full_accounting(self):
+        """Whether the Accounting app is installed.
+
+        There is no flag for it. `accountant` overrides
+        `_get_invoice_in_payment_state` to open the intermediate `in_payment`
+        state, so the value that helper returns is how the tree states which app
+        is present -- and asking it here, once and by name, is what keeps callers
+        from inferring it from a display label in whichever polarity they
+        happened to write.
+        """
+        return self._get_invoice_in_payment_state() == "in_payment"
 
     def _get_name_invoice_report(self):
         self.ensure_one()

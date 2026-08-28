@@ -643,12 +643,12 @@ comment-->1000.0</TaxExclusiveAmount></xpath>"""
                 'delivery_date': "2024-12-31",
             })
             invoice.action_post()
-            sdd_method_line = company_bank_journal.inbound_payment_method_line_ids.filtered(lambda l: l.code == 'sdd')
-            sdd_method_line.payment_account_id = self.inbound_payment_method_line.payment_account_id
+            sdd_method_line = company_bank_journal.inbound_payment_channel_ids.filtered(lambda l: l.code == 'sdd')
+            sdd_method_line.payment_account_id = self.inbound_payment_channel.payment_account_id
             self.env['account.payment.register'].with_context(active_model='account.move', active_ids=invoice.ids).create({
                 'payment_date': invoice.invoice_date,
                 'journal_id': company_bank_journal.id,
-                'payment_method_line_id': sdd_method_line.id,
+                'payment_channel_id': sdd_method_line.id,
             })._create_payments()
 
             xml_attachment = self.env['ir.attachment'].create({
@@ -787,7 +787,7 @@ comment-->1000.0</TaxExclusiveAmount></xpath>"""
 
         tax_group = self.env['account.tax.group'].create({
             'name': 'German Taxes',
-            'company_id': self.company.id,
+            "company_ids": [Command.set(self.company.ids)],
             'country_id': germany.id,
         })
         tax = self.env['account.tax'].create({

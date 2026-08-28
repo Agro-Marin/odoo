@@ -37,14 +37,14 @@ class AccountJournal(models.Model):
             if journal.country_code != 'AR' or journal.type not in ('bank', 'cash'):
                 continue
 
-            for payment_method_line in journal.inbound_payment_method_line_ids:
-                if payment_method_line.payment_account_id:
+            for payment_channel in journal.inbound_payment_channel_ids:
+                if payment_channel.payment_account_id:
                     continue
-                payment_method_line.payment_account_id = inbound_payment_accounts.get(journal.company_id)
+                payment_channel.payment_account_id = inbound_payment_accounts.get(journal.company_id)
 
-            for payment_method_line in journal.outbound_payment_method_line_ids:
-                if payment_method_line.payment_account_id:
+            for payment_channel in journal.outbound_payment_channel_ids:
+                if payment_channel.payment_account_id:
                     continue
-                payment_method_line.payment_account_id = outbound_payment_accounts.get(journal.company_id)
+                payment_channel.payment_account_id = outbound_payment_accounts.get(journal.company_id)
 
         return journals

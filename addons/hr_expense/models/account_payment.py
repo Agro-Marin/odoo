@@ -38,7 +38,7 @@ class AccountPayment(models.Model):
             "partner_bank_id",
             "journal_id",
             "ref",
-            "payment_method_line_id",
+            "payment_channel_id",
         }
         if self.expense_ids and any(
             field_name in trigger_fields for field_name in vals

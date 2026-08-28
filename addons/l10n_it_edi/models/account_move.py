@@ -25,7 +25,7 @@ from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPE
 from odoo.addons.account_edi_proxy_client.models.account_edi_proxy_user import (
     AccountEdiProxyError,
 )
-from odoo.addons.l10n_it_edi.models.account_payment_method_line import (
+from odoo.addons.l10n_it_edi.models.account_payment_channel import (
     L10N_IT_PAYMENT_METHOD_SELECTION,
 )
 from odoo.addons.l10n_it_edi.tools.remove_signature import remove_signature
@@ -201,25 +201,25 @@ class AccountMove(models.Model):
                 # We use matching_numbers[0] directly, assuming there's a valid key in the dictionary.
                 matching_lines = move_lines_per_matching_number.get(matching_numbers[0])
                 if matching_lines and matching_lines.payment_id:
-                    payment_method_line = (
-                        matching_lines.payment_id.payment_method_line_id[0]
+                    payment_channel = (
+                        matching_lines.payment_id.payment_channel_id[0]
                     )
-                    if payment_method_line:
+                    if payment_channel:
                         move.l10n_it_payment_method = (
-                            payment_method_line.l10n_it_payment_method
+                            payment_channel.l10n_it_payment_method
                         )
                         continue  # Skip to the next move
             if linked_payment := move.matched_payment_ids.filtered(
                 lambda p: p.state != "draft"
             )[:1]:
                 move.l10n_it_payment_method = (
-                    linked_payment.payment_method_line_id.l10n_it_payment_method
+                    linked_payment.payment_channel_id.l10n_it_payment_method
                 )
                 continue
 
             # Default handling if no valid matching lines found or if conditions don't match
             move.l10n_it_payment_method = (
-                move.origin_payment_id.payment_method_line_id.l10n_it_payment_method
+                move.origin_payment_id.payment_channel_id.l10n_it_payment_method
                 or move.l10n_it_payment_method
                 or "MP05"
             )
@@ -2006,7 +2006,7 @@ class AccountMove(models.Model):
                 if (
                     payment_method
                     in self.env[
-                        "account.payment.method.line"
+                        "account.payment.channel"
                     ]._get_l10n_it_payment_method_selection_code()
                 ):
                     self.l10n_it_payment_method = payment_method

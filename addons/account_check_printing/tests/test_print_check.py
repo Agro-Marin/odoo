@@ -18,13 +18,13 @@ class TestPrintCheck(AccountTestInvoicingCommon):
 
         bank_journal = cls.company_data["default_journal_bank"]
 
-        cls.payment_method_line_check = (
-            bank_journal.outbound_payment_method_line_ids.filtered(
+        cls.payment_channel_check = (
+            bank_journal.outbound_payment_channel_ids.filtered(
                 lambda l: l.code == "check_printing"
             )
         )
-        cls.payment_method_line_check.payment_account_id = (
-            cls.inbound_payment_method_line.payment_account_id
+        cls.payment_channel_check.payment_account_id = (
+            cls.inbound_payment_channel.payment_account_id
         )
 
     def test_in_invoice_check_manual_sequencing(self):
@@ -68,7 +68,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             .create(
                 {
                     "group_payment": True,
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                 }
             )
             ._create_payments()
@@ -79,7 +79,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             payment,
             [
                 {
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                     "check_amount_in_words": payment.currency_id.amount_to_text(
                         100.0 * nb_invoices_to_test
                     ),
@@ -140,7 +140,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             .create(
                 {
                     "group_payment": True,
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                 }
             )
             ._create_payments()
@@ -151,7 +151,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             payment,
             [
                 {
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                     "check_amount_in_words": payment.currency_id.amount_to_text(
                         100.0 * nb_invoices_to_test
                     ),
@@ -198,7 +198,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             .with_context(active_model="account.move", active_ids=invoice.ids)
             .create(
                 {
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                     "currency_id": self.other_currency.id,
                     "amount": 150.0,
                     "payment_date": "2017-01-01",
@@ -266,7 +266,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             .create(
                 {
                     "group_payment": False,
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                 }
             )
             ._create_payments()
@@ -285,7 +285,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
                 "partner_type": "supplier",
                 "amount": 100.0,
                 "journal_id": self.company_data["default_journal_bank"].id,
-                "payment_method_line_id": self.payment_method_line_check.id,
+                "payment_channel_id": self.payment_channel_check.id,
             }
         )
         payment.action_post()
@@ -305,7 +305,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             "partner_type": "supplier",
             "amount": 100.0,
             "journal_id": self.company_data["default_journal_bank"].id,
-            "payment_method_line_id": self.payment_method_line_check.id,
+            "payment_channel_id": self.payment_channel_check.id,
         }
         payment = self.env["account.payment"].create(vals)
         payment.action_post()
@@ -342,7 +342,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             "partner_type": "supplier",
             "amount": 100.0,
             "journal_id": self.company_data["default_journal_bank"].id,
-            "payment_method_line_id": self.payment_method_line_check.id,
+            "payment_channel_id": self.payment_channel_check.id,
         }
         payment = self.env["account.payment"].create(vals)
         payment.action_post()
@@ -376,7 +376,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
                 "check_next_number": "00042",
             }
         )
-        self.payment_method_line_check.payment_account_id = (
+        self.payment_channel_check.payment_account_id = (
             None  # Needed to trigger the error
         )
 
@@ -406,7 +406,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             .create(
                 {
                     "group_payment": True,
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                 }
             )
             ._create_payments()
@@ -415,7 +415,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             payment,
             [
                 {
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                     "check_amount_in_words": payment.currency_id.amount_to_text(
                         100.0 * nb_invoices_to_test
                     ),
@@ -498,7 +498,7 @@ class TestPrintCheck(AccountTestInvoicingCommon):
             .create(
                 {
                     "group_payment": True,
-                    "payment_method_line_id": self.payment_method_line_check.id,
+                    "payment_channel_id": self.payment_channel_check.id,
                 }
             )
             ._create_payments()

@@ -29,7 +29,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
     def setUpClass(cls):
         super().setUpClass()
         cls.env.user.group_ids |= cls.env.ref('point_of_sale.group_pos_manager')
-        # Code from addons/account_payment/tests/common.py:
+        # Code from addons/account_payment_provider/tests/common.py:
         Method_get_payment_method_information = AccountPaymentMethod._get_payment_method_information
 
         def _get_payment_method_information(self):
@@ -43,7 +43,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
                 'code': 'none',
                 'payment_type': 'inbound'
             })
-        # End of code from addons/account_payment/tests/common.py
+        # End of code from addons/account_payment_provider/tests/common.py
 
         # Code inspired by addons/point_of_sale/tests/common.py:
         cls.company = cls.company_data['company']
@@ -129,7 +129,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
             'pos_categ_ids': [(4, pos_categ_misc.id)],
         })
 
-    # Code from addons/account_payment/tests/common.py
+    # Code from addons/account_payment_provider/tests/common.py
     @classmethod
     def _prepare_provider(cls, provider_code='none', company=None, update_values=None):
         """ Override of `payment` to prepare and return the first provider matching the given
@@ -151,7 +151,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
                 limit=1,
             )
         return provider
-    # End of code from addons/account_payment/tests/common.py
+    # End of code from addons/account_payment_provider/tests/common.py
 
     def setUp(self):
         self.enable_post_process_patcher = False

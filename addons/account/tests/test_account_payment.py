@@ -18,10 +18,10 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         cls.other_currency = cls.setup_other_currency("EUR")
 
         cls.payment_debit_account_id = (
-            cls.inbound_payment_method_line.payment_account_id
+            cls.inbound_payment_channel.payment_account_id
         )
         cls.payment_credit_account_id = (
-            cls.outbound_payment_method_line.payment_account_id
+            cls.outbound_payment_channel.payment_account_id
         )
 
         cls.bank_journal_1 = cls.company_data["default_journal_bank"]
@@ -98,11 +98,11 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             "payment_type": "inbound",
             "partner_type": "customer",
             "payment_reference": False,
-            "is_reconciled": False,
+            "is_invoice_reconciled": False,
             "currency_id": self.company_data["currency"].id,
             "partner_id": False,
             "destination_account_id": copy_receivable.id,
-            "payment_method_line_id": self.inbound_payment_method_line.id,
+            "payment_channel_id": self.inbound_payment_channel.id,
         }
         expected_move_values = {
             "currency_id": self.company_data["currency"].id,
@@ -137,16 +137,16 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertRecordValues(payment, [{"state": "canceled"}])
 
     def test_payment_move_sync_update_journal_custom_accounts(self):
-        outstanding_payment_A = self.inbound_payment_method_line.payment_account_id
+        outstanding_payment_A = self.inbound_payment_channel.payment_account_id
         outstanding_payment_B = (
-            self.inbound_payment_method_line.payment_account_id.copy()
+            self.inbound_payment_channel.payment_account_id.copy()
         )
         journal_A = self.company_data["default_journal_bank"]
-        journal_A.inbound_payment_method_line_ids.payment_account_id = (
+        journal_A.inbound_payment_channel_ids.payment_account_id = (
             outstanding_payment_A
         )
         journal_B = self.company_data["default_journal_bank"].copy()
-        journal_B.inbound_payment_method_line_ids.payment_account_id = (
+        journal_B.inbound_payment_channel_ids.payment_account_id = (
             outstanding_payment_B
         )
 
@@ -170,7 +170,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                     "payment_type": "inbound",
                     "partner_type": "customer",
                     "payment_reference": False,
-                    "is_reconciled": False,
+                    "is_invoice_reconciled": False,
                     "currency_id": self.company_data["currency"].id,
                     "partner_id": self.partner_a.id,
                     "journal_id": journal_A.id,
@@ -225,11 +225,11 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             "payment_type": "inbound",
             "partner_type": "customer",
             "payment_reference": False,
-            "is_reconciled": False,
+            "is_invoice_reconciled": False,
             "currency_id": self.company_data["currency"].id,
             "partner_id": self.partner_a.id,
             "destination_account_id": self.partner_a.property_account_receivable_id.id,
-            "payment_method_line_id": self.inbound_payment_method_line.id,
+            "payment_channel_id": self.inbound_payment_channel.id,
         }
         expected_move_values = {
             "currency_id": self.company_data["currency"].id,
@@ -335,11 +335,11 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                     "payment_type": "inbound",
                     "partner_type": "customer",
                     "payment_reference": False,
-                    "is_reconciled": False,
+                    "is_invoice_reconciled": False,
                     "currency_id": self.company_data["currency"].id,
                     "partner_id": self.partner_a.id,
                     "destination_account_id": self.partner_a.property_account_receivable_id.id,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                     "journal_id": self.company_data["default_journal_bank"].id,
                 }
             ],
@@ -384,8 +384,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.company_data["default_journal_bank"].currency_id = self.other_currency
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_method_line_ids.payment_account_id = (
-            self.inbound_payment_method_line.payment_account_id
+        ].inbound_payment_channel_ids.payment_account_id = (
+            self.inbound_payment_channel.payment_account_id
         )
 
         payment = self.env["account.payment"].create(
@@ -451,8 +451,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             payment,
             [
                 {
-                    "is_reconciled": False,
-                    "is_matched": False,
+                    "is_invoice_reconciled": False,
+                    "is_bank_matched": False,
                 }
             ],
         )
@@ -490,8 +490,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             payment,
             [
                 {
-                    "is_reconciled": True,
-                    "is_matched": False,
+                    "is_invoice_reconciled": True,
+                    "is_bank_matched": False,
                 }
             ],
         )
@@ -517,8 +517,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             payment,
             [
                 {
-                    "is_reconciled": True,
-                    "is_matched": True,
+                    "is_invoice_reconciled": True,
+                    "is_bank_matched": True,
                 }
             ],
         )
@@ -549,7 +549,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 .create({})
                 ._create_payments()
             )
-            self.assertFalse(payment.is_matched)
+            self.assertFalse(payment.is_bank_matched)
             self.assertEqual(invoice.payment_state, "in_payment")
 
             liquidity_lines, _counterpart, _writeoff = payment._seek_for_lines()
@@ -567,7 +567,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             st_suspense_lines.account_id = liquidity_lines.account_id
             (st_suspense_lines + liquidity_lines).reconcile()
 
-            self.assertTrue(payment.is_matched)
+            self.assertTrue(payment.is_bank_matched)
             self.assertEqual(invoice.payment_state, "paid")
 
     def test_reconciliation_payment_states_reverse_payment_move(self):
@@ -602,11 +602,11 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
     def test_payment_without_default_company_account(self):
         bank_journal = self.company_data["default_journal_bank"]
 
-        bank_journal.outbound_payment_method_line_ids.payment_account_id = (
-            self.outbound_payment_method_line.payment_account_id.copy()
+        bank_journal.outbound_payment_channel_ids.payment_account_id = (
+            self.outbound_payment_channel.payment_account_id.copy()
         )
-        bank_journal.inbound_payment_method_line_ids.payment_account_id = (
-            self.inbound_payment_method_line.payment_account_id.copy()
+        bank_journal.inbound_payment_channel_ids.payment_account_id = (
+            self.inbound_payment_channel.payment_account_id.copy()
         )
 
         payment = self.env["account.payment"].create(
@@ -625,10 +625,10 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                     "payment_type": "inbound",
                     "partner_type": "customer",
                     "payment_reference": False,
-                    "is_reconciled": False,
+                    "is_invoice_reconciled": False,
                     "currency_id": self.company_data["currency"].id,
                     "partner_id": False,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             ],
         )
@@ -642,10 +642,10 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                     "payment_type": "outbound",
                     "partner_type": "customer",
                     "payment_reference": False,
-                    "is_reconciled": False,
+                    "is_invoice_reconciled": False,
                     "currency_id": self.company_data["currency"].id,
                     "partner_id": False,
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 }
             ],
         )
@@ -696,7 +696,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
     def test_reconciliation_with_old_oustanding_account(self):
         outstanding_account_2 = (
-            self.inbound_payment_method_line.payment_account_id.copy()
+            self.inbound_payment_channel.payment_account_id.copy()
         )
 
         payment = self.env["account.payment"].create(
@@ -712,7 +712,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_method_line_ids.payment_account_id = outstanding_account_2
+        ].inbound_payment_channel_ids.payment_account_id = outstanding_account_2
         invoice = self.init_invoice(
             "out_invoice", post=True, amounts=[1000.0], taxes=self.env["account.tax"]
         )
@@ -744,7 +744,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             default_journal = payment.journal_id
             self.assertTrue(default_journal)
             self.assertEqual(
-                payment.payment_method_line_id.journal_id.id, default_journal.id
+                payment.payment_channel_id.journal_id.id, default_journal.id
             )
 
             other_journal = (
@@ -754,21 +754,21 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             )
             payment.journal_id = other_journal
             self.assertEqual(
-                payment.payment_method_line_id.journal_id.id, other_journal.id
+                payment.payment_channel_id.journal_id.id, other_journal.id
             )
 
             payment.journal_id = default_journal
             self.assertEqual(
-                payment.payment_method_line_id.journal_id.id, default_journal.id
+                payment.payment_channel_id.journal_id.id, default_journal.id
             )
 
     def test_journal_change_and_change_names(self):
         initial_journal = self.company_data["default_journal_bank"]
         new_journal = self.company_data["default_journal_cash"]
 
-        payment_method_line = initial_journal.inbound_payment_method_line_ids[0]
+        payment_channel = initial_journal.inbound_payment_channel_ids[0]
 
-        new_journal.inbound_payment_method_line_ids[
+        new_journal.inbound_payment_channel_ids[
             0
         ].payment_account_id = self.payment_debit_account_id
 
@@ -779,14 +779,14 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 "partner_type": "customer",
                 "partner_id": self.partner_a.id,
                 "journal_id": initial_journal.id,
-                "payment_method_line_id": payment_method_line.id,
+                "payment_channel_id": payment_channel.id,
             }
         )
         payment.action_post()
 
         payment.action_draft()
         payment.journal_id = new_journal
-        payment.payment_method_line_id = new_journal.inbound_payment_method_line_ids[0]
+        payment.payment_channel_id = new_journal.inbound_payment_channel_ids[0]
         payment.action_post()
 
         self.assertRegex(payment.move_id.name, rf"^P{new_journal.code}/")
@@ -843,7 +843,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_method_line_ids.payment_account_id = self.env[
+        ].inbound_payment_channel_ids.payment_account_id = self.env[
             "account.account"
         ]
         invoice2 = invoice1.copy()
@@ -886,7 +886,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_method_line_ids.payment_account_id = self.env[
+        ].inbound_payment_channel_ids.payment_account_id = self.env[
             "account.account"
         ]
 
@@ -920,7 +920,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
     def test_payment_confirmation_with_bank_outstanding_account(self):
         bank_journal = self.company_data["default_journal_bank"]
         outstanding_account = bank_journal.default_account_id
-        bank_journal.inbound_payment_method_line_ids.payment_account_id = (
+        bank_journal.inbound_payment_channel_ids.payment_account_id = (
             outstanding_account
         )
         payment = self.env["account.payment"].create(
@@ -937,8 +937,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
     def test_payment_memo_account_move_ref_inverse(self):
         bank_journal = self.company_data["default_journal_bank"]
-        bank_journal.inbound_payment_method_line_ids.payment_account_id = (
-            self.inbound_payment_method_line.payment_account_id
+        bank_journal.inbound_payment_channel_ids.payment_account_id = (
+            self.inbound_payment_channel.payment_account_id
         )
         payment = self.env["account.payment"].create(
             {
@@ -966,7 +966,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
         self.company_data[
             "default_journal_bank"
-        ].outbound_payment_method_line_ids.payment_account_id = unreconciliable_account
+        ].outbound_payment_channel_ids.payment_account_id = unreconciliable_account
         invoice = self.init_invoice(move_type="out_invoice", amounts=[10], post=True)
 
         payment = (
@@ -977,8 +977,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             )
             .create(
                 {
-                    "payment_method_line_id": self.company_data["default_journal_bank"]
-                    .outbound_payment_method_line_ids[0]
+                    "payment_channel_id": self.company_data["default_journal_bank"]
+                    .outbound_payment_channel_ids[0]
                     .id,
                 }
             )
@@ -988,14 +988,14 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertEqual(payment.state, "paid")
 
     def test_invoice_paid_hook_called_in_various_scenarios(self):
-        def register_payment(invoice, payment_method_line, amount=None):
+        def register_payment(invoice, payment_channel, amount=None):
             return (
                 self.env["account.payment.register"]
                 .with_context(active_model="account.move", active_ids=invoice.ids)
                 .create(
                     {
                         **({"amount": amount} if amount is not None else {}),
-                        "payment_method_line_id": payment_method_line.id,
+                        "payment_channel_id": payment_channel.id,
                     }
                 )
                 ._create_payments()
@@ -1042,14 +1042,14 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         payment_method = journal.available_payment_method_ids.filtered(
             lambda pm: pm.payment_type == "inbound" and pm.code == "manual"
         )
-        line_with_outstanding = self.env["account.payment.method.line"].create(
+        line_with_outstanding = self.env["account.payment.channel"].create(
             {
                 "payment_method_id": payment_method.id,
                 "journal_id": journal.id,
                 "payment_account_id": self.payment_debit_account_id.id,
             }
         )
-        line_without_outstanding = self.env["account.payment.method.line"].create(
+        line_without_outstanding = self.env["account.payment.channel"].create(
             {
                 "payment_method_id": payment_method.id,
                 "journal_id": journal.id,
@@ -1161,8 +1161,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         journal_bank = self.env["account.journal"].search([("name", "=", "Bank")])
         journal_cash = self.env["account.journal"].search([("name", "=", "Cash")])
 
-        self.partner.property_outbound_payment_method_line_id = (
-            journal_cash.outbound_payment_method_line_ids
+        self.partner.property_outbound_payment_channel_id = (
+            journal_cash.outbound_payment_channel_ids
         )
         payment = self.env["account.payment"].create(
             {
@@ -1174,7 +1174,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertEqual(payment.journal_id, journal_cash)
         payment.journal_id = journal_bank
 
-        self.assertEqual(payment.payment_method_line_id.journal_id, payment.journal_id)
+        self.assertEqual(payment.payment_channel_id.journal_id, payment.journal_id)
         self.assertEqual(payment.journal_id, journal_bank)
 
     def test_empty_string_payment_method(self):
@@ -1188,10 +1188,10 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         invoice.action_post()
 
         journal = self.company_data["default_journal_bank"]
-        payment_method_line = journal.inbound_payment_method_line_ids.filtered(
+        payment_channel = journal.inbound_payment_channel_ids.filtered(
             lambda pm: pm.code == "manual"
         )
-        payment_method_line.write(
+        payment_channel.write(
             {
                 "name": False,
                 "payment_account_id": self.payment_debit_account_id.id,
@@ -1200,7 +1200,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         self.env["account.payment.register"].with_context(
             active_model="account.move", active_ids=invoice.ids
-        ).create({"payment_method_line_id": payment_method_line.id})._create_payments()
+        ).create({"payment_channel_id": payment_channel.id})._create_payments()
         self.assertEqual(invoice.state, "posted")
 
     def test_payment_amount_without_move(self):
@@ -1258,14 +1258,14 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             (True, "reversed", "reversed"),
         ]:
             invoice = create_invoice(post=post, kwargs={"payment_state": payment_state})
-            self.assertEqual(invoice.status_in_payment, expected)
+            self.assertEqual(invoice.display_state, expected)
 
         for is_move_sent, expected in [
             (True, "sent"),
             (False, "posted"),
         ]:
             invoice = create_invoice(post=True, kwargs={"is_move_sent": is_move_sent})
-            self.assertEqual(invoice.status_in_payment, expected)
+            self.assertEqual(invoice.display_state, expected)
 
     def test_payment_move_with_multiple_liquidity_lines(self):
         payment = self.env["account.payment"].create(

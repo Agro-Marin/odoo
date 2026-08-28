@@ -172,7 +172,8 @@
             </div>
 
             <field name="vat" position="before">
-                <field name="partner_vat_placeholder" invisible="1" /> <!-- Read by the placeholder_field option on vat -->
+                <field name="partner_vat_placeholder" invisible="1" /> <!-- Read by the
+                placeholder_field option on vat -->
             </field>
             <field name="vat" position="attributes">
                 <attribute name="options">{'placeholder_field': 'partner_vat_placeholder'}</attribute>
@@ -290,7 +291,7 @@
                     options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_invoice,account.group_account_readonly" />
                 <field string="Payment Method"
-                    name="property_inbound_payment_method_line_id"
+                    name="property_inbound_payment_channel_id"
                     options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_invoice,account.group_account_readonly"
                 />
@@ -300,7 +301,7 @@
                     options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_invoice,account.group_account_readonly" />
                 <field string="Payment Method"
-                    name="property_outbound_payment_method_line_id"
+                    name="property_outbound_payment_channel_id"
                     options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_invoice,account.group_account_readonly"
                 />

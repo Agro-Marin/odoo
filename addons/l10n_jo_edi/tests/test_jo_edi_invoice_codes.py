@@ -22,12 +22,12 @@ class TestJoEdiInvoiceCodes(JoEdiCommon):
             'code': 'l10n_jo_edi_bank',
             'payment_type': 'inbound',
         })
-        cls.env['account.payment.method.line'].create({
+        cls.env['account.payment.channel'].create({
             'name': 'Cash',
             'payment_method_id': cash_method.id,
             'journal_id': cash_journal.id
         })
-        cls.env['account.payment.method.line'].create({
+        cls.env['account.payment.channel'].create({
             'name': 'Bank',
             'payment_method_id': bank_method.id,
             'journal_id': bank_journal.id
@@ -61,6 +61,6 @@ class TestJoEdiInvoiceCodes(JoEdiCommon):
         for scope_type, payment_method, company_type, expected_code in self._get_next_invoice_details():
             with self.subTest(subtest_name=f"Invoice ({scope_type} - {payment_method} - {company_type}) should have code {expected_code}"):
                 invoice.l10n_jo_edi_invoice_type = scope_type
-                invoice.preferred_payment_method_line_id = self.env['account.payment.method.line'].search([('code', '=', payment_method)], limit=1)
+                invoice.preferred_payment_channel_id = self.env['account.payment.channel'].search([('code', '=', payment_method)], limit=1)
                 self.company.l10n_jo_edi_taxpayer_type = company_type
                 self.assertEqual(self._get_xml_invoice_type(invoice), expected_code)

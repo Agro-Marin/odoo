@@ -990,9 +990,9 @@ class AccountJournal(models.Model):
                    END) AS amount_total,
                    SUM(amount_company_currency_signed) AS amount_total_company
               FROM account_payment payment
-              JOIN account_move move ON move.origin_payment_id = payment.id
+              JOIN account_move move ON move.id = payment.move_id
               JOIN account_journal journal ON move.journal_id = journal.id
-             WHERE payment.is_matched IS TRUE
+             WHERE payment.is_bank_matched IS TRUE
                AND move.state = 'posted'
                AND payment.journal_id = ANY(%s)
                AND payment.company_id = ANY(%s)
@@ -1026,8 +1026,8 @@ class AccountJournal(models.Model):
                    END) AS amount_total,
                    SUM(amount_company_currency_signed) AS amount_total_company
               FROM account_payment payment
-              JOIN account_move move ON move.origin_payment_id = payment.id
-             WHERE payment.is_matched IS NOT TRUE
+              JOIN account_move move ON move.id = payment.move_id
+             WHERE payment.is_bank_matched IS NOT TRUE
                AND move.state = 'posted'
                AND payment.journal_id = ANY(%s)
                AND payment.company_id = ANY(%s)

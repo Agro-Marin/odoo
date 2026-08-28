@@ -104,8 +104,8 @@ access_account_payment_term_portal,account.payment.term,model_account_payment_te
 access_account_payment_term_manager,account.payment.term,model_account_payment_term,account.group_account_manager,1,1,1,1
 access_account_payment_term_line_partner_manager,account.payment.term.line partner manager,model_account_payment_term_line,base.group_user,1,0,0,0
 access_account_payment_term_line_manager,account.payment.term.line,model_account_payment_term_line,account.group_account_manager,1,1,1,1
-access_account_payment_method_line_readonly,account.payment.method.line,model_account_payment_method_line,base.group_user,1,0,0,0
-access_account_payment_method_line,account.payment.method.line,model_account_payment_method_line,account.group_account_invoice,1,1,1,1
+access_account_payment_channel_readonly,account.payment.channel,model_account_payment_channel,base.group_user,1,0,0,0
+access_account_payment_channel,account.payment.channel,model_account_payment_channel,account.group_account_invoice,1,1,1,1
 access_account_payment_method_readonly,account.payment.method,model_account_payment_method,base.group_user,1,0,0,0
 access_account_payment_method,account.payment.method,model_account_payment_method,account.group_account_invoice,1,1,0,1
 access_account_payment_readonly,account.payment,model_account_payment,account.group_account_readonly,1,0,0,0
@@ -142,3 +142,5 @@ access_account_report_external_value_ac_user,account.report.external.value.ac.us
 
 access_account_merge_wizard_manager,account.merge.wizard,model_account_merge_wizard,account.group_account_manager,1,1,1,1
 access_account_merge_wizard_line_manager,account.merge.wizard.line,model_account_merge_wizard_line,account.group_account_manager,1,1,1,1
+access_account_tax_merge_wizard_manager,account.tax.merge.wizard,model_account_tax_merge_wizard,account.group_account_manager,1,1,1,1
+access_account_tax_merge_wizard_line_manager,account.tax.merge.wizard.line,model_account_tax_merge_wizard_line,account.group_account_manager,1,1,1,1

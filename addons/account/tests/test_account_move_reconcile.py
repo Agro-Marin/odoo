@@ -103,7 +103,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "tax_1",
                 "amount": 33.3333,
-                "company_id": cls.company_data["company"].id,
+                "company_ids": [Command.set(cls.company_data['company'].ids)],
                 "cash_basis_transition_account_id": cls.cash_basis_transfer_account.id,
                 "tax_exigibility": "on_payment",
                 "invoice_repartition_line_ids": [
@@ -151,7 +151,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "cash_basis_tax_tiny_amount",
                 "amount": 0.0001,
-                "company_id": cls.company_data["company"].id,
+                "company_ids": [Command.set(cls.company_data['company'].ids)],
                 "cash_basis_transition_account_id": cls.cash_basis_transfer_account.id,
                 "tax_exigibility": "on_payment",
                 "invoice_repartition_line_ids": [
@@ -199,7 +199,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "cash_basis_tax_tiny_amount_2",
                 "amount": 0.005,
-                "company_id": cls.company_data["company"].id,
+                "company_ids": [Command.set(cls.company_data['company'].ids)],
                 "cash_basis_transition_account_id": cls.cash_basis_transfer_account.id,
                 "tax_exigibility": "on_payment",
                 "invoice_repartition_line_ids": [
@@ -292,8 +292,8 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             .create(
                 {
                     "amount": payment_amount,
-                    "payment_method_line_id": self.company_data["default_journal_bank"]
-                    .inbound_payment_method_line_ids.filtered_domain(
+                    "payment_channel_id": self.company_data["default_journal_bank"]
+                    .inbound_payment_channel_ids.filtered_domain(
                         [
                             (
                                 "payment_account_id",
@@ -6188,7 +6188,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
                 {
                     "payment_date": "2017-01-01",
                     "journal_id": self.company_data["default_journal_bank"].id,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
         )
@@ -7506,7 +7506,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         # A posted payment with a journal entry and no outstanding account is the
         # only shape whose state _get_to_update_payments decides. It cannot be
         # reached by clearing the payment method line's account, because
-        # _compute_outstanding_account_id depends on payment_method_line_id and
+        # _compute_outstanding_account_id depends on payment_channel_id and
         # not on its payment_account_id, so the stored value never recomputes.
         self.env.flush_all()
         self.env.cr.execute(
@@ -7808,7 +7808,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "tax 20%",
                 "type_tax_use": "purchase",
-                "company_id": self.company_data["company"].id,
+                "company_ids": [Command.set(self.company_data['company'].ids)],
                 "amount": 20,
                 "tax_exigibility": "on_invoice",
                 "invoice_repartition_line_ids": [
@@ -7854,7 +7854,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
                 {
                     "payment_date": caba_inv.date,
                     "journal_id": self.company_data["default_journal_bank"].id,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
         )
@@ -7925,7 +7925,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
                     "amount": 320,
                     "payment_date": invoice.date,
                     "journal_id": self.company_data["default_journal_bank"].id,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
         )
@@ -7988,7 +7988,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
                     "amount": 600,
                     "payment_date": caba_inv.date,
                     "journal_id": self.company_data["default_journal_bank"].id,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
         )
@@ -8117,7 +8117,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "foreign tax_1",
                 "amount": 33.3333,
-                "company_id": self.company_data["company"].id,
+                "company_ids": [Command.set(self.company_data['company'].ids)],
                 "cash_basis_transition_account_id": self.cash_basis_transfer_account.id,
                 "tax_exigibility": "on_payment",
                 "country_id": test_country.id,
@@ -8187,7 +8187,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "tax group",
                 "amount_type": "group",
-                "company_id": self.company_data["company"].id,
+                "company_ids": [Command.set(self.company_data['company'].ids)],
                 "children_tax_ids": [Command.set([tax_a.id, tax_b.id])],
             }
         )
@@ -9059,8 +9059,8 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
     def test_partial_payments_auto_validation(self):
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_method_line_ids += self.env[
-            "account.payment.method.line"
+        ].inbound_payment_channel_ids += self.env[
+            "account.payment.channel"
         ].create(
             {
                 "name": "Manual without outstanding",

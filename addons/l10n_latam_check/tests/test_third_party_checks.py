@@ -23,7 +23,7 @@ class TestThirdChecks(L10nLatamCheckTest):
                 Command.create({'name': check_numbers[0], 'payment_date': fields.Date.add(fields.Date.today(), months=1), 'amount': 1}),
                 Command.create({'name': check_numbers[1], 'payment_date': fields.Date.add(fields.Date.today(), months=1), 'amount': 1}),
             ],
-            'payment_method_line_id': journal._get_available_payment_method_lines('inbound').filtered(lambda x: x.code == 'new_third_party_checks').id,
+            'payment_channel_id': journal._get_available_payment_channels('inbound').filtered(lambda x: x.code == 'new_third_party_checks').id,
         }
 
         payment = self.env['account.payment'].create(vals)
@@ -51,7 +51,7 @@ class TestThirdChecks(L10nLatamCheckTest):
             'partner_id': self.partner_a.id,
             'payment_type': 'outbound',
             'journal_id': self.third_party_check_journal.id,
-            'payment_method_line_id': self.third_party_check_journal._get_available_payment_method_lines('outbound').filtered(lambda x: x.code in ('out_third_party_checks', 'return_third_party_checks')).id,
+            'payment_channel_id': self.third_party_check_journal._get_available_payment_channels('outbound').filtered(lambda x: x.code in ('out_third_party_checks', 'return_third_party_checks')).id,
         }
         delivery = self.env['account.payment'].create(vals)
         delivery.action_post()
@@ -67,7 +67,7 @@ class TestThirdChecks(L10nLatamCheckTest):
             'partner_id': self.partner_a.id,
             'payment_type': 'inbound',
             'journal_id': self.rejected_check_journal.id,
-            'payment_method_line_id': self.rejected_check_journal._get_available_payment_method_lines('inbound').filtered(lambda x: x.code == 'in_third_party_checks').id,
+            'payment_channel_id': self.rejected_check_journal._get_available_payment_channels('inbound').filtered(lambda x: x.code == 'in_third_party_checks').id,
         }
         supplier_return = self.env['account.payment'].create(vals)
         supplier_return.action_post()
@@ -82,7 +82,7 @@ class TestThirdChecks(L10nLatamCheckTest):
             'partner_id': self.partner_a.id,
             'payment_type': 'outbound',
             'journal_id': self.rejected_check_journal.id,
-            'payment_method_line_id': self.rejected_check_journal._get_available_payment_method_lines('outbound').filtered(lambda x: x.code in ('out_third_party_checks', 'return_third_party_checks')).id,
+            'payment_channel_id': self.rejected_check_journal._get_available_payment_channels('outbound').filtered(lambda x: x.code in ('out_third_party_checks', 'return_third_party_checks')).id,
         }
         customer_return = self.env['account.payment'].create(vals)
         customer_return.action_post()
@@ -124,7 +124,7 @@ class TestThirdChecks(L10nLatamCheckTest):
             'payment_type': 'outbound',
             'journal_id': self.rejected_check_journal.id,
             'l10n_latam_move_check_ids': [Command.set([check.id])],
-            'payment_method_line_id': self.rejected_check_journal._get_available_payment_method_lines('inbound').filtered(lambda x: x.code == 'new_third_party_checks').id,
+            'payment_channel_id': self.rejected_check_journal._get_available_payment_channels('inbound').filtered(lambda x: x.code == 'new_third_party_checks').id,
         }).action_post()
 
     def test_04_check_transfer(self):
@@ -163,8 +163,8 @@ class TestThirdChecks(L10nLatamCheckTest):
             'partner_id': self.partner_a.id,
             'payment_type': 'outbound',
             'journal_id': self.third_party_check_journal.id,
-            'payment_method_line_id': self.third_party_check_journal
-                ._get_available_payment_method_lines('outbound')
+            'payment_channel_id': self.third_party_check_journal
+                ._get_available_payment_channels('outbound')
                 .filtered(lambda x: x.code == 'out_third_party_checks').id,
         })
         outbound_payment.action_post()
@@ -187,8 +187,8 @@ class TestThirdChecks(L10nLatamCheckTest):
                 'partner_id': self.partner_a.id,
                 'payment_type': 'outbound',
                 'journal_id': self.third_party_check_journal.id,
-                'payment_method_line_id': self.third_party_check_journal
-                    ._get_available_payment_method_lines('outbound')
+                'payment_channel_id': self.third_party_check_journal
+                    ._get_available_payment_channels('outbound')
                     .filtered(lambda x: x.code == 'out_third_party_checks').id,
             })
 

@@ -46,7 +46,7 @@ class AccountPaymentRegister(models.TransientModel):
         store=True,
         readonly=False,
     )
-    withholding_payment_account_id = fields.Many2one(related="payment_method_line_id.payment_account_id")
+    withholding_payment_account_id = fields.Many2one(related="payment_channel_id.payment_account_id")
     withholding_hide_tax_base_account = fields.Boolean(compute='_compute_withholding_hide_tax_base_account')
 
     # --------------------------------
@@ -81,8 +81,8 @@ class AccountPaymentRegister(models.TransientModel):
                 continue
             latest_payment = self.env['account.payment'].search_read(
                 domain=[
-                    ('payment_method_line_id', '=', wizard.payment_method_line_id.id),
-                    ('payment_method_line_id.payment_account_id', '=', False),
+                    ('payment_channel_id', '=', wizard.payment_channel_id.id),
+                    ('payment_channel_id.payment_account_id', '=', False),
                     ('outstanding_account_id', '!=', False),
                 ],
                 fields=['outstanding_account_id'],

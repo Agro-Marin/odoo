@@ -477,7 +477,7 @@ class CommonPosTest(ValuationReconciliationTestCommon):
         config = pos_config or self.pos_config_usd
         if not taxes:
             taxes = product.taxes_id.filtered(
-                lambda t: t.company_id.id == self.env.company.id
+                lambda t: self.env.company in t.company_ids
             )
         currency = config.currency_id
         res = taxes.compute_all(price, currency, qty, product=product)
@@ -531,7 +531,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             {"name": "POS Receivable Bank"},
         )
         cls.outstanding_bank = cls.copy_account(
-            cls.inbound_payment_method_line.payment_account_id,
+            cls.inbound_payment_channel.payment_account_id,
             {"name": "Outstanding Bank"},
         )
         cls.c1_receivable = cls.copy_account(

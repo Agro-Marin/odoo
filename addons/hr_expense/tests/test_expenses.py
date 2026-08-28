@@ -206,7 +206,7 @@ class TestExpenses(TestExpenseCommon):
         product_b_account_id = self.product_b.property_account_expense_id.id
         product_c_account_id = self.product_c.property_account_expense_id.id
         company_payment_account_id = (
-            self.outbound_payment_method_line.payment_account_id.id
+            self.outbound_payment_channel.payment_account_id.id
         )
         # One payment per expense
         self.assertRecordValues(
@@ -917,9 +917,9 @@ class TestExpenses(TestExpenseCommon):
         self.assertEqual(len(expense.account_move_id.attachment_ids), 2)
 
     def test_expense_payment_method(self):
-        default_payment_method_line = self.company_data[
+        default_payment_channel = self.company_data[
             "default_journal_bank"
-        ].outbound_payment_method_line_ids[0]
+        ].outbound_payment_channel_ids[0]
         check_method = (
             self.env["account.payment.method"]
             .sudo()
@@ -931,33 +931,33 @@ class TestExpenses(TestExpenseCommon):
                 }
             )
         )
-        new_payment_method_line = self.env["account.payment.method.line"].create(
+        new_payment_channel = self.env["account.payment.channel"].create(
             {
                 "name": "Check",
                 "payment_method_id": check_method.id,
                 "journal_id": self.company_data["default_journal_bank"].id,
-                "payment_account_id": self.inbound_payment_method_line.payment_account_id.id,
+                "payment_account_id": self.inbound_payment_channel.payment_account_id.id,
             }
         )
 
         expense = self.create_expenses(
             {
-                "payment_method_line_id": default_payment_method_line.id,
+                "payment_channel_id": default_payment_channel.id,
                 "payment_mode": "company_account",
             }
         )
 
         self.assertRecordValues(
-            expense, [{"payment_method_line_id": default_payment_method_line.id}]
+            expense, [{"payment_channel_id": default_payment_channel.id}]
         )
-        expense.payment_method_line_id = new_payment_method_line
+        expense.payment_channel_id = new_payment_channel
 
         expense.action_submit()
         expense.action_approve()
         expense.action_post()
         self.assertRecordValues(
             expense.account_move_id.origin_payment_id,
-            [{"payment_method_line_id": new_payment_method_line.id}],
+            [{"payment_channel_id": new_payment_channel.id}],
         )
 
     @freeze_time("2024-01-01")
@@ -1571,7 +1571,7 @@ class TestExpenses(TestExpenseCommon):
             }
         )
 
-        sepa_ct_line = bank_journal.outbound_payment_method_line_ids.filtered(
+        sepa_ct_line = bank_journal.outbound_payment_channel_ids.filtered(
             lambda l: l.code == "sepa_ct"
         )
         if not sepa_ct_line:
@@ -1583,7 +1583,7 @@ class TestExpenses(TestExpenseCommon):
             {
                 "name": "Hotel",
                 "payment_mode": "company_account",
-                "payment_method_line_id": sepa_ct_line.id,
+                "payment_channel_id": sepa_ct_line.id,
                 "total_amount_currency": 100.00,
                 "currency_id": self.env.ref("base.EUR").id,
             }

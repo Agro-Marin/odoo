@@ -60,12 +60,12 @@ class AccountPayment(models.Model):
         tracking=True,
         copy=False,
     )
-    is_reconciled = fields.Boolean(
+    is_invoice_reconciled = fields.Boolean(
         string="Is Reconciled",
         store=True,
         compute="_compute_reconciliation_status",
     )
-    is_matched = fields.Boolean(
+    is_bank_matched = fields.Boolean(
         string="Is Matched With a Bank Statement",
         store=True,
         compute="_compute_reconciliation_status",
@@ -95,14 +95,14 @@ class AccountPayment(models.Model):
         copy=False,
     )
 
-    payment_method_line_id = fields.Many2one(
-        "account.payment.method.line",
+    payment_channel_id = fields.Many2one(
+        "account.payment.channel",
         string="Payment Method",
         readonly=False,
         store=True,
         copy=False,
-        compute="_compute_payment_method_line_id",
-        domain="[('id', 'in', available_payment_method_line_ids)]",
+        compute="_compute_payment_channel_id",
+        domain="[('id', 'in', available_payment_channel_ids)]",
         help="Manual: Pay or Get paid by any method outside of Odoo.\n"
         "Payment Providers: Each payment provider has its own Payment Method. Request a transaction on/to a card thanks to a payment token saved by the partner when buying or subscribing online.\n"
         "Check: Pay bills by check and print it from Odoo.\n"
@@ -111,12 +111,12 @@ class AccountPayment(models.Model):
         "SEPA Direct Debit: Get paid in the SEPA zone thanks to a mandate your partner will have granted to you. Module account_iso20022 is necessary.\n"
         "U.S. ISO20022: Pay in the US by submitting an ISO20022 file to your bank. Module account_iso20022 is necessary.\n",
     )
-    available_payment_method_line_ids = fields.Many2many(
-        "account.payment.method.line",
-        compute="_compute_available_payment_method_line_ids",
+    available_payment_channel_ids = fields.Many2many(
+        "account.payment.channel",
+        compute="_compute_available_payment_channel_ids",
     )
     payment_method_id = fields.Many2one(
-        related="payment_method_line_id.payment_method_id",
+        related="payment_channel_id.payment_method_id",
         string="Method",
         tracking=True,
         store=True,
@@ -239,7 +239,7 @@ class AccountPayment(models.Model):
     )
 
     payment_method_code = fields.Char(
-        related="payment_method_line_id.code",
+        related="payment_channel_id.code",
     )
     payment_receipt_title = fields.Char(
         compute="_compute_payment_receipt_title",
@@ -279,7 +279,7 @@ class AccountPayment(models.Model):
     )
     _journal_id_company_id_idx = models.Index("(journal_id, company_id)")
     _unmatched_idx = models.Index(
-        "(journal_id, company_id) WHERE is_matched IS NOT TRUE"
+        "(journal_id, company_id) WHERE is_bank_matched IS NOT TRUE"
     )
 
     @api.model
@@ -317,24 +317,24 @@ class AccountPayment(models.Model):
         self.ensure_one()
         return (
             self.journal_id.default_account_id
-            | self.payment_method_line_id.payment_account_id
-            | self.journal_id.inbound_payment_method_line_ids.payment_account_id
-            | self.journal_id.outbound_payment_method_line_ids.payment_account_id
+            | self.payment_channel_id.payment_account_id
+            | self.journal_id.inbound_payment_channel_ids.payment_account_id
+            | self.journal_id.outbound_payment_channel_ids.payment_account_id
             | self.outstanding_account_id
         )
 
     def _valid_payment_states(self):
-        return (
-            ["in_process", "paid"]
-            if self.env["account.move"]._get_invoice_in_payment_state() == "paid"
-            else ["in_process"]
-        )
+        if self.env["account.move"]._has_full_accounting():
+            return ["in_process"]
+        # Without the app there is no `in_payment` for an invoice to sit in, so a
+        # paid payment is as settled as one still in process.
+        return ["in_process", "paid"]
 
     def _get_aml_default_display_name_list(self):
         self.ensure_one()
         label = (
-            self.payment_method_line_id.name
-            if self.payment_method_line_id
+            self.payment_channel_id.name
+            if self.payment_channel_id
             else _("No Payment Method")
         )
 
@@ -389,7 +389,7 @@ class AccountPayment(models.Model):
             raise UserError(
                 _(
                     "You can't create a new payment without an outstanding payments/receipts account set either on the company or the %(payment_method)s payment method in the %(journal)s journal.",
-                    payment_method=self.payment_method_line_id.name,
+                    payment_method=self.payment_channel_id.name,
                     journal=self.journal_id.display_name,
                 )
             )
@@ -496,11 +496,11 @@ class AccountPayment(models.Model):
                 else None
             )
             if not payment._origin and partner and payment_type:
-                field_name = f"property_{payment_type}_payment_method_line_id"
-                default_payment_method_line = payment.partner_id.with_company(
+                field_name = f"property_{payment_type}_payment_channel_id"
+                default_payment_channel = payment.partner_id.with_company(
                     payment.company_id
                 )[field_name]
-                journal = default_payment_method_line.journal_id
+                journal = default_payment_channel.journal_id
                 if journal:
                     payment.journal_id = journal
                     continue
@@ -573,14 +573,14 @@ class AccountPayment(models.Model):
             liquidity_lines, counterpart_lines, writeoff_lines = pay._seek_for_lines()
 
             if not pay.outstanding_account_id:
-                pay.is_reconciled = False
-                pay.is_matched = pay.state == "paid"
+                pay.is_invoice_reconciled = False
+                pay.is_bank_matched = pay.state == "paid"
             elif not pay.currency_id or not pay.id or not pay.move_id:
-                pay.is_reconciled = False
-                pay.is_matched = False
+                pay.is_invoice_reconciled = False
+                pay.is_bank_matched = False
             elif pay.currency_id.is_zero(pay.amount):
-                pay.is_reconciled = True
-                pay.is_matched = True
+                pay.is_invoice_reconciled = True
+                pay.is_bank_matched = True
             else:
                 residual_field = (
                     "amount_residual"
@@ -591,16 +591,16 @@ class AccountPayment(models.Model):
                     pay.journal_id.default_account_id
                     and pay.journal_id.default_account_id in liquidity_lines.account_id
                 ):
-                    pay.is_matched = True
+                    pay.is_bank_matched = True
                 else:
-                    pay.is_matched = pay.currency_id.is_zero(
+                    pay.is_bank_matched = pay.currency_id.is_zero(
                         sum(liquidity_lines.mapped(residual_field))
                     )
 
                 reconcile_lines = (counterpart_lines + writeoff_lines).filtered(
                     lambda line: line.account_id.reconcile
                 )
-                pay.is_reconciled = pay.currency_id.is_zero(
+                pay.is_invoice_reconciled = pay.currency_id.is_zero(
                     sum(reconcile_lines.mapped(residual_field))
                 )
 
@@ -688,40 +688,40 @@ class AccountPayment(models.Model):
             if pay.partner_bank_id not in pay.available_partner_bank_ids:
                 pay.partner_bank_id = pay.available_partner_bank_ids[:1]._origin
 
-    @api.depends("available_payment_method_line_ids", "partner_id", "company_id")
-    def _compute_payment_method_line_id(self):
+    @api.depends("available_payment_channel_ids", "partner_id", "company_id")
+    def _compute_payment_channel_id(self):
         for pay in self:
-            available_payment_method_lines = pay.available_payment_method_line_ids
+            available_payment_channels = pay.available_payment_channel_ids
             partner = pay.partner_id.with_company(pay.company_id)
-            inbound_payment_method = partner.property_inbound_payment_method_line_id
-            outbound_payment_method = partner.property_outbound_payment_method_line_id
+            inbound_payment_method = partner.property_inbound_payment_channel_id
+            outbound_payment_method = partner.property_outbound_payment_channel_id
             if (
                 pay.payment_type == "inbound"
-                and inbound_payment_method.id in available_payment_method_lines.ids
+                and inbound_payment_method.id in available_payment_channels.ids
             ):
-                pay.payment_method_line_id = inbound_payment_method
+                pay.payment_channel_id = inbound_payment_method
             elif (
                 pay.payment_type == "outbound"
-                and outbound_payment_method.id in available_payment_method_lines.ids
+                and outbound_payment_method.id in available_payment_channels.ids
             ):
-                pay.payment_method_line_id = outbound_payment_method
-            elif pay.payment_method_line_id.id in available_payment_method_lines.ids:
+                pay.payment_channel_id = outbound_payment_method
+            elif pay.payment_channel_id.id in available_payment_channels.ids:
                 continue
-            elif available_payment_method_lines:
-                pay.payment_method_line_id = available_payment_method_lines[0]._origin
+            elif available_payment_channels:
+                pay.payment_channel_id = available_payment_channels[0]._origin
             else:
-                pay.payment_method_line_id = False
+                pay.payment_channel_id = False
 
     @api.depends("payment_type", "journal_id", "currency_id")
-    def _compute_available_payment_method_line_ids(self):
+    def _compute_available_payment_channel_ids(self):
         for pay in self:
-            pay.available_payment_method_line_ids = (
-                pay.journal_id._get_available_payment_method_lines(pay.payment_type)
+            pay.available_payment_channel_ids = (
+                pay.journal_id._get_available_payment_channels(pay.payment_type)
             )
             to_exclude = pay._get_payment_method_codes_to_exclude()
             if to_exclude:
-                pay.available_payment_method_line_ids = (
-                    pay.available_payment_method_line_ids.filtered(
+                pay.available_payment_channel_ids = (
+                    pay.available_payment_channel_ids.filtered(
                         lambda x, to_exclude=to_exclude: x.code not in to_exclude
                     )
                 )
@@ -741,9 +741,9 @@ class AccountPayment(models.Model):
                     ]
                 )
             method_lines = (
-                "inbound_payment_method_line_ids"
+                "inbound_payment_channel_ids"
                 if pay.payment_type == "inbound"
-                else "outbound_payment_method_line_ids"
+                else "outbound_payment_channel_ids"
             )
             pay.available_journal_ids = journals_per_company[company].filtered(
                 method_lines
@@ -760,10 +760,10 @@ class AccountPayment(models.Model):
                 pay.journal_id.currency_id or pay.company_id.currency_id
             )
 
-    @api.depends("payment_method_line_id")
+    @api.depends("payment_channel_id")
     def _compute_outstanding_account_id(self):
         for pay in self:
-            pay.outstanding_account_id = pay.payment_method_line_id.payment_account_id
+            pay.outstanding_account_id = pay.payment_channel_id.payment_account_id
 
     @api.depends("journal_id", "partner_id", "partner_type")
     def _compute_destination_account_id(self):
@@ -813,7 +813,7 @@ class AccountPayment(models.Model):
         "currency_id",
         "journal_id",
         "move_id.state",
-        "payment_method_line_id",
+        "payment_channel_id",
         "payment_type",
         "state",
     )
@@ -842,9 +842,7 @@ class AccountPayment(models.Model):
         self.env["account.payment"].flush_model(
             fnames=["move_id", "outstanding_account_id"]
         )
-        self.env["account.move"].flush_model(
-            fnames=["move_type", "origin_payment_id", "statement_line_id"]
-        )
+        self.env["account.move"].flush_model(fnames=["move_type", "statement_line_id"])
         self.env["account.move.line"].flush_model(
             fnames=["move_id", "account_id", "statement_line_id"]
         )
@@ -1057,16 +1055,16 @@ class AccountPayment(models.Model):
             if move:
                 move.ref = payment.memo
 
-    @api.constrains("payment_method_line_id")
-    def _check_payment_method_line_id(self):
+    @api.constrains("payment_channel_id")
+    def _check_payment_channel_id(self):
         for pay in self:
-            if not pay.payment_method_line_id:
+            if not pay.payment_channel_id:
                 raise ValidationError(
                     _("Please define a payment method line on your payment.")
                 )
             if (
-                pay.payment_method_line_id.journal_id
-                and pay.payment_method_line_id.journal_id != pay.journal_id
+                pay.payment_channel_id.journal_id
+                and pay.payment_channel_id.journal_id != pay.journal_id
             ):
                 raise ValidationError(
                     _(
@@ -1103,14 +1101,18 @@ class AccountPayment(models.Model):
 
         payments = super().create(vals_list)
 
-        accounting_installed = (
-            self.env["account.move"]._get_invoice_in_payment_state() == "in_payment"
-        )
+        # A settlement books a journal entry when its channel carries an
+        # outstanding account. Without the Accounting app there is no
+        # reconciliation surface to hold one that nobody booked, so the account
+        # is forced rather than left to the channel; the bank-reconciliation
+        # widget forces it too, for a payment it is about to match.
+        entry_is_mandatory = not self.env["account.move"]._has_full_accounting()
+        entry_is_forced = bool(self.env.context.get("force_payment_move"))
 
         for i, (pay, vals) in enumerate(zip(payments, vals_list, strict=True)):
-            if (
-                not accounting_installed and not pay.outstanding_account_id
-            ) or self.env.context.get("force_payment_move"):
+            if entry_is_forced or (
+                entry_is_mandatory and not pay.outstanding_account_id
+            ):
                 outstanding_account = pay._get_outstanding_account(pay.payment_type)
                 pay.outstanding_account_id = outstanding_account.id
 
@@ -1181,7 +1183,7 @@ class AccountPayment(models.Model):
             vals.update(
                 {
                     "journal_id": payment.journal_id.id,
-                    "payment_method_line_id": payment.payment_method_line_id.id,
+                    "payment_channel_id": payment.payment_channel_id.id,
                     **(vals or {}),
                 }
             )
@@ -1285,7 +1287,7 @@ class AccountPayment(models.Model):
             "payment_type",
             "partner_type",
             "memo",
-            "payment_method_line_id",
+            "payment_channel_id",
             "currency_id",
             "partner_id",
             "destination_account_id",
@@ -1305,7 +1307,11 @@ class AccountPayment(models.Model):
             pay._generate_move_vals(write_off_line_vals, force_balance, line_ids)
             for pay in need_move
         ]
-        moves = self.env["account.move"].create(move_vals)
+        # The move's name depends on whether it is a payment's entry, and the
+        # edge only exists once the payment is written below -- so the sequence
+        # is told directly. `_get_last_sequence_domain` has always accepted this
+        # key; nothing used it while the move carried a column of its own.
+        moves = self.env["account.move"].with_context(is_payment=True).create(move_vals)
         for pay, move in zip(need_move, moves, strict=True):
             pay.write({"move_id": move.id, "state": "in_process"})
 
@@ -1330,7 +1336,6 @@ class AccountPayment(models.Model):
                     force_balance=force_balance,
                 )
             ],
-            "origin_payment_id": self.id,
         }
 
     def _get_payment_receipt_report_values(self):
@@ -1357,7 +1362,7 @@ class AccountPayment(models.Model):
                     _(
                         "To record payments with %(method_name)s, the recipient bank account must be manually validated. "
                         "You should go on the partner bank account of %(partner)s in order to validate it.",
-                        method_name=payment.payment_method_line_id.name,
+                        method_name=payment.payment_channel_id.name,
                         partner=payment.partner_id.display_name,
                     )
                 )

@@ -11,8 +11,8 @@ class ResCompany(models.Model):
         domain="[('type', '=', 'purchase')]",
         help="The company's default journal used when an employee expense is created.",
     )
-    company_expense_allowed_payment_method_line_ids = fields.Many2many(
-        "account.payment.method.line",
+    company_expense_allowed_payment_channel_ids = fields.Many2many(
+        "account.payment.channel",
         string="Payment methods available for expenses paid by company",
         check_company=True,
         domain="[('payment_type', '=', 'outbound'), ('journal_id', '!=', False), ('journal_id.active', '=', True)]",

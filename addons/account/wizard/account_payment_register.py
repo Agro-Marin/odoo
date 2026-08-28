@@ -172,13 +172,13 @@ class AccountPaymentRegister(models.TransientModel):
         compute="_compute_from_lines",
     )
 
-    payment_method_line_id = fields.Many2one(
-        "account.payment.method.line",
+    payment_channel_id = fields.Many2one(
+        "account.payment.channel",
         string="Payment Method",
         readonly=False,
         store=True,
-        compute="_compute_payment_method_line_id",
-        domain="[('id', 'in', available_payment_method_line_ids)]",
+        compute="_compute_payment_channel_id",
+        domain="[('id', 'in', available_payment_channel_ids)]",
         help="Manual: Pay or Get paid by any method outside of Odoo.\n"
         "Payment Providers: Each payment provider has its own Payment Method. Request a transaction on/to a card thanks to a payment token saved by the partner when buying or subscribing online.\n"
         "Check: Pay bills by check and print it from Odoo.\n"
@@ -186,11 +186,11 @@ class AccountPaymentRegister(models.TransientModel):
         "SEPA Credit Transfer: Pay in the SEPA zone by submitting a SEPA Credit Transfer file to your bank. Module account_sepa is necessary.\n"
         "SEPA Direct Debit: Get paid in the SEPA zone thanks to a mandate your partner will have granted to you. Module account_sepa is necessary.\n",
     )
-    available_payment_method_line_ids = fields.Many2many(
-        "account.payment.method.line",
-        compute="_compute_available_payment_method_line_ids",
+    available_payment_channel_ids = fields.Many2many(
+        "account.payment.channel",
+        compute="_compute_available_payment_channel_ids",
     )
-    payment_method_code = fields.Char(related="payment_method_line_id.code")
+    payment_method_code = fields.Char(related="payment_channel_id.code")
 
     payment_difference = fields.Monetary(compute="_compute_payment_difference")
     payment_difference_handling = fields.Selection(
@@ -268,9 +268,9 @@ class AccountPaymentRegister(models.TransientModel):
             ]
         )
         if payment_type == "inbound":
-            return journals.filtered("inbound_payment_method_line_ids")
+            return journals.filtered("inbound_payment_channel_ids")
         else:
-            return journals.filtered("outbound_payment_method_line_ids")
+            return journals.filtered("outbound_payment_channel_ids")
 
     @api.model
     def _get_batch_journal(self, batch_result):
@@ -386,7 +386,7 @@ class AccountPaymentRegister(models.TransientModel):
         "can_edit_wizard",
         "can_group_payments",
         "group_payment",
-        "payment_method_line_id",
+        "payment_channel_id",
     )
     def _compute_show_payment_difference(self):
         for wizard in self:
@@ -395,7 +395,7 @@ class AccountPaymentRegister(models.TransientModel):
                 and not wizard.early_payment_discount_mode
                 and wizard.can_edit_wizard
                 and (not wizard.can_group_payments or wizard.group_payment)
-                and wizard.payment_method_line_id.payment_account_id
+                and wizard.payment_channel_id.payment_account_id
             )
 
     @api.depends("line_ids")
@@ -480,9 +480,7 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.batches
             )
 
-    @api.depends(
-        "payment_method_line_id", "line_ids", "group_payment", "partner_bank_id"
-    )
+    @api.depends("payment_channel_id", "line_ids", "group_payment", "partner_bank_id")
     def _compute_trust_values(self):
         for wizard in self:
             untrusted_payments_count = 0
@@ -622,11 +620,9 @@ class AccountPaymentRegister(models.TransientModel):
         for wizard in self:
             if wizard.journal_id in wizard.available_journal_ids:
                 continue
-            move_payment_method_lines = (
-                wizard.line_ids.move_id.preferred_payment_method_line_id
-            )
-            if move_payment_method_lines and len(move_payment_method_lines) == 1:
-                wizard.journal_id = move_payment_method_lines.journal_id
+            move_payment_channels = wizard.line_ids.move_id.preferred_payment_channel_id
+            if move_payment_channels and len(move_payment_channels) == 1:
+                wizard.journal_id = move_payment_channels.journal_id
             elif wizard.can_edit_wizard:
                 batch = wizard.batches[0]
                 wizard.journal_id = wizard._get_batch_journal(batch)
@@ -670,66 +666,63 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.partner_bank_id = None
 
     @api.depends("payment_type", "journal_id", "currency_id")
-    def _compute_available_payment_method_line_ids(self):
+    def _compute_available_payment_channel_ids(self):
         for wizard in self:
             if wizard.journal_id:
-                wizard.available_payment_method_line_ids = (
-                    wizard.journal_id._get_available_payment_method_lines(
+                wizard.available_payment_channel_ids = (
+                    wizard.journal_id._get_available_payment_channels(
                         wizard.payment_type
                     )
                 )
             else:
-                wizard.available_payment_method_line_ids = False
+                wizard.available_payment_channel_ids = False
 
     @api.depends("payment_type", "journal_id")
-    def _compute_payment_method_line_id(self):
+    def _compute_payment_channel_id(self):
         for wizard in self:
             if wizard.journal_id:
-                available_payment_method_lines = (
-                    wizard.journal_id._get_available_payment_method_lines(
+                available_payment_channels = (
+                    wizard.journal_id._get_available_payment_channels(
                         wizard.payment_type
                     )
                 )
             else:
-                available_payment_method_lines = False
+                available_payment_channels = False
 
             if (
-                available_payment_method_lines
-                and wizard.payment_method_line_id in available_payment_method_lines
+                available_payment_channels
+                and wizard.payment_channel_id in available_payment_channels
             ):
                 continue
 
-            if available_payment_method_lines:
-                move_payment_method_lines = (
-                    wizard.line_ids.move_id.preferred_payment_method_line_id
+            if available_payment_channels:
+                move_payment_channels = (
+                    wizard.line_ids.move_id.preferred_payment_channel_id
                 )
                 if (
-                    len(move_payment_method_lines) == 1
-                    and move_payment_method_lines.id
-                    in available_payment_method_lines.ids
+                    len(move_payment_channels) == 1
+                    and move_payment_channels.id in available_payment_channels.ids
                 ):
-                    wizard.payment_method_line_id = move_payment_method_lines
+                    wizard.payment_channel_id = move_payment_channels
                 else:
-                    wizard.payment_method_line_id = available_payment_method_lines[
-                        0
-                    ]._origin
+                    wizard.payment_channel_id = available_payment_channels[0]._origin
             else:
-                wizard.payment_method_line_id = False
+                wizard.payment_channel_id = False
 
-    @api.depends("payment_method_line_id")
+    @api.depends("payment_channel_id")
     def _compute_show_require_partner_bank(self):
         for wizard in self:
             if wizard.journal_id.type == "cash":
                 wizard.show_partner_bank_account = False
             else:
                 wizard.show_partner_bank_account = (
-                    wizard.payment_method_line_id.code
+                    wizard.payment_channel_id.code
                     in self.env[
                         "account.payment"
                     ]._get_method_codes_using_bank_account()
                 )
             wizard.require_partner_bank_account = (
-                wizard.payment_method_line_id.code
+                wizard.payment_channel_id.code
                 in self.env["account.payment"]._get_method_codes_needing_bank_account()
             )
 
@@ -1145,7 +1138,7 @@ class AccountPaymentRegister(models.TransientModel):
         "partner_bank_id",
         "amount",
         "currency_id",
-        "payment_method_line_id",
+        "payment_channel_id",
         "payment_type",
         "communication",
     )
@@ -1304,7 +1297,7 @@ class AccountPaymentRegister(models.TransientModel):
             "currency_id": self.currency_id.id,
             "partner_id": self.partner_id.id,
             "partner_bank_id": self.partner_bank_id.id,
-            "payment_method_line_id": self.payment_method_line_id.id,
+            "payment_channel_id": self.payment_channel_id.id,
             "destination_account_id": self.line_ids[0].account_id.id,
             "write_off_line_vals": [],
         }
@@ -1357,10 +1350,10 @@ class AccountPaymentRegister(models.TransientModel):
         else:
             partner_bank_id = batch_result["payment_values"]["partner_bank_id"]
 
-        payment_method_line = self.payment_method_line_id
+        payment_channel = self.payment_channel_id
 
-        if batch_values["payment_type"] != payment_method_line.payment_type:
-            payment_method_line = self.journal_id._get_available_payment_method_lines(
+        if batch_values["payment_type"] != payment_channel.payment_type:
+            payment_channel = self.journal_id._get_available_payment_channels(
                 batch_values["payment_type"]
             )[:1]
 
@@ -1374,7 +1367,7 @@ class AccountPaymentRegister(models.TransientModel):
             "company_id": self.company_id.id,
             "currency_id": batch_values["source_currency_id"],
             "partner_id": batch_values["partner_id"],
-            "payment_method_line_id": payment_method_line.id,
+            "payment_channel_id": payment_channel.id,
             "destination_account_id": batch_result["lines"][0].account_id.id,
             "write_off_line_vals": [],
         }
@@ -1519,7 +1512,7 @@ class AccountPaymentRegister(models.TransientModel):
             raise UserError(
                 _(
                     "To record payments with %(payment_method)s, the recipient bank account must be manually validated. You should go on the partner bank account in order to validate it.",
-                    payment_method=self.payment_method_line_id.name,
+                    payment_method=self.payment_channel_id.name,
                 )
             )
 

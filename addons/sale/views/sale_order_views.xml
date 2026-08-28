@@ -1025,7 +1025,7 @@
                                             help="Recompute all taxes based on this fiscal position"
                                             invisible="not show_update_fpos or state in ['done', 'cancel']" />
                                     </div>
-                                    <field name="preferred_payment_method_line_id" />
+                                    <field name="preferred_payment_channel_id" />
                                     <field name="partner_invoice_id"
                                         groups="!account.group_delivery_invoice_address"
                                         invisible="1" />

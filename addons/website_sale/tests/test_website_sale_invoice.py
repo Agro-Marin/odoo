@@ -1,7 +1,7 @@
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 
-from odoo.addons.account_payment.tests.common import AccountPaymentCommon
+from odoo.addons.account_payment_provider.tests.common import AccountPaymentCommon
 from odoo.addons.sale.tests.common import SaleCommon
 
 

@@ -12361,6 +12361,11 @@ msgid "Payment Amount:"
 msgstr ""
 
 #. module: account
+#: model:ir.model,name:account.model_account_payment_channel
+msgid "Payment Channel"
+msgstr ""
+
+#. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
 msgid "Payment Communication:"
 msgstr ""
@@ -12408,6 +12413,7 @@ msgid "Payment Items"
 msgstr ""
 
 #. module: account
+#: model:ir.model,name:account.model_account_payment_method
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_method_line_id
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__payment_method_id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__payment_method_line_id
@@ -12434,8 +12440,6 @@ msgid "Payment Method:"
 msgstr ""
 
 #. module: account
-#: model:ir.model,name:account.model_account_payment_method
-#: model:ir.model,name:account.model_account_payment_method_line
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
 msgid "Payment Methods"
 msgstr ""

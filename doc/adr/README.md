@@ -240,6 +240,8 @@ enforce them.
 | [0067](0067-a-test-fixture-is-scoped-to-the-suite-that-asks-for-it.md) | A test fixture is scoped to the suite that asks for it | 2026-08-26 | Accepted |
 | [0068](0068-a-group-reference-resolves-to-a-group-this-checkout-defines.md) | A group reference resolves to a group this checkout defines | 2026-08-26 | Accepted |
 | [0069](0069-a-shadow-root-is-attached-through-the-helper.md) | A shadow root is attached through the helper, so its host can be found | 2026-08-27 | Accepted |
+| [0070](0070-payment-names-nine-things-and-a-channel-is-not-a-method.md) | "Payment" names nine things, and a channel is not a method | 2026-08-26 | Accepted |
+| [0071](0071-one-edge-one-column-and-the-sequence-is-told-directly.md) | One edge, one column — and the sequence is told directly | 2026-08-26 | Accepted |
 
 ## Template
 

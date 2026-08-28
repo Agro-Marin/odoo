@@ -4,7 +4,7 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
-class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
+class TestAccountPaymentChannel(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -12,8 +12,8 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
         cls.bank_journal_1 = cls.company_data["default_journal_bank"]
         cls.bank_journal_2 = cls.company_data["default_journal_bank"].copy()
 
-        cls.inbound_payment_method_line_1 = cls.env[
-            "account.payment.method.line"
+        cls.inbound_payment_channel_1 = cls.env[
+            "account.payment.channel"
         ].create(
             {
                 "name": "new inbound payment method line 1",
@@ -24,8 +24,8 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
                 "journal_id": cls.bank_journal_1.id,
             }
         )
-        cls.inbound_payment_method_line_2 = cls.env[
-            "account.payment.method.line"
+        cls.inbound_payment_channel_2 = cls.env[
+            "account.payment.channel"
         ].create(
             {
                 "name": "new inbound payment method line 2",
@@ -36,8 +36,8 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
                 "journal_id": cls.bank_journal_1.id,
             }
         )
-        cls.inbound_payment_method_line_other_journal = cls.env[
-            "account.payment.method.line"
+        cls.inbound_payment_channel_other_journal = cls.env[
+            "account.payment.channel"
         ].create(
             {
                 "name": "new inbound payment method line other journal",
@@ -49,14 +49,14 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
             }
         )
         cls.partner_c = cls.partner_a.copy()
-        cls.partner_a.property_inbound_payment_method_line_id = (
-            cls.inbound_payment_method_line_1
+        cls.partner_a.property_inbound_payment_channel_id = (
+            cls.inbound_payment_channel_1
         )
-        cls.partner_b.property_inbound_payment_method_line_id = (
-            cls.inbound_payment_method_line_2
+        cls.partner_b.property_inbound_payment_channel_id = (
+            cls.inbound_payment_channel_2
         )
-        cls.partner_c.property_inbound_payment_method_line_id = (
-            cls.inbound_payment_method_line_other_journal
+        cls.partner_c.property_inbound_payment_channel_id = (
+            cls.inbound_payment_channel_other_journal
         )
 
         cls.move_partner_a = cls.init_invoice(
@@ -83,10 +83,10 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
         expected_journal,
         expected_payment_method,
         move_partner,
-        payment_method_line=False,
+        payment_channel=False,
     ):
-        if payment_method_line and expected_payment_method:
-            move_partner.preferred_payment_method_line_id = expected_payment_method
+        if payment_channel and expected_payment_method:
+            move_partner.preferred_payment_channel_id = expected_payment_method
 
         payment = (
             self.env["account.payment.register"]
@@ -99,7 +99,7 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
 
         if not expected_payment_method:
             expected_payment_method = (
-                payment.journal_id._get_available_payment_method_lines(
+                payment.journal_id._get_available_payment_channels(
                     payment.payment_type
                 )[0]._origin
             )
@@ -109,7 +109,7 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
             [
                 {
                     "journal_id": expected_journal.id,
-                    "payment_method_line_id": expected_payment_method.id,
+                    "payment_channel_id": expected_payment_method.id,
                 }
             ],
         )
@@ -117,18 +117,18 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
     def test_move_register_payment_wizard(self):
         self.assertRegisterPayment(
             self.bank_journal_1,
-            self.inbound_payment_method_line_1,
+            self.inbound_payment_channel_1,
             self.move_partner_a,
         )
         self.assertRegisterPayment(
             self.bank_journal_1,
-            self.inbound_payment_method_line_2,
+            self.inbound_payment_channel_2,
             self.move_partner_a,
             True,
         )
         self.assertRegisterPayment(
             self.bank_journal_2,
-            self.inbound_payment_method_line_other_journal,
+            self.inbound_payment_channel_other_journal,
             self.move_partner_a,
             True,
         )
@@ -138,7 +138,7 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
         move_partner_a_copy.action_post()
         self.assertRegisterPayment(
             self.bank_journal_1,
-            self.inbound_payment_method_line_1,
+            self.inbound_payment_channel_1,
             self.move_partner_a + move_partner_a_copy,
         )
 
@@ -151,7 +151,7 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
         )
         self.assertRegisterPayment(
             self.bank_journal_1,
-            self.inbound_payment_method_line_1,
+            self.inbound_payment_channel_1,
             self.move_partner_a + move_partner_d,
         )
 
@@ -167,19 +167,19 @@ class TestAccountPaymentMethodLine(AccountTestInvoicingCommon):
         ) as pay_form:
             self.assertEqual(pay_form.journal_id.id, self.bank_journal_1.id)
             self.assertEqual(
-                pay_form.payment_method_line_id.id,
-                self.inbound_payment_method_line_1.id,
+                pay_form.payment_channel_id.id,
+                self.inbound_payment_channel_1.id,
             )
 
             pay_form.partner_id = self.partner_b
             self.assertEqual(
-                pay_form.payment_method_line_id.id,
-                self.inbound_payment_method_line_2.id,
+                pay_form.payment_channel_id.id,
+                self.inbound_payment_channel_2.id,
             )
 
             pay_form.partner_id = self.partner_c
             self.assertEqual(pay_form.journal_id.id, self.bank_journal_2.id)
             self.assertEqual(
-                pay_form.payment_method_line_id.id,
-                self.inbound_payment_method_line_other_journal.id,
+                pay_form.payment_channel_id.id,
+                self.inbound_payment_channel_other_journal.id,
             )

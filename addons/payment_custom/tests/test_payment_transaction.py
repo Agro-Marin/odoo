@@ -30,7 +30,7 @@ class TestPaymentTransaction(PaymentCustomCommon):
 
     def test_communication_for_invoice(self):
         """ Test that the communication displayed is the invoice payment reference. """
-        account_payment_module = self.env['ir.module.module']._get('account_payment')
+        account_payment_module = self.env['ir.module.module']._get('account_payment_provider')
         if account_payment_module.state != 'installed':
             self.skipTest("account_payment module is not installed")
 

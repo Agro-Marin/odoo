@@ -110,7 +110,7 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="account.show_sale_receipts",
     )
     module_account_budget = fields.Boolean(string="Budget Management")
-    module_account_payment = fields.Boolean(string="Invoice Online Payment")
+    module_account_payment_provider = fields.Boolean(string="Invoice Online Payment")
     module_account_reports = fields.Boolean("Dynamic Reports")
     module_account_check_printing = fields.Boolean("Allow check printing and deposits")
     module_account_batch_payment = fields.Boolean(

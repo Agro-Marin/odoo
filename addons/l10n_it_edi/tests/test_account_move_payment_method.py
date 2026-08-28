@@ -16,7 +16,7 @@ class TestItAccountMovePaymentMethod(TestItEdi):
             'payment_type': 'inbound',
         })
 
-        new_payment_method_line = self.env['account.payment.method.line'].create({
+        new_payment_channel = self.env['account.payment.channel'].create({
             'name': 'new payment method line',
             'payment_method_id': payment_method.id,
             'journal_id': self.company_data['default_journal_bank'].id,
@@ -28,7 +28,7 @@ class TestItAccountMovePaymentMethod(TestItEdi):
             active_model='account.move',
             active_ids=move.ids,
         ).create({
-            'payment_method_line_id': new_payment_method_line.id,
+            'payment_channel_id': new_payment_channel.id,
         })._create_payments()
 
         self.assertEqual(move.l10n_it_payment_method, 'MP07')

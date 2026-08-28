@@ -8,7 +8,7 @@ This is a bridge module that adds multi-website support for payment providers.
     """,
     "depends": [
         "website",
-        "account_payment",
+        "account_payment_provider",
         "portal",
     ],
     "data": [

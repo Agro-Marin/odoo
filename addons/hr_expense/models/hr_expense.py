@@ -294,21 +294,21 @@ class HrExpense(models.Model):
     # Account fields
     journal_id = fields.Many2one(
         comodel_name="account.journal",
-        related="payment_method_line_id.journal_id",
+        related="payment_channel_id.journal_id",
         readonly=True,
     )
-    selectable_payment_method_line_ids = fields.Many2many(
-        comodel_name="account.payment.method.line",
-        compute="_compute_selectable_payment_method_line_ids",
+    selectable_payment_channel_ids = fields.Many2many(
+        comodel_name="account.payment.channel",
+        compute="_compute_selectable_payment_channel_ids",
         compute_sudo=True,
     )
-    payment_method_line_id = fields.Many2one(
-        comodel_name="account.payment.method.line",
+    payment_channel_id = fields.Many2one(
+        comodel_name="account.payment.channel",
         string="Payment Method",
-        compute="_compute_payment_method_line_id",
+        compute="_compute_payment_channel_id",
         store=True,
         readonly=False,
-        domain="[('id', 'in', selectable_payment_method_line_ids)]",
+        domain="[('id', 'in', selectable_payment_channel_ids)]",
         help="The payment method used when the expense is paid by the company.",
     )
     account_move_id = fields.Many2one(
@@ -839,24 +839,24 @@ class HrExpense(models.Model):
                     else 0.0
                 )
 
-    @api.depends("selectable_payment_method_line_ids")
-    def _compute_payment_method_line_id(self):
+    @api.depends("selectable_payment_channel_ids")
+    def _compute_payment_channel_id(self):
         for expense in self:
-            expense.payment_method_line_id = expense.selectable_payment_method_line_ids[
+            expense.payment_channel_id = expense.selectable_payment_channel_ids[
                 :1
             ]
 
     @api.depends("company_id")
-    def _compute_selectable_payment_method_line_ids(self):
+    def _compute_selectable_payment_channel_ids(self):
         for expense in self:
             allowed_method_line_ids = (
-                expense.company_id.company_expense_allowed_payment_method_line_ids
+                expense.company_id.company_expense_allowed_payment_channel_ids
             )
             if allowed_method_line_ids:
-                expense.selectable_payment_method_line_ids = allowed_method_line_ids
+                expense.selectable_payment_channel_ids = allowed_method_line_ids
             else:
-                expense.selectable_payment_method_line_ids = self.env[
-                    "account.payment.method.line"
+                expense.selectable_payment_channel_ids = self.env[
+                    "account.payment.channel"
                 ].search(
                     [
                         # The journal is the source of the payment method line company
@@ -2067,18 +2067,10 @@ class HrExpense(models.Model):
             ):
                 payment_vals["move_id"] = move.id
 
-            payments_sudo = self.env["account.payment"].sudo().create(payment_vals_list)
-            for payment_sudo, move_sudo in zip(
-                payments_sudo, payment_moves_sudo, strict=True
-            ):
-                move_sudo.update(
-                    {
-                        "origin_payment_id": payment_sudo.id,
-                        # We need to put the journal_id because editing origin_payment_id triggers a re-computation chain
-                        # that voids the company_currency_id of the lines
-                        "journal_id": move_sudo.journal_id.id,
-                    }
-                )
+            # Writing `move_id` on the payment *is* the link now, so there is
+            # no second write here, and no re-setting `journal_id` to undo the
+            # recompute chain that second write used to set off.
+            self.env["account.payment"].sudo().create(payment_vals_list)
 
             moves_sudo |= payment_moves_sudo
 
@@ -2131,8 +2123,8 @@ class HrExpense(models.Model):
         self.ensure_one()
 
         journal = self.journal_id
-        payment_method_line = self.payment_method_line_id
-        if not payment_method_line:
+        payment_channel = self.payment_channel_id
+        if not payment_channel:
             raise UserError(
                 _(
                     "You need to add a manual payment method on the journal (%s)",
@@ -2208,7 +2200,7 @@ class HrExpense(models.Model):
             "partner_type": "supplier",
             "partner_id": self.vendor_id.id,
             "currency_id": self.currency_id.id,
-            "payment_method_line_id": payment_method_line.id,
+            "payment_channel_id": payment_channel.id,
             "company_id": self.company_id.id,
         }
         move_vals = {
@@ -2331,7 +2323,7 @@ class HrExpense(models.Model):
         for expense in self:
             if expense.payment_mode == "company_account":
                 account_dest = (
-                    expense.payment_method_line_id.payment_account_id
+                    expense.payment_channel_id.payment_account_id
                     or expense._get_outstanding_account_id()
                 )
             elif not expense.employee_id.sudo().work_contact_id:
@@ -2366,7 +2358,7 @@ class HrExpense(models.Model):
     def _get_outstanding_account_id(self):
         account_ref = (
             "account_journal_payment_debit_account_id"
-            if self.payment_method_line_id.payment_type == "inbound"
+            if self.payment_channel_id.payment_type == "inbound"
             else "account_journal_payment_credit_account_id"
         )
         chart_template = self.with_context(

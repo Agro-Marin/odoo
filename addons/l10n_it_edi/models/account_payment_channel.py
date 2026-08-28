@@ -27,8 +27,8 @@ L10N_IT_PAYMENT_METHOD_SELECTION = [
 ]
 
 
-class AccountPaymentMethodLine(models.Model):
-    _inherit = "account.payment.method.line"
+class AccountPaymentChannel(models.Model):
+    _inherit = "account.payment.channel"
 
     l10n_it_payment_method = fields.Selection(
         selection=L10N_IT_PAYMENT_METHOD_SELECTION,

@@ -22,7 +22,7 @@ class AccountPayment(models.Model):
         comodel_name='account.payment.withholding.line',
         inverse_name='payment_id',
     )
-    withholding_payment_account_id = fields.Many2one(related="payment_method_line_id.payment_account_id")
+    withholding_payment_account_id = fields.Many2one(related="payment_channel_id.payment_account_id")
     # We may need to manually set an account, for this we want it to not be readonly by default.
     outstanding_account_id = fields.Many2one(readonly=False)
     withholding_hide_tax_base_account = fields.Boolean(compute='_compute_withholding_hide_tax_base_account')

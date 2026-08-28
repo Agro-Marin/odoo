@@ -76,7 +76,7 @@ class TestCustomProviderFlows(PaymentCustomCommon):
 
     def test_recompute_pending_msg_degrades_without_account_payment(self):
         """Without account_payment the recompute leaves pending_msg intact."""
-        if self.env["ir.module.module"]._get("account_payment").state == "installed":
+        if self.env["ir.module.module"]._get("account_payment_provider").state == "installed":
             self.skipTest("account_payment installed: recompute would rewrite")
         self.provider.pending_msg = "<p>keep me</p>"
 

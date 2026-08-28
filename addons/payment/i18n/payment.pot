@@ -1802,7 +1802,6 @@ msgid "Payment Link"
 msgstr ""
 
 #. module: payment
-#: model:ir.model,name:payment.model_payment_method
 #: model:ir.model.fields,field_description:payment.field_payment_token__payment_method_id
 #: model:ir.model.fields,field_description:payment.field_payment_transaction__payment_method_id
 #: model_terms:ir.ui.view,arch_db:payment.confirm
@@ -2057,6 +2056,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:payment.field_payment_token__provider_code
 #: model:ir.model.fields,field_description:payment.field_payment_transaction__provider_code
 msgid "Provider Code"
+msgstr ""
+
+#. module: payment
+#: model:ir.model,name:payment.model_payment_method
+msgid "Provider Payment Method"
 msgstr ""
 
 #. module: payment

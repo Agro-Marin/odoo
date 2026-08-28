@@ -101,7 +101,7 @@ class PaymentCommon(BaseCommon):
         cls.partner = cls.default_partner
         cls.reference = "Test Transaction"
 
-        account_payment_module = cls.env["ir.module.module"]._get("account_payment")
+        account_payment_module = cls.env["ir.module.module"]._get("account_payment_provider")
         cls.account_payment_installed = account_payment_module.state in (
             "installed",
             "to upgrade",
@@ -114,7 +114,7 @@ class PaymentCommon(BaseCommon):
             # disable account payment generation if account_payment is installed
             # because the accounting setup of providers is not managed in this common
             self.post_process_patcher = patch(
-                "odoo.addons.account_payment.models.payment_transaction.PaymentTransaction._post_process",
+                "odoo.addons.account_payment_provider.models.payment_transaction.PaymentTransaction._post_process",
             )
             self.startPatcher(self.post_process_patcher)
 

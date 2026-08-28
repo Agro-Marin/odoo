@@ -198,10 +198,10 @@ class SaleOrder(models.Model):
         readonly=False,
         help="The percentage of the amount needed that must be paid by the customer to confirm the order.",
     )
-    preferred_payment_method_line_id = fields.Many2one(
-        comodel_name="account.payment.method.line",
+    preferred_payment_channel_id = fields.Many2one(
+        comodel_name="account.payment.channel",
         string="Payment Method",
-        compute="_compute_preferred_payment_method_line_id",
+        compute="_compute_preferred_payment_channel_id",
         store=True,
         precompute=True,
         readonly=False,
@@ -502,11 +502,11 @@ class SaleOrder(models.Model):
             order.team_id = cached_teams[key]
 
     @api.depends("partner_id", "company_id")
-    def _compute_preferred_payment_method_line_id(self):
+    def _compute_preferred_payment_channel_id(self):
         for order in self:
             order = order.with_company(order.company_id)
-            order.preferred_payment_method_line_id = (
-                order.partner_id.property_inbound_payment_method_line_id
+            order.preferred_payment_channel_id = (
+                order.partner_id.property_inbound_payment_channel_id
             )
 
     @api.depends("company_id", "partner_id")
@@ -1281,7 +1281,7 @@ class SaleOrder(models.Model):
         txs_to_be_linked = self.sudo().transaction_ids.filtered(
             lambda tx: (
                 tx.state in ("pending", "authorized")
-                or (tx.state == "done" and not tx.payment_id.is_reconciled)
+                or (tx.state == "done" and not tx.payment_id.is_invoice_reconciled)
             ),
         )
         values.update(
@@ -1294,7 +1294,7 @@ class SaleOrder(models.Model):
                 "source_id": self.source_id.id,
                 "user_id": self.user_id.id,
                 "ref": self.client_order_ref or self.name,
-                "preferred_payment_method_line_id": self.preferred_payment_method_line_id.id,
+                "preferred_payment_channel_id": self.preferred_payment_channel_id.id,
                 "payment_reference": self.reference,
                 "transaction_ids": [Command.set(txs_to_be_linked.ids)],
             },

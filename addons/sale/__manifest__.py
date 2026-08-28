@@ -1,6 +1,6 @@
 {
     "name": "Sales",
-    "version": "1.3",
+    "version": "1.4",
     "category": "Sales/Sales",
     "summary": "Sales internal machinery",
     "description": """
@@ -9,8 +9,9 @@ This module contains all the common features of Sales Management and eCommerce.
     "depends": [
         "base_order",
         "base_sql_report",
+        "documents",
         "sales_team",
-        "account_payment",
+        "account_payment_provider",
         "utm",
     ],
     "data": [

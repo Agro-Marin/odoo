@@ -10,7 +10,7 @@ class MixinPaymentQrCode(models.AbstractModel):
         return bool(
             self.partner_bank_id
             and self.partner_bank_id.allow_out_payment
-            and self.payment_method_line_id.code == "manual"
+            and self.payment_channel_id.code == "manual"
             and self.payment_type == "outbound"
             and self.currency_id
             and self.amount

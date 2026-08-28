@@ -52,7 +52,7 @@ class L10n_LatamPaymentMassTransfer(models.TransientModel):
             if self.env.context.get('active_model') != 'l10n_latam.check':
                 raise UserError(_("The register payment wizard should only be called on account.payment records."))
             checks = self.env['l10n_latam.check'].browse(self.env.context.get('active_ids', []))
-            if checks.filtered(lambda x: x.payment_method_line_id.code != 'new_third_party_checks'):
+            if checks.filtered(lambda x: x.payment_channel_id.code != 'new_third_party_checks'):
                 raise UserError(_('You have selected payments which are not checks. Please call this action from the Third Party Checks menu'))
             elif not all(check.payment_id.state not in ('draft', 'canceled') for check in checks):
                 raise UserError(_("All the selected checks must be posted"))
@@ -66,10 +66,10 @@ class L10n_LatamPaymentMassTransfer(models.TransientModel):
         """ This is nedeed because we would like to create a payment of type internal transfer for each check with the
         counterpart journal and then, when posting a second payment will be created automatically """
         self.ensure_one()
-        checks = self.check_ids.filtered(lambda x: x.payment_method_line_id.code == 'new_third_party_checks' and x.currency_id == self.check_ids[0].currency_id)
+        checks = self.check_ids.filtered(lambda x: x.payment_channel_id.code == 'new_third_party_checks' and x.currency_id == self.check_ids[0].currency_id)
         currency_id = self.check_ids[0].currency_id
 
-        pay_method_line = self.journal_id._get_available_payment_method_lines('outbound').filtered(
+        pay_method_line = self.journal_id._get_available_payment_channels('outbound').filtered(
             lambda x: x.code in ('out_third_party_checks', 'return_third_party_checks')
         )[:1]
 
@@ -81,7 +81,7 @@ class L10n_LatamPaymentMassTransfer(models.TransientModel):
             'memo': self.communication,
             'journal_id': self.journal_id.id,
             'currency_id': currency_id.id,
-            'payment_method_line_id': pay_method_line.id if pay_method_line else False,
+            'payment_channel_id': pay_method_line.id if pay_method_line else False,
             'l10n_latam_move_check_ids': [Command.link(x.id) for x in checks],
         })
         outbound_payment.action_post()
@@ -97,11 +97,11 @@ class L10n_LatamPaymentMassTransfer(models.TransientModel):
             'l10n_latam_move_check_ids': [Command.link(x.id) for x in checks],
         })
 
-        dest_payment_method = self.destination_journal_id.inbound_payment_method_line_ids.filtered(
+        dest_payment_method = self.destination_journal_id.inbound_payment_channel_ids.filtered(
             lambda x: x.code == 'in_third_party_checks'
         )
         if dest_payment_method:
-            inbound_payment.payment_method_line_id = dest_payment_method
+            inbound_payment.payment_channel_id = dest_payment_method
             inbound_payment.action_post()
         else:
             # In case the journal is not part of the third party check, when posting the move we remove the checks

@@ -42,7 +42,7 @@ class AccountMove(models.Model):
                     )
                 ]
             if self.journal_id.payment_sequence:
-                domain += [("origin_payment_id", "!=" if is_payment else "=", False)]
+                domain += [("payment_ids", "!=" if is_payment else "=", False)]
             if self.journal_id.is_self_billing:
                 if self.partner_id:
                     domain += [
@@ -103,10 +103,13 @@ class AccountMove(models.Model):
             else:
                 where_string += " AND move_type NOT IN ('out_refund', 'in_refund') "
         elif self.journal_id.payment_sequence:
-            if is_payment:
-                where_string += " AND origin_payment_id IS NOT NULL "
-            else:
-                where_string += " AND origin_payment_id IS NULL "
+            # The edge is stored on the payment, so this asks the payment table.
+            # `account_move` is the query's unaliased FROM, so it qualifies here.
+            exists = (
+                "EXISTS (SELECT 1 FROM account_payment p"
+                " WHERE p.move_id = account_move.id)"
+            )
+            where_string += f" AND {'' if is_payment else 'NOT '}{exists} "
 
         if self.journal_id.is_self_billing:
             if self.partner_id:

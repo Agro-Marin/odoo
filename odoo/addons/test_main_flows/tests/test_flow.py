@@ -112,10 +112,8 @@ class BaseTestUi(AccountTestMockOnlineSyncCommon):
                 "default_account_id": bnk.id,
             }
         )
-        self.bank_journal.outbound_payment_method_line_ids.payment_account_id = (
-            a_expense
-        )
-        self.bank_journal.inbound_payment_method_line_ids.payment_account_id = a_sale
+        self.bank_journal.outbound_payment_channel_ids.payment_account_id = a_expense
+        self.bank_journal.inbound_payment_channel_ids.payment_account_id = a_sale
 
         self.sales_journal = self.env["account.journal"].create(
             {

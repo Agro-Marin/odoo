@@ -35,7 +35,7 @@ class TestWebBundleSize(TransactionCase):
             "account",
             "account_add_gln",
             "account_edi_ubl_cii",
-            "account_payment",
+            "account_payment_provider",
             "analytic",
             "api_doc",
             "auth_passkey",

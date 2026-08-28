@@ -18,13 +18,13 @@ class AccountChartTemplate(models.AbstractModel):
                 "third_party_check": {
                     'name': _('Third Party Checks'),
                     'type': 'cash',
-                    'outbound_payment_method_line_ids': [
+                    'outbound_payment_channel_ids': [
                         Command.create({
                             'payment_method_id': self.env.ref('l10n_latam_check.account_payment_method_out_third_party_checks').id,
                             'payment_account_id': 'base_outstanding_payments',
                         }),
                     ],
-                    'inbound_payment_method_line_ids': [
+                    'inbound_payment_channel_ids': [
                         Command.create({
                             'payment_method_id': self.env.ref('l10n_latam_check.account_payment_method_new_third_party_checks').id,
                             'payment_account_id': 'base_outstanding_receipts',
@@ -38,13 +38,13 @@ class AccountChartTemplate(models.AbstractModel):
                 "rejected_third_party_check": {
                     'name': _('Rejected Third Party Checks'),
                     'type': 'cash',
-                    'outbound_payment_method_line_ids': [
+                    'outbound_payment_channel_ids': [
                         Command.create({
                             'payment_method_id': self.env.ref('l10n_latam_check.account_payment_method_out_third_party_checks').id,
                             'payment_account_id': 'base_outstanding_payments',
                         }),
                     ],
-                    'inbound_payment_method_line_ids': [
+                    'inbound_payment_channel_ids': [
                         Command.create({
                             'payment_method_id': self.env.ref('l10n_latam_check.account_payment_method_new_third_party_checks').id,
                             'payment_account_id': 'base_outstanding_receipts',

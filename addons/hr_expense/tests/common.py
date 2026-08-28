@@ -179,7 +179,7 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
                     {
                         "amount": amount,
                         "journal_id": self.company_data["default_journal_bank"].id,
-                        "payment_method_line_id": self.inbound_payment_method_line.id,
+                        "payment_channel_id": self.inbound_payment_channel.id,
                     }
                 )
             )

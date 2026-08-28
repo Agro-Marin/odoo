@@ -382,7 +382,7 @@ class TestL10nAccountWithholdingTaxesFlows(TestTaxCommon, AnalyticCommon):
         """ Test that when no payment account is set on the payment method line, the one from the wizard is used. """
         invoice_tax = self.percent_tax(15)
         withholding_tax = self.percent_tax(-1, is_withholding_tax_on_payment=True, withholding_sequence_id=self.withholding_sequence.id)
-        self.company_data['default_journal_bank'].inbound_payment_method_line_ids.payment_account_id = False
+        self.company_data['default_journal_bank'].inbound_payment_channel_ids.payment_account_id = False
 
         invoice = self.env['account.move'].create({
             'move_type': 'out_invoice',
@@ -891,7 +891,7 @@ class TestL10nAccountWithholdingTaxesFlows(TestTaxCommon, AnalyticCommon):
         We should not have any default values the first time we register a payment with an outstanding account.
         The second time, the register payment wizard should find the previous outstanding account and use it as default.
         """
-        self.company_data['default_journal_bank'].inbound_payment_method_line_ids.payment_account_id = False
+        self.company_data['default_journal_bank'].inbound_payment_channel_ids.payment_account_id = False
         withholding_tax = self.percent_tax(
             amount=-1,
             is_withholding_tax_on_payment=True,

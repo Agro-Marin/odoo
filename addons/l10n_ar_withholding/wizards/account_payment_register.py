@@ -142,6 +142,6 @@ class AccountPaymentRegister(models.TransientModel):
             wizard.l10n_ar_withholding_ids = [Command.clear()] + [Command.create({'tax_id': x.tax_id.id}) for x in partner_taxes]
 
     def action_create_payments(self):
-        if self.l10n_ar_withholding_ids and not self.payment_method_line_id.payment_account_id:
+        if self.l10n_ar_withholding_ids and not self.payment_channel_id.payment_account_id:
             raise ValidationError(_("A payment cannot have withholding if the payment method has no outstanding accounts"))
         return super().action_create_payments()

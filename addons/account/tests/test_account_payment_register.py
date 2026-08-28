@@ -26,10 +26,10 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         )
 
         cls.payment_debit_account_id = cls.copy_account(
-            cls.inbound_payment_method_line.payment_account_id
+            cls.inbound_payment_channel.payment_account_id
         )
         cls.payment_credit_account_id = cls.copy_account(
-            cls.outbound_payment_method_line.payment_account_id
+            cls.outbound_payment_channel.payment_account_id
         )
 
         cls.bank_journal_1 = cls.company_data["default_journal_bank"]
@@ -366,7 +366,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                     "group_payment": True,
                     "payment_difference_handling": "open",
                     "currency_id": self.other_currency.id,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
             ._create_payments()
@@ -377,7 +377,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": Like(f"GROUP/{self.current_year}/..."),
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             ],
         )
@@ -411,7 +411,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                     "amount": 3100.0,
                     "group_payment": True,
                     "currency_id": self.other_currency.id,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
             ._create_payments()
@@ -422,7 +422,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": Like(f"GROUP/{self.current_year}/..."),
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             ],
         )
@@ -460,7 +460,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                         "default_account_revenue"
                     ].id,
                     "writeoff_label": "writeoff",
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
             ._create_payments()
@@ -471,7 +471,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": Like(f"GROUP/{self.current_year}/..."),
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             ],
         )
@@ -516,7 +516,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                         "default_account_revenue"
                     ].id,
                     "writeoff_label": "writeoff",
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
             ._create_payments()
@@ -527,7 +527,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": Like(f"GROUP/{self.current_year}/..."),
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             ],
         )
@@ -572,7 +572,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                         "default_account_revenue"
                     ].id,
                     "writeoff_label": "writeoff",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 }
             )
             ._create_payments()
@@ -583,7 +583,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "BILL/2017/01/0001, BILL/2017/01/0002",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 }
             ],
         )
@@ -628,7 +628,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                         "default_account_revenue"
                     ].id,
                     "writeoff_label": "writeoff",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 }
             )
             ._create_payments()
@@ -639,7 +639,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "BILL/2017/01/0001, BILL/2017/01/0002",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 }
             ],
         )
@@ -683,11 +683,11 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "INV/2017/00001",
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 },
                 {
                     "memo": "INV/2017/00002",
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 },
             ],
         )
@@ -816,7 +816,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "BILL/2017/01/0001, BILL/2017/01/0002, RBILL/2017/01/0001",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 },
             ],
         )
@@ -876,15 +876,15 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "BILL/2017/01/0001",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 },
                 {
                     "memo": "BILL/2017/01/0002",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 },
                 {
                     "memo": "RBILL/2017/01/0001",
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 },
             ],
         )
@@ -956,11 +956,11 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "BILL/2017/01/0001, BILL/2017/01/0002",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 },
                 {
                     "memo": "BILL/2017/01/0003",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 },
             ],
         )
@@ -1043,11 +1043,11 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "BILL/2017/01/0001, RBILL/2017/01/0002",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 },
                 {
                     "memo": "BILL/2017/01/0004",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                 },
             ],
         )
@@ -1078,19 +1078,19 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                 {
                     "journal_id": self.bank_journal_1.id,
                     "memo": "BILL/2017/01/0001",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                     "partner_bank_id": self.partner_bank_account1.id,
                 },
                 {
                     "journal_id": self.bank_journal_1.id,
                     "memo": "BILL/2017/01/0002",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                     "partner_bank_id": self.partner_bank_account2.id,
                 },
                 {
                     "journal_id": self.bank_journal_1.id,
                     "memo": "BILL/2017/01/0003",
-                    "payment_method_line_id": self.outbound_payment_method_line.id,
+                    "payment_channel_id": self.outbound_payment_channel.id,
                     "partner_bank_id": False,
                 },
             ],
@@ -1967,18 +1967,18 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                 )
             )
 
-            expected_available_payment_method_lines = (
-                wizard.journal_id.inbound_payment_method_line_ids
+            expected_available_payment_channels = (
+                wizard.journal_id.inbound_payment_channel_ids
                 if moves[0].move_type == "in_refund"
-                else wizard.journal_id.outbound_payment_method_line_ids
+                else wizard.journal_id.outbound_payment_channel_ids
             )
 
             self.assertRecordValues(
                 wizard,
                 [
                     {
-                        "available_payment_method_line_ids": expected_available_payment_method_lines.ids,
-                        "payment_method_line_id": expected_available_payment_method_lines[
+                        "available_payment_channel_ids": expected_available_payment_channels.ids,
+                        "payment_channel_id": expected_available_payment_channels[
                             :1
                         ].id,
                     }
@@ -2002,7 +2002,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "BILL/2017/01/0001",
-                    "payment_method_line_id": self.bank_journal_1.outbound_payment_method_line_ids[
+                    "payment_channel_id": self.bank_journal_1.outbound_payment_channel_ids[
                         0
                     ].id,
                     "payment_type": "outbound",
@@ -2015,7 +2015,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "BILL/2017/01/0004",
-                    "payment_method_line_id": self.bank_journal_1.outbound_payment_method_line_ids[
+                    "payment_channel_id": self.bank_journal_1.outbound_payment_channel_ids[
                         0
                     ].id,
                     "payment_type": "outbound",
@@ -2028,7 +2028,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "RBILL/2017/01/0002",
-                    "payment_method_line_id": self.bank_journal_1.inbound_payment_method_line_ids[
+                    "payment_channel_id": self.bank_journal_1.inbound_payment_channel_ids[
                         0
                     ].id,
                     "payment_type": "inbound",
@@ -2041,7 +2041,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             [
                 {
                     "memo": "RBILL/2017/01/0003",
-                    "payment_method_line_id": self.bank_journal_1.inbound_payment_method_line_ids[
+                    "payment_channel_id": self.bank_journal_1.inbound_payment_channel_ids[
                         0
                     ].id,
                     "payment_type": "inbound",
@@ -2882,7 +2882,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                 {
                     "amount": bill.amount_total,
                     "currency_id": bill.currency_id.id,
-                    "payment_method_line_id": self.inbound_payment_method_line.id,
+                    "payment_channel_id": self.inbound_payment_channel.id,
                 }
             )
         )

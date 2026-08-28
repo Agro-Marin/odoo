@@ -3,7 +3,7 @@ from unittest.mock import patch
 from odoo.tests import JsonRpcException, tagged
 from odoo.tools import mute_logger
 
-from odoo.addons.account_payment.tests.common import AccountPaymentCommon
+from odoo.addons.account_payment_provider.tests.common import AccountPaymentCommon
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.mail.tests.common import MailCase
 from odoo.addons.payment.tests.http_common import PaymentHttpCommon
@@ -20,9 +20,9 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         cls.currency = cls.sale_order.currency_id
         cls.partner = cls.sale_order.partner_invoice_id
 
-        cls.provider.journal_id.inbound_payment_method_line_ids.filtered(
+        cls.provider.journal_id.inbound_payment_channel_ids.filtered(
             lambda l: l.payment_provider_id == cls.provider
-        ).payment_account_id = cls.inbound_payment_method_line.payment_account_id
+        ).payment_account_id = cls.inbound_payment_channel.payment_account_id
 
         cls.sale_order.require_payment = True
 
@@ -354,7 +354,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
             partial_tx_done.payment_id, msg="Account payment should have been created."
         )
         msg = "The created account payment shouldn't be reconciled as there are no invoice yet."
-        self.assertFalse(partial_tx_pending.payment_id.is_reconciled, msg=msg)
+        self.assertFalse(partial_tx_pending.payment_id.is_invoice_reconciled, msg=msg)
 
         self._create_transaction(
             flow="direct",
@@ -392,12 +392,12 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         expected_linked_tx = (partial_tx_done, partial_tx_pending)
         self.assertTrue(all(tx in expected_linked_tx for tx in linked_txs), msg=msg)
         msg = "The payment shouldn't be reconciled yet."
-        self.assertFalse(partial_tx_done.payment_id.is_reconciled, msg=msg)
+        self.assertFalse(partial_tx_done.payment_id.is_invoice_reconciled, msg=msg)
 
         partial_tx_done._post_process()
 
         msg = "The payment should now be reconciled."
-        self.assertTrue(partial_tx_done.payment_id.is_reconciled, msg=msg)
+        self.assertTrue(partial_tx_done.payment_id.is_invoice_reconciled, msg=msg)
 
         self.sale_order.line_ids[0].product_qty += 2
         self.sale_order._create_invoices()

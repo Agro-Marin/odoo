@@ -142,7 +142,7 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
             {
                 "name": "Bank",
                 "journal_id": cls.bank_journal.id,
-                "outstanding_account_id": cls.inbound_payment_method_line.payment_account_id.id,
+                "outstanding_account_id": cls.inbound_payment_channel.payment_account_id.id,
             }
         )
         env["pos.config"].search([]).unlink()
@@ -1042,7 +1042,9 @@ class TestUi(TestPointOfSaleHttpCommon):
 
         self.main_pos_config.with_user(self.pos_user).open_ui()
 
-        self.monitor_stand.tracking = "lot"
+        # Lot tracking presupposes inventory tracking -- `_check_tracking`
+        # says so, and setting only `tracking` leaves the pair inconsistent.
+        self.monitor_stand.write({"is_storable": True, "tracking": "lot"})
         self.start_tour(
             "/pos/ui?config_id=%d" % self.main_pos_config.id,
             "test_03_pos_with_lots",
@@ -5134,7 +5136,9 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
         self.main_pos_config.with_user(self.pos_user).open_ui()
-        self.monitor_stand.tracking = "lot"
+        # Lot tracking presupposes inventory tracking -- `_check_tracking`
+        # says so, and setting only `tracking` leaves the pair inconsistent.
+        self.monitor_stand.write({"is_storable": True, "tracking": "lot"})
         self.start_tour(
             "/pos/ui?config_id=%d" % self.main_pos_config.id,
             "test_lot_tracking_without_lot_creation",

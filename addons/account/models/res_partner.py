@@ -236,8 +236,8 @@ class ResPartner(models.Model):
         required=True,
     )
 
-    property_outbound_payment_method_line_id = fields.Many2one(
-        comodel_name="account.payment.method.line",
+    property_outbound_payment_channel_id = fields.Many2one(
+        comodel_name="account.payment.channel",
         check_company=True,
         company_dependent=True,
         domain=lambda self: [
@@ -247,8 +247,8 @@ class ResPartner(models.Model):
         ],
     )
 
-    property_inbound_payment_method_line_id = fields.Many2one(
-        comodel_name="account.payment.method.line",
+    property_inbound_payment_channel_id = fields.Many2one(
+        comodel_name="account.payment.channel",
         check_company=True,
         company_dependent=True,
         domain=lambda self: [

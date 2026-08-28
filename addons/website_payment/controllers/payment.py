@@ -1,6 +1,6 @@
 from odoo.http import request, route
 
-from odoo.addons.account_payment.controllers import payment as account_payment
+from odoo.addons.account_payment_provider.controllers import payment as account_payment
 
 
 class PaymentPortal(account_payment.PaymentPortal):

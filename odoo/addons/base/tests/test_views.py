@@ -5980,7 +5980,7 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
             "account_intrastat",
             "account_invoice_extract",
             "account_online_synchronization",
-            "account_payment",
+            "account_payment_provider",
             "account_peppol",
             "account_qr_code_emv",
             "account_reports",

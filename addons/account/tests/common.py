@@ -256,14 +256,14 @@ class AccountTestInvoicingCommon(ProductCommon):
             "account_journal_payment_credit_account_id", raise_if_not_found=False
         )
         if bank_journal:
-            cls.inbound_payment_method_line = (
-                bank_journal.inbound_payment_method_line_ids[0]
+            cls.inbound_payment_channel = (
+                bank_journal.inbound_payment_channel_ids[0]
             )
-            cls.inbound_payment_method_line.payment_account_id = in_outstanding_account
-            cls.outbound_payment_method_line = (
-                bank_journal.outbound_payment_method_line_ids[0]
+            cls.inbound_payment_channel.payment_account_id = in_outstanding_account
+            cls.outbound_payment_channel = (
+                bank_journal.outbound_payment_channel_ids[0]
             )
-            cls.outbound_payment_method_line.payment_account_id = (
+            cls.outbound_payment_channel.payment_account_id = (
                 out_outstanding_account
             )
 
@@ -309,7 +309,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             cls.env["account.tax.group"].create(
                 {
                     "name": "Test tax group",
-                    "company_id": cls.env.company.id,
+                    "company_ids": [Command.set(cls.env.company.ids)],
                 }
             )
             cls.env.company.country_id = cls.quick_ref("base.be")
@@ -1079,7 +1079,7 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @contextmanager
     def mocked_get_payment_method_information(self, code="none"):
-        self.ensure_installed("account_payment")
+        self.ensure_installed("account_payment_provider")
 
         Method_get_payment_method_information = self.env[
             "account.payment.method"
@@ -1099,7 +1099,7 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _create_dummy_payment_method_for_provider(cls, provider, journal, **kwargs):
-        cls.ensure_installed("account_payment")
+        cls.ensure_installed("account_payment_provider")
 
         code = kwargs.get("code", "none")
 

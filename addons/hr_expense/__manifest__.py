@@ -1,7 +1,7 @@
 
 {
     "name": "Expenses",
-    "version": "2.1",
+    "version": "2.2",
     "category": "Human Resources/Expenses",
     "sequence": 70,
     "summary": "Submit, validate and reinvoice employee expenses",

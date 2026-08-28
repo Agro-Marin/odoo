@@ -111,19 +111,19 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
             [("type", "=", "bank")]
         )
         edited_journals_count = self.env["account.journal"].search_count(
-            [("inbound_payment_method_line_ids.code", "=", "multi")]
+            [("inbound_payment_channel_ids.code", "=", "multi")]
         )
 
         self.assertEqual(bank_journals_count, edited_journals_count)
 
-    def test_remove_payment_method_lines(self):
-        first_method = self.inbound_payment_method_line
+    def test_remove_payment_channels(self):
+        first_method = self.inbound_payment_channel
         self.env["account.payment"].create(
             {
                 "amount": 100.0,
                 "payment_type": "inbound",
                 "partner_type": "customer",
-                "payment_method_line_id": first_method.id,
+                "payment_channel_id": first_method.id,
             }
         )
 
@@ -131,7 +131,7 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
 
         self.assertFalse(first_method.journal_id)
 
-        second_method = self.outbound_payment_method_line
+        second_method = self.outbound_payment_channel
         second_method.unlink()
 
         self.assertFalse(second_method.exists())
@@ -173,7 +173,7 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
                 }
             )
         )
-        self.env["account.payment.method.line"].create(
+        self.env["account.payment.channel"].create(
             {
                 "name": "Check",
                 "payment_method_id": check_method.id,
@@ -987,7 +987,7 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
             journal_1.alias_id.alias_name, journal_2.alias_id.alias_name
         )
 
-    def test_payment_method_line_accounts_on_recompute(self):
+    def test_payment_channel_accounts_on_recompute(self):
         bank_journal = self.company_data["default_journal_bank"]
         outstanding_receipt_account = self.env["account.chart.template"].ref(
             "account_journal_payment_debit_account_id"
@@ -996,11 +996,11 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
             "account_journal_payment_credit_account_id"
         )
 
-        inbound_method_lines = bank_journal.inbound_payment_method_line_ids
+        inbound_method_lines = bank_journal.inbound_payment_channel_ids
         inbound_method_lines_names = inbound_method_lines.mapped("name")
         inbound_method_lines[0].payment_account_id = outstanding_receipt_account
 
-        outbound_method_lines = bank_journal.outbound_payment_method_line_ids
+        outbound_method_lines = bank_journal.outbound_payment_channel_ids
         outbound_method_lines_names = outbound_method_lines.mapped("name")
         outbound_method_lines[0].payment_account_id = outstanding_payment_account
         new_outbound_payment_line = outbound_method_lines[0].copy(
@@ -1010,14 +1010,14 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
                 ].id
             }
         )
-        bank_journal.outbound_payment_method_line_ids = [
+        bank_journal.outbound_payment_channel_ids = [
             Command.link(new_outbound_payment_line.id)
         ]
 
         bank_journal.currency_id = self.company_data["currency"]
 
         self.assertRecordValues(
-            bank_journal.inbound_payment_method_line_ids,
+            bank_journal.inbound_payment_channel_ids,
             [
                 {
                     "name": name,
@@ -1029,7 +1029,7 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
             ],
         )
         self.assertRecordValues(
-            bank_journal.outbound_payment_method_line_ids,
+            bank_journal.outbound_payment_channel_ids,
             [
                 {
                     "name": name,
@@ -1202,7 +1202,7 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
             {"name": "Bank", "type": "bank", "code": "TCD1"}
         )
         with self.assertRaises(ValueError):
-            journal._get_available_payment_method_lines("bogus")
+            journal._get_available_payment_channels("bogus")
 
     def test_no_default_account_outside_the_liquidity_types(self):
         with self.assertRaises(UserError):
