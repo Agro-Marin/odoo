@@ -469,3 +469,91 @@ class TestWorkflowDAGExecution(TransactionCase):
         self.assertEqual(line.state, "error")
         self.assertIn("deliberate test error", line.error_message)
         self.assertEqual(runtime.state, "error", "the run itself is marked failed")
+
+    @mute_logger("odoo.addons.base_automation.models.automation_runtime_line")
+    def test_run_all_stops_the_batch_and_settles_stranded_lines_on_failure(self):
+        """A step failing mid-batch must not leave the rest of the run dangling.
+
+        Regression test for BAU-3: a sibling with no dependency on the failed
+        step used to keep executing anyway (real side effects, after the run
+        was already recorded as failed), and a successor gated on the failed
+        step used to sit in 'waiting' forever, because leaving 'in_progress'
+        skips the no-ready-line fallback that would otherwise have caught it.
+        """
+        automation = self.Automation.create(
+            {
+                "name": "Batch Failure Workflow",
+                "model_id": self.model_partner.id,
+                "trigger": "on_hand",
+            }
+        )
+        action_fails = self.Action.create(
+            {
+                "name": "A-fails",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": "raise Exception('deliberate test error')",
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+                "sequence": 1,
+            }
+        )
+        action_sibling = self.Action.create(
+            {
+                "name": "B-sibling",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": "record.write({'comment': 'B-ran'})",
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+                "sequence": 2,
+            }
+        )
+        action_successor = self.Action.create(
+            {
+                "name": "C-depends-on-A",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": "record.write({'comment': 'C-ran'})",
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+                "sequence": 3,
+                "predecessor_ids": [Command.link(action_fails.id)],
+            }
+        )
+
+        runtime = self.Runtime.create(
+            {
+                "automation_id": automation.id,
+                "res_model": "res.partner",
+                "res_id": self.test_partner.id,
+            }
+        )
+        runtime.action_start()
+        runtime.action_run_all()
+
+        line_fails = runtime.line_ids.filtered(lambda l: l.action_id == action_fails)
+        line_sibling = runtime.line_ids.filtered(
+            lambda l: l.action_id == action_sibling
+        )
+        line_successor = runtime.line_ids.filtered(
+            lambda l: l.action_id == action_successor
+        )
+
+        self.assertEqual(runtime.state, "error")
+        self.assertEqual(line_fails.state, "error")
+        self.assertEqual(
+            line_sibling.state,
+            "error",
+            "an independent sibling must not run once the batch has failed",
+        )
+        self.assertEqual(
+            line_successor.state,
+            "error",
+            "a successor of the failed step must not be left waiting forever",
+        )
+        self.test_partner.invalidate_recordset(["comment"])
+        self.assertFalse(
+            self.test_partner.comment,
+            "the sibling's side effect must not have happened",
+        )
