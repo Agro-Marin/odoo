@@ -81,25 +81,27 @@ class TestBundlesAssemble(lint_case.LintCase):
         )
 
     def test_every_esm_bundle_compiles(self):
-        """A bare specifier can name a module that exists and an export that does not.
+        """Run the linker, because the checks around it only read the sources.
 
-        The two checks above ask whether the bundle's *file list* resolves and
-        whether its *relative* imports stay inside it. Neither reads a bare
-        `@addon/...` specifier's named bindings, so an import of a symbol its
-        module no longer exports passes both and then fails in esbuild, which
-        is the first thing that actually links them.
+        The two methods above ask whether the bundle's *file list* resolves and
+        whether its *relative* imports stay inside it. Neither puts the modules
+        together, so anything that fails only once they are linked passes both
+        and fails in the browser.
 
-        Measured on `bf19a83c9ab`, which renamed `resequenceRecords` to
-        `resequence` in `web` and left `enterprise/web_map` importing the old
-        name: `web.assets_web`, `web.assets_web_dark` and
-        `web.assets_web_print` all stopped compiling, so the backend answered
-        500 for every user of any database carrying enterprise. Both sibling
-        methods passed throughout, at every scope.
+        NOT a substitute for `named_export_coherence`, which answers the one
+        shape of this that a static scan can answer -- does every
+        `import { x }` find an `x` -- across every sibling checkout, without a
+        database. That gate is the reason this one does not try: it is the
+        broader check of the two for its own question, and it is already run
+        from four lanes. What is left here is the artefact rather than the
+        sources: whether the thing this server will serve actually builds.
 
-        Compiles rather than trusting `_is_esbuild_fail_closed()`, which is off
-        unless `--test-enable` or `dev_mode=assets` is set: a gate that only
-        fires when a switch happens to be on is a gate whose absence looks like
-        a pass.
+        Compiles rather than trusting `_is_esbuild_fail_closed()`, whose
+        default is `--test-enable or dev_mode=assets`. Outside that an esbuild
+        failure opens the circuit breaker and returns an empty result, so a
+        check leaning on the switch reads as a pass wherever the switch is off:
+        measured, a prototype that did reported 22 of 22 green over a tree that
+        does not link.
         """
         failures = []
         with self.superuser_env() as env:
