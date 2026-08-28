@@ -65,7 +65,14 @@ class TestBarcodeHardening(common.TransactionCase):
         Patterns run on every scan; `(x+x+)+y` against a 60-character barcode
         pinned a core for minutes, and the client disconnecting did not stop it.
         """
-        for pattern in ("(x+x+)+y", "(a+)*", "(?:a+)+", "([a-z]+)*$", "(\\d{2,})+"):
+        for pattern in (
+            "(x+x+)+y",
+            "(a+)*",
+            "(?:a+)+",
+            "([a-z]+)*$",
+            "(\\d{2,})+",
+            "(a|aa)+$",
+        ):
             with self.subTest(pattern=pattern), self.assertRaises(ValidationError):
                 self._add_rule(pattern=pattern)
 
