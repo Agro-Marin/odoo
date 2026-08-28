@@ -25,6 +25,7 @@ POLL_LOOKBACK_SECONDS = 50
 DISPATCHER_SELECT_TIMEOUT = 50
 MAX_DISPATCHER_RETRY_DELAY = 50
 DEFAULT_GC_RETENTION_SECONDS = 60 * 60 * 24
+GC_MESSAGES_BATCH_SIZE = 10000
 NOTIFICATION_HOLD_BACK_SECONDS = 10
 
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
@@ -209,9 +210,20 @@ class BusBus(models.Model):
         timeout_ago = fields.Datetime.now() - datetime.timedelta(
             seconds=gc_retention_seconds
         )
+        # Batched, like the other autovacuum methods (ir_cron._gc_cron_progress,
+        # ir_attachment._gc_rehash_legacy_keys, mail_activity, ...): an
+        # unbounded single DELETE on a large backlog (long retention window,
+        # heavy traffic) would be one long transaction with a large WAL burst
+        # instead of a bounded one. Returning (done, remaining) lets
+        # ir.autovacuum._run_vacuum_cleaner re-queue this method within its
+        # MAX_VACUUM_RUNTIME budget until the backlog is drained.
         self.env.cr.execute(
-            "DELETE FROM bus_bus WHERE create_date < %s", (timeout_ago,)
+            "DELETE FROM bus_bus WHERE id IN "
+            "(SELECT id FROM bus_bus WHERE create_date < %s LIMIT %s)",
+            (timeout_ago, GC_MESSAGES_BATCH_SIZE),
         )
+        deleted = self.env.cr.rowcount
+        return deleted, deleted == GC_MESSAGES_BATCH_SIZE
 
     @api.model
     def _sendone(self, target, notification_type, message):
