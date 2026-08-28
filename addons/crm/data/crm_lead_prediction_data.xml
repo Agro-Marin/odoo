@@ -31,15 +31,21 @@
             <field name="key">crm.pls_start_date</field>
             <field name="value" eval="(datetime.now() - timedelta(days=8)).strftime('%Y-%m-%d')"/>
         </record>
-    </data>
 
-	<record id="website_crm_score_cron" model="ir.cron">
-        <field name="name">Predictive Lead Scoring: Recompute Automated Probabilities</field>
-        <field name="model_id" ref="model_crm_lead"/>
-        <field name="state">code</field>
-        <field name="code">model._cron_update_automated_probabilities()</field>
-        <field name="interval_number">1</field>
-        <field name="interval_type">days</field>
-        <field name="active" eval="False"/>
-    </record>
+        <!-- Inside `noupdate`, like crm's other cron in data/ir_cron_data.xml.
+             Outside it, every `-u crm` rewrote the record from this file and put
+             `active` back to False, so an upgrade silently switched predictive
+             lead scoring off and automated_probability went stale with nobody
+             told. The id keeps its pre-PLS spelling: renaming it costs an
+             ir.model.data migration and buys nothing. -->
+        <record id="website_crm_score_cron" model="ir.cron">
+            <field name="name">Predictive Lead Scoring: Recompute Automated Probabilities</field>
+            <field name="model_id" ref="model_crm_lead"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_update_automated_probabilities()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="False"/>
+        </record>
+    </data>
 </odoo>

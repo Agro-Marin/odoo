@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "crm is green; the baseline records that so a regression is caught by name rather than by count",
+  "run_spec": "odoo-bin -i crm --test-enable --test-tags /crm --stop-after-init --no-http",
+  "suite": "/crm",
+  "tests_total": 142,
+  "verified_at": "416cc4e29ae"
+}

@@ -299,12 +299,13 @@ class CrmLead(models.Model):
 
     @api.depends('company_id')
     def _compute_user_company_ids(self):
-        all_companies = self.env['res.company'].search([])
-        for lead in self:
-            if not lead.company_id:
-                lead.user_company_ids = all_companies
-            else:
-                lead.user_company_ids = lead.company_id
+        # the search is only paid when some lead has no company; it used to run
+        # on every compute call whatever self held
+        leads_wo_company = self.filtered(lambda lead: not lead.company_id)
+        for lead in self - leads_wo_company:
+            lead.user_company_ids = lead.company_id
+        if leads_wo_company:
+            leads_wo_company.user_company_ids = self.env['res.company'].search([])
 
     @api.depends('company_id')
     def _compute_company_currency(self):

@@ -36,13 +36,17 @@ class CrmStage(models.Model):
         "Folded in Pipeline",
         help="This stage is folded in the kanban view when there are no records in that stage to display.",
     )
-    # This field for interface only
-    team_count = fields.Integer("team_count", compute="_compute_team_count")
+    # UX only: the Sales Teams field is pointless in a single-team database.
+    # It counts EVERY crm.team, not this stage's -- the old name `team_count`
+    # sitting next to `team_ids` read as the latter, and its
+    # `@api.depends("team_ids")` named the one field the compute does not read
+    # while omitting the only thing it does (whether a second team exists), so
+    # a stage cached in a transaction that then created a team kept saying 1.
+    crm_team_count = fields.Integer("Sales Teams in Database", compute="_compute_crm_team_count")
     color = fields.Integer(string="Color", export_string_translation=False)
 
-    @api.depends("team_ids")
-    def _compute_team_count(self):
-        self.team_count = self.env["crm.team"].search_count([])
+    def _compute_crm_team_count(self):
+        self.crm_team_count = self.env["crm.team"].search_count([])
 
     @api.onchange("is_won")
     def _onchange_is_won(self):

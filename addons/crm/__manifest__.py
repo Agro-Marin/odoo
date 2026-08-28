@@ -10,7 +10,6 @@
         'sales_team',
         'mail',
         'calendar',
-        'resource',
         'utm',
         'web_tour',
         'contacts',
@@ -69,7 +68,8 @@
     'assets': {
         'web.assets_backend': [
             'crm/static/src/**',
-        ],        'web.assets_tests': [
+        ],
+        'web.assets_tests': [
             'crm/static/tests/tours/**/*',
         ],
         'web.assets_unit_tests': [

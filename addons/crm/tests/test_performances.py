@@ -11,12 +11,18 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
     """ Test performances of lead assignment feature added in saas-14.2
 
     Assign process is a random process: randomizing teams leads to searching,
-    assigning and de-duplicating leads in various order. As a lot of search
-    are implied during assign process query counters may vary from run to run.
-    "Heavy" performance test included here ranged from 6K to 6.3K queries. Either
-    we set high counters maximum which makes those tests less useful. Either we
-    avoid random if possible which is what we decided to do by setting the seed
-    of random in tests.
+    assigning and de-duplicating leads in various order, so the counters below
+    would vary from run to run -- which is why every test here fixes the seed.
+    They do not vary. Two consecutive runs give character-identical counts, and
+    the spread across the three install shapes (no demo / --with-demo / plus the
+    six auto-installing enterprise bridges) is 0 to 4 queries.
+
+    So the pins are the measured maximum of those three shapes, not a round
+    number above them. They used to sit 38-42% over: 962 against 592, 552
+    against 337, 5173 against 2999. A pin with two thousand queries of headroom
+    cannot fail on anything, and none of them moved when `9dbee38e649` batched
+    the duplicate lookups. Each pin below records what all three shapes measure,
+    so the next reader knows which number the integer is.
     """
 
     def setUp(self):
@@ -52,10 +58,10 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
         # commit probability and related fields
         leads.flush_recordset()
 
-        # randomness: at least 1 query, +3 for demo -> 957 + 5
         with self.with_user('user_sales_manager'):
             self.env.user._is_internal()  # warmup the cache to avoid inconsistency between community an enterprise
-            with self.assertQueryCount(user_sales_manager=962):
+            # no demo 480 / --with-demo 480 / + enterprise bridges 483
+            with self.assertQueryCount(user_sales_manager=483):
                 self.env['crm.team'].browse(self.sales_teams.ids)._action_assign_leads()
 
         # teams assign
@@ -98,9 +104,9 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
         # commit probability and related fields
         leads.flush_recordset()
 
-        # randomness: at least 1 query, +1 for demo
         with self.with_user('user_sales_manager'):
-            with self.assertQueryCount(user_sales_manager=552):
+            # no demo 241 / --with-demo 242 / + enterprise bridges 241
+            with self.assertQueryCount(user_sales_manager=242):
                 self.env['crm.team'].browse(self.sales_teams.ids)._action_assign_leads()
 
         # teams assign
@@ -181,9 +187,9 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
         # commit probability and related fields
         leads.flush_recordset()
 
-        # randomness: add 2 queries
         with self.with_user('user_sales_manager'):
-            with self.assertQueryCount(user_sales_manager=5173):
+            # no demo 2417 / --with-demo 2418 / + enterprise bridges 2421
+            with self.assertQueryCount(user_sales_manager=2421):
                 self.env['crm.team'].browse(sales_teams.ids)._action_assign_leads()
 
         # teams assign
