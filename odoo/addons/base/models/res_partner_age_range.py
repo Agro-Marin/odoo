@@ -14,16 +14,14 @@ _FIRST_YEAR = datetime.date.min.year
 _LAST_YEAR = datetime.date.max.year
 
 
+# Keyed on the birth *year* rather than on current age, because a cohort is a
+# permanent property of a person: someone born in 1983 is Gen Y for good. The
+# bounds used to hold ages, which meant everyone crossed into the next cohort
+# on a birthday -- 17 of the 138 partners carrying a band had drifted into one
+# whose own label contradicted their birth year, and that grows by roughly a
+# sixteenth of a cohort every year.
 class ResPartnerAgeRange(models.Model):
-    """A generational cohort, keyed on birth year.
-
-    Keyed on the birth *year* rather than on current age, because a cohort is a
-    permanent property of a person: someone born in 1983 is Gen Y for good. The
-    bounds used to hold ages, which meant everyone crossed into the next cohort
-    on a birthday -- 17 of the 138 partners carrying a band had drifted into one
-    whose own label contradicted their birth year, and that grows by roughly a
-    sixteenth of a cohort every year.
-    """
+    """A generational cohort, keyed on birth year."""
 
     _name = "res.partner.age.range"
     _inherit = ["mixin.band"]
