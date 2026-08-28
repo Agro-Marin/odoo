@@ -3,7 +3,7 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { listView } from "@web/views/list";
 
-import { CaledarListController } from "./calendar_list_controller.js";
+import { CalendarListController } from "./calendar_list_controller.js";
 
 export class CalendarListModel extends listView.Model {
     setup(params) {
@@ -24,8 +24,11 @@ export class CalendarListModel extends listView.Model {
                 [[user.userId], filters["user"]]
             );
             // Filter attendees to be shown if 'everybody' filter isn't active.
+            // `params.domain` is the search model's own (possibly frozen in
+            // debug mode, always memoized) domain array -- build a new one
+            // instead of mutating it in place.
             if (!filters["all"]) {
-                params.domain.push(["partner_ids", "in", selectedPartnerIds]);
+                params.domain = [...params.domain, ["partner_ids", "in", selectedPartnerIds]];
             }
         }
         return super.load(params);
@@ -35,7 +38,7 @@ export class CalendarListModel extends listView.Model {
 export const CalendarListView = {
     ...listView,
     Model: CalendarListModel,
-    Controller: CaledarListController,
+    Controller: CalendarListController,
 };
 
 function _mockGetCalendarPartnerIds(params) {

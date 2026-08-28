@@ -4,7 +4,7 @@ import { useAskRecurrenceUpdatePolicy } from "@calendar/views/ask_recurrence_upd
 import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";
 
-export class CaledarListController extends ListController {
+export class CalendarListController extends ListController {
     setup() {
         super.setup();
         this.orm = useService("orm");
