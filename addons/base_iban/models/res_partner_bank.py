@@ -132,24 +132,30 @@ class ResPartnerBank(models.Model):
             )
         return get_bban_from_iban(self.acc_number)
 
+    @api.model
+    def _normalize_iban_acc_number(self, vals):
+        """Return a copy of vals with acc_number reformatted to pretty IBAN form.
+
+        Never mutates the vals dict passed in by the caller. Leaves acc_number
+        untouched if it does not validate as an IBAN.
+        """
+        if not vals.get("acc_number"):
+            return vals
+        vals = dict(vals)
+        try:
+            validate_iban(vals["acc_number"])
+            vals["acc_number"] = pretty_iban(vals["acc_number"])
+        except ValidationError:
+            pass
+        return vals
+
     @api.model_create_multi
     def create(self, vals_list):
-        for vals in vals_list:
-            if vals.get("acc_number"):
-                try:
-                    validate_iban(vals["acc_number"])
-                    vals["acc_number"] = pretty_iban(normalize_iban(vals["acc_number"]))
-                except ValidationError:
-                    pass
+        vals_list = [self._normalize_iban_acc_number(vals) for vals in vals_list]
         return super().create(vals_list)
 
     def write(self, vals):
-        if vals.get("acc_number"):
-            try:
-                validate_iban(vals["acc_number"])
-                vals["acc_number"] = pretty_iban(normalize_iban(vals["acc_number"]))
-            except ValidationError:
-                pass
+        vals = self._normalize_iban_acc_number(vals)
         return super().write(vals)
 
     @api.constrains("acc_number")

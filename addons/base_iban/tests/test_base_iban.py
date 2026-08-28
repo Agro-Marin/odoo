@@ -65,3 +65,24 @@ class TestBaseIban(TransactionCase):
         Bank = self.env["res.partner.bank"]
         self.assertTrue(Bank.check_iban(VALID_IBAN))
         self.assertFalse(Bank.check_iban("not-an-iban"))
+
+    def test_create_does_not_mutate_caller_vals(self):
+        """create() must not rewrite acc_number in the caller's own vals dict."""
+        partner = self.env["res.partner"].create({"name": "IBAN mutation probe"})
+        vals = {"partner_id": partner.id, "acc_number": "BE68 5390-0754_7034"}
+        original = dict(vals)
+        bank = self.env["res.partner.bank"].create(vals)
+        self.assertEqual(vals, original)
+        self.assertEqual(bank.acc_number, "BE68 5390 0754 7034")
+
+    def test_write_does_not_mutate_caller_vals(self):
+        """write() must not rewrite acc_number in the caller's own vals dict."""
+        partner = self.env["res.partner"].create({"name": "IBAN mutation probe"})
+        bank = self.env["res.partner.bank"].create(
+            {"partner_id": partner.id, "acc_number": VALID_IBAN}
+        )
+        vals = {"acc_number": "BE68 5390-0754_7034"}
+        original = dict(vals)
+        bank.write(vals)
+        self.assertEqual(vals, original)
+        self.assertEqual(bank.acc_number, "BE68 5390 0754 7034")
