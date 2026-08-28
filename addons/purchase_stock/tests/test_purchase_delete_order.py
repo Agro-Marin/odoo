@@ -8,9 +8,6 @@ from .common import PurchaseTestCommon
 class TestDeleteOrder(PurchaseTestCommon):
     @users("purchase_user")
     def test_00_delete_order(self):
-        """Testcase for deleting purchase order with purchase user group"""
-
-        # In order to test delete process on purchase order,tried to delete a confirmed order and check Error Message.
         purchase_order_1 = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,
@@ -20,7 +17,6 @@ class TestDeleteOrder(PurchaseTestCommon):
         with self.assertRaises(UserError):
             purchase_order_1.unlink()
 
-        # Delete 'cancelled' purchase order with user group
         purchase_order_2 = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,
@@ -31,7 +27,6 @@ class TestDeleteOrder(PurchaseTestCommon):
         self.assertEqual(purchase_order_2.state, "cancel", "PO is cancelled!")
         purchase_order_2.unlink()
 
-        # Delete 'draft' purchase order with user group
         purchase_order_3 = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,
@@ -43,8 +38,6 @@ class TestDeleteOrder(PurchaseTestCommon):
         purchase_order_3.unlink()
 
     def test_01_delete_propagation(self):
-        """Testcase for deleting purchase order with linked move and propagate cancel off"""
-
         partner = self.env["res.partner"].create({"name": "My Partner"})
 
         move = self.env["stock.move"].create(
@@ -88,7 +81,6 @@ class TestDeleteOrder(PurchaseTestCommon):
             move.state, "waiting", "Move should be waiting for the linked purchase"
         )
         purchase_order.action_cancel()
-        # Check purchase order and related move are canceled while linked move state is not
         self.assertEqual(
             purchase_order.state, "cancel", "Purchase Order should be canceled"
         )

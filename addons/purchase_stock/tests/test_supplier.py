@@ -5,7 +5,7 @@ class TestSupplier(TestStockCommon):
     def test_display_name(self):
         supplier = self.env["product.supplierinfo"].create(
             {
-                "partner_id": self.partner_1.id,  # Julia Agrolait
+                "partner_id": self.partner_1.id,
                 "price": 123.0,
                 "min_qty": 345,
                 "delay": 1,
@@ -48,7 +48,6 @@ class TestSupplier(TestStockCommon):
                 "product_max_qty": 4,
             }
         )
-        # The Buy route is not set on the product -> no effective vendor
         self.assertFalse(orderpoint.effective_vendor_id)
 
         self.productA.write(
@@ -57,7 +56,6 @@ class TestSupplier(TestStockCommon):
             }
         )
         self.env.invalidate_all()
-        # The route is set, but there is no supplier -> no effective vendor
         self.assertFalse(orderpoint.effective_vendor_id)
 
         self.env["product.supplierinfo"].create(
@@ -70,11 +68,9 @@ class TestSupplier(TestStockCommon):
         )
 
         self.env.invalidate_all()
-        # The route is set and there is a supplier -> effective vendor is available
         self.assertEqual(orderpoint.effective_vendor_id, self.partner_1)
         self.assertEqual(
             orderpoint.supplier_id_placeholder,
             "Julia Agrolait (10.0 Units - $\xa050.00)",
         )
-        # The actual vendor remains empty
         self.assertFalse(orderpoint.supplier_id)

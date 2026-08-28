@@ -28,7 +28,7 @@ class TestSaleStockCommon(TestSaleCommon, ProductVariantsCommon):
     def _inv_adj_two_units(self, product):
         self.env["stock.quant"].with_context(inventory_mode=True).create(
             {
-                "product_id": product.id,  # tracking serial
+                "product_id": product.id,
                 "inventory_quantity": 2,
                 "location_id": self.stock_location.id,
             }

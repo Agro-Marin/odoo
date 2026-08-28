@@ -8,10 +8,7 @@ class MixinOrderLineAmount(models.AbstractModel):
     _name = "mixin.order.line.amount"
     _description = "Order Line Amount Computation"
 
-    #: ``product.product`` field holding the taxes to default from.
     _product_tax_field = ""
-    #: ``1`` when a higher price is favorable to us, ``-1`` when a lower one is.
-    #: The price-history wizard reads it off the line model.
     _price_direction = 0
 
     currency_id = fields.Many2one("res.currency")
@@ -161,6 +158,17 @@ class MixinOrderLineAmount(models.AbstractModel):
             else:
                 line.product_uom_qty = line.product_qty
 
+    def _check_write_derived_quantity(self, write_vals):
+        # Key presence, not truthiness: `{"product_uom_qty": 0}` is the shape that
+        # desynchronises the two fields most quietly -- it lands 0 in the derived
+        # column while `product_qty` keeps the quantity that was actually ordered.
+        if "product_uom_qty" not in write_vals:
+            return
+        raise ValueError(
+            f"{self._name}.product_uom_qty is computed from product_qty and "
+            f"cannot be written; set product_qty instead.",
+        )
+
     def _get_price_unit_gross(self):
         self.ensure_one()
         price_unit = self.price_unit
@@ -250,22 +258,6 @@ class MixinOrderLineAmount(models.AbstractModel):
     def _should_update_discount(
         self, new_auto_discount, old_auto_discount, force_recompute=False
     ):
-        """Whether the automatic discount may overwrite the one on the line.
-
-        Asked separately from the price because a discount cannot be read
-        back out of the unit price. A line created with `price_unit` at the
-        automatic price and an explicit `discount` looks untouched to the
-        price test, so the discount was being reset to the automatic value;
-        `_compute_amounts` then precomputed the subtotal from the reset
-        value, and the caller's discount was restored afterwards -- leaving
-        a stored line whose discount and subtotal disagree.
-
-        Mirrors `_should_update_price`'s stored-record branch: on a stored
-        line, a discount that no longer matches the previous automatic value
-        was set manually and must not be overwritten by a new recompute
-        (e.g. triggered by an unrelated field like `tax_ids` or
-        `selected_seller_id` changing).
-        """
         self.ensure_one()
         if force_recompute:
             return True
@@ -380,10 +372,6 @@ class MixinOrderLineAmount(models.AbstractModel):
             if line.display_type or line.is_downpayment:
                 line.price_unit_product_uom = False
                 continue
-            # `_compute_price_report`, not the strict base method: this is a
-            # display value, and `_compute_product_uom_qty` above already
-            # degrades on the same legacy incompatible-unit rows rather than
-            # aborting the read that touched them.
             line.price_unit_product_uom = line.product_uom_id._compute_price_report(
                 line.price_unit,
                 line.product_id.uom_id,
@@ -391,12 +379,6 @@ class MixinOrderLineAmount(models.AbstractModel):
 
     @api.depends("product_qty", "product_uom_qty", "price_subtotal")
     def _compute_price_unit_discounted_taxexc_product_uom(self):
-        # From the subtotal rather than from `price_unit_discounted_taxexc`
-        # converted a second time: `price_subtotal / product_uom_qty` is the
-        # same quantity by construction, is already rounded the way the money
-        # on the document is, and keeps this field consistent with the
-        # SUM(price_subtotal) / SUM(product_uom_qty) weighted average that
-        # reads it -- two spellings of one number would drift.
         for line in self:
             if line.display_type or not line.product_uom_qty:
                 line.price_unit_discounted_taxexc_product_uom = False

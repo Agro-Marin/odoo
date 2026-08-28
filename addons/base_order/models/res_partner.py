@@ -76,19 +76,9 @@ class ResPartner(models.Model):
         return self
 
     def _get_domain_order_activity_scope(self):
-        # The query runs sudoed so the figure is a property of the customer and
-        # not of whoever opened the form: sale_order_personal_rule would
-        # otherwise hand two salespeople two different counts for the same
-        # customer, and hand the merge cron whatever its own user happens to
-        # see. Sudo drops the multi-company rule with the rest, so the scope
-        # the cycle is read from has to be restated here.
         return [("company_id", "=", self.env.company.id)]
 
     def _get_readable_order_activity_sources(self, sources):
-        # res.partner is readable by every internal user, these two fields are
-        # not group-gated, and sale.order is not readable below
-        # group_sale_salesman -- so an ungated _read_group turns any full read
-        # of a partner into an AccessError for, say, an HR-only user.
         return [
             (order_model, domain)
             for order_model, domain in sources
@@ -107,10 +97,6 @@ class ResPartner(models.Model):
 
         cutoff_date = self.env.company._get_order_cycle_cutoff_date()
         counts = {}
-        # One query per registered order model, not per partner: the loop is
-        # over the source list, whose length is the number of installed order
-        # types. Each source carries its own model and domain, so one merged
-        # query cannot express it.
         for order_model, domain in sources:
             order_groups = self.env[order_model].sudo()._read_group(  # pylint: disable=n-plus-one-query
                 domain=Domain.AND(
@@ -126,9 +112,6 @@ class ResPartner(models.Model):
                 groupby=["partner_id"],
                 aggregates=["__count"],
             )
-            # Keyed by id, and assigned below on records of self: the groups
-            # come back in the sudoed environment, whose cache key is not this
-            # one, so writing the field on them lands in the wrong partition.
             for partner, count in order_groups:
                 counts[partner.id] = counts.get(partner.id, 0) + count
 
@@ -146,7 +129,6 @@ class ResPartner(models.Model):
             return
 
         last_dates = {}
-        # One query per registered order model -- see _compute_recent_orders_count.
         for order_model, domain in sources:
             order_groups = self.env[order_model].sudo()._read_group(  # pylint: disable=n-plus-one-query
                 domain=Domain.AND(

@@ -8,9 +8,6 @@ from .common import PurchaseTestCommon
 
 class TestPurchaseStockValuation(PurchaseTestCommon):
     def test_move_value(self):
-        """This test ensure the move value is correct. The move value
-        doesn't depend on the cost method. It represents the real price
-        of the move base on its linked Bills and PO."""
         po = self._create_purchase(self.product, 5, 12)
         move_in_1 = self._receive(po, 2)
         self.assertEqual(move_in_1.value, 24)
@@ -20,10 +17,8 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
         self.assertAlmostEqual(move_in_1.value, 32 * 2 / 3, delta=0.01)
 
         move_in_2 = self._receive(po, 2)
-        # bill 2 @ 12$ + bill 1 @ 8$ + po @ 12
         self.assertAlmostEqual(move_in_2.value, (32 * 1 / 3) + 12, delta=0.01)
         move_in_3 = self._receive(po, 1)
-        # Value taken from PO since the 3 first units are billed
         self.assertAlmostEqual(move_in_3.value, 12, delta=0.01)
         self._create_bill(purchase_order=po, quantity=2, price_unit=15)
         value = 24 + 8 + 30
@@ -114,21 +109,14 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
         self.assertEqual(
             self.product_avco.with_context(to_date="2025-01-01").total_value, 0
         )
-        # It takes the rate from the delivery date (inverse of 1.5 = 0.666666667)
         self.assertEqual(
             self.product_avco.with_context(to_date="2025-01-02").total_value, 66.7
         )
-        # Bill date rate
         self.assertEqual(
             self.product_avco.with_context(to_date="2025-01-04").total_value, 50
         )
 
     def test_move_value_multi_currency_bill_before_receipt(self):
-        # rates = [
-        #     ('today', 1.00),
-        #     ('tomorrow, 2.00),
-        #     ('day after tomorrow', 3.00),
-        # ]
         self._use_multi_currencies()
         po = self._create_purchase(
             self.product_avco, 10, 10, currency_id=self.other_currency.id
@@ -190,7 +178,6 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
 
         self._create_bill(purchase_order=po, quantity=1, price_unit=8)
         move_in_2 = self._receive(po, 2)
-        # bill 2 @ 12$ + bill 1 @ 8$
         self.assertEqual(self.product_standard.total_value, 40)
         move_in_3 = self._receive(po, 1)
         self.assertEqual(self.product_standard.total_value, 50)
@@ -202,7 +189,6 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
         self.assertEqual(move_in_2.remaining_value, 20)
         self.assertEqual(move_in_3.remaining_value, 10)
 
-        # Check the standard price update, recompute everything
         self.product_standard.standard_price = 20
         self.assertEqual(self.product_standard.total_value, 100)
         self.assertEqual(self.product_standard.qty_available, 5)
@@ -221,7 +207,6 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
 
         self._create_bill(purchase_order=po, quantity=1, price_unit=8)
         move_in_2 = self._receive(po, 2)
-        # bill 2 @ 12$ + bill 1 @ 8$
         self.assertEqual(self.product_avco.total_value, 44)
         move_in_3 = self._receive(po, 1)
         self.assertEqual(self.product_avco.total_value, 56)
@@ -235,10 +220,6 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
         self.assertEqual(move_in_3.remaining_value, avg_cost)
 
     def test_move_fifo(self):
-        """This test is similar to test_move_avco since all the move under
-        a same purchase order share the value as an average flow. The FIFO
-        only apply on different purchase orders.
-        """
         po = self._create_purchase(self.product_fifo, 5, 12)
         move_in_1 = self._receive(po, 2)
         self.assertEqual(self.product_fifo.total_value, 24)
@@ -248,7 +229,6 @@ class TestPurchaseStockValuation(PurchaseTestCommon):
 
         self._create_bill(purchase_order=po, quantity=1, price_unit=8)
         move_in_2 = self._receive(po, 2)
-        # bill 2 @ 12$ + bill 1 @ 8$
         self.assertEqual(self.product_fifo.total_value, 44)
         move_in_3 = self._receive(po, 1)
         self.assertEqual(self.product_fifo.total_value, 56)

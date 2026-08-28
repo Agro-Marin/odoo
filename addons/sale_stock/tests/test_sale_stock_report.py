@@ -11,15 +11,9 @@ from odoo.addons.stock.tests.test_report import TestReportsCommon
 
 class TestSaleStockReports(TestReportsCommon):
     def test_report_forecast_1_sale_order_replenishment(self):
-        """Create and confirm two sale orders: one for the next week and one
-        for tomorrow. Then check in the report it's the most urgent who is
-        linked to the qty. on stock.
-        """
-        # make sure first picking doesn't auto-assign
         self.picking_type_out.reservation_method = "manual"
 
         today = datetime.today()
-        # Put some quantity in stock.
         quant_vals = {
             "product_id": self.product.id,
             "product_uom_id": self.product.uom_id.id,
@@ -28,10 +22,8 @@ class TestSaleStockReports(TestReportsCommon):
             "reserved_quantity": 0,
         }
         self.env["stock.quant"].create(quant_vals)
-        # Create a first SO for the next week.
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.partner
-        # so_form.date_validity = today + timedelta(days=7)
         with so_form.line_ids.new() as so_line:
             so_line.product_id = self.product
             so_line.product_qty = 5
@@ -39,10 +31,8 @@ class TestSaleStockReports(TestReportsCommon):
         so_1.action_confirm()
         so_1.picking_ids.date_planned = today + timedelta(days=7)
 
-        # Create a second SO for tomorrow.
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.partner
-        # so_form.date_validity = today + timedelta(days=1)
         with so_form.line_ids.new() as so_line:
             so_line.product_id = self.product
             so_line.product_qty = 5
@@ -64,8 +54,6 @@ class TestSaleStockReports(TestReportsCommon):
         self.assertEqual(line_2["document_out"]["id"], so_1.id)
 
     def test_report_forecast_2_report_line_corresponding_to_so_line_highlighted(self):
-        """When accessing the report from a SO line, checks if the correct SO line is highlighted in the report"""
-        # We create 2 identical SO
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.partner
         with so_form.line_ids.new() as line:
@@ -76,7 +64,6 @@ class TestSaleStockReports(TestReportsCommon):
         so2 = so1.copy()
         so2.action_confirm()
 
-        # Check for both SO if the highlight (is_matched) corresponds to the correct SO
         for so in [so1, so2]:
             context = {"move_to_match_ids": so.line_ids.move_ids.ids}
             _, _, lines = self.get_report_forecast(
@@ -95,18 +82,12 @@ class TestSaleStockReports(TestReportsCommon):
                     )
 
     def test_report_forecast_3_unreserve_2_step_delivery(self):
-        """
-        Check that the forecast correctly reconciles the outgoing moves
-        that are part of a chain with stock availability when unreserved.
-        """
         warehouse = self.env.ref("stock.warehouse0")
         warehouse.delivery_steps = "pick_ship"
         product = self.product
-        # Put 5 units in stock
         self.env["stock.quant"]._update_available_quantity(
             product, warehouse.lot_stock_id, 5
         )
-        # Create and confirm an SO for 3 units
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.partner.id,
@@ -151,7 +132,6 @@ class TestSaleStockReports(TestReportsCommon):
             ),
             (2.0, True, False),
         )
-        # unrerseve the PICK delivery
         pick_delivery = so.picking_ids.filtered(
             lambda p: p.picking_type_id == warehouse.pick_type_id
         )
@@ -180,13 +160,6 @@ class TestSaleStockReports(TestReportsCommon):
         )
 
     def test_report_forecast_4_so_from_another_salesman(self):
-        """Try accessing the forecast with a user that has only access to his SO while another user has created:
-        - A draft Sale Order
-        - A confirmed Sale Order
-        The report shoud be usable by that user, and while he cannot open those SO, he should still see them to have the correct
-        informations in the report.
-        """
-        # Create the SO & confirm it with first user
         with Form(self.env["sale.order"]) as so_form:
             so_form.partner_id = self.partner
             with so_form.line_ids.new() as line:
@@ -195,7 +168,6 @@ class TestSaleStockReports(TestReportsCommon):
             sale_order = so_form.save()
         sale_order.action_confirm()
 
-        # Create a draft SO with the same user for the same product
         with Form(self.env["sale.order"]) as so_form:
             so_form.partner_id = self.partner
             with so_form.line_ids.new() as line:
@@ -203,7 +175,6 @@ class TestSaleStockReports(TestReportsCommon):
                 line.product_qty = 2
             draft = so_form.save()
 
-        # Create second user which only has access to its own documents
         other = self.env["res.users"].create(
             {
                 "name": "Other Salesman",
@@ -215,7 +186,6 @@ class TestSaleStockReports(TestReportsCommon):
             }
         )
 
-        # Need to reset the cache otherwise it wouldn't trigger an Access Error anyway as the Sale Order is already there.
         sale_order.env.invalidate_all()
         report_values = (
             self.env["stock.forecasted_product_product"]
@@ -237,14 +207,11 @@ class TestSaleStockReports(TestReportsCommon):
             draft.name,
         )
 
-        # While 'other' can see these SO on the report, they shouldn't be able to access them.
         with self.assertRaises(AccessError):
             sale_order.with_user(other).check_access("read")
         with self.assertRaises(AccessError):
             draft.with_user(other).check_access("read")
 
-        # ...which is what `can_open` reports, so the client renders the
-        # reference as plain text instead of a link that raises on click.
         self.assertFalse(
             report_values["docs"]["lines"][0]["document_out"]["can_open"],
             "An unreadable source document must not be offered as a link",
@@ -363,11 +330,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         )
 
     def test_invoice_less_than_delivered(self):
-        """
-        Suppose the lots are printed on the invoices.
-        A user invoice a tracked product with a smaller quantity than delivered.
-        On the invoice, the quantity of the used lot should be the invoiced one.
-        """
         display_lots = self.env.ref("stock_account.group_lot_on_invoice")
         display_uom = self.env.ref("uom.group_uom")
         self.env.user.write({"group_ids": [(4, display_lots.id), (4, display_uom.id)]})
@@ -411,12 +373,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         )
 
     def test_invoice_before_delivery(self):
-        """
-        Suppose the lots are printed on the invoices.
-        The user sells a tracked product, its invoicing policy is "Ordered quantities"
-        A user invoice a tracked product with a smaller quantity than delivered.
-        On the invoice, the quantity of the used lot should be the invoiced one.
-        """
         display_lots = self.env.ref("stock_account.group_lot_on_invoice")
         display_uom = self.env.ref("uom.group_uom")
         self.env.user.write({"group_ids": [(4, display_lots.id), (4, display_uom.id)]})
@@ -459,11 +415,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         )
 
     def test_picking_description(self):
-        """
-        Verify that for a no-variant product, the product name is not included as the first element in the picking description,
-        as this avoids repeating the name on the delivery slip.
-        """
-
         product_attr = self.env["product.attribute"].create(
             {"name": "Color", "create_variant": "no_variant"}
         )
@@ -509,12 +460,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         self.assertEqual(picking_description, "Color: Value1\nColor: Value2")
 
     def test_backorder_and_several_invoices(self):
-        """
-        Suppose the lots are printed on the invoices.
-        The user sells 2 tracked-by-usn products, he delivers 1 product and invoices it
-        Then, he delivers the other one and invoices it too. Each invoice should have the
-        correct USN
-        """
         display_lots = self.env.ref("stock_account.group_lot_on_invoice")
         display_uom = self.env.ref("uom.group_uom")
         self.env.user.write({"group_ids": [(4, display_lots.id), (4, display_uom.id)]})
@@ -576,7 +521,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         )
         self.assertNotIn("USN0001", text)
 
-        # Posting the second invoice shouldn't change the result of the first one
         html = IrActionsReport._render_qweb_html(
             "account.report_invoice_with_payments", invoice01.ids
         )[0]
@@ -588,7 +532,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         )
         self.assertNotIn("USN0002", text)
 
-        # Resetting and posting again the first invoice shouldn't change the results
         invoice01.action_draft()
         invoice01.action_post()
         html = IrActionsReport._render_qweb_html(
@@ -613,17 +556,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         self.assertNotIn("USN0001", text)
 
     def test_invoice_with_several_returns(self):
-        """
-        Mix of returns and partial invoice
-        - Product P tracked by lot
-        - SO with 10 x P
-        - Deliver 10 x Lot01
-        - Return 10 x Lot01
-        - Deliver 03 x Lot02
-        - Invoice 02 x P
-        - Deliver 05 x Lot02 + 02 x Lot03
-        - Invoice 08 x P
-        """
         display_lots = self.env.ref("stock_account.group_lot_on_invoice")
         display_uom = self.env.ref("uom.group_uom")
         self.env.user.write({"group_ids": [(4, display_lots.id), (4, display_uom.id)]})
@@ -663,13 +595,11 @@ class TestSaleStockInvoices(TestSaleCommon):
         )
         so.action_confirm()
 
-        # Deliver 10 x LOT0001
         delivery01 = so.picking_ids
         delivery01.move_ids.write({"quantity": 10, "picked": True})
         delivery01.button_validate()
         self.assertEqual(delivery01.move_line_ids.lot_id.name, "LOT0001")
 
-        # Return delivery01 (-> 10 x LOT0001)
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=[delivery01.id],
@@ -692,7 +622,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         pick_return.move_ids.picked = True
         pick_return.button_validate()
 
-        # Return pick_return
         return_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=[pick_return.id],
@@ -705,7 +634,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         action = return_wizard.action_create_returns()
         delivery02 = self.env["stock.picking"].browse(action["res_id"])
 
-        # Deliver 3 x LOT0002
         delivery02.do_unreserve()
         move_form = Form(
             delivery02.move_ids, view="stock.view_stock_move_form_operations"
@@ -717,7 +645,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         delivery02.move_ids.picked = True
         Form.from_action(self.env, delivery02.button_validate()).save().process()
 
-        # Invoice 2 x P
         invoice01 = so._create_invoices()
         with Form(invoice01) as form:
             with form.invoice_line_ids.edit(0) as line:
@@ -735,7 +662,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         )
         self.assertNotIn("LOT0001", text)
 
-        # Deliver 5 x LOT0002 + 2 x LOT0003
         delivery03 = delivery02.backorder_ids
         delivery03.do_unreserve()
         move_form = Form(
@@ -751,7 +677,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         delivery03.move_ids.picked = True
         delivery03.button_validate()
 
-        # Invoice 8 x P
         invoice02 = so._create_invoices()
         invoice02.action_post()
 
@@ -772,12 +697,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         self.assertNotIn("LOT0001", text)
 
     def test_refund_cancel_invoices(self):
-        """
-        Suppose the lots are printed on the invoices.
-        The user sells 2 tracked-by-usn products, he delivers 2 products and invoices them
-        Then he adds credit notes and issues a full refund. Receive the products.
-        The reversed invoice should also have correct USN
-        """
         display_lots = self.env.ref("stock_account.group_lot_on_invoice")
         display_uom = self.env.ref("uom.group_uom")
         self.env.user.write({"group_ids": [(4, display_lots.id), (4, display_uom.id)]})
@@ -824,7 +743,6 @@ class TestSaleStockInvoices(TestSaleCommon):
             "There should be a line that specifies 1 x USN0002",
         )
 
-        # Refund the invoice
         refund_wizard = (
             self.env["account.move.reversal"]
             .with_context(active_model="account.move", active_ids=invoice01.ids)
@@ -838,7 +756,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         refund_invoice = self.env["account.move"].browse(res["res_id"])
         refund_invoice.action_post()
 
-        # recieve the returned product
         stock_return_picking_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=picking.ids,
@@ -864,7 +781,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         pick_return.move_ids.picked = True
         pick_return.button_validate()
 
-        # reversed invoice
         html = self.env["ir.actions.report"]._render_qweb_html(
             "account.report_invoice_with_payments", refund_invoice.ids
         )[0]
@@ -881,12 +797,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         )
 
     def test_refund_modify_invoices(self):
-        """
-        Suppose the lots are printed on the invoices.
-        The user sells 1 tracked-by-usn products, he delivers 1 and invoices it
-        Then he adds credit notes and issues full refund and new draft invoice.
-        The new draft invoice should have correct USN
-        """
         display_lots = self.env.ref("stock_account.group_lot_on_invoice")
         display_uom = self.env.ref("uom.group_uom")
         self.env.user.write({"group_ids": [(4, display_lots.id), (4, display_uom.id)]})
@@ -927,7 +837,6 @@ class TestSaleStockInvoices(TestSaleCommon):
             "There should be a line that specifies 1 x USN0001",
         )
 
-        # Refund the invoice with full refund and new draft invoice
         refund_wizard = (
             self.env["account.move.reversal"]
             .with_context(active_model="account.move", active_ids=invoice01.ids)
@@ -941,7 +850,6 @@ class TestSaleStockInvoices(TestSaleCommon):
         invoice02 = self.env["account.move"].browse(res["res_id"])
         invoice02.action_post()
 
-        # new draft invoice
         html = self.env["ir.actions.report"]._render_qweb_html(
             "account.report_invoice_with_payments", invoice02.ids
         )[0]

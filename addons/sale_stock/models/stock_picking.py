@@ -6,10 +6,6 @@ from odoo.fields import Domain
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     sale_id = fields.Many2one(
         comodel_name="sale.order",
         string="Sales Order",
@@ -18,33 +14,16 @@ class StockPicking(models.Model):
         inverse="_inverse_sale_id",
         index="btree_not_null",
     )
-    # delay_pass is declared by base_order_stock; this module contributes the
-    # sale branch through _get_source_order_date/_get_source_order_date_paths.
     days_to_deliver = fields.Datetime(
         compute="_compute_days_to_deliver",
         search="_search_days_to_deliver",
         copy=False,
     )
 
-    # ------------------------------------------------------------
-    # INIT
-    # ------------------------------------------------------------
-
     def _auto_init(self):
-        """
-        Create the sale_id column here, too slow to backfill afterwards via
-        the stored compute.
-
-        No UPDATE statement is needed since _compute_sale_id fills it on
-        demand.
-        """
         if not column_exists(self.env.cr, "stock_picking", "sale_id"):
             create_column(self.env.cr, "stock_picking", "sale_id", "int4")
         return super()._auto_init()
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends(
         "reference_ids.sale_ids",
@@ -52,20 +31,12 @@ class StockPicking(models.Model):
     )
     def _compute_sale_id(self):
         for picking in self:
-            # Link the SO from the picking's own sale moves first. Only fall back
-            # to the shared stock.reference for pickings that are NOT part of a
-            # manufacturing route: in a multi-step (pbm_sam) MO the intermediate
-            # pickings carry no sale move yet share the SO's stock.reference, so
-            # the fallback would pull them into sale.order.picking_ids and break
-            # its singleton expectation. sale_stock has no concept of a
-            # manufacturing route on its own (that's mrp, an optional
-            # dependency) — see _is_on_manufacturing_route().
             sale_order = picking.move_ids.sale_line_id.order_id[:1]
             if not sale_order and not picking._is_on_manufacturing_route():
                 sale_order = picking.reference_ids.sale_ids[:1]
             picking.sale_id = sale_order
 
-    @api.depends("move_ids.sale_line_id")
+    @api.depends("move_ids.sale_line_id.order_id.picking_policy")
     def _compute_move_type(self):
         super()._compute_move_type()
         for picking in self:
@@ -77,8 +48,6 @@ class StockPicking(models.Model):
                     picking.move_type = "one"
 
     def _days_to_deliver_domain(self):
-        # A sale transfer counts once the goods reached the customer. Backs both
-        # the compute and the search below, so they cannot drift apart.
         return self._effective_transfer_domain() & Domain(
             "location_dest_id.usage",
             "=",
@@ -87,40 +56,19 @@ class StockPicking(models.Model):
 
     @api.depends("state", "location_dest_id.usage", "date_done")
     def _compute_days_to_deliver(self):
-        # Arithmetic lives in base_order_stock; only the domain is sale-specific.
         self._compute_effective_transfer_date(
             "days_to_deliver",
             self._days_to_deliver_domain(),
         )
 
     def _get_source_order_date(self):
-        # Extends base_order_stock: contribute the sale branch of delay_pass.
         return self.sale_id.date_order or super()._get_source_order_date()
 
-    # ------------------------------------------------------------
-    # HOOKS
-    # ------------------------------------------------------------
-
     def _is_on_manufacturing_route(self):
-        """Whether this picking is part of a manufacturing route.
-
-        Base (no ``mrp``) pickings are never on a manufacturing route —
-        there is no such concept without it. ``sale_mrp`` (which depends
-        on both ``sale_stock`` and ``mrp``) overrides this once
-        ``stock.reference.production_ids`` actually exists, instead of
-        this module referencing that field directly: ``sale_stock`` must
-        stay installable with just ``sale`` + ``stock``, no ``mrp``.
-        """
         self.ensure_one()
         return False
 
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
-
     def _inverse_sale_id(self):
-        # References are system-managed plumbing: this inverse runs for users
-        # (salespeople) without write/create rights on stock.reference.
         if self.reference_ids:
             if self.sale_id:
                 self.reference_ids.sudo().sale_ids = [Command.link(self.sale_id.id)]
@@ -142,14 +90,8 @@ class StockPicking(models.Model):
             self._add_reference(reference)
         self.move_ids._reassign_sale_lines(self.sale_id)
 
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
-
     @api.model
     def _search_days_to_deliver(self, operator, value):
-        # Mirrors _compute_days_to_deliver: without the domain this matched any
-        # transfer with a date_done, receipts included.
         return self._search_effective_transfer_date(
             operator,
             value,
@@ -158,37 +100,13 @@ class StockPicking(models.Model):
 
     @api.model
     def _get_source_order_date_paths(self):
-        # Extends base_order_stock: contribute the sale branch of delay_pass.
         return [*super()._get_source_order_date_paths(), "sale_id.date_order"]
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _log_less_quantities_than_expected(self, moves):
-        """Log an activity on sale order that are linked to moves. The
-        note summarize the real processed quantity and promote a
-        manual action.
-
-        :param dict moves: a dict with a move as key and tuple with
-        new and old quantity as value. eg: {move_1 : (4, 5)}
-        """
-
         def _keys_in_groupby(sale_line):
-            """group by order_id and the sale_person on the order"""
             return (sale_line.order_id, sale_line.order_id.user_id)
 
         def _render_note_exception_quantity(moves_information):
-            """Generate a note with the picking on which the action
-            occurred and a summary on impacted quantity that are
-            related to the sale order where the note will be logged.
-
-            :param moves_information dict:
-            {'move_id': ['sale_order_line_id', (new_qty, old_qty)], ..}
-
-            :return: an html string with all the information encoded.
-            :rtype: str
-            """
             origin_moves = self.env["stock.move"].browse(
                 [
                     move.id
@@ -212,14 +130,6 @@ class StockPicking(models.Model):
         self._log_activity(_render_note_exception_quantity, documents)
 
         return super()._log_less_quantities_than_expected(moves)
-
-    # ------------------------------------------------------------
-    # VALIDATIONS
-    # ------------------------------------------------------------
-
-    def _can_return(self):
-        self.ensure_one()
-        return super()._can_return() or self.sale_id
 
     def action_sale_matching(self):
         self.ensure_one()

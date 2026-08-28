@@ -41,9 +41,6 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
         pickings.button_validate()
 
     def test_shipment_invoice(self):
-        """Tests the case into which we send the goods to the customer before
-        making the invoice
-        """
         test_product = self.product_standard_auto
         self._make_in_move(test_product, 11, 13)
 
@@ -84,11 +81,7 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
         )
 
     def test_invoice_shipment(self):
-        """Tests the case into which we make the invoice first, and then send
-        the goods to our customer.
-        """
         test_product = self.product_standard_auto
-        # since the invoice come first, the COGS will use the standard price on product
         self.product_standard_auto.standard_price = 13
         self._make_in_move(test_product, 11, 13)
 
@@ -129,7 +122,6 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
             ],
         )
 
-        # return the goods and refund the invoice
         stock_return_picking_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=sale_order.picking_ids.ids,
@@ -172,7 +164,6 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
         )
 
     def test_multiple_shipments_invoices(self):
-        """Tests the case into which we deliver part of the goods first, then 2 invoices at different rates, and finally the remaining quantities"""
         test_product = self.product_standard_auto
         self._make_in_move(test_product, 11, 13)
 
@@ -209,7 +200,6 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
             sale_order.picking_ids.filtered(lambda x: x.state != "done"), quantity=3.0
         )
 
-        # Final check, everything should be reconciled
         amls = self.env["account.move.line"].search(
             [("product_id", "=", test_product.id)]
         )
@@ -234,9 +224,6 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
         )
 
     def test_fifo_multiple_products(self):
-        """Test Automatic Inventory Valuation with FIFO costs method, 3 products,
-        2,3,4 out svls and 2 in moves by product. This tests a more complex use case with anglo-saxon accounting.
-        """
         wh = self.warehouse
         stock_loc = wh.lot_stock_id
         in_type = wh.in_type_id
@@ -245,7 +232,6 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
         product_1.standard_price = 10
         product_1.list_price = 10
 
-        # product_2 similar to product_1 but with different output account
         product_2 = product_1.copy(
             {"name": "P2", "standard_price": 20, "list_price": 20}
         )
@@ -260,7 +246,6 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
         categ_2.property_stock_valuation_account_id = account_2
         product_2.categ_id = categ_2
 
-        # Create out_svls
         so = (
             self.env["sale.order"]
             .sudo()
@@ -319,7 +304,6 @@ class TestValuationReconciliationCommon(TestStockValuationCommon, TestSaleStockC
         so.invoice_ids += inv
         inv.action_post()
 
-        # Create in_moves for P1/P2
         in_moves = self.env["stock.move"].create(
             [
                 {

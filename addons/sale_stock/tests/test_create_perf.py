@@ -13,12 +13,6 @@ _logger = logging.getLogger(__name__)
 
 
 def prepare(func, /):
-    """Prepare data to remove common queries from the count.
-
-    Must be run after `warmup` because of the invalidations"""
-
-    # prefetch the data linked to the company and its country code to avoid changing
-    # the query count during l10n tests
     @functools.wraps(func)
     def test_func(self):
         _ = self.env.company.country_id.code
@@ -74,11 +68,6 @@ class TestPERF(TransactionCaseWithUserDemo):
     @warmup
     @prepare
     def test_empty_sales_orders_batch_creation_perf(self):
-        # + 1 SO insert
-        # + 1 SO sequence fetch
-        # + 1 warehouse fetch
-        # + 1 query to get analytic default account
-        # + 1 followers queries ?
         with self.assertQueryCount(admin=39):
             self.env["sale.order"].create(
                 [
@@ -94,8 +83,6 @@ class TestPERF(TransactionCaseWithUserDemo):
     @warmup
     @prepare
     def test_dummy_sales_orders_batch_creation_perf(self):
-        """Dummy SOlines (notes/sections) should not add any custom queries other than their insert"""
-        # + 2 SOL (batched) insert
         with self.assertQueryCount(admin=44):
             self.env["sale.order"].create(
                 [
@@ -117,10 +104,7 @@ class TestPERF(TransactionCaseWithUserDemo):
     def test_light_sales_orders_batch_creation_perf_without_taxes(self):
         self.env["res.country"].search([]).mapped("code")
         self.products[0].taxes_id = [Command.set([])]
-        # + 2 SQL insert
-        # + 2 queries to get analytic default tags
-        # + 9 follower queries ?
-        with self.assertQueryCount(admin=53):  # com 46
+        with self.assertQueryCount(admin=53):
             self.env["sale.order"].create(
                 [
                     {
@@ -136,14 +120,10 @@ class TestPERF(TransactionCaseWithUserDemo):
                 ]
             )
 
-    # Following tests are not deterministic
-    # And are privatized on purpose
-    # until the problem is found
-
     @users("admin")
     @warmup
     def __test_light_sales_orders_batch_creation_perf(self):
-        with self.assertQueryCount(admin=70):  # 69 locally, 70 in nightly runbot
+        with self.assertQueryCount(admin=70):
             self.env["sale.order"].create(
                 [
                     {
@@ -162,9 +142,6 @@ class TestPERF(TransactionCaseWithUserDemo):
     @users("admin")
     @warmup
     def __test_complex_sales_orders_batch_creation_perf(self):
-        # NOTE: sometimes more queries on runbot,
-        # do not change without verifying in multi-builds
-        # (Seems to be a time-based problem, everytime happening around 10PM)
         self._test_complex_sales_orders_batch_creation_perf(1504)
 
     def _test_complex_sales_orders_batch_creation_perf(self, query_count):
@@ -191,10 +168,6 @@ class TestPERF(TransactionCaseWithUserDemo):
     @users("admin")
     @warmup
     def __test_randomized_solines_qties(self):
-        """Make sure the price and discounts computation are complexified
-        and do not gain from any prefetch/batch gains during the price computation
-        """
-
         vals_list = [
             {
                 "partner_id": self.partners[i].id,
@@ -208,6 +181,5 @@ class TestPERF(TransactionCaseWithUserDemo):
             for i in range(self.ENTITIES)
         ]
 
-        # 1592 locally, 1593 in nightly runbot, 1954 sometimes
         with self.assertQueryCount(admin=1593):
             self.env["sale.order"].create(vals_list)

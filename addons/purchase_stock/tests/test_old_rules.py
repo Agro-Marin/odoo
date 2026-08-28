@@ -51,8 +51,6 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             }
         )
 
-        # Since the old rules are still a valid setup for multi-step routes, we need to make sure they still work.
-        # Create a warehouse with 3 steps using old rules setup so we need to restore it only once.
         cls.warehouse_3_steps = cls.env["stock.warehouse"].create(
             {
                 "name": "Warehouse 3 steps",
@@ -78,7 +76,6 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             lambda r: r.picking_type_id == cls.warehouse_3_steps.in_type_id
         ).location_dest_id = reception_route_3.rule_ids[0].location_src_id.id
 
-        # Create a warehouse with 2 steps using old rules setup.
         cls.warehouse_2_steps = cls.env["stock.warehouse"].create(
             {
                 "name": "Warehouse 2 steps",
@@ -102,22 +99,12 @@ class TestPurchaseOldRules(PurchaseTestCommon):
         ).location_dest_id = reception_route_2.rule_ids[0].location_src_id.id
 
     def test_03_cancel_draft_purchase_order_two_steps_pull(self):
-        """Check the picking and moves status related PO, When canceling purchase order
-        in 'draft' state.
-        Ex.
-            1) Set two steps of receiption and delivery on the warehouse.
-            2) Create Delivery order with mto move and confirm the order, related RFQ should be generated.
-            3) Cancel 'draft' purchase order should cancel < Input to Stock>
-              but it should not cancel < PICK, Delivery >
-        """
         picking_out = self.create_picking_out(self.warehouse_2_steps)
         picking_out.action_confirm()
 
-        # Find purchase order related to picking.
         purchase_order = self.env["purchase.order"].search(
             [("partner_id", "=", self.customer.id)]
         )
-        # Purchase order should be created for picking.
         self.assertTrue(purchase_order, "No purchase order created.")
 
         picking_ids = self.env["stock.picking"].search(
@@ -137,35 +124,23 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             )
         )
 
-        # Check status of Purchase Order
         self.assertEqual(
             purchase_order.state, "draft", "Purchase order should be in 'draft' state."
         )
-        # Cancel Purchase order.
         purchase_order.action_cancel()
 
-        # Check the status of picking after canceling po.
         for res in storage:
             self.assertEqual(res.state, "cancel")
         self.assertNotEqual(pick.state, "cancel")
         self.assertNotEqual(picking_out.state, "cancel")
 
     def test_04_cancel_confirm_purchase_order_two_steps_pull(self):
-        """Check the picking and moves status related PO, When canceling purchase order
-        Ex.
-            1) Set 2 steps of receiption and delivery on the warehouse.
-            2) Create Delivery order with mto move and confirm the order, related RFQ should be generated.
-            3) Cancel 'confirm' purchase order should cancel releted < Receiption Picking IN, STOR>
-              not < PICK, SHIP >
-        """
         picking_out = self.create_picking_out(self.warehouse_2_steps)
         picking_out.action_confirm()
 
-        # Find PO related to picking.
         purchase_order = self.env["purchase.order"].search(
             [("partner_id", "=", self.customer.id)]
         )
-        # Po should be create related picking.
         self.assertTrue(purchase_order, "purchase order is created.")
 
         picking_ids = self.env["stock.picking"].search(
@@ -179,7 +154,6 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             lambda r: r.picking_type_id == self.warehouse_2_steps.pick_type_id
         )
 
-        # Check status of Purchase Order
         self.assertEqual(
             purchase_order.state, "draft", "Purchase order should be in 'draft' state."
         )
@@ -188,10 +162,8 @@ class TestPurchaseOldRules(PurchaseTestCommon):
         picking_in = purchase_order.picking_ids.filtered(
             lambda r: r.picking_type_id == self.warehouse_2_steps.in_type_id
         )
-        # Cancel Purchase order.
         purchase_order.action_cancel()
 
-        # Check the status of picking after canceling po.
         self.assertEqual(picking_in.state, "cancel")
         for res in internal:
             self.assertEqual(res.state, "cancel")
@@ -199,20 +171,11 @@ class TestPurchaseOldRules(PurchaseTestCommon):
         self.assertNotEqual(picking_out.state, "cancel")
 
     def test_05_cancel_draft_purchase_order_three_steps_pull(self):
-        """Check the picking and moves status related PO, When canceling purchase order
-        Ex.
-            1) Set 3 steps of receiption and delivery on the warehouse.
-            2) Create Delivery order with mto move and confirm the order, related RFQ should be generated.
-            3) Cancel 'draft' purchase order should cancel releted < Receiption Picking  IN>
-              not < PICK, PACK, SHIP >
-        """
         picking_out = self.create_picking_out(self.warehouse_3_steps)
         picking_out.action_confirm()
-        # Find PO related to picking.
         purchase_order = self.env["purchase.order"].search(
             [("partner_id", "=", self.customer.id)]
         )
-        # Po should be create related picking.
         self.assertTrue(purchase_order, "No purchase order created.")
 
         picking_ids = self.env["stock.picking"].search(
@@ -229,14 +192,11 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             lambda r: r.picking_type_id == self.warehouse_3_steps.pack_type_id
         )
 
-        # Check status of Purchase Order
         self.assertEqual(
             purchase_order.state, "draft", "Purchase order should be in 'draft' state."
         )
-        # Cancel Purchase order.
         purchase_order.action_cancel()
 
-        # Check the status of picking after canceling po.
         for res in internal:
             self.assertEqual(res.state, "cancel")
         self.assertNotEqual(pick.state, "cancel")
@@ -244,21 +204,12 @@ class TestPurchaseOldRules(PurchaseTestCommon):
         self.assertNotEqual(picking_out.state, "cancel")
 
     def test_06_cancel_confirm_purchase_order_three_steps_pull(self):
-        """Check the picking and moves status related PO, When canceling purchase order
-        Ex.
-            1) Set 3 steps of receiption and delivery on the warehouse.
-            2) Create Delivery order with mto move and confirm the order, related RFQ should be generated.
-            3) Cancel 'comfirm' purchase order should cancel releted < Receiption Picking IN, INT>
-              not < PICK, PACK, SHIP >
-        """
         picking_out = self.create_picking_out(self.warehouse_3_steps)
         picking_out.action_confirm()
 
-        # Find PO related to picking.
         purchase_order = self.env["purchase.order"].search(
             [("partner_id", "=", self.customer.id)]
         )
-        # Po should be create related picking.
         self.assertTrue(purchase_order, "No purchase order created.")
 
         picking_ids = self.env["stock.picking"].search(
@@ -275,7 +226,6 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             lambda r: r.picking_type_id == self.warehouse_3_steps.pack_type_id
         )
 
-        # Check status of Purchase Order
         self.assertEqual(
             purchase_order.state, "draft", "Purchase order should be in 'draft' state."
         )
@@ -284,10 +234,8 @@ class TestPurchaseOldRules(PurchaseTestCommon):
         picking_in = purchase_order.picking_ids.filtered(
             lambda r: r.picking_type_id == self.warehouse_3_steps.in_type_id
         )
-        # Cancel Purchase order.
         purchase_order.action_cancel()
 
-        # Check the status of picking after canceling po.
         self.assertEqual(picking_in.state, "cancel")
         for res in internal:
             self.assertEqual(res.state, "cancel")
@@ -296,17 +244,12 @@ class TestPurchaseOldRules(PurchaseTestCommon):
         self.assertNotEqual(picking_out.state, "cancel")
 
     def test_02_product_route_level_delays(self):
-        """In order to check dates, set product's Delivery Lead Time
-        and warehouse route's delay."""
-
         warehouse = self.warehouse_3_steps
-        # Set delay on push rule
         for push_rule in warehouse.reception_route_id.rule_ids:
             push_rule.delay = 2
 
         rule_delay = sum(warehouse.reception_route_id.rule_ids.mapped("delay"))
         date_planned = fields.Datetime.now() + timedelta(days=10)
-        # Create procurement order of product_1
         self.env["stock.rule"].run(
             [
                 self.env["stock.rule"].Procurement(
@@ -319,8 +262,8 @@ class TestPurchaseOldRules(PurchaseTestCommon):
                     self.env.company,
                     {
                         "warehouse_id": warehouse,
-                        "date_planned": date_planned,  # 10 days added to current date of procurement to get future schedule date and order date of purchase order.
-                        "date_deadline": date_planned,  # 10 days added to current date of procurement to get future schedule date and order date of purchase order.
+                        "date_planned": date_planned,
+                        "date_deadline": date_planned,
                         "rule_id": warehouse.buy_pull_id,
                         "route_ids": [],
                     },
@@ -328,14 +271,12 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             ]
         )
 
-        # Confirm purchase order
         purchase = (
             self.env["purchase.order.line"]
             .search([("product_id", "=", self.product.id)], limit=1)
             .order_id
         )
         purchase.action_confirm()
-        # Check order date of purchase order
         order_date = date_planned - timedelta(
             days=self.product.seller_ids.delay + rule_delay
         )
@@ -345,7 +286,6 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             "Order date should be equal to: Date of the procurement order - Delivery Lead Time(supplier and pull rules).",
         )
 
-        # Check scheduled date of purchase order
         schedule_date = order_date + timedelta(
             days=self.product.seller_ids.delay + rule_delay
         )
@@ -355,10 +295,8 @@ class TestPurchaseOldRules(PurchaseTestCommon):
             "Schedule date should be equal to: Order date of Purchase order + Delivery Lead Time(supplier and pull rules).",
         )
 
-        # Check the picking crated or not
         self.assertTrue(purchase.picking_ids, "Picking should be created.")
 
-        # Check scheduled date of Internal Type shipment
         incoming_shipment1 = self.env["stock.picking"].search(
             [
                 ("move_ids.product_id", "=", self.product.id),
@@ -396,7 +334,6 @@ class TestPurchaseOldRules(PurchaseTestCommon):
         self.assertEqual(incoming_shipment2.date_deadline, incoming_shipment2_date)
         old_deadline2 = incoming_shipment2.date_deadline
 
-        # Modify the date_planned of the purchase -> propagate the deadline
         purchase_form = Form(purchase)
         purchase_form.date_commitment = purchase.date_commitment + timedelta(days=1)
         purchase_form.save()

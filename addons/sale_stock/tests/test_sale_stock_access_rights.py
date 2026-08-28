@@ -14,8 +14,6 @@ class TestControllersAccessRights(HttpCase, TestSaleCommon):
         )
 
     def test_SO_and_DO_portal_acess(self):
-        """Ensure that it is possible to open both SO and DO, either using the access token
-        or being connected as portal user"""
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.portal_user.partner_id
         with so_form.line_ids.new() as line:
@@ -24,7 +22,6 @@ class TestControllersAccessRights(HttpCase, TestSaleCommon):
         so.action_confirm()
         picking = so.picking_ids
 
-        # Try to open SO/DO using the access token or being connected as portal user
         for login in (None, self.portal_user.login):
             so_url = "/my/orders/%s" % so.id
             picking_url = "/my/picking/pdf/%s" % picking.id

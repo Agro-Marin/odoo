@@ -354,8 +354,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 with self.assertRaises(AccessError):
                     order.write({"user_id": other.id})
 
-                # Not just any AccessError: without the guard the write lands and
-                # mail's readback is what raises, leaving the order handed over.
                 self.assertEqual(order.sudo().user_id, user)
 
     def test_a_restricted_user_may_still_make_themselves_responsible(self):
@@ -389,9 +387,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 self.assertEqual(order.user_id, other)
 
     def test_the_guard_stands_aside_for_a_model_declaring_no_group(self):
-        # The guard is exercised directly: a restricted user who really did
-        # hand the order over loses read access to it, and mail's auto-subscribe
-        # then fails on the readback, which would mask what is under test.
         for model, group in self._OWN_DOCUMENTS_GROUPS.items():
             with self.subTest(model=model):
                 _user, order = self._order_of(model, group)

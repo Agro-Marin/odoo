@@ -14,7 +14,6 @@ from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_c
 @tagged("post_install", "-at_install")
 class TestSaleExpectedDate(ValuationReconciliationTestCommon):
     def test_sale_order_date_planned(self):
-        """Test expected date and effective date of Sales Orders"""
         Product = self.env["product.product"]
 
         product_A = Product.create(
@@ -70,8 +69,6 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
             )
         )
 
-        # if Shipping Policy is set to `direct`(when SO is in draft state) then expected date should be
-        # current date + shortest lead time from all of it's order lines
         date_planned = fields.Datetime.now() + timedelta(days=5)
         self.assertAlmostEqual(
             date_planned,
@@ -80,8 +77,6 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
             delta=timedelta(seconds=1),
         )
 
-        # if Shipping Policy is set to `one`(when SO is in draft state) then expected date should be
-        # current date + longest lead time from all of it's order lines
         sale_order.write({"picking_policy": "one"})
         date_planned = fields.Datetime.now() + timedelta(days=15)
         self.assertAlmostEqual(
@@ -93,13 +88,9 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
 
         sale_order.action_confirm()
 
-        # Setting confirmation date of SO to 5 days from today so that the expected/effective date could be checked
-        # against real confirmation date
         confirm_date = fields.Datetime.now() + timedelta(days=5)
         sale_order.write({"date_order": confirm_date})
 
-        # if Shipping Policy is set to `one`(when SO is confirmed) then expected date should be
-        # SO confirmation date + longest lead time from all of it's order lines
         date_planned = confirm_date + timedelta(days=15)
         self.assertAlmostEqual(
             date_planned,
@@ -108,8 +99,6 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
             delta=timedelta(seconds=1),
         )
 
-        # if Shipping Policy is set to `direct`(when SO is confirmed) then expected date should be
-        # SO confirmation date + shortest lead time from all of it's order lines
         sale_order.write({"picking_policy": "direct"})
         date_planned = confirm_date + timedelta(days=5)
         self.assertAlmostEqual(
@@ -119,7 +108,6 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
             delta=timedelta(seconds=1),
         )
 
-        # Check effective date, it should be date on which the first shipment successfully delivered to customer
         picking = sale_order.picking_ids[0]
         picking.move_ids.picked = True
         picking._action_done()
@@ -132,8 +120,6 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
 
     def test_sale_order_commitment_date(self):
 
-        # In order to test the Commitment Date feature in Sales Orders in Odoo,
-        # I copy a demo Sales Order with committed Date on 2010-07-12
         new_order = (
             self.env["sale.order"]
             .sudo()
@@ -161,9 +147,7 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
                 }
             )
         )
-        # I confirm the Sales Order.
         new_order.action_confirm()
-        # I verify that the Procurements and Stock Moves have been generated with the correct date
         security_delay = timedelta(days=new_order.company_id.security_lead)
         commitment_date = fields.Datetime.from_string(new_order.date_commitment)
         right_date = commitment_date - security_delay
@@ -175,13 +159,9 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
             )
 
     def test_expected_date_with_storable_product(self):
-        """This test ensures the expected date is computed based on only goods(consu) products.
-        It's avoiding computation for non-goods products.
-        """
         sale_delay = 10.0
         self.product.sale_delay = sale_delay
 
-        # Create a sale order with a consu product.
         sale_order = (
             self.env["sale.order"]
             .sudo()
@@ -200,12 +180,10 @@ class TestSaleExpectedDate(ValuationReconciliationTestCommon):
             )
         )
 
-        # Ensure that expected date is correctly computed based on the consu product's sale delay.
         self.assertEqual(
             sale_order.date_planned, fields.Datetime.now() + timedelta(days=sale_delay)
         )
 
-        # Add a service product and ensure the expected date remains unchanged.
         sale_order.write(
             {
                 "line_ids": [

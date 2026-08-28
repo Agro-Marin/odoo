@@ -8,16 +8,12 @@ class TestMultistepManufacturing(TestMrpCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Required for `uom_id ` to be visible in the view
         cls.env.user.group_ids += cls.env.ref("uom.group_uom")
-        # Required for `manufacture_steps` to be visible in the view
         cls.env.user.group_ids += cls.env.ref("stock.group_adv_location")
-        # Required for `product_id` to be visible in the view
         cls._enable_variants()
 
         cls.route_mto.active = True
         cls.MrpProduction = cls.env["mrp.production"]
-        # Create warehouse
         warehouse_form = Form(cls.env["stock.warehouse"])
         warehouse_form.name = "Test"
         warehouse_form.code = "Test"
@@ -26,7 +22,6 @@ class TestMultistepManufacturing(TestMrpCommon):
 
         cls.uom_unit = cls.env.ref("uom.product_uom_unit")
 
-        # Create manufactured product
         product_form = Form(cls.env["product.product"])
         product_form.name = "Stick"
         product_form.uom_id = cls.uom_unit
@@ -35,13 +30,11 @@ class TestMultistepManufacturing(TestMrpCommon):
         product_form.route_ids.add(cls.warehouse.mto_pull_id.route_id)
         cls.product_manu = product_form.save()
 
-        # Create raw product for manufactured product
         product_form = Form(cls.env["product.product"])
         product_form.name = "Raw Stick"
         product_form.uom_id = cls.uom_unit
         cls.product_raw = product_form.save()
 
-        # Create bom for manufactured product
         bom_product_form = Form(cls.env["mrp.bom"])
         bom_product_form.product_tmpl_id = cls.product_manu.product_tmpl_id
         bom_product_form.product_qty = 1.0
@@ -51,7 +44,6 @@ class TestMultistepManufacturing(TestMrpCommon):
             bom_line.product_qty = 2.0
         cls.bom_prod_manu = bom_product_form.save()
 
-        # Create sale order
         sale_form = Form(cls.env["sale.order"])
         sale_form.partner_id = cls.env["res.partner"].create(
             {"name": "My Test Partner"}
@@ -66,17 +58,12 @@ class TestMultistepManufacturing(TestMrpCommon):
         cls.sale_order = sale_form.save()
 
     def test_00_manufacturing_step_one(self):
-        """Testing for Step-1"""
-        # Change steps of manufacturing.
         with Form(self.warehouse) as warehouse:
             warehouse.manufacture_steps = "mrp_one_step"
-        # Confirm sale order.
         self.sale_order.action_confirm()
-        # Check all procurements for created sale order
         mo_procurement = self.MrpProduction.search(
             [("origin", "=", self.sale_order.name)]
         )
-        # Get manufactured procurement
         self.assertEqual(
             mo_procurement.location_src_id.id,
             self.warehouse.lot_stock_id.id,
@@ -90,11 +77,9 @@ class TestMultistepManufacturing(TestMrpCommon):
         self.assertEqual(len(mo_procurement), 1, "No Procurement !")
 
     def test_01_manufacturing_step_two(self):
-        """Testing for Step-2"""
         with Form(self.warehouse) as warehouse:
             warehouse.manufacture_steps = "pbm"
         self.sale_order.action_confirm()
-        # Get manufactured procurement
         mo_procurement = self.MrpProduction.search(
             [("origin", "=", self.sale_order.name)]
         )
@@ -119,24 +104,15 @@ class TestMultistepManufacturing(TestMrpCommon):
         self.assertEqual(len(mo_procurement), 1, "No Procurement !")
 
     def test_cancel_multilevel_manufacturing(self):
-        """Testing for multilevel Manufacturing orders.
-        When user creates multi-level manufacturing orders,
-        and then cancelles child manufacturing order,
-        an activity should be generated on parent MO, to notify user that
-        demands from child MO has been cancelled.
-        """
-
         product_form = Form(self.env["product.product"])
         product_form.name = "Screw"
         self.product_screw = product_form.save()
 
-        # Add routes for manufacturing and make to order to the raw material product
         with Form(self.product_raw) as p1:
             p1.route_ids.clear()
             p1.route_ids.add(self.warehouse_1.manufacture_pull_id.route_id)
             p1.route_ids.add(self.warehouse_1.mto_pull_id.route_id)
 
-        # New BoM for raw material product, it will generate another Production order i.e. child Production order
         bom_product_form = Form(self.env["mrp.bom"])
         bom_product_form.product_tmpl_id = self.product_raw.product_tmpl_id
         bom_product_form.product_qty = 1.0
@@ -145,9 +121,7 @@ class TestMultistepManufacturing(TestMrpCommon):
             bom_line.product_qty = 5.0
         self.bom_prod_manu = bom_product_form.save()
 
-        # create MO from sale order.
         self.sale_order.action_confirm()
-        # Find child MO.
         child_manufaturing = self.env["mrp.production"].search(
             [("product_id", "=", self.product_raw.id)]
         )
@@ -155,12 +129,10 @@ class TestMultistepManufacturing(TestMrpCommon):
             (len(child_manufaturing.ids) == 1),
             "Manufacturing order of raw material must be generated.",
         )
-        # Cancel child MO.
         child_manufaturing.action_cancel()
         manufaturing_from_so = self.env["mrp.production"].search(
             [("product_id", "=", self.product_manu.id)]
         )
-        # Check if activity is generated or not on parent MO.
         exception = self.env["mail.activity"].search(
             [
                 ("res_model", "=", "mrp.production"),
@@ -174,7 +146,6 @@ class TestMultistepManufacturing(TestMrpCommon):
         )
 
     def test_manufacturing_step_three(self):
-        """Testing for Step-3"""
         with Form(self.warehouse) as warehouse:
             warehouse.manufacture_steps = "pbm_sam"
         self.sale_order.action_confirm()
@@ -242,10 +213,6 @@ class TestMultistepManufacturing(TestMrpCommon):
         so.action_confirm()
 
     def test_mto_cancel_3_steps_mo(self):
-        """
-        In 3 step manufacturing, test that when the MO gets cancelled, the
-        delivery (to the client) can be made from stock.
-        """
         self.warehouse.manufacture_steps = "pbm_sam"
         self.sale_order.line_ids.product_id.is_storable = True
         self.env["stock.quant"]._update_available_quantity(

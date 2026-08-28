@@ -12,16 +12,11 @@ class TestSaleMrpProcurement(TransactionCase):
         )
 
     def test_sale_mrp(self):
-        # Required for `uom_id` to be visible in the view
         self.env.user.group_ids += self.env.ref("uom.group_uom")
         self.env.ref("stock.route_warehouse0_mto").active = True
         warehouse0 = self.env.ref("stock.warehouse0")
-        # In order to test the sale_mrp module in Odoo, I start by creating a new product 'Slider Mobile'
-        # I define product category Mobile Products Sellable.
 
         with mute_logger("odoo.tests.common.onchange"):
-            # Suppress warning on "Changing your cost method" when creating a
-            # product category
             pc = Form(self.env["product.category"])
         pc.name = "Mobile Products Sellable"
         product_category_allproductssellable0 = pc.save()
@@ -30,7 +25,6 @@ class TestSaleMrpProcurement(TransactionCase):
 
         self.assertIn("seller_ids", self.env["product.template"].fields_get())
 
-        # I define product for Slider Mobile.
         product = Form(self.env["product.template"])
 
         product.categ_id = product_category_allproductssellable0
@@ -55,7 +49,6 @@ class TestSaleMrpProcurement(TransactionCase):
                 line.product_id = product_product_bettery
                 line.product_qty = 4
 
-        # I create a sale order for product Slider mobile
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.env["res.partner"].create(
             {"name": "Another Test Partner"}
@@ -67,29 +60,19 @@ class TestSaleMrpProcurement(TransactionCase):
             line.customer_lead = 7.0
         sale_order_so0 = so_form.save()
 
-        # I confirm the sale order
         sale_order_so0.action_confirm()
 
-        # I verify that a manufacturing order has been generated, and that its name and reference are correct
         mo = self.env["mrp.production"].search(
             [("origin", "like", sale_order_so0.name)], limit=1
         )
         self.assertTrue(mo, "Manufacturing order has not been generated")
 
-        # Check the mo is displayed on the so
         self.assertEqual(mo.id, sale_order_so0.action_view_mrp_production()["res_id"])
 
     def test_sale_mrp_pickings(self):
-        """Test sale of multiple mrp products in MTO
-        to avoid generating multiple deliveries
-        to the customer location
-        """
-        # Required for `uom_id` to be visible in the view
         self.env.user.group_ids += self.env.ref("uom.group_uom")
-        # Required for `manufacture_step` to be visible in the view
         self.env.user.group_ids += self.env.ref("stock.group_adv_location")
         self.env.ref("stock.route_warehouse0_mto").active = True
-        # Create warehouse
         self.customer_location = self.env["ir.model.data"]._xmlid_to_res_id(
             "stock.stock_location_customers"
         )
@@ -99,14 +82,12 @@ class TestSaleMrpProcurement(TransactionCase):
 
         self.uom_unit = self.env.ref("uom.product_uom_unit")
 
-        # Create raw product for manufactured product
         product_form = Form(self.env["product.product"])
         product_form.name = "Raw Stick"
         product_form.is_storable = True
         product_form.uom_id = self.uom_unit
         self.raw_product = product_form.save()
 
-        # Create manufactured product
         product_form = Form(self.env["product.product"])
         product_form.name = "Stick"
         product_form.uom_id = self.uom_unit
@@ -116,7 +97,6 @@ class TestSaleMrpProcurement(TransactionCase):
         product_form.route_ids.add(self.warehouse.mto_pull_id.route_id)
         self.finished_product = product_form.save()
 
-        # Create manifactured product which uses another manifactured
         product_form = Form(self.env["product.product"])
         product_form.name = "Arrow"
         product_form.is_storable = True
@@ -125,14 +105,12 @@ class TestSaleMrpProcurement(TransactionCase):
         product_form.route_ids.add(self.warehouse.mto_pull_id.route_id)
         self.complex_product = product_form.save()
 
-        ## Create raw product for manufactured product
         product_form = Form(self.env["product.product"])
         product_form.name = "Raw Iron"
         product_form.is_storable = True
         product_form.uom_id = self.uom_unit
         self.raw_product_2 = product_form.save()
 
-        # Create bom for manufactured product
         bom_product_form = Form(self.env["mrp.bom"])
         bom_product_form.product_tmpl_id = self.finished_product.product_tmpl_id
         bom_product_form.product_qty = 1.0
@@ -143,7 +121,6 @@ class TestSaleMrpProcurement(TransactionCase):
 
         self.bom = bom_product_form.save()
 
-        ## Create bom for manufactured product
         bom_product_form = Form(self.env["mrp.bom"])
         bom_product_form.product_tmpl_id = self.complex_product.product_tmpl_id
         with bom_product_form.bom_line_ids.new() as line:
@@ -174,7 +151,6 @@ class TestSaleMrpProcurement(TransactionCase):
 
         sale_order_so0.action_confirm()
 
-        # Verify buttons are working as expected
         self.assertEqual(
             sale_order_so0.mrp_production_count, 2, "2 Mos for the 2 sale order line"
         )
@@ -195,18 +171,11 @@ class TestSaleMrpProcurement(TransactionCase):
 
         pickings = sale_order_so0.picking_ids
 
-        # One delivery...
         self.assertEqual(len(pickings), 1)
 
-        # ...with two products
         self.assertEqual(len(pickings[0].move_ids), 2)
 
     def test_post_prod_location_child_of_stock_location(self):
-        """
-        3-steps manufacturing, the post-prod location is a child of the stock
-        location. Have a manufactured product with the manufacture route and a
-        RR min=max=0. Confirm a SO with that product -> It should generate a MO
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -332,12 +301,6 @@ class TestSaleMrpProcurement(TransactionCase):
         self.assertFalse(orderpoint_product)
 
     def test_so_reordering_rule_02(self):
-        """
-        Have a manufactured product in kg unit of measure with the manufacturing route,
-        the mto route and a BoM in grams.
-        Confirm a SO with that product in 510 grams -> It should generate a MO with 510g.
-        Create a second SO with 510g -> It should update the MO to 1020g.
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -414,11 +377,6 @@ class TestSaleMrpProcurement(TransactionCase):
         self.assertEqual(mo.product_qty, 1020)
 
     def test_sale_mrp_avoid_multiple_pickings(self):
-        """
-        Test sale of multiple products. Avoid multiple pickings being
-        generated when we are not in 3 steps manufacturing.
-        """
-
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )

@@ -5,10 +5,6 @@ from odoo.tools import SQL
 class PurchaseReport(models.Model):
     _inherit = "purchase.report"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     order_id = fields.Many2one(
         comodel_name="purchase.order",
         string="Purchase Order",
@@ -27,12 +23,7 @@ class PurchaseReport(models.Model):
         aggregator="avg",
     )
 
-    # ------------------------------------------------------------
-    # QUERY METHODS
-    # ------------------------------------------------------------
-
     def _get_fields_select(self) -> dict:
-        """Add stock-specific fields to purchase report."""
         fields = super()._get_fields_select()
         fields["order_id"] = "o.id"
         fields["picking_type_id"] = "spt.warehouse_id"
@@ -49,14 +40,12 @@ class PurchaseReport(models.Model):
         return fields
 
     def _get_from_tables(self) -> list:
-        """Add stock-specific joins to purchase report."""
         tables = super()._get_from_tables()
 
         tables.append(
             ("stock_picking_type", "spt", "LEFT JOIN", "spt.id=o.picking_type_id")
         )
 
-        # Note: SQL object already includes the alias in the query
         order_effective_date_subquery = SQL(
             """(
                 SELECT MIN(picking.date_done) AS date_done,
@@ -80,7 +69,7 @@ class PurchaseReport(models.Model):
         tables.append(
             (
                 order_effective_date_subquery,
-                None,  # No alias needed - already in the SQL object
+                None,
                 "LEFT JOIN",
                 "order_date_effective.purchase_id = l.order_id",
             ),
@@ -89,7 +78,6 @@ class PurchaseReport(models.Model):
         return tables
 
     def _get_fields_group_by(self) -> list:
-        """Add stock-specific fields to GROUP BY clause."""
         fields = super()._get_fields_group_by()
         fields.extend(
             [

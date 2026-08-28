@@ -12,20 +12,12 @@ class ResUsers(models.Model):
     def SELF_WRITEABLE_FIELDS(self):
         return super().SELF_WRITEABLE_FIELDS + ["property_warehouse_id"]
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     property_warehouse_id = fields.Many2one(
         comodel_name="stock.warehouse",
         string="Default Warehouse",
         company_dependent=True,
         check_company=True,
     )
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_default_warehouse_id(self):
         if self.property_warehouse_id:

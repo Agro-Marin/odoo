@@ -9,9 +9,6 @@ from .common import PurchaseTestCommon
 
 class TestReplenishWizard(PurchaseTestCommon):
     def test_replenish_buy_1(self):
-        """Set a quantity to replenish via the "Buy" route and check if
-        a purchase order is created with the correct values
-        """
         self.product_uom_qty = 42
         self._use_route_buy(self.product)
         self.product.seller_ids.price = 10
@@ -45,14 +42,6 @@ class TestReplenishWizard(PurchaseTestCommon):
         self.assertEqual(order_line.price_unit, 10, "Prices does not match")
 
     def test_chose_supplier_1(self):
-        """Choose supplier based on the ordered quantity and minimum price
-
-        replenish 10
-
-        1)seq1 vendor1 140 min qty 1
-        2)seq2 vendor1 100  min qty 10
-        -> 2) should be chosen
-        """
         self._use_route_buy(self.product, create_seller=False)
         self.env["product.supplierinfo"].create(
             {
@@ -97,15 +86,6 @@ class TestReplenishWizard(PurchaseTestCommon):
         self.assertEqual(last_po_id.line_ids.price_unit, 100)
 
     def test_chose_supplier_2(self):
-        """Choose supplier based on the ordered quantity and minimum price
-
-        replenish 10
-
-        1)seq1 vendor1 140 min qty 1
-        2)seq2 vendor2 90  min qty 10
-        3)seq3 vendor1 100 min qty 10
-        -> 3) should be chosen
-        """
         self._use_route_buy(self.product, create_seller=False)
 
         vendor1 = self.env["res.partner"].create(
@@ -168,14 +148,6 @@ class TestReplenishWizard(PurchaseTestCommon):
         self.assertEqual(last_po_id.line_ids.price_unit, 100)
 
     def test_chose_supplier_3(self):
-        """Choose supplier based on the ordered quantity and minimum price
-
-        replenish 10
-
-        1)seq2 vendor1 50
-        2)seq1 vendor2 50
-        -> 2) should be chosen
-        """
         self._use_route_buy(self.product, create_seller=False)
         vendor1 = self.env["res.partner"].create(
             {"name": "vendor1", "email": "from.test@example.com"}
@@ -226,15 +198,6 @@ class TestReplenishWizard(PurchaseTestCommon):
         self.assertEqual(last_po_id.partner_id, vendor2)
 
     def test_chose_supplier_4(self):
-        """Choose supplier based on the ordered quantity and minimum price
-
-        replenish 10
-
-        1)seq1 vendor1 100 min qty 2
-        2)seq2 vendor1 60 min qty 10
-        2)seq3 vendor1 80 min qty 5
-        -> 2) should be chosen
-        """
         self._use_route_buy(self.product, create_seller=False)
         self.env["product.supplierinfo"].create(
             {
@@ -286,13 +249,6 @@ class TestReplenishWizard(PurchaseTestCommon):
         self.assertEqual(last_po_id.line_ids.price_unit, 60)
 
     def test_chose_supplier_5(self):
-        """Choose supplier based on discounted price
-        replenish 1
-
-        1)seq1 vendor 100 discount 10%
-        2)seq2 vendor 110 discount 20%
-        -> 2) should be chosen
-        """
         self._use_route_buy(self.product, create_seller=False)
         self.env["product.supplierinfo"].create(
             {
@@ -415,7 +371,6 @@ class TestReplenishWizard(PurchaseTestCommon):
                 fields.Datetime.from_string("2023-01-01 00:00:00"), wizard.date_planned
             )
             self.env.company.days_to_purchase = 5
-            # change the supplier to trigger the date computation
             wizard.supplier_id = supplier2
             self.assertEqual(
                 fields.Datetime.from_string("2023-01-06 00:00:00"), wizard.date_planned
@@ -547,7 +502,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "quantity": 1,
                 "warehouse_id": self.warehouse.id,
                 "route_id": self.route_buy.id,
-                "supplier_id": product.seller_ids[2].id,  # partner_b price 100$
+                "supplier_id": product.seller_ids[2].id,
             }
         )
         replenish_wizard.launch_replenishment()
@@ -555,7 +510,6 @@ class TestReplenishWizard(PurchaseTestCommon):
         self.assertEqual(po.amount_untaxed, 10, "best price is 10$")
 
     def test_delete_buy_route_and_replenish(self):
-        """Test that the replenish wizard does not crash when the 'buy' route is deleted"""
         self.env.ref(
             "purchase_stock.route_warehouse0_buy", raise_if_not_found=False
         ).unlink()
@@ -571,9 +525,6 @@ class TestReplenishWizard(PurchaseTestCommon):
         )
 
     def test_inter_wh_replenish(self):
-        """Test that the replenish order has the correct supplier in a replenish between
-        warehouses of the same company.
-        """
         main_warehouse = self.warehouse
         second_warehouse = self.env["stock.warehouse"].create(
             {
@@ -635,7 +586,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "quantity": 10,
                 "warehouse_id": self.warehouse.id,
                 "route_id": self.env.ref("purchase_stock.route_warehouse0_buy").id,
-                "supplier_id": price_list_pack_of_6.id,  # pricelist with uom "Pack of 6"
+                "supplier_id": price_list_pack_of_6.id,
             }
         )
         replenish_wizard.launch_replenishment()
@@ -667,7 +618,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "quantity": 15,
                 "warehouse_id": self.warehouse.id,
                 "route_id": self.env.ref("purchase_stock.route_warehouse0_buy").id,
-                "supplier_id": price_list_pack_of_6.id,  # pricelist with uom "Pack of 6"
+                "supplier_id": price_list_pack_of_6.id,
             }
         )
         replenish_wizard.launch_replenishment()
@@ -699,7 +650,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "quantity": 1,
                 "warehouse_id": self.warehouse.id,
                 "route_id": self.env.ref("purchase_stock.route_warehouse0_buy").id,
-                "supplier_id": price_list_pack_of_6.id,  # pricelist with uom "Pack of 6"
+                "supplier_id": price_list_pack_of_6.id,
             }
         )
         replenish_wizard.launch_replenishment()
@@ -731,7 +682,7 @@ class TestReplenishWizard(PurchaseTestCommon):
                 "quantity": 2,
                 "warehouse_id": self.warehouse.id,
                 "route_id": self.env.ref("purchase_stock.route_warehouse0_buy").id,
-                "supplier_id": price_list_uom.id,  # pricelist with uom "Unit"
+                "supplier_id": price_list_uom.id,
             }
         )
         replenish_wizard.launch_replenishment()

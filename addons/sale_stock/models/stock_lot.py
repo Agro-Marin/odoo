@@ -6,10 +6,6 @@ from odoo import Command, api, fields, models
 class StockLot(models.Model):
     _inherit = "stock.lot"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     sale_order_ids = fields.Many2many(
         comodel_name="sale.order",
         string="Sales Orders",
@@ -20,11 +16,7 @@ class StockLot(models.Model):
         compute="_compute_sale_order_ids",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
-    @api.depends("name")
+    @api.depends("quant_ids")
     def _compute_sale_order_ids(self):
         sale_orders = defaultdict(set)
         move_lines = self.env["stock.move.line"].search(
@@ -47,10 +39,6 @@ class StockLot(models.Model):
             so_ids = sale_orders.get(lot.id, set())
             lot.sale_order_ids = [Command.set(list(so_ids))]
             lot.sale_order_count = len(so_ids)
-
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_view_so(self):
         self.ensure_one()

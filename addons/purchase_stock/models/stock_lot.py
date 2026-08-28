@@ -1,14 +1,10 @@
 from collections import defaultdict
 
-from odoo import api, fields, models
+from odoo import fields, models
 
 
 class StockLot(models.Model):
     _inherit = "stock.lot"
-
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     purchase_order_ids = fields.Many2many(
         comodel_name="purchase.order",
@@ -20,11 +16,6 @@ class StockLot(models.Model):
         string="Purchase order count",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
-    @api.depends("name")
     def _compute_purchase_order_ids(self):
         purchase_orders = defaultdict(lambda: self.env["purchase.order"])
         for move_line in self.env["stock.move.line"].search(
@@ -39,15 +30,11 @@ class StockLot(models.Model):
         for lot in self:
             lot.purchase_order_ids = purchase_orders[lot.id]
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def action_view_po(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_order_2",
         )
-        action["domain"] = [("id", "in", self.mapped("purchase_order_ids.id"))]
+        action["domain"] = [("id", "in", self.purchase_order_ids.ids)]
         action["context"] = dict(self.env.context, create=False)
         return action

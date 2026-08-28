@@ -113,10 +113,6 @@ class TestSaleStockMultiCompany(TestSaleCommon, ValuationReconciliationTestCommo
         self.assertEqual(so_company_B.warehouse_id.id, self.warehouse_B.id)
 
     def test_sale_product_from_parent_company(self):
-        """
-        Check that a product from a company can be sold by a branch
-        and that the resulting move can be created.
-        """
         parent_company = self.env.company
         branch_company = self.env["res.company"].create(
             {
@@ -177,7 +173,6 @@ class TestSaleStockMultiCompany(TestSaleCommon, ValuationReconciliationTestCommo
 
         picking = so.picking_ids
 
-        # create another move
         self.env["stock.move"].create(
             {
                 "picking_id": picking.id,
@@ -190,21 +185,15 @@ class TestSaleStockMultiCompany(TestSaleCommon, ValuationReconciliationTestCommo
             }
         )
 
-        # ensure we have to moves in the picking
         self.assertEqual(len(picking.move_ids), 2)
 
-        # make the moves as picked
         picking.move_ids.picked = True
 
         picking.button_validate()
 
-        # make sure an order line is created for the new stock move
         self.assertEqual(len(picking.sale_id.line_ids), 2)
 
     def test_intercompany_show_lot_on_invoice(self):
-        """
-        Check that lots and serial numbers are displayed on inter-companies invoices.
-        """
         self.env.user.group_ids |= self.env.ref("stock_account.group_lot_on_invoice")
         company2 = self.company_data_2["company"]
         self.product_a.write(

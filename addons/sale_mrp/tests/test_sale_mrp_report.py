@@ -56,11 +56,6 @@ class TestSaleMrpInvoices(TestSaleCommon):
         )
 
     def test_deliver_and_invoice_tracked_components(self):
-        """
-        Suppose the lots are printed on the invoices.
-        The user sells a kit that has one tracked component.
-        The lot of the delivered component should be on the invoice.
-        """
         display_lots = self.env.ref("stock_account.group_lot_on_invoice")
         display_uom = self.env.ref("uom.group_uom")
         self.env.user.write({"group_ids": [(4, display_lots.id), (4, display_uom.id)]})
@@ -75,7 +70,7 @@ class TestSaleMrpInvoices(TestSaleCommon):
                         {
                             "name": self.tracked_kit.name,
                             "product_id": self.tracked_kit.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         },
                     ),
                 ],
@@ -99,9 +94,6 @@ class TestSaleMrpInvoices(TestSaleCommon):
         )
 
     def test_report_forecast_for_mto_procure_method(self):
-        """
-        Check that mto moves are not reported as taking from stock in the forecast report
-        """
         mto_route = self.env.ref("stock.route_warehouse0_mto")
         mto_route.active = True
         manufacturing_route = self.env.ref("mrp.route_warehouse0_manufacture")
@@ -131,7 +123,6 @@ class TestSaleMrpInvoices(TestSaleCommon):
             )
         ]
         warehouse = self.warehouse
-        # make 2 so: so_1 can be fulfilled and so_2 requires a replenishment
         self.env["stock.quant"]._update_available_quantity(
             product, warehouse.lot_stock_id, 10.0
         )

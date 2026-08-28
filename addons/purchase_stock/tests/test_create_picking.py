@@ -45,11 +45,9 @@ class TestCreatePicking(ProductVariantsCommon):
 
     def test_00_create_picking(self):
 
-        # Draft purchase order created
         self.po = self.env["purchase.order"].create(self.po_vals)
         self.assertTrue(self.po, "Purchase: no purchase order created")
 
-        # Purchase order confirm
         self.po.action_confirm()
         self.assertEqual(
             self.po.state, "done", 'Purchase: PO state should be "Purchase'
@@ -62,13 +60,11 @@ class TestCreatePicking(ProductVariantsCommon):
         self.assertEqual(
             len(self.po.line_ids.move_ids), 1, "One move should be created"
         )
-        # Change purchase order line product quantity
         self.po.line_ids.write({"product_qty": 7.0})
         self.assertEqual(
             len(self.po.line_ids.move_ids), 1, "The two moves should be merged in one"
         )
 
-        # Validate first shipment
         self.picking = self.po.picking_ids[0]
         self.picking.move_ids.picked = True
         self.picking._action_done()
@@ -78,7 +74,6 @@ class TestCreatePicking(ProductVariantsCommon):
             "Purchase: all products should be received",
         )
 
-        # create new order line
         self.po.write(
             {
                 "line_ids": [
@@ -105,16 +100,10 @@ class TestCreatePicking(ProductVariantsCommon):
         self.assertEqual(len(moves), 1, "One moves should have been created")
 
     def test_02_check_mto_chain(self):
-        """Simulate a mto chain with a purchase order. Cancel the
-        purchase order should also change the procure_method of the
-        following move to MTS in order to be able to link it to a
-        manually created purchase order.
-        """
         stock_location = self.env.ref("stock.stock_location_stock")
         customer_location = self.env.ref("stock.stock_location_customers")
         picking_type_out = self.env.ref("stock.picking_type_out")
         picking_type_out.reservation_method = "at_confirm"
-        # route buy should be there by default
         partner = self.env["res.partner"].create({"name": "Jhon"})
 
         vendor = self.env["res.partner"].create({"name": "Roger"})
@@ -158,7 +147,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
         self.assertTrue(purchase_order, "No purchase order created.")
 
-        # Check purchase order line data.
         purchase_order_line = purchase_order.line_ids
         self.assertEqual(
             purchase_order_line.product_id,
@@ -215,13 +203,11 @@ class TestCreatePicking(ProductVariantsCommon):
         picking = purchase.picking_ids
         self.assertTrue(picking, "Picking should be created")
 
-        # Process pickings
         picking.action_confirm()
         picking.move_ids.quantity = 100.0
         picking.move_ids.picked = True
         picking.button_validate()
 
-        # mts move will be automatically assigned
         self.assertEqual(
             customer_move.state,
             "assigned",
@@ -234,12 +220,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
     def test_03_uom(self):
-        """Buy a dozen of products stocked in units. Check that the quantities on the purchase order
-        lines as well as the received quantities are handled in dozen while the moves themselves
-        are handled in units. Edit the ordered quantities, check that the quantities are correctly
-        updated on the moves. Edit the ir.config_parameter to propagate the uom of the purchase order
-        lines to the moves and edit a last time the ordered quantities. Receive, check the quantities.
-        """
         uom_unit = self.env.ref("uom.product_uom_unit")
         uom_dozen = self.env.ref("uom.product_uom_dozen")
 
@@ -247,7 +227,6 @@ class TestCreatePicking(ProductVariantsCommon):
 
         self.env.user.group_ids += self.env.ref("uom.group_uom")
 
-        # buy a dozen
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.partner_id
         with po_form.line_ids.new() as po_line:
@@ -257,22 +236,17 @@ class TestCreatePicking(ProductVariantsCommon):
         po = po_form.save()
         po.action_confirm()
 
-        # the move should be 12 units
-        # note: move.product_qty = computed field, always in the uom of the quant
-        #       move.product_uom_qty = stored field representing the initial demand in move.product_uom_id
         move1 = po.picking_ids.move_ids.sorted()[0]
         self.assertEqual(move1.product_uom_qty, 12)
         self.assertEqual(move1.product_uom_id.id, uom_unit.id)
         self.assertEqual(move1.product_qty, 12)
 
-        # edit the po line, buy 2 dozen, the move should now be 24 units
         po.line_ids.product_qty = 2
         move1 = po.picking_ids.move_ids.sorted()[0]
         self.assertEqual(move1.product_uom_qty, 24)
         self.assertEqual(move1.product_uom_id.id, uom_unit.id)
         self.assertEqual(move1.product_qty, 24)
 
-        # force the propagation of the uom, sell 3 dozen
         self.env["ir.config_parameter"].sudo().set_param("stock.propagate_uom", "1")
         with po_form.line_ids.edit(0) as po_line:
             po_line.product_qty = 3
@@ -284,7 +258,6 @@ class TestCreatePicking(ProductVariantsCommon):
         self.assertEqual(move2.product_uom_id.id, uom_dozen.id)
         self.assertEqual(move2.product_qty, 12)
 
-        # deliver everything
         move1.quantity = 24
         move1.picked = True
         move2.quantity = 1
@@ -292,13 +265,9 @@ class TestCreatePicking(ProductVariantsCommon):
 
         po.picking_ids.button_validate()
 
-        # check the delivered quantity
         self.assertEqual(po.line_ids.qty_transferred, 3.0)
 
     def test_mtso_multi_reference_order(self):
-        """Run 2 procurements for a product at the same times then receipt them via a purchase
-        order. Check the reservation search for stock move of the same procurement group in priority
-        even if the stock move are in MTS."""
         partner_demo_customer = self.partner_id
         final_location = partner_demo_customer.property_stock_customer
         warehouse = self.env["stock.warehouse"].search(
@@ -391,17 +360,9 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
     def test_04_mto_multiple_po(self):
-        """Simulate a mto chain with 2 purchase order.
-        Create a move with qty 1, confirm the RFQ then create a new
-        move that will not be merged in the first one(simulate an increase
-        order quantity on a SO). It should generate a new RFQ, validate
-        and receipt the picking then try to reserve the delivery
-        picking.
-        """
         stock_location = self.env.ref("stock.stock_location_stock")
         customer_location = self.env.ref("stock.stock_location_customers")
         picking_type_out = self.env.ref("stock.picking_type_out")
-        # route buy should be there by default
         partner = self.env["res.partner"].create({"name": "Jhon"})
 
         product = self.env["product.product"].create(
@@ -423,7 +384,6 @@ class TestCreatePicking(ProductVariantsCommon):
             }
         )
 
-        # A picking is require since only moves inside the same picking are merged.
         customer_picking = self.env["stock.picking"].create(
             {
                 "location_id": stock_location.id,
@@ -451,7 +411,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
         self.assertTrue(purchase_order, "No purchase order created.")
 
-        # Check purchase order line data.
         purchase_order_line = purchase_order.line_ids
         self.assertEqual(
             purchase_order_line.product_id,
@@ -515,63 +474,49 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
     def test_04_rounding(self):
-        """We set the Unit(s) rounding to 1.0 and ensure buying 1.2 units in a PO is rounded to 1.0
-        at reception.
-        """
         self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
         uom_unit = self.env.ref("uom.product_uom_unit")
         self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
 
-        # buy a dozen
         po = self.env["purchase.order"].create(self.po_vals)
 
         po.line_ids.product_qty = 1.2
         po.action_confirm()
 
-        # the move should be 1.0 units
         move1 = po.picking_ids.move_ids[0]
         self.assertEqual(move1.product_uom_qty, 1.0)
         self.assertEqual(move1.product_uom_id.id, uom_unit.id)
         self.assertEqual(move1.product_qty, 1.0)
 
-        # edit the po line, buy 2.4 units, the move should now be 2.0 units
         po.line_ids.product_qty = 2.4
         self.assertEqual(move1.product_uom_qty, 2.0)
         self.assertEqual(move1.product_uom_id.id, uom_unit.id)
         self.assertEqual(move1.product_qty, 2.0)
 
-        # deliver everything
         move1.quantity = 2.0
         move1.picked = True
         po.picking_ids.button_validate()
 
-        # check the delivered quantity
         self.assertEqual(po.line_ids.qty_transferred, 2.0)
 
     def test_05_uom_rounding(self):
-        """We set the Unit(s) and Dozen(s) rounding to 1.0 and ensure buying 1.3 dozens in a PO is
-        rounded to 1.0 at reception.
-        """
         self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
 
         uom_unit = self.env.ref("uom.product_uom_unit")
         uom_dozen = self.env.ref("uom.product_uom_dozen")
         self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
 
-        # buy 1.3 dozen
         po = self.env["purchase.order"].create(self.po_vals)
 
         po.line_ids.product_uom_id = uom_dozen.id
         po.line_ids.product_qty = 1.3
         po.action_confirm()
 
-        # the move should be 12.0 units
         move1 = po.picking_ids.move_ids[0]
         self.assertEqual(move1.product_uom_qty, 12.0)
         self.assertEqual(move1.product_uom_id.id, uom_unit.id)
         self.assertEqual(move1.product_qty, 12.0)
 
-        # force the propagation of the uom, buy 2.6 dozen, the move 2 should have 2 dozen
         self.env["ir.config_parameter"].sudo().set_param("stock.propagate_uom", "1")
         po.line_ids.product_qty = 2.6
         move2 = po.picking_ids.move_ids.filtered(
@@ -632,7 +577,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
         delivery_order.action_confirm()
-        # find created po the product
         purchase_order = self.env["purchase.order"].search(
             [("partner_id", "=", partner.id)]
         )
@@ -640,22 +584,16 @@ class TestCreatePicking(ProductVariantsCommon):
         return delivery_order, purchase_order
 
     def test_05_propagate_deadline(self):
-        """In order to check deadline date of the delivery order is changed and the planned date not."""
-
-        # Create Delivery Order and with propagate date and minimum delta
         delivery_order, purchase_order = self.create_delivery_order()
 
-        # check po is created or not
         self.assertTrue(purchase_order, "No purchase order created.")
 
         purchase_order_line = purchase_order.line_ids
 
-        # change scheduled date of po line.
         purchase_order_line.write(
             {"date_commitment": purchase_order_line.date_commitment + timedelta(days=5)}
         )
 
-        # Now check scheduled date and deadline of delivery order.
         self.assertNotEqual(
             purchase_order_line.date_commitment,
             delivery_order.date_planned,
@@ -668,7 +606,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
     def test_07_differed_schedule_date(self):
-        # Required for `reception_steps` to be visible in the view
         self.env.user.group_ids += self.env.ref("stock.group_adv_location")
         warehouse = self.env["stock.warehouse"].search([], limit=1)
 
@@ -706,12 +643,10 @@ class TestCreatePicking(ProductVariantsCommon):
         first_picking = po.picking_ids
         first_picking.move_ids.quantity = 5
         first_picking.move_ids.picked = True
-        # create the backorder
         Form.from_action(self.env, first_picking.button_validate()).save().process()
 
         self.assertEqual(len(po.picking_ids), 2)
 
-        # Create a partial return
         stock_return_picking_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=first_picking.ids,
@@ -737,11 +672,6 @@ class TestCreatePicking(ProductVariantsCommon):
         self.assertEqual(backorder.move_ids.product_uom_qty, 9)
 
     def test_08_check_update_qty_mto_chain(self):
-        """Simulate a mto chain with a purchase order. Updating the
-        initial demand should also impact the initial move and the
-        purchase order if it wasn't yet confirmed.
-        """
-
         def create_run_procurement(product, product_qty, values=None):
             if not values:
                 values = {
@@ -764,11 +694,9 @@ class TestCreatePicking(ProductVariantsCommon):
                 ]
             )
 
-        # Prepare procurement that replicates a sale order.
         picking_type_out = self.env.ref("stock.picking_type_out")
         partner = self.env["res.partner"].create({"name": "Jhon"})
         vendor = self.env["res.partner"].create({"name": "Roger"})
-        # This needs to be tried with MTO route activated
         self.env["stock.route"].browse(
             self.ref("stock.route_warehouse0_mto")
         ).action_unarchive()
@@ -795,7 +723,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
         reference = self.env["stock.reference"].create({"name": "reference"})
-        # Create initial procurement that will generate the initial move and its picking.
         create_run_procurement(
             product,
             50,
@@ -811,7 +738,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
         self.assertTrue(purchase_order, "No purchase order created.")
 
-        # Check purchase order line data.
         purchase_order_line = purchase_order.line_ids
         self.assertEqual(
             purchase_order_line.product_id,
@@ -824,7 +750,6 @@ class TestCreatePicking(ProductVariantsCommon):
             "The purchase order line qty should be the same as the move.",
         )
 
-        # Create procurement to decrease quantity in the initial move and the related RFQ.
         create_run_procurement(product, -10.00)
         self.assertEqual(
             customer_move.product_uom_qty,
@@ -837,7 +762,6 @@ class TestCreatePicking(ProductVariantsCommon):
             "The demand on the Purchase Order should have been decreased since it is still a RFQ.",
         )
 
-        # Create procurement to increase quantity on the initial move and the related RFQ.
         create_run_procurement(product, 5.00)
         self.assertEqual(
             customer_move.product_uom_qty,
@@ -851,7 +775,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
         purchase_order.action_confirm()
-        # Create procurement to decrease quantity in the initial move but not the confirmed PO.
         create_run_procurement(product, -10.00)
         self.assertEqual(
             customer_move.product_uom_qty,
@@ -872,7 +795,6 @@ class TestCreatePicking(ProductVariantsCommon):
             "No RFQ should have been created for a negative demand",
         )
 
-        # Create procurement to increase quantity on the initial move that will create a new move and a new RFQ for missing demand.
         create_run_procurement(product, 5.00)
         self.assertEqual(
             customer_move.product_uom_qty,
@@ -894,12 +816,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
     def test_update_qty_purchased(self):
-        """
-        Test that the price unit in the purchase order line and the move is updated
-        according to the pricelist defined in the product, and that the "stock.moves"
-        are merged correctly when changing the qty purchased.
-        """
-        # Create a storable product with proper category setup for stock move merging
         stock_valuation_account = self.env["account.account"].create(
             {
                 "name": "Stock Valuation",
@@ -924,7 +840,6 @@ class TestCreatePicking(ProductVariantsCommon):
             }
         )
 
-        # Create PO with dict like passing test
         purchase_order = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_id.id,
@@ -944,23 +859,16 @@ class TestCreatePicking(ProductVariantsCommon):
             }
         )
 
-        # Confirm Purchase order
         purchase_order.action_confirm()
-        # Check purchase order state, it should be "done".
         self.assertEqual(
             purchase_order.state, "done", "Purchase order should be in purchase state."
         )
-        # Make sure that picking has been created
         self.assertEqual(len(purchase_order.picking_ids), 1)
-        # check that the price has been set
         self.assertEqual(purchase_order.line_ids.price_unit, 15)
         self.assertEqual(purchase_order.picking_ids.move_ids.price_unit, 15)
-        # update the product qty purchased
         purchase_order.line_ids.product_qty = 9
-        # verify that the move for the decreased qty has been merged with the initial move
         self.assertEqual(len(purchase_order.picking_ids), 1)
         self.assertEqual(len(purchase_order.picking_ids.move_ids), 1)
-        # check that the move line qty has been updated
         self.assertEqual(
             purchase_order.picking_ids.move_line_ids.quantity_product_uom, 9
         )
@@ -1039,8 +947,6 @@ class TestCreatePicking(ProductVariantsCommon):
         self.assertEqual(push_pick.partner_id, po.partner_id)
 
     def test_create_return_exchange_with_no_picking_origin(self):
-        """Test that we can create a return exchange with no picking origin"""
-
         self.product_id_2.seller_ids = [
             (
                 0,
@@ -1125,24 +1031,17 @@ class TestCreatePicking(ProductVariantsCommon):
         picking_type_out = self.env.ref("stock.picking_type_out")
         picking_type_in = self.env.ref("stock.picking_type_in")
 
-        # Orig: receipt for 5 items
         self.assertEqual(po.picking_ids[0].picking_type_id, picking_type_in)
         self.assertEqual(po.picking_ids[0].move_ids.quantity, 5)
-        # Return: delivery for 1 item
         self.assertEqual(po.picking_ids[1].picking_type_id, picking_type_out)
         self.assertEqual(po.picking_ids[1].move_ids.quantity, 1)
-        # Exchange: receipt for 1 item
         self.assertEqual(po.picking_ids[2].picking_type_id, picking_type_in)
         self.assertEqual(po.picking_ids[2].move_ids.quantity, 1)
 
     def test_move_description(self):
-        """
-        Test that the pol description is correctly propagated to the move description
-        """
         product_matrix_installed = (
             "purchase_product_matrix" in self.env["ir.module.module"]._installed()
         )
-        # product with all description items: vendor product name, vendor product code, receipt description, purchase description, attribute variant value, attribute no variant value
         attribute_vals = [
             {
                 "attribute_id": self.color_attribute.id,
@@ -1214,10 +1113,6 @@ class TestCreatePicking(ProductVariantsCommon):
         )
 
     def test_receipt_return_type_change_qty_transferred(self):
-        """
-        Purchase, receive and return 1 unit of a product. Change the return operation type to be a delivery
-        in one step. Check that the qty_transferred is updated accordingly.
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -1264,9 +1159,6 @@ class TestCreatePicking(ProductVariantsCommon):
         self.assertEqual(po.line_ids.qty_transferred, 0.0)
 
     def test_average_cost_updated_after_po_with_discount(self):
-        """
-        Check the product price update from receiving discounted goods.
-        """
         self.env["product.value"].search(
             [("product_id", "=", self.product_id_1.id)]
         ).unlink()
@@ -1286,9 +1178,6 @@ class TestCreatePicking(ProductVariantsCommon):
                 }
             )
         ]
-        # No manual price on the line: this fork preserves manually set
-        # prices (shadow-price architecture), so the seller price/discount
-        # must flow in through the automatic price instead.
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_id.id,
@@ -1307,7 +1196,6 @@ class TestCreatePicking(ProductVariantsCommon):
             }
         )
         po.action_confirm()
-        # Update the quantity to 10 to trigger the discount
         with Form(po) as po_form:
             with po_form.line_ids.edit(0) as po_line:
                 po_line.product_qty = 10.0

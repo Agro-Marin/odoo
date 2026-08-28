@@ -4,10 +4,6 @@ from odoo import models
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _get_cogs_qty(self):
         self.ensure_one()
         valuation_account = self.product_id.product_tmpl_id._get_product_accounts(
@@ -79,10 +75,6 @@ class AccountMoveLine(models.Model):
                 )
             )
         return original_lines
-
-    # ------------------------------------------------------------
-    # VAlIDATIONS
-    # ------------------------------------------------------------
 
     def _sale_can_be_reinvoice(self):
         self.ensure_one()

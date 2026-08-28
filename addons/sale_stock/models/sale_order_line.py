@@ -14,15 +14,7 @@ class SaleOrderLine(models.Model):
     _inherit = ["sale.order.line", "mixin.order.line.stock"]
 
     def _get_merge_date_field(self):
-        # EXTENDS base_order: plain sale.order.line has no merge-relevant date,
-        # but this module adds ``date_planned``, so quotation lines must agree
-        # on it before they consolidate — the same rule purchase applies to
-        # ``date_commitment``.
         return "date_planned"
-
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     is_storable = fields.Boolean(
         related="product_id.is_storable",
@@ -79,8 +71,6 @@ class SaleOrderLine(models.Model):
         digits="Product Unit",
         compute="_compute_qty_at_date",
     )
-    # qty_to_transfer is inherited from mixin.order.line.stock (base_order_stock);
-    # it is populated by this model's _compute_qty_transferred override.
     display_qty_widget = fields.Boolean(
         compute="_compute_display_qty_widget",
         compute_sudo=False,
@@ -88,10 +78,6 @@ class SaleOrderLine(models.Model):
     is_mto = fields.Boolean(
         compute="_compute_is_mto",
     )
-
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -115,13 +101,8 @@ class SaleOrderLine(models.Model):
 
         return res
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     def _compute_invoice_state(self):
         def check_moves_state(moves):
-            # All moves states are either 'done' or 'cancel', and there is at least one 'done'
             at_least_one_done = False
             for move in moves:
                 if move.state not in ["done", "cancel"]:
@@ -132,14 +113,10 @@ class SaleOrderLine(models.Model):
         super()._compute_invoice_state()
 
         for line in self:
-            # We handle the following specific situation: a physical product is partially delivered,
-            # but we would like to set its invoice status to 'Fully Invoiced'. The use case is for
-            # products sold by weight, where the delivered quantity rarely matches exactly the
-            # quantity ordered.
             if (
                 line.state == "done"
                 and line.invoice_state == "no"
-                and line.product_id.type in ["consu", "product"]
+                and line.product_id.type == "consu"
                 and line.product_id.invoice_policy == "transferred"
                 and line.move_ids
                 and check_moves_state(line.move_ids)
@@ -152,50 +129,58 @@ class SaleOrderLine(models.Model):
 
     @api.depends("product_id")
     def _compute_customer_lead(self):
-        super()._compute_customer_lead()  # Reset customer_lead when the product is modified
-        for line in self:
+        super()._compute_customer_lead()
+        for line in self.filtered(lambda x: not x.display_type):
             line.customer_lead = line.product_id.sale_delay
 
     @api.depends("route_ids", "order_id.warehouse_id", "product_id")
     def _compute_warehouse_id(self):
         for line in self:
             line.warehouse_id = line.order_id.warehouse_id
-            if line.route_ids:
-                domain = [
-                    (
-                        "location_dest_id",
-                        "in",
-                        line.order_id.partner_shipping_id.property_stock_customer.ids,
-                    ),
-                    ("action", "!=", "push"),
-                ]
-                # prefer rules on the route itself even if they pull from a different warehouse than the SO's
-                rules = sorted(
-                    self.env["stock.rule"].search(
-                        domain=Domain.AND(
-                            [[("route_id", "in", line.route_ids.ids)], domain],
-                        ),
-                        order="route_sequence, sequence",
-                    ),
-                    # if there are multiple rules on the route, prefer those that pull from the SO's warehouse
-                    # or those that are not warehouse specific
-                    key=lambda rule: (
+
+        routed = self.filtered("route_ids")
+        by_key = defaultdict(self.browse)
+        for line in routed:
+            by_key[
+                (
+                    tuple(sorted(line.route_ids.ids)),
+                    line.order_id.partner_shipping_id.property_stock_customer.id,
+                )
+            ] |= line
+
+        for (route_ids, destination_id), lines in by_key.items():
+            rules = self.env["stock.rule"].search(
+                domain=Domain.AND(
+                    [
+                        [("route_id", "in", list(route_ids))],
+                        [
+                            (
+                                "location_dest_id",
+                                "in",
+                                [destination_id] if destination_id else [],
+                            ),
+                            ("action", "!=", "push"),
+                        ],
+                    ],
+                ),
+                order="route_sequence, sequence",
+            )
+            if not rules:
+                continue
+            for line in lines:
+                best = sorted(
+                    rules,
+                    key=lambda rule, line=line: (
                         0
                         if rule.location_src_id.warehouse_id
                         in (False, line.order_id.warehouse_id)
                         else 1
                     ),
                 )
-                if rules:
-                    line.warehouse_id = rules[0].location_src_id.warehouse_id
+                line.warehouse_id = best[0].location_src_id.warehouse_id
 
     @api.depends("move_ids")
     def _compute_product_readonly(self):
-        """Extend product_readonly to consider stock moves.
-
-        In addition to the base conditions (cancelled, downpayment, invoiced, delivered, locked),
-        product becomes readonly if there are confirmed stock moves.
-        """
         super()._compute_product_readonly()
         for line in self:
             if line.move_ids.filtered(lambda m: m.state != "cancel"):
@@ -215,24 +200,7 @@ class SaleOrderLine(models.Model):
         super(SaleOrderLine, self - lines_by_stock_move)._compute_qty_transferred()
 
         for line in lines_by_stock_move:
-            qty_transferred = 0.0
-            outgoing_moves, incoming_moves = line._get_stock_moves_outgoing_incoming()
-
-            for move in incoming_moves.filtered(lambda x: x.state == "done"):
-                qty_transferred -= move.product_uom_id._compute_quantity_reconcile(
-                    move.quantity,
-                    line.product_uom_id,
-                    rounding_method="HALF-UP",
-                )
-
-            for move in outgoing_moves.filtered(lambda x: x.state == "done"):
-                qty_transferred += move.product_uom_id._compute_quantity_reconcile(
-                    move.quantity,
-                    line.product_uom_id,
-                    rounding_method="HALF-UP",
-                )
-
-            line.qty_transferred = qty_transferred
+            line.qty_transferred = line._get_transferred_qty_from_moves()
 
     @api.depends(
         "state",
@@ -242,7 +210,6 @@ class SaleOrderLine(models.Model):
         "qty_to_transfer",
     )
     def _compute_display_qty_widget(self):
-        """Compute the visibility of the inventory widget."""
         self.display_qty_widget = False
 
         for line in self.filtered(lambda x: x.product_id and x.product_id.is_storable):
@@ -252,8 +219,6 @@ class SaleOrderLine(models.Model):
                 and any(m.state not in ["done", "cancel"] for m in line.move_ids)
             ):
                 line.display_qty_widget = True
-            else:
-                line.display_qty_widget = False
 
     @api.depends(
         "route_ids",
@@ -263,19 +228,13 @@ class SaleOrderLine(models.Model):
         "display_qty_widget",
     )
     def _compute_is_mto(self):
-        """Verify the route of the product based on the warehouse
-        set 'is_available' at True if the product availability in stock does
-        not need to be verified, which is the case in MTO, Drop-Shipping
-        """
         self.is_mto = False
         for line in self.filtered(lambda x: x.display_qty_widget):
             product_routes = line.route_ids or (
                 line.product_id.route_ids + line.product_id.categ_id.total_route_ids
             )
-            # Check MTO
             mto_route = line.warehouse_id.mto_pull_id.route_id
             if not mto_route:
-                # if route MTO not found in ir_model_data, we treat the product as in MTS
                 with contextlib.suppress(UserError):
                     mto_route = self.env["stock.warehouse"]._get_or_create_global_route(
                         "stock.route_warehouse0_mto",
@@ -285,8 +244,6 @@ class SaleOrderLine(models.Model):
 
             if mto_route and mto_route in product_routes:
                 line.is_mto = True
-            else:
-                line.is_mto = False
 
     @api.depends(
         "order_id.date_commitment",
@@ -300,11 +257,6 @@ class SaleOrderLine(models.Model):
         "move_ids.forecast_availability",
     )
     def _compute_qty_at_date(self):
-        """Compute the quantity forecasted of product at delivery date. There are
-        two cases:
-         1. The quotation has a date_commitment, we take it as delivery date
-         2. The quotation hasn't date_commitment, we compute the estimated delivery
-            date based on lead time"""
         self.qty_available_virtual_at_date = False
         self.date_planned = False
         self.date_planned_forecast = False
@@ -316,25 +268,21 @@ class SaleOrderLine(models.Model):
         if not lines_display_qty_widget:
             return
 
-        treated = self.browse()
         all_moves = self.env["stock.move"]
         line_all_moves_cached = {}
 
         for line in lines_display_qty_widget.filtered(lambda l: l.state == "done"):
-            combined_moves = line.move_ids | self.env["stock.move"].browse(
-                line.move_ids._rollup_move_origs(),
-            )
-            all_moves |= combined_moves.filtered(
-                lambda m, line=line: m.product_id == line.product_id,
-            )
-            line_all_moves_cached[line.id] = all_moves
+            combined_moves = (
+                line.move_ids
+                | self.env["stock.move"].browse(line.move_ids._rollup_move_origs())
+            ).filtered(lambda m, line=line: m.product_id == line.product_id)
+            all_moves |= combined_moves
+            line_all_moves_cached[line.id] = combined_moves
 
         date_planned_forecast_per_move = {
             m.id: m.date_planned_forecast for m in all_moves
         }
 
-        # If the state is already in sale the picking is created and a simple forecasted quantity isn't enough
-        # Then used the forecasted data of the related stock.move
         for line in lines_display_qty_widget.filtered(lambda l: l.state == "done"):
             combined_moves = line_all_moves_cached.get(line.id, ())
             moves = combined_moves.filtered(
@@ -367,13 +315,10 @@ class SaleOrderLine(models.Model):
                 ),
                 default=False,
             )
-            treated |= line
 
         qty_processed_per_product = defaultdict(lambda: 0)
         grouped_lines = defaultdict(lambda: self.env["sale.order.line"])
 
-        # We first loop over the SO lines to group them by warehouse and schedule
-        # date in order to batch the read of the quantities computed field.
         for line in lines_display_qty_widget.filtered(lambda l: l.state == "draft"):
             grouped_lines[
                 (
@@ -435,33 +380,16 @@ class SaleOrderLine(models.Model):
                         line.product_id.uom_id,
                     )
 
-                # Track processed quantity for subsequent lines with the same product
                 qty_processed_per_product[line.product_id.id] += product_qty
-
-            treated |= lines
-
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
 
     def _inverse_customer_lead(self):
         for line in self:
             if line.state == "done" and not line.order_id.date_commitment:
-                # Propagate deadline on related stock move
                 line.move_ids.date_deadline = line.order_id.date_order + timedelta(
                     days=line.customer_lead or 0.0,
                 )
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def _action_launch_stock_rule(self, *, previous_product_qty=False):
-        """
-        Launch procurement run method with required/custom fields generated by a
-        sale order line. procurement will launch '_run_pull', '_run_buy' or '_run_manufacture'
-        depending on the sale order line product rule.
-        """
         if self.env.context.get("skip_procurement"):
             return True
 
@@ -484,8 +412,6 @@ class SaleOrderLine(models.Model):
             references = line.order_id.stock_reference_ids
 
             if not references:
-                # References are system-managed plumbing: the confirming
-                # salesperson has no create rights on stock.reference.
                 self.env["stock.reference"].sudo().create(
                     line._prepare_reference_vals()
                 )
@@ -507,39 +433,21 @@ class SaleOrderLine(models.Model):
         if procurements:
             self.env["stock.rule"].run(procurements)
 
-        # This next block is currently needed only because the scheduler trigger is done by picking confirmation rather than stock.move confirmation
         orders = self.mapped("order_id")
         for order in orders:
             pickings_to_confirm = order.picking_ids.filtered(
                 lambda p: p.state not in ["cancel", "done"],
             )
             if pickings_to_confirm:
-                # Trigger the Scheduler for Pickings
                 pickings_to_confirm.action_confirm()
         return True
 
-    # ------------------------------------------------------------
-    # CATALOGUE MIXIN METHODS
-    # ------------------------------------------------------------
-
-    # FIXME VFE this hook is supported on the order, not the order line
     def _get_action_add_from_catalog_extra_context(self, order):
         extra_context = super()._get_action_add_from_catalog_extra_context(order)
         extra_context.update(warehouse_id=order.warehouse_id.id)
         return extra_context
 
     def _get_product_catalog_lines_data(self, **kwargs):
-        """Override of `sale` to add the delivered quantity.
-
-        :rtype: dict
-        :return: A dict with the following structure:
-            {
-                'deliveredQty': float,
-                'quantity': float,
-                'price': float,
-                'readOnly': bool,
-            }
-        """
         res = super()._get_product_catalog_lines_data(**kwargs)
         res["deliveredQty"] = sum(
             self.mapped(
@@ -550,10 +458,6 @@ class SaleOrderLine(models.Model):
             ),
         )
         return res
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _create_procurements(self, product_qty, procurement_uom, values):
         self.ensure_one()
@@ -571,43 +475,13 @@ class SaleOrderLine(models.Model):
         ]
 
     def _get_location_final(self):
-        # Can be overriden for inter-company transactions.
         self.ensure_one()
         return self.order_id.partner_shipping_id.property_stock_customer
 
     def _get_procurement_moves(self):
-        # Deliveries procure a sale line and customer returns hand the goods
-        # back. Overrides mixin.order.line.stock (base_order_stock); its generic
-        # difference of the two is not the whole answer here, because goods
-        # standing in the delivery pipeline procure the line as well and that
-        # quantity is a balance rather than a set of moves -- see
-        # _get_procurement_qty() below, which owns the arithmetic.
         return self._get_stock_moves_outgoing_incoming()
 
     def _get_procurement_qty(self, previous_product_qty=False):
-        """Quantity of this line that stock moves already cover.
-
-        Two terms, and nothing else:
-
-        - what crossed to the customer and stayed there, which is the delivery
-          ledger (:meth:`_get_stock_moves_outgoing_incoming`);
-        - what this line's moves leave standing in the delivery pipeline, for
-          the window in which a multi-step route has staged the goods but the
-          customer-facing leg does not exist yet (:meth:`_get_pipeline_qty`).
-
-        Which moves count is decided by the boundary they cross and by where
-        they leave the goods -- never by the rule or the warehouse they carry.
-        Those identify a route, not a shipment: a migrated database carries no
-        rule at all on historical moves, a pushed leg regularly carries no
-        warehouse, and a delivery entered by hand carries neither, nor a chain
-        link to the leg it fulfils.
-
-        ``previous_product_qty`` is unused, as in the mixin: the moves already
-        reflect any quantity change. Deliberately nothing here reads
-        ``product_qty`` -- bounding the pipeline term by the ordered quantity
-        hides what is already committed the moment that quantity is lowered,
-        and the delivery then never shrinks.
-        """
         self.ensure_one()
         moves = self._get_transferable_moves()
         delivered, returned = self._get_stock_moves_outgoing_incoming()
@@ -618,25 +492,6 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_pipeline_qty(self, moves):
-        """Quantity of goods ``moves`` leave standing in the delivery pipeline.
-
-        Balances the moves per location -- a done move counts what it moved, an
-        open one what it intends to move -- and adds up what is left over
-        wherever goods can wait on their way out. A leg that staged goods and a
-        leg that carried them onwards cancel out, so a route counts its
-        shipment once however many legs it has, whether or not they are chained
-        and whichever order they were recorded in.
-
-        The caller passes the moves to balance and is expected to leave out the
-        returns that have already crossed back: those goods are home rather
-        than in the pipeline, and they land in an internal location, so
-        counting them would read as goods still on their way.
-
-        Only locations goods can *wait* in count. A customer or supplier
-        location is the far side of the boundary, and an inter-company transit
-        is one too -- a move that ends there has been delivered and the ledger
-        has already counted it.
-        """
         self.ensure_one()
         balance = defaultdict(float)
         for move in moves:
@@ -658,18 +513,24 @@ class SaleOrderLine(models.Model):
             and not location._is_outgoing()
         )
 
-    def _get_stock_moves_outgoing_incoming(self, strict=True):
-        """Return the outgoing and incoming moves of the sale order line.
+    def _get_transferred_qty_from_moves(self):
+        self.ensure_one()
+        outgoing_moves, incoming_moves = self._get_stock_moves_outgoing_incoming()
 
-        A move that ends in a customer location delivered the goods; a refunded
-        move that starts in one handed them back.
+        def total(moves):
+            return sum(
+                move.product_uom_id._compute_quantity_reconcile(
+                    move.quantity,
+                    self.product_uom_id,
+                    rounding_method="HALF-UP",
+                )
+                for move in moves
+                if move.state == "done"
+            )
 
-        :param strict: accepted for the callers that still pass it. The
-            classification does not vary: the boundary test needs no relaxing,
-            and the quantity a multi-step route has staged short of that
-            boundary is not a set of moves but a balance, which
-            :meth:`_get_pipeline_qty` reports.
-        """
+        return total(outgoing_moves) - total(incoming_moves)
+
+    def _get_stock_moves_outgoing_incoming(self):
         outgoing_moves = self.env["stock.move"]
         incoming_moves = self.env["stock.move"]
         moves = self._get_transferable_moves()
@@ -700,13 +561,8 @@ class SaleOrderLine(models.Model):
         return outgoing_moves, incoming_moves
 
     def _prepare_procurement_vals(self):
-        """Prepare specific key for moves or other components that will be created from a stock rule
-        coming from a sale order line. This method could be override in order to add other custom key that could
-        be used in move/po creation.
-        """
         values = super()._prepare_procurement_vals()
         self.ensure_one()
-        # Use the delivery date if there is else use date_order and lead time
         date_deadline = self.order_id.date_commitment or self._get_date_planned()
         date_planned = date_deadline - timedelta(
             days=self.order_id.company_id.security_lead,
@@ -738,29 +594,8 @@ class SaleOrderLine(models.Model):
     def _prepare_qty_transferred(self):
         delivered_qties = super()._prepare_qty_transferred()
         for line in self:
-            # TODO: maybe one day, this should be done in SQL for performance sake
             if line.qty_transferred_method == "stock_move":
-                qty = 0.0
-                outgoing_moves, incoming_moves = (
-                    line._get_stock_moves_outgoing_incoming()
-                )
-                for move in outgoing_moves:
-                    if move.state != "done":
-                        continue
-                    qty += move.product_uom_id._compute_quantity_reconcile(
-                        move.quantity,
-                        line.product_uom_id,
-                        rounding_method="HALF-UP",
-                    )
-                for move in incoming_moves:
-                    if move.state != "done":
-                        continue
-                    qty -= move.product_uom_id._compute_quantity_reconcile(
-                        move.quantity,
-                        line.product_uom_id,
-                        rounding_method="HALF-UP",
-                    )
-                delivered_qties[line] = qty
+                delivered_qties[line] = line._get_transferred_qty_from_moves()
         return delivered_qties
 
     def _prepare_reference_vals(self):
@@ -801,12 +636,8 @@ class SaleOrderLine(models.Model):
             )
         super()._update_line_quantity(values)
 
-    # ------------------------------------------------------------
-    # VALIDATIONS
-    # ------------------------------------------------------------
-
     def has_valued_move_ids(self):
         return (
             any(move.state not in ("cancel", "draft") for move in self.move_ids)
-            or super().has_valued_move_ids()  # TODO: remove in master
+            or super().has_valued_move_ids()
         )

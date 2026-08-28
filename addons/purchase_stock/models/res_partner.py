@@ -7,10 +7,6 @@ from odoo import api, fields, models
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     purchase_line_ids = fields.One2many(
         comodel_name="purchase.order.line",
         inverse_name="partner_id",
@@ -58,10 +54,6 @@ class ResPartner(models.Model):
         default="default",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     @api.depends("purchase_line_ids")
     def _compute_on_time_rate(self):
         date_order_days_delta = int(
@@ -79,6 +71,7 @@ class ResPartner(models.Model):
                 ),
                 ("qty_transferred", "!=", 0),
                 ("order_id.state", "=", "done"),
+                ("date_commitment", "!=", False),
                 (
                     "product_id",
                     "in",
@@ -92,14 +85,13 @@ class ResPartner(models.Model):
         moves = self.env["stock.move"].search(
             [("purchase_line_id", "in", order_lines.ids), ("state", "=", "done")],
         )
-        # Fetch fields from db and put them in cache.
-        order_lines.read(["date_commitment", "partner_id", "product_uom_qty"], load="")
-        moves.read(["purchase_line_id", "date"], load="")
+        order_lines.fetch(["date_commitment", "partner_id", "product_uom_qty"])
+        moves.fetch(["purchase_line_id", "date", "quantity"])
         moves = moves.filtered(
             lambda m: m.date.date() <= m.purchase_line_id.date_commitment.date(),
         )
-        for move, quantity in zip(moves, moves.mapped("quantity"), strict=False):
-            lines_quantity[move.purchase_line_id.id] += quantity
+        for move in moves:
+            lines_quantity[move.purchase_line_id.id] += move.quantity
         partner_dict = {}
         for line in order_lines:
             on_time, ordered = partner_dict.get(line.partner_id, (0, 0))
@@ -110,7 +102,5 @@ class ResPartner(models.Model):
         for partner, numbers in partner_dict.items():
             seen_partner |= partner
             on_time, ordered = numbers
-            partner.on_time_rate = (
-                on_time / ordered * 100 if ordered else -1
-            )  # use negative number to indicate no data
+            partner.on_time_rate = on_time / ordered * 100 if ordered else -1
         (self - seen_partner).on_time_rate = -1

@@ -4,8 +4,6 @@ from odoo.tests import HttpCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestPortalDeliveryReports(HttpCase):
-    """Token/access gates of the portal delivery and return-label PDFs."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -29,7 +27,7 @@ class TestPortalDeliveryReports(HttpCase):
                     Command.create(
                         {
                             "product_id": product.id,
-                            "product_uom_qty": 2,
+                            "product_qty": 2,
                         }
                     )
                 ],
@@ -40,7 +38,6 @@ class TestPortalDeliveryReports(HttpCase):
         cls.token = cls.order._portal_ensure_token()
 
     def test_delivery_pdf_with_valid_token(self):
-        """A valid sale token opens the delivery slip as PDF."""
         self.assertTrue(self.picking)
         res = self.url_open(
             f"/my/picking/pdf/{self.picking.id}?access_token={self.token}",
@@ -49,19 +46,16 @@ class TestPortalDeliveryReports(HttpCase):
         self.assertEqual(res.headers.get("Content-Type"), "application/pdf")
 
     def test_delivery_pdf_without_token_is_denied(self):
-        """The public visitor without a token cannot read the slip."""
         res = self.url_open(f"/my/picking/pdf/{self.picking.id}")
         self.assertIn(res.status_code, (403, 404))
 
     def test_delivery_pdf_with_wrong_token_is_denied(self):
-        """A forged token does not grant access (consteq gate)."""
         res = self.url_open(
             f"/my/picking/pdf/{self.picking.id}?access_token=forged-token",
         )
         self.assertIn(res.status_code, (403, 404))
 
     def test_return_label_pdf_with_valid_token(self):
-        """The return-label route honors the same token gate."""
         res = self.url_open(
             f"/my/picking/return/pdf/{self.picking.id}?access_token={self.token}",
         )
@@ -69,7 +63,6 @@ class TestPortalDeliveryReports(HttpCase):
         self.assertEqual(res.headers.get("Content-Type"), "application/pdf")
 
     def test_missing_picking_is_not_found(self):
-        """A nonexistent picking id resolves to not-found, not a crash."""
         res = self.url_open(
             f"/my/picking/pdf/99999999?access_token={self.token}",
         )

@@ -59,6 +59,5 @@ class TestUninstallPurchaseStock(PurchaseTestCommon):
                 **{MODULE_UNINSTALL_FLAG: True}
             ).unlink()
 
-        # After uninstalling stock_move option, the computed method value persists
         self.assertEqual(order_line.qty_transferred_method, "stock_move")
         self.assertEqual(order_line.qty_transferred, 1)

@@ -12,9 +12,7 @@ class MixinOrderLineInvoice(models.AbstractModel):
     _name = "mixin.order.line.invoice"
     _description = "Order Line Invoice Integration"
 
-    #: ``out`` on a sale, ``in`` on a purchase. Mirrors the order side.
     _invoice_move_direction = ""
-    #: ``product.product`` field holding this order type's invoicing policy.
     _invoice_policy_field = ""
 
     currency_id = fields.Many2one("res.currency")
@@ -239,11 +237,6 @@ class MixinOrderLineInvoice(models.AbstractModel):
 
     def _prepare_aml_vals(self, **optional_values):
         self.ensure_one()
-        # `account.move._add_order_lines` passes the move it is building so a
-        # concrete line can price against it. It is context for producing the
-        # values, never one of them: leaving it in the dict reaches
-        # `account.move.line.new()` as a field name and raises KeyError on
-        # every order model that does not override this to remove it.
         optional_values.pop("move", None)
         res = {
             "display_type": self.display_type or "product",

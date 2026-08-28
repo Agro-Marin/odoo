@@ -69,7 +69,6 @@ class VendorDelayReport(models.Model):
 
     def _read_group_select(self, aggregate_spec, query):
         if aggregate_spec == "on_time_rate:sum":
-            # Make a weighted average instead of simple average for these fields
             return SQL(
                 "CASE WHEN SUM(%s) !=0 THEN SUM(%s) / SUM(%s) * 100 ELSE 100 END",
                 self._field_to_sql(self._table, "qty_total", query),

@@ -69,12 +69,9 @@ class TestSaleStockMultiWarehouse(
         )
         so.action_confirm()
 
-        # 2 pickings: 1 per warehouse
         self.assertEqual(len(so.picking_ids), 2)
-        # single move per picking
         self.assertEqual(len(so.picking_ids[0].move_ids), 1)
         self.assertEqual(len(so.picking_ids[1].move_ids), 1)
-        # pickings comes from the right warehouse
         self.assertEqual(
             so.picking_ids[0].move_ids[0].location_id.warehouse_id, self.warehouse_A
         )

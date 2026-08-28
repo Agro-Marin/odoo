@@ -44,7 +44,6 @@ class TestAccruedStockSaleOrders(TestSaleCommon):
         cls.account_revenue = cls.company_data["default_account_revenue"]
 
     def test_sale_stock_accruals(self):
-        # deliver 2 on 2020-01-02
         pick = self.sale_order.picking_ids
         pick.move_ids.write({"quantity": 2, "picked": True})
         pick.button_validate()
@@ -52,7 +51,6 @@ class TestAccruedStockSaleOrders(TestSaleCommon):
         Form.from_action(self.env, wiz_act).save().process()
         pick.move_ids.write({"date": fields.Date.to_date("2020-01-02")})
 
-        # deliver 3 on 2020-01-06
         pick = pick.copy()
         pick.move_ids.write({"quantity": 3, "picked": True})
         pick.button_validate()
@@ -73,58 +71,47 @@ class TestAccruedStockSaleOrders(TestSaleCommon):
                 }
             )
         )
-        # nothing to invoice on 2020-01-01
         with self.assertRaises(UserError):
             wizard.create_entries()
 
-        # 2 to invoice on 2020-01-04
         wizard.date = fields.Date.to_date("2020-01-04")
         self.assertRecordValues(
             self.env["account.move"].search(wizard.create_entries()["domain"]).line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 60, "credit": 0},
                 {"account_id": wizard.account_id.id, "debit": 0, "credit": 60},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 60},
                 {"account_id": wizard.account_id.id, "debit": 60, "credit": 0},
             ],
         )
 
-        # 5 to invoice on 2020-01-07
         wizard.date = fields.Date.to_date("2020-01-07")
         self.assertRecordValues(
             self.env["account.move"].search(wizard.create_entries()["domain"]).line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 150, "credit": 0},
                 {"account_id": wizard.account_id.id, "debit": 0, "credit": 150},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 150},
                 {"account_id": wizard.account_id.id, "debit": 150, "credit": 0},
             ],
         )
 
     def test_sale_stock_invoiced_accrued_entries(self):
-        # deliver 2 on 2020-01-02
         pick = self.sale_order.picking_ids
         pick.move_ids.write({"quantity": 2, "picked": True})
         pick.button_validate()
         Form.from_action(self.env, pick.button_validate()).save().process()
         pick.move_ids.write({"date": fields.Date.to_date("2020-01-02")})
 
-        # invoice on 2020-01-04
         inv = self.sale_order._create_invoices()
         inv.invoice_date = fields.Date.to_date("2020-01-04")
         inv.action_post()
 
-        # deliver 3 on 2020-01-06
         pick = pick.copy()
         pick.move_ids.write({"quantity": 3, "picked": True})
         pick.button_validate()
         pick.move_ids.write({"date": fields.Date.to_date("2020-01-06")})
 
-        # invoice on 2020-01-08
         inv = self.sale_order._create_invoices()
         inv.invoice_date = fields.Date.to_date("2020-01-08")
         inv.action_post()
@@ -144,39 +131,31 @@ class TestAccruedStockSaleOrders(TestSaleCommon):
                 }
             )
         )
-        # 2 to invoice on 2020-01-07
         self.assertRecordValues(
             self.env["account.move"].search(wizard.create_entries()["domain"]).line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 60, "credit": 0},
                 {"account_id": wizard.account_id.id, "debit": 0, "credit": 60},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 60},
                 {"account_id": wizard.account_id.id, "debit": 60, "credit": 0},
             ],
         )
 
-        # nothing to invoice on 2020-01-05
         wizard.date = fields.Date.to_date("2020-01-05")
         with self.assertRaises(UserError):
             wizard.create_entries()
 
-        # 3 to invoice on 2020-01-07
         wizard.date = fields.Date.to_date("2020-01-07")
         self.assertRecordValues(
             self.env["account.move"].search(wizard.create_entries()["domain"]).line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 90, "credit": 0},
                 {"account_id": wizard.account_id.id, "debit": 0, "credit": 90},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 90},
                 {"account_id": wizard.account_id.id, "debit": 90, "credit": 0},
             ],
         )
 
-        # nothing to invoice on 2020-01-09
         wizard.date = fields.Date.to_date("2020-01-09")
         with self.assertRaises(UserError):
             wizard.create_entries()

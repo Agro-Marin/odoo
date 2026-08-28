@@ -16,9 +16,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
         for po_line in po_lines:
             line_qty = po_line.product_qty
-            # Need to fetch every move connected to a manufacturing order from this PO line. This can happen when:
-            # - Multiple MOs are linked to a single PO line (e.g. Same MTO component for multiple MO).
-            # - A MO has a backorder / is splitted.
             dest_moves = self.env["stock.move"].browse(
                 po_line.move_dest_ids._rollup_move_dests()
             )
@@ -83,7 +80,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         res = super()._get_resupply_data(
             rules, rules_delay, quantity, uom_id, product, production
         )
-        if any(rule for rule in rules if rule.action == "buy" and product.seller_ids):
+        if product.seller_ids and any(rule.action == "buy" for rule in rules):
             supplier = product._select_seller(quantity=quantity, uom_id=product.uom_id)
             if supplier:
                 return {

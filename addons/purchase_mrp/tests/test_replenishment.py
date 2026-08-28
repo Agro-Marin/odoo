@@ -10,10 +10,8 @@ class TestReplenishment(TestStockCommon):
                 "product_max_qty": 4,
             }
         )
-        # No routes are available -> no effective route
         self.assertFalse(orderpoint.effective_route_id)
 
-        # Create routes and corresponding BoM and supplier
         manufacture = self.env["stock.route"].create(
             {
                 "name": "Manufacture",
@@ -63,16 +61,13 @@ class TestReplenishment(TestStockCommon):
             }
         )
 
-        # Activate one of the routes
         self.productA.write(
             {
                 "route_ids": [(4, manufacture.id)],
             }
         )
         self.env.invalidate_all()
-        # Only Manufacture route is set
         self.assertEqual(orderpoint.effective_route_id, manufacture)
-        # Manufacture is the effective route: there is an effective BoM, but no effective vendor
         self.assertEqual(orderpoint.effective_bom_id, bom)
         self.assertFalse(orderpoint.effective_vendor_id)
 
@@ -82,18 +77,14 @@ class TestReplenishment(TestStockCommon):
             }
         )
         self.env.invalidate_all()
-        # Manufacture and Buy routes are set, but Manufacture is first
         self.assertEqual(orderpoint.effective_route_id, manufacture)
-        # Manufacture is still the effective route
         self.assertEqual(orderpoint.effective_bom_id, bom)
         self.assertFalse(orderpoint.effective_vendor_id)
 
         orderpoint.route_id = buy
         self.env.invalidate_all()
-        # Manufacture is the default route, but Buy was set explicitly
         self.assertEqual(orderpoint.effective_route_id, buy)
         self.assertEqual(orderpoint.route_id, buy)
-        # Buy is the effective route: there is an effective vendor, but no effective BoM
         self.assertEqual(orderpoint.effective_vendor_id, self.partner_1)
         self.assertFalse(orderpoint.effective_bom_id)
 
@@ -105,10 +96,8 @@ class TestReplenishment(TestStockCommon):
             }
         )
         self.env.invalidate_all()
-        # Manufacture was removed, only Buy remains
         self.assertEqual(orderpoint.effective_route_id, buy)
         self.assertFalse(orderpoint.route_id)
-        # Buy is still the effective route
         self.assertEqual(orderpoint.effective_vendor_id, self.partner_1)
         self.assertFalse(orderpoint.effective_bom_id)
 
@@ -138,7 +127,6 @@ class TestReplenishment(TestStockCommon):
         )
         self.productA.route_ids = False
 
-        # No resupply methods should be set for Product A
         self.assertRecordValues(
             self.productA,
             [
@@ -152,11 +140,9 @@ class TestReplenishment(TestStockCommon):
         replenish_empty = create_replenish_wizard(self.warehouse_1, self.productA)
         self.assertFalse(replenish_empty.allowed_route_ids)
 
-        # Add the MTO route to the product, it should never show in allowed_route_ids
         self.warehouse_1.mto_pull_id.route_id.active = True
         self.productA.route_ids = self.warehouse_1.mto_pull_id.route_id
 
-        # Add a BoM for Product A. This should make it eligible for Manufacture routes
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.productA.product_tmpl_id.id,
@@ -166,7 +152,6 @@ class TestReplenishment(TestStockCommon):
         replenish_manufacture = create_replenish_wizard(self.warehouse_1, self.productA)
         self.assertEqual(replenish_manufacture.allowed_route_ids, manufacture_route)
 
-        # Now add a seller for Product A. This should make it eligible for Buy routes
         self.env["product.supplierinfo"].create(
             {
                 "product_id": self.productA.id,
@@ -180,12 +165,9 @@ class TestReplenishment(TestStockCommon):
         )
 
     def test_replenishment_cache_route_placeholder(self):
-        """Test if route placeholders are calculated correctly regardless of the order of orderpoints"""
-        # Products themselves do not have any routes activated
         self.assertFalse(self.productA.route_ids)
         self.assertFalse(self.productB.route_ids)
 
-        # productA can be manufactured, productB can be bought
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.productA.product_tmpl_id.id,
@@ -211,12 +193,10 @@ class TestReplenishment(TestStockCommon):
             ]
         )
 
-        # Check if proper placeholders are calculated for a recordset with multiple records
         (orderpointA | orderpointB)._compute_rule_ids()
         self.assertEqual(orderpointA.route_id_placeholder, "Manufacture")
         self.assertEqual(orderpointB.route_id_placeholder, "Buy")
 
-        # Reverse the order of records: the results should be the same
         (orderpointB | orderpointA)._compute_rule_ids()
 
         self.assertEqual(orderpointA.route_id_placeholder, "Manufacture")

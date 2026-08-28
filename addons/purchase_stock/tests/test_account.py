@@ -193,7 +193,6 @@ class TestPurchaseOrderInvoice(PurchaseTestCommon):
         )
         bill = self._create_bill(purchase_order=purchase_order, post=False)
 
-        # Set a discount
         bill_form = Form(bill)
         with bill_form.invoice_line_ids.edit(0) as bill_line_form:
             bill_line_form.discount = 0.92431
@@ -396,7 +395,6 @@ class TestPurchaseOrderInvoice(PurchaseTestCommon):
                 },
             ],
         )
-        # Extra step to test refund
         refund = self._refund(bill)
         self.assertTrue(refund)
         self.assertRecordValues(
@@ -408,7 +406,6 @@ class TestPurchaseOrderInvoice(PurchaseTestCommon):
         )
         self.assertEqual(po_line.qty_invoiced, 0)
         self.assertEqual(self.product_avco.standard_price, 12.0)
-        # Despite the refund, the inventory value should not be impacted
         with self.assertRaises(UserError):
             self._close()
         bill = self._create_bill(purchase_order=po, post=False)
@@ -453,7 +450,6 @@ class TestPurchaseOrderInvoice(PurchaseTestCommon):
 
         with self.assertRaises(UserError):
             self._close()
-        # Extra step to test refund
         refund = self._refund(bill)
         self.assertTrue(refund)
         self.assertRecordValues(
@@ -470,8 +466,6 @@ class TestPurchaseOrderInvoice(PurchaseTestCommon):
         self.assertEqual(po_line.qty_invoiced, 0)
         self.assertEqual(self.product_fifo_auto.standard_price, 12.0)
 
-        # Perpetual closing. Inventory account balance is zero so it will compensate with variation
-        # (this entry should be compensated by an accrual later or another closing after the bill)
         closing_before_bill = self._close()
         self.assertTrue(closing_before_bill)
         self.assertRecordValues(
@@ -507,7 +501,6 @@ class TestPurchaseOrderInvoice(PurchaseTestCommon):
         self.assertEqual(po_line.qty_invoiced, 1)
         self.assertEqual(self.product_fifo_auto.standard_price, 18.0)
 
-        # Should reverse the closing before bill
         closing_after_bill = self._close()
         self.assertTrue(closing_after_bill)
         self.assertRecordValues(

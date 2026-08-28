@@ -9,7 +9,6 @@ class TestPackagingTours(HttpCase):
         return "/odoo/action-stock.product_template_action_product/%s" % (product_id)
 
     def test_barcode_duplication_error(self):
-        """Test the barcode duplication error when creating a new product with an existing barcode"""
         product_a = self.env["product.product"].create(
             {
                 "name": "Product A",

@@ -3,10 +3,6 @@ from odoo.tests import Form, TransactionCase
 
 
 class TestOnchangeProductId(TransactionCase):
-    """Test that when an included tax is mapped by a fiscal position, the included tax must be
-    subtracted to the price of the product.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -28,7 +24,6 @@ class TestOnchangeProductId(TransactionCase):
         )
 
     def test_onchange_product_id(self):
-        # Required for `product_uom_id` to be visible in the view
         self.env.user.group_ids += self.env.ref("uom.group_uom")
 
         uom_id = self.product_uom_model.search([("name", "=", "Units")])[0]
@@ -71,7 +66,6 @@ class TestOnchangeProductId(TransactionCase):
         supplierinfo = self.supplierinfo_model.create(supplierinfo_vals)
         product_id = product_tmpl_id.product_variant_id
 
-        # Use Form to properly trigger computed fields for tax-inclusive price conversion
         with Form(self.po_model) as po_form:
             po_form.partner_id = partner_id
             po_form.fiscal_position_id = fp_id
@@ -82,7 +76,6 @@ class TestOnchangeProductId(TransactionCase):
         po = po_form.save()
 
         po_line = po.line_ids[0]
-        # Computed fields handle the tax-inclusive price conversion automatically
         self.assertEqual(
             100, po_line.price_unit, "The included tax must be subtracted to the price"
         )
@@ -120,16 +113,13 @@ class TestOnchangeProductId(TransactionCase):
                 "uom_id": ipad_lot.id,
             }
         )
-        # Use Form to create line - this properly triggers computed fields with UoM conversion
         with Form(po) as po_form:
             with po_form.line_ids.new() as po_line_form:
                 po_line_form.product_id = product_ipad
                 po_line_form.product_qty = 5
-                po_line_form.product_uom_id = ipad_lot_10  # UoM is 10x the base
+                po_line_form.product_uom_id = ipad_lot_10
         po = po_form.save()
 
-        # The price should be computed from standard_price converted to the line UoM
-        # standard_price is 100 per 1 Ipad, so for 10 Ipad UoM it should be 1000
         po_line2 = po.line_ids.filtered(lambda l: l.product_id == product_ipad)
         self.assertEqual(
             1000,

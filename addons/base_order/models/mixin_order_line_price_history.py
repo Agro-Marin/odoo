@@ -3,13 +3,8 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.fields import Command
 
-#: How many historical lines the statistics block aggregates over. The block
-#: reports `avg_sample_truncated` when the period holds more, so a capped
-#: average is never read as the whole period.
 STATS_SAMPLE_LIMIT = 500
 
-#: How many historical lines the result list shows. The list is a shortlist,
-#: not the history: `action_open_history` opens the full list/pivot/graph.
 HISTORY_RESULT_LIMIT = 20
 
 
@@ -17,22 +12,10 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
     _name = "mixin.order.line.price.history"
     _description = "Order Line Price History"
 
-    #: Concrete order-line model the history is read from.
     _price_history_line_model = ""
-    #: Action opened by `action_open_history`, as an xml id.
     _price_history_action = ""
-    #: How the history is read, newest first. A line model that dates itself on
-    #: another field overrides this rather than the two searches that use it.
     _price_history_order = "date_order desc, id desc"
-    #: Stored column holding the discounted price per reference unit. It is
-    #: what lets the extremes be a SQL MIN/MAX.
     _price_history_normalized_field = "price_unit_discounted_taxexc_product_uom"
-    #: Whether the line model carries the three stored columns the grouped
-    #: query needs -- `price_subtotal`, `product_uom_qty` and the normalized
-    #: one above. A model without them is read row by row instead. Opting out
-    #: is not only about missing columns: `account.move.line` has a subtotal
-    #: and a quantity, but its quantity is in the line's own unit, so summing
-    #: the pair across mixed units would answer confidently and wrongly.
     _price_history_sql = True
 
     period = fields.Selection(
@@ -140,7 +123,6 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
     )
 
     def _get_price_direction(self) -> int:
-        """``1`` when a higher price is favorable, ``-1`` when a lower one is."""
         return self.env[self._price_history_line_model]._price_direction
 
     @api.depends("line_id")
@@ -164,7 +146,6 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         return today - relativedelta(months=12)
 
     def _get_price_sample(self, line) -> dict:
-        """Raw comparison inputs read off one historical line."""
         return {
             "price": line.price_unit_discounted_taxexc,
             "qty": line.product_qty,
@@ -175,7 +156,6 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         }
 
     def _get_price_normalized(self, line) -> tuple[float, float]:
-        """``line``'s discounted price (in ``self``'s currency) and quantity (in reference UoM)."""
         sample = self._get_price_sample(line)
         reference_uom = line.product_id.uom_id
         price = sample["uom"]._compute_price_report(sample["price"], reference_uom)
@@ -236,14 +216,6 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         return vals
 
     def _get_partner_price_aggregates(self, domain, market_vals) -> dict:
-        """The same figures again, restricted to the selected partner.
-
-        A second query rather than a second accumulator over the sample above:
-        that sample is the most recent `STATS_SAMPLE_LIMIT` rows across all
-        partners, so it can hold none of this partner's even when the partner
-        has years of history, and an accumulator would answer "never bought
-        from them" with a straight face.
-        """
         if not self.partner_id:
             return {}
         partner_domain = [
@@ -266,14 +238,6 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         return result
 
     def _get_price_aggregates(self, domain) -> dict:
-        """Weighted average, extremes and sample size over ``domain``.
-
-        One grouped query when every matching line is already priced in the
-        target currency, which is the ordinary case and has no sample cap.
-        A mixed-currency sample cannot be aggregated in SQL -- each row
-        converts at its own document date -- so that one falls back to
-        :meth:`_get_price_sample_aggregates`, capped and reported as such.
-        """
         if not self._price_history_sql:
             return self._get_price_sample_aggregates(domain)
         Line = self.env[self._price_history_line_model]
@@ -305,7 +269,6 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         }
 
     def _get_price_sample_aggregates(self, domain) -> dict:
-        """The same figures read row by row, converting each at its own date."""
         lines = self.env[self._price_history_line_model].search(
             domain, order=self._price_history_order, limit=STATS_SAMPLE_LIMIT
         )
@@ -359,11 +322,9 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         self.line_ids = [Command.create({"line_id": line.id}) for line in lines]
 
     def _get_domain_price_confirmed(self):
-        """What "this document really happened" means for the line model."""
         return [("state", "=", "done")]
 
-    def action_open_history(self):
-        """Leave the shortlist for the full list/pivot/graph history."""
+    def action_view_history(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             self._price_history_action,

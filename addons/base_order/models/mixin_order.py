@@ -18,38 +18,18 @@ class MixinOrder(models.AbstractModel):
         "mixin.product.catalog",
     ]
 
-    #: Which side of the trade this document sits on: ``sale`` or ``purchase``.
-    #: It carries *direction* only -- what a document of this kind means, never
-    #: which document it is. Everything below that used to be derived from it
-    #: is declared separately, because a third order type may behave like a
-    #: sale and still need its own sequence, its own groups and its own keys.
     _order_type = ""
 
-    #: ``ir.sequence`` code this model draws its names from. Identity, not
-    #: direction: two models sharing a code share one counter, and the
-    #: company-scoped one silently wins.
     _sequence_code = ""
-    #: ``out`` on a sale, ``in`` on a purchase -- the prefix of the account
-    #: move types this order invoices through.
     _invoice_move_direction = ""
-    #: ``res.partner`` field holding the payment term to default from.
     _partner_payment_term_field = ""
-    #: ``res.company`` field holding this order type's lock policy.
     _lock_setting_field = ""
-    #: Group whose members get their orders locked on confirmation, as an
-    #: xml id. Empty means no group grants it.
     _auto_lock_group = ""
-    #: Context key that marks an order as sent when the composer posts.
     _mark_sent_context_key = ""
-    #: Context key that appends the partner name to the display name.
     _display_name_context_key = ""
-    #: Prefix of this order type's portal route, under ``/my/``.
     _portal_url_prefix = ""
-    #: ``product.product`` flag the catalog and the line product domain filter on.
     _product_ok_field = ""
 
-    #: The list/pivot/graph history `action_price_comparison` opens, as an
-    #: xml id. Concrete order models set it.
     _price_history_action = ""
 
     _STATE_TRANSITIONS = {
@@ -326,14 +306,9 @@ class MixinOrder(models.AbstractModel):
 
     @api.depends("company_id", "line_ids", "line_ids.product_id")
     def _compute_show_comparison(self):
-        # `self.line_ids._name`, not a hardcoded model: sale and purchase both
-        # reach this compute and each must count its own lines.
         Line = self.env[self.line_ids._name]
         order_by_product_by_company = {}
         for company in self.company_id:
-            # Scoped to the company: a confirmed order in another company is
-            # not a comparison this order may draw on, and an unscoped flag
-            # says one exists.
             order_by_product_by_company[company] = {
                 product: set(order_ids)
                 for product, order_ids in Line._read_group(
@@ -355,7 +330,6 @@ class MixinOrder(models.AbstractModel):
             )
 
     def action_price_comparison(self):
-        """Every other document carrying a product this order carries."""
         self.ensure_one()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             self._price_history_action,
@@ -570,16 +544,6 @@ class MixinOrder(models.AbstractModel):
 
     @api.depends("state", "date_commitment")
     def _compute_is_late(self):
-        """Answer the field with the same domain the filter searches on.
-
-        Not a second implementation of "late": concrete models refine this
-        through `_get_domain_is_late` and `_get_is_late_search_domain`, and
-        purchase's refinement is a `Domain.custom` carrying raw SQL that
-        `filtered_domain` cannot evaluate. Running the search is the only
-        way to keep the value and the filter answering the same question,
-        and a field that disagreed with its own filter is what this
-        replaces.
-        """
         self.is_late = False
         saved = self.filtered("id")._origin
         if not saved:
@@ -668,12 +632,6 @@ class MixinOrder(models.AbstractModel):
         return self.state == "cancel"
 
     def _run_check_registry(self, method_names, *args):
-        """Call each named method in turn.
-
-        Missing names raise. These registries hold guards, and a guard that
-        is listed but silently skipped is worse than one that was never
-        listed -- the list is the only record that it was meant to run.
-        """
         for method_name in method_names:
             getattr(self, method_name)(*args)
 
@@ -922,14 +880,6 @@ class MixinOrder(models.AbstractModel):
                 )
 
     def _is_locked_field_changed(self, field_name, value):
-        """Whether writing ``value`` would actually change ``field_name``.
-
-        Both sides are put through the field before they are compared. A
-        caller that sends a date as a string -- which is every JSON-RPC
-        client and every import, because a datetime cannot survive the wire
-        as anything else -- otherwise never compares equal to the stored
-        value, and a write that changes nothing is refused.
-        """
         self.ensure_one()
         field = self._fields[field_name]
         if field.type in ("many2many", "one2many"):
@@ -1065,8 +1015,6 @@ class MixinOrder(models.AbstractModel):
         if not orders:
             return {}
 
-        # `name` is read by the query as `duplicate_order.name`, so a rename
-        # made in this transaction has to reach the table before it runs.
         self.flush_model(
             ["company_id", "partner_id", "name", ref_field, "origin", "state"],
         )
@@ -1392,12 +1340,6 @@ class MixinOrder(models.AbstractModel):
         return []
 
     def _get_edi_filename(self, builder):
-        """Filename for this order's EDI attachment.
-
-        The builders belong to `account` and their hook is named for
-        invoices; an order is what we hand it. Named here once, rather
-        than the mismatch being repeated at every call site.
-        """
         self.ensure_one()
         return builder._export_invoice_filename(self)
 

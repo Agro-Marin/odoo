@@ -96,10 +96,6 @@ class MixinOrderMerge(models.AbstractModel):
         )
 
     def _merge_lines(self, target, sources, line_index):
-        # Sequences are per-order, so every source repeats the target's own
-        # numbering. Moved lines are renumbered past whatever the target
-        # already holds, in their original order; otherwise two sections both
-        # land on 10 and the merged document interleaves them.
         sequence = self._merge_next_sequence(target)
         for source in sources:
             for source_line in source.line_ids.sorted("sequence"):
@@ -126,7 +122,6 @@ class MixinOrderMerge(models.AbstractModel):
         return max(target.line_ids.mapped("sequence"), default=0) + 1
 
     def _merge_find_matching_line(self, source_line, candidates):
-        """Target lines ``source_line`` may merge into. Reads; changes nothing."""
         matches = self.env[self._get_line_model()]
         for candidate in candidates:
             if self._merge_lines_match_date(candidate, source_line):
@@ -134,14 +129,6 @@ class MixinOrderMerge(models.AbstractModel):
         return matches
 
     def _merge_collapse_matches(self, matches, candidates):
-        """Fold equivalent target lines into the first, and return it.
-
-        ``candidates`` is the index entry the matches were drawn from, and it
-        is pruned here because the folded lines are unlinked: an index still
-        holding them hands a deleted record to the next source line sharing
-        the key, and the merge dies with MissingError partway through, having
-        already moved some lines.
-        """
         if len(matches) <= 1:
             return matches[:1]
         keeper, folded = matches[0], matches[1:]

@@ -11,15 +11,9 @@ class MixinOrderLineFields(models.AbstractModel):
     _name = "mixin.order.line.fields"
     _description = "Common Order Line Fields"
 
-    #: Mirrors `mixin.order._order_type` -- direction only.
     _order_type = ""
-    #: ``product.product`` flag this line's product domain filters on.
     _product_ok_field = ""
-    #: ``account.analytic.distribution.model`` business domain for these lines.
     _analytic_business_domain = ""
-    #: What moving the goods is called for this order type -- "delivered" on a
-    #: sale, "received" on a purchase. Only user-facing prose uses it; the
-    #: field itself is `qty_transferred` on every type.
     _transfer_verb = "transferred"
 
     order_id = fields.Many2one(
@@ -208,7 +202,6 @@ class MixinOrderLineFields(models.AbstractModel):
     )
 
     def _run_check_registry(self, method_names, *args):
-        """Call each named method in turn; a missing name raises."""
         for method_name in method_names:
             getattr(self, method_name)(*args)
 
@@ -219,11 +212,6 @@ class MixinOrderLineFields(models.AbstractModel):
 
     def _domain_product_id(self):
         if self._abstract:
-            # Field descriptions are evaluated lazily, so `fields_get()` reaches
-            # this domain on the mixin itself -- from Studio, from JSON-RPC, from
-            # base's technical-guide report. There is no product-ok field there,
-            # and no records to filter either, so the honest answer is "no
-            # restriction" rather than a domain on the empty field name.
             return []
         return [(self._product_ok_field, "=", True)]
 
@@ -244,6 +232,9 @@ class MixinOrderLineFields(models.AbstractModel):
     def create(self, vals_list):
         nullify_vals = self._get_display_type_nullify_vals()
         for vals in vals_list:
+            # Guard the caller's own values: nullifying a section line writes the
+            # derived quantity itself, which the guard would otherwise refuse.
+            self._check_write_derived_quantity(vals)
             if vals.get("display_type") or self.default_get(["display_type"]).get(
                 "display_type",
             ):
@@ -415,6 +406,7 @@ class MixinOrderLineFields(models.AbstractModel):
         return [
             "_check_write_display_type",
             "_check_write_locked_order",
+            "_check_write_derived_quantity",
         ]
 
     def _is_display_type_change_allowed(self, line, new_type):

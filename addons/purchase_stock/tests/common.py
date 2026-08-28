@@ -71,7 +71,6 @@ class PurchaseTestCommon(TestStockValuationCommon):
                 }
             )
 
-    # TODO: move to stock common
     def _make_procurement(
         self, product, product_qty, date_planned=False, procurement_values=None
     ):
@@ -82,9 +81,7 @@ class PurchaseTestCommon(TestStockValuationCommon):
             "warehouse_id": self.warehouse,
             "action": "pull_push",
             "date_planned": date_planned
-            or fields.Datetime.to_string(
-                fields.Datetime.now() + timedelta(days=10)
-            ),  # 10 days added to current date of procurement to get future schedule date and order date of purchase order.
+            or fields.Datetime.to_string(fields.Datetime.now() + timedelta(days=10)),
         }
         return self.env["stock.rule"].run(
             [
@@ -101,7 +98,6 @@ class PurchaseTestCommon(TestStockValuationCommon):
             ]
         )
 
-    # TODO: move to purchase common
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

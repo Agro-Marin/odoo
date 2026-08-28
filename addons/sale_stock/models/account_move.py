@@ -7,19 +7,11 @@ from odoo.tools.misc import formatLang
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     @api.depends("line_ids.sale_line_ids.order_id.incoterm_location")
     def _compute_incoterm_location(self):
-        # base_order_stock owns the body; this override only declares the sale
-        # dependency. Odoo unions @api.depends across every override of a
-        # compute, so purchase_stock's declaration survives alongside this one.
         super()._compute_incoterm_location()
 
     def _get_order_incoterm_locations(self):
-        # Extends base_order_stock: contribute the sale orders' incoterms.
         return [
             *super()._get_order_incoterm_locations(),
             *self.line_ids.sale_line_ids.order_id.mapped("incoterm_location"),
@@ -27,7 +19,6 @@ class AccountMove(models.Model):
 
     @api.depends("line_ids.sale_line_ids.order_id.date_effective")
     def _compute_delivery_date(self):
-        # EXTENDS 'account'
         super()._compute_delivery_date()
         for move in self:
             sale_order_date_effective = list(
@@ -39,15 +30,10 @@ class AccountMove(models.Model):
             date_effective_res = (
                 max(sale_order_date_effective) if sale_order_date_effective else False
             )
-            # if multiple sale order we take the bigger date_effective
             if date_effective_res:
                 move.delivery_date = fields.Datetime.context_timestamp(
                     move, date_effective_res
                 )
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_anglo_saxon_price_ctx(self):
         ctx = super()._get_anglo_saxon_price_ctx()
@@ -57,7 +43,6 @@ class AccountMove(models.Model):
         return dict(ctx, move_is_downpayment=move_is_downpayment)
 
     def _get_invoiced_lot_values(self):
-        """Get and prepare data to show a table of invoiced lot on the invoice's report."""
         self.ensure_one()
 
         res = super()._get_invoiced_lot_values()
@@ -92,8 +77,6 @@ class AccountMove(models.Model):
         invoiced_products = invoiced_qties.keys()
 
         if self.move_type == "out_invoice":
-            # filter out the invoices that have been fully refund and re-invoice otherwise, the quantities would be
-            # consumed by the reversed invoice and won't be print on the new draft invoice
             previous_amls = previous_amls.filtered(
                 lambda aml: aml.move_id.payment_state != "reversed",
             )
@@ -101,7 +84,6 @@ class AccountMove(models.Model):
         previous_qties_invoiced = previous_amls._get_invoiced_qty_per_product()
 
         if self.move_type == "out_refund":
-            # we swap the sign because it's a refund, and it would print negative number otherwise
             for p in previous_qties_invoiced:
                 previous_qties_invoiced[p] = -previous_qties_invoiced[p]
             for p in invoiced_qties:
@@ -127,8 +109,6 @@ class AccountMove(models.Model):
                 sml.quantity, product_uom_id
             )
 
-            # is it a stock return considering the document type (should it be it thought of as positively or negatively?)
-            # dropship returns use 'supplier' locations instead of 'internal', so both are accepted.
             is_stock_return = (
                 self.move_type == "out_invoice"
                 and sml.location_id.usage == "customer"
@@ -146,9 +126,6 @@ class AccountMove(models.Model):
 
             previous_qty_invoiced = previous_qties_invoiced[product]
             previous_qty_transferred = previous_qties_delivered[product]
-            # If we return more than currently delivered (i.e., quantity < 0), we remove the surplus
-            # from the previously delivered (and quantity becomes zero). If it's a delivery, we first
-            # try to reach the previous_qty_invoiced
             if (
                 product_uom_id.compare(quantity, 0) < 0
                 or product_uom_id.compare(
@@ -167,8 +144,6 @@ class AccountMove(models.Model):
             qties_per_lot[sml.lot_id] += quantity
 
         for lot, qty in qties_per_lot.items():
-            # access the lot as a superuser in order to avoid an error
-            # when a user prints an invoice without having the stock access
             lot = lot.sudo()
 
             if (
@@ -187,7 +162,6 @@ class AccountMove(models.Model):
                     ),
                     "uom_name": lot.product_uom_id.name,
                     "lot_name": lot.name,
-                    # The lot id is needed by localizations to inherit the method and add custom fields on the invoice's report.
                     "lot_id": lot.id,
                 },
             )
@@ -196,7 +170,6 @@ class AccountMove(models.Model):
 
     def _get_protected_vals(self, vals, records):
         res = super()._get_protected_vals(vals, records)
-        # `delivery_date` should be protected on any account.move/account.move.line write
         perma_protected = {self._fields["delivery_date"]}
 
         if records._name == self._name:
@@ -207,8 +180,6 @@ class AccountMove(models.Model):
         return res
 
     def _stock_account_get_last_step_stock_moves(self):
-        """Overridden from stock_account.
-        Returns the stock moves associated to this invoice."""
         rslt = super()._stock_account_get_last_step_stock_moves()
         for invoice in self:
             if invoice.move_type not in ["out_invoice", "out_refund"]:
@@ -231,7 +202,6 @@ class AccountMove(models.Model):
                 ).filtered(
                     lambda x: x.state == "done" and x.location_id.usage == "customer",
                 )
-                # Add refunds generated from the SO
                 rslt += invoice.mapped(
                     "invoice_line_ids.sale_line_ids.move_ids",
                 ).filtered(

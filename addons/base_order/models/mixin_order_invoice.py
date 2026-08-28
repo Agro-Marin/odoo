@@ -87,14 +87,6 @@ class MixinOrderInvoice(models.AbstractModel):
             order.invoice_count = len(invoice_ids)
 
     def _search_invoice_ids(self, operator, value):
-        """Orders whose invoices match, with ``False`` meaning "not invoiced".
-
-        One domain, expressed through the ORM. The raw-SQL fast path this
-        replaces answered the ordinary case with the same rows for 1.17x the
-        speed at 60 orders, and got the mixed case wrong: it ANDed its two
-        halves, so `[an invoice, False]` asked for orders that both carry that
-        invoice and carry no invoice at all, and matched nothing every time.
-        """
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
         move_types = self._get_invoice_move_types()

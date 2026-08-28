@@ -5,13 +5,9 @@ from odoo.fields import Domain
 class ProductReplenish(models.TransientModel):
     _inherit = "product.replenish"
 
-    # ------------------------------------------------------------
-    # CORE METHODS
-    # ------------------------------------------------------------
-
     @api.model
-    def default_get(self, fields):
-        res = super().default_get(fields)
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
         if res.get("product_id"):
             product_id = self.env["product.product"].browse(res["product_id"])
             product_tmpl_id = product_id.product_tmpl_id
@@ -44,22 +40,14 @@ class ProductReplenish(models.TransientModel):
                 res["supplier_id"] = orderpoint.supplier_id.id
         return res
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     @api.depends("route_id", "supplier_id")
     def _compute_date_planned(self):
         super()._compute_date_planned()
         for rec in self:
-            if "buy" in rec.route_id.rule_ids.mapped("action"):
+            if rec.route_id._has_buy_rule():
                 rec.date_planned = rec._get_date_planned(
                     rec.route_id, supplier=rec.supplier_id, show_vendor=rec.show_vendor
                 )
-
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     @api.onchange("route_id")
     def _onchange_supplier_id(self):
@@ -71,10 +59,6 @@ class ProductReplenish(models.TransientModel):
             self.supplier_id = self.product_tmpl_id.seller_ids[0].id
         elif not self.show_vendor:
             self.supplier_id = False
-
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_stock_replenishment_info(self):
         self.ensure_one()
@@ -100,10 +84,6 @@ class ProductReplenish(models.TransientModel):
         }
         return action
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _get_record_to_notify(self, date):
         order_line = self.env["purchase.order.line"].search(
             [("write_date", ">=", date), ("product_id", "=", self.product_id.id)],
@@ -124,7 +104,7 @@ class ProductReplenish(models.TransientModel):
 
     def _get_date_planned(self, route, **kwargs):
         date = super()._get_date_planned(route, **kwargs)
-        if "buy" not in route.rule_ids.mapped("action"):
+        if not route._has_buy_rule():
             return date
 
         supplier = kwargs.get("supplier")
@@ -139,16 +119,8 @@ class ProductReplenish(models.TransientModel):
     def _get_route_domain(self, product_tmpl_id):
         domain = super()._get_route_domain(product_tmpl_id)
         company = product_tmpl_id.company_id or self.env.company
-        buy_route = (
-            self.env["stock.rule"]
-            .search(
-                [
-                    ("action", "=", "buy"),
-                    ("company_id", "=", company.id),
-                    ("picking_type_id.code", "=", "incoming"),
-                ]
-            )
-            .route_id
+        buy_route = self.env["stock.rule"]._get_buy_routes(
+            company=company, picking_code="incoming"
         )
         if buy_route and product_tmpl_id.seller_ids:
             domain = Domain.OR([domain, Domain("id", "in", buy_route.ids)])
@@ -158,5 +130,4 @@ class ProductReplenish(models.TransientModel):
         res = super()._prepare_run_values()
         if self.supplier_id:
             res["supplierinfo_id"] = self.supplier_id
-            # res['partner_id'] = self.supplier_id.partner_id
         return res

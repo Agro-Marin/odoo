@@ -7,8 +7,6 @@ from odoo import api, fields, models
 from odoo.fields import Domain
 from odoo.libs.numbers import float_round
 
-# `suggested_qty` is compared in Python by its search method; membership
-# operators have no meaning against a scalar quantity and are declined.
 _SUGGESTED_QTY_OPERATORS = {
     "=": py_operator.eq,
     "!=": py_operator.ne,
@@ -26,7 +24,7 @@ class ProductProduct(models.Model):
         comodel_name="purchase.order.line",
         inverse_name="product_id",
         string="PO Lines",
-    )  # used to compute quantities
+    )
     monthly_demand = fields.Float(
         compute="_compute_monthly_demand",
     )
@@ -37,10 +35,6 @@ class ProductProduct(models.Model):
     suggest_estimated_price = fields.Float(
         compute="_compute_suggest_estimated_price",
     )
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends_context(
         "suggest_based_on",
@@ -67,9 +61,7 @@ class ProductProduct(models.Model):
             for product in self:
                 if product.monthly_demand <= 0:
                     continue
-                monthly_ratio = ctx.get("suggest_days", 0) / (
-                    365.25 / 12
-                )  # eg. 7 days / (365.25 days/yr / 12 mth/yr) = 0.23 months
+                monthly_ratio = ctx.get("suggest_days", 0) / (365.25 / 12)
                 qty = (
                     product.monthly_demand
                     * monthly_ratio
@@ -104,7 +96,6 @@ class ProductProduct(models.Model):
         for product in self:
             if product.suggested_qty <= 0:
                 continue
-            # Get lowest price pricelist for suggested_qty or lowest min_qty pricelist
             seller = product._select_seller(
                 quantity=product.suggested_qty,
                 **seller_args,
@@ -155,15 +146,10 @@ class ProductProduct(models.Model):
         elif based_on in {"three_months", "last_year_quarter"}:
             factor = 3
         elif based_on == "one_week":
-            # 7 days / (365.25 days/yr / 12 mth/yr) = 0.23 months
             factor = 7 / (365.25 / 12)
 
         for product in self:
             product.monthly_demand = qty_by_product.get(product.id, 0) / factor
-
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
 
     def _search_product_with_suggested_quantity(self, operator, value):
         if operator not in _SUGGESTED_QTY_OPERATORS:
@@ -173,13 +159,6 @@ class ProductProduct(models.Model):
             self.env.context.get("suggest_domain") or [("type", "=", "consu")]
         )
 
-        # The search below re-enters _search, so any `suggested_qty` condition
-        # left in the domain would resolve through this very method again. It
-        # has to be neutralised wherever it sits, not only where a flat scan can
-        # reach: a list comprehension over the domain's elements inspects
-        # `c[0]`, which is an operator string for '&'/'|' and never a field
-        # name, so a nested condition slipped through and recursed until the
-        # optimiser gave up with "Domain nesting too deep to optimize".
         def drop_self_reference(condition):
             if condition.field_expr == "suggested_qty":
                 return Domain.TRUE
@@ -188,20 +167,11 @@ class ProductProduct(models.Model):
         safe_search_domain = search_domain.map_conditions(drop_self_reference)
         products = self.search_fetch(safe_search_domain, ["suggested_qty"])
 
-        # Compare the computed values here rather than through filtered_domain.
-        # `suggested_qty` is not stored and carries a `search=`, so a domain
-        # naming it resolves through THIS method -- filtered_domain would call
-        # its own caller, and the optimiser eventually gives up with "Domain
-        # nesting too deep to optimize".
         compare = _SUGGESTED_QTY_OPERATORS[operator]
         ids = [
             product.id for product in products if compare(product.suggested_qty, value)
         ]
         return [("id", "in", ids)]
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_lines_domain(self, location_ids=False, warehouse_ids=False):
         domains = []
@@ -252,11 +222,6 @@ class ProductProduct(models.Model):
 
     @api.model
     def _get_monthly_demand_moves_location_domain(self):
-        """Returns a domain on stock moves coming from the selected warehouse that are:
-            - going to customer locations or used in production
-            - going to other warehouses (eg. central warehouse dispatching to stores)
-        (We don't include returns in demand estimation - they come back on hand)
-        """
         warehouse_id = self.env.context.get("warehouse_id")
         non_return_moves_domain = [
             "!",
@@ -289,8 +254,8 @@ class ProductProduct(models.Model):
                             [("location_dest_id.warehouse_id", "!=", warehouse_id)],
                             [("location_final_id.warehouse_id", "!=", warehouse_id)],
                         ],
-                    ),  # includes moves going to customer or production
-                    [("location_dest_id.usage", "!=", "inventory")],  # exclude scrap
+                    ),
+                    [("location_dest_id.usage", "!=", "inventory")],
                     non_return_moves_domain,
                 ],
             )
@@ -299,14 +264,14 @@ class ProductProduct(models.Model):
         start_date = limit_date = datetime.now()
 
         if not based_on or based_on in {"actual_demand", "30_days"}:
-            start_date -= relativedelta(days=30)  # Default monthly demand
+            start_date -= relativedelta(days=30)
         elif based_on == "one_week":
             start_date -= relativedelta(weeks=1)
         elif based_on == "three_months":
             start_date -= relativedelta(months=3)
         elif based_on == "one_year":
             start_date -= relativedelta(years=1)
-        else:  # Relative period of time.
+        else:
             today = datetime.now()
             start_date = datetime(year=today.year - 1, month=today.month, day=1)
 
@@ -366,7 +331,7 @@ class ProductProduct(models.Model):
 
     def _get_total_routes_by_product(self):
         result = super()._get_total_routes_by_product()
-        buy_routes = self.env["stock.rule"].search([("action", "=", "buy")]).route_id
+        buy_routes = self.env["stock.rule"]._get_buy_routes()
         if buy_routes:
             for product in self:
                 if product.seller_ids:
@@ -378,10 +343,6 @@ class ProductProduct(models.Model):
             self.env.context.get("suggest_based_on")
             and "suggest_days" in self.env.context
         ):
-            # The demand suggestion on the Kanban card forecasts to the end of the
-            # suggestion window. `from_date` is deliberately left alone, so the
-            # read still covers every past delivery -- which is what the six
-            # re-listed parameters this replaced were mostly there to say.
             filters = filters._replace(
                 to_date=fields.Datetime.now()
                 + relativedelta(days=self.env.context.get("suggest_days")),
@@ -391,12 +352,4 @@ class ProductProduct(models.Model):
         )
 
     def _get_order_lead_days(self, delays):
-        """The days between placing the order and the planned date.
-
-        `purchase_delay` is written here and by `mrp_subcontracting_purchase`,
-        and nowhere else. Stock's `_get_dates_info` used to subscript the key
-        itself -- on a `defaultdict`, so it invented the entry as a side effect
-        and a database without this module silently got zero from a line that
-        looked like it was reading something.
-        """
         return delays.get("purchase_delay", 0.0)

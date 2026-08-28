@@ -9,10 +9,7 @@ from .common import PurchaseTestCommon
 
 class TestPurchaseLeadTime(PurchaseTestCommon):
     def test_00_product_company_level_delays(self):
-        """To check dates, set product's Delivery Lead Time
-        and company's Purchase Lead Time."""
         self._use_route_buy(self.product)
-        # Make procurement request from product_1's form view, create procurement and check it's state
         date_planned = fields.Datetime.now() + timedelta(days=10)
         self._make_procurement(self.product, 15.00, date_planned=date_planned)
         purchase = (
@@ -21,10 +18,8 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             .order_id
         )
 
-        # Confirm purchase order
         purchase.action_confirm()
 
-        # Check order date of purchase order
         order_date = fields.Datetime.from_string(date_planned) - timedelta(
             days=self.product.seller_ids.delay
         )
@@ -34,7 +29,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             "Order date should be equal to: Date of the procurement order - Purchase Lead Time - Delivery Lead Time.",
         )
 
-        # Check scheduled date of purchase order
         schedule_date = order_date + timedelta(days=self.product.seller_ids.delay)
         self.assertEqual(
             purchase.line_ids.date_commitment,
@@ -42,10 +36,8 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             "Schedule date should be equal to: Order date of Purchase order + Delivery Lead Time.",
         )
 
-        # check the picking created or not
         self.assertTrue(purchase.picking_ids, "Picking should be created.")
 
-        # Check scheduled and deadline date of In Type shipment
         self.assertEqual(
             purchase.picking_ids.date_planned,
             schedule_date,
@@ -58,13 +50,9 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         )
 
     def test_01_product_level_delay(self):
-        """To check schedule dates of multiple purchase order line of the same purchase order,
-        we create two procurements for the two different product with same vendor
-        and different Delivery Lead Time."""
         self._use_route_buy(self.product)
         self.product_2 = self.product.copy()
         self._use_route_buy(self.product_2)
-        # Make procurement request from product_1's form view, create procurement and check it's state
         date_planned1 = fields.Datetime.now() + timedelta(days=5)
         self._make_procurement(self.product, 10.00, date_planned=date_planned1)
         purchase1 = (
@@ -73,7 +61,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             .order_id
         )
 
-        # Make procurement request from product_2's form view, create procurement and check it's state
         date_planned2 = fields.Datetime.now() + timedelta(days=10)
         self._make_procurement(self.product_2, 5.00, date_planned=date_planned2)
         purchase2 = (
@@ -82,17 +69,14 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             .order_id
         )
 
-        # Check purchase order is same or not
         self.assertEqual(
             purchase1,
             purchase2,
             "Purchase orders should be same for the two different product with same vendor.",
         )
 
-        # Confirm purchase order
         purchase1.action_confirm()
 
-        # Check order date of purchase order
         order_line_pro_1 = purchase2.line_ids.filtered(
             lambda r: r.product_id == self.product
         )
@@ -106,24 +90,20 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             "Order date should be equal to: Date of the procurement order - Delivery Lead Time.",
         )
 
-        # Check scheduled date of purchase order line for product_1
         self.assertEqual(
             order_line_pro_1.date_commitment,
             date_planned1,
             "Schedule date of purchase order line for product_1 should be equal to: Order date of purchase order + Delivery Lead Time of product_1.",
         )
 
-        # Check scheduled date of purchase order line for product_2
         self.assertEqual(
             order_line_pro_2.date_commitment,
             date_planned2,
             "Schedule date of purchase order line for product_2 should be equal to: Order date of purchase order + Delivery Lead Time of product_2.",
         )
 
-        # Check the picking created or not
         self.assertTrue(purchase2.picking_ids, "Picking should be created.")
 
-        # Check scheduled date of In Type shipment
         picking_schedule_date = min(date_planned1, date_planned2)
         self.assertEqual(
             purchase2.picking_ids.date_planned,
@@ -131,7 +111,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             "Schedule date of In type shipment should be same as schedule date of purchase order.",
         )
 
-        # Check deadline of pickings
         self.assertEqual(
             fields.Date.to_date(purchase2.picking_ids.date_deadline),
             fields.Date.to_date(purchase1.date_commitment),
@@ -147,15 +126,11 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         )
 
     def test_02_product_level_delay(self):
-        """To check schedule dates of multiple purchase order line of the same purchase order,
-        we create two procurements for the two different product with same vendor
-        and different supplier Lead Time. Vendor grouping rfq option is 'by day'."""
         self._use_route_buy(self.product)
         self.product_2 = self.product.copy()
         self._use_route_buy(self.product_2)
 
         self.vendor.group_rfq = "day"
-        # Make procurement request from product_1's form view, create procurement and check it's state
         date_planned = fields.Datetime.now()
         ref1, ref2 = self.env["stock.reference"].create(
             [
@@ -175,7 +150,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             .order_id
         )
 
-        # Make procurement request from product_2's form view, create procurement and check it's state
         self._make_procurement(
             self.product_2,
             5.00,
@@ -188,17 +162,14 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             .order_id
         )
 
-        # Check purchase order is same or not
         self.assertEqual(
             purchase1,
             purchase2,
             "Purchase orders should be same for the two different product with same vendor.",
         )
 
-        # Confirm purchase order
         purchase1.action_confirm()
 
-        # Check order date of purchase order
         order_line_pro_1 = purchase1.line_ids.filtered(
             lambda r: r.product_id == self.product
         )
@@ -219,14 +190,12 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             "Deadline date should be equal to: Date of the procurement order - max Lead Time.",
         )
 
-        # Check scheduled date of purchase order line for product_1
         self.assertEqual(
             order_line_pro_1.date_commitment,
             date_planned,
             "Schedule date of purchase order line for product_1 should be equal to: Order date of purchase order + Delivery Lead Time of product_1.",
         )
 
-        # Check scheduled date of purchase order line for product_2
         self.assertEqual(
             order_line_pro_2.date_commitment,
             date_planned,
@@ -235,25 +204,13 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
 
     @freeze_time("2025-09-10 10:00:00")
     def test_03_group_week(self):
-        """Make the rfq for the supplier group by week on a specific day. Check the planned date
-        and deadline date are compute accordingly.
-
-        8(Mon) -- 9(Tue) -- 10(Wed) -- 11(Thu) -- 12(Fri) -- 13(Sat) -- 14(Sun)
-                            today                 planned 1  planned 2
-
-        15(Mon) -- 16(Tue) -- 17(Wed) -- 18(Thu) -- 19(Fri) -- 20(Sat) -- 21(Sun)
-                   PO
-
-
-        """
         self._use_route_buy(self.product)
         self.product.seller_ids.delay = 0
         self.product_2 = self.product.copy()
         self._use_route_buy(self.product_2)
         self.product_2.seller_ids.delay = 2
         self.vendor.group_rfq = "week"
-        self.vendor.group_on = "2"  # Tuesday
-        # Make procurement request from product_1's form view, create procurement and check it's state
+        self.vendor.group_on = "2"
         date_planned = fields.Datetime.now() + timedelta(days=2)
         ref1, ref2 = self.env["stock.reference"].create(
             [
@@ -273,7 +230,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             .order_id
         )
 
-        # Make procurement request from product_2's form view, create procurement and check it's state
         date_planned = fields.Datetime.now() + timedelta(days=3)
         self._make_procurement(
             self.product_2,
@@ -295,8 +251,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
 
         purchase1.action_confirm()
 
-        # Check date deadline and date planned of purchase order. Supplier of product 2 has a delay of 2 days.
-        # The purchase order is planned on Tuesday 16th, so the date deadline is 2 days before, on Sunday 14th.
         date_p = fields.Datetime.from_string("2025-09-16 10:00:00")
         date_d = fields.Datetime.from_string("2025-09-14 10:00:00")
         self.assertRecordValues(
@@ -317,9 +271,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         )
 
     def test_merge_po_line(self):
-        """Change that merging po line for same procurement is done."""
-
-        # create a product with manufacture route
         product_1 = self.env["product.product"].create(
             {
                 "name": "AAA",
@@ -330,8 +281,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             }
         )
 
-        # create a move for product_1 from stock to output and reserve to trigger the
-        # rule
         move_1 = self.env["stock.move"].create(
             {
                 "product_id": product_1.id,
@@ -377,7 +326,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         )
 
     def test_merge_po_line_3(self):
-        """Change merging po line if same procurement is done depending on custom values."""
         self.t_shirt = self.env["product.product"].create(
             {
                 "name": "T-shirt",
@@ -385,7 +333,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             }
         )
         self._use_route_buy(self.t_shirt)
-        # The seller has a specific product name and code which must be kept in the PO line
         self.t_shirt.seller_ids.write(
             {
                 "delay": 5,
@@ -400,7 +347,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         )
         t_shirt.description_pickingin = "Receive with care"
 
-        # Create procurement order of product_1
         StockRule = self.env["stock.rule"]
         procurement_values = {
             "warehouse_id": self.warehouse,
@@ -529,7 +475,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
 
         self.company.days_to_purchase = 2.0
 
-        # Test if the orderpoint is created when opening the replenishment view
         prod = self.env["product.product"].create(
             {
                 "name": "Carrot",
@@ -556,7 +501,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
                 "location_dest_id": self.customer_location.id,
             }
         )._action_confirm()
-        self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
         replenishment = self.env["stock.warehouse.orderpoint"].search(
             [
                 ("product_id", "=", prod.id),
@@ -564,7 +509,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         )
         self.assertEqual(len(replenishment), 1)
 
-        # Test if purchase orders are created according to the days to purchase
         product = self.env["product.product"].create(
             {
                 "name": "Chicory",
@@ -647,7 +591,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         )
 
     def test_supplier_lead_time(self):
-        """Basic stock configuration and a supplier with a minimum qty and a lead time"""
         self.env["stock.warehouse.orderpoint"].search([]).unlink()
         orderpoint_form = Form(self.env["stock.warehouse.orderpoint"])
         orderpoint_form.product_id = self.product
@@ -678,9 +621,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         self.assertEqual(purchase_order.date_commitment, today + timedelta(days=7))
 
     def test_lead_time_with_no_supplier(self):
-        """Test that lead time is incremented by 365 days (1 year) when there
-        is no supplier defined on a product with buy route.
-        """
         self._use_route_buy(self.product, create_seller=False)
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {

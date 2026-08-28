@@ -6,8 +6,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestPurchaseMrpMoOverview(AccountTestInvoicingCommon):
-    """MO Overview report surfacing the purchase orders that feed MTO components."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -71,7 +69,6 @@ class TestPurchaseMrpMoOverview(AccountTestInvoicingCommon):
         cls.report = cls.env["report.mrp.report_mo_overview"]
 
     def test_extra_replenishments_lists_feeding_purchase(self):
-        """The confirmed PO feeding the MTO component is an extra replenishment."""
         self.assertEqual(len(self.purchase), 1)
         extra = self.report._get_extra_replenishments(self.component)
         po_entries = [
@@ -85,7 +82,6 @@ class TestPurchaseMrpMoOverview(AccountTestInvoicingCommon):
         self.assertGreater(entry["quantity"], 0)
 
     def test_report_data_builds_with_purchase_origin(self):
-        """The full MO overview builds and traces the component back to its PO."""
         self.env.flush_all()
         data = self.report._get_report_data(self.production.id)
         self.assertIn("components", data)
@@ -93,7 +89,6 @@ class TestPurchaseMrpMoOverview(AccountTestInvoicingCommon):
         self.assertIn(self.component.display_name, component_names)
 
     def test_extra_replenishments_drops_confirmed_purchase(self):
-        """Once the PO is confirmed it silently drops out of extra replenishments."""
         self.purchase.action_confirm()
 
         extra = self.report._get_extra_replenishments(self.component)

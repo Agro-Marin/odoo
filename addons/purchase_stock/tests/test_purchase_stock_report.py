@@ -5,7 +5,6 @@ from odoo.addons.stock.tests.test_report import TestReportsCommon
 
 class TestPurchaseStockReports(TestReportsCommon):
     def test_report_forecast_1_purchase_order_multi_receipt(self):
-        """Create a PO for 5 product, receive them then increase the quantity to 10."""
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.partner
         with po_form.line_ids.new() as line:
@@ -13,7 +12,6 @@ class TestPurchaseStockReports(TestReportsCommon):
             line.product_qty = 5
         po = po_form.save()
 
-        # Checks the report.
         _, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
@@ -27,7 +25,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(draft_purchase_qty, 5)
         self.assertEqual(pending_qty_in, 5)
 
-        # Confirms the PO and checks the report again.
         po.action_confirm()
         _, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
@@ -45,7 +42,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(draft_purchase_qty, 0)
         self.assertEqual(pending_qty_in, 0)
 
-        # Receives 5 products.
         receipt = po.picking_ids
         receipt.button_validate()
         _, docs, lines = self.get_report_forecast(
@@ -61,12 +57,10 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(draft_purchase_qty, 0)
         self.assertEqual(pending_qty_in, 0)
 
-        # Increase the PO quantity to 10, so must create a second receipt.
         po_form = Form(po)
         with po_form.line_ids.edit(0) as line:
             line.product_qty = 10
         po = po_form.save()
-        # Checks the report.
         _, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
@@ -83,14 +77,10 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(pending_qty_in, 0)
 
     def test_report_forecast_2_purchase_order_three_step_receipt(self):
-        """Create a PO for 4 product, receive them then increase the quantity
-        to 10, but use three steps receipt.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         grp_multi_routes = self.env.ref("stock.group_adv_location")
         self.env.user.write({"group_ids": [(4, grp_multi_loc.id)]})
         self.env.user.write({"group_ids": [(4, grp_multi_routes.id)]})
-        # Configure warehouse.
         warehouse = self.env.ref("stock.warehouse0")
         warehouse.reception_steps = "three_steps"
 
@@ -101,7 +91,6 @@ class TestPurchaseStockReports(TestReportsCommon):
             line.product_qty = 4
         po = po_form.save()
 
-        # Checks the report -> Must be empty for now, just display some pending qty.
         _, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
@@ -115,7 +104,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(draft_purchase_qty, 4)
         self.assertEqual(pending_qty_in, 4)
 
-        # Confirms the PO and checks the report again.
         po.action_confirm()
         _, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
@@ -132,10 +120,8 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(draft_picking_qty_in, 0)
         self.assertEqual(draft_purchase_qty, 0)
         self.assertEqual(pending_qty_in, 0)
-        # Get back the different transfers.
         receipt = po.picking_ids
 
-        # Receives 4 products.
         receipt.button_validate()
         _, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
@@ -150,12 +136,10 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(draft_purchase_qty, 0)
         self.assertEqual(pending_qty_in, 0)
 
-        # Increase the PO quantity to 10, so must create a second receipt.
         po_form = Form(po)
         with po_form.line_ids.edit(0) as line:
             line.product_qty = 10
         po = po_form.save()
-        # Checks the report.
         _, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
@@ -172,8 +156,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(pending_qty_in, 0)
 
     def test_report_forecast_3_report_line_corresponding_to_po_line_highlighted(self):
-        """When accessing the report from a PO line, checks if the correct PO line is highlighted in the report"""
-        # We create 2 identical PO
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.partner
         with po_form.line_ids.new() as line:
@@ -184,7 +166,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         po2 = po1.copy()
         po2.action_confirm()
 
-        # Check for both PO if the highlight (is_matched) corresponds to the correct PO
         for po in [po1, po2]:
             context = po.line_ids[0].action_product_forecast_report()["context"]
             _, _, lines = self.get_report_forecast(
@@ -203,11 +184,6 @@ class TestPurchaseStockReports(TestReportsCommon):
                     )
 
     def test_vendor_delay_report_with_uom(self):
-        """
-        PO 12 units x P
-        Receive 1 dozen x P
-        -> 100% received
-        """
         uom_12 = self.env.ref("uom.product_uom_dozen")
 
         po_form = Form(self.env["purchase.order"])
@@ -248,13 +224,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(data["on_time_rate:sum"], 100)
 
     def test_vendor_delay_report_with_multi_location(self):
-        """
-        PO 10 units x P
-        Receive
-            - 6 x P in Child Location 01
-            - 4 x P in Child Location 02
-        -> 100% received
-        """
         if not self.stock_location.child_ids:
             self.env["stock.location"].create(
                 [
@@ -321,13 +290,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(data["on_time_rate:sum"], 100)
 
     def test_vendor_delay_report_with_backorder(self):
-        """
-        PO 10 units x P
-        Receive 6 x P with backorder
-        -> 60% received
-        Process the backorder
-        -> 100% received
-        """
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.partner
         with po_form.line_ids.new() as line:
@@ -366,15 +328,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         self.assertEqual(data["on_time_rate:sum"], 100)
 
     def test_vendor_delay_report_without_backorder(self):
-        """
-        PO with two lines:
-        - 10 units of product with category
-        - 10 units of product without category
-        Receive 6 units for each line without backorder
-        -> 60% received for each product.
-        The vendor delay report should include both products
-        even if one has no category.
-        """
         product_no_categ = self.env["product.product"].create(
             {
                 "name": "Product without category",
@@ -413,12 +366,6 @@ class TestPurchaseStockReports(TestReportsCommon):
         )
 
     def test_vendor_delay_report_with_duplicate_receipt_without_backorder(self):
-        """
-        PO 10 units x P
-        Receive 6 x P without backorder
-        Duplicate picking with remaining 4 x P
-        -> 100% received
-        """
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.partner
         with po_form.line_ids.new() as line:

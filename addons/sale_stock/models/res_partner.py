@@ -7,10 +7,6 @@ from odoo import api, fields, models
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     sale_line_ids = fields.One2many(
         comodel_name="sale.order.line",
         inverse_name="partner_id",
@@ -22,10 +18,6 @@ class ResPartner(models.Model):
         help="Over the past x days; the number of products delivered on time to this customer divided by the number of ordered products. "
         "x is either the System Parameter sale_stock.on_time_delivery_days or the default 365",
     )
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("sale_line_ids")
     def _compute_customer_on_time_rate(self):
@@ -46,7 +38,7 @@ class ResPartner(models.Model):
                     fields.Date.today() - timedelta(date_order_days_delta),
                 ),
                 ("qty_transferred", "!=", 0),
-                ("order_id.state", "=", "sale"),
+                ("order_id.state", "=", "done"),
                 (
                     "product_id",
                     "in",
@@ -60,7 +52,6 @@ class ResPartner(models.Model):
         moves = self.env["stock.move"].search(
             [("sale_line_id", "in", order_lines.ids), ("state", "=", "done")],
         )
-        # Fetch fields from db and put them in cache.
         order_lines.read(["order_id", "partner_id", "product_uom_qty"], load="")
         order_lines.order_id.read(["date_commitment"], load="")
         moves.read(["sale_line_id", "date"], load="")
@@ -70,8 +61,14 @@ class ResPartner(models.Model):
                 and m.date.date() <= m.sale_line_id.order_id.date_commitment.date()
             ),
         )
-        for move, quantity in zip(moves, moves.mapped("quantity"), strict=False):
-            lines_quantity[move.sale_line_id.id] += quantity
+        for move in moves:
+            lines_quantity[move.sale_line_id.id] += (
+                move.product_uom_id._compute_quantity(
+                    move.quantity,
+                    move.product_id.uom_id,
+                    rounding_method="HALF-UP",
+                )
+            )
         partner_dict = {}
         for line in order_lines:
             on_time, ordered = partner_dict.get(line.partner_id, (0, 0))
@@ -82,7 +79,5 @@ class ResPartner(models.Model):
         for partner, numbers in partner_dict.items():
             seen_partner |= partner
             on_time, ordered = numbers
-            partner.customer_on_time_rate = (
-                on_time / ordered * 100 if ordered else -1
-            )  # use negative number to indicate no data
+            partner.customer_on_time_rate = on_time / ordered * 100 if ordered else -1
         (self - seen_partner).customer_on_time_rate = -1

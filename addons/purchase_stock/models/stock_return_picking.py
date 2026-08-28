@@ -6,9 +6,6 @@ class StockReturnPickingLine(models.TransientModel):
 
     def _prepare_move_default_values(self, new_picking):
         vals = super()._prepare_move_default_values(new_picking)
-        # Vendor return: the return move is destined for a supplier location.
-        # Link it back to the originating purchase line so the PO's received
-        # quantity is decremented and the vendor partner is carried over.
         location_dest = self.env["stock.location"].browse(vals["location_dest_id"])
         if location_dest.usage == "supplier":
             vals["purchase_line_id"], vals["partner_id"] = (
@@ -19,10 +16,6 @@ class StockReturnPickingLine(models.TransientModel):
 
 class StockReturnPicking(models.TransientModel):
     _inherit = "stock.return.picking"
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _create_return(self):
         picking = super()._create_return()

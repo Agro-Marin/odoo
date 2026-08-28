@@ -9,9 +9,6 @@ from .common import PurchaseTestCommon
 class TestPurchaseOrderProcess(PurchaseTestCommon):
     @users("purchase_user")
     def test_00_cancel_purchase_order_flow(self):
-        """Test cancel purchase order with group user."""
-
-        # In order to test the cancel flow,start it from canceling confirmed purchase order.
         purchase_order = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,
@@ -28,27 +25,21 @@ class TestPurchaseOrderProcess(PurchaseTestCommon):
             }
         )
 
-        # Confirm the purchase order.
         purchase_order.action_confirm()
 
-        # Check the "Approved" status  after confirmed RFQ.
         self.assertEqual(
             purchase_order.state, "done", 'Purchase: PO state should be "Purchase'
         )
 
-        # First cancel receptions related to this order if order shipped.
         purchase_order.picking_ids.action_cancel()
 
-        # Able to cancel purchase order.
         purchase_order.action_cancel()
 
-        # Check that order is cancelled.
         self.assertEqual(
             purchase_order.state, "cancel", 'Purchase: PO state should be "Cancel'
         )
 
     def test_02_vendor_delay_report_partially_cancelled_purchase_order(self):
-        """Test vendor delay reports for partially cancelled purchase order"""
         self.product_2 = self.product.copy()
         purchase_order = self.env["purchase.order"].create(
             {
@@ -78,7 +69,6 @@ class TestPurchaseOrderProcess(PurchaseTestCommon):
             [("partner_id", "=", self.vendor.id)], ["product_id"], ["on_time_rate:sum"]
         )
         self.assertEqual([rec[1] for rec in delay_reports], [0.0, 0.0])
-        # cancel the first part of the PO
         purchase_order.line_ids.filtered(
             lambda l: l.product_id == self.product
         ).product_qty = 0
@@ -115,9 +105,6 @@ class TestPurchaseOrderProcess(PurchaseTestCommon):
         self.assertEqual([rec[1] for rec in delay_reports], [100.0])
 
     def test_cancel_redraft_fulfilled(self):
-        """Test whether cancelling a fulfilled purchase order will leave
-        the done picking intact and redrafting it will not create a new
-        picking."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,
@@ -159,11 +146,6 @@ class TestPurchaseOrderProcess(PurchaseTestCommon):
         )
 
     def test_cancel_redraft_backordered(self):
-        """Test whether cancelling a partially fulfilled purchase order and
-        redrafting it will create a backorder with the remaining undelivered
-        quantity, and that cancelling the order will propagate to the
-        unfulfilled backorder as well. Redrafting the PO should create a
-        new picking to compensate for the quantity left undelivered."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,
@@ -179,13 +161,11 @@ class TestPurchaseOrderProcess(PurchaseTestCommon):
         )
         po.action_confirm()
 
-        # Receive less than the expected amount.
         picking = po.picking_ids[0]
         move = picking.move_ids[0]
         move.quantity = 3.0
         action = picking.button_validate()
 
-        # Create a backorder for the rest.
         Form(
             self.env["stock.backorder.confirmation"].with_context(action["context"])
         ).save().process()
