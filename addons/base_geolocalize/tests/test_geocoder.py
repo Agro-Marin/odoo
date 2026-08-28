@@ -107,6 +107,7 @@ class TestGeocoderEdges(TransactionCase):
             "base_geolocalize.google_map_api_key", "fake-key"
         )
         response = MagicMock()
+        response.status_code = 200
         response.json.return_value = {
             "status": "OK",
             "results": [{"geometry": {"location": {"lat": 10.0, "lng": 20.0}}}],
@@ -123,6 +124,7 @@ class TestGeocoderEdges(TransactionCase):
             "base_geolocalize.google_map_api_key", "fake-key"
         )
         response = MagicMock()
+        response.status_code = 200
         response.json.return_value = {
             "status": "OK",
             "results": [{"geometry": {"location": {"lat": 10.0, "lng": 20.0}}}],
@@ -140,6 +142,31 @@ class TestGeocoderEdges(TransactionCase):
             self.assertRaises(UserError),
         ):
             self.Geocoder._call_openstreetmap("Some address 123")
+
+    def test_googlemap_non_200_raises_query_error(self):
+        """A non-200 Gmaps response fails fast instead of being trusted as JSON."""
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base_geolocalize.google_map_api_key", "fake-key"
+        )
+        response = MagicMock()
+        response.status_code = 403
+        response.json.return_value = {"error": {"message": "blocked"}}
+        with (
+            patch("requests.get", return_value=response),
+            self.assertRaises(UserError),
+        ):
+            self.Geocoder._call_googlemap("Some address")
+
+    def test_googlemap_empty_results_degrades_to_none(self):
+        """`status: OK` with an empty `results` list is a normal "no match", not a crash."""
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base_geolocalize.google_map_api_key", "fake-key"
+        )
+        response = MagicMock()
+        response.status_code = 200
+        response.json.return_value = {"status": "OK", "results": []}
+        with patch("requests.get", return_value=response):
+            self.assertIsNone(self.Geocoder._call_googlemap("Some address"))
 
     def test_reverse_without_coordinates_returns_none(self):
         """Missing latitude/longitude short-circuits to None."""
