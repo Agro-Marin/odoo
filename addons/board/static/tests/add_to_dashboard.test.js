@@ -94,13 +94,15 @@ test("save actions to dashboard", async () => {
                     asc: true,
                 },
             ],
-            { message: "The orderedBy should have been saved" }
+            { message: "The orderedBy should have been saved" },
         );
         expect(args.context_to_save.fire).toBe("on the bayou", {
             message: "The context of a controller should be passed and flattened",
         });
         expect(args.action_id).toBe(1, { message: "should save the correct action" });
-        expect(args.view_mode).toBe("list", { message: "should save the correct view type" });
+        expect(args.view_mode).toBe("list", {
+            message: "should save the correct view type",
+        });
         return true;
     });
 
@@ -125,9 +127,12 @@ test("save actions to dashboard", async () => {
     // add this action to dashboard
     await hover(".o_add_to_board button.dropdown-toggle");
     await animationFrame();
-    await contains(queryOne("input", { root: getAddToDashboardMenu() })).edit("a name", {
-        confirm: false,
-    });
+    await contains(queryOne("input", { root: getAddToDashboardMenu() })).edit(
+        "a name",
+        {
+            confirm: false,
+        },
+    );
     await contains(queryOne("button", { root: getAddToDashboardMenu() })).click();
 });
 
@@ -293,9 +298,12 @@ test("Add a view to dashboard (keynav)", async () => {
     await toggleSearchBarMenu();
     await hover(".o_add_to_board button.dropdown-toggle");
     await animationFrame();
-    await contains(queryOne("input", { root: getAddToDashboardMenu() })).edit("Pipeline", {
-        confirm: false,
-    });
+    await contains(queryOne("input", { root: getAddToDashboardMenu() })).edit(
+        "Pipeline",
+        {
+            confirm: false,
+        },
+    );
     await press("Enter");
 
     expect.verifySteps(["add to board"]);
@@ -334,7 +342,9 @@ test("Add a view with dynamic domain", async () => {
     await toggleSearchBarMenu();
     await hover(".o_add_to_board button.dropdown-toggle");
     await animationFrame();
-    await contains(queryOne("input", { root: getAddToDashboardMenu() })).edit("Pipeline");
+    await contains(queryOne("input", { root: getAddToDashboardMenu() })).edit(
+        "Pipeline",
+    );
 });
 
 test("Add a view to dashboard doesn't save default filters", async () => {
@@ -365,9 +375,7 @@ test("Add a view to dashboard doesn't save default filters", async () => {
         });
         return true;
     });
-    onRpc("/web/domain/validate", () => {
-        return true;
-    });
+    onRpc("/web/domain/validate", () => true);
 
     await mountWithCleanup(WebClient);
 
@@ -397,7 +405,9 @@ test("Add a view to dashboard doesn't save default filters", async () => {
     await toggleSearchBarMenu();
     await hover(".o_add_to_board button.dropdown-toggle");
     await animationFrame();
-    await contains(queryOne("input", { root: getAddToDashboardMenu() })).edit("Pipeline");
+    await contains(queryOne("input", { root: getAddToDashboardMenu() })).edit(
+        "Pipeline",
+    );
 });
 
 test("Add to my dashboard is not available in form views", async () => {

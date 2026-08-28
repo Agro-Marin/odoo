@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { BoardController } from "./board_controller.js";
-import { visitXML } from "@web/core/utils/dom/xml";
 import { Domain } from "@web/core/domain";
+import { registry } from "@web/core/registry";
+import { visitXML } from "@web/core/utils/dom/xml";
+
+import { BoardController } from "./board_controller.js";
 export class BoardArchParser {
     parse(arch, customViewId) {
         let nextId = 1;
@@ -31,7 +32,9 @@ export class BoardArchParser {
                 case "action": {
                     archInfo.isEmpty = false;
                     const isFolded = Boolean(
-                        node.hasAttribute("fold") ? parseInt(node.getAttribute("fold"), 10) : 0
+                        node.hasAttribute("fold")
+                            ? parseInt(node.getAttribute("fold"), 10)
+                            : 0,
                     );
                     const action = {
                         id: nextId++,

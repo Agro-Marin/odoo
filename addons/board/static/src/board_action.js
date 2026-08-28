@@ -53,10 +53,14 @@ export class BoardAction extends Component {
             ];
 
             if (action.context) {
-                this.viewProps.context = makeContext([action.context, { lang: user.context.lang }]);
+                this.viewProps.context = makeContext([
+                    action.context,
+                    { lang: user.context.lang },
+                ]);
                 if ("group_by" in this.viewProps.context) {
                     const groupBy = this.viewProps.context.group_by;
-                    this.viewProps.groupBy = typeof groupBy === "string" ? [groupBy] : groupBy;
+                    this.viewProps.groupBy =
+                        typeof groupBy === "string" ? [groupBy] : groupBy;
                 }
             }
             if (action.domain) {

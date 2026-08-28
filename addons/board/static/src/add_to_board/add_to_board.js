@@ -39,12 +39,13 @@ export class AddToBoard extends Component {
 
     async addToBoard() {
         const { domain, globalContext } = this.env.searchModel;
-        const { context, groupBys, orderBy } = this.env.searchModel.getPreFavoriteValues();
+        const { context, groupBys, orderBy } =
+            this.env.searchModel.getPreFavoriteValues();
         const contextToSave = {
             ...Object.fromEntries(
                 Object.entries(globalContext).filter(
-                    (entry) => !entry[0].startsWith("search_default_")
-                )
+                    (entry) => !entry[0].startsWith("search_default_"),
+                ),
             ),
             ...context,
             orderedBy: orderBy,
@@ -66,7 +67,7 @@ export class AddToBoard extends Component {
                 {
                     title: _t("“%s” added to dashboard", this.state.name),
                     type: "warning",
-                }
+                },
             );
             this.state.name = this.env.config.getDisplayName();
         } else {
@@ -96,7 +97,9 @@ export const addToBoardItem = {
     groupNumber: 20,
     isDisplayed: ({ config }) => {
         const { actionType, actionId, viewType } = config;
-        return actionType === "ir.actions.act_window" && actionId && viewType !== "form";
+        return (
+            actionType === "ir.actions.act_window" && actionId && viewType !== "form"
+        );
     },
 };
 
