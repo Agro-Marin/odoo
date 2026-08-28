@@ -12,7 +12,6 @@ import {
 
 class Partner extends models.Model {
     _name = "res.partner";
-    _inherit = [];
 
     state = fields.Selection({
         selection: [

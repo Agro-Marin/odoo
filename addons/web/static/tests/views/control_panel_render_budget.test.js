@@ -43,6 +43,7 @@ const ARCH = `
 
 function instrumentChain() {
     /** @type {string[]} */
+    /** @type {string[]} */
     const sequence = [];
     patchWithCleanup(/** @type {any} */ (MultiRecordController).prototype, {
         setup() {
@@ -63,8 +64,12 @@ function instrumentChain() {
         patchWithCleanup(/** @type {any} */ (Cls).prototype, {
             setup() {
                 super.setup();
-                onWillRender(() => sequence.push(name));
-                onMounted(() => sequence.push(`MOUNTED:${name}`));
+                onWillRender(() => {
+                    sequence.push(String(name));
+                });
+                onMounted(() => {
+                    sequence.push(`MOUNTED:${name}`);
+                });
             },
         });
     }

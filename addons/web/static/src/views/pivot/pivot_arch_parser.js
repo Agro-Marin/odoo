@@ -16,6 +16,8 @@ const PIVOT_FIELD_ATTRS = ["name", "type", "operator", "interval", "string", "wi
 export class PivotArchParser extends ViewArchParser {
     /**
      * @param {Element} arch
+     * @param {Record<string, any>} [_models]
+     * @param {string} [_modelName]
      * @returns {{
      * activeMeasures: string[],
      * colGroupBys: string[],

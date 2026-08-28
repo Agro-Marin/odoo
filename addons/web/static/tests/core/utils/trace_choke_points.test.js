@@ -94,7 +94,7 @@ describe("choke points fire on a real view mount", () => {
         });
         expect(trace["service.start"]).toBeGreaterThan(0);
         expect(trace["service.started"]).toBe(trace["service.start"]);
-        expect(trace["service.failed"]).toBe(undefined);
+        expect(trace["service.failed"]).toBe(/** @type {any} */ (undefined));
     });
 });
 
@@ -103,7 +103,7 @@ describe("what this harness can and cannot observe", () => {
         const trace = await readTrace(async () => {
             await mountView({ type: "list", resModel: "foo", arch: TWO_FIELD_ARCH });
         });
-        expect(trace["component.mount"]).toBe(undefined);
+        expect(trace["component.mount"]).toBe(/** @type {any} */ (undefined));
     });
 
     test("rpc.request DOES fire: the mock server dispatches through rpcBus", async () => {

@@ -21,7 +21,9 @@ describe("templates: every derived form is invalidated together", () => {
             `<t t-name="probe.A"><img src="real.png"/></t>`,
         );
         expect(
-            reg.getTemplate("probe.A").querySelector("img").getAttribute("src"),
+            /** @type {any} */ (reg.getTemplate("probe.A"))
+                .querySelector("img")
+                ?.getAttribute("src"),
         ).toBe("real.png");
         reg.registerTemplateProcessor((doc) => {
             for (const img of doc.querySelectorAll("img[src]")) {
@@ -29,7 +31,9 @@ describe("templates: every derived form is invalidated together", () => {
             }
         });
         expect(
-            reg.getTemplate("probe.A").querySelector("img").getAttribute("src"),
+            /** @type {any} */ (reg.getTemplate("probe.A"))
+                .querySelector("img")
+                ?.getAttribute("src"),
         ).toBe("MOCKED");
     });
 
@@ -45,13 +49,19 @@ describe("templates: every derived form is invalidated together", () => {
             "/other/static/ext.xml",
             `<t t-inherit="probe.B"><xpath expr="//div" position="after"><span class="ext"/></xpath></t>`,
         );
-        expect(reg.getTemplate("probe.B").querySelector(".ext")).not.toBe(null);
+        expect(
+            /** @type {any} */ (reg.getTemplate("probe.B")).querySelector(".ext"),
+        ).not.toBe(null);
 
         const restore = reg.setUrlFilters([(url) => !url.startsWith("/other")]);
-        expect(reg.getTemplate("probe.B").querySelector(".ext")).toBe(null);
+        expect(
+            /** @type {any} */ (reg.getTemplate("probe.B")).querySelector(".ext"),
+        ).toBe(null);
 
         restore();
-        expect(reg.getTemplate("probe.B").querySelector(".ext")).not.toBe(null);
+        expect(
+            /** @type {any} */ (reg.getTemplate("probe.B")).querySelector(".ext"),
+        ).not.toBe(null);
     });
 
     test("a refused duplicate registration does not claim the key", () => {
@@ -87,7 +97,9 @@ describe("getDefaultPath returns a key of fieldDefs", () => {
         const fieldDefs = { user_id: { type: "many2one", relation: "res.users" } };
         const path = getDefaultPath(fieldDefs);
         expect(path).toBe("user_id");
-        expect(fieldDefs[path]).not.toBe(undefined);
+        expect(fieldDefs[/** @type {"user_id"} */ (path)]).not.toBe(
+            /** @type {any} */ (undefined),
+        );
     });
 
     test("falls back to the first key when no special field is present", () => {
@@ -121,6 +133,7 @@ describe("RPCCache", () => {
 
     test("read announces synchronously that it is issuing a request", () => {
         const cache = new RPCCache("probe_issued", 1, null);
+        /** @type {any[]} */
         const steps = [];
         cache.read("t", "k", () => Promise.resolve(1), {
             onRequestIssued: () => steps.push("issued"),

@@ -479,7 +479,6 @@ addons/web/static/tests/webclient/actions/close_executor.test.js
 addons/web/static/tests/webclient/actions/concurrency.test.js
 addons/web/static/tests/webclient/actions/embedded_action.test.js
 addons/web/static/tests/webclient/actions/error_handling.test.js
-addons/web/static/tests/webclient/actions/home_action_polling.test.js
 addons/web/static/tests/webclient/actions/load_state.test.js
 addons/web/static/tests/webclient/actions/load_state_branches.test.js
 addons/web/static/tests/webclient/actions/misc.test.js

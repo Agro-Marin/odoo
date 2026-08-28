@@ -21,18 +21,18 @@ function makeCtx(overrides = {}) {
         },
     };
     return {
-        getColumns: () => [],
+        getColumns: () => /** @type {any[]} */ ([]),
         getProps: () => props,
         getEnv: () => ({}),
-        getGridState: () => null,
+        getGridState: () => /** @type {any} */ (null),
         onToggleGroup: () => {},
         toggleRecordSelection: () => {},
         onOpenRecord: () => {},
         onDeleteRecord: () => {},
         isInlineEditable: () => false,
         expandCheckboxes: () => false,
-        getSel: () => null,
-        getVirtualization: () => null,
+        getSel: () => /** @type {any} */ (null),
+        getVirtualization: () => /** @type {any} */ (null),
         findFocusFutureCell: null,
         ...overrides,
     };
@@ -86,14 +86,18 @@ async function mountNav(ctxOverrides = {}) {
 function gridStateStub(overrides = {}) {
     return {
         steps: /** @type {any[]} */ ([]),
-        moveFocus(rowIndex, colIndex, direction) {
+        moveFocus(
+            /** @type {any} */ rowIndex,
+            /** @type {any} */ colIndex,
+            /** @type {any} */ direction,
+        ) {
             this.steps.push(["moveFocus", rowIndex, colIndex, direction]);
             return { rowIndex: 1, colIndex: 0 };
         },
         rowAt: () => ({ type: "record" }),
         rememberColumn() {},
-        findRowByRecordId: () => null,
-        flatRows: [],
+        findRowByRecordId: () => /** @type {any} */ (null),
+        flatRows: /** @type {any[]} */ ([]),
         ...overrides,
     };
 }
@@ -123,7 +127,7 @@ describe("findFocusMove — with a grid state", () => {
     });
 
     test("a grid state that refuses the move falls through to the DOM walk", async () => {
-        const grid = gridStateStub({ moveFocus: () => null });
+        const grid = gridStateStub({ moveFocus: () => /** @type {any} */ (null) });
         const { nav, cell } = await mountNav({ getGridState: () => grid });
 
         const move = nav.findFocusMove(cell(`[data-row-index="0"] td`), false, "down");
@@ -141,12 +145,13 @@ describe("findFocusMove — the virtualization handover", () => {
     }
 
     test("defers to virtualization instead of returning an element", async () => {
+        /** @type {any[]} */
         const ensured = [];
         const { nav, cell } = await mountNav({
             getGridState: offscreenGrid,
             getVirtualization: () => ({
                 isActive: true,
-                ensureRowVisible: (i) => ensured.push(i),
+                ensureRowVisible: (/** @type {any} */ i) => ensured.push(i),
             }),
         });
 
@@ -208,7 +213,9 @@ describe("resolvePendingVirtFocus", () => {
     }
 
     test("drops the pending focus when the record no longer exists", async () => {
-        const { nav } = await pending({ findRowByRecordId: () => null });
+        const { nav } = await pending({
+            findRowByRecordId: () => /** @type {any} */ (null),
+        });
         nav.resolvePendingVirtFocus();
         expect(nav.pendingVirtFocus).toBe(null);
     });
@@ -249,9 +256,10 @@ describe("resolvePendingVirtFocus", () => {
 describe("the published members are the seam", () => {
     test("replacing resolveArrowMove reaches onCellKeydownReadOnlyMode", async () => {
         const { nav, cell } = await mountNav();
+        /** @type {any[]} */
         const calls = [];
         const original = nav.resolveArrowMove;
-        nav.resolveArrowMove = (...args) => {
+        nav.resolveArrowMove = (/** @type {any[]} */ ...args) => {
             calls.push(args[2]);
             return original(...args);
         };
@@ -269,10 +277,12 @@ describe("the published members are the seam", () => {
     test("replacing findFocusMove reaches resolveArrowMove", async () => {
         const { nav, cell } = await mountNav();
         let reached = 0;
-        nav.findFocusMove = () => {
-            reached++;
-            return null;
-        };
+        nav.findFocusMove = /** @type {() => any} */ (
+            () => {
+                reached++;
+                return null;
+            }
+        );
 
         nav.resolveArrowMove(cell(`[data-row-index="0"] td`), false, "up");
 

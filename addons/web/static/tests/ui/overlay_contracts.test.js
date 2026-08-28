@@ -79,16 +79,16 @@ test("the popover presenter accepts only what Popover declares", async () => {
     });
 
     const target = document.createElement("div");
-    getFixture().appendChild(target);
+    /** @type {HTMLElement} */ (getFixture()).appendChild(target);
     getService("popover").add(
         target,
         probeComponent(() => {}),
         {},
-        {
+        /** @type {any} */ ({
             position: "top",
             onBack: () => {},
             nonsense: 1,
-        },
+        }),
     );
     await animationFrame();
 
@@ -109,11 +109,11 @@ test("dialog.add names the options it will not act on, debug or not", async () =
     getService("dialog").add(
         probeComponent(() => {}),
         {},
-        {
+        /** @type {any} */ ({
             sequence: 10,
             closeOnEscape: false,
             context: {},
-        },
+        }),
     );
     await animationFrame();
 

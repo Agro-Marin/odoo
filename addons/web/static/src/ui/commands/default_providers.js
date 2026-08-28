@@ -33,6 +33,7 @@ export class HotkeyCommandItem extends Component {
      * @returns {string[]}
      */
     get keysToPress() {
+        /** @type {string[]} */
         let result = this.props.hotkey.split("+");
         if (isMacOS()) {
             result = result

@@ -17,7 +17,10 @@ test("displays the pager indicator", async () => {
     expect(".o_pager_indicator").toHaveCount(0, {
         message: "the pager indicator should not be displayed",
     });
-    getMockEnv().bus.trigger(PagerEvent.UPDATED, { value: "1-4", total: 10 });
+    /** @type {any} */ (getMockEnv()).bus.trigger(PagerEvent.UPDATED, {
+        value: "1-4",
+        total: 10,
+    });
     await animationFrame();
     expect(".o_pager_indicator").toHaveCount(1, {
         message: "the pager indicator should be displayed",

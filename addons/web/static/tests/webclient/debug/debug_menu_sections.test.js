@@ -25,7 +25,9 @@ test("the debug menu renders no empty section header", async () => {
     await click(".o_debug_manager button");
     await animationFrame();
     await animationFrame();
-    const labels = queryAll(".dropdown-header").map((h) => h.textContent.trim());
+    const labels = queryAll(".dropdown-header").map((/** @type {any} */ h) =>
+        h.textContent.trim(),
+    );
     expect(labels.length).toBeGreaterThan(0);
-    expect(labels.filter((l) => !l)).toEqual([]);
+    expect(labels.filter((/** @type {any} */ l) => !l)).toEqual([]);
 });

@@ -14,13 +14,19 @@ import { parseFieldNode } from "@web/views/field_arch";
 
 class Partner extends models.Model {
     _name = "res.partner";
-    _inherit = [];
     name = fields.Char();
     _records = [{ id: 1, name: "a" }];
 }
 defineModels([Partner]);
 
 /** @param {Partial<any>} [overrides] */
+/**
+ * A partial stand-in for a relational Record: `fieldVisualFeedback` reads
+ * four members off it and the tests supply only those.
+ *
+ * @param {Record<string, any>} [overrides]
+ * @returns {any}
+ */
 function fakeRecord(overrides = {}) {
     return {
         isNew: false,
@@ -149,8 +155,10 @@ describe("getPropertyFieldInfo", () => {
     });
 
     test("resolves the view-prefixed registry entry, not just the bare one", () => {
-        const componentFor = (propertyField, viewType) =>
-            getPropertyFieldInfo(propertyField, viewType).field.component.name;
+        const componentFor = (
+            /** @type {any} */ propertyField,
+            /** @type {any} */ viewType,
+        ) => getPropertyFieldInfo(propertyField, viewType).field.component.name;
 
         expect(componentFor({ name: "p", type: "text" }, "list")).toBe("ListTextField");
         expect(componentFor({ name: "p", type: "text" }, "form")).toBe("TextField");
@@ -206,7 +214,7 @@ describe("getPropertyFieldInfo", () => {
             { "res.partner": { fields: { name: { type: "char", string: "N" } } } },
             "res.partner",
             "list",
-            null,
+            /** @type {any} */ (null),
         );
         const property = getPropertyFieldInfo(
             { name: "name", type: "char", string: "N" },

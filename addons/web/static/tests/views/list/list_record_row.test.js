@@ -109,7 +109,7 @@ test("api members dispatch on the renderer with the row's record (C1/C4)", async
     await mountView({ resModel: "foo", type: "list", arch: CUSTOM_ROW_ARCH });
 
     const rows = queryAll(".o_data_row");
-    expect(rows.map((row) => row.dataset.label)).toEqual([
+    expect(rows.map((/** @type {any} */ row) => row.dataset.label)).toEqual([
         "label:alpha",
         "label:beta",
         "label:gamma",
@@ -134,12 +134,20 @@ test("getRowProps state re-renders rows without a renderer render (C3)", async (
     await mountView({ resModel: "foo", type: "list", arch: CUSTOM_ROW_ARCH });
 
     const rows = queryAll(".o_data_row");
-    expect(rows.map((row) => row.dataset.highlight)).toEqual(["off", "off", "off"]);
+    expect(rows.map((/** @type {any} */ row) => row.dataset.highlight)).toEqual([
+        "off",
+        "off",
+        "off",
+    ]);
     const rendererRendersBefore = captured.rendererRenders;
 
     captured.renderer.rowState.highlight = true;
     await animationFrame();
-    expect(rows.map((row) => row.dataset.highlight)).toEqual(["on", "on", "on"]);
+    expect(rows.map((/** @type {any} */ row) => row.dataset.highlight)).toEqual([
+        "on",
+        "on",
+        "on",
+    ]);
     expect(captured.rendererRenders).toBe(rendererRendersBefore);
 });
 
@@ -188,9 +196,9 @@ test("a record data change re-renders that row standalone (C8)", async () => {
     await animationFrame();
 
     expect(rowRenders).toEqual([2]);
-    expect(queryAll(".o_data_row .o_data_cell").map((el) => el.textContent)).toEqual([
-        "alpha",
-        "beta-prime",
-        "gamma",
-    ]);
+    expect(
+        queryAll(".o_data_row .o_data_cell").map(
+            (/** @type {any} */ el) => el.textContent,
+        ),
+    ).toEqual(["alpha", "beta-prime", "gamma"]);
 });

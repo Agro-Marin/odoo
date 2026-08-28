@@ -30,13 +30,14 @@ describe("home action: bounded server-wait loop", () => {
                     this,
                     () => {
                         elapsed += delay || 0;
-                        return fn();
+                        return /** @type {any} */ (fn)();
                     },
                     delay,
                 );
             },
         });
 
+        /** @type {number | null} */
         let firstProbeAt = null;
         onRpc("/web/webclient/version_info", () => {
             firstProbeAt ??= elapsed;
@@ -49,13 +50,15 @@ describe("home action: bounded server-wait loop", () => {
         await advanceTime(1500);
         await animationFrame();
 
-        expect(firstProbeAt).toBe(0);
+        expect(/** @type {number | null} */ (firstProbeAt)).toBe(0);
     });
 
     test("backs off exponentially up to a ceiling instead of a flat 250ms", async () => {
         redirect("/odoo");
         browser.location.search = "";
         patchWithCleanup(browser.location, { assign: () => {} });
+
+        /** @type {any[]} */
 
         const delays = [];
         const realSetTimeout = browser.setTimeout;
@@ -91,6 +94,7 @@ describe("home action: bounded server-wait loop", () => {
     test("gives up at the deadline and navigates anyway", async () => {
         redirect("/odoo");
         browser.location.search = "";
+        /** @type {any[]} */
         const assigned = [];
         patchWithCleanup(browser.location, { assign: (url) => assigned.push(url) });
 
@@ -112,6 +116,7 @@ describe("home action: bounded server-wait loop", () => {
     test("stops as soon as the server answers", async () => {
         redirect("/odoo");
         browser.location.search = "";
+        /** @type {any[]} */
         const assigned = [];
         patchWithCleanup(browser.location, { assign: (url) => assigned.push(url) });
 

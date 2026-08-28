@@ -20,7 +20,7 @@ function helpers() {
 function element(className = "") {
     const el = document.createElement("div");
     el.className = className;
-    getFixture().appendChild(el);
+    /** @type {HTMLElement} */ (getFixture()).appendChild(el);
     return el;
 }
 

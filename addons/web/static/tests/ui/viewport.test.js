@@ -24,13 +24,13 @@ function mockMatchMediaAtWidth(getWidth) {
     patchWithCleanup(browser, {
         matchMedia: (/** @type {string} */ query) => {
             const min = Number(query.match(/min-width:\s*(\d+)px/)?.[1]);
-            return {
+            return /** @type {any} */ ({
                 get matches() {
                     return Number.isNaN(min) ? false : getWidth() >= min;
                 },
                 addEventListener() {},
                 removeEventListener() {},
-            };
+            });
         },
     });
 }
@@ -42,18 +42,19 @@ test("SIZES and MEDIAS_BREAKPOINTS describe the same ladder", () => {
     expect(MEDIAS_BREAKPOINTS.filter((b) => b.minWidth === undefined)).toHaveLength(1);
     expect(MEDIAS_BREAKPOINTS.filter((b) => b.maxWidth === undefined)).toHaveLength(1);
     expect(MEDIAS_BREAKPOINTS[0].minWidth).toBe(undefined);
-    expect(MEDIAS_BREAKPOINTS.at(-1).maxWidth).toBe(undefined);
+    expect(/** @type {any} */ (MEDIAS_BREAKPOINTS.at(-1)).maxWidth).toBe(undefined);
 
     for (let i = 1; i < MEDIAS_BREAKPOINTS.length; i++) {
         expect(MEDIAS_BREAKPOINTS[i].minWidth).toBe(
-            MEDIAS_BREAKPOINTS[i - 1].maxWidth + 1,
+            /** @type {number} */ (MEDIAS_BREAKPOINTS[i - 1].maxWidth) + 1,
         );
     }
 });
 
 test("sizeOf counts the matching queries", () => {
     /** @param {number} n */
-    const medias = (n) => Array.from({ length: 5 }, (_, i) => ({ matches: i < n }));
+    const medias = (n) =>
+        /** @type {any} */ (Array.from({ length: 5 }, (_, i) => ({ matches: i < n })));
     expect(sizeOf(medias(0))).toBe(SIZES.XS);
     expect(sizeOf(medias(1))).toBe(SIZES.SM);
     expect(sizeOf(medias(2))).toBe(SIZES.MD);

@@ -22,6 +22,10 @@ export const pivotView = {
     SearchModel: PivotSearchModel,
     buttonTemplate: "web.PivotView.Buttons",
 
+    /**
+     * @param {any} genericProps
+     * @param {any} view
+     */
     props: (genericProps, view) =>
         reportViewProps(genericProps, view, {
             fromState: (state) => ({ data: state.data, metaData: state.metaData }),

@@ -15,7 +15,9 @@ const TINY_PNG =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+BCQAHBQICJmhD1AAAAABJRU5ErkJggg==";
 
 const getNameAndSignatureButtonNames = () =>
-    queryAllTexts(".card-header .col-auto").filter((text) => text.length);
+    queryAllTexts(".card-header .col-auto").filter(
+        (/** @type {any} */ text) => text.length,
+    );
 
 onRpc("/web/sign/get_fonts/", () => ({}));
 
@@ -188,9 +190,9 @@ test("an auto-drawn name counts as a signature, and clearing it does not", async
         message: "the pad itself cannot see a canvas painted behind its back",
     });
     expect(component.isSignatureEmpty).toBe(false);
-    expect(props.signature.isSignatureEmpty).toBe(false);
+    expect(/** @type {any} */ (props.signature).isSignatureEmpty).toBe(false);
 
     component.clear();
     expect(component.isSignatureEmpty).toBe(true);
-    expect(props.signature.isSignatureEmpty).toBe(true);
+    expect(/** @type {any} */ (props.signature).isSignatureEmpty).toBe(true);
 });

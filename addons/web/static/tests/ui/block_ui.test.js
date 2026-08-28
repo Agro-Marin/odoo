@@ -95,7 +95,7 @@ test("the message ladder escalates at its stated onsets", async () => {
 
     await runAllTimers();
     await animationFrame();
-    expect(message()).toBe(ladder.at(-1)[1]);
+    expect(message()).toBe(/** @type {any[]} */ (ladder.at(-1))[1]);
 });
 
 test("unblock cancels the ladder rather than letting it run on", async () => {

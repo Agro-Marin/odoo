@@ -258,7 +258,9 @@ test("basic flow in editable list view", async () => {
         resModel: "product",
         arch: '<list editable="bottom"><field name="price"/></list>',
     });
-    const zeroValues = queryAllTexts("td").filter((text) => text === "0");
+    const zeroValues = queryAllTexts("td").filter(
+        (/** @type {any} */ text) => text === "0",
+    );
     expect(zeroValues).toHaveLength(1, {
         message: "Unset integer values should not be rendered as zeros",
     });

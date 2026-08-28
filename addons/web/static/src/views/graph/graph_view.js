@@ -21,6 +21,10 @@ export const graphView = {
     SearchModel: GraphSearchModel,
     buttonTemplate: "web.GraphView.Buttons",
 
+    /**
+     * @param {any} genericProps
+     * @param {any} view
+     */
     props: (genericProps, view) =>
         reportViewProps(genericProps, view, {
             fromState: (state) => state.metaData,

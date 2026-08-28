@@ -90,7 +90,8 @@ export class MultiRecordSelector extends BaseRecordSelector {
      * @param {number} resId
      */
     deleteTag(resId) {
-        this.props.update(this.props.resIds.filter((id) => id !== resId));
+        const props = /** @type {MultiRecordSelectorProps} */ (this.props);
+        props.update(props.resIds.filter((id) => id !== resId));
     }
 
     /**

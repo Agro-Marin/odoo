@@ -18,6 +18,7 @@ test("nothing in flight: the caller runs its own reaction", () => {
 });
 
 test("a reaction raised during evaluation is held until it finishes", async () => {
+    /** @type {any[]} */
     const calls = [];
     const evaluation = runInBundleTransaction(async () => {
         expect(deferUntilBundlesSettled(() => calls.push("reaction"))).toBe(true);
@@ -43,6 +44,7 @@ test("many reactions from one bundle collapse into a single run", async () => {
 });
 
 test("nesting settles only when the outermost evaluation finishes", async () => {
+    /** @type {any[]} */
     const calls = [];
     await runInBundleTransaction(async () => {
         deferUntilBundlesSettled(() => calls.push("outer reaction"));
@@ -60,6 +62,7 @@ test("nesting settles only when the outermost evaluation finishes", async () => 
 });
 
 test("a bundle that throws still settles its reactions", async () => {
+    /** @type {any[]} */
     const calls = [];
     await expect(
         runInBundleTransaction(async () => {
@@ -74,6 +77,7 @@ test("a bundle that throws still settles its reactions", async () => {
 });
 
 test("a reaction that throws does not stop the others", async () => {
+    /** @type {any[]} */
     const calls = [];
     await runInBundleTransaction(async () => {
         deferUntilBundlesSettled(() => {
@@ -89,6 +93,7 @@ test("the value of the evaluation is passed through", async () => {
 });
 
 test("an async reaction is awaited, so the bundle resolves applied", async () => {
+    /** @type {any[]} */
     const calls = [];
     await runInBundleTransaction(async () => {
         deferUntilBundlesSettled(async () => {

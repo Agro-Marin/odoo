@@ -20,9 +20,12 @@ describe("the scroll surface", () => {
     });
 
     test("scrollTo is patchable, which is the point of it being here", async () => {
+        /** @type {any[]} */
         const calls = [];
         patchWithCleanup(browser, {
-            scrollTo: (...args) => calls.push(args),
+            scrollTo: (/** @type {any[]} */ ...args) => {
+                calls.push(args);
+            },
         });
         browser.scrollTo({ top: 12, left: 34 });
         expect(calls).toEqual([[{ top: 12, left: 34 }]]);
@@ -31,6 +34,7 @@ describe("the scroll surface", () => {
 
 describe("the members that only exist to be patched", () => {
     test("open is bound at capture time, so window is not the seam", async () => {
+        /** @type {any[]} */
         const opened = [];
         patchWithCleanup(browser, {
             open: (...args) => {
@@ -43,11 +47,13 @@ describe("the members that only exist to be patched", () => {
     });
 
     test("addEventListener and removeEventListener are patchable as a pair", async () => {
+        /** @type {any[]} */
         const added = [];
+        /** @type {any[]} */
         const removed = [];
         patchWithCleanup(browser, {
-            addEventListener: (type) => added.push(type),
-            removeEventListener: (type) => removed.push(type),
+            addEventListener: (/** @type {any} */ type) => added.push(type),
+            removeEventListener: (/** @type {any} */ type) => removed.push(type),
         });
         browser.addEventListener("pointermove", () => {});
         browser.removeEventListener("pointermove", () => {});

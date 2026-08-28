@@ -7,10 +7,12 @@ import { AceEditorController } from "@web/components/code_editor/ace_editor_hook
 describe.current.tags("headless");
 
 function makeAce() {
+    /** @type {any[]} */
     const log = [];
     class Session {
         constructor(value = "") {
             this.value = value;
+            /** @type {any[]} */
             this.handlers = [];
             this.options = null;
             this.mode = null;
@@ -18,20 +20,20 @@ function makeAce() {
         getValue() {
             return this.value;
         }
-        setValue(value) {
+        setValue(/** @type {any} */ value) {
             this.value = value;
             for (const handler of this.handlers) {
                 handler();
             }
         }
-        on(_event, handler) {
+        on(/** @type {any} */ _event, /** @type {any} */ handler) {
             this.handlers.push(handler);
         }
         setUndoManager() {}
-        setOptions(options) {
+        setOptions(/** @type {any} */ options) {
             this.options = options;
         }
-        setMode(mode) {
+        setMode(/** @type {any} */ mode) {
             this.mode = mode;
         }
         destroy() {
@@ -47,12 +49,13 @@ function makeAce() {
             scrollCursorIntoView: () => log.push("scrolled"),
         },
         selection: {
-            moveToPosition: (pos) => log.push(`moved ${pos.row}:${pos.column}`),
+            moveToPosition: (/** @type {any} */ pos) =>
+                log.push(`moved ${pos.row}:${pos.column}`),
         },
         getSession() {
             return this.session;
         },
-        setSession(session) {
+        setSession(/** @type {any} */ session) {
             this.session = session;
             log.push("session switched");
         },
@@ -63,7 +66,7 @@ function makeAce() {
             return this.cursor;
         },
         setOptions: () => {},
-        setTheme: (theme) => log.push(`theme ${theme}`),
+        setTheme: (/** @type {any} */ theme) => log.push(`theme ${theme}`),
         on: () => {},
         focus: () => log.push("focused"),
         destroy: () => log.push("editor destroyed"),
@@ -82,6 +85,7 @@ function makeAce() {
  * @param {Partial<Record<string, any>>} [overrides]
  */
 function makeController(overrides = {}) {
+    /** @type {any[]} */
     const changes = [];
     const controller = new AceEditorController({
         ref: { el: null },

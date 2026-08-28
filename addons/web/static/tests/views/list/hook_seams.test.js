@@ -42,7 +42,7 @@ test("ListVirtualization.refresh is reachable from the prototype", async () => {
         },
     });
     const view = await mountView({ type: "list", resModel: "partner", arch: ARCH });
-    const renderer = findComponent(view, (c) => Boolean(c?.virt));
+    const renderer = /** @type {any} */ (findComponent(view, (c) => Boolean(c?.virt)));
 
     expect(calls.length).toBeGreaterThan(0);
     expect(renderer.virt).toBeInstanceOf(ListVirtualization);
@@ -59,7 +59,9 @@ test("MagicColumnWidths.forceColumnWidths is reachable from the prototype", asyn
         },
     });
     const view = await mountView({ type: "list", resModel: "partner", arch: ARCH });
-    const renderer = findComponent(view, (c) => Boolean(c?.columnWidths));
+    const renderer = /** @type {any} */ (
+        findComponent(view, (c) => Boolean(c?.columnWidths))
+    );
 
     expect(calls.length).toBeGreaterThan(0);
     expect(renderer.columnWidths).toBeInstanceOf(MagicColumnWidths);

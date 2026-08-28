@@ -95,11 +95,12 @@ test("a registered command can be a link", async () => {
     });
     await animationFrame();
 
-    const provided = registry
-        .category("command_provider")
-        .get("command")
-        .provide(commandService.env, { activeElement: document })
-        .find((/** @type {any} */ c) => c.name === "open the thing");
+    const provided = /** @type {any} */ (
+        registry
+            .category("command_provider")
+            .get("command")
+            .provide(commandService.env, { activeElement: document })
+    ).find((/** @type {any} */ c) => c.name === "open the thing");
 
     expect(provided.href).toBe("/odoo/somewhere");
     expect(provided.className).toBe("o_my_command");

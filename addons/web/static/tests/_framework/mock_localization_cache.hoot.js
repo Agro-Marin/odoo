@@ -16,13 +16,17 @@ export function isolateLocalizationCache() {
         const proto = indexedDbModule.IndexedDB.prototype;
         originalMethods = { read: proto.read, write: proto.write };
         const { read, write } = originalMethods;
-        proto.read = async function (table, key) {
+        proto.read = async function (/** @type {any} */ table, /** @type {any} */ key) {
             if (this.name === LOCALIZATION_DB) {
                 return undefined;
             }
             return read.call(this, table, key);
         };
-        proto.write = async function (table, key, value) {
+        proto.write = async function (
+            /** @type {any} */ table,
+            /** @type {any} */ key,
+            /** @type {any} */ value,
+        ) {
             if (this.name === LOCALIZATION_DB) {
                 return undefined;
             }

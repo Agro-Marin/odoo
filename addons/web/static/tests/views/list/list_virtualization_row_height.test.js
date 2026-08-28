@@ -54,11 +54,13 @@ test("virtualization geometry matches the real row height on first render", asyn
         expect(actualRowHeight).not.toBe(DEFAULT_ROW_HEIGHT);
 
         const spacerHeight = queryAll(".o_virtual_spacer > td").reduce(
-            (total, td) => total + td.getBoundingClientRect().height,
+            (/** @type {any} */ total, /** @type {any} */ td) =>
+                total + td.getBoundingClientRect().height,
             0,
         );
         const renderedHeight = renderedRows.reduce(
-            (total, tr) => total + tr.getBoundingClientRect().height,
+            (/** @type {any} */ total, /** @type {any} */ tr) =>
+                total + tr.getBoundingClientRect().height,
             0,
         );
 
@@ -91,7 +93,9 @@ test("scrolling to the end of a virtualized list reaches the last record", async
         await new Promise((resolve) => requestAnimationFrame(() => resolve()));
         await new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-        const names = queryAll(".o_data_row .o_data_cell").map((td) => td.textContent);
+        const names = queryAll(".o_data_row .o_data_cell").map(
+            (/** @type {any} */ td) => td.textContent,
+        );
         expect(names.at(-1)).toBe("record 400");
     } finally {
         restore();

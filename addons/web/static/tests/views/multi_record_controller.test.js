@@ -31,15 +31,18 @@ test("setupInteractions is optional", () => {
 
 describe("FormController.archiveRecord", () => {
     /**
-     * @param {Object} [overrides]
-     * @param {Object} [archiveDialogProps]
+     * @param {Record<string, any>} [overrides]
+     * @param {Record<string, any>} [archiveDialogProps]
      */
     function propsReachingTheDialog(overrides, archiveDialogProps = {}) {
         /** @type {any} */
         let seen;
         let archived = 0;
         const controller = {
-            dialogService: { add: (_cls, props) => (seen = props) },
+            dialogService: {
+                add: (/** @type {any} */ _cls, /** @type {any} */ props) =>
+                    (seen = props),
+            },
             model: { root: { archive: () => archived++ } },
             archiveDialogProps,
         };

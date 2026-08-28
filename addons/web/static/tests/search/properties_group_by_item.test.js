@@ -28,7 +28,7 @@ function makeItem(searchItems, { definitionsLoaded = false, fill } = {}) {
 }
 
 /**
- * @param {Object} overrides
+ * @param {Record<string, any>} overrides
  */
 const propertyGroupBy = (overrides = {}) => ({
     type: "groupBy",
@@ -146,6 +146,7 @@ describe("loadDefinitions", () => {
     test("two overlapping opens issue one fetch", async () => {
         let calls = 0;
         /** @type {() => void} */
+        /** @type {(() => void) | undefined} */
         let release;
         const component = makeItem([], {
             fill: () => {
@@ -193,7 +194,7 @@ describe("what triggers the fetch", () => {
                 this.state = useState({ tick: 0 });
                 useSubEnv({
                     searchModel: {
-                        getSearchItems: () => [],
+                        getSearchItems: () => /** @type {any[]} */ ([]),
                         fillSearchViewItemsProperty: fill,
                     },
                 });
@@ -203,7 +204,9 @@ describe("what triggers the fetch", () => {
     }
 
     test("a render the accordion did not cause does not fetch", async () => {
-        const parent = await mountItem(async () => expect.step("fetch"));
+        const parent = /** @type {any} */ (
+            await mountItem(async () => expect.step("fetch"))
+        );
         expect(".o_accordion_toggle").toHaveCount(1);
         expect.verifySteps([]);
 

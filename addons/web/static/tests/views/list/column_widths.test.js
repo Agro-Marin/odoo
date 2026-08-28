@@ -146,7 +146,7 @@ function getColumnWidths() {
 
 /** @param {number[]} expectedColumnWidths */
 function expectedColumnWidthsToBeCloseTo(expectedColumnWidths) {
-    getColumnWidths().forEach((width, index) =>
+    getColumnWidths().forEach((/** @type {any} */ width, /** @type {any} */ index) =>
         expect(width).toBeCloseTo(expectedColumnWidths[index], { margin: 3 }),
     );
 }

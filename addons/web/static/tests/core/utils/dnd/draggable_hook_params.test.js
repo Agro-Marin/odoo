@@ -34,6 +34,7 @@ test("computeParamValues yields one slot per accepted param, in key order", () =
 });
 
 test("computeParamValues unwraps value getters but not callbacks", () => {
+    /** @type {{ el: any }} */
     const ref = { el: null };
     const enable = () => false;
     const preventDrag = () => true;

@@ -64,6 +64,7 @@ describe("l10n/date_serialization", () => {
 describe("utils/global_singleton", () => {
     test("a factory answering null is not re-run on every read", () => {
         let calls = 0;
+        /** @type {() => any} */
         const factory = () => {
             calls++;
             return null;
@@ -204,9 +205,9 @@ describe("tree/operators", () => {
                 left: { type: ASTType.Name, value: "a" },
                 right: { type: ASTType.Number, value: 1 },
             };
-            const once = not(ast);
+            const once = /** @type {any} */ (not(ast));
             expect(once.op).toBe(TERM_OPERATORS_NEGATION_EXTENDED[op]);
-            expect(not(once).op).toBe(
+            expect(/** @type {any} */ (not(once)).op).toBe(
                 TERM_OPERATORS_NEGATION_EXTENDED[TERM_OPERATORS_NEGATION_EXTENDED[op]],
             );
         }

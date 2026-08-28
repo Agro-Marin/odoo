@@ -44,7 +44,7 @@ test("resolves the iframe from a container root element", () => {
     expect(styleEl.textContent).toInclude("button#downloadButton");
 });
 
-function makeNamespaceLike(getDocument) {
+function makeNamespaceLike(/** @type {any} */ getDocument) {
     const ns = {};
     Object.defineProperty(ns, "getDocument", {
         configurable: false,
@@ -62,8 +62,9 @@ function makeNamespaceLike(getDocument) {
 }
 
 test("wraps getDocument over a module namespace, whose exports cannot be assigned", () => {
+    /** @type {any[]} */
     const calls = [];
-    const lib = makeNamespaceLike((params) => {
+    const lib = makeNamespaceLike((/** @type {any} */ params) => {
         calls.push(params);
         return "task";
     });
@@ -80,8 +81,9 @@ test("wraps getDocument over a module namespace, whose exports cannot be assigne
 });
 
 test("getDocument normalises every source shape and keeps an explicit wasmUrl", () => {
+    /** @type {any[]} */
     const calls = [];
-    const lib = makeNamespaceLike((params) => calls.push(params));
+    const lib = makeNamespaceLike((/** @type {any} */ params) => calls.push(params));
     const view = withWasmDefault(lib);
     const data = new Uint8Array([1, 2]);
 

@@ -56,7 +56,9 @@ describe("submit progress indicator", () => {
             <form class="js_website_submit_form">
                 <button type="submit"><i class="fa fa-check"></i> Send</button>
             </form>`);
-        queryOne("form").addEventListener("submit", (ev) => ev.preventDefault());
+        queryOne("form").addEventListener("submit", (/** @type {any} */ ev) =>
+            ev.preventDefault(),
+        );
         submit();
         expect("button").toHaveProperty("disabled", false);
         expect("button .fa-circle-notch").toHaveCount(0);

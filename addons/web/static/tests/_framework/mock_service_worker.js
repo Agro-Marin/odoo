@@ -6,6 +6,7 @@ import { patchWithCleanup } from "./patch_test_helpers.js";
 
 /**
  * @param {Partial<ServiceWorkerRegistration>} [overrides]
+ * @returns {any}
  */
 export function mockServiceWorkerRegistration(overrides = {}) {
     return {
@@ -28,6 +29,8 @@ export function mockServiceWorkerContainer(overrides = {}) {
         ready: Promise.resolve(),
         ...overrides,
     });
-    patchWithCleanup(browser.navigator, { serviceWorker });
+    patchWithCleanup(browser.navigator, {
+        serviceWorker: /** @type {any} */ (serviceWorker),
+    });
     return serviceWorker;
 }

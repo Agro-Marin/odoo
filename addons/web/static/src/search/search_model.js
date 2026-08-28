@@ -56,7 +56,7 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @import { Domain, DomainListRepr } from "@web/core/domain" */
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
-/** @import { ActiveItem, AutocompleteValue, Facet, QueryElement, QueryGroup, SearchItem, SearchItems } from "./search_types" */
+/** @import { ActiveItem, AutocompleteValue, Facet, QueryElement, QueryGroup, SearchItem, SearchItems, StoredSearchItem } from "./search_types" */
 
 /**
  * @typedef {Object} Section
@@ -625,7 +625,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @param {SearchItem} searchItem
+     * @param {StoredSearchItem} searchItem
      * @param {Map<number, QueryElement[]>|QueryElement[]} queryIndex
      */
     _enrichItem(searchItem, queryIndex) {

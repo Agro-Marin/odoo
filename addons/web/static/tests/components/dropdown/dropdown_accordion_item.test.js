@@ -98,13 +98,14 @@ test("the parent hears an accordion state change only when the state changed", a
             this.state = useState({ tick: 0 });
             useChildSubEnv({
                 [ACCORDION]: {
-                    accordionStateChanged: (isOpen) => expect.step(`changed:${isOpen}`),
+                    accordionStateChanged: (/** @type {any} */ isOpen) =>
+                        expect.step(`changed:${isOpen}`),
                 },
             });
         }
     }
 
-    const parent = await mountWithCleanup(Parent);
+    const parent = /** @type {any} */ (await mountWithCleanup(Parent));
     expect.verifySteps([]);
 
     parent.state.tick++;

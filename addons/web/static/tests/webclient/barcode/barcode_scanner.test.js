@@ -327,6 +327,7 @@ test("a successful read clears the failure count", async () => {
 });
 
 test("leaving while the camera is still starting releases it and reports nothing", async () => {
+    /** @type {any[]} */
     const stopped = [];
     const track = {
         stop: () => stopped.push("stop"),
@@ -374,6 +375,7 @@ test("leaving while the camera is still starting releases it and reports nothing
 });
 
 test("a crop window too small to hold a symbol falls back to the whole frame", async () => {
+    /** @type {any[]} */
     const sources = [];
     const Detector = buildZXingBarcodeDetector(makeFakeZXing());
     const detector = /** @type {any} */ (new Detector({ formats: ["qr_code"] }));

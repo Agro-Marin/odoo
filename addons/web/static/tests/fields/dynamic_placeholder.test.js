@@ -249,6 +249,7 @@ test("a datetime is localised in a subject, as it already was in a body", async 
 });
 
 test("the timezone lookup is called as the model method it is", async () => {
+    /** @type {any[]} */
     const calls = [];
     onRpc("mail_get_partner_fields", ({ args }) => {
         calls.push(args);

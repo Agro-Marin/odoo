@@ -27,7 +27,7 @@ class CurrencyService {
             return;
         }
         for (const key of Object.keys(currencies)) {
-            delete currencies[key];
+            delete currencies[Number(key)];
         }
         Object.assign(currencies, result);
     }

@@ -72,7 +72,7 @@ test("grouped kanban keeps column order after three columns empty out", async ()
     );
 
     expect.verifySteps(["server groups: [1,3,5]", "after reload: [1,2,3,4,5,6]"]);
-    const columns = queryAllTexts(".o_column_title").map((t) =>
+    const columns = queryAllTexts(".o_column_title").map((/** @type {any} */ t) =>
         t.trim().split("\n")[0].trim(),
     );
     expect(columns).toEqual(["P1", "P2", "P3", "P4", "P5", "P6"]);

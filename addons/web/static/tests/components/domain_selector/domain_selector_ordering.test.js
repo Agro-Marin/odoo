@@ -41,12 +41,12 @@ test("two domain updates in flight land in the order they were asked for", async
             return super.setup();
         },
     });
-    const parent = await mountWithCleanup(Parent);
+    const parent = /** @type {any} */ (await mountWithCleanup(Parent));
     expect(queryAllTexts(".o_tree_editor_condition").join(" ")).toInclude("first");
 
     const treeProcessor = getService("tree_processor");
     patchWithCleanup(treeProcessor, {
-        async treeFromDomain(...args) {
+        async treeFromDomain(/** @type {any[]} */ ...args) {
             const deferred = new Deferred();
             pending.push({ deferred, args });
             const tree = await super.treeFromDomain(...args);

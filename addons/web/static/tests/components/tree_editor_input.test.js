@@ -13,14 +13,17 @@ class Host extends Component {
     static components = { Input };
     static props = ["*"];
     setup() {
+        /** @type {{ value: number }} */
         this.state = useState({ value: 7 });
     }
     get displayed() {
-        return String(this.state.value);
+        return String(/** @type {any} */ (this.state).value);
     }
-    update(raw) {
+    update(/** @type {any} */ raw) {
         const parsed = Number.parseInt(raw, 10);
-        this.state.value = Number.isNaN(parsed) ? this.state.value : parsed;
+        /** @type {any} */ (this.state).value = Number.isNaN(parsed)
+            ? /** @type {any} */ (this.state).value
+            : parsed;
     }
 }
 

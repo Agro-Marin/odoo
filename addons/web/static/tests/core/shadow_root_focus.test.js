@@ -23,7 +23,7 @@ describe.current.tags("headless");
  */
 function shadowFixture(html) {
     const host = document.createElement("div");
-    getFixture().appendChild(host);
+    /** @type {HTMLElement} */ (getFixture()).appendChild(host);
     const root = host.attachShadow({ mode: "open" });
     root.innerHTML = html;
     return root;
@@ -35,7 +35,7 @@ function shadowFixture(html) {
  */
 function iframeFixture(html) {
     const iframe = document.createElement("iframe");
-    getFixture().appendChild(iframe);
+    /** @type {HTMLElement} */ (getFixture()).appendChild(iframe);
     const doc = /** @type {Document} */ (iframe.contentDocument);
     doc.body.innerHTML = html;
     return doc;
@@ -110,7 +110,7 @@ describe("viewOf", () => {
     test("answers the element's own window, not the top-level one", () => {
         const doc = iframeFixture(`<div id="d">d</div>`);
         const d = /** @type {HTMLElement} */ (doc.getElementById("d"));
-        expect(viewOf(d)).toBe(doc.defaultView);
+        expect(viewOf(d)).toBe(/** @type {Window} */ (doc.defaultView));
         expect(viewOf(document.body)).toBe(window);
     });
 
@@ -164,7 +164,7 @@ describe("hotkey overlays outside the top-level document", () => {
 
 describe("router click interception across a shadow boundary", () => {
     test("the composed path names the anchor that was actually clicked", () => {
-        const fixture = getFixture();
+        const fixture = /** @type {HTMLElement} */ (getFixture());
         const outerAnchor = document.createElement("a");
         outerAnchor.href = "/odoo/outer";
         fixture.appendChild(outerAnchor);
@@ -177,7 +177,7 @@ describe("router click interception across a shadow boundary", () => {
         const resolved = [];
         const onClick = (/** @type {any} */ ev) => {
             const target = /** @type {Element} */ (ev.composedPath?.()[0] ?? ev.target);
-            resolved.push(target.closest?.("a")?.getAttribute("href"));
+            resolved.push(target.closest?.("a")?.getAttribute("href") ?? undefined);
         };
         window.addEventListener("click", onClick);
         /** @type {HTMLElement} */ (root.getElementById("inner")).click();
@@ -189,7 +189,7 @@ describe("router click interception across a shadow boundary", () => {
 
 describe("scrolling across a shadow boundary", () => {
     test("closestScrollableY finds a scrollable outside the host", () => {
-        const fixture = getFixture();
+        const fixture = /** @type {HTMLElement} */ (getFixture());
         const scroller = document.createElement("div");
         scroller.style.cssText = "overflow-y:auto;height:50px";
         fixture.appendChild(scroller);
@@ -214,7 +214,7 @@ describe("scrolling across a shadow boundary", () => {
 describe("tab order across a shadow boundary", () => {
     function hosted(/** @type {string} */ light, /** @type {string} */ shadow) {
         const wrap = document.createElement("div");
-        getFixture().appendChild(wrap);
+        /** @type {HTMLElement} */ (getFixture()).appendChild(wrap);
         wrap.innerHTML = light;
         const host = /** @type {HTMLElement} */ (wrap.querySelector("#host"));
         attachShadowRoot(host).innerHTML = shadow;
@@ -252,7 +252,7 @@ describe("tab order across a shadow boundary", () => {
 
     test("a raw attachShadow stays invisible -- attach through the helper", () => {
         const wrap = document.createElement("div");
-        getFixture().appendChild(wrap);
+        /** @type {HTMLElement} */ (getFixture()).appendChild(wrap);
         wrap.innerHTML = `<button id="a">a</button><div id="host"></div>`;
         const host = /** @type {HTMLElement} */ (wrap.querySelector("#host"));
         host.attachShadow({ mode: "open" }).innerHTML = `<button id="m">m</button>`;
@@ -261,7 +261,7 @@ describe("tab order across a shadow boundary", () => {
 
     test("attachShadowRoot is idempotent", () => {
         const host = document.createElement("div");
-        getFixture().appendChild(host);
+        /** @type {HTMLElement} */ (getFixture()).appendChild(host);
         const first = attachShadowRoot(host);
         expect(attachShadowRoot(host)).toBe(first);
     });
@@ -269,7 +269,7 @@ describe("tab order across a shadow boundary", () => {
 
 describe("getDeepActiveElement descends both kinds of boundary", () => {
     test("through an iframe", async () => {
-        const fixture = getFixture();
+        const fixture = /** @type {HTMLElement} */ (getFixture());
         const iframe = document.createElement("iframe");
         fixture.appendChild(iframe);
         await new Promise((resolve) => {
@@ -285,7 +285,7 @@ describe("getDeepActiveElement descends both kinds of boundary", () => {
     });
 
     test("through a shadow root inside an iframe", async () => {
-        const fixture = getFixture();
+        const fixture = /** @type {HTMLElement} */ (getFixture());
         const iframe = document.createElement("iframe");
         fixture.appendChild(iframe);
         await new Promise((resolve) => {

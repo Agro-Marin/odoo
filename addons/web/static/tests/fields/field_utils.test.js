@@ -26,7 +26,7 @@ describe("extractAutosave", () => {
 
 describe("isFalseEmpty", () => {
     test("only literal false counts as empty", () => {
-        const record = (value) => ({ data: { f: value } });
+        const record = (/** @type {any} */ value) => ({ data: { f: value } });
         expect(isFalseEmpty(/** @type {any} */ (record(false)), "f")).toBe(true);
         expect(isFalseEmpty(/** @type {any} */ (record(0)), "f")).toBe(false);
         expect(isFalseEmpty(/** @type {any} */ (record("")), "f")).toBe(false);

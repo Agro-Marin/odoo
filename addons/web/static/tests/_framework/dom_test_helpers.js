@@ -235,7 +235,10 @@ export function contains(target, options) {
             };
 
             /** @type {typeof moveTo} */
-            const moveToWithDelay = async (to, options) => {
+            const moveToWithDelay = async (
+                /** @type {any} */ to,
+                /** @type {any} */ options,
+            ) => {
                 await moveTo(to, options);
                 await advanceFrame();
 

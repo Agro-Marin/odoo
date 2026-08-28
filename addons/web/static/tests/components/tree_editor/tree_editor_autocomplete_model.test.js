@@ -36,7 +36,7 @@ test("the tag list reads the avatar model from the incoming props, not the outgo
         }
     }
 
-    const parent = await mountWithCleanup(Parent);
+    const parent = /** @type {any} */ (await mountWithCleanup(Parent));
     expect(".o_tag img").toHaveCount(1);
 
     parent.state.resModel = "product";

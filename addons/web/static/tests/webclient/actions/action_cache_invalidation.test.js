@@ -112,6 +112,8 @@ test("act_window write with no active controller is a no-op", async () => {
 test("any ir.actions.* write clears the /web/action/load cache", async () => {
     await mountWithCleanup(WebClient);
 
+    /** @type {any[]} */
+
     const cleared = [];
     const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
@@ -133,6 +135,8 @@ test("any ir.actions.* write clears the /web/action/load cache", async () => {
 
     expect(cleared.filter((d) => d === "/web/action/load").length).toBe(5);
 
+    /** @type {any[]} */
+
     const clearedAfter = [];
     const onClear2 = (/** @type {any} */ ev) => clearedAfter.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear2);
@@ -149,6 +153,8 @@ test("installActionCacheInvalidation returns a disposer that removes the listene
     /** @type {any} */
     const am = { breadcrumbCache: new BreadcrumbCache(), controllerStack: [] };
     const uninstall = installActionCacheInvalidation(am);
+
+    /** @type {any[]} */
 
     const cleared = [];
     const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
@@ -172,6 +178,8 @@ test("action service exposes the cache-invalidation disposer", async () => {
     await mountWithCleanup(WebClient);
     const am = getService("action");
     expect(typeof am.uninstallActionCacheInvalidation).toBe("function");
+
+    /** @type {any[]} */
 
     const cleared = [];
     const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
@@ -233,6 +241,8 @@ test("a non-act_window action write clears the cache but skips the refresh", asy
     };
     const uninstall = installActionCacheInvalidation(am);
 
+    /** @type {any[]} */
+
     const cleared = [];
     const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
@@ -272,6 +282,8 @@ test("an ir.embedded.actions create/unlink clears the cache but skips the refres
     };
     const uninstall = installActionCacheInvalidation(am);
 
+    /** @type {any[]} */
+
     const cleared = [];
     const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
@@ -293,6 +305,8 @@ test("a write on an unrelated model is ignored entirely", async () => {
     /** @type {any} */
     const am = { breadcrumbCache: cacheBefore, controllerStack: [] };
     const uninstall = installActionCacheInvalidation(am);
+
+    /** @type {any[]} */
 
     const cleared = [];
     const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
@@ -394,7 +408,9 @@ test("act_window write during a URL restore refreshes the MOUNTED stack", async 
 
 test("env.destroy() reaches the action service's cache invalidation", async () => {
     await mountWithCleanup(WebClient);
-    const env = getMockEnv();
+    const env = /** @type {any} */ (getMockEnv());
+
+    /** @type {any[]} */
 
     const cleared = [];
     const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);

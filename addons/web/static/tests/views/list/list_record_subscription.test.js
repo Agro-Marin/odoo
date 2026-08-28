@@ -35,7 +35,9 @@ const ARCH = `<list><field name="foo"/></list>`;
 test.tags("desktop");
 test("an in-place reverse of list.records repaints the rows", async () => {
     const view = await mountView({ type: "list", resModel: "partner", arch: ARCH });
-    const renderer = findComponent(view, (component) => Boolean(component?.gridState));
+    const renderer = /** @type {any} */ (
+        findComponent(view, (component) => Boolean(component?.gridState))
+    );
     expect(queryAllTexts(".o_data_row .o_data_cell").join("")).toBe("abc");
 
     renderer.props.list.records.reverse();
@@ -48,7 +50,9 @@ test("an in-place reverse of list.records repaints the rows", async () => {
 test.tags("desktop");
 test("a same-length splice of list.records repaints the rows", async () => {
     const view = await mountView({ type: "list", resModel: "partner", arch: ARCH });
-    const renderer = findComponent(view, (component) => Boolean(component?.gridState));
+    const renderer = /** @type {any} */ (
+        findComponent(view, (component) => Boolean(component?.gridState))
+    );
     const { records } = renderer.props.list;
     const reversed = [...records].reverse();
 

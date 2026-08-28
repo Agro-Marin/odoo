@@ -35,9 +35,9 @@ describe("indexQueryBySearchItem", () => {
             { searchItemId: 1, generatorId: "month" },
         ];
         expect(
-            indexQueryBySearchItem(query)
-                .get(1)
-                .map((/** @type {any} */ q) => q.generatorId),
+            /** @type {any} */ (indexQueryBySearchItem(query).get(1)).map(
+                (/** @type {any} */ q) => q.generatorId,
+            ),
         ).toEqual(["year-1", "month"]);
     });
 

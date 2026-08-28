@@ -47,9 +47,9 @@ test("cache promise", async () => {
         return new Deferred();
     });
 
-    cache.read("a").then((k) => expect.step(`then ${k}`));
-    cache.read("b").then((k) => expect.step(`then ${k}`));
-    cache.read("a").then((k) => expect.step(`then ${k}`));
+    cache.read("a").then((/** @type {any} */ k) => expect.step(`then ${k}`));
+    cache.read("b").then((/** @type {any} */ k) => expect.step(`then ${k}`));
+    cache.read("a").then((/** @type {any} */ k) => expect.step(`then ${k}`));
     cache.read("a").resolve("a");
     cache.read("b").resolve("b");
 

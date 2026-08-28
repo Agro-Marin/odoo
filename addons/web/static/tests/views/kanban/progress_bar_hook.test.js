@@ -11,7 +11,7 @@ describe.current.tags("desktop");
 const COLORS = { done: "success", blocked: "danger" };
 
 /**
- * @param {Object} [opts]
+ * @param {Record<string, any>} [opts]
  */
 function makeGroup({ id = "g1", value = "a", count = 3, records = [] } = {}) {
     return {
@@ -26,11 +26,12 @@ function makeGroup({ id = "g1", value = "a", count = 3, records = [] } = {}) {
 }
 
 /**
- * @param {Object} [opts]
+ * @param {Record<string, any>} [opts]
  */
 function makeModel({ groups = [makeGroup()], readProgressBar } = {}) {
     /** @type {Record<string, Function[]>} */
     const hooks = {};
+    /** @type {any[]} */
     const calls = [];
     return {
         calls,
@@ -40,12 +41,17 @@ function makeModel({ groups = [makeGroup()], readProgressBar } = {}) {
             groupByField: { name: "stage" },
             fields: { state: {} },
             context: {},
-            domain: [],
+            domain: /** @type {any[]} */ ([]),
             groupBy: ["stage"],
             resModel: "task",
         },
         orm: {
-            call: (resModel, method, args, kwargs) => {
+            call: (
+                /** @type {any} */ resModel,
+                /** @type {any} */ method,
+                /** @type {any} */ args,
+                /** @type {any} */ kwargs,
+            ) => {
                 calls.push(method);
                 return readProgressBar
                     ? readProgressBar(kwargs)
@@ -53,11 +59,11 @@ function makeModel({ groups = [makeGroup()], readProgressBar } = {}) {
             },
             formattedReadGroup: () => Promise.resolve([]),
         },
-        subscribeLifecycle(name, cb) {
+        subscribeLifecycle(/** @type {any} */ name, /** @type {any} */ cb) {
             (hooks[name] ||= []).push(cb);
             return () => {};
         },
-        async fire(name, ...args) {
+        async fire(/** @type {any} */ name, /** @type {any[]} */ ...args) {
             for (const cb of hooks[name] || []) {
                 await cb(...args);
             }
@@ -66,7 +72,7 @@ function makeModel({ groups = [makeGroup()], readProgressBar } = {}) {
 }
 
 /**
- * @param {Object} [opts]
+ * @param {Record<string, any>} [opts]
  */
 async function mountProgressBar({
     model = makeModel(),
@@ -91,7 +97,7 @@ async function mountProgressBar({
     return { state, model };
 }
 
-async function load(model) {
+async function load(/** @type {any} */ model) {
     await model.fire("onWillLoadRoot", {
         context: {},
         domain: [],
@@ -108,12 +114,12 @@ describe("seeding a group from the fetched counts", () => {
         await load(model);
 
         const info = state.getGroupInfo(model.root.groups[0]);
-        expect(info.bars.map((b) => b.value.toString())).toEqual([
+        expect(info.bars.map((/** @type {any} */ b) => b.value.toString())).toEqual([
             "done",
             "blocked",
             "Symbol(False)",
         ]);
-        expect(info.bars.map((b) => b.count)).toEqual([2, 0, 3], {
+        expect(info.bars.map((/** @type {any} */ b) => b.count)).toEqual([2, 0, 3], {
             message: "Other is group.count minus the coloured counts",
         });
         expect(info.total).toBe(5);
@@ -128,7 +134,7 @@ describe("seeding a group from the fetched counts", () => {
         await load(model);
 
         const info = state.getGroupInfo(model.root.groups[0]);
-        expect(info.bars.map((b) => b.count)).toEqual([0, 0, 4]);
+        expect(info.bars.map((/** @type {any} */ b) => b.count)).toEqual([0, 0, 4]);
         expect(info.total).toBe(4);
     });
 });
@@ -160,7 +166,7 @@ describe("the epoch guard on the counts fetch", () => {
         await runAllTimers();
 
         const info = state.getGroupInfo(model.root.groups[0]);
-        expect(info.bars.map((b) => b.count)).toEqual([4, 1, 0], {
+        expect(info.bars.map((/** @type {any} */ b) => b.count)).toEqual([4, 1, 0], {
             message: "the stale response never landed",
         });
     });
@@ -177,7 +183,9 @@ describe("group membership changing under a fetch", () => {
         const { state } = await mountProgressBar({ model });
         answer.resolve({ a: { done: 2, blocked: 0 } });
         await load(model);
-        const before = state.getGroupInfo(groups[0]).bars.map((b) => b.count);
+        const before = state
+            .getGroupInfo(groups[0])
+            .bars.map((/** @type {any} */ b) => b.count);
 
         const late = new Deferred();
         model.orm.call = () => {
@@ -190,7 +198,9 @@ describe("group membership changing under a fetch", () => {
         await tick();
         await tick();
 
-        expect(state.getGroupInfo(groups[0]).bars.map((b) => b.count)).toEqual(before, {
+        expect(
+            state.getGroupInfo(groups[0]).bars.map((/** @type {any} */ b) => b.count),
+        ).toEqual(before, {
             message:
                 "the answer described a different set of groups, so it was dropped",
         });

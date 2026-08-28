@@ -29,7 +29,7 @@ function scrollable({ vertical = true } = {}) {
         ? "height:1000px;width:50px;"
         : "height:50px;width:1000px;";
     box.appendChild(inner);
-    getFixture().appendChild(box);
+    /** @type {HTMLElement} */ (getFixture()).appendChild(box);
     return box;
 }
 

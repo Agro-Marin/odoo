@@ -13,7 +13,7 @@ export const UNRENDERABLE_FIELD_TYPES = [
 export const RICH_TEXT_FIELD_TYPES = ["html"];
 
 /**
- * @param {Object} fieldDef
+ * @param {Record<string, any>} fieldDef
  * @param {Object} [options]
  * @param {boolean} [options.plainText]
  * @returns {boolean}
@@ -50,7 +50,7 @@ export function placeholderExpression(path, { fieldType, tzPath } = {}) {
 }
 
 /**
- * @param {Object} orm
+ * @param {import("@web/core/network/orm_service").ORM} orm
  * @param {string} resModel
  * @returns {Promise<string | null>}
  */

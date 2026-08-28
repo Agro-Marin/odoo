@@ -17,7 +17,13 @@ function parentAcrossRoots(el) {
         return el.parentElement;
     }
     const root = el.parentNode ?? el.getRootNode();
-    return /** @type {ShadowRoot} */ (root)?.host ?? null;
+    // `ShadowRoot.host` is typed `Element`; the other branch above returns an
+    // `HTMLElement`, and every shadow host this walks through is one.
+    return (
+        /** @type {HTMLElement | undefined} */ (
+            /** @type {ShadowRoot} */ (root)?.host
+        ) ?? null
+    );
 }
 
 function isScrollableX(/** @type {Element} */ el) {

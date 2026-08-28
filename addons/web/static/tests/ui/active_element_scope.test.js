@@ -61,8 +61,10 @@ test("a hotkey keeps the scope it was registered in when another element is acti
     ui.activateElement(later);
     await microTick();
 
-    const registration = [...hotkey.registrations.values()].find(
-        (/** @type {{ hotkey: string }} */ r) => r.hotkey === "alt+q",
+    const registration = /** @type {any} */ (
+        [...hotkey.registrations.values()].find(
+            (/** @type {{ hotkey: string }} */ r) => r.hotkey === "alt+q",
+        )
     );
     expect(registration.getScope()).toBe(document);
 
@@ -99,8 +101,8 @@ test("useCommand binds to the active element owning the component, not to the ne
     await animationFrame();
     await microTick();
 
-    const modal = document.querySelector(".modal");
-    expect(modal).not.toBe(null);
+    const modal = /** @type {HTMLElement} */ (document.querySelector(".modal"));
+    expect(modal).not.toBe(/** @type {any} */ (null));
     expect(commandNamesFor(document)).toEqual(["outside"]);
     expect(commandNamesFor(modal)).toEqual(["inside"]);
 });
@@ -120,16 +122,16 @@ test("a component rendering a dialog is outside it until it says otherwise", asy
         setup() {
             this.modalRef = useChildRef();
             ambient = useActiveElementScope();
-            declared = () => this.modalRef.el;
+            declared = () => /** @type {any} */ (this.modalRef).el;
         }
     }
     getService("dialog").add(RendersADialog, {});
     await animationFrame();
 
-    const modal = document.querySelector(".modal");
+    const modal = /** @type {HTMLElement} */ (document.querySelector(".modal"));
     expect(getService("ui").activeElement).toBe(modal);
-    expect(ambient()).toBe(document);
-    expect(declared()).toBe(modal);
+    expect(/** @type {any} */ (ambient)()).toBe(document);
+    expect(/** @type {any} */ (declared)()).toBe(modal);
 });
 
 test("a component beside an open dialog is scoped to the document, not to the dialog", async () => {
@@ -155,8 +157,10 @@ test("a component beside an open dialog is scoped to the document, not to the di
     }
     await mountWithCleanup(Outside);
 
-    expect(getService("ui").activeElement).toBe(document.querySelector(".modal"));
-    expect(outsideScope()).toBe(document);
+    expect(getService("ui").activeElement).toBe(
+        /** @type {HTMLElement} */ (document.querySelector(".modal")),
+    );
+    expect(/** @type {any} */ (outsideScope)()).toBe(document);
 });
 
 test("isSmall is its own reactive key, so a same-band resize does not invalidate it", async () => {
@@ -185,6 +189,7 @@ test("isSmall is its own reactive key, so a same-band resize does not invalidate
         static template = xml`<div class="reader" t-esc="ui.isSmall"/>`;
         static props = {};
         setup() {
+            /** @type {any} */
             this.ui = useState(useService("ui"));
             onWillRender(() => expect.step(`render ${this.ui.isSmall}`));
         }
@@ -242,7 +247,7 @@ test("popover content inherits the opener's scope only when the opener passes en
     await animationFrame();
     await animationFrame();
 
-    const modal = document.querySelector(".modal");
+    const modal = /** @type {HTMLElement} */ (document.querySelector(".modal"));
     expect(getService("ui").activeElement).toBe(modal);
     expect(scopes.withEnv()).toBe(modal);
     expect(scopes.withoutEnv()).toBe(document);

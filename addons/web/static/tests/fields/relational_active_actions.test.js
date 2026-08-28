@@ -37,7 +37,7 @@ describe("crud options", () => {
     });
 
     test("a domain option is evaluated against the eval context", async () => {
-        const params = (bar) => ({
+        const params = (/** @type {any} */ bar) => ({
             fieldType: /** @type {const} */ ("one2many"),
             crudOptions: { create: [["bar", "=", true]] },
             getEvalParams: () => ({ readonly: false, evalContext: { bar } }),

@@ -28,7 +28,7 @@ describe("rgbToHex", () => {
     });
 
     test("agrees with blendColors, which it now delegates to", () => {
-        const fixture = getFixture();
+        const fixture = /** @type {HTMLElement} */ (getFixture());
         const node = document.createElement("div");
         node.style.backgroundColor = "rgb(0, 0, 0)";
         fixture.appendChild(node);

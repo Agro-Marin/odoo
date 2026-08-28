@@ -198,7 +198,7 @@ describe("waiting for the lazy JS", () => {
         /** @type {string[]} */
         const seen = [];
         for (const sel of [".opted", ".nav", ".hash"]) {
-            queryOne(sel).addEventListener("click", (ev) => {
+            queryOne(sel).addEventListener("click", (/** @type {any} */ ev) => {
                 ev.preventDefault();
                 seen.push(sel);
             });
@@ -236,7 +236,7 @@ describe("waiting for the lazy JS", () => {
         const seen = [];
         for (const sel of ["form.outside", "form.opted"]) {
             const formEl = queryOne(sel);
-            formEl.addEventListener("submit", (ev) => {
+            formEl.addEventListener("submit", (/** @type {any} */ ev) => {
                 ev.preventDefault();
                 seen.push(sel);
             });

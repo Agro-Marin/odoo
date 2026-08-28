@@ -18,7 +18,7 @@ const makeError = (reason) => new Error(`Error in hook useProbe: ${reason}.`);
  */
 function makeTree() {
     const root = document.createElement("div");
-    getFixture().appendChild(root);
+    /** @type {HTMLElement} */ (getFixture()).appendChild(root);
     const list = document.createElement("ul");
     root.appendChild(list);
     const items = [0, 1, 2].map(() => {
@@ -85,7 +85,7 @@ test("willStartDrag ignores a target outside the element selector", () => {
     const { session, ctx, state } = makeSession();
     const stray = document.createElement("div");
     session.willStartDrag(stray);
-    expect(ctx.current.element).toBe(undefined);
+    expect(ctx.current.element).toBe(/** @type {any} */ (undefined));
     expect(state.willDrag).toBe(false);
 });
 
@@ -94,7 +94,7 @@ test("cleanup replaces ctx.current wholesale so nothing survives the drag", () =
     session.willStartDrag(items[0]);
     ctx.current.leftover = "should not survive";
     session.cleanup.cleanup();
-    expect(ctx.current.element).toBe(undefined);
+    expect(ctx.current.element).toBe(/** @type {any} */ (undefined));
     expect(ctx.current.leftover).toBe(undefined, {
         message: "a per-drag key must not reach the next drag",
     });
@@ -172,7 +172,7 @@ test("dragEnd in an error state skips both handlers but still cleans up", () => 
     session.dragEnd(items[1], true);
     expect.verifySteps([], { message: "no drop, no dragEnd" });
     expect(state.dragging).toBe(false, { message: "cleanup still ran" });
-    expect(ctx.current.element).toBe(undefined);
+    expect(ctx.current.element).toBe(/** @type {any} */ (undefined));
 });
 
 test("a drop onto a disconnected element is withheld, but dragEnd is not", () => {
@@ -214,7 +214,7 @@ test("a throwing caller handler tears the drag down before the error escapes", (
     expect(state.dragging).toBe(false, {
         message: "an exception must not leave a drag mounted",
     });
-    expect(ctx.current.element).toBe(undefined);
+    expect(ctx.current.element).toBe(/** @type {any} */ (undefined));
 });
 
 test("onKeyDown ends a drag on any key that is not a bare modifier", () => {

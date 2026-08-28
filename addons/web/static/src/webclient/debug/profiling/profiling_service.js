@@ -153,8 +153,9 @@ registry
     .category("default")
     .add(
         "profilingItem",
-        /** @type {any} */ (
-            ({ env }) => env.services.profiling?.profilingItem() ?? null
+        /** @type {(params: { env: import("@web/env").OdooEnv }) => any} */ (
+            ({ /** @type {any} */ env }) =>
+                env.services.profiling?.profilingItem() ?? null
         ),
     );
 

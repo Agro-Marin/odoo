@@ -12,14 +12,12 @@ import {
 
 class Attachment extends models.Model {
     _name = "ir.attachment";
-    _inherit = [];
     name = fields.Char();
     _records = [{ id: 7, name: "cover.png" }];
 }
 
 class Partner extends models.Model {
     _name = "res.partner";
-    _inherit = [];
     name = fields.Char();
     cover_id = fields.Many2one({ relation: "ir.attachment" });
     _records = [

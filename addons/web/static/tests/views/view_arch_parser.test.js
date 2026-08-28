@@ -42,7 +42,7 @@ const KANBAN_ARCH = `
  */
 function stamping(ParserClass) {
     return class extends ParserClass {
-        processButton(node) {
+        processButton(/** @type {any} */ node) {
             const parsed = super.processButton(node);
             parsed.stamped = true;
             return parsed;
@@ -50,7 +50,7 @@ function stamping(ParserClass) {
     };
 }
 
-function parse(ParserClass, arch) {
+function parse(/** @type {any} */ ParserClass, /** @type {any} */ arch) {
     return new ParserClass().parse(
         parseXML(arch),
         { foo: { fields: Foo._fields } },
@@ -61,27 +61,33 @@ function parse(ParserClass, arch) {
 test("list: a processButton override reaches header AND control buttons", () => {
     const info = parse(stamping(ListArchParser), LIST_ARCH);
     expect(info.headerButtons[0].stamped).toBe(true);
-    expect(info.controls.find((c) => c.type === "button").stamped).toBe(true);
+    expect(
+        info.controls.find((/** @type {any} */ c) => c.type === "button").stamped,
+    ).toBe(true);
 });
 
 test("kanban: a processButton override reaches header AND control buttons", () => {
     const info = parse(stamping(KanbanArchParser), KANBAN_ARCH);
     expect(info.headerButtons[0].stamped).toBe(true);
-    expect(info.controls.find((c) => c.type === "button").stamped).toBe(true);
+    expect(
+        info.controls.find((/** @type {any} */ c) => c.type === "button").stamped,
+    ).toBe(true);
 });
 
 test("list and kanban parse <control> to the same shape", () => {
     const listControls = parse(ListArchParser, LIST_ARCH).controls;
     const kanbanControls = parse(KanbanArchParser, KANBAN_ARCH).controls;
-    expect(listControls.find((c) => c.type === "create")).toEqual(
-        kanbanControls.find((c) => c.type === "create"),
+    expect(listControls.find((/** @type {any} */ c) => c.type === "create")).toEqual(
+        kanbanControls.find((/** @type {any} */ c) => c.type === "create"),
     );
-    expect(listControls.find((c) => c.type === "create").class).toBe("my-create-class");
+    expect(listControls.find((/** @type {any} */ c) => c.type === "create").class).toBe(
+        "my-create-class",
+    );
 });
 
 test("header buttons keep the arch's button numbering", () => {
     const info = parse(ListArchParser, LIST_ARCH);
-    expect(info.headerButtons.map((b) => b.id)).toEqual([0]);
+    expect(info.headerButtons.map((/** @type {any} */ b) => b.id)).toEqual([0]);
     expect(info.headerButtons[0].type).toBe("button");
 });
 
@@ -110,10 +116,13 @@ describe("visitArch", () => {
     test("dispatches by tag, ignores unregistered tags, and calls handlers on this", () => {
         class Probe extends ViewArchParser {
             tag = "probe";
-            parse(arch) {
+            parse(/** @type {any} */ arch) {
                 return this.visitArch(
                     arch,
-                    { roots: [], fields: [] },
+                    /** @type {{ roots: string[], fields: (string | null)[] }} */ ({
+                        roots: [],
+                        fields: [],
+                    }),
                     {
                         probe: this.onRoot,
                         field: (node, info) =>
@@ -121,7 +130,7 @@ describe("visitArch", () => {
                     },
                 );
             }
-            onRoot(node, info) {
+            onRoot(/** @type {any} */ node, /** @type {any} */ info) {
                 info.roots.push(this.tag);
             }
         }

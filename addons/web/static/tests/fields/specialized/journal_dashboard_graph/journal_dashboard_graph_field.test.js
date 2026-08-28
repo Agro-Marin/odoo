@@ -245,9 +245,11 @@ test("graph data of the wrong shape leaves the view standing", async () => {
     });
     await animationFrame();
 
-    const graph = findComponent(
-        view,
-        (component) => component instanceof JournalDashboardGraphField,
+    const graph = /** @type {any} */ (
+        findComponent(
+            view,
+            (component) => component instanceof JournalDashboardGraphField,
+        )
     );
     expect(Boolean(graph)).toBe(true);
     expect(graph.chart ?? null).toBe(null);

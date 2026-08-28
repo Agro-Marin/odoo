@@ -17,7 +17,7 @@ class ProbeCog extends Component {
 }
 
 /**
- * @param {Object} [overrides]
+ * @param {Record<string, any>} [overrides]
  */
 function makeCogMenu(overrides = {}) {
     const menu = Object.create(CogMenu.prototype);
@@ -124,7 +124,7 @@ describe("getDisplayedRegistryItems", () => {
 
     /**
      * @param {string} key
-     * @param {Object} [entry]
+     * @param {Record<string, any>} [entry]
      */
     function registerProbe(key, entry = {}) {
         probeRegistry.add(key, { Component: ProbeCog, groupNumber: 5, ...entry });
@@ -185,7 +185,7 @@ describe("getDisplayedRegistryItems", () => {
             probeRegistry,
             /** @type {any} */ ({}),
         );
-        const item = items.find((i) => i.key === "probe-keyed");
+        const item = /** @type {any} */ (items.find((i) => i.key === "probe-keyed"));
         expect(item).not.toBe(undefined);
         expect(item.Component).toBe(ProbeCog);
         expect(item.key).not.toBe(ProbeCog.name);

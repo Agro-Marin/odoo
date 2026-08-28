@@ -5,7 +5,7 @@ import { makeEditHandlers } from "@web/views/list/list_keyboard_edit";
 
 describe.current.tags("headless");
 
-function makeTable(rowsHTML) {
+function makeTable(/** @type {string} */ rowsHTML) {
     const table = document.createElement("table");
     table.innerHTML = `<tbody>${rowsHTML}</tbody>`;
     document.body.appendChild(table);
@@ -21,7 +21,7 @@ const SELECTED_ROW = `
     </tr>`;
 
 /**
- * @param {Object} [opts]
+ * @param {Record<string, any>} [opts]
  */
 function setup({
     columns = [
@@ -37,12 +37,13 @@ function setup({
     rows = SELECTED_ROW,
 } = {}) {
     const table = makeTable(rows);
+    /** @type {string[]} */
     const steps = [];
     const list = {
         records: [],
         selection: [],
         model: { multiEdit: false },
-        enterEditMode: (r) => steps.push(`enterEditMode:${r?.id}`),
+        enterEditMode: (/** @type {any} */ r) => steps.push(`enterEditMode:${r?.id}`),
         leaveEditMode: () => steps.push("leaveEditMode"),
         ...(props.list || {}),
     };
@@ -54,7 +55,8 @@ function setup({
         getCanCreate: () => canCreate,
         getDisplayRowCreates: () => displayRowCreates,
         isCellReadonly,
-        onAdd: (params) => steps.push(`onAdd:${JSON.stringify(params ?? null)}`),
+        onAdd: (/** @type {any} */ params) =>
+            steps.push(`onAdd:${JSON.stringify(params ?? null)}`),
         onEditNextRecord: () => steps.push("onEditNextRecord"),
     };
     /** @type {any} */
@@ -62,7 +64,8 @@ function setup({
         lastIsDirty: false,
         lastEditedCell: null,
         cellToFocus: null,
-        focus: (el) => steps.push(`focus:${el?.className || el?.tagName}`),
+        focus: (/** @type {any} */ el) =>
+            steps.push(`focus:${el?.className || el?.tagName}`),
         findNextFocusableOnRow: () => table.querySelector(".bar"),
         findPreviousFocusableOnRow: () => table.querySelector(".foo"),
     };
@@ -90,7 +93,9 @@ describe("focusCell", () => {
     });
 
     test("skips readonly columns", () => {
-        const { nav, steps } = setup({ isCellReadonly: (col) => col.name === "foo" });
+        const { nav, steps } = setup({
+            isCellReadonly: (/** @type {any} */ col) => col.name === "foo",
+        });
         nav.focusCell(null);
         expect(steps).toEqual(["focus:bar"]);
     });
@@ -142,7 +147,7 @@ describe("applyCellKeydownEditModeStayOnRow", () => {
 
     test("it declines when the row has nowhere left to go", () => {
         const { nav, steps, table } = setup();
-        nav.findNextFocusableOnRow = () => null;
+        nav.findNextFocusableOnRow = () => /** @type {any} */ (null);
         const cell = table.querySelector("td");
 
         expect(nav.applyCellKeydownEditModeStayOnRow("tab", cell, null, null)).toBe(
@@ -165,7 +170,7 @@ describe("applyCellKeydownEditModeStayOnRow", () => {
 
 describe("applyCellKeydownMultiEditMode", () => {
     /**
-     * @param {Object} [opts]
+     * @param {Record<string, any>} [opts]
      */
     function multi({ selection = [{ id: "a" }, { id: "b" }], dirty = false } = {}) {
         const s = setup({ props: { list: { selection, records: selection } } });
@@ -187,7 +192,7 @@ describe("applyCellKeydownMultiEditMode", () => {
     test("tab walks to the next selected record", () => {
         const { nav, steps, table, selection } = multi();
         const cell = table.querySelector("td");
-        nav.findNextFocusableOnRow = () => null;
+        nav.findNextFocusableOnRow = () => /** @type {any} */ (null);
 
         expect(nav.applyCellKeydownMultiEditMode("tab", cell, null, selection[0])).toBe(
             true,
@@ -197,7 +202,7 @@ describe("applyCellKeydownMultiEditMode", () => {
 
     test("tab past the last selected record wraps to the first", () => {
         const { nav, steps, table, selection } = multi();
-        nav.findNextFocusableOnRow = () => null;
+        nav.findNextFocusableOnRow = () => /** @type {any} */ (null);
         const cell = table.querySelector("td");
 
         nav.applyCellKeydownMultiEditMode("tab", cell, null, selection[1]);
@@ -207,7 +212,7 @@ describe("applyCellKeydownMultiEditMode", () => {
     test("a selection of one wraps onto itself and stays in the row", () => {
         const { nav, steps, table, selection } = multi({ selection: [{ id: "only" }] });
         const cell = table.querySelector("td");
-        nav.findNextFocusableOnRow = () => null;
+        nav.findNextFocusableOnRow = () => /** @type {any} */ (null);
 
         expect(nav.applyCellKeydownMultiEditMode("tab", cell, null, selection[0])).toBe(
             true,
@@ -229,7 +234,7 @@ describe("applyCellKeydownMultiEditMode", () => {
 
     test("shift+tab to a previous record records which way it came", () => {
         const { nav, table, selection } = multi();
-        nav.findPreviousFocusableOnRow = () => null;
+        nav.findPreviousFocusableOnRow = () => /** @type {any} */ (null);
         const cell = table.querySelector("td");
 
         nav.applyCellKeydownMultiEditMode("shift+tab", cell, null, selection[1]);
@@ -239,7 +244,7 @@ describe("applyCellKeydownMultiEditMode", () => {
 
 describe("applyCellKeydownEditModeGroup", () => {
     /**
-     * @param {Object} [opts]
+     * @param {Record<string, any>} [opts]
      */
     function grouped({
         editable = "bottom",
@@ -346,6 +351,7 @@ describe("onCellKeydownEditMode dispatch order", () => {
                 },
             },
         });
+        /** @type {string[]} */
         const order = [];
         nav.applyCellKeydownMultiEditMode = () => (order.push("multi"), true);
         nav.applyCellKeydownEditModeStayOnRow = () => (order.push("row"), true);
@@ -365,6 +371,7 @@ describe("onCellKeydownEditMode dispatch order", () => {
                 },
             },
         });
+        /** @type {string[]} */
         const order = [];
         nav.applyCellKeydownMultiEditMode = () => (order.push("multi"), true);
         nav.applyCellKeydownEditModeStayOnRow = () => (order.push("row"), true);
@@ -376,6 +383,7 @@ describe("onCellKeydownEditMode dispatch order", () => {
     test("the group handler runs only when there is a group, and after the row", () => {
         const record = { id: "a" };
         const { nav, table } = setup({ props: { list: { records: [record] } } });
+        /** @type {string[]} */
         const order = [];
         nav.applyCellKeydownEditModeStayOnRow = () => (order.push("row"), false);
         nav.applyCellKeydownEditModeGroup = () => (order.push("group"), true);
