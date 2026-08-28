@@ -207,6 +207,23 @@ env:
   RPC_INSTALL: rpc
   RPC_TEST_TAGS: /rpc
 
+  # data_recycle, added 2026-08-28 -- the module whose cron archives and deletes
+  # other modules' records, and which appeared in no lane of this file. Its suite
+  # ran only when someone ran it by hand, which is how it came to ship a queue
+  # that acted on records after their rule had stopped selecting them, a rule
+  # with no filter that emptied the whole table, and a cron that ended its night
+  # on the first record a foreign key protected.
+  #
+  # `-i data_recycle` pulls mail and the rest of its graph; the tests are its own.
+  #
+  # Two of the 29 are tours and need headless Chrome, which this runner does not
+  # have confirmed -- the same deferral as stock's two tour classes. `--no-http`
+  # below skips their class and REPORTS it as skipped rather than as a pass, so
+  # the count is 27 and the floor sits under it. Drop `--no-http` once Chrome is
+  # confirmed, at which point the count is 29 and the floor moves to 27.
+  RECYCLE_INSTALL: data_recycle
+  RECYCLE_TEST_TAGS: /data_recycle
+
 jobs:
   base-smoke:
     name: base suite (PostgreSQL 18)
@@ -498,5 +515,38 @@ jobs:
             echo "::error::only $RAN rpc tests ran, below the floor of 90 —"
             echo "::error::something was skipped rather than failed. A run with"
             echo "::error::--no-http reports 82: the HttpCase classes skipped."
+            exit 1
+          fi
+
+      - name: Run data_recycle suite
+        # Its own database (ci_recycle), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_recycle \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${RECYCLE_INSTALL}" \
+            --test-enable --test-tags "${RECYCLE_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/recycle-suite.log
+
+      - name: Assert the data_recycle suite actually ran
+        # Same guard as the suites above. 27 tests under --no-http, the two tours
+        # skipping for want of a browser; the floor sits under that so a narrowed
+        # tag or a module that failed to install fails loudly rather than quietly.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/recycle-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — data_recycle did not report a count"
+            exit 1
+          fi
+          echo "data_recycle tests run: $RAN (floor: 25)"
+          if [ "$RAN" -lt 25 ]; then
+            echo "::error::only $RAN data_recycle tests ran, below the floor of 25 —"
+            echo "::error::something was skipped rather than failed."
             exit 1
           fi
