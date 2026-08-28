@@ -354,7 +354,15 @@ class TestWebsocketCaryall(WebsocketCase):
             self.assertNotIn(server_session.sid, set_cookie)
 
     @patch.dict(os.environ, {"ODOO_BUS_PUBLIC_SAMESITE_WS": "True"})
-    def test_mismatched_origin_downgrades_with_legacy_env_var(self):
+    def test_legacy_samesite_env_var_is_accepted_and_ignored(self):
+        # ODOO_BUS_PUBLIC_SAMESITE_WS is a legacy opt-in flag for the
+        # downgrade-on-origin-mismatch behaviour above: that downgrade is now
+        # the default, and the variable is only kept so old deployments that
+        # still set it don't break. Nothing under addons/bus reads it
+        # (only ODOO_BUS_TRUSTED_ORIGINS is), so this asserts the no-op
+        # contract — same outcome as
+        # test_mismatched_origin_downgrades_to_public_session, var or not —
+        # rather than a behaviour the flag causes.
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
         with mute_logger("odoo.addons.bus.websocket"):
