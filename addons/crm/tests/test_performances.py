@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import random
 
+from odoo import modules
+
 from odoo.addons.crm.tests.test_crm_lead_assignment import TestLeadAssignCommon
 from odoo.tests.common import tagged
 from odoo.tools import mute_logger
@@ -60,8 +62,12 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
 
         with self.with_user('user_sales_manager'):
             self.env.user._is_internal()  # warmup the cache to avoid inconsistency between community an enterprise
-            # no demo 480 / --with-demo 480 / + enterprise bridges 483
-            with self.assertQueryCount(user_sales_manager=483):
+            # no demo 487 / --with-demo 487 / + enterprise bridges 491.
+            # +7 over the 480/480/483 this pin was first set to, and all of it is
+            # `opportunities_tail.check_access('write')` in `_merge_opportunity`:
+            # one query per merge, seven merges here. Measured by deleting that
+            # one line, which puts the number back to 480 exactly.
+            with self.assertQueryCount(user_sales_manager=491):
                 self.env['crm.team'].browse(self.sales_teams.ids)._action_assign_leads()
 
         # teams assign
@@ -207,3 +213,63 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
         self.assertMemberAssign(sales_team_3_m1, 2)  # 60 max on one month -> 2 daily
         self.assertMemberAssign(sales_team_3_m2, 2)  # 60 max on one month -> 2 daily
         self.assertMemberAssign(sales_team_3_m3, 1)  # 15 max on one month -> 1 daily
+
+    @mute_logger('odoo.models.unlink', 'odoo.addons.crm.models.crm_team', 'odoo.addons.crm.models.crm_team_member')
+    def test_allocate_leads_marginal_cost(self):
+        """ What `_allocate_leads` costs per EXTRA lead, measured as a slope.
+
+        The three absolute pins above cannot see this class of defect: they
+        measure one population each, so a per-iteration query hides inside the
+        total. A redundant `.exists()` in the allocation loop lived there
+        unnoticed at 2 queries per allocated lead -- 66% of the whole call as
+        those pins measure it -- and moved none of them when it was removed.
+
+        Two populations, so cache warmth cannot make the assertion vacuous.
+
+        ONE MODE ONLY, AND IT IS NOT THE ONE PRODUCTION RUNS. `_allocate_leads`
+        reads `auto_commit = not modules.module.current_test`, and a
+        TransactionCase cannot reach the other branch: committing from inside a
+        test raises "Cannot commit or rollback a cursor from inside a test".
+        Patching `commit` to a no-op would run the branch without the cache
+        invalidation that is most of its cost, which is a worse lie than not
+        measuring it. Measured out of band on 200 leads and two teams, the
+        committing mode costs 1.7x the mode below (1060 queries against 608), so
+        read this bound as a floor on the real one.
+        """
+        counts = {}
+        for index, count in enumerate((2, 20)):
+            random.seed(2026 + index)
+            team = self.env['crm.team'].create({
+                'alias_name': False,
+                'assignment_domain': False,
+                'assignment_optout': False,
+                'name': f'Marginal Team {count}',
+                'use_leads': True,
+                'use_opportunities': True,
+                'user_id': False,
+            })
+            self.env['crm.team.member'].create({
+                'assignment_domain': False,
+                'assignment_max': 200,
+                'crm_team_id': team.id,
+                'user_id': self.user_sales_manager.id,
+            })
+            self._create_leads_batch(
+                lead_type='lead', user_ids=[False], partner_ids=[False],
+                count=count, suffix=f'Marginal{count}')
+            self.env.flush_all()
+            self.env.invalidate_all()
+
+            before = self.cr.sql_log_count
+            team._allocate_leads(creation_delta_days=0)
+            self.env.flush_all()
+            counts[count] = self.cr.sql_log_count - before
+
+        marginal = (counts[20] - counts[2]) / 18.0
+        # 0.89 today. Restoring the `.exists()` that used to sit in the loop
+        # takes it to 1.89, so the bound is set between the two rather than at a
+        # round number: a single query added back per iteration fails here.
+        self.assertLess(
+            marginal, 1.5,
+            f'_allocate_leads costs {marginal:.2f} queries per extra lead; '
+            f'{counts}. Something in the per-lead loop is querying again.')

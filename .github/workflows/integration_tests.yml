@@ -53,6 +53,12 @@ on:
       # The rpc lane below. `rpc` lives in odoo/addons, not addons/, so it was
       # not covered by any entry here either.
       - 'odoo/addons/rpc/**'
+      # The crm lane below. crm was installed by exactly one workflow --
+      # module_installability.yml, which passes no --test-enable -- so its 142
+      # tests and its six assertQueryCount pins were executed by nothing. That
+      # is how the pins came to sit 24-58% over the tree they measure.
+      - 'addons/crm/**'
+      - 'addons/sales_team/**'
       - 'crates/**'
       - 'requirements*.txt'
       - '.github/workflows/integration_tests.yml'
@@ -223,6 +229,27 @@ env:
   # confirmed, at which point the count is 29 and the floor moves to 27.
   RECYCLE_INSTALL: data_recycle
   RECYCLE_TEST_TAGS: /data_recycle
+
+  # crm, added 2026-08-28 -- the module whose suite no lane ran.
+  #
+  # It was installed by exactly one workflow, module_installability.yml, which
+  # asks only whether the graph assembles and passes no --test-enable. So 142
+  # tests and six assertQueryCount pins were executed by nothing, which is how
+  # the pins came to sit 24-58% over the tree they measure and how a third of
+  # the HOOT suite stayed red without anyone being told.
+  #
+  # `-i crm` is the whole install set: crm's own tests are the scope and every
+  # dependency comes with it. It is not the widest useful shape -- six
+  # enterprise bridges auto-install over crm and are not in this repository --
+  # but the six query pins are set to the maximum of the three shapes measured
+  # (no demo, --with-demo, plus those bridges), so a community-only lane cannot
+  # pass a pin that the enterprise shape would fail.
+  #
+  # No tag exclusions. The two HttpCase classes, TestUi in test_crm_ui and in
+  # test_sales_team_ui, skip themselves under --no-http and are reported as
+  # skipped rather than as passes, so the floor below sits under the 142.
+  CRM_INSTALL: crm
+  CRM_TEST_TAGS: /crm
 
 jobs:
   base-smoke:
@@ -515,6 +542,40 @@ jobs:
             echo "::error::only $RAN rpc tests ran, below the floor of 90 —"
             echo "::error::something was skipped rather than failed. A run with"
             echo "::error::--no-http reports 82: the HttpCase classes skipped."
+            exit 1
+          fi
+
+      - name: Run crm suite
+        # Its own database (ci_crm), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_crm \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${CRM_INSTALL}" \
+            --test-enable --test-tags "${CRM_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/crm-suite.log
+
+      - name: Assert the crm suite actually ran
+        # Same guard as the suites above. 142 tests today, two of which skip for
+        # want of an HTTP server; the floor sits under that so a narrowed tag or
+        # a module that failed to install fails loudly, rather than a single
+        # deleted test doing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/crm-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — crm did not report a count"
+            exit 1
+          fi
+          echo "crm tests run: $RAN (floor: 130)"
+          if [ "$RAN" -lt 130 ]; then
+            echo "::error::only $RAN crm tests ran, below the floor of 130 —"
+            echo "::error::something was skipped rather than failed."
             exit 1
           fi
 
