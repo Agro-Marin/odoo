@@ -263,8 +263,8 @@ class BaseGeocoder(models.AbstractModel):
             # user decide wich provider to use to localise the partner.
             result = self._call_openstreetmap_reverse(latitude, longitude)
             if result and (address := result.get("address")):
-                country_code = address.get("country_code")
-                city = (
+                country_code = country_code or address.get("country_code")
+                city = city or (
                     address.get("city_district")
                     or address.get("town")
                     or address.get("village")

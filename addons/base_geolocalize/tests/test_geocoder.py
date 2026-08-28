@@ -151,6 +151,28 @@ class TestGeocoderEdges(TransactionCase):
             result = self.Geocoder._get_localisation(24.8, -107.4)
         self.assertEqual(result, f"Culiacán, {mexico.name}")
 
+    def test_get_localisation_merges_partial_geoip_hit(self):
+        """A partial geoip hit (city known, country missing) keeps the known
+        city instead of being fully replaced by the reverse-geocode result."""
+        fake_request = MagicMock()
+        fake_request.geoip.city.name = "Culiacán"
+        fake_request.geoip.country_code = None
+        reverse_result = {"address": {"town": "Different Town", "country_code": "mx"}}
+        with (
+            patch(
+                "odoo.addons.base_geolocalize.models.base_geocoder.request",
+                fake_request,
+            ),
+            patch.object(
+                type(self.Geocoder),
+                "_call_openstreetmap_reverse",
+                return_value=reverse_result,
+            ),
+        ):
+            result = self.Geocoder._get_localisation(24.8, -107.4)
+        mexico = self.env.ref("base.mx")
+        self.assertEqual(result, f"Culiacán, {mexico.name}")
+
 
 @tagged("post_install", "-at_install")
 class TestPartnerCoordinatesReset(TransactionCase):
