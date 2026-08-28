@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import Command, fields
 from odoo.tests import tagged
@@ -110,3 +111,40 @@ class TestSeatsAvailabilityContract(EventCase):
             "the other slot's registrations must not count against this one",
         )
         self.assertEqual(event._get_seats_availability([(slots[0], ticket)]), [6])
+
+    def test_the_seat_count_does_not_depend_on_who_is_asking(self):
+        """Seat counts are computed as sudo, whoever reads them.
+
+        The three seat computes used raw SQL, which went around access rules by
+        construction; the grouped read that replaced it does not. Availability
+        is public information -- the website shows it to anonymous visitors --
+        so it must not vary with the reader, and reading it must not require
+        access to the registrations behind it.
+        """
+        registration_model = self.env["event.registration"]
+        origin = type(registration_model)._read_group
+        sudo_flags = []
+
+        def _spy(records, *args, **kwargs):
+            sudo_flags.append(records.env.su)
+            return origin(records, *args, **kwargs)
+
+        self._create_registrations_for_slot_and_ticket(
+            self.event, self.env["event.slot"], self.ticket_limited, 1
+        )
+        self.env.flush_all()
+        as_user = self.event.with_user(self.user_eventuser)
+        as_user.invalidate_recordset()
+        with patch.object(type(registration_model), "_read_group", _spy):
+            self.assertEqual(as_user.seats_taken, 1)
+
+        self.assertTrue(
+            sudo_flags and all(sudo_flags),
+            "the seat count must be read as sudo, else a reader without access "
+            "to event.registration gets an AccessError on seats_available",
+        )
+        self.assertEqual(
+            self.event.with_user(self.user_eventuser).seats_taken,
+            self.event.sudo().seats_taken,
+            "the count must not vary with the reader",
+        )

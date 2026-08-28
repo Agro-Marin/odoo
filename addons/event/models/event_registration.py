@@ -26,6 +26,9 @@ class EventRegistration(models.Model):
         ``event.event.ticket`` was three copies of the same grouped count,
         differing only in the column. Returns
         ``{record_id: {"seats_reserved": n, "seats_used": n}}``, zero-filled.
+
+        Counted as sudo: seat availability is shown to anonymous visitors on
+        the website, and the count must not depend on who is asking.
         """
         state_field = {"open": "seats_reserved", "done": "seats_used"}
         results = {
@@ -35,7 +38,12 @@ class EventRegistration(models.Model):
         if not record_ids:
             return results
         self.flush_model([fname, "state", "active"])
-        for record, state, count in self._read_group(
+        # sudo: how many seats are taken is public information -- the website
+        # shows it to anonymous visitors -- while reading the registrations
+        # themselves is not. The raw SQL this replaced went around access rules
+        # by construction; _read_group does not, and without this the public
+        # user gets AccessError on event.seats_available.
+        for record, state, count in self.sudo()._read_group(
             domain=[
                 (fname, "in", list(record_ids)),
                 ("state", "in", list(state_field)),
