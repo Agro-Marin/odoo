@@ -1248,8 +1248,7 @@ class CalendarEvent(models.Model):
         update_alarms = touches_time or "alarm_ids" in values or "partner_ids" in values
 
         if (
-            not recurrence_update_setting
-            or (recurrence_update_setting == "self_only" and len(self) == 1)
+            not recurrence_update_setting or recurrence_update_setting == "self_only"
         ) and "follow_recurrence" not in values:
             if touches_time:
                 values["follow_recurrence"] = False
@@ -1377,9 +1376,20 @@ class CalendarEvent(models.Model):
                 ),
                 force_send=True,
             )
-        if self.env.context.get("is_calendar_event_new") or "start" not in values:
+        # Deliberately narrower than `_touches_time`: an allday event's
+        # `start_date`/`stop_date` change gets its own single note-only
+        # notification elsewhere (see `test_message_date_changed`), so this
+        # email path only cares about the non-allday `start`/`stop` pair --
+        # but it must be BOTH, not just `start` (the bug this fixes): a
+        # `stop`-only write (event lengthened/shortened, start untouched)
+        # used to skip this notification entirely.
+        if self.env.context.get("is_calendar_event_new") or not (
+            values.keys() & {"start", "stop"}
+        ):
             return
-        start_date = fields.Datetime.to_datetime(values.get("start"))
+        start_date = fields.Datetime.to_datetime(values.get("start")) or (
+            self[:1].start if self else None
+        )
         # Only notify on future events
         if start_date and start_date >= fields.Datetime.now():
             (current_attendees & previous_attendees).with_context(
@@ -1549,6 +1559,13 @@ class CalendarEvent(models.Model):
     def unlink(self):
         if not self:
             return super().unlink()
+
+        # `write()` checks this before mutating; `unlink()` is a mutation too
+        # and had no equivalent check, letting anyone who is neither
+        # organizer nor attendee delete somebody else's private event.
+        self.filtered(
+            lambda ev: ev.user_id and self.env.user != ev.user_id
+        )._check_calendar_privacy_write_permissions()
 
         # Get concerned attendees to notify them if there is an alarm on the unlinked events,
         # as it might have changed their next event notification
@@ -1913,6 +1930,17 @@ class CalendarEvent(models.Model):
                 lambda ev: ev.start >= self.start
             )
             future_events.unlink()
+        else:
+            # Public, RPC-callable method: fail loudly instead of silently
+            # no-op'ing on an unrecognized policy. Today's only caller,
+            # `_unlink_by_recurrence_policy`, pre-filters 'self_only' before
+            # reaching here, but nothing enforces that for a future caller.
+            raise UserError(
+                _(
+                    "Unknown recurrence update setting: %s",
+                    recurrence_update_setting,
+                )
+            )
 
     def action_mass_archive(self, recurrence_update_setting):
         """
@@ -1964,7 +1992,18 @@ class CalendarEvent(models.Model):
                 if "user_id" in fields:
                     activity_values["user_id"] = event.user_id.id
                 if activity_values.keys():
-                    event.activity_ids.write(activity_values)
+                    # Mirror `mail_activity.write()`'s own loop guard: it sets
+                    # `mail_activity_meeting_update` on its outbound write to
+                    # us so `_sync_activities` above skips re-deriving
+                    # `date_deadline`. Without setting the matching key here,
+                    # this write into the activity re-enters
+                    # `mail_activity.write()`'s date_deadline sync, which
+                    # writes back into this event's `start` -- a redundant
+                    # (and, depending on rounding, potentially looping)
+                    # round-trip for every plain event.start edit.
+                    event.activity_ids.with_context(
+                        calendar_event_meeting_update=True
+                    ).write(activity_values)
 
     @api.model
     def _get_activity_deadline_from_start(self, start, allday):
@@ -2030,7 +2069,15 @@ class CalendarEvent(models.Model):
         now = fields.Datetime.now()
         sorted_alarms = self.alarm_ids.sorted("duration_minutes")
         triggered_alarms = sorted_alarms.filtered(
-            lambda alarm: alarm.id in events_by_alarm
+            # `events_by_alarm[alarm.id]` is the set of events this alarm
+            # actually fired for in this cron batch, not just any event -- an
+            # alarm shared by several events (a common reminder) is a key in
+            # `events_by_alarm` as soon as it fired for ONE of them, so
+            # checking only `alarm.id in events_by_alarm` would misread that
+            # as "fired for `self`" too.
+            lambda alarm: (
+                alarm.id in events_by_alarm and self.id in events_by_alarm[alarm.id]
+            )
         )[0]
         event_has_future_alarms = sorted_alarms[0] != triggered_alarms
         next_date = None
