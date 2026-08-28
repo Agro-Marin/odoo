@@ -8,6 +8,8 @@ _logger = logging.getLogger(__name__)
 
 
 class BaseGeo_Provider(models.Model):
+    """Configured geolocation provider (technical name + label) selectable in settings."""
+
     _name = "base.geo_provider"
     _description = "Geo Provider"
 
@@ -249,7 +251,7 @@ class BaseGeocoder(models.AbstractModel):
         raise UserError(_("Error with geolocation server: %s", error))
 
     def _get_localisation(self, latitude, longitude):
-        """Return a "city, country" string for the given coordinates.
+        """Return a human-readable "[postcode] city, country" string for the given coordinates.
 
         :param float latitude: latitude to resolve
         :param float longitude: longitude to resolve
