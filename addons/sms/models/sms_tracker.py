@@ -1,19 +1,12 @@
 from odoo import fields, models
 
 
+# Trackers are keyed by SMS UUID rather than linked to the SMS record directly,
+# because SMS records can be deleted after sending.
+# Only admins/system user should need to access (a fortiori modify) these
+# technical records, so no "sudo" is used nor should be required here.
 class SmsTracker(models.Model):
-    """Relationship between a sent SMS and tracking records such as notifications and traces.
-
-    This model acts as an extension of a `mail.notification` or a `mailing.trace` and allows to
-    update those based on the SMS provider responses both at sending and when later receiving
-    sent/delivery reports (see `SmsController`).
-    SMS trackers are supposed to be created manually when necessary, and tied to their related
-    SMS through the SMS UUID field. (They are not tied to the SMS records directly as those can
-    be deleted when sent).
-
-    Note: Only admins/system user should need to access (a fortiori modify) these technical
-      records so no "sudo" is used nor should be required here.
-    """
+    """Links a sent SMS to its mail.notification or mailing.trace tracking record."""
 
     _name = "sms.tracker"
     _description = "Link SMS to mailing/sms tracking models"
