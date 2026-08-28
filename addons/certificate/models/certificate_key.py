@@ -496,11 +496,13 @@ class CertificateKey(models.Model):
             raise UserError(_("The public key could not be loaded.")) from exc
 
         if isinstance(public_key, ec.EllipticCurvePublicKey):
-            e = public_key.public_numbers().x
-            n = public_key.public_numbers().y
+            # EC keys have no modulus/exponent; this carries the curve
+            # point coordinates (x, y) in the same two-value shape.
+            first = public_key.public_numbers().x
+            second = public_key.public_numbers().y
         elif isinstance(public_key, rsa.RSAPublicKey):
-            e = public_key.public_numbers().e
-            n = public_key.public_numbers().n
+            first = public_key.public_numbers().e
+            second = public_key.public_numbers().n
         else:
             raise UserError(
                 _(
@@ -510,8 +512,8 @@ class CertificateKey(models.Model):
             )
 
         return (
-            _get_formatted_value(_int_to_bytes(e), formatting=formatting),
-            _get_formatted_value(_int_to_bytes(n), formatting=formatting),
+            _get_formatted_value(_int_to_bytes(first), formatting=formatting),
+            _get_formatted_value(_int_to_bytes(second), formatting=formatting),
         )
 
     @api.model
