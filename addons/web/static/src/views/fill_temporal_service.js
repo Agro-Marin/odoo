@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
-import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 
 /**
  * Configuration depending on the granularity, using Luxon DateTime objects:
@@ -261,6 +261,15 @@ export class FillTemporalPeriod {
  *
  * This service will be used to generate or retrieve fill_temporal periods
  *
+ * It lived in `crm` until 2026-08-28, which put the client half of a CORE ORM
+ * feature -- `_read_group_fill_temporal`, in odoo/orm/models/mixins/read_group/
+ * -- inside a business addon, so any other module wanting continuous temporal
+ * grouping had to depend on crm to get it. Nothing in the module is about
+ * leads: `getFillTemporalPeriod` takes the model name as an argument, and
+ * `graph_model.js` two directories away already sets `fill_temporal` in its own
+ * context. Its only consumer is still crm's forecast views, which reach it
+ * through the service registry and needed no import change.
+ *
  * A specific fill_temporal period configuration will always refer to the same instance
  * unless forceRecompute is true
  */
@@ -315,7 +324,7 @@ export const fillTemporalService = {
                 _fillTemporalPeriods[modelName][field.name][granularity] =
                     new FillTemporalPeriod(modelName, field, granularity, minGroups);
             } else if (
-                _fillTemporalPeriods[modelName][field.name][granularity].minGroups !=
+                _fillTemporalPeriods[modelName][field.name][granularity].minGroups !==
                 minGroups
             ) {
                 _fillTemporalPeriods[modelName][field.name][granularity].setMinGroups(

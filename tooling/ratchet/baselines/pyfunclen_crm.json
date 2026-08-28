@@ -1,0 +1,4 @@
+{
+  "count": 288,
+  "note": "crm's own Python function-length budget, added with the CI lane that measures it. `pyfunclen` measures the core package and `pyfunclen_addons` only refuses growth, so crm's was floored by nothing -- of a piece with its test suite running in no lane until 2026-08-28.\n\n288 excess lines over 7 functions, two of them over 150: `_pls_get_naive_bayes_probabilities` (189) and `_allocate_leads` (176). The first is also the module's only c901 offender at 25. Both are debt this floor exists to drive down."
+}
