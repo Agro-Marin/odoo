@@ -1172,7 +1172,7 @@
                                         }"
                                         widget="many2one_account_account"
                                         options="{'no_quick_create': True, 'no_open': True}"
-                                        domain="[('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance'))]"
+                                        domain="[('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_cash', 'asset_receivable', 'liability_payable', 'off_balance'))]"
                                         groups="account.group_account_readonly" />
                                     <field name="analytic_distribution"
                                         widget="analytic_distribution"
