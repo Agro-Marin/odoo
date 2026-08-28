@@ -1,4 +1,4 @@
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.base_iban.models.res_partner_bank import (
@@ -101,3 +101,32 @@ class TestBaseIban(TransactionCase):
     def test_get_iban_part_unmapped_country_returns_false(self):
         """A country code absent from the template map returns False, not ''."""
         self.assertIs(get_iban_part("ZZ68539007547034", "bank"), False)
+
+    def test_get_bban_returns_bban_for_iban_account(self):
+        """get_bban() returns the BBAN for an account whose acc_type is iban."""
+        partner = self.env["res.partner"].create({"name": "IBAN mutation probe"})
+        bank = self.env["res.partner.bank"].create(
+            {"partner_id": partner.id, "acc_number": VALID_IBAN}
+        )
+        self.assertEqual(bank.acc_type, "iban")
+        self.assertEqual(bank.get_bban(), "539007547034")
+
+    def test_get_bban_raises_for_non_iban_account(self):
+        """get_bban() raises UserError when acc_type is not iban."""
+        partner = self.env["res.partner"].create({"name": "IBAN mutation probe"})
+        bank = self.env["res.partner.bank"].create(
+            {"partner_id": partner.id, "acc_number": "not-an-iban"}
+        )
+        self.assertNotEqual(bank.acc_type, "iban")
+        with self.assertRaises(UserError):
+            bank.get_bban()
+
+    def test_get_acc_type_detects_iban(self):
+        """_get_acc_type() returns 'iban' for a well-formed IBAN."""
+        Bank = self.env["res.partner.bank"]
+        self.assertEqual(Bank._get_acc_type(VALID_IBAN), "iban")
+
+    def test_get_acc_type_falls_back_for_non_iban(self):
+        """_get_acc_type() delegates to super() for a non-IBAN account number."""
+        Bank = self.env["res.partner.bank"]
+        self.assertEqual(Bank._get_acc_type("not-an-iban"), "bank")
