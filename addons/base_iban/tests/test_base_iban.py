@@ -28,6 +28,10 @@ class TestBaseIban(TransactionCase):
         """Boundary: an invalid IBAN is returned unchanged (no grouping)."""
         self.assertEqual(pretty_iban("XX"), "XX")
 
+    def test_pretty_iban_normalizes_punctuated_input(self):
+        """A valid IBAN typed with separators is normalized before grouping."""
+        self.assertEqual(pretty_iban("BE68 5390-0754_7034"), "BE68 5390 0754 7034")
+
     def test_get_bban_from_iban_drops_country_and_check(self):
         """The BBAN is the IBAN without its leading country code and check digits."""
         self.assertEqual(get_bban_from_iban(VALID_IBAN), "539007547034")
