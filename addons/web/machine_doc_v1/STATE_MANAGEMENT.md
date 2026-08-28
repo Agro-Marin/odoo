@@ -371,9 +371,9 @@ the editable-state layer — the pending-edit `ChangeSet`, the reactive `dirty`
 signal, `invalidFields`/`unsetRequiredFields`, the char/text/html `textValues`
 tracking, and the `savePoint` — is owned by a single `RecordEditState` instance
 held at `record._editState`. The record exposes back-compat getters/setters
-(`dirty`, `_changes`, `_changeSet`, `_invalidFields`, `_unsetRequiredFields`,
+(`dirty`, `_changes`, `_invalidFields`, `_unsetRequiredFields`,
 `_textValues`, `_initialTextValues`, `_savePoint`,
-`_closeInvalidFieldsNotification`) that delegate to the owner, so every consumer
+`closeInvalidFieldsNotification`) that delegate to the owner, so every consumer
 (sibling helpers, fields/views, subclasses, test mocks) is unchanged. `_values`
 (server layer) and `_saveInFlight` stay on the record. The `(dirty, changes)`
 invariant now has one home: `RecordEditState.clearChanges()` is the only
