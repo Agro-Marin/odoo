@@ -126,7 +126,7 @@ class SaleOrder(models.Model):
 
         updated_line = super()._cart_update_order_line(order_line, quantity, **kwargs)
 
-        # Remove event registrations on quantity decrease.
+        # Cancel event registrations on quantity decrease.
         if (
             updated_line
             and updated_line.event_ticket_id
