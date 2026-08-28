@@ -17,12 +17,8 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         cls.other_currency = cls.setup_other_currency("EUR")
 
-        cls.payment_debit_account_id = (
-            cls.inbound_payment_channel.payment_account_id
-        )
-        cls.payment_credit_account_id = (
-            cls.outbound_payment_channel.payment_account_id
-        )
+        cls.payment_debit_account_id = cls.inbound_payment_channel.payment_account_id
+        cls.payment_credit_account_id = cls.outbound_payment_channel.payment_account_id
 
         cls.bank_journal_1 = cls.company_data["default_journal_bank"]
         cls.bank_journal_2 = cls.company_data["default_journal_bank"].copy()
@@ -138,17 +134,11 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
     def test_payment_move_sync_update_journal_custom_accounts(self):
         outstanding_payment_A = self.inbound_payment_channel.payment_account_id
-        outstanding_payment_B = (
-            self.inbound_payment_channel.payment_account_id.copy()
-        )
+        outstanding_payment_B = self.inbound_payment_channel.payment_account_id.copy()
         journal_A = self.company_data["default_journal_bank"]
-        journal_A.inbound_payment_channel_ids.payment_account_id = (
-            outstanding_payment_A
-        )
+        journal_A.inbound_payment_channel_ids.payment_account_id = outstanding_payment_A
         journal_B = self.company_data["default_journal_bank"].copy()
-        journal_B.inbound_payment_channel_ids.payment_account_id = (
-            outstanding_payment_B
-        )
+        journal_B.inbound_payment_channel_ids.payment_account_id = outstanding_payment_B
 
         pay_form = Form(
             self.env["account.payment"].with_context(
@@ -695,9 +685,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_reconciliation_with_old_oustanding_account(self):
-        outstanding_account_2 = (
-            self.inbound_payment_channel.payment_account_id.copy()
-        )
+        outstanding_account_2 = self.inbound_payment_channel.payment_account_id.copy()
 
         payment = self.env["account.payment"].create(
             {
@@ -753,9 +741,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 else self.bank_journal_1
             )
             payment.journal_id = other_journal
-            self.assertEqual(
-                payment.payment_channel_id.journal_id.id, other_journal.id
-            )
+            self.assertEqual(payment.payment_channel_id.journal_id.id, other_journal.id)
 
             payment.journal_id = default_journal
             self.assertEqual(
@@ -843,9 +829,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_channel_ids.payment_account_id = self.env[
-            "account.account"
-        ]
+        ].inbound_payment_channel_ids.payment_account_id = self.env["account.account"]
         invoice2 = invoice1.copy()
         invoice2.action_post()
         self.env["account.payment.register"].with_context(
@@ -886,9 +870,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_channel_ids.payment_account_id = self.env[
-            "account.account"
-        ]
+        ].inbound_payment_channel_ids.payment_account_id = self.env["account.account"]
 
         invoice_1 = self.env["account.move"].create(
             [
@@ -1067,9 +1049,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         with assert_paid_hook_call("without oustanding"):
             if self.env["account.move"]._get_invoice_in_payment_state() != "in_payment":
-                self.skipTest(
-                    "Accounting not installed"
-                )
+                self.skipTest("Accounting not installed")
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )
@@ -1088,9 +1068,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
 
         with assert_paid_hook_call("with mixed oustanding"):
             if self.env["account.move"]._get_invoice_in_payment_state() != "in_payment":
-                self.skipTest(
-                    "Accounting not installed"
-                )
+                self.skipTest("Accounting not installed")
             invoice = self.init_invoice(
                 "out_invoice", post=True, amounts=[1000.0], taxes=[]
             )

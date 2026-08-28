@@ -756,9 +756,7 @@ class AccountPayment(models.Model):
     @api.depends("journal_id.currency_id", "company_id.currency_id")
     def _compute_currency_id(self):
         for pay in self:
-            pay.currency_id = (
-                pay.journal_id.currency_id or pay.company_id.currency_id
-            )
+            pay.currency_id = pay.journal_id.currency_id or pay.company_id.currency_id
 
     @api.depends("payment_channel_id")
     def _compute_outstanding_account_id(self):
@@ -1402,9 +1400,7 @@ class AccountPayment(models.Model):
 
     def button_open_bills(self):
         self.ensure_one()
-        return self.reconciled_bill_ids.with_context(
-            create=False
-        )._get_records_action(
+        return self.reconciled_bill_ids.with_context(create=False)._get_records_action(
             name=_("Paid Bills"),
         )
 

@@ -138,6 +138,7 @@ class TestAccountInvoiceImportMixin:
 
         def patched_get_edi_decoder(self, file_data, new):
             if file_data["import_file_type"] == "test_xml":
+
                 def decoder(invoice, file_data, new):
                     if invoice.invoice_line_ids:
                         return invoice._reason_cannot_decode_has_invoice_lines()
@@ -158,6 +159,7 @@ class TestAccountInvoiceImportMixin:
                     "priority": 20,
                 }
             elif file_data["import_file_type"] == "pdf":
+
                 def decoder(invoice, file_data, new):
                     if invoice.invoice_line_ids:
                         return invoice._reason_cannot_decode_has_invoice_lines()
