@@ -365,6 +365,41 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(ml2.picking_id.move_ids.quantity, 10)
         self.assertEqual(ml2.picking_id.move_ids.product_uom_qty, 0)
 
+    def test_wave_picking_vals_link_each_line_once(self):
+        """A partial wave links each line once, not once per move it splits.
+
+        `_prepare_wave_picking_vals` walks the picking's moves to decide which
+        are relinked whole and which are split, but the LINES going to the wave
+        do not vary with that walk -- `line_by_move` partitions them. Emitting
+        the link list inside the move loop made it quadratic: the picking below
+        has 2 moves and 8 lines, so it produced 16 link commands where 8 say
+        the same thing. The end state was right, which is why nothing caught it;
+        a picking with 40 moves and 200 lines would have built 8000.
+        """
+        lines = self.picking_client_1.move_line_ids
+        moves = lines.move_id
+        self.assertEqual(len(moves), 2, "the fixture is 2 moves")
+        self.assertEqual(len(lines), 8, "the fixture is 8 lines")
+
+        # Leave one line behind so the picking is split rather than relinked
+        # whole -- the branch that builds move_line_ids at all.
+        waved = lines[:-1]
+        wave = self.env['stock.picking.batch'].create({
+            'is_wave': True,
+            'picking_type_id': self.picking_client_1.picking_type_id.id,
+        })
+        vals = waved._prepare_wave_picking_vals(wave, self.picking_client_1, waved)
+        self.assertIsNotNone(vals, "a partial wave splits the picking")
+
+        self.assertEqual(
+            len(vals['move_line_ids']), len(waved),
+            "one link per line going to the wave, not one per (move, line)",
+        )
+        self.assertEqual(
+            {command[1] for command in vals['move_line_ids']}, set(waved.ids),
+            "and they are exactly the lines going to the wave",
+        )
+
     def test_wave_trigger_errors(self):
         with self.assertRaises(UserError):
             lines = self.picking_client_1.move_line_ids

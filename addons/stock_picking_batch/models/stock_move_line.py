@@ -71,10 +71,12 @@ class StockMoveLine(models.Model):
                 "date_planned": picking.date_planned,
             }
         )[0]
+        # Every line going to the wave moves to the new picking, once. The moves
+        # are what differ below: one is relinked whole, the next is split.
+        picking_to_wave_vals["move_line_ids"] += [
+            Command.link(line.id) for line in lines
+        ]
         for move, move_lines in line_by_move.items():
-            picking_to_wave_vals["move_line_ids"] += [
-                Command.link(line.id) for line in lines
-            ]
             # if all the line of a stock move are taken we change the picking on the stock move
             if move_lines == move.move_line_ids:
                 picking_to_wave_vals["move_ids"] += [Command.link(move.id)]
