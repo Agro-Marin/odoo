@@ -1,0 +1,35 @@
+from odoo.tests import tagged
+
+from odoo.addons.account_payment_provider.tests.common import AccountPaymentCommon
+
+
+@tagged("-at_install", "post_install")
+class TestPaymentProvider(AccountPaymentCommon):
+    def test_duplicate_provider_child_company_no_journal_id(self):
+        """Test that duplicating a provider into a child company leaves `journal_id` unset until
+        that company has a bank journal."""
+        child_company = self.env["res.company"].create(
+            {
+                "name": "Child Company",
+                "parent_id": self.env.company.id,
+            }
+        )
+        with self.mocked_get_payment_method_information():
+            provider_duplicated = self.dummy_provider.copy(
+                default={
+                    "name": "Duplicated Provider",
+                    "company_id": child_company.id,
+                    "state": "test",
+                }
+            )
+            self.assertFalse(provider_duplicated.journal_id)
+
+            bank_journal = self.env["account.journal"].create(
+                {
+                    "name": "Bank Journal",
+                    "type": "bank",
+                    "company_id": child_company.id,
+                }
+            )
+            provider_duplicated.invalidate_recordset(fnames=["journal_id"])
+            self.assertEqual(provider_duplicated.journal_id, bank_journal)
