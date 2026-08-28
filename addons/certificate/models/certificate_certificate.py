@@ -1,4 +1,5 @@
 import base64
+from functools import lru_cache
 
 from cryptography import x509
 from cryptography.hazmat.primitives import constant_time, serialization
@@ -8,6 +9,20 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from .certificate_key import STR_TO_HASH, _get_formatted_value
+
+
+@lru_cache(maxsize=128)
+def _parse_x509_certificate(pem_bytes):
+    """Parse DER-encoded certificate bytes, memoized by content.
+
+    ``_get_der_certificate_bytes``/``_get_fingerprint_bytes``/
+    ``_get_signature_bytes``/``_get_public_key_bytes`` each call
+    ``_load_certificate`` independently; a single signing flow that needs
+    several of them re-parsed the same certificate from scratch every
+    time. The cache key is the certificate's own bytes, so a changed
+    ``pem_certificate`` never returns a stale parse.
+    """
+    return x509.load_pem_x509_certificate(pem_bytes)
 
 
 class CertificateCertificate(models.Model):
@@ -390,7 +405,7 @@ class CertificateCertificate(models.Model):
 
     def _load_certificate(self):
         self.ensure_one()
-        return x509.load_pem_x509_certificate(
+        return _parse_x509_certificate(
             base64.b64decode(self.with_context(bin_size=False).pem_certificate)
         )
 
