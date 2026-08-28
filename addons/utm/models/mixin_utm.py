@@ -86,9 +86,11 @@ class MixinUtm(models.AbstractModel):
         """Version of ``_get_or_create_record`` used in frontend notably in
         website_links. For UTM models it calls _get_or_create_record. For other
         models (as through inheritance custom models could be used notably in
-        website links) it simply calls a create. In the end it relies on
+        website links) it calls a create. In the end it relies on
         standard ACLs, and is mainly a wrapper for UTM models.
 
+        :param model_name: name of the model to create or find the record on
+        :param name: value to set on the model's `_rec_name` field
         :return: id of newly created or found record. As the magic of call_kw
             for create is not called anymore we have to manually return an id
             instead of a recordset.
