@@ -919,8 +919,8 @@ Two readings of the gate itself:
   into eighteen classes would exempt itself. **1** hook is exempt today,
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
-  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **166**
-  names, at **241** definitions, wear one while no field declaration and no
+  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **167**
+  names, at **242** definitions, wear one while no field declaration and no
   binding decorator names them. A candidate population, not a violation count.
 
 2.4.2 Decorator-bound families the gate cannot reach
@@ -983,7 +983,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 105 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,704 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,709 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
@@ -1222,7 +1222,7 @@ in this repository's model layer, having absorbed reading, building, deriving an
 computing. The split that matters is against ``_prepare_``: 687 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 726 already spelled ``_prepare_*``.
+spelled ``get_*``, against 725 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1280,7 +1280,7 @@ ratchet flags **4**. The gap hides two things -- the suffix list is short, and
 *object construction takes ``_prepare_`` too*, a factory having a consumer like
 anything else.
 
-Backlog: **34** of this repository's **726** ``_prepare_*`` definitions call
+Backlog: **34** of this repository's **725** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1297,7 +1297,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,046 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,047 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (29) plus ``_verify_``,
 ``_ensure_`` and ``_control_`` (50 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
@@ -2168,7 +2168,7 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **79** times against ``_unique``'s
+tail -- the tree spells that tail ``_uniq`` **80** times against ``_unique``'s
 **51**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**
