@@ -185,6 +185,16 @@ class IrModuleModule(models.Model):
                 )
                 raise UserError(err)
             to_install = known_mods.filtered(lambda mod: mod.name in unmet_dependencies)
+            # t27114: button_immediate_install() hard-commits the current
+            # transaction (twice) and reloads the registry — it cannot be
+            # wrapped in a savepoint, because a real COMMIT ends the
+            # transaction a savepoint lives in. So if _import_zipfile's
+            # per-module loop later fails on a *different* module in the
+            # same zip, this dependency install is NOT rolled back with it:
+            # the user-facing "import failed" error does not mean nothing
+            # was applied. This is accepted, not fixed — there is no
+            # transactional way to undo a registry-reloading install once
+            # it has committed.
             to_install.button_immediate_install()
         elif "web_studio" not in installed_mods and _is_studio_custom(path):
             raise UserError(_("Studio customizations require the Odoo Studio app."))
@@ -532,7 +542,11 @@ class IrModuleModule(models.Model):
                         # the exception's own message (t24068 — this message was
                         # embedding traceback.format_exc() verbatim, surfaced
                         # as-is in both the wizard's error dialog and the CLI
-                        # deploy endpoint's HTTP 500 body).
+                        # deploy endpoint's HTTP 500 body). Note this message
+                        # does not mean the whole zip's effects were undone: an
+                        # earlier module's dependency auto-install
+                        # (_import_module's button_immediate_install() call,
+                        # t27114) hard-commits before this loop even gets here.
                         _logger.exception(
                             "Error while importing module %r from zip", mod_name
                         )
