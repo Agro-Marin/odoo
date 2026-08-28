@@ -14,18 +14,11 @@ lookups and the PyO3 boundary costs more than the work.
 
 ## Where each reference comes from
 
-Four of the twelve exports have a reference in **production** code, because
-something still calls it: the eight `_field_access` functions have
-`_fallback.py`, which the test suite holds to the same assertions, and
-`origin_ids` has `_origin_ids_python`, which `orm/helpers._origin_ids` uses for
-any non-tuple input.
-
-The other three are defined **here**, and deliberately not in production. An
-unused twin sitting beside the real function is not a reference, it is drift
-waiting to happen — the crate carried eight such `_safe` functions "for
-documentation and semantic comparison", nothing called them so nothing compared
-them, and one had quietly acquired different subclass semantics from the
-function it documented. A benchmark reference belongs in the benchmark.
+Nine have one in production, because something still calls it. The other three
+live in `_native_references.py` beside this file, with the argument for that
+placement; `test_native_parity_fuzz` is what keeps them honest, and this file is
+meaningless without it — a reference nobody checks for agreement turns the ratio
+below into a comparison between two different jobs.
 
 ## Why a wall-clock assertion is not flaky here
 
@@ -44,8 +37,6 @@ by building the parent commit and running the new file against it.
 """
 
 import copy
-import csv
-import io
 import timeit
 from types import SimpleNamespace
 
@@ -61,6 +52,12 @@ from odoo.libs._field_access._fallback import (
     sort_ids_by_cache,
     sort_ids_by_values,
     to_prefetch_ids,
+)
+from odoo.libs.tests._native_references import (
+    NewId,
+    clone_ref,
+    csv_export_ref,
+    rows_to_dicts_ref,
 )
 from odoo.orm.helpers import _origin_ids_python
 
@@ -79,69 +76,6 @@ from odoo.orm.helpers import _origin_ids_python
 MAX_RATIO = 0.95
 
 
-# ── References with no production twin ───────────────────────────────────────
-
-
-def csv_export_py(headers, rows):
-    """`CSVExport.from_data` as it stood before `web.rs` replaced it.
-
-    The accelerated version additionally guards `@`, tab and CR — the remaining
-    OWASP formula-injection prefixes — so it does strictly more work than this,
-    which can only understate its lead.
-    """
-    fp = io.StringIO()
-    writer = csv.writer(fp, quoting=csv.QUOTE_ALL)
-    writer.writerow(headers)
-    for row in rows:
-        cells = []
-        for value in row:
-            if value is None or value is False:
-                value = ""
-            elif isinstance(value, bytes):
-                value = value.decode()
-            if isinstance(value, str) and value.startswith(("=", "-", "+")):
-                value = "'" + value
-            cells.append(value)
-        writer.writerow(cells)
-    return fp.getvalue().encode()
-
-
-def rows_to_dicts_py(names, rows):
-    """The pattern `rows.rs` names as the one it replaced."""
-    return [dict(zip(names, row, strict=True)) for row in rows]
-
-
-def fast_clone_py(obj):
-    """`clone.rs`'s semantics in Python: containers rebuilt, leaves shared.
-
-    `isinstance`, not `type(x) is`, to match `PyDict_Check` — the accelerated
-    version rebuilds subclasses too, and normalizes them to the builtin type.
-
-    NOT what production replaced: `Json.convert_to_record` called
-    `copy.deepcopy`, which is slower again because it memoizes. Both ratios are
-    reported by `test_fast_clone_also_beats_the_deepcopy_it_replaced`.
-    """
-    if isinstance(obj, dict):
-        return {key: fast_clone_py(value) for key, value in obj.items()}
-    if isinstance(obj, list):
-        return [fast_clone_py(value) for value in obj]
-    if isinstance(obj, tuple):
-        return tuple(fast_clone_py(value) for value in obj)
-    return obj
-
-
-class _NewId:
-    """Falsy, with an `origin` — what `origin_ids` exists to unwrap."""
-
-    __slots__ = ("origin",)
-
-    def __init__(self, origin):
-        self.origin = origin
-
-    def __bool__(self):
-        return False
-
-
 #: Every reference, keyed by the name it stands in for.
 slow = SimpleNamespace(
     batch_cache_fill=batch_cache_fill,
@@ -153,9 +87,9 @@ slow = SimpleNamespace(
     sort_ids_by_values=sort_ids_by_values,
     to_prefetch_ids=to_prefetch_ids,
     origin_ids=_origin_ids_python,
-    csv_export=csv_export_py,
-    rows_to_dicts=rows_to_dicts_py,
-    fast_clone=fast_clone_py,
+    csv_export=csv_export_ref,
+    rows_to_dicts=rows_to_dicts_ref,
+    fast_clone=clone_ref,
 )
 
 
@@ -190,7 +124,7 @@ _SQL_ROWS = [tuple(range(12)) for _ in range(N)]
 _CSV_HEADERS = [f"h{i}" for i in range(12)]
 _CSV_ROWS = [[f"cell {i}-{j}" for j in range(12)] for i in range(N)]
 _BLOB = {"a": list(range(20)), "b": {"c": [{"d": i} for i in range(20)]}, "e": "x" * 50}
-_ORIGIN_IDS = tuple(i if i % 3 else _NewId(i * 10) for i in range(1, N + 1))
+_ORIGIN_IDS = tuple(i if i % 3 else NewId(i * 10) for i in range(1, N + 1))
 
 
 def _results():
