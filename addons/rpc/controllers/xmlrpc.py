@@ -62,15 +62,15 @@ def xmlrpc_handle_exception_int(e):
 
 def xmlrpc_handle_exception_string(e):
     if isinstance(e, odoo.exceptions.RedirectWarning):
-        fault = xmlrpc.client.Fault(f'warning -- Warning\n\n{e}', '')
+        fault = xmlrpc.client.Fault(f"warning -- Warning\n\n{e}", "")
     elif isinstance(e, odoo.exceptions.MissingError):
-        fault = xmlrpc.client.Fault(f'warning -- MissingError\n\n{e}', '')
+        fault = xmlrpc.client.Fault(f"warning -- MissingError\n\n{e}", "")
     elif isinstance(e, odoo.exceptions.AccessError):
-        fault = xmlrpc.client.Fault(f'warning -- AccessError\n\n{e}', '')
+        fault = xmlrpc.client.Fault(f"warning -- AccessError\n\n{e}", "")
     elif isinstance(e, odoo.exceptions.AccessDenied):
-        fault = xmlrpc.client.Fault('AccessDenied', str(e))
+        fault = xmlrpc.client.Fault("AccessDenied", str(e))
     elif isinstance(e, odoo.exceptions.UserError):
-        fault = xmlrpc.client.Fault(f'warning -- UserError\n\n{e}', '')
+        fault = xmlrpc.client.Fault(f"warning -- UserError\n\n{e}", "")
     # InternalError
     else:
         fault = xmlrpc.client.Fault(str(e), _format_traceback(e))
@@ -168,6 +168,7 @@ def dumps(params: list | tuple | xmlrpc.client.Fault) -> str:
 </methodResponse>
 """
 
+
 # ==========================================================
 # RPC Controller
 # ==========================================================
@@ -183,7 +184,13 @@ class XMLRPC(Controller):
         result = dispatch_rpc(service, method, params)
         return dumps((result,))
 
-    @route("/xmlrpc/<service>", auth="none", methods=["POST"], csrf=False, save_session=False)
+    @route(
+        "/xmlrpc/<service>",
+        auth="none",
+        methods=["POST"],
+        csrf=False,
+        save_session=False,
+    )
     def xmlrpc_1(self, service):
         """XML-RPC service that returns faultCode as strings.
 
@@ -197,12 +204,18 @@ class XMLRPC(Controller):
         except Exception as error:
             error.error_response = Response(
                 response=xmlrpc_handle_exception_string(error),
-                mimetype='text/xml',
+                mimetype="text/xml",
             )
             raise
-        return Response(response=response, mimetype='text/xml')
+        return Response(response=response, mimetype="text/xml")
 
-    @route("/xmlrpc/2/<service>", auth="none", methods=["POST"], csrf=False, save_session=False)
+    @route(
+        "/xmlrpc/2/<service>",
+        auth="none",
+        methods=["POST"],
+        csrf=False,
+        save_session=False,
+    )
     def xmlrpc_2(self, service):
         """XML-RPC service that returns faultCode as int."""
         warn_endpoint_is_deprecated(logger, __name__)
@@ -212,7 +225,7 @@ class XMLRPC(Controller):
         except Exception as error:
             error.error_response = Response(
                 response=xmlrpc_handle_exception_int(error),
-                mimetype='text/xml',
+                mimetype="text/xml",
             )
             raise
-        return Response(response=response, mimetype='text/xml')
+        return Response(response=response, mimetype="text/xml")

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class JSONRPC(Controller):
-    @route('/jsonrpc', type='jsonrpc', auth="none", save_session=False)
+    @route("/jsonrpc", type="jsonrpc", auth="none", save_session=False)
     def jsonrpc(self, service, method, args):
         """Method used by client APIs to contact Odoo."""
         warn_endpoint_is_deprecated(logger, __name__)

@@ -19,294 +19,386 @@ class ReadonlyDictSubclass(ReadonlyDict):
 
 
 class TestExternalAPI(SavepointCaseWithUserDemo):
-
     def test_call_kw(self):
         """kwargs is not modified by the execution of the call"""
-        partner = self.env['res.partner'].create({'name': 'MyPartner1'})
-        args = (partner.ids, ['name'])
-        kwargs = {'context': {'test': True}}
-        model.call_kw(self.env['res.partner'], 'read', args, kwargs)
-        self.assertEqual(kwargs, {'context': {'test': True}})
+        partner = self.env["res.partner"].create({"name": "MyPartner1"})
+        args = (partner.ids, ["name"])
+        kwargs = {"context": {"test": True}}
+        model.call_kw(self.env["res.partner"], "read", args, kwargs)
+        self.assertEqual(kwargs, {"context": {"test": True}})
 
 
-@common.tagged('post_install', '-at_install')
+@common.tagged("post_install", "-at_install")
 class TestXMLRPC(common.HttpCase):
-
     def setUp(self):
         super().setUp()
-        self.admin_uid = self.env.ref('base.user_admin').id
+        self.admin_uid = self.env.ref("base.user_admin").id
 
-        ml_xml = mute_logger('odoo.addons.rpc.controllers.xmlrpc')
+        ml_xml = mute_logger("odoo.addons.rpc.controllers.xmlrpc")
         ml_xml.__enter__()
         self.addCleanup(ml_xml.__exit__)
 
-        ml_json = mute_logger('odoo.addons.rpc.controllers.jsonrpc')
+        ml_json = mute_logger("odoo.addons.rpc.controllers.jsonrpc")
         ml_json.__enter__()
         self.addCleanup(ml_json.__exit__)
 
     def xmlrpc(self, model, method, *args, **kwargs):
         return self.xmlrpc_object.execute_kw(
-            common.get_db_name(), self.admin_uid, 'admin',
-            model, method, args, kwargs
+            common.get_db_name(), self.admin_uid, "admin", model, method, args, kwargs
         )
 
     def test_01_xmlrpc_login(self):
-        """ Try to login on the common service. """
+        """Try to login on the common service."""
         db_name = common.get_db_name()
-        uid = self.xmlrpc_common.login(db_name, 'admin', 'admin')
+        uid = self.xmlrpc_common.login(db_name, "admin", "admin")
         self.assertEqual(uid, self.admin_uid)
 
     def test_xmlrpc_ir_model_search(self):
-        """ Try a search on the object service. """
+        """Try a search on the object service."""
         o = self.xmlrpc_object
         db_name = common.get_db_name()
-        ids = o.execute(db_name, self.admin_uid, 'admin', 'ir.model', 'search', [])
+        ids = o.execute(db_name, self.admin_uid, "admin", "ir.model", "search", [])
         self.assertIsInstance(ids, list)
-        ids = o.execute(db_name, self.admin_uid, 'admin', 'ir.model', 'search', [], {})
+        ids = o.execute(db_name, self.admin_uid, "admin", "ir.model", "search", [], {})
         self.assertIsInstance(ids, list)
 
     def test_xmlrpc_datetime(self):
-        """ Test that native datetime can be sent over xmlrpc
-        """
-        m = self.env.ref('base.model_res_device_log')
-        self.env['ir.model.access'].create({
-            'name': "w/e",
-            'model_id': m.id,
-            'perm_read': True,
-            'perm_create': True,
-        })
+        """Test that native datetime can be sent over xmlrpc"""
+        m = self.env.ref("base.model_res_device_log")
+        self.env["ir.model.access"].create(
+            {
+                "name": "w/e",
+                "model_id": m.id,
+                "perm_read": True,
+                "perm_create": True,
+            }
+        )
 
         now = datetime.datetime.now()
         ids = self.xmlrpc(
-            'res.device.log', 'create',
-            {'session_identifier': "abc", 'first_activity': now, 'revoked': False}
+            "res.device.log",
+            "create",
+            {"session_identifier": "abc", "first_activity": now, "revoked": False},
         )
         [r] = self.xmlrpc(
-            'res.device.log', 'read',
-            ids, ['first_activity'],
+            "res.device.log",
+            "read",
+            ids,
+            ["first_activity"],
         )
-        self.assertEqual(r['first_activity'], now.isoformat(" ", "seconds"))
+        self.assertEqual(r["first_activity"], now.isoformat(" ", "seconds"))
 
     def test_xmlrpc_read_group(self):
         self.xmlrpc_object.execute(
-            common.get_db_name(), self.admin_uid, 'admin',
-            'res.partner', 'formatted_read_group', [], ['parent_id'], ['color:sum'],
+            common.get_db_name(),
+            self.admin_uid,
+            "admin",
+            "res.partner",
+            "formatted_read_group",
+            [],
+            ["parent_id"],
+            ["color:sum"],
         )
 
     def test_xmlrpc_name_search(self):
         self.xmlrpc_object.execute(
-            common.get_db_name(), self.admin_uid, 'admin',
-            'res.partner', 'name_search', "admin"
+            common.get_db_name(),
+            self.admin_uid,
+            "admin",
+            "res.partner",
+            "name_search",
+            "admin",
         )
 
     def test_xmlrpc_html_field(self):
         sig = '<p>bork bork bork <span style="font-weight: bork">bork</span><br></p>'
-        r = self.env['res.users'].create({
-            'name': 'bob',
-            'login': 'bob',
-            'signature': sig
-        })
+        r = self.env["res.users"].create(
+            {"name": "bob", "login": "bob", "signature": sig}
+        )
         self.assertEqual(str(r.signature), sig)
-        [x] = self.xmlrpc('res.users', 'read', r.id, ['signature'])
-        self.assertEqual(x['signature'], sig)
+        [x] = self.xmlrpc("res.users", "read", r.id, ["signature"])
+        self.assertEqual(x["signature"], sig)
 
     def test_xmlrpc_frozendict_marshalling(self):
-        """ Test that the marshalling of a frozendict object works properly over XMLRPC """
-        self.env.ref('base.user_admin').tz = "Europe/Brussels"
+        """Test that the marshalling of a frozendict object works properly over XMLRPC"""
+        self.env.ref("base.user_admin").tz = "Europe/Brussels"
         ctx = self.xmlrpc_object.execute(
-            common.get_db_name(), self.admin_uid, 'admin',
-            'res.users', 'context_get',
+            common.get_db_name(),
+            self.admin_uid,
+            "admin",
+            "res.users",
+            "context_get",
         )
-        self.assertEqual(ctx['lang'], 'en_US')
-        self.assertEqual(ctx['tz'], 'Europe/Brussels')
+        self.assertEqual(ctx["lang"], "en_US")
+        self.assertEqual(ctx["tz"], "Europe/Brussels")
 
     def test_xmlrpc_fields_get_marshalling(self):
-        """ A relational field's `context` defaults to a ReadonlyDict, which is
+        """A relational field's `context` defaults to a ReadonlyDict, which is
         not a dict and so has no marshaller of its own.
         """
-        fields = self.xmlrpc('res.partner', 'fields_get', ['parent_id'], ['type', 'context'])
-        self.assertEqual(fields['parent_id']['type'], 'many2one')
-        self.assertEqual(fields['parent_id']['context'], {})
+        fields = self.xmlrpc(
+            "res.partner", "fields_get", ["parent_id"], ["type", "context"]
+        )
+        self.assertEqual(fields["parent_id"]["type"], "many2one")
+        self.assertEqual(fields["parent_id"]["context"], {})
 
     def test_xmlrpc_readonly_dict_subclass_marshalling(self):
-        """ Dispatch is by exact type, so a ReadonlyDict subclass is a miss too. """
-        self.patch(self.registry['res.users'], 'context_get',
-                   odoo.api.model(lambda *_: ReadonlyDictSubclass({'lang': 'en_US'})))
-        self.assertEqual(self.xmlrpc('res.users', 'context_get'), {'lang': 'en_US'})
+        """Dispatch is by exact type, so a ReadonlyDict subclass is a miss too."""
+        self.patch(
+            self.registry["res.users"],
+            "context_get",
+            odoo.api.model(lambda *_: ReadonlyDictSubclass({"lang": "en_US"})),
+        )
+        self.assertEqual(self.xmlrpc("res.users", "context_get"), {"lang": "en_US"})
 
     def test_xmlrpc_defaultdict_marshalling(self):
         """
         Test that the marshalling of a collections.defaultdict object
         works properly over XMLRPC
         """
-        self.patch(self.registry['res.users'], 'context_get',
-                   odoo.api.model(lambda *_: collections.defaultdict(int)))
-        self.assertEqual(self.xmlrpc('res.users', 'context_get'), {})
+        self.patch(
+            self.registry["res.users"],
+            "context_get",
+            odoo.api.model(lambda *_: collections.defaultdict(int)),
+        )
+        self.assertEqual(self.xmlrpc("res.users", "context_get"), {})
 
     def test_xmlrpc_remove_control_characters(self):
-        record = self.env['res.users'].create({
-            'name': 'bob with a control character: \x03',
-            'login': 'bob',
-        })
-        self.assertEqual(record.name, 'bob with a control character: \x03')
-        [record_data] = self.xmlrpc('res.users', 'read', record.id, ['name'])
-        self.assertEqual(record_data['name'], 'bob with a control character: ')
+        record = self.env["res.users"].create(
+            {
+                "name": "bob with a control character: \x03",
+                "login": "bob",
+            }
+        )
+        self.assertEqual(record.name, "bob with a control character: \x03")
+        [record_data] = self.xmlrpc("res.users", "read", record.id, ["name"])
+        self.assertEqual(record_data["name"], "bob with a control character: ")
 
     def test_jsonrpc_read_group(self):
         self._json_call(
-            common.get_db_name(), self.admin_uid, 'admin',
-            'res.partner', 'formatted_read_group', [], ['parent_id'], ['color:sum'],
+            common.get_db_name(),
+            self.admin_uid,
+            "admin",
+            "res.partner",
+            "formatted_read_group",
+            [],
+            ["parent_id"],
+            ["color:sum"],
         )
 
     def test_jsonrpc_name_search(self):
         # well that's some sexy sexy call right there
         self._json_call(
             common.get_db_name(),
-            self.admin_uid, 'admin',
-            'res.partner', 'name_search', 'admin'
+            self.admin_uid,
+            "admin",
+            "res.partner",
+            "name_search",
+            "admin",
         )
 
     def _json_call(self, *args):
-        self.url_open(f"{self.base_url()}/jsonrpc", json={
-            'jsonrpc': '2.0',
-            'id': None,
-            'method': 'call',
-            'params': {
-                'service': 'object',
-                'method': 'execute',
-                'args': args
-            }
-        })
+        self.url_open(
+            f"{self.base_url()}/jsonrpc",
+            json={
+                "jsonrpc": "2.0",
+                "id": None,
+                "method": "call",
+                "params": {"service": "object", "method": "execute", "args": args},
+            },
+        )
 
     def test_xmlrpc_attachment_raw(self):
-        ids = self.env['ir.attachment'].create({'name': 'n', 'raw': b'\x01\x09'}).ids
+        ids = self.env["ir.attachment"].create({"name": "n", "raw": b"\x01\x09"}).ids
         [att] = self.xmlrpc_object.execute(
-            common.get_db_name(), self.admin_uid, 'admin',
-            'ir.attachment', 'read', ids, ['raw'])
-        self.assertEqual(att['raw'], '\t',
-            "on read, binary data should be decoded as a string and stripped from control character")
+            common.get_db_name(),
+            self.admin_uid,
+            "admin",
+            "ir.attachment",
+            "read",
+            ids,
+            ["raw"],
+        )
+        self.assertEqual(
+            att["raw"],
+            "\t",
+            "on read, binary data should be decoded as a string and stripped from control character",
+        )
+
 
 # really just for the test cursor
-@common.tagged('post_install', '-at_install')
+@common.tagged("post_install", "-at_install")
 class TestAPIKeys(common.HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls._user = cls.env['res.users'].create({
-            'name': "Bylan",
-            'login': 'byl',
-            'password': 'ananananan',
-            'tz': 'Australia/Eucla',
-        })
+        cls._user = cls.env["res.users"].create(
+            {
+                "name": "Bylan",
+                "login": "byl",
+                "password": "ananananan",
+                "tz": "Australia/Eucla",
+            }
+        )
 
     def setUp(self):
         super().setUp()
 
         def get_json_data():
             raise ValueError("There is no json here")
+
         # needs a fake request in order to call methods protected with check_identity
         self.http_request_key = self.canonical_tag
-        fake_req = DotDict({
-            # various things go and access request items
-            'httprequest': DotDict({
-                'environ': {'REMOTE_ADDR': 'localhost'},
-                'cookies': {common.TEST_CURSOR_COOKIE_NAME: self.canonical_tag},
-                'args': {},
-            }),
-            'cookies': {common.TEST_CURSOR_COOKIE_NAME: self.canonical_tag},
-            # bypass check_identity flow
-            'session': {'identity-check-last': time.time()},
-            'geoip': {},
-            'get_json_data': get_json_data,
-        })
+        fake_req = DotDict(
+            {
+                # various things go and access request items
+                "httprequest": DotDict(
+                    {
+                        "environ": {"REMOTE_ADDR": "localhost"},
+                        "cookies": {common.TEST_CURSOR_COOKIE_NAME: self.canonical_tag},
+                        "args": {},
+                    }
+                ),
+                "cookies": {common.TEST_CURSOR_COOKIE_NAME: self.canonical_tag},
+                # bypass check_identity flow
+                "session": {"identity-check-last": time.time()},
+                "geoip": {},
+                "get_json_data": get_json_data,
+            }
+        )
         _request_stack.push(fake_req)
         self.addCleanup(_request_stack.pop)
 
     def test_trivial(self):
-        uid = auth.dispatch('authenticate', [self.env.cr.dbname, 'byl', 'ananananan', {}])
+        uid = auth.dispatch(
+            "authenticate", [self.env.cr.dbname, "byl", "ananananan", {}]
+        )
         self.assertEqual(uid, self._user.id)
 
-        ctx = model.dispatch('execute_kw', [
-            self.env.cr.dbname, uid, 'ananananan',
-            'res.users', 'context_get', []
-        ])
-        self.assertEqual(ctx['tz'], 'Australia/Eucla')
+        ctx = model.dispatch(
+            "execute_kw",
+            [self.env.cr.dbname, uid, "ananananan", "res.users", "context_get", []],
+        )
+        self.assertEqual(ctx["tz"], "Australia/Eucla")
 
     def test_wrongpw(self):
         # User.authenticate raises but RPC.authenticate returns False
-        uid = auth.dispatch('authenticate', [self.env.cr.dbname, 'byl', 'aws', {}])
+        uid = auth.dispatch("authenticate", [self.env.cr.dbname, "byl", "aws", {}])
         self.assertFalse(uid)
         with self.assertRaises(AccessDenied):
-            model.dispatch('execute_kw', [
-                self.env.cr.dbname, self._user.id, 'aws',
-                'res.users', 'context_get', []
-            ])
+            model.dispatch(
+                "execute_kw",
+                [
+                    self.env.cr.dbname,
+                    self._user.id,
+                    "aws",
+                    "res.users",
+                    "context_get",
+                    [],
+                ],
+            )
 
     def test_key(self):
         env = self.env(user=self._user)
-        r = env['res.users.apikeys.description'].create({
-            'name': 'a',
-        }).make_key()
-        k = r['context']['default_key']
+        r = (
+            env["res.users.apikeys.description"]
+            .create(
+                {
+                    "name": "a",
+                }
+            )
+            .make_key()
+        )
+        k = r["context"]["default_key"]
 
-        uid = auth.dispatch('authenticate', [self.env.cr.dbname, 'byl', 'ananananan', {}])
+        uid = auth.dispatch(
+            "authenticate", [self.env.cr.dbname, "byl", "ananananan", {}]
+        )
         self.assertEqual(uid, self._user.id)
 
-        uid = auth.dispatch('authenticate', [self.env.cr.dbname, 'byl', k, {}])
+        uid = auth.dispatch("authenticate", [self.env.cr.dbname, "byl", k, {}])
         self.assertEqual(uid, self._user.id)
 
-        ctx = model.dispatch('execute_kw', [
-            self.env.cr.dbname, uid, k,
-            'res.users', 'context_get', []
-        ])
-        self.assertEqual(ctx['tz'], 'Australia/Eucla')
+        ctx = model.dispatch(
+            "execute_kw", [self.env.cr.dbname, uid, k, "res.users", "context_get", []]
+        )
+        self.assertEqual(ctx["tz"], "Australia/Eucla")
 
         api_key = model.call_kw(
-            model=self.env['res.users.apikeys.description'],
-            name='create',
-            args=[{'name': 'Name of the key'}],
-            kwargs={}
+            model=self.env["res.users.apikeys.description"],
+            name="create",
+            args=[{"name": "Name of the key"}],
+            kwargs={},
         )
         self.assertTrue(isinstance(api_key, int))
 
     def test_delete(self):
         env = self.env(user=self._user)
-        env['res.users.apikeys.description'].create({'name': 'b',}).make_key()
-        env['res.users.apikeys.description'].create({'name': 'b',}).make_key()
-        env['res.users.apikeys.description'].create({'name': 'b',}).make_key()
-        k0, k1, k2 = env['res.users.apikeys'].search([])
+        env["res.users.apikeys.description"].create(
+            {
+                "name": "b",
+            }
+        ).make_key()
+        env["res.users.apikeys.description"].create(
+            {
+                "name": "b",
+            }
+        ).make_key()
+        env["res.users.apikeys.description"].create(
+            {
+                "name": "b",
+            }
+        ).make_key()
+        k0, k1, k2 = env["res.users.apikeys"].search([])
 
         # user can remove their own keys
         k0.remove()
         self.assertFalse(k0.exists())
 
         # admin can remove user keys
-        k1.with_user(self.env.ref('base.user_admin')).remove    ()
+        k1.with_user(self.env.ref("base.user_admin")).remove()
         self.assertFalse(k1.exists())
 
         # other user can't remove user keys
-        u = self.env['res.users'].create({
-            'name': 'a',
-            'login': 'a',
-            'group_ids': self.env.ref('base.group_user').ids,
-        })
+        u = self.env["res.users"].create(
+            {
+                "name": "a",
+                "login": "a",
+                "group_ids": self.env.ref("base.group_user").ids,
+            }
+        )
         with self.assertRaises(AccessError):
             k2.with_user(u).remove()
 
     def test_disabled(self):
         env = self.env(user=self._user)
-        k = env['res.users.apikeys.description'].create({'name': 'b',}).make_key()['context']['default_key']
+        k = (
+            env["res.users.apikeys.description"]
+            .create(
+                {
+                    "name": "b",
+                }
+            )
+            .make_key()["context"]["default_key"]
+        )
 
         self._user.active = False
 
         with self.assertRaises(AccessDenied):
-            model.dispatch('execute_kw', [
-                self.env.cr.dbname, self._user.id, 'ananananan',
-                'res.users', 'context_get', []
-            ])
+            model.dispatch(
+                "execute_kw",
+                [
+                    self.env.cr.dbname,
+                    self._user.id,
+                    "ananananan",
+                    "res.users",
+                    "context_get",
+                    [],
+                ],
+            )
 
         with self.assertRaises(AccessDenied):
-            model.dispatch('execute_kw', [
-                self.env.cr.dbname, self._user.id, k,
-                'res.users', 'context_get', []
-            ])
+            model.dispatch(
+                "execute_kw",
+                [self.env.cr.dbname, self._user.id, k, "res.users", "context_get", []],
+            )
