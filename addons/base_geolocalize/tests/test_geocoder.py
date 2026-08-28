@@ -65,6 +65,15 @@ class TestGeocoder(TransactionCase):
         with self.assertRaises(UserError):
             self.Geocoder._call_openstreetmap_reverse(19.43, -99.13)
 
+    def test_get_provider_falls_back_on_malformed_param(self):
+        """A non-numeric `geo_provider` param degrades to the default provider
+        instead of raising a bare ValueError."""
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base_geolocalize.geo_provider", "not-a-number"
+        )
+        provider = self.Geocoder._get_provider()
+        self.assertTrue(provider.exists())
+
 
 @tagged("post_install", "-at_install")
 class TestGeocoderEdges(TransactionCase):
