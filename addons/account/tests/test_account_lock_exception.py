@@ -1,18 +1,26 @@
 from contextlib import closing
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from freezegun import freeze_time
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import new_test_user, tagged
+from odoo.tools.misc import format_datetime
 
 from odoo.addons.account.models.res_company import SOFT_LOCK_DATE_FIELDS
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo.addons.mail.tests.common import MailCase
 
 
 @tagged("post_install", "-at_install")
-class TestAccountLockException(AccountTestInvoicingCommon):
+class TestAccountLockException(AccountTestInvoicingCommon, MailCase):
+    @classmethod
+    def default_env_context(cls):
+        # OVERRIDE: the common context disables tracking, and the message a lock
+        # exception posts on the company is a tracked one.
+        return {}
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -394,14 +402,21 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     }
                 )
                 revoked_exception.action_revoke()
-                active_exception = self.env["account.lock_exception"].create(
-                    {
-                        "company_id": self.company.id,
-                        "user_id": self.env.user.id,
-                        lock_date_field: fields.Date.to_date("2010-01-01"),
-                        "end_datetime": self.fakenow + timedelta(hours=24),
-                        "reason": "test_exception_recreated_on_lock_date_change active",
-                    }
+                with self.mock_mail_gateway(), self.mock_mail_app():
+                    active_exception = self.env["account.lock_exception"].create(
+                        {
+                            "company_id": self.company.id,
+                            "user_id": self.env.user.id,
+                            lock_date_field: fields.Date.to_date("2010-01-01"),
+                            "end_datetime": self.fakenow + timedelta(hours=24),
+                            "reason": "test_exception_recreated_on_lock_date_change active",
+                        }
+                    )
+                    self.env.cr.flush()
+                self._assert_exception_was_logged_on_the_company(
+                    active_exception,
+                    lock_date_field,
+                    fields.Date.to_date("2020-01-01"),
                 )
 
                 self.assertEqual(
@@ -413,7 +428,9 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     fields.Date.to_date("2020-01-01"),
                 )
 
-                self.company[lock_date_field] = fields.Date.to_date("2021-01-01")
+                with self.mock_mail_gateway(), self.mock_mail_app():
+                    self.company[lock_date_field] = fields.Date.to_date("2021-01-01")
+                    self.env.cr.flush()
 
                 self.assertEqual(
                     revoked_exception.company_lock_date,
@@ -442,6 +459,50 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                         }
                     ],
                 )
+                self._assert_exception_was_logged_on_the_company(
+                    new_exception,
+                    lock_date_field,
+                    fields.Date.to_date("2021-01-01"),
+                )
+
+    def _assert_exception_was_logged_on_the_company(
+        self, exception, lock_date_field, company_lock_date
+    ):
+        """The company chatter is the only trace a lock exception leaves, and it
+        carries the lock date it moved as a tracking value.
+
+        `res.company` tracks its own lock dates, so the same window also holds an
+        empty-bodied tracking message; ours is the one carrying the link back to
+        the exception.
+        """
+        logged = self._new_msgs.filtered(
+            lambda message: message.model == self.company._name and message.body
+        )
+        self.assertEqual(len(logged), 1, "one message links back to the exception")
+        self.assertMessageFields(
+            logged,
+            {
+                "author_id": self.env.user.partner_id,
+                "body": (
+                    f'<span><a href="#" data-oe-model="{exception._name}" '
+                    f'data-oe-id="{exception.id}">Exception</a> for '
+                    f"{self.env.user.name} valid until "
+                    f"{format_datetime(self.env, exception.end_datetime)} "
+                    f"for '{exception.reason}'.</span>"
+                ),
+                "model": self.company._name,
+                "res_id": self.company.id,
+                "subtype_id": self.env.ref("mail.mt_note"),
+                "tracking_values": [
+                    (
+                        lock_date_field,
+                        "date",
+                        datetime.combine(company_lock_date, datetime.min.time()),
+                        datetime(2010, 1, 1, 0, 0, 0),
+                    )
+                ],
+            },
+        )
 
     def test_user_exception_remove_lock_date(self):
         for lock_date_field, move_type in self.soft_lock_date_info:
