@@ -84,11 +84,16 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 /// database fetch. Do not "simplify" this to a raw pointer, or reorder the two
 /// tests below, without re-measuring — both were tried and both were worse.
 ///
+/// `pub(crate)` rather than private: `sort_ids_by_cache` in `sort.rs` was a
+/// fifth hand-written copy of these two tests, in the same order, missed by the
+/// consolidation because it lives in another module. It calls this now, so the
+/// rule has one home and the free-threading fix above would reach it.
+///
 /// SAFETY: `cache` must be a valid `PyDict *`, `id_obj` and `pending` valid
 /// object pointers, with the GIL held. The returned pointer is valid only
 /// until the cache is next mutated.
 #[inline]
-unsafe fn cache_probe(
+pub(crate) unsafe fn cache_probe(
     cache: *mut ffi::PyObject,
     id_obj: *mut ffi::PyObject,
     pending: *mut ffi::PyObject,

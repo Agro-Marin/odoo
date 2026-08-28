@@ -60,8 +60,8 @@ use pyo3::exceptions::PyValueError;
 use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::{
-    PyDate, PyDateAccess, PyDateTime, PyDict, PyFloat, PyInt, PyList, PyString, PyTimeAccess,
-    PyTuple, PyTzInfoAccess,
+    PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyFloat, PyInt, PyList, PyString,
+    PyTimeAccess, PyTuple, PyTzInfoAccess,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -221,9 +221,9 @@ pub fn sort_ids_by_cache<'py>(
     // so the caller falls back to the general record-based sort.
     //
     // SAFETY: cache_ptr/ids_ptr borrowed from live objects with 'py lifetime.
-    // PyDict_GetItem returns a borrowed ref (NULL on a clean miss, no exception —
-    // ids are always hashable ints). PyTuple_GET_ITEM skips bounds checks (i in
-    // 0..n). from_borrowed_ptr INCREFs the value into the holder.
+    // `cache_probe` hands back a borrowed ref or None (a clean miss raises
+    // nothing — ids are always hashable ints). PyTuple_GET_ITEM skips bounds
+    // checks (i in 0..n). from_borrowed_ptr INCREFs the value into the holder.
     let holder: Vec<Bound<'py, PyAny>> = unsafe {
         let cache_ptr = field_cache.as_ptr();
         let ids_ptr = ids.as_ptr();
@@ -231,11 +231,12 @@ pub fn sort_ids_by_cache<'py>(
         let mut holder = Vec::with_capacity(n);
         for i in 0..n {
             let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i as ffi::Py_ssize_t);
-            let v = ffi::PyDict_GetItem(cache_ptr, id_obj);
-            if v.is_null() || v == pending_ptr {
+            // `cache_probe`, not a fifth copy of its two tests: absent-or-
+            // PENDING is one rule and `cache.rs` owns it.
+            let Some(v) = crate::cache::cache_probe(cache_ptr, id_obj, pending_ptr) else {
                 return Ok(None);
-            }
-            holder.push(Bound::from_borrowed_ptr(py, v));
+            };
+            holder.push(Bound::from_borrowed_ptr(py, v.as_ptr()));
         }
         holder
     };
@@ -320,6 +321,98 @@ impl PartialEq for Total {
 
 impl Eq for Total {}
 
+/// A `&str` sort key carrying its first 8 bytes packed big-endian.
+///
+/// Most comparisons resolve on the packed prefix — one `u64` compare, with no
+/// pointer chase and no `memcmp` call. Big-endian zero-padding is
+/// order-consistent with byte comparison (a shorter string pads with `0x00`,
+/// which is below any byte), so a differing prefix decides the pair outright and
+/// only a tie falls through to the full slice.
+///
+/// The length guard on that fall-through is not an optimisation detail, it is
+/// the difference between a win and a loss. Two strings that both fit inside the
+/// prefix and tie on it are *equal*, and the `memcmp` could only say so again. A
+/// low-cardinality column — `state`, `ttype`, a module name — is almost all
+/// ties, and paying twice for each of them measured **+16.7% on
+/// `ir.model.data.module`**, a regression the guard turns into +0.4%.
+///
+/// Measured on the path production actually takes (`sort_ids_by_cache`, so
+/// `StrOpt`), against columns read out of a real database, interleaved, 3
+/// rounds, min of 15:
+///
+/// | column | before | after |
+/// |---|---|---|
+/// | `res.country.code` | 10.79 us | **-29.9%** |
+/// | `res.country.name` | 11.12 us | **-28.3%** |
+/// | `ir.ui.view.name` | 11.89 us | **-19.8%** |
+/// | `ir.ui.view.model` | 8.92 us | **-17.4%** |
+/// | `ir.model.fields.ttype` | 12.44 us | **-13.7%** |
+/// | `ir.model.fields.name` | 13.77 us | **-12.4%** |
+/// | `ir.model.data.name` | 17.16 us | **-11.0%** |
+/// | `ir.ui.view.type` | 7.79 us | **-7.6%** |
+/// | `ir.ui.view.arch_db` | 12.61 us | **-6.7%** |
+/// | `ir.model.data.complete_name` | 17.11 us | **-3.3%** |
+/// | `ir.model.data.module` | 8.97 us | +0.4% |
+/// | n=5000, XML-ID-shaped, 8-byte shared prefix | 371.9 us | **+12.6%** |
+///
+/// The last row is the shape this cannot help and does not pretend to: every
+/// pair ties on the prefix, pays for it, and then pays for a 32-byte sort entry
+/// where the bare `&str` needed 24. It is a real column shape, it is the one
+/// loser, and it is the reason this documents a *median* of about -12% rather
+/// than the -40% a synthetic short-distinct-string column reports.
+#[derive(Clone, Copy)]
+struct StrKey<'a> {
+    prefix: u64,
+    text: &'a str,
+}
+
+impl<'a> StrKey<'a> {
+    #[inline]
+    fn new(text: &'a str) -> Self {
+        let bytes = text.as_bytes();
+        let taken = bytes.len().min(8);
+        let mut buf = [0u8; 8];
+        buf[..taken].copy_from_slice(&bytes[..taken]);
+        Self {
+            prefix: u64::from_be_bytes(buf),
+            text,
+        }
+    }
+}
+
+impl Ord for StrKey<'_> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.prefix.cmp(&other.prefix) {
+            Ordering::Equal => {
+                if self.text.len() <= 8 && other.text.len() <= 8 {
+                    // Both fit in the prefix, so an equal prefix IS equality.
+                    Ordering::Equal
+                } else {
+                    self.text.cmp(other.text)
+                }
+            }
+            ord => ord,
+        }
+    }
+}
+
+impl PartialOrd for StrKey<'_> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for StrKey<'_> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for StrKey<'_> {}
+
 /// Pack a date or datetime into one `i64` whose numeric order is chronological.
 ///
 /// Each component gets a power-of-two field wider than its range — month < 16,
@@ -370,14 +463,14 @@ fn pack_datetime(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32,
 enum Column<'a> {
     Int(Vec<(i64, u32)>),
     Float(Vec<(Total, u32)>),
-    Str(Vec<(&'a str, u32)>),
+    Str(Vec<(StrKey<'a>, u32)>),
     Date(Vec<(i64, u32)>),
     /// Null-aware columns keep the same key types under an `Option`, whose
     /// `None` is the null. Separate from the arms above so the common
     /// (`null_high is None`) path never pays for a null test it cannot need.
     IntOpt(Vec<(Option<i64>, u32)>),
     FloatOpt(Vec<(Option<Total>, u32)>),
-    StrOpt(Vec<(Option<&'a str>, u32)>),
+    StrOpt(Vec<(Option<StrKey<'a>>, u32)>),
     DateOpt(Vec<(Option<i64>, u32)>),
 }
 
@@ -516,12 +609,33 @@ fn decode_column<'a>(
             continue;
         }
 
-        let (k, key) = if let Ok(st) = v.cast::<PyString>() {
+        // EXACT type checks, not the subclass-permissive `cast`. A subclass may
+        // override `__lt__`, and a native key sorts by the BASE type's ordering
+        // whatever the subclass says. Measured against the pure-Python
+        // reference, all three diverged:
+        //
+        //   str subclass with a reversed `__lt__`  -> rust (1, 3, 2), py (2, 3, 1)
+        //   int subclass with a reversed `__lt__`  -> rust (1, 3, 2), py (2, 3, 1)
+        //   date subclass with a reversed `__lt__` -> rust (1, 2),    py (2, 1)
+        //
+        // This is the same divergence the `date`/`datetime` tag split below and
+        // the aware-datetime bail-out reject the native path to avoid, and the
+        // same one `compare_py` refuses to introduce by probing `__gt__`.
+        //
+        // It costs nothing that a real cache pays. Probed against a live
+        // database, the field cache holds exact builtins and nothing else:
+        // `char` and `text` hold `str` and `bool`, `html` holds `bool`,
+        // `selection` holds `str`. There is no `markupsafe.Markup` in it and no
+        // subclass of anything, so no production column leaves the native path
+        // for this. A `datetime` subclass does appear under `freezegun`, which
+        // patches `datetime.datetime` during tests; those columns take the FFI
+        // fallback, which is correct and slower, in tests only.
+        let (k, key) = if let Ok(st) = v.cast_exact::<PyString>() {
             match st.to_str() {
                 Ok(text) => (3, Key::Str(text)),
                 Err(_) => return None, // non-UTF-8 (lone surrogate) → FFI
             }
-        } else if let Ok(f) = v.cast::<PyFloat>() {
+        } else if let Ok(f) = v.cast_exact::<PyFloat>() {
             let fv = f.value();
             // NaN: Python's `<`/`>` are both false, giving order-dependent
             // results that `total_cmp` can't reproduce — defer to FFI.
@@ -531,12 +645,21 @@ fn decode_column<'a>(
             // Normalize -0.0 → 0.0: Python treats them as equal (a tie), but
             // `total_cmp` would order -0.0 before +0.0 and reshuffle the tie.
             (2, Key::Float(if fv == 0.0 { 0.0 } else { fv }))
-        } else if let Ok(iobj) = v.cast::<PyInt>() {
+        } else if let Ok(iobj) = v.cast_exact::<PyInt>() {
             match iobj.extract::<i64>() {
                 Ok(iv) => (1, Key::Int(iv)),
                 Err(_) => return None, // > i64 → FFI
             }
-        } else if let Ok(dt) = v.cast::<PyDateTime>() {
+        } else if let Ok(b) = v.cast_exact::<PyBool>() {
+            // Its own arm now that `PyInt` is exact, and tagged as an int
+            // rather than separately: Python compares `bool` and `int` freely
+            // and `True == 1`, so one kind is both correct and what keeps a
+            // mixed column native. Without this arm a Boolean field's column —
+            // `True` here, since `False` was consumed as a null above — would
+            // match nothing and send every `sorted('active')` to the FFI
+            // fallback.
+            (1, Key::Int(i64::from(b.is_true())))
+        } else if let Ok(dt) = v.cast_exact::<PyDateTime>() {
             // Check datetime before date: datetime is a subclass of date, so a
             // `PyDate` cast would also succeed and drop the time components.
             //
@@ -561,7 +684,7 @@ fn decode_column<'a>(
                     dt.get_microsecond(),
                 )),
             )
-        } else if let Ok(d) = v.cast::<PyDate>() {
+        } else if let Ok(d) = v.cast_exact::<PyDate>() {
             (
                 5,
                 Key::Date(pack_datetime(
@@ -620,14 +743,14 @@ fn decode_column<'a>(
     Some(if null_aware {
         match kind {
             2 => project!(FloatOpt, opt Key::Float(x) => Total(*x)),
-            3 => project!(StrOpt, opt Key::Str(x) => *x),
+            3 => project!(StrOpt, opt Key::Str(x) => StrKey::new(x)),
             4 | 5 => project!(DateOpt, opt Key::Date(x) => *x),
             _ => project!(IntOpt, opt Key::Int(x) => *x),
         }
     } else {
         match kind {
             2 => project!(Float, Key::Float(x) => Total(*x)),
-            3 => project!(Str, Key::Str(x) => *x),
+            3 => project!(Str, Key::Str(x) => StrKey::new(x)),
             4 | 5 => project!(Date, Key::Date(x) => *x),
             _ => project!(Int, Key::Int(x) => *x),
         }
