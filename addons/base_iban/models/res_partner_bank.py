@@ -13,6 +13,7 @@ def normalize_iban(iban):
 
 def pretty_iban(iban):
     """return iban in groups of four characters separated by a single space"""
+    iban = normalize_iban(iban)
     try:
         validate_iban(iban)
         iban = " ".join([iban[i : i + 4] for i in range(0, len(iban), 4)])
