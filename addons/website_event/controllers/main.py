@@ -563,8 +563,7 @@ class WebsiteEventController(http.Controller):
     def _create_attendees_from_registration_post(self, event, registration_data):
         """Also try to set a visitor (from request) and
         a partner (if visitor linked to a user for example). Purpose is to gather
-        as much informations as possible, notably to ease future communications.
-        Also try to update visitor informations based on registration info."""
+        as much informations as possible, notably to ease future communications."""
         visitor_sudo = request.env["website.visitor"]._get_visitor_from_request(
             force_create=True
         )
