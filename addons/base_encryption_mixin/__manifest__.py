@@ -22,9 +22,9 @@ encrypted material from the same tuple, so a consumer cannot stamp something
 different from what it declares to the rotation migration.
 
 It carries no notion of what is being encrypted. The models using it today are
-a credential vault, an X.509 certificate and its private key, a company's
-e-signature material, and a user's API token; only one of those is a
-credential, which is why this is not part of the vault that first needed it.
+a credential vault, and an X.509 certificate and its private key; only one of
+those is a credential, which is why this is not part of the vault that first
+needed it.
     """,
     "author": "AgroMarin",
     "website": "https://www.agromarin.mx",

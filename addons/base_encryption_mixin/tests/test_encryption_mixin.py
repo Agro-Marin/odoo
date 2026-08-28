@@ -1,11 +1,11 @@
 """The mixin's contract, asserted without a credential in sight.
 
-This module exists because four of the five models that encrypt fields through
-it are not credentials -- a company, a user, an X.509 certificate and its key --
-and every one of them used to install a credential vault, a rate limiter, an
-inbound gate and a session cache to get a Fernet round-trip. These tests
-therefore use no consumer at all: what they can reach on a bare install is
-exactly what the module promises on its own.
+This module exists because two of the three models that encrypt fields through
+it are not credentials -- an X.509 certificate and its key -- and every one of
+them used to install a credential vault, a rate limiter, an inbound gate and a
+session cache to get a Fernet round-trip. These tests therefore use no consumer
+at all: what they can reach on a bare install is exactly what the module
+promises on its own.
 """
 
 import base64
