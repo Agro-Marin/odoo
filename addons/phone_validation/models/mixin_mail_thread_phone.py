@@ -230,7 +230,7 @@ class MixinMailThreadPhone(models.AbstractModel):
             raise UserError(_("Invalid primary phone field on model %s", self._name))
 
     def _phone_get_sanitize_triggers(self):
-        """Tool method to get all triggers for sanitize"""
+        """Return the field names that should retrigger phone sanitization on change (number fields, country field, stored partner fields)."""
         res = self._phone_get_number_fields()
         # no phone field -> no number to format
         if res:
