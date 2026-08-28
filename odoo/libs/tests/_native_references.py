@@ -1,7 +1,7 @@
 """Pure-Python references for the `odoo_rust` exports that have none in production.
 
-Nine of the twelve exports already have one, because something still calls it:
-the eight `_field_access` functions have `odoo/libs/_field_access/_fallback.py`,
+Eight of the eleven exports already have one, because something still calls it:
+the seven `_field_access` functions have `odoo/libs/_field_access/_fallback.py`,
 and `origin_ids` has `_origin_ids_python`, which `orm/helpers._origin_ids` uses
 for any non-tuple input. `csv_export`, `rows_to_dicts` and `fast_clone` have
 nothing.
