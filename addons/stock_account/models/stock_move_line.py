@@ -62,7 +62,6 @@ class StockMoveLine(models.Model):
         analytic_move_to_recompute.sudo()._create_analytic_move()
         return res
 
-    @api.model
     def _should_exclude_for_valuation(self):
         """
         Determines if this move line should be excluded from valuation based on its ownership.
@@ -70,7 +69,7 @@ class StockMoveLine(models.Model):
                 it should be excluded from valuation), False otherwise.
         """
         self.ensure_one()
-        return self.owner_id and self.owner_id != self.company_id.partner_id
+        return bool(self.owner_id and self.owner_id != self.company_id.partner_id)
 
     def _update_stock_move_value(self, old_qty_by_ml=None):
         move_to_update = set()

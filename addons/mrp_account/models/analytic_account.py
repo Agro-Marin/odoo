@@ -3,7 +3,6 @@ from odoo import _, api, fields, models
 
 class AccountAnalyticAccount(models.Model):
     _inherit = "account.analytic.account"
-    _description = "Analytic Account"
 
     production_ids = fields.Many2many("mrp.production")
     production_count = fields.Count("production_ids", "Manufacturing Orders Count")
@@ -14,58 +13,49 @@ class AccountAnalyticAccount(models.Model):
         "Work Order Count", compute="_compute_workorder_count"
     )
 
+    def _get_workorders(self):
+        return self.workcenter_ids.order_ids | self.production_ids.workorder_ids
+
     @api.depends("workcenter_ids.order_ids", "production_ids.workorder_ids")
     def _compute_workorder_count(self):
         for account in self:
-            account.workorder_count = len(
-                account.workcenter_ids.order_ids | account.production_ids.workorder_ids
-            )
+            account.workorder_count = len(account._get_workorders())
+
+    def _action_view_linked(self, records, name, **action):
+        self.ensure_one()
+        action = {
+            "type": "ir.actions.act_window",
+            "res_model": records._name,
+            "domain": [("id", "in", records.ids)],
+            "name": name,
+            "view_mode": "list,form",
+            **action,
+        }
+        if len(records) == 1:
+            action["view_mode"] = "form"
+            action["res_id"] = records.id
+        return action
 
     def action_view_mrp_production(self):
-        self.ensure_one()
-        result = {
-            "type": "ir.actions.act_window",
-            "res_model": "mrp.production",
-            "domain": [["id", "in", self.production_ids.ids]],
-            "name": _("Manufacturing Orders"),
-            "view_mode": "list,form",
-            "context": {"default_analytic_account_id": self.id},
-        }
-        if len(self.production_ids) == 1:
-            result["view_mode"] = "form"
-            result["res_id"] = self.production_ids.id
-        return result
+        return self._action_view_linked(
+            self.production_ids,
+            _("Manufacturing Orders"),
+            context={"default_analytic_account_id": self.id},
+        )
 
     def action_view_mrp_bom(self):
-        self.ensure_one()
-        result = {
-            "type": "ir.actions.act_window",
-            "res_model": "mrp.bom",
-            "domain": [["id", "in", self.bom_ids.ids]],
-            "name": _("Bills of Materials"),
-            "view_mode": "list,form",
-            "context": {"default_analytic_account_id": self.id},
-        }
-        if self.bom_count == 1:
-            result["view_mode"] = "form"
-            result["res_id"] = self.bom_ids.id
-        return result
+        return self._action_view_linked(
+            self.bom_ids,
+            _("Bills of Materials"),
+            context={"default_analytic_account_id": self.id},
+        )
 
     def action_view_workorder(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
             "res_model": "mrp.workorder",
-            "domain": [
-                [
-                    "id",
-                    "in",
-                    (
-                        self.workcenter_ids.order_ids
-                        | self.production_ids.workorder_ids
-                    ).ids,
-                ]
-            ],
+            "domain": [("id", "in", self._get_workorders().ids)],
             "context": {"create": False},
             "name": _("Work Orders"),
             "view_mode": "list",
@@ -82,7 +72,6 @@ class AccountAnalyticLine(models.Model):
 
 class AccountAnalyticApplicability(models.Model):
     _inherit = "account.analytic.applicability"
-    _description = "Analytic Plan's Applicabilities"
 
     business_domain = fields.Selection(
         selection_add=[

@@ -21,6 +21,9 @@ class AccountMove(models.Model):
     )
 
     def copy(self, default=None):
+        # `copy=True` would make duplicating an entry read `mrp.production`,
+        # which an accountant need not have access to; carry the link by hand
+        # under sudo instead.
         records = super().copy(default)
         for record, source in zip(records.sudo(), self.sudo(), strict=True):
             record.wip_production_ids = source.wip_production_ids

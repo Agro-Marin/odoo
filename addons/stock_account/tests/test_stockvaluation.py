@@ -3552,14 +3552,14 @@ class TestStockValuation(TestStockValuationCommon):
         receipt.button_validate()
 
         self.assertEqual(receipt.move_ids.quantity, 11)
-        self.assertEqual(receipt.move_ids.product_qty, 0.01)
-        self.assertEqual(product.qty_available, 0.01)
+        self.assertAlmostEqual(receipt.move_ids.product_qty, 0.011)
+        self.assertAlmostEqual(product.qty_available, 0.011)
 
         move_out = self._make_out_move(product, 11, uom_id=uom_g.id)
 
         self.assertEqual(move_out.quantity, 11)
-        self.assertEqual(move_out.product_qty, 0.01)
-        self.assertEqual(product.qty_available, 0.00)
+        self.assertAlmostEqual(move_out.product_qty, 0.011)
+        self.assertAlmostEqual(product.qty_available, 0.00)
 
     def test_stock_valuation_revaluation_avco(self):
         product = self.product_avco

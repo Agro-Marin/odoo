@@ -8956,13 +8956,48 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(delivery.move_ids.quantity, 150)
         delivery.button_validate()
         self.assertEqual(delivery.state, "done")
+        lines = delivery.move_line_ids
         self.assertRecordValues(
-            delivery.move_line_ids,
-            [
-                {"quantity": 149.97, "quantity_product_uom": 5.29},
-                {"quantity": 0.03, "quantity_product_uom": 0},
-            ],
+            lines, [{"quantity": 149.97}, {"quantity": 0.03}]
         )
+        for line in lines:
+            self.assertAlmostEqual(
+                line.quantity_product_uom,
+                gram_uom._compute_quantity(line.quantity, oz_uom, round=False),
+            )
+        self.assertAlmostEqual(
+            sum(lines.mapped("quantity_product_uom")),
+            gram_uom._compute_quantity(150.0, oz_uom, round=False),
+        )
+
+    def test_in_sub_precision_quantity_is_not_dropped(self):
+        gram_uom = self.env.ref("uom.product_uom_gram")
+        kg_uom = self.env.ref("uom.product_uom_kgm")
+        self.productA.write({"uom_id": kg_uom.id, "is_storable": True})
+
+        move = self.env["stock.move"].create(
+            {
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+                "product_id": self.productA.id,
+                "product_uom_id": gram_uom.id,
+                "product_uom_qty": 2.0,
+                "picking_type_id": self.picking_type_in.id,
+            }
+        )
+        move._action_confirm()
+
+        self.assertEqual(len(move.move_line_ids), 1)
+        self.assertEqual(move.move_line_ids.quantity, 2.0)
+        self.assertAlmostEqual(move.move_line_ids.quantity_product_uom, 0.002)
+
+        move.picked = True
+        move._action_done()
+
+        self.assertEqual(move.state, "done")
+        self.assertEqual(move.quantity, 2.0)
+        self.assertAlmostEqual(self.productA.qty_available, 0.002)
+        self.assertFalse(kg_uom._is_zero_aggregate(self.productA.qty_available))
 
     def test_move_state_after_split(self):
         picking = self.env["stock.picking"].create(

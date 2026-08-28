@@ -62,11 +62,19 @@ class StockMove(models.Model):
         string="Is Dropship", compute="_compute_is_dropship", store=True
     )
     is_valued = fields.Boolean(string="Is Valued", compute="_compute_is_valued")
+    valued_qty = fields.Float(
+        string="Valued Quantity",
+        compute="_compute_valued_qty",
+        store=True,
+        min_display_digits="Product Unit",
+        help="The quantity `value` was computed over, in the product's unit of"
+        " measure: the picked, company-owned lines crossing a valuation boundary.",
+    )
 
     remaining_qty = fields.Float(
         string="Remaining Quantity",
         compute="_compute_remaining_qty",
-        search="search_remaining_qty",
+        search="_search_remaining_qty",
     )
     remaining_value = fields.Monetary(
         currency_field="company_currency_id",
@@ -76,10 +84,10 @@ class StockMove(models.Model):
 
     analytic_account_line_ids = fields.Many2many("account.analytic.line", copy=False)
     account_move_id = fields.Many2one(
-        "account.move", "stock_move_id", copy=False, index="btree_not_null"
+        "account.move", "Valuation Entry", copy=False, index="btree_not_null"
     )
 
-    def search_remaining_qty(self, operator, value):
+    def _search_remaining_qty(self, operator, value):
         if operator != "=" or not isinstance(value, bool) or value is not True:
             raise UserError(
                 _("Only is set (= True) is supported in search for remaining_qty.")
@@ -162,8 +170,16 @@ class StockMove(models.Model):
         for move in self:
             move.is_valued = move.is_in or move.is_out
 
+    # Same `depends` as `is_in` / `is_out`, deliberately: this is the quantity
+    # `value` was computed over, so the two must be re-derived together or the
+    # stored pair stops describing the same set of lines.
+    @api.depends("state", "move_line_ids")
+    def _compute_valued_qty(self):
+        for move in self:
+            move.valued_qty = move._get_valued_qty() if move.state == "done" else 0.0
+
     def _recompute_valuation_flags(self):
-        """Re-derive `is_in` / `is_out` / `is_dropship` for done moves.
+        """Re-derive `is_in` / `is_out` / `is_dropship` / `valued_qty` for done moves.
 
         These are stored so that what a move was at completion stays stable and
         cheap to search on, and their `depends` deliberately do not track the move
@@ -172,7 +188,7 @@ class StockMove(models.Model):
         valuations. Call this from the places that knowingly change such a field on
         a done move, so the re-classification happens where it is intended.
         """
-        for field_name in ("is_in", "is_out", "is_dropship"):
+        for field_name in ("is_in", "is_out", "is_dropship", "valued_qty"):
             self.env.add_to_compute(self._fields[field_name], self)
         # `is_valued` is a plain compute over the three above. Its dependency is
         # registered, but it does not survive their *deferred* recompute -- a value
@@ -186,12 +202,20 @@ class StockMove(models.Model):
         for move in self:
             move.value_manual = move.value
 
-    @api.depends("value", "is_in")
+    @api.depends("value", "is_in", "is_out")
     def _compute_value_justification(self):
         self.value_justification = False
         self.value_computed_justification = False
         for move in self:
             if not move.is_in:
+                if move.is_out:
+                    # Outgoing moves have their own, much shorter derivation (see
+                    # `_set_value`), so running the incoming pipeline over them
+                    # would describe steps that never ran. They still need to say
+                    # something: the "Adjust Valuation" dialog shows this field,
+                    # and a blank panel was the only sign the user got that an
+                    # adjustment had gone nowhere.
+                    move.value_justification = move._get_out_value_justification()
                 continue
             move.value_justification = move._get_value_data()["description"]
             computed_value_data = move._get_value_data(ignore_manual_update=True)
@@ -293,7 +317,29 @@ class StockMove(models.Model):
         (moves_in | moves_out).sudo()._create_analytic_move()
         return moves
 
-    def _get_stock_journal(self):
+    def _get_valuation_accounts(self, cache=None):
+        """This move's product accounts, resolved at most once per key.
+
+        `_get_product_accounts` reads company-dependent fields and runs the fiscal
+        position mapping, and its answer varies over
+        `(product template, company, fiscal position)` and nothing else -- yet a
+        batch validation asked for it three times per move (twice through
+        `_get_stock_journal`, once through `_get_account_move_line_vals`). Ten
+        moves of one product cost 30 resolutions of one answer.
+
+        :param cache: caller-owned dict reused across a batch; omit for a one-off.
+        """
+        self.ensure_one()
+        template = self.product_id.product_tmpl_id
+        key = (template.id, self.company_id.id)
+        if cache is not None and key in cache:
+            return cache[key]
+        accounts = template.with_company(self.company_id)._get_product_accounts()
+        if cache is not None:
+            cache[key] = accounts
+        return accounts
+
+    def _get_stock_journal(self, accounts=None):
         """The journal this move's valuation entry belongs in.
 
         Resolved through `_get_product_accounts()`, so a category-level
@@ -303,12 +349,9 @@ class StockMove(models.Model):
         dropped for every ordinary stock move.
         """
         self.ensure_one()
-        return (
-            self.product_id.product_tmpl_id.with_company(
-                self.company_id
-            )._get_product_accounts()["stock_journal"]
-            or self.company_id.account_stock_journal_id
-        )
+        if accounts is None:
+            accounts = self._get_valuation_accounts()
+        return accounts["stock_journal"] or self.company_id.account_stock_journal_id
 
     def _create_account_move(self):
         """Create the valuation entries for the moves of `self`.
@@ -319,13 +362,16 @@ class StockMove(models.Model):
         an ordinary multi-picking validation -- cannot be expressed as a single
         entry.
         """
+        accounts_cache = {}
         moves_by_entry = defaultdict(lambda: self.env["stock.move"])
         for move in self:
             if move._should_create_account_move():
                 key = (
                     move.company_id,
                     move._get_partner_id_for_valuation_lines(),
-                    move._get_stock_journal(),
+                    move._get_stock_journal(
+                        move._get_valuation_accounts(accounts_cache)
+                    ),
                 )
                 moves_by_entry[key] |= move
 
@@ -342,7 +388,9 @@ class StockMove(models.Model):
                 )
             aml_vals_list = []
             for move in moves:
-                aml_vals_list += move._get_account_move_line_vals()
+                aml_vals_list += move._get_account_move_line_vals(
+                    accounts=move._get_valuation_accounts(accounts_cache)
+                )
             if not aml_vals_list:
                 continue
 
@@ -384,7 +432,9 @@ class StockMove(models.Model):
                     self.env["account.analytic.line"].sudo().create(analytic_line_vals)
                 )
 
-    def _get_account_move_line_vals(self):
+    def _get_account_move_line_vals(self, accounts=None):
+        if accounts is None:
+            accounts = self._get_valuation_accounts()
         source_acc = self.location_id.valuation_account_id
         dest_acc = self.location_dest_id.valuation_account_id
         if source_acc and dest_acc:
@@ -394,11 +444,11 @@ class StockMove(models.Model):
             # account was dropped from the entry without a word.
             debit_acc, credit_acc = dest_acc, source_acc
         elif source_acc:
-            debit_acc = self.product_id._get_product_accounts()["stock_valuation"]
+            debit_acc = accounts["stock_valuation"]
             credit_acc = source_acc
         else:
             debit_acc = dest_acc
-            credit_acc = self.product_id._get_product_accounts()["stock_valuation"]
+            credit_acc = accounts["stock_valuation"]
         if not debit_acc or not credit_acc:
             # `_should_create_account_move` only checks that a *location* has an
             # account, so the product's could still be missing. Left unchecked this
@@ -466,17 +516,6 @@ class StockMove(models.Model):
             return total_value / total_valued_qty
         else:
             return self.product_id.standard_price
-
-    @api.model
-    def _get_valued_types(self):
-        """Returns a list of `valued_type` as strings. During `action_done`, we'll call
-        `_is_[valued_type]'. If the result of this method is truthy, we'll consider the move to be
-        valued.
-
-        :returns: a list of `valued_type`
-        :rtype: list
-        """
-        return ["in", "out", "dropshipped", "dropshipped_returned"]
 
     def _set_value(self, correction_quantity=None):
         """Set the value of the move.
@@ -554,6 +593,16 @@ class StockMove(models.Model):
                         if move.product_id.lot_valuated:
                             lots_to_recompute.update(move.move_line_ids.lot_id.ids)
                     continue
+                # A manual `product.value` naming this move overrides the computed
+                # cost basis, exactly as it does for an incoming move through
+                # `_get_value_data`. Outgoing moves used never to consult it: the
+                # "Adjust Valuation" dialog is bound to every stock.move and the
+                # Valuation list shows both directions, so the write was accepted
+                # and then silently discarded by the branches below.
+                manual_data = move.sudo()._get_manual_value(move._get_valued_qty())
+                if manual_data["quantity"]:
+                    move.value = manual_data["value"]
+                    continue
                 if correction_quantity:
                     # Both terms in the product's UoM, and both counting only the
                     # lines the value was computed over: `move.quantity` is the
@@ -610,7 +659,6 @@ class StockMove(models.Model):
         forced_std_price=False,
         at_date=False,
         ignore_manual_update=False,
-        add_extra_value=True,
     ):
         """Returns the value and the quantity valued on the move
         In priority order:
@@ -630,11 +678,12 @@ class StockMove(models.Model):
 
         valued_qty = remaining_qty = self._get_valued_qty()
         value = 0
+        add_extra_value = True
         descriptions = []
 
         if not ignore_manual_update:
             manual_data = self._get_manual_value(remaining_qty, at_date)
-            # In case of manual update we will skip extra cost
+            # A manual value covers the whole move, extra costs included.
             if manual_data["quantity"]:
                 add_extra_value = False
             value += manual_data["value"]
@@ -693,6 +742,26 @@ class StockMove(models.Model):
             "description": "\n".join(descriptions),
         }
 
+    def _get_out_value_justification(self):
+        """How an outgoing move's value was arrived at, mirroring `_set_value`."""
+        self.ensure_one()
+        quantity = self._get_valued_qty()
+        manual_data = self.sudo()._get_manual_value(quantity)
+        if manual_data["quantity"]:
+            return manual_data["description"]
+        uom = self.product_id.uom_id.name
+        if self.product_id.lot_valuated:
+            return self.env._(
+                "%(quantity)s %(uom)s at each lot's cost", quantity=quantity, uom=uom
+            )
+        if self.product_id.cost_method == "fifo":
+            return self.env._(
+                "%(quantity)s %(uom)s off the FIFO stack", quantity=quantity, uom=uom
+            )
+        return self.env._(
+            "%(quantity)s %(uom)s at product's cost", quantity=quantity, uom=uom
+        )
+
     def _get_valued_qty(self, lot=None):
         self.ensure_one()
         if self._is_in():
@@ -700,15 +769,10 @@ class StockMove(models.Model):
         if self._is_out():
             return sum(self._get_out_move_lines(lot).mapped("quantity_product_uom"))
         if self.is_dropship:
+            lines = self.move_line_ids
             if lot:
-                return sum(
-                    self.move_line_ids.filtered(lambda ml: ml.lot_id == lot).mapped(
-                        "quantity_product_uom"
-                    )
-                )
-            return self.product_uom_id._compute_quantity(
-                self.quantity, self.product_id.uom_id
-            )
+                lines = lines.filtered(lambda ml: ml.lot_id == lot)
+            return sum(lines.mapped("quantity_product_uom"))
         return 0
 
     def _get_manual_value(self, quantity, at_date=None):
@@ -806,16 +870,18 @@ class StockMove(models.Model):
     def _get_value_from_extra(self, quantity, at_date=None):
         return dict(VALUATION_DICT)
 
-    def _get_move_directions(self):
-        return defaultdict(set)
+    def _get_valued_move_lines(self, incoming, lot=None):
+        """The `stock.move.line` records of `self` crossing a valuation boundary.
 
-    def _get_in_move_lines(self, lot=None):
-        """Returns the `stock.move.line` records of `self` considered as incoming. It is done thanks
-        to the `_should_be_valued` method of their source and destionation location as well as their
-        owner.
+        One implementation for both directions: they differ only in which side of
+        the boundary the goods come from. Kept as a single method because the two
+        used to be copies that had drifted -- the outgoing one accumulated with
+        `res |= move_line` inside the loop, making it quadratic in the number of
+        lines (measured 3.9x its twin at 1600 lines, and still widening).
 
-        :returns: a subset of `self` containing the incoming records
-        :rtype: recordset
+        :param incoming: True for lines entering the valued perimeter, False for
+            lines leaving it.
+        :returns: a `stock.move.line` recordset
         """
         res = OrderedSet()
         for move_line in self.move_line_ids:
@@ -825,12 +891,22 @@ class StockMove(models.Model):
                 continue
             if move_line._should_exclude_for_valuation():
                 continue
+            from_valued = move_line.location_id._should_be_valued()
+            to_valued = move_line.location_dest_id._should_be_valued()
             if (
-                not move_line.location_id._should_be_valued()
-                and move_line.location_dest_id._should_be_valued()
+                (not from_valued and to_valued)
+                if incoming
+                else (from_valued and not to_valued)
             ):
                 res.add(move_line.id)
         return self.env["stock.move.line"].browse(res)
+
+    def _get_in_move_lines(self, lot=None):
+        """Returns the `stock.move.line` records of `self` considered as incoming.
+
+        :returns: a `stock.move.line` recordset
+        """
+        return self._get_valued_move_lines(True, lot=lot)
 
     def _is_in(self):
         """Check if the move should be considered as entering the company so that the cost method
@@ -843,27 +919,11 @@ class StockMove(models.Model):
         return self._get_in_move_lines() and not self._is_dropshipped_returned()
 
     def _get_out_move_lines(self, lot=None):
-        """Returns the `stock.move.line` records of `self` considered as outgoing. It is done thanks
-        to the `_should_be_valued` method of their source and destionation location as well as their
-        owner.
+        """Returns the `stock.move.line` records of `self` considered as outgoing.
 
-        :returns: a subset of `self` containing the outgoing records
-        :rtype: recordset
+        :returns: a `stock.move.line` recordset
         """
-        res = self.env["stock.move.line"]
-        for move_line in self.move_line_ids:
-            if lot and move_line.lot_id != lot:
-                continue
-            if not move_line.picked:
-                continue
-            if move_line._should_exclude_for_valuation():
-                continue
-            if (
-                move_line.location_id._should_be_valued()
-                and not move_line.location_dest_id._should_be_valued()
-            ):
-                res |= move_line
-        return res
+        return self._get_valued_move_lines(False, lot=lot)
 
     def _is_out(self):
         """Check if the move should be considered as leaving the company so that the cost method
@@ -976,7 +1036,7 @@ class StockMove(models.Model):
         :return: True if an account move should be created, False otherwise.
         """
         self.ensure_one()
-        return (
+        return bool(
             self.product_id.is_storable
             and self.is_valued
             and (
@@ -1006,16 +1066,6 @@ class StockMove(models.Model):
         """
         return self.env["account.move"]
 
-    def _is_returned(self, valued_type):
-        self.ensure_one()
-        if valued_type == "in":
-            return (
-                self.location_id and self.location_id.usage == "customer"
-            )  # goods returned from customer
-        if valued_type == "out":
-            return self.location_dest_id and self.location_dest_id.usage == "supplier"
-        return bool(self.picking_id.return_picking_id)
-
     def _get_valued_consigned_qty(self):
         consigned_lines = self.move_line_ids.filtered(
             lambda l: l._is_consigned_valued_line()
@@ -1025,29 +1075,3 @@ class StockMove(models.Model):
             * (-1 if sml.location_dest_id._should_be_valued() else 1)
             for sml in consigned_lines
         )
-
-    def _get_price_unit_delivery(self):
-        """Computes the unit price for a set of moves, using a weighted average between
-        dropshipped and non dropshipped moves.
-        """
-        dropship_moves = self.filtered(
-            lambda m: m._is_dropshipped() or m._is_dropshipped_returned()
-        )
-        dropship_quantity = sum(m._get_valued_qty() for m in dropship_moves)
-        dropship_price_unit = dropship_moves._get_price_unit_dropshipped()
-        regular_moves = self - dropship_moves
-        regular_quantity = sum(m._get_valued_qty() for m in regular_moves)
-        regular_price_unit = regular_moves._get_price_unit()
-        total_quantity = dropship_quantity + regular_quantity
-        if not total_quantity:
-            return self._get_price_unit()
-        return (
-            dropship_quantity * dropship_price_unit
-            + regular_quantity * regular_price_unit
-        ) / total_quantity
-
-    def _get_price_unit_dropshipped(self):
-        """Returns the unit price to value the dropshipped moves."""
-        total_value = sum(m._get_value() for m in self)
-        total_qty = sum(m._get_valued_qty() for m in self)
-        return total_value / total_qty if total_qty else 0

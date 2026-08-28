@@ -1,8 +1,15 @@
-from odoo import Command, models
+from odoo import Command, fields, models
 
 
 class MrpWorkorder(models.Model):
     _inherit = "mrp.workorder"
+
+    mo_analytic_account_line_ids = fields.Many2many(
+        "account.analytic.line", "mrp_workorder_mo_analytic_rel", copy=False
+    )
+
+    def _analytic_line_fields(self):
+        return super()._analytic_line_fields() + ["mo_analytic_account_line_ids"]
 
     def _create_or_update_analytic_entry_for_record(self, value, hours):
         super()._create_or_update_analytic_entry_for_record(value, hours)

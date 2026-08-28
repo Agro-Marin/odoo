@@ -1,4 +1,5 @@
-from datetime import datetime, time
+from datetime import UTC, datetime, time
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dateutil.relativedelta import relativedelta
 
@@ -48,8 +49,8 @@ class MrpAccountWipAccounting(models.TransientModel):
     _description = "Wizard to post Manufacturing WIP account move"
 
     @api.model
-    def default_get(self, fields):
-        res = super().default_get(fields)
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
         productions = self.env["mrp.production"].browse(
             self.env.context.get("active_ids")
         )
@@ -57,7 +58,7 @@ class MrpAccountWipAccounting(models.TransientModel):
         productions = productions.filtered(
             lambda mo: mo.state in ["progress", "to_close", "confirmed"]
         )
-        if "journal_id" in fields:
+        if "journal_id" in fields_list:
             default = (
                 self.env["product.category"]
                 ._fields["property_stock_journal"]
@@ -65,22 +66,23 @@ class MrpAccountWipAccounting(models.TransientModel):
             )
             if default:
                 res["journal_id"] = default.id
-        if "reference" in fields:
+        if "reference" in fields_list:
             res["reference"] = _(
                 "Manufacturing WIP - %(orders_list)s",
                 orders_list=productions.mapped("name") or _("Manual Entry"),
             )
-        if "mo_ids" in fields:
+        if "mo_ids" in fields_list:
             res["mo_ids"] = [Command.set(productions.ids)]
         return res
 
-    date = fields.Date("Date", default=fields.Datetime.now)
+    date = fields.Date("Date", default=fields.Date.context_today)
     reversal_date = fields.Date(
         "Reversal Date",
         compute="_compute_reversal_date",
         required=True,
         store=True,
         readonly=False,
+        precompute=True,
     )
     journal_id = fields.Many2one("account.journal", "Journal", required=True)
     reference = fields.Char("Reference")
@@ -105,11 +107,30 @@ class MrpAccountWipAccounting(models.TransientModel):
             .id
         )
 
+    def _end_of_day_utc(self, day):
+        """`day` 23:59:59 in the user's timezone, as the naive UTC the ORM stores.
+
+        `stock.move.line.date` and `mrp.workcenter.productivity.date_end` are
+        UTC; combining a Date with `time.max` and comparing that directly drops
+        everything the user did after their local (23:59:59 - utc_offset).
+        """
+        # `tz` reaches the context from the client, so an unknown key is a
+        # request the user can make, not a bug to raise on.
+        try:
+            tz = ZoneInfo(self.env.context.get("tz") or self.env.user.tz or "UTC")
+        except ZoneInfoNotFoundError, ValueError:
+            tz = UTC
+        return (
+            datetime.combine(day, time.max, tzinfo=tz)
+            .astimezone(UTC)
+            .replace(tzinfo=None)
+        )
+
     def _get_line_vals(self, productions=False, date=False):
         if not productions:
             productions = self.env["mrp.production"]
         if not date:
-            date = datetime.now().replace(hour=23, minute=59, second=59)
+            date = self._end_of_day_utc(fields.Date.context_today(self))
         compo_value = sum(
             ml.quantity_product_uom
             * (
@@ -159,8 +180,6 @@ class MrpAccountWipAccounting(models.TransientModel):
         for wizard in self:
             if not wizard.reversal_date or wizard.reversal_date <= wizard.date:
                 wizard.reversal_date = wizard.date + relativedelta(days=1)
-            else:
-                wizard.reversal_date = wizard.reversal_date
 
     @api.depends("date")
     def _compute_line_ids(self):
@@ -168,11 +187,31 @@ class MrpAccountWipAccounting(models.TransientModel):
             # don't update lines when manual (i.e. no applicable MOs) entry
             if not wizard.line_ids or wizard.mo_ids:
                 wizard.line_ids = [Command.clear()] + wizard._get_line_vals(
-                    wizard.mo_ids, datetime.combine(wizard.date, time.max)
+                    wizard.mo_ids, wizard._end_of_day_utc(wizard.date)
                 )
 
     def confirm(self):
         self.ensure_one()
+        # One entry, one journal, one set of company-dependent WIP accounts --
+        # all of them `env.company`'s. A selection spanning companies would post
+        # the whole figure into whichever one the session happens to be on.
+        if len(self.mo_ids.company_id) > 1:
+            raise UserError(
+                _(
+                    "Post one WIP entry per company: the selected orders belong "
+                    "to %(companies)s.",
+                    companies=self.mo_ids.company_id.mapped("display_name"),
+                )
+            )
+        if unaccounted := self.line_ids.filtered(lambda line: not line.account_id):
+            raise UserError(
+                _(
+                    "No account is configured for: %(labels)s. Set the WIP accounts "
+                    "on the company, or the production and stock valuation accounts "
+                    "on the product category.",
+                    labels=unaccounted.mapped("label"),
+                )
+            )
         if (
             self.env.company.currency_id.compare_amounts(
                 sum(self.line_ids.mapped("credit")), sum(self.line_ids.mapped("debit"))

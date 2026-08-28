@@ -73,7 +73,7 @@ class StockLot(models.Model):
                 lot.avg_cost = 0.0
             elif (
                 valuated_product.cost_method == "standard"
-                or valuated_product.uom_id.is_zero(qty_available)
+                or valuated_product.uom_id._is_zero_aggregate(qty_available)
             ):
                 lot.total_value = lot.standard_price * qty_valued
                 lot.avg_cost = lot.standard_price

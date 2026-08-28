@@ -214,8 +214,8 @@ class StockMoveLine(models.Model):
         copy=False,
     )
     quantity_product_uom = fields.Float(
+        min_display_digits="Product Unit",
         string="Quantity in Product UoM",
-        digits="Product Unit",
         compute="_compute_quantity_product_uom",
         store=True,
         copy=False,
@@ -511,8 +511,8 @@ class StockMoveLine(models.Model):
     @api.depends("quantity", "product_uom_id", "product_id.uom_id")
     def _compute_quantity_product_uom(self):
         for line in self:
-            line.quantity_product_uom = line.product_uom_id._compute_quantity(
-                line.quantity, line.product_id.uom_id, rounding_method="HALF-UP"
+            line.quantity_product_uom = line.product_uom_id._compute_quantity_stored(
+                line.quantity, line.product_id.uom_id
             )
 
     def _search_picking_type_id(self, operator, value):
@@ -598,7 +598,9 @@ class StockMoveLine(models.Model):
         if self.quantity and self.product_id.tracking == "serial":
             if self.product_id.uom_id.compare(
                 self.quantity_product_uom, 1.0
-            ) != 0 and not self.product_id.uom_id.is_zero(self.quantity_product_uom):
+            ) != 0 and not self.product_uom_id._is_zero_stored(
+                self.quantity_product_uom, self.product_id.uom_id
+            ):
                 raise UserError(
                     _(
                         "You can only process 1.0 %s of products with unique serial number.",
@@ -1774,7 +1776,9 @@ class StockMoveLine(models.Model):
     def _reservation_holding_lines(self):
         return self.filtered(
             lambda ml: (
-                not ml.product_id.uom_id.is_zero(ml.quantity_product_uom)
+                not ml.product_uom_id._is_zero_stored(
+                    ml.quantity_product_uom, ml.product_id.uom_id
+                )
                 and not ml._should_bypass_reservation(ml.location_id)
             )
         )
@@ -1805,8 +1809,8 @@ class StockMoveLine(models.Model):
             else:
                 new_reserved_qty = ml.quantity_product_uom
 
-            if not ml.product_id.uom_id.is_zero(
-                ml.quantity_product_uom
+            if not ml.product_uom_id._is_zero_stored(
+                ml.quantity_product_uom, ml.product_id.uom_id
             ) and not ml._should_bypass_reservation(ml.location_id):
                 deltas[ml._reservation_key()] -= ml.quantity_product_uom
 
@@ -1842,7 +1846,9 @@ class StockMoveLine(models.Model):
         package = quants_value.get("package", self.package_id)
         owner = quants_value.get("owner", self.owner_id)
         available_qty = 0
-        if not self.product_id.is_storable or self.product_id.uom_id.is_zero(quantity):
+        if not self.product_id.is_storable or self.product_uom_id._is_zero_stored(
+            quantity, self.product_id.uom_id
+        ):
             return 0, False
         if action == "available":
             if reserved_delta and self._should_bypass_reservation(location):
@@ -1969,3 +1975,15 @@ class StockMoveLine(models.Model):
     def _should_set_package(self):
         picking_type = self.picking_type_id
         return len(picking_type) == 1 and picking_type.set_package_type
+
+    def _should_show_lot_in_invoice(self):
+        """Whether this move line's lot belongs on the related invoice.
+
+        Declared here as the base of the chain. `sale_stock` and `purchase_stock`
+        each contribute a side of it, and both used to open with
+        `try: super() ... except AttributeError: res = False` because no base
+        existed -- a guard that also swallowed any genuine AttributeError raised
+        inside a sibling's implementation.
+        """
+        self.ensure_one()
+        return False

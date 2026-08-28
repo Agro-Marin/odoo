@@ -171,7 +171,7 @@ class TestBomPriceOperationCommon(TestBomPriceCommon):
                 "time_start": 15,
                 "time_stop": 15,
                 "costs_hour": 100,
-                "expense_account_id": cls.account_expense.id,
+                "expense_account_id": cls.account_expense_wo.id,
             }
         )
         cls.env["mrp.workcenter.capacity"].create(

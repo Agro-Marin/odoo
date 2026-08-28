@@ -1,14 +1,12 @@
 from collections import defaultdict
 
-from odoo import _, fields, models
-from odoo.tools import float_round
+from odoo import Command, _, fields, models
 
 
 class MrpProduction(models.Model):
     _inherit = "mrp.production"
 
     extra_cost = fields.Float(copy=False, string="Extra Unit Cost")
-    show_valuation = fields.Boolean(compute="_compute_show_valuation")
     wip_move_ids = fields.Many2many(
         "account.move",
         "wip_move_production_rel",
@@ -18,24 +16,21 @@ class MrpProduction(models.Model):
     )
     wip_move_count = fields.Count("wip_move_ids", "WIP Journal Entry Count")
 
-    def _compute_show_valuation(self):
-        for order in self:
-            order.show_valuation = any(
-                m.state == "done" for m in order.move_finished_ids
-            )
-
     def write(self, vals):
         res = super().write(vals)
+        if not vals.get("name"):
+            return res
         for production in self.sudo():
-            if vals.get("name"):
-                production.move_raw_ids.analytic_account_line_ids.ref = (
-                    production.display_name
-                )
-                for workorder in production.workorder_ids:
-                    workorder.mo_analytic_account_line_ids.ref = production.display_name
-                    workorder.mo_analytic_account_line_ids.name = _(
-                        "[WC] %s", workorder.display_name
-                    )
+            production.move_raw_ids.analytic_account_line_ids.ref = (
+                production.display_name
+            )
+            for workorder in production.workorder_ids:
+                # Every set of analytic lines, not just the project one: naming
+                # a single field left the work centre's own lines carrying the
+                # order's old name for good.
+                analytic_lines = workorder._get_analytic_lines()
+                analytic_lines.ref = production.display_name
+                analytic_lines.name = _("[WC] %s", workorder.display_name)
         return res
 
     def action_view_move_wip(self):
@@ -63,10 +58,15 @@ class MrpProduction(models.Model):
         return action
 
     def _cal_price(self, consumed_moves):
-        """Set a price unit on the finished move according to `consumed_moves`."""
+        """Price the finished move and every byproduct that carries a cost share.
+
+        `_get_value_from_production` values a production move at
+        ``quantity * price_unit`` and nothing else, so a move this method leaves
+        unpriced enters stock at zero. Every move with a share is therefore
+        priced here, in both cost methods.
+        """
         super()._cal_price(consumed_moves)
 
-        work_center_cost = 0
         finished_move = self.move_finished_ids.filtered(
             lambda x: (
                 x.product_id == self.product_id
@@ -74,45 +74,51 @@ class MrpProduction(models.Model):
                 and x.quantity > 0
             )
         )
-        if finished_move:
-            if finished_move.product_id.cost_method not in ("fifo", "average"):
-                finished_move.price_unit = finished_move.product_id.standard_price
-                return True
-            finished_move.ensure_one()
-            for work_order in self.workorder_ids:
-                work_center_cost += work_order._get_cost()
-            quantity = finished_move.product_uom_id._compute_quantity(
-                finished_move.quantity, finished_move.product_id.uom_id
-            )
-            extra_cost = self.extra_cost * quantity
+        if not finished_move:
+            return True
 
-            total_cost = (
-                sum(move.value for move in consumed_moves)
-                + work_center_cost
-                + extra_cost
+        quantity = sum(
+            move.product_uom_id._compute_quantity(move.quantity, move.product_id.uom_id)
+            for move in finished_move
+        )
+        total_cost = (
+            sum(move.value for move in consumed_moves)
+            + self.workorder_ids._get_cost()
+            + self.extra_cost * quantity
+        )
+
+        byproduct_moves = self.move_byproduct_ids.filtered(
+            lambda m: (
+                m.state not in ("done", "cancel") and m.quantity > 0 and m.cost_share
             )
-            byproduct_moves = self.move_byproduct_ids.filtered(
-                lambda m: m.state not in ("done", "cancel") and m.quantity > 0
+        )
+        priced_byproducts = byproduct_moves.filtered(
+            lambda m: m.product_id.cost_method in ("fifo", "average")
+        )
+        currency = self.company_id.currency_id
+        # A byproduct valued at standard enters stock at its own price whatever
+        # the order cost, so its share is a variance rather than a slice of
+        # `total_cost` -- and only the moves priced *from* the total have to add
+        # back up to it.
+        standard_byproducts = byproduct_moves - priced_byproducts
+        for byproduct in standard_byproducts:
+            byproduct.price_unit = byproduct.product_id.standard_price
+        unpriced_share = sum(standard_byproducts.mapped("cost_share"))
+        shared_value = currency.round(total_cost * (1 - unpriced_share / 100))
+        for byproduct in priced_byproducts:
+            value = currency.round(total_cost * byproduct.cost_share / 100)
+            shared_value -= value
+            byproduct.price_unit = value / byproduct.product_uom_id._compute_quantity(
+                byproduct.quantity, byproduct.product_id.uom_id
             )
-            byproduct_cost_share = 0
-            for byproduct in byproduct_moves:
-                if byproduct.cost_share == 0:
-                    continue
-                byproduct_cost_share += byproduct.cost_share
-                if byproduct.product_id.cost_method in ("fifo", "average"):
-                    byproduct.price_unit = (
-                        total_cost
-                        * byproduct.cost_share
-                        / 100
-                        / byproduct.product_uom_id._compute_quantity(
-                            byproduct.quantity, byproduct.product_id.uom_id
-                        )
-                    )
-            finished_move.price_unit = (
-                total_cost
-                * float_round(1 - byproduct_cost_share / 100, precision_rounding=0.0001)
-                / quantity
-            )
+
+        if self.product_id.cost_method not in ("fifo", "average"):
+            finished_move.price_unit = self.product_id.standard_price
+            return True
+        finished_move.ensure_one()
+        # Derived by subtraction, not from its own share: rounding each unit
+        # price on its own left a cent in the production account per order.
+        finished_move.price_unit = shared_value / quantity
         return True
 
     def _get_backorder_mo_vals(self):
@@ -120,13 +126,42 @@ class MrpProduction(models.Model):
         res["extra_cost"] = self.extra_cost
         return res
 
+    def _get_labour_amounts_per_account(self, product_accounts):
+        """Labour to charge per expense account, and the work orders behind each.
+
+        The per-account amounts are rounded so their sum is exactly
+        ``currency.round(total labour)`` -- the same figure `_cal_price`
+        capitalises into the finished move. Rounding each account on its own
+        leaves a residual that never clears out of the production account.
+        """
+        self.ensure_one()
+        currency = self.company_id.currency_id
+        raw_amounts = defaultdict(float)
+        workorders = defaultdict(self.env["mrp.workorder"].browse)
+        for workorder in self.workorder_ids:
+            account = (
+                workorder.workcenter_id.expense_account_id
+                or product_accounts["expense"]
+            )
+            raw_amounts[account] += workorder._get_cost()
+            workorders[account] |= workorder
+
+        total = currency.round(sum(raw_amounts.values()))
+        amounts = {
+            account: currency.round(amount) for account, amount in raw_amounts.items()
+        }
+        residual = total - sum(amounts.values())
+        if amounts and not currency.is_zero(residual):
+            heaviest = max(amounts, key=lambda account: abs(amounts[account]))
+            amounts[heaviest] = currency.round(amounts[heaviest] + residual)
+        return total, amounts, workorders
+
     def _post_labour(self):
         for mo in self:
-            production_location = self.product_id.with_company(
-                self.company_id
-            ).property_stock_production
+            mo = mo.with_company(mo.company_id)
+            production_location = mo.product_id.property_stock_production
             if (
-                mo.with_company(mo.company_id).product_id.valuation != "real_time"
+                mo.product_id.valuation != "real_time"
                 or not production_location.valuation_account_id
             ):
                 continue
@@ -135,54 +170,55 @@ class MrpProduction(models.Model):
                 continue
 
             product_accounts = mo.product_id.product_tmpl_id._get_product_accounts()
-            labour_amounts = defaultdict(float)
-            workorders = defaultdict(self.env["mrp.workorder"].browse)
-            for wo in mo.workorder_ids:
-                account = (
-                    wo.workcenter_id.expense_account_id or product_accounts["expense"]
-                )
-                labour_amounts[account] += wo.company_id.currency_id.round(
-                    wo._get_cost()
-                )
-                workorders[account] |= wo
-            workcenter_cost = sum(labour_amounts.values())
-
+            workcenter_cost, labour_amounts, workorders = (
+                mo._get_labour_amounts_per_account(product_accounts)
+            )
             if mo.company_id.currency_id.is_zero(workcenter_cost):
                 continue
 
             desc = _("%s - Labour", mo.name)
-            account = production_location.valuation_account_id
-            labour_amounts[account] -= workcenter_cost
+            charged = list(labour_amounts.items())
             account_move = (
-                self.env["account.move"]
+                mo.env["account.move"]
                 .sudo()
                 .create(
                     {
                         "journal_id": product_accounts["stock_journal"].id,
-                        "date": fields.Date.context_today(self),
+                        "date": fields.Date.context_today(mo),
                         "ref": desc,
                         "move_type": "entry",
                         "line_ids": [
-                            (
-                                0,
-                                0,
+                            Command.create(
                                 {
                                     "name": desc,
                                     "ref": desc,
-                                    "balance": -amt,
-                                    "account_id": acc.id,
-                                },
+                                    "balance": -amount,
+                                    "account_id": account.id,
+                                }
                             )
-                            for acc, amt in labour_amounts.items()
+                            for account, amount in charged
+                        ]
+                        + [
+                            Command.create(
+                                {
+                                    "name": desc,
+                                    "ref": desc,
+                                    "balance": workcenter_cost,
+                                    "account_id": production_location.valuation_account_id.id,
+                                }
+                            )
                         ],
                     }
                 )
             )
+            # The expense line for a work centre whose account *is* the
+            # production account is indistinguishable from the balancing line by
+            # account, so the two are paired positionally -- by creation order,
+            # which is the order `line_ids` was built in above.
+            expense_lines = account_move.line_ids.sorted("id")[: len(charged)]
+            for line, (account, _amount) in zip(expense_lines, charged, strict=True):
+                workorders[account].time_ids.write({"account_move_line_id": line.id})
             account_move._post()
-            for line in account_move.line_ids[:-1]:
-                workorders[line.account_id].time_ids.write(
-                    {"account_move_line_id": line.id}
-                )
 
     def _post_inventory(self, cancel_backorder=False):
         res = super()._post_inventory(cancel_backorder=cancel_backorder)

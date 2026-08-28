@@ -4,8 +4,8 @@ from odoo import models
 class StockValuationReport(models.AbstractModel):
     _inherit = "stock_account.stock.valuation.report"
 
-    def _get_report_data(self, date=False, product_category=False, warehouse=False):
-        data = super()._get_report_data(date, product_category, warehouse)
+    def _get_report_data(self, date=False, product_category=False):
+        data = super()._get_report_data(date, product_category)
         not_invoiced_received_data = self._compute_goods_received_not_invoiced(
             date, product_category
         )
@@ -13,8 +13,6 @@ class StockValuationReport(models.AbstractModel):
         return data
 
     def _compute_goods_received_not_invoiced(self, date=False, product_category=False):
-        """Compute valuation for already received but not invoiced yet goods,
-        purchase order by purchase order."""
         domain = [("qty_to_invoice", "!=", 0)]
         if product_category:
             domain += [("product_id.categ_id", "=", product_category.id)]

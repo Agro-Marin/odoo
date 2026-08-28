@@ -6,9 +6,9 @@ from odoo import _, models
 class StockValuationReport(models.AbstractModel):
     _inherit = "stock_account.stock.valuation.report"
 
-    def _get_report_data(self, date=False, product_category=False, warehouse=False):
+    def _get_report_data(self, date=False, product_category=False):
         report_data = super()._get_report_data(
-            date=date, product_category=product_category, warehouse=warehouse
+            date=date, product_category=product_category
         )
         if not self._must_include_cost_of_production():
             return report_data
@@ -28,15 +28,18 @@ class StockValuationReport(models.AbstractModel):
                 "lines": [],
             }
         )
+        accounts = self.env["account.account"].browse(
+            {vals["account_id"] for vals in production_locations_valuation_vals}
+            - {False, None}
+        )
+        for account_vals in accounts.read(["name", "code", "display_name"]):
+            report_data["accounts_by_id"][account_vals["id"]] = account_vals
         for vals in production_locations_valuation_vals:
-            account = self.env["account.account"].browse(vals["account_id"])
-            if account:
-                account_vals = account.read(["name", "code", "display_name"])[0]
-                report_data["accounts_by_id"][account.id] = account_vals
+            account_id = vals["account_id"]
             cost_of_production["value"] -= vals["debit"]
-            lines_by_account_id[account.id]["debit"] += vals["debit"]
-            lines_by_account_id[account.id]["credit"] += vals["credit"]
-            lines_by_account_id[account.id]["lines"].append(vals)
+            lines_by_account_id[account_id]["debit"] += vals["debit"]
+            lines_by_account_id[account_id]["credit"] += vals["credit"]
+            lines_by_account_id[account_id]["lines"].append(vals)
         cost_of_production["lines"] = [
             {
                 "account_id": account_id,

@@ -1,5 +1,6 @@
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.fields import Domain
 
 from odoo.addons.stock_account.models.avco import AvcoAccumulator
 
@@ -75,7 +76,14 @@ SELECT
     sm.company_id,
     sm.reference,
     CASE WHEN sm.is_in THEN sm.value ELSE -sm.value END AS value,
-    CASE WHEN sm.is_in THEN sm.quantity * (um.factor / up.factor) ELSE -sm.quantity * (um.factor / up.factor) END AS quantity,
+    -- `valued_qty`, not `quantity`: the engine feeds the accumulator
+    -- `_get_valued_qty()` -- picked, company-owned lines only -- while
+    -- `stock_move.quantity` sums every line. A receipt of 10 owned plus 5
+    -- consigned units made this report justify an average cost of 6.67 against a
+    -- product actually valued at 10.00. `valued_qty` is the stored record of the
+    -- quantity `value` was computed over, so the two cannot drift again; it is
+    -- already in the product's UoM, which is why the uom_uom joins are gone.
+    CASE WHEN sm.is_in THEN sm.valued_qty ELSE -sm.valued_qty END AS quantity,
     'stock.move' AS res_model_name,
     'Operation' AS description
 FROM
@@ -90,12 +98,12 @@ LEFT JOIN
     product_category pc ON pt.categ_id = pc.id
 LEFT JOIN
     res_company company ON sm.company_id = company.id
-LEFT JOIN
-    uom_uom um ON um.id = sm.product_uom_id
-LEFT JOIN
-    uom_uom up ON up.id = pt.uom_id
 WHERE
     sm.state = 'done'
+    -- Dropship moves are deliberately absent: `_run_average_batch` replays them
+    -- as an `add_in` immediately followed by an `add_out` at the same cost, so
+    -- they move neither the quantity nor the average, and a single row could
+    -- only misrepresent one half of that pair.
     AND (sm.is_in = TRUE OR sm.is_out = TRUE)
     -- Ignore moves valued at standard cost; for those only the cost updates matter.
     -- The effective method is the category's company-dependent value, falling back to
@@ -123,6 +131,10 @@ FROM
     product_value pv
 WHERE
     pv.move_id IS NULL
+    -- Match `_get_last_product_value`, which seeds the product-wide replay from
+    -- `lot_id = False` rows only. A lot revaluation used to surface here as a
+    -- product-wide `set_unit_cost` the engine had never applied.
+    AND pv.lot_id IS NULL
 );
 """
         self.env.cr.execute(query)
@@ -139,20 +151,45 @@ WHERE
         self.env.flush_all()
         return super()._search(domain, *args, **kwargs)
 
+    # A running total depends on every earlier row of the same product and
+    # company, which no `depends` path can name. What it *can* name is the data
+    # the view is built from, and that is what actually moves these figures: a
+    # move's value or the flags that put it in the view at all. Without any
+    # `depends` the ORM cached the running totals for the life of the
+    # transaction, so a report re-read after a validation showed the figures from
+    # before it -- in the one screen whose job is to justify the current cost.
+    @api.depends(
+        "value",
+        "quantity",
+        "date",
+        "product_id.stock_move_ids.value",
+        "product_id.stock_move_ids.valued_qty",
+        "product_id.stock_move_ids.is_in",
+        "product_id.stock_move_ids.is_out",
+    )
     def _compute_cumulative_fields(self):
+        pages_by_key = self.grouped(lambda m: (m.product_id, m.company_id))
+        # One `(product, company)` pair per page group, not their cross product:
+        # a page showing two products of two companies asked for all four
+        # combinations, three of which it had no row for.
         total_records_grouped = (
             self.env["stock.avco.report"]
             .search(
-                [
-                    ("product_id", "in", self.product_id.ids),
-                    ("company_id", "in", self.company_id.ids),
-                ]
+                Domain.OR(
+                    Domain(
+                        [
+                            ("product_id", "=", product.id),
+                            ("company_id", "=", company.id),
+                        ]
+                    )
+                    for product, company in pages_by_key
+                )
+                if pages_by_key
+                else Domain.FALSE
             )
             .grouped(lambda m: (m.product_id, m.company_id))
         )
-        for key, records in self.grouped(
-            lambda m: (m.product_id, m.company_id)
-        ).items():
+        for key, records in pages_by_key.items():
             current_page_ids = set(records.ids)
             total_records = total_records_grouped.get(key, self.browse()).sorted(
                 self._REPLAY_ORDER
@@ -177,6 +214,7 @@ WHERE
                     record.total_quantity = avco.quantity
                     record.avco_value = avco.unit_cost
 
+    @api.depends("res_id", "res_model_name")
     def _compute_justification(self):
         self.justification = False
         for record in self:

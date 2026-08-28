@@ -410,6 +410,66 @@ class UomUom(models.Model):
             return self._compute_quantity(qty, to_unit, raise_if_failure=True, **kwargs)
         return self._compute_quantity_lenient(qty, to_unit, **kwargs)
 
+    def _conversion_rounding(self, to_unit: Self) -> float:
+        """The rounding step that preserves this unit's resolution in `to_unit`."""
+        self._check_at_most_one()
+        if (
+            not self
+            or not to_unit
+            or self == to_unit
+            or not self.factor
+            or not to_unit.factor
+        ):
+            return to_unit.rounding if to_unit else self.rounding
+        return to_unit.rounding * min(1.0, self.factor / to_unit.factor)
+
+    def _compute_quantity_stored(
+        self, qty: float, to_unit: Self, rounding_method: RoundingMethod = "HALF-UP"
+    ) -> float:
+        """Convert for a value stored or consumed as the authoritative quantity."""
+        if not self or not qty or not to_unit or self == to_unit:
+            return self._compute_quantity(qty, to_unit, rounding_method=rounding_method)
+        self.ensure_one()
+        amount = self._compute_quantity(qty, to_unit, round=False)
+        return float_round(
+            amount,
+            precision_rounding=self._conversion_rounding(to_unit),
+            rounding_method=rounding_method,
+        )
+
+    def _aggregate_rounding(self) -> float:
+        """The step of this dimension's reference unit, expressed in this unit."""
+        self.ensure_one()
+        return self.rounding / max(1.0, self.factor)
+
+    def _is_zero_aggregate(self, qty: float) -> bool:
+        """Is `qty`, a total with no single source unit, zero at any resolution?"""
+        self._check_at_most_one()
+        if not self:
+            return float_is_zero(qty, precision_digits=self._precision_digits())
+        return float_is_zero(qty, precision_rounding=self._aggregate_rounding())
+
+    def _round_aggregate(self, qty: float) -> float:
+        """Round a total that has no single source unit."""
+        self._check_at_most_one()
+        if not self:
+            return float_round(qty, precision_digits=self._precision_digits())
+        return float_round(qty, precision_rounding=self._aggregate_rounding())
+
+    def _compare_aggregate(self, qty1: float, qty2: float) -> int:
+        """Compare two totals that have no single source unit."""
+        self._check_at_most_one()
+        if not self:
+            return float_compare(qty1, qty2, precision_digits=self._precision_digits())
+        return float_compare(qty1, qty2, precision_rounding=self._aggregate_rounding())
+
+    def _is_zero_stored(self, qty: float, to_unit: Self) -> bool:
+        """Is `qty`, already converted into `to_unit`, zero at the stored resolution?"""
+        self._check_at_most_one()
+        if not self:
+            return to_unit.is_zero(qty)
+        return float_is_zero(qty, precision_rounding=self._conversion_rounding(to_unit))
+
     def _round_to_packaging_multiple(self, product_qty, uom, rounding_method="HALF-UP"):
         """Round `product_qty` (expressed in `uom`) to a whole multiple of the
         packaging `self`, according to `rounding_method` ("UP", "HALF-UP" or "DOWN").

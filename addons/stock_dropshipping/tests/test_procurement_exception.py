@@ -2,22 +2,25 @@ from odoo.tests import Form, common
 
 
 class TestProcurementException(common.TransactionCase):
-
     def test_00_procurement_exception(self):
         # Required for `partner_invoice_id` to be visible in the view
-        self.env.user.group_ids += self.env.ref('account.group_delivery_invoice_address')
+        self.env.user.group_ids += self.env.ref(
+            "account.group_delivery_invoice_address"
+        )
         # Required for `route_id` to be visible in the view
-        self.env.user.group_ids += self.env.ref('stock.group_adv_location')
+        self.env.user.group_ids += self.env.ref("stock.group_adv_location")
 
-        res_partner_2 = self.env['res.partner'].create({'name': 'My Test Partner'})
-        res_partner_address = self.env['res.partner'].create({
-            'name': 'My Test Partner Address',
-            'parent_id': res_partner_2.id,
-        })
+        res_partner_2 = self.env["res.partner"].create({"name": "My Test Partner"})
+        res_partner_address = self.env["res.partner"].create(
+            {
+                "name": "My Test Partner Address",
+                "parent_id": res_partner_2.id,
+            }
+        )
 
         # I create a product with no supplier define for it.
-        product_form = Form(self.env['product.product'])
-        product_form.name = 'product with no seller'
+        product_form = Form(self.env["product.product"])
+        product_form.name = "product with no seller"
         # <field name="list_price" position="attributes">
         #     <attribute name="readonly">product_variant_count &gt; 1</attribute>
         #     <attribute name="invisible">1</attribute>
@@ -35,22 +38,29 @@ class TestProcurementException(common.TransactionCase):
         product_with_no_seller.standard_price = 70.0
 
         # I create a sales order with this product with route dropship.
-        so_form = Form(self.env['sale.order'])
+        so_form = Form(self.env["sale.order"])
         so_form.partner_id = res_partner_2
         so_form.partner_invoice_id = res_partner_address
         so_form.partner_shipping_id = res_partner_address
-        so_form.payment_term_id = self.env.ref('account.account_payment_term_end_following_month')
+        so_form.payment_term_id = self.env.ref(
+            "account.account_payment_term_end_following_month"
+        )
         with so_form.line_ids.new() as line:
             line.product_id = product_with_no_seller
             line.product_qty = 3
-            line.route_ids = self.env.ref('stock_dropshipping.route_drop_shipping')
+            line.route_ids = self.env.ref("stock_dropshipping.route_drop_shipping")
         sale_order_route_dropship01 = so_form.save()
 
         # I confirm the sales order, but no purchase quotation should be created
         sale_order_route_dropship01.action_confirm()
-        purchase = self.env['purchase.order.line'].search([
-            ('sale_line_id', '=', sale_order_route_dropship01.line_ids.ids[0])]).order_id
-        self.assertFalse(purchase, 'No Purchase Quotation should be created')
+        purchase = (
+            self.env["purchase.order.line"]
+            .search(
+                [("sale_line_id", "=", sale_order_route_dropship01.line_ids.ids[0])]
+            )
+            .order_id
+        )
+        self.assertFalse(purchase, "No Purchase Quotation should be created")
 
         # I set the at least one supplier on the product.
         with Form(product_with_no_seller) as f:
@@ -64,7 +74,12 @@ class TestProcurementException(common.TransactionCase):
         sale_order_route_dropship02.action_confirm()
 
         # I check a purchase quotation was created.
-        purchase = self.env['purchase.order.line'].search([
-            ('sale_line_id', '=', sale_order_route_dropship02.line_ids.ids[0])]).order_id
+        purchase = (
+            self.env["purchase.order.line"]
+            .search(
+                [("sale_line_id", "=", sale_order_route_dropship02.line_ids.ids[0])]
+            )
+            .order_id
+        )
 
-        self.assertTrue(purchase, 'No Purchase Quotation is created')
+        self.assertTrue(purchase, "No Purchase Quotation is created")

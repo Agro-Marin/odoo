@@ -61,7 +61,6 @@ class ResCompany(models.Model):
         self.ensure_one()
         account_move = self._close_stock_valuation(at_date=at_date, auto_post=auto_post)
         if not account_move:
-            # No account moves to create, so nothing to display.
             raise UserError(_("Everything is correctly closed"))
         return {
             "type": "ir.actions.act_window",
@@ -86,6 +85,38 @@ class ResCompany(models.Model):
         self.ensure_one()
         if at_date and isinstance(at_date, str):
             at_date = fields.Date.from_string(at_date)
+        # A draft closing is a claim on its period, and what to do with it depends
+        # on whether it was ever posted.
+        #
+        # Never posted: it is a proposal the user has not accepted, so this call
+        # supersedes it. Recomputing beside it would book the period twice --
+        # `_get_location_valuation_vals` sums moves since the cursor and cannot see
+        # that a draft already covers them, while `_get_stock_valuation_account_vals`
+        # nets only against *posted* book value.
+        #
+        # Posted and reset to draft: the entry has been part of the books and may
+        # have been reset deliberately, so it is not ours to discard. Hand it back;
+        # the user reposts or deletes it. Recomputing here, then reposting it, put
+        # an inventory-loss account at 80 for a true loss of 40.
+        pending = self.env["account.move"].search(
+            [
+                ("is_stock_valuation_closing", "=", True),
+                ("company_id", "=", self.id),
+                ("state", "=", "draft"),
+            ],
+            order="date desc, id desc",
+        )
+        if reset := pending.filtered("posted_before"):
+            # Deliberately not auto-posted: its figures were computed when it was
+            # created, and posting a stale draft books an old period as today's.
+            _logger.info(
+                "Stock valuation closing for company %s has a previously-posted entry"
+                " %s back in draft; not computing another.",
+                self.display_name,
+                reset[0].name or reset[0].id,
+            )
+            return reset[0]
+        (pending - pending.filtered("posted_before")).unlink()
         last_closing_date = self._get_last_closing_date()
         if (
             at_date
@@ -120,6 +151,16 @@ class ResCompany(models.Model):
             "journal_id": self.account_stock_journal_id.id,
             "date": at_date or fields.Date.today(),
             "ref": _("Stock Closing"),
+            "is_stock_valuation_closing": True,
+            # What this entry actually covered, so the next closing can start
+            # exactly here. `date` alone cannot say: it is a *date*, and a closing
+            # run today aggregates today's moves, every one of which is after
+            # today's midnight -- so a same-day re-close counted them again.
+            "stock_valuation_closing_cutoff": (
+                fields.Datetime.to_datetime(at_date)
+                if at_date
+                else fields.Datetime.now()
+            ),
             "line_ids": [Command.create(aml_vals) for aml_vals in aml_vals_list],
         }
         account_move = (
@@ -127,11 +168,15 @@ class ResCompany(models.Model):
             .env["account.move"]
             .create(moves_vals)
         )
-        self._save_closing_id(account_move.id)
         if auto_post:
             account_move._post()
         return account_move
 
+    # Public names, called only from this module and its report. `@api.private`
+    # is what `coding_guidelines.rst` 10.1 prescribes for retrofitting an
+    # already-public name: it closes the RPC surface across the whole MRO without
+    # renaming a method any customisation may already call.
+    @api.private
     def stock_value(self, accounts_by_product=None, at_date=None):
         self.ensure_one()
         value_by_account: dict = defaultdict(float)
@@ -145,6 +190,7 @@ class ResCompany(models.Model):
             value_by_account[account] += product_value
         return value_by_account
 
+    @api.private
     def stock_accounting_value(self, accounts_by_product=None, at_date=None):
         self.ensure_one()
         if not accounts_by_product:
@@ -472,22 +518,45 @@ class ResCompany(models.Model):
         ]
 
     def _get_last_closing_date(self):
+        """The date the next closing starts from: the latest posted closing entry.
+
+        The cursor used to be a comma-separated list of at most ten `account.move`
+        ids in an `ir.config_parameter`. That storage had no foreign key, no
+        `ondelete` and a cap, so the cursor could be *lost*: resetting the only
+        recorded closing to draft made this return False, and
+        `_get_location_valuation_vals` then dropped its `date >` filter and
+        re-aggregated every move since the beginning of time. Re-posting the draft
+        entry afterwards left the reclassification booked twice.
+
+        A flag on `account.move` cannot be lost: the history is unbounded, the
+        entry carries its own company, and a deleted entry takes its cursor with
+        it -- which is the correct behaviour, not a silent reset to "never closed".
+        """
         self.ensure_one()
-        key = f"{self.id}.stock_valuation_closing_ids"
-        closing_ids = self.env["ir.config_parameter"].sudo().get_param(key)
-        closing_ids = closing_ids.split(",") if closing_ids else []
-        closing = self.env["account.move"]
-        while not closing and closing_ids:
-            closing_id = closing_ids.pop(-1)
-            closing_id = int(closing_id)
-            closing = (
-                self.env["account.move"]
-                .browse(closing_id)
-                .exists()
-                .filtered(lambda am: am.state == "posted")
-            )
+        # Any surviving closing entry is a cursor, draft ones included. Requiring
+        # `posted` reopened the very hole the storage change closed: a closing
+        # reset to draft stopped being a cursor, the next close re-aggregated the
+        # whole history, and re-posting the first entry booked the period twice
+        # (measured: an inventory-loss account at 80 for a true loss of 40).
+        # A *deleted* closing does move the cursor back, which is correct -- the
+        # period it covered is genuinely unaccounted for again.
+        closing = self.env["account.move"].search(
+            [
+                ("is_stock_valuation_closing", "=", True),
+                ("company_id", "=", self.id),
+                ("state", "!=", "cancel"),
+            ],
+            order="date desc, id desc",
+            limit=1,
+        )
         if not closing:
             return False
+        if closing.stock_valuation_closing_cutoff:
+            return closing.stock_valuation_closing_cutoff
+        # Entries predating the cutoff field: reconstruct the instant from the
+        # state-change tracking message, as this method always did, and fall back
+        # to the entry's date. Both are approximations; every closing written from
+        # now on carries the exact figure above.
         am_state_field = (
             self.env["ir.model.fields"]
             .sudo()
@@ -502,16 +571,6 @@ class ResCompany(models.Model):
         if create_date and create_date.date() == closing.date:
             return create_date
         return fields.Datetime.to_datetime(closing.date)
-
-    def _save_closing_id(self, move_id):
-        self.ensure_one()
-        key = f"{self.id}.stock_valuation_closing_ids"
-        closing_ids = self.env["ir.config_parameter"].sudo().get_param(key)
-        ids = closing_ids.split(",") if closing_ids else []
-        ids.append(str(move_id))
-        if len(ids) > 10:
-            ids = ids[1:]
-        self.env["ir.config_parameter"].sudo().set_param(key, ",".join(ids))
 
     def _set_category_defaults(self, changed_fields=None):
         super()._set_category_defaults(changed_fields)

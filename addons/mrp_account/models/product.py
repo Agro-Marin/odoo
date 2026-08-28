@@ -147,12 +147,9 @@ class ProductProduct(models.Model):
         non_kit_products = self.filtered(lambda product: not product.is_kit)
         super(ProductProduct, non_kit_products)._compute_value()
         kit_products = self - non_kit_products
-        for kit_product in kit_products:
-            kit_product.company_currency_id = (
-                kit_product.company_id.currency_id or self.env.company.currency_id
-            )
-            kit_product.total_value = 0.0
-            kit_product.avg_cost = 0.0
+        kit_products.company_currency_id = self.env.company.currency_id
+        kit_products.total_value = 0.0
+        kit_products.avg_cost = 0.0
 
 
 class ProductCategory(models.Model):

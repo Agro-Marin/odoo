@@ -91,18 +91,4 @@ export class StockValuationReportController {
             this.actionService.doAction(action);
         }
     }
-
-    actionPrintReport(format = "pdf") {
-        if (format === "pdf") {
-            return this.orm.call(
-                "stock_account.stock.valuation.report",
-                "action_print_as_pdf",
-            );
-        } else if (format === "xlsx") {
-            return this.orm.call(
-                "stock_account.stock.valuation.report",
-                "action_print_as_xlsx",
-            );
-        }
-    }
 }

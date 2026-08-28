@@ -38,14 +38,13 @@ class StockQuant(models.Model):
                 or (quant.company_id or self.env.company).cost_method
             )
 
-    @api.model
     def _should_exclude_for_valuation(self):
         """
         Determines if a quant should be excluded from valuation based on its ownership.
         :return: True if the quant should be excluded from valuation, False otherwise.
         """
         self.ensure_one()
-        return self.owner_id and self.owner_id != self.company_id.partner_id
+        return bool(self.owner_id and self.owner_id != self.company_id.partner_id)
 
     @api.depends("company_id", "location_id", "owner_id", "product_id", "quantity")
     def _compute_value(self):

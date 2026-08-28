@@ -1,6 +1,6 @@
 {
     "name": "WMS Accounting",
-    "version": "1.1",
+    "version": "1.2",
     "summary": "Inventory, Logistic, Valuation, Accounting",
     "description": """
 WMS Accounting module

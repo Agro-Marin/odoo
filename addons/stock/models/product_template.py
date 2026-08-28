@@ -118,7 +118,7 @@ class ProductTemplate(models.Model):
     )
     qty_available = fields.Float(
         string="Quantity On Hand",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         inverse="_inverse_qty_available",
@@ -128,7 +128,7 @@ class ProductTemplate(models.Model):
     )
     qty_available_virtual = fields.Float(
         string="Forecasted Quantity",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_qty_available_virtual",
@@ -137,7 +137,7 @@ class ProductTemplate(models.Model):
     )
     qty_incoming = fields.Float(
         string="Incoming",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_qty_incoming",
@@ -145,7 +145,7 @@ class ProductTemplate(models.Model):
     )
     qty_outgoing = fields.Float(
         string="Outgoing",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_qty_outgoing",

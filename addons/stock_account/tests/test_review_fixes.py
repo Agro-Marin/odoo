@@ -596,9 +596,9 @@ class TestValuationAuditFixes(TestStockValuationCommon):
         currency rather than the warehouse company's."""
         product = self.product_avco
         self.env.user.company_ids = [(4, self.other_company.id)]
-        self.category_avco.with_company(self.other_company).property_cost_method = (
-            "average"
-        )
+        self.category_avco.with_company(
+            self.other_company
+        ).property_cost_method = "average"
         self.env.flush_all()
         self._make_in_move(product, 10, unit_cost=10)  # company A: worth 100
         self._make_other_company_receipt(product, 5, 100)  # company B: worth 500
@@ -617,3 +617,275 @@ class TestValuationAuditFixes(TestStockValuationCommon):
         # Company A's warehouse holds 10 units at 10.
         self.assertIn("100.00", header["value"])
         self.assertIn(self.company.currency_id.symbol, header["value"])
+
+
+@tagged("post_install", "-at_install")
+class TestMixedOwnershipValuation(TestStockValuationCommon):
+    """A receipt carrying both owned and consigned lines.
+
+    `_narrow_quantity_domains` filters the historical rewind with
+    `move_line_ids.owner_id`, an *any*-semantics leaf: it selects a move that has
+    at least one matching line. `_read_quantities` then summed the **whole** move,
+    so such a receipt contributed all its units to an owner-scoped rewind while
+    its quants contributed only the owned ones. `qty_available` at a past date
+    came back negative for a product that had never been short, `_run_average_batch`
+    seeded the accumulator from it, and the "recover from a negative position"
+    branch discarded the seeded value -- understating stock by the consigned
+    quantity times the seeded cost, silently.
+    """
+
+    def _avco_product(self, name, price=10):
+        categ = self.env["product.category"].create({"name": f"{name} categ"})
+        categ.property_cost_method = "average"
+        categ.property_valuation = "periodic"
+        return (
+            self.env["product.product"]
+            .create(
+                {
+                    "name": name,
+                    "is_storable": True,
+                    "categ_id": categ.id,
+                    "uom_id": self.uom.id,
+                    "standard_price": price,
+                }
+            )
+            .with_company(self.company)
+        )
+
+    def _mixed_receipt(self, product, owned, consigned, unit_cost):
+        """A receipt whose lines are part company-owned, part consignment."""
+        move = self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+                "product_uom_id": self.uom.id,
+                "product_uom_qty": owned + consigned,
+                "picking_type_id": self.picking_type_in.id,
+                "price_unit": unit_cost,
+            }
+        )
+        move._action_confirm()
+        move.move_line_ids.unlink()
+        line = {
+            "move_id": move.id,
+            "product_id": product.id,
+            "location_id": self.supplier_location.id,
+            "location_dest_id": self.stock_location.id,
+            "picked": True,
+        }
+        self.env["stock.move.line"].create(
+            [
+                {**line, "quantity": owned},
+                {**line, "quantity": consigned, "owner_id": self.owner.id},
+            ]
+        )
+        move._action_done()
+        move.value_manual = owned * unit_cost
+        return move
+
+    def test_historical_quantity_counts_matching_lines_only(self):
+        """The owner-scoped rewind must not subtract the consigned units."""
+        product = self._avco_product("Rewind")
+        self._mixed_receipt(product, 10, 5, 10)
+        scoped = product._scoped_for_company(self.company)
+        self.assertEqual(scoped.qty_available, 10, "the owned on-hand")
+        self.assertEqual(
+            scoped.with_context(
+                to_date=fields.Datetime.to_datetime("1970-01-01")
+            ).qty_available,
+            0,
+            "rewinding before every move must give 0, not a phantom short position",
+        )
+
+    def test_mixed_ownership_receipt_is_valued_in_full(self):
+        product = self._avco_product("Mixed")
+        self._make_in_move(product, 20, unit_cost=10)  # 20 owned, worth 200
+        self._mixed_receipt(product, 10, 5, 12)  # +10 owned worth 120, +5 consigned
+        product.invalidate_recordset()
+        self.assertEqual(product.total_value, 320)
+        # `avg_cost` is Monetary, so it is rounded to the currency precision.
+        self.assertAlmostEqual(product.avg_cost, 320 / 30, places=2)
+
+    def test_separately_consigned_receipt_is_unaffected(self):
+        """A move whose every line is consigned fails the any-filter outright, so
+        it never reached the defect -- and must keep not reaching it."""
+        product = self._avco_product("Separate")
+        self._make_in_move(product, 20, unit_cost=10)
+        self._make_in_move(product, 5, unit_cost=10, owner_id=self.owner.id)
+        product.invalidate_recordset()
+        self.assertEqual(product.total_value, 200)
+
+    def test_avco_report_quantity_matches_the_engine(self):
+        """The audit view reads `valued_qty`, not `stock_move.quantity`, so the
+        justification cannot disagree with the value it justifies."""
+        product = self._avco_product("Audited")
+        move = self._mixed_receipt(product, 10, 5, 10)
+        self.env.flush_all()
+        rows = self.env["stock.avco.report"].search(
+            [("product_id", "=", product.id), ("company_id", "=", self.company.id)]
+        )
+        self.assertEqual(move.valued_qty, 10)
+        self.assertEqual(
+            rows.filtered(lambda r: r.res_model_name == "stock.move").quantity, 10
+        )
+        last = rows.sorted(self.env["stock.avco.report"]._REPLAY_ORDER)[-1]
+        self.assertAlmostEqual(last.avco_value, product.avg_cost, places=6)
+        self.assertAlmostEqual(last.total_quantity, 10, places=6)
+
+
+@tagged("post_install", "-at_install")
+class TestClosingCursor(TestStockValuationCommon):
+    """The closing cursor lives on `account.move`, not in an `ir.config_parameter`
+    list of at most ten ids. Resetting a closing to draft used to lose it, and the
+    next close then re-aggregated every move since the beginning of time."""
+
+    def setUp(self):
+        super().setUp()
+        self.loss_account = self.env["account.account"].create(
+            {"name": "Probe Loss", "code": "999123", "account_type": "expense"}
+        )
+        self.inventory_location.valuation_account_id = self.loss_account.id
+
+    def _loss_balance(self):
+        self.env.flush_all()
+        return sum(
+            self.env["account.move.line"]
+            .search(
+                [
+                    ("account_id", "=", self.loss_account.id),
+                    ("parent_state", "=", "posted"),
+                ]
+            )
+            .mapped("balance")
+        )
+
+    def test_a_reset_closing_does_not_double_count(self):
+        product = self.product_avco.with_company(self.company)
+        self._make_in_move(product, 10, unit_cost=10)
+        self._make_out_move(product, 4, location_dest_id=self.inventory_location.id)
+        first = self.company._close_stock_valuation(auto_post=True)
+        self.assertTrue(first.is_stock_valuation_closing)
+        self.assertEqual(self._loss_balance(), 40)
+
+        first.action_draft()
+        second = self.company._close_stock_valuation(auto_post=True)
+        self.assertEqual(
+            second,
+            first,
+            "a closing that was posted and reset must be handed back, not closed "
+            "over again",
+        )
+        first.action_post()
+        self.assertEqual(
+            self._loss_balance(),
+            40,
+            "the reclassification was posted twice: the cursor was lost when the "
+            "first closing went back to draft",
+        )
+
+    def test_any_surviving_closing_is_the_cursor(self):
+        product = self.product_avco.with_company(self.company)
+        self._make_in_move(product, 10, unit_cost=10)
+        self._make_out_move(product, 4, location_dest_id=self.inventory_location.id)
+        self.assertFalse(self.company._get_last_closing_date())
+        closing = self.company._close_stock_valuation(auto_post=True)
+        cutoff = self.company._get_last_closing_date()
+        self.assertEqual(cutoff, closing.stock_valuation_closing_cutoff)
+
+        closing.action_draft()
+        self.assertEqual(
+            self.company._get_last_closing_date(),
+            cutoff,
+            "a closing reset to draft still claims its period",
+        )
+
+        closing.unlink()
+        self.assertFalse(
+            self.company._get_last_closing_date(),
+            "a deleted closing releases its period, which is genuinely unaccounted for",
+        )
+
+    def test_a_never_posted_draft_is_superseded(self):
+        """Closing twice without posting recomputes: the first entry was only a
+        proposal, so it is replaced rather than added to."""
+        product = self.product_avco.with_company(self.company)
+        self._make_in_move(product, 10, unit_cost=10)
+        first = self.company._close_stock_valuation()
+        self.assertEqual(first.state, "draft")
+        self._make_in_move(product, 5, unit_cost=10)
+        second = self.company._close_stock_valuation()
+        self.assertNotEqual(second, first)
+        self.assertFalse(first.exists(), "the superseded proposal was left behind")
+
+    def test_the_cutoff_is_an_instant_not_a_date(self):
+        """A closing run today covers today's moves, every one of which is after
+        today's midnight. A date-only cursor re-counted them on the next close."""
+        product = self.product_avco.with_company(self.company)
+        self._make_in_move(product, 10, unit_cost=10)
+        self._make_out_move(product, 4, location_dest_id=self.inventory_location.id)
+        closing = self.company._close_stock_valuation(auto_post=True)
+        cutoff = closing.stock_valuation_closing_cutoff
+        self.assertTrue(cutoff)
+        self.assertGreater(
+            cutoff,
+            fields.Datetime.to_datetime(closing.date),
+            "the cutoff must be the instant of the close, not the day it fell on",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestOutgoingManualValuation(TestStockValuationCommon):
+    """ "Adjust Valuation" is bound to every stock.move and the Valuation list shows
+    both directions, but `_set_value` only ever consulted `_get_manual_value`
+    through `_get_value_data`, which runs for incoming moves alone. The write was
+    accepted and discarded."""
+
+    def test_manual_value_is_honoured_on_an_outgoing_move(self):
+        product = self.product_fifo.with_company(self.company)
+        self._make_in_move(product, 10, unit_cost=10)
+        out = self._make_out_move(product, 4)
+        self.assertEqual(out.value, 40)
+
+        self.env["product.value"].create(
+            {"move_id": out.id, "value": 55.0, "company_id": self.company.id}
+        )
+        out.invalidate_recordset(["value"])
+        self.assertEqual(out.value, 55.0)
+
+    def test_value_manual_is_honoured_on_an_outgoing_move(self):
+        product = self.product_avco.with_company(self.company)
+        self._make_in_move(product, 10, unit_cost=10)
+        out = self._make_out_move(product, 4)
+        out.value_manual = 77.0
+        out.invalidate_recordset(["value"])
+        self.assertEqual(out.value, 77.0)
+
+    def test_an_outgoing_move_explains_its_value(self):
+        """The dialog's explanation panes read `value_justification`; a blank one
+        was the only sign the user got that the adjustment had gone nowhere."""
+        product = self.product_fifo.with_company(self.company)
+        self._make_in_move(product, 10, unit_cost=10)
+        out = self._make_out_move(product, 4)
+        self.assertTrue(out.value_justification)
+        self.assertIn("FIFO", out.value_justification)
+
+
+@tagged("post_install", "-at_install")
+class TestValuedQty(TestStockValuationCommon):
+    def test_valued_qty_excludes_unpicked_and_consigned_lines(self):
+        product = self.product_avco.with_company(self.company)
+        move = self._make_in_move(product, 10, unit_cost=10)
+        self.assertEqual(move.valued_qty, 10)
+        self.assertEqual(move.valued_qty, move._get_valued_qty())
+
+    def test_valued_qty_follows_the_flags_it_is_paired_with(self):
+        """Unticking `picked` on a done move re-derives `is_in`; `valued_qty` is
+        the quantity `value` was computed over, so it must move with it."""
+        product = self.product_avco.with_company(self.company)
+        move = self._make_in_move(product, 10, unit_cost=10)
+        self.assertEqual(move.valued_qty, 10)
+        move.move_line_ids.picked = False
+        move.invalidate_recordset()
+        self.assertFalse(move.is_in)
+        self.assertEqual(move.valued_qty, 0)

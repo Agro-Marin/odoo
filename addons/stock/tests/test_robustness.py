@@ -475,7 +475,7 @@ class TestRobustness(TransactionCase):
         self.env["stock.quant"]._update_reserved_quantity(
             product_reservation_too_high, self.stock_location, 0.2
         )
-        self.assertEqual(quant.reserved_quantity, 0.3)
+        self.assertAlmostEqual(quant.reserved_quantity, 0.3)
         self.env["stock.quant"]._clean_reservations()
         self.assertEqual(quant.reserved_quantity, 0.1)
 

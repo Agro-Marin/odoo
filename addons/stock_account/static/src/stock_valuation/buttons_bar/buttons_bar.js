@@ -8,12 +8,4 @@ export class StockValuationReportButtonsBar extends Component {
     onClickGenerateEntry() {
         return this.env.controller.actionGenerateEntry();
     }
-
-    onClickPDF() {
-        return this.env.controller.actionPrintReport("pdf");
-    }
-
-    onClickXLSX() {
-        return this.env.controller.actionPrintReport("xlsx");
-    }
 }

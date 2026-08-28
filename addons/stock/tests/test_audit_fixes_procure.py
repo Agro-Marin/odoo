@@ -374,7 +374,7 @@ class TestAuditOrderpointFixes(TransactionCase):
         self.patch(
             StockWarehouseOrderpoint, "_quantity_in_progress", recording
         )
-        with self.assertQueryCount(__system__=16):
+        with self.assertQueryCount(__system__=17):
             orderpoints._compute_qty_to_order_computed()
 
         self.assertEqual(

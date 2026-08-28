@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class StockInventoryAdjustmentName(models.TransientModel):
@@ -14,6 +14,7 @@ class StockInventoryAdjustmentName(models.TransientModel):
         compute="_compute_should_show_accounting_date"
     )
 
+    @api.depends("quant_ids.product_id")
     def _compute_should_show_accounting_date(self):
         for wizard in self:
             wizard.should_show_accounting_date = any(

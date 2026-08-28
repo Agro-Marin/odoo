@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.fields import Domain
 
 
@@ -24,11 +24,8 @@ class StockLocation(models.Model):
     )
     is_valued_internal = fields.Boolean(
         "Is valued inside the company",
-        compute="_compute_is_valued",
+        compute="_compute_is_valued_internal",
         search="_search_is_valued",
-    )
-    is_valued_external = fields.Boolean(
-        "Is valued outside the company", compute="_compute_is_valued"
     )
 
     def _search_is_valued(self, operator, value):
@@ -53,14 +50,13 @@ class StockLocation(models.Model):
             return domain
         return ~domain
 
-    def _compute_is_valued(self):
+    # `_should_be_valued()` reads exactly these two. Without them the field was a
+    # compute nothing invalidated: a location switched to `inventory` usage kept
+    # reporting True for the rest of the transaction.
+    @api.depends("company_id", "usage")
+    def _compute_is_valued_internal(self):
         for location in self:
-            if location._should_be_valued():
-                location.is_valued_internal = True
-                location.is_valued_external = False
-            else:
-                location.is_valued_internal = False
-                location.is_valued_external = True
+            location.is_valued_internal = location._should_be_valued()
 
     def _should_be_valued(self):
         """This method returns a boolean reflecting whether the products stored in `self` should

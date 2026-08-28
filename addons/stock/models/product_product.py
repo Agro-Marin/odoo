@@ -57,6 +57,11 @@ class QuantityScope(NamedTuple):
     move_in_done: Domain
     move_out_done: Domain
     dates_in_the_past: bool
+    # Set when a lot/owner/package filter is active: the move-level domains above
+    # can only ask whether a move has *a* matching line, so rewinding a past date
+    # from them counts the whole move. See `_quantity_line_leaves`.
+    move_in_done_lines: Domain | None = None
+    move_out_done_lines: Domain | None = None
 
 
 class QuantityReads(NamedTuple):
@@ -81,7 +86,7 @@ class ProductProduct(models.Model):
     )
     qty_available = fields.Float(
         string="Quantity On Hand",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         inverse="_inverse_qty_available",
@@ -97,7 +102,7 @@ class ProductProduct(models.Model):
     )
     qty_available_virtual = fields.Float(
         string="Forecasted Quantity",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_qty_available_virtual",
@@ -113,7 +118,7 @@ class ProductProduct(models.Model):
     )
     qty_free = fields.Float(
         string="Free To Use Quantity",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_qty_free",
@@ -129,7 +134,7 @@ class ProductProduct(models.Model):
     )
     qty_incoming = fields.Float(
         string="Incoming",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_qty_incoming",
@@ -144,7 +149,7 @@ class ProductProduct(models.Model):
     )
     qty_outgoing = fields.Float(
         string="Outgoing",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_qty_outgoing",
@@ -809,6 +814,51 @@ class ProductProduct(models.Model):
             move_out &= Domain([("move_line_ids.package_id", "=", package_id)])
         return quant, move_in, move_out
 
+    def _quantity_line_leaves(self, filters):
+        """The per-line counterparts of the `move_line_ids.*` leaves above.
+
+        Those leaves are *any*-semantics: they select a move that has at least one
+        matching line. That is the right question for "does this move concern the
+        lot/owner/package", and the wrong one for "how much of it does", because
+        `_read_quantities` then sums the **whole** move. A receipt of 10 owned plus
+        5 consigned units contributed all 15 to an owner-scoped rewind while its
+        quants contributed only the 10 owned, so `qty_available` at a past date came
+        back at -5 for a product that had never been short. `stock_account` seeds the
+        AVCO replay from exactly that number, and a negative seed makes the
+        accumulator discard the value it was seeded with -- silently understating
+        stock value by the consigned quantity times the seeded cost.
+
+        Only the historical branch is corrected here. The `todo` domains sum
+        `product_qty` (demand) on moves whose lines may not cover it yet, so
+        measuring them from lines would understate a forecast rather than fix it.
+
+        :return: ``(in_leaves, out_leaves)``, each a `Domain` on `stock.move.line`,
+            or ``(None, None)`` when no line-level filter is active.
+        """
+        in_leaves = Domain.TRUE
+        out_leaves = Domain.TRUE
+        narrowed = False
+        if filters.lot_id is not None:
+            leaf = Domain([("lot_id", "=", filters.lot_id)])
+            in_leaves &= leaf
+            out_leaves &= leaf
+            narrowed = True
+        if filters.owners is not None:
+            owner_leaf = ("in", filters.owners) if filters.owners else ("=", False)
+            leaf = Domain([("owner_id", *owner_leaf)])
+            in_leaves &= leaf
+            out_leaves &= leaf
+            narrowed = True
+        if filters.package_id is not None:
+            # The package a line puts goods into on the way in, and takes them out
+            # of on the way out -- as the move-level leaves above already say.
+            in_leaves &= Domain([("result_package_id", "=", filters.package_id)])
+            out_leaves &= Domain([("package_id", "=", filters.package_id)])
+            narrowed = True
+        if not narrowed:
+            return None, None
+        return in_leaves, out_leaves
+
     def _prepare_quantities_scope(self, filters, location_domains=None):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             location_domains
@@ -847,10 +897,19 @@ class ProductProduct(models.Model):
             ]
         )
         expired_quant = self._expired_quant_domain(domain_quant, to_date)
+        domain_move_in_done_lines = domain_move_out_done_lines = None
         if dates_in_the_past:
             state_done_future = Domain([("state", "=", "done"), ("date", ">", to_date)])
             domain_move_in_done = state_done_future & domain_move_in_done
             domain_move_out_done = state_done_future & domain_move_out_done
+            in_leaves, out_leaves = self._quantity_line_leaves(filters)
+            if in_leaves is not None:
+                domain_move_in_done_lines = (
+                    Domain([("move_id", "any", domain_move_in_done)]) & in_leaves
+                )
+                domain_move_out_done_lines = (
+                    Domain([("move_id", "any", domain_move_out_done)]) & out_leaves
+                )
         else:
             domain_move_in_done = domain_move_out_done = Domain.FALSE
         return QuantityScope(
@@ -861,6 +920,8 @@ class ProductProduct(models.Model):
             move_in_done=domain_move_in_done,
             move_out_done=domain_move_out_done,
             dates_in_the_past=dates_in_the_past,
+            move_in_done_lines=domain_move_in_done_lines,
+            move_out_done_lines=domain_move_out_done_lines,
         )
 
     def _expired_quant_domain(self, domain_quant, to_date):
@@ -905,7 +966,21 @@ class ProductProduct(models.Model):
             }
         moves_in_res_past = defaultdict(float)
         moves_out_res_past = defaultdict(float)
-        if scope.dates_in_the_past:
+        if scope.dates_in_the_past and scope.move_in_done_lines is not None:
+            # A lot/owner/package filter is active, so the whole move is the wrong
+            # unit of measurement -- sum the matching lines instead. Their
+            # `quantity_product_uom` is stored and already in the product's UoM,
+            # so this also drops the per-group conversion below.
+            MoveLine = self.env["stock.move.line"]
+            for target, domain in (
+                (moves_in_res_past, scope.move_in_done_lines),
+                (moves_out_res_past, scope.move_out_done_lines),
+            ):
+                for product, quantity in MoveLine._read_group(
+                    domain, ["product_id"], ["quantity_product_uom:sum"]
+                ):
+                    target[product.id] += quantity
+        elif scope.dates_in_the_past:
             groupby = ["product_id", "product_uom_id"]
             past_in = Move._read_group(scope.move_in_done, groupby, ["quantity:sum"])
             past_out = Move._read_group(scope.move_out_done, groupby, ["quantity:sum"])
@@ -967,17 +1042,19 @@ class ProductProduct(models.Model):
                 origin_product_id,
                 0.0,
             )
-            res[product_id]["qty_available"] = product.uom_id.round(qty_available)
-            res[product_id]["qty_free"] = product.uom_id.round(
+            res[product_id]["qty_available"] = product.uom_id._round_aggregate(
+                qty_available
+            )
+            res[product_id]["qty_free"] = product.uom_id._round_aggregate(
                 qty_available - reserved_quantity - expired_unreserved_qty
             )
-            res[product_id]["qty_incoming"] = product.uom_id.round(
+            res[product_id]["qty_incoming"] = product.uom_id._round_aggregate(
                 reads.moves_in.get(origin_product_id, 0.0),
             )
-            res[product_id]["qty_outgoing"] = product.uom_id.round(
+            res[product_id]["qty_outgoing"] = product.uom_id._round_aggregate(
                 reads.moves_out.get(origin_product_id, 0.0),
             )
-            res[product_id]["qty_available_virtual"] = product.uom_id.round(
+            res[product_id]["qty_available_virtual"] = product.uom_id._round_aggregate(
                 qty_available
                 + res[product_id]["qty_incoming"]
                 - res[product_id]["qty_outgoing"]

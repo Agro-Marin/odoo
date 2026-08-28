@@ -76,20 +76,10 @@ class UomUom(models.Model):
         return super().write(vals)
 
     def _adjust_uom_quantities(self, qty, quant_uom):
-        procurement_uom = self
-        computed_qty = qty
         get_param = self.env["ir.config_parameter"].sudo().get_param
-        if get_param("stock.propagate_uom") != "1":
-            computed_qty = self._compute_quantity(
-                qty,
-                quant_uom,
-                rounding_method="HALF-UP",
-            )
-            procurement_uom = quant_uom
-        else:
-            computed_qty = self._compute_quantity(
-                qty,
-                procurement_uom,
-                rounding_method="HALF-UP",
-            )
-        return (computed_qty, procurement_uom)
+        if get_param("stock.propagate_uom") == "1":
+            return (qty, self)
+        computed_qty = self._compute_quantity_stored(qty, quant_uom)
+        if qty and quant_uom.is_zero(computed_qty):
+            return (qty, self)
+        return (computed_qty, quant_uom)

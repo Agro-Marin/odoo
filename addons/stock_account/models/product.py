@@ -114,11 +114,11 @@ class ProductTemplate(models.Model):
         lot_ids_to_update = set()
         if "categ_id" in vals:
             category = self.env["product.category"].browse(vals["categ_id"])
-            cost_method = (
-                category.property_cost_method
-                if category
-                else self.env.company.cost_method
-            )
+            # The *effective* method, resolved the way `_compute_cost_method` does:
+            # an unset `property_cost_method` falls back to the company. Comparing
+            # against the raw property made every variant look like it had changed
+            # method whenever the new category simply had none set.
+            cost_method = category.property_cost_method or self.env.company.cost_method
             for product in self:
                 if product.cost_method != cost_method:
                     product_ids_to_update.update(product.product_variant_ids.ids)
@@ -352,7 +352,7 @@ class ProductProduct(models.Model):
                 qty = product.qty_available
                 std_price_by_product_id[product.id] = (
                     value / qty
-                    if not product.uom_id.is_zero(qty)
+                    if not product.uom_id._is_zero_aggregate(qty)
                     else product.standard_price
                 )
                 total_value_by_product_id[product.id] = value
@@ -366,14 +366,16 @@ class ProductProduct(models.Model):
             # A negative owned on-hand that is fully offset by non-owned consignment
             # stock is not a real oversold position: it has no cost basis, so value it
             # like an empty valued quantity instead of `qty * standard_price`.
-            if product.uom_id.is_zero(product.qty_available) or (
-                product.uom_id.compare(product.qty_available, 0) < 0
+            if product.uom_id._is_zero_aggregate(product.qty_available) or (
+                product.uom_id._compare_aggregate(product.qty_available, 0) < 0
                 and product._is_negative_owned_offset_by_consignment(at_date)
             ):
                 total_value_by_product_id[product.id] = 0
                 std_price_by_product_id[product.id] = product.standard_price
                 continue
-            if product.uom_id.is_zero(product_whole_company_context.qty_available):
+            if product.uom_id._is_zero_aggregate(
+                product_whole_company_context.qty_available
+            ):
                 total_value_by_product_id[product.id] = (
                     product.standard_price * product.qty_available
                 )
@@ -816,6 +818,7 @@ class ProductProduct(models.Model):
             "move_line_ids",
             "picked",
             "value",
+            "valued_qty",
             "product_id",
         ]
         move_line_fields = [
@@ -868,7 +871,7 @@ class ProductProduct(models.Model):
                         # revaluation to start from, its unit price is the opening
                         # cost. The whole-move unit price is also the lot's, since a
                         # lot's share is prorated from that same value and quantity.
-                        move_qty = move._get_valued_qty()
+                        move_qty = move.valued_qty
                         # For a valuation at date, a move must count for the value it
                         # had at that date (bills/rates that arrived later are
                         # excluded by `_get_value`), not for its stored value.
@@ -884,7 +887,7 @@ class ProductProduct(models.Model):
                             uom=product.uom_id,
                         )
                     if move.is_in or move.is_dropship:
-                        in_qty = move._get_valued_qty()
+                        in_qty = move.valued_qty
                         in_value = (
                             move._get_value(at_date=at_date) if at_date else move.value
                         )
@@ -901,7 +904,7 @@ class ProductProduct(models.Model):
                         out_qty = (
                             move._get_valued_qty(target_lot)
                             if target_lot
-                            else move._get_valued_qty()
+                            else move.valued_qty
                         )
                         avco.add_out(out_qty)
 
@@ -916,7 +919,7 @@ class ProductProduct(models.Model):
 
         return std_price_by_key, value_by_key
 
-    def _run_fifo_batch(self, at_date=None, lot=None, location=None):
+    def _run_fifo_batch(self, at_date=None, lot=None):
         """Value the FIFO stack of the products in `self`.
 
         :param lot: when set, value that `stock.lot` instead of the product. The
@@ -930,7 +933,7 @@ class ProductProduct(models.Model):
         for product in self:
             key = lot.id if lot else product.id
             quantity = lot.product_qty if lot else product.qty_available
-            value = product._run_fifo(quantity, lot, at_date, location)
+            value = product._run_fifo(quantity, lot, at_date)
             if product.uom_id.is_zero(quantity):
                 # Nothing to divide by. Keep the existing cost basis rather than
                 # publishing a 0: `_run_standard_batch` falls back to
@@ -945,7 +948,7 @@ class ProductProduct(models.Model):
 
         return std_price_by_key, value_by_key
 
-    def _run_fifo(self, quantity, lot=None, at_date=None, location=None):
+    def _run_fifo(self, quantity, lot=None, at_date=None):
         """Returns the value for the next outgoing product base on the qty give as argument."""
         self.ensure_one()
         if self.uom_id.compare(quantity, 0) <= 0:
@@ -957,7 +960,7 @@ class ProductProduct(models.Model):
 
         fifo_cost = 0
         fifo_stack, qty_on_first_move = self._run_fifo_get_stack(
-            lot=lot, at_date=at_date, location=location
+            lot=lot, at_date=at_date
         )
         last_move = False
         # Going up to get the quantity in the argument
@@ -997,20 +1000,17 @@ class ProductProduct(models.Model):
                 fifo_cost += quantity * self.standard_price
         return fifo_cost
 
-    def _run_fifo_get_stack(self, lot=None, at_date=None, location=None):
+    def _run_fifo_get_stack(self, lot=None, at_date=None):
         # TODO: return a list of tuple (move, valued_qty) instead
-        external_location = location and location.is_valued_external
+        #
+        # This used to take a `location` too, which selected an out-moves stack via
+        # `location.is_valued_external` and re-scoped the whole walk. No caller in
+        # any checkout ever passed it, so that branch had never run -- and it was
+        # the only live reader of `stock.location.is_valued_external`, a compute
+        # field with no `@api.depends`. Both are gone.
         fifo_stack = []
-        fifo_stack_size = 0
-        if location:
-            self = self.with_context(location=location.ids)
         if lot:
             fifo_stack_size = lot.product_qty
-        elif location:
-            # Keep the explicit `location` scope: `_with_valuation_context` would
-            # override it with every valued location, mismatching the location-only
-            # `moves_domain` below and mis-sizing the stack.
-            fifo_stack_size = self.with_context(to_date=at_date).qty_available
         else:
             fifo_stack_size = (
                 self._with_valuation_context()
@@ -1033,12 +1033,7 @@ class ProductProduct(models.Model):
             moves_domain &= Domain([("move_line_ids.lot_id", "in", lot.id)])
         if at_date:
             moves_domain &= Domain([("date", "<=", at_date)])
-        if location:
-            moves_domain &= Domain([("location_dest_id", "=", location.id)])
-        if external_location:
-            moves_domain &= Domain([("is_out", "=", True)])
-        else:
-            moves_domain &= Domain([("is_in", "=", True)])
+        moves_domain &= Domain([("is_in", "=", True)])
 
         # Arbitrary limit as we can't guess how many moves correspond to the qty_available, but avoid fetching all moves at the same time.
         initial_limit = 100
@@ -1108,13 +1103,24 @@ class ProductProduct(models.Model):
                     previous_qty = product.qty_available - added_qty
                     if (
                         product.uom_id.compare(previous_qty, 0) > 0
-                        and product.uom_id.compare(product.qty_available, 0) > 0
+                        and product.uom_id._compare_aggregate(product.qty_available, 0)
+                        > 0
                     ):
                         new_avg_cost = (
                             previous_qty * product.standard_price + added_value
                         ) / product.qty_available
-                    else:
+                    elif not product.uom_id.is_zero(added_qty):
                         new_avg_cost = added_value / added_qty
+                    else:
+                        # Nothing was added for this product on this scope, so
+                        # there is no new average to compute and the standard
+                        # price stands. Reachable from a kit receipt that leaves
+                        # a backorder: the second validation runs this loop for a
+                        # product whose incremental quantity is zero, and the
+                        # division raised ZeroDivisionError out of
+                        # `stock.picking.button_validate` -- a 500 on validating
+                        # a receipt, with no indication of which product caused it.
+                        continue
                     product.with_context(
                         disable_auto_revaluation=True
                     ).sudo().standard_price = new_avg_cost
@@ -1125,7 +1131,7 @@ class ProductProduct(models.Model):
                 # company-wide, and `_run_fifo` re-derives it further down.
                 for product in products._with_valuation_context():
                     qty_available = product.qty_available
-                    if product.uom_id.compare(qty_available, 0) > 0:
+                    if product.uom_id._compare_aggregate(qty_available, 0) > 0:
                         # Value the stack directly rather than reading `total_value`:
                         # that field is deliberately a cross-company aggregate (see
                         # `_compute_value`), and dividing it by a single company's

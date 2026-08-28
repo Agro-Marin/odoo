@@ -241,7 +241,13 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
 
     def test_labor_cost_posting_is_not_rounded_incorrectly(self):
-        """Test to ensure that labor costs are posted accurately without rounding errors."""
+        """Labour is rounded once, over the whole order, not once per work order.
+
+        Every work order here costs 0.005033, and each is charged to the same
+        expense account. Rounding them one at a time and adding the results
+        posted 0.01 per work order -- 0.06 against a true 0.0302, twice the
+        labour actually incurred.
+        """
         # Build
         self.glass.qty_available = 1
         self.workcenter.costs_hour = 0.01
@@ -259,7 +265,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             .mapped("account_move_line_id")
             .mapped("credit"),
             [
-                0.06,
+                self.company.currency_id.round(workorder._get_cost()),
             ],
         )
 
@@ -787,13 +793,20 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             ],
         )
         labour_move = workorder.time_ids.account_move_line_id.move_id
-        # sum of workorder costs but rounded at company currency
+        # The whole order's labour, rounded once: rounding each work order on
+        # its own gave 0.36 against a true 0.3333, and the 0.03 difference from
+        # the 0.33 `_cal_price` capitalised stayed in the production account.
         self.assertRecordValues(
             labour_move.line_ids,
             [
-                {"credit": 0.36, "debit": 0.00},
-                {"credit": 0.00, "debit": 0.36},
+                {"credit": 0.33, "debit": 0.00},
+                {"credit": 0.00, "debit": 0.33},
             ],
+        )
+        self.assertEqual(
+            labour_move.line_ids[1].debit,
+            self.company.currency_id.round(workorder._get_cost()),
+            "the production account is debited exactly the labour capitalised",
         )
 
     def test_labor_cost_over_consumption(self):
@@ -821,7 +834,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         compo_price = 718.75 + 2 * 200
         cost_share = 0.13
         self.assertEqual(
-            len(mo_aml), 6, "2 Labour + 2 finished product + 7 for the components"
+            len(mo_aml), 6, "2 Labour + 2 finished product + 2 for the components"
         )
         self.assertRecordValues(
             mo_aml,

@@ -2,7 +2,6 @@ from . import account_account
 from . import account_chart_template
 from . import account_move
 from . import account_move_line
-from . import analytic_account
 from . import res_company
 from . import product
 from . import product_value

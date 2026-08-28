@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from odoo import models
 
 
@@ -24,32 +22,20 @@ class StockMove(models.Model):
             ),
         }
 
-    def _get_all_related_sm(self, product):
-        moves = super()._get_all_related_sm(product)
-        return moves | self.filtered(
-            lambda m: (
-                m.bom_line_id.bom_id.type == "phantom"
-                and m.bom_line_id.bom_id == moves.bom_line_id.bom_id
-            )
-        )
-
     def _get_kit_price_unit(self, product, kit_bom, valuated_quantity):
-        """Override the value for kit products"""
-        _dummy, exploded_lines = kit_bom._explode(product, valuated_quantity)
-        total_price_unit = 0
-        component_qty_per_kit = defaultdict(float)
-        for line in exploded_lines:
-            component_qty_per_kit[line[0].product_id] += line[
-                0
-            ].product_uom_id._compute_quantity(
-                line[1]["qty"], line[0].product_id.uom_id, round=False
-            )
-        for component, valuated_moves in self.grouped("product_id").items():
-            price_unit = super(StockMove, valuated_moves)._get_price_unit()
-            qty_per_kit = component_qty_per_kit[component] / kit_bom.product_qty
-            total_price_unit += price_unit * qty_per_kit
-        return (
-            total_price_unit / valuated_quantity
-            if not product.uom_id.is_zero(valuated_quantity)
-            else 0
+        """Unit cost of one `product`, valued from the components of its kit BoM.
+
+        `valuated_quantity` says whether there is anything to value at all; the
+        price itself is per unit and does not otherwise depend on it.
+        """
+        if product.uom_id.is_zero(valuated_quantity):
+            return 0
+        component_qty, kit_qty = kit_bom._get_kit_component_qty(product)
+        if product.uom_id.is_zero(kit_qty):
+            return 0
+        total_price = sum(
+            super(StockMove, valuated_moves)._get_price_unit()
+            * component_qty[component]
+            for component, valuated_moves in self.grouped("product_id").items()
         )
+        return total_price / kit_qty

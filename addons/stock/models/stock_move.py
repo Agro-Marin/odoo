@@ -10,7 +10,7 @@ from odoo import api, fields, models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.libs.numbers import float_round
+from odoo.libs.numbers import float_is_zero, float_round
 from odoo.tools.misc import OrderedSet, clean_context, groupby
 from odoo.tools.translate import _
 
@@ -783,10 +783,9 @@ class StockMove(models.Model):
     @api.depends("product_id", "product_uom_id", "product_uom_qty")
     def _compute_product_qty(self):
         for move in self:
-            move.product_qty = move.product_uom_id._compute_quantity(
+            move.product_qty = move.product_uom_id._compute_quantity_stored(
                 move.product_uom_qty,
                 move.product_id.uom_id,
-                rounding_method="HALF-UP",
             )
 
     @api.depends("picking_id.partner_id")
@@ -1863,10 +1862,9 @@ class StockMove(models.Model):
             missing_uom_quantity = self.product_uom_qty - reserved_uom_qty
         if self.product_uom_id.compare(missing_uom_quantity, 0) <= 0:
             return None
-        return self.product_uom_id._compute_quantity(
+        return self.product_uom_id._compute_quantity_stored(
             missing_uom_quantity,
             self.product_id.uom_id,
-            rounding_method="HALF-UP",
         )
 
     def _apply_reservation_outcomes(
@@ -2226,7 +2224,12 @@ class StockMove(models.Model):
                 partially_available_moves_ids,
             )
 
-        still_missing = not self.product_id.uom_id.is_zero(missing_reserved_quantity)
+        still_missing = not float_is_zero(
+            missing_reserved_quantity,
+            precision_rounding=self.product_uom_id._conversion_rounding(
+                self.product_id.uom_id
+            ),
+        )
         if (
             still_missing
             and self.product_id.tracking == "serial"
@@ -2496,10 +2499,9 @@ class StockMove(models.Model):
                 )
                 < 0
             ):
-                qty_split = move.product_uom_id._compute_quantity(
+                qty_split = move.product_uom_id._compute_quantity_stored(
                     move.product_uom_qty - move.quantity,
                     move.product_id.uom_id,
-                    rounding_method="HALF-UP",
                 )
                 new_move_vals = move._split(qty_split)
                 backorder_moves_vals += new_move_vals
@@ -3896,7 +3898,7 @@ class StockMove(models.Model):
                 _("You cannot split a draft move. It needs to be confirmed first."),
             )
 
-        if self.product_id.uom_id.is_zero(qty):
+        if self.product_uom_id._is_zero_stored(qty, self.product_id.uom_id):
             return []
 
         uom_qty = self._uom_quantity_if_faithful(qty, self.product_uom_id)

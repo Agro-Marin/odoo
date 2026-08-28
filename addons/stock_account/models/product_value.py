@@ -6,6 +6,10 @@ class ProductValue(models.Model):
 
     _name = "product.value"
     _description = "Product Value"
+    # Newest first, matching every read site: `_get_manual_value`,
+    # `_read_latest_product_values` and `_get_last_lot_values` all order by
+    # `date desc, id desc` and were each overriding a default of `id`.
+    _order = "date desc, id desc"
 
     product_id = fields.Many2one("product.product", string="Product", index=True)
     lot_id = fields.Many2one("stock.lot", string="Lot")
@@ -57,6 +61,7 @@ class ProductValue(models.Model):
             else:
                 product_value.company_id = self.env.company
 
+    @api.depends("move_id.value", "move_id.move_line_ids.quantity_product_uom")
     def _compute_current_value_details(self):
         for product_value in self:
             move = product_value.move_id
@@ -78,6 +83,7 @@ class ProductValue(models.Model):
                 price_unit=price_unit,
             )
 
+    @api.depends("move_id.value_justification", "move_id.value_computed_justification")
     def _compute_value_description(self):
         for product_value in self:
             if not product_value.move_id:

@@ -4,7 +4,13 @@ from random import randint
 from odoo import _, api, fields, models
 from odoo.db.schema import create_index
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import frozendict, make_index_name, ormcache
+from odoo.tools import (
+    float_compare,
+    float_round,
+    frozendict,
+    make_index_name,
+    ormcache,
+)
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
@@ -477,6 +483,42 @@ class AccountAnalyticPlan(models.Model):
                     ),
                 )
         return res
+
+    def _calculate_distribution_amount(
+        self, amount, percentage, total_percentage, distribution_on_each_plan
+    ):
+        """
+        Ensures that the total amount distributed across all lines always adds up to exactly `amount` per
+        plan. We try to correct for compounding rounding errors by assigning the exact outstanding amount when
+        we detect that a line will close out a plan's total percentage. However, since multiple plans can be
+        assigned to a line, with different prior distributions, there is the possible edge case that one line
+        closes out two (or more) tallies with different compounding errors. This means there is no one correct
+        amount that we can assign to a line that will correctly close out both all plans. This is described in
+        more detail in the commit message, under "concurrent closing line edge case".
+        """
+        decimal_precision = self.env["decimal.precision"].get_precision(
+            "Percentage Analytic"
+        )
+        distributed_percentage, distributed_amount = distribution_on_each_plan.get(
+            self, (0, 0)
+        )
+        allocated_percentage = distributed_percentage + percentage
+        if (
+            float_compare(
+                allocated_percentage,
+                total_percentage,
+                precision_digits=decimal_precision,
+            )
+            == 0
+        ):
+            calculated_amount = (amount * total_percentage / 100) - distributed_amount
+        else:
+            calculated_amount = amount * percentage / 100
+        distributed_amount += float_round(
+            calculated_amount, precision_digits=decimal_precision
+        )
+        distribution_on_each_plan[self] = (allocated_percentage, distributed_amount)
+        return calculated_amount
 
 
 class AccountAnalyticApplicability(models.Model):

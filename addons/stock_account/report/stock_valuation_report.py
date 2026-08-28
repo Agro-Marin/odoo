@@ -16,24 +16,7 @@ class StockValuationReport(models.AbstractModel):
             "context": {},
         }
 
-    @api.model
-    def _get_report_values(self, docids, data=None):
-        docs = []
-        # Scope to a single company, as `get_report_values` does: the figures below
-        # come from `product.total_value`, which sums every company in
-        # `env.companies`, so a PDF rendered with several enabled would report
-        # other companies' stock as this one's.
-        doc = self.with_context(
-            allowed_company_ids=self.env.company.ids
-        )._get_report_data()
-        docs.append(self._include_pdf_specifics(doc, data))
-        return {
-            "doc_ids": docids,
-            "doc_model": "stock.valuation.report",
-            "docs": docs,
-        }
-
-    def _get_report_data(self, date=False, product_category=False, warehouse=False):
+    def _get_report_data(self, date=False, product_category=False):
         company = self.env.company
         # Check if date is a string instance
         if isinstance(date, str):
@@ -192,12 +175,6 @@ class StockValuationReport(models.AbstractModel):
             stock_variation=stock_variation,
         )
         return report_data
-
-    def action_print_as_pdf(self):
-        return
-
-    def action_print_as_xlsx(self):
-        return
 
     def _must_include_inventory_loss(self):
         return bool(

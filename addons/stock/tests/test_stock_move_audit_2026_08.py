@@ -379,18 +379,16 @@ class TestStockMoveAudit202608(TransactionCase):
             "picking_id": picking.id,
         }
         positive = self.env["stock.move"].create({**common, "product_uom_qty": 1.0})
-        negative = self.env["stock.move"].create({**common, "product_uom_qty": -1.01})
+        negative = self.env["stock.move"].create({**common, "product_uom_qty": -1.0})
         self.assertEqual(
             positive.product_qty + negative.product_qty,
             0,
             "sanity: the converted quantities cancel exactly",
         )
-        self.assertEqual(
-            positive.product_uom_id.compare(
-                positive.product_uom_qty, abs(negative.product_uom_qty)
-            ),
-            -1,
-            "sanity: the move quantities still compare as unequal",
+        self.assertFalse(
+            units._is_zero_stored(positive.product_qty, product.uom_id),
+            "sanity: each move carries a real quantity, so the total is a "
+            "cancellation and not two zeroes",
         )
 
         (positive | negative)._action_confirm()
