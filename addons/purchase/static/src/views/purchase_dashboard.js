@@ -6,6 +6,7 @@ import {
     onWillUpdateProps,
     useState,
 } from "@odoo/owl";
+import { RPCError } from "@web/core/network";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
@@ -83,8 +84,15 @@ export class PurchaseDashBoard extends Component {
             this.state.data = await this.keepLast.add(
                 this.orm.call("purchase.order", "prepare_dashboard"),
             );
-        } catch {
+        } catch (error) {
+            // The panel hides itself when there is no data, which is right for a
+            // user who may not read the figures. It is not right for a genuine
+            // failure: swallowing every error made a broken dashboard and a
+            // forbidden one look identical from the browser.
             this.state.data = null;
+            if (!(error instanceof RPCError)) {
+                throw error;
+            }
         }
     }
 

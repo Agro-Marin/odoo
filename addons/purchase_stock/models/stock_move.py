@@ -23,12 +23,7 @@ class StockMove(models.Model):
         copy=False,
     )
 
-    # ----------------------------------------------------------------
-    # COMPUTE METHODS
-    # ----------------------------------------------------------------
-
     def _compute_partner_id(self):
-        # dropshipped moves should have their partner_ids directly set
         not_dropshipped_moves = self.filtered(lambda m: not m._is_dropshipped())
         super(StockMove, not_dropshipped_moves)._compute_partner_id()
 
@@ -36,9 +31,6 @@ class StockMove(models.Model):
     def _compute_packaging_uom_id(self):
         super()._compute_packaging_uom_id()
         for move in self:
-            # Only inherit the order line's UoM when it can convert into the
-            # move's own UoM (see sale_stock for the kit-component rationale);
-            # otherwise keep the move UoM set by super().
             if move.purchase_line_id and move.product_uom_id._has_common_reference(
                 move.purchase_line_id.product_uom_id
             ):
@@ -71,18 +63,12 @@ class StockMove(models.Model):
                     + current_description
                 ).strip()
 
-    # ----------------------------------------------------------------
-    # ACTION METHODS
-    # ----------------------------------------------------------------
-
     def _action_synch_order(self):
         purchase_order_lines_vals = []
         for move in self:
             purchase_order = (
                 move.picking_id.purchase_id or move.picking_id.return_id.purchase_id
             )
-            # Creates new PO line only when pickings linked to a purchase order and
-            # for moves with qty. done and not already linked to a PO line.
             if (
                 not purchase_order
                 or move.purchase_line_id
@@ -117,7 +103,6 @@ class StockMove(models.Model):
                 "qty_transferred": quantity,
             }
             if product.bill_policy == "ordered":
-                # No unit price if the product is purchased on the ordered qty.
                 po_line_vals["price_unit"] = 0
             purchase_order_lines_vals.append(po_line_vals)
 
@@ -128,18 +113,9 @@ class StockMove(models.Model):
 
         return super()._action_synch_order()
 
-    # ----------------------------------------------------------------
-    # HELPER METHODS
-    # ----------------------------------------------------------------
-
     def _clean_merged(self):
         super()._clean_merged()
         self.write({"created_purchase_line_ids": [Command.clear()]})
-
-    def _get_all_related_sm(self, product):
-        return super()._get_all_related_sm(product) | self.filtered(
-            lambda m: m.purchase_line_id.product_id == product,
-        )
 
     def _get_value_from_bill(self, aml):
         self.ensure_one()
@@ -164,7 +140,7 @@ class StockMove(models.Model):
 
     def _get_purchase_line_and_partner_from_chain(self):
         moves_to_check = deque(self)
-        seen_moves = set()
+        queued = set(self)
         while moves_to_check:
             current_move = moves_to_check.popleft()
             if current_move.purchase_line_id:
@@ -172,14 +148,10 @@ class StockMove(models.Model):
                     current_move.purchase_line_id.id,
                     current_move.picking_id.partner_id.id,
                 )
-            seen_moves.add(current_move)
-            moves_to_check.extend(
-                [
-                    move
-                    for move in current_move.move_orig_ids
-                    if move not in moves_to_check and move not in seen_moves
-                ],
-            )
+            for move in current_move.move_orig_ids:
+                if move not in queued:
+                    queued.add(move)
+                    moves_to_check.append(move)
         return None, None
 
     def _get_source_document(self):
@@ -227,7 +199,6 @@ class StockMove(models.Model):
 
     def _prepare_move_split_vals(self, uom_qty, force_uom_id=False):
         vals = super()._prepare_move_split_vals(uom_qty, force_uom_id=force_uom_id)
-        # when backordering an mto move link the bakcorder to the purchase order
         if self.procure_method == "make_to_order" and self.created_purchase_line_ids:
             vals["created_purchase_line_ids"] = [
                 Command.set(self.created_purchase_line_ids.ids),
@@ -235,17 +206,10 @@ class StockMove(models.Model):
         vals["purchase_line_id"] = self.purchase_line_id.id
         return vals
 
-    # ------------------------------------------------------------
-    # VALUATION METHODS
-    # ------------------------------------------------------------
-
     def _get_related_invoices(self):
-        """Overridden to return the vendor bills related to this stock move."""
         rslt = super()._get_related_invoices()
-        purchase_ids = self.env["purchase.order"].search(
-            [("picking_ids", "in", self.picking_id.ids)],
-        )
-        rslt += purchase_ids.invoice_ids.filtered(lambda x: x.state == "posted")
+        purchases = self.picking_id.purchase_id
+        rslt += purchases.invoice_ids.filtered(lambda x: x.state == "posted")
         return rslt
 
     def _get_value_from_account_move(self, quantity, at_date=None):
@@ -254,7 +218,6 @@ class StockMove(models.Model):
             return valuation_data
 
         if isinstance(at_date, datetime):
-            # Since aml.date are Date, we don't need the extra precision here.
             at_date = Date.to_date(at_date)
 
         aml_quantity = 0
@@ -297,7 +260,6 @@ class StockMove(models.Model):
         if self.product_uom_id.compare(aml_quantity, other_candidates_qty) <= 0:
             return valuation_data
 
-        # Remove quantity from prior moves.
         value *= (aml_quantity - other_candidates_qty) / aml_quantity
         aml_quantity -= other_candidates_qty
 
@@ -319,17 +281,11 @@ class StockMove(models.Model):
         return valuation_data
 
     def _get_value_from_quotation(self, quantity, at_date=None):
-        # TODO: Start from global value
         if not self.purchase_line_id:
             return super()._get_value_from_quotation(quantity, at_date)
         price_unit = self.purchase_line_id.with_context(
             conversion_date=self.date
         )._get_price_unit()
-        uom_quantity = self.product_uom_id._compute_quantity(
-            quantity,
-            self.product_id.uom_id,
-        )
-        quantity = min(quantity, uom_quantity)
         cost_ratio = self._get_cost_ratio(quantity)
         value = price_unit * cost_ratio
         return {
@@ -344,28 +300,17 @@ class StockMove(models.Model):
             ),
         }
 
-    # ----------------------------------------------------------------
-    # VALIDATIONS
-    # ----------------------------------------------------------------
-
     def _is_purchase_return(self):
         self.ensure_one()
-        return self.location_dest_id.usage == "supplier" or (
-            self.origin_returned_move_id
-            and (
-                self.location_dest_id
-                == self.env.ref(
-                    "stock.stock_location_inter_company",
-                    raise_if_not_found=False,
-                )
-                or self.origin_returned_move_id.location_usage == "supplier"
-            )
+        if self.location_dest_id.usage == "supplier":
+            return True
+        if not self.origin_returned_move_id:
+            return False
+        inter_company = self.env.ref(
+            "stock.stock_location_inter_company",
+            raise_if_not_found=False,
         )
-
-    def _should_ignore_pol_price(self):
-        self.ensure_one()
         return (
-            self.origin_returned_move_id
-            or not self.purchase_line_id
-            or not self.product_id.id
+            self.location_dest_id == inter_company
+            or self.origin_returned_move_id.location_usage == "supplier"
         )

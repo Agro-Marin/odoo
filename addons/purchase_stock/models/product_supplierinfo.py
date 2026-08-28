@@ -6,10 +6,6 @@ from odoo.tools import formatLang
 class ProductSupplierinfo(models.Model):
     _inherit = "product.supplierinfo"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     date_last_purchase = fields.Date(
         string="Last Purchase",
         compute="_compute_date_last_purchase",
@@ -19,33 +15,28 @@ class ProductSupplierinfo(models.Model):
         compute="_compute_show_set_supplier_button",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     def _compute_date_last_purchase(self):
         self.date_last_purchase = False
-        purchases = self.env["purchase.order"].search(
+        groups = self.env["purchase.order.line"]._read_group(
             [
-                ("state", "=", "done"),
-                (
-                    "line_ids.product_id",
-                    "in",
-                    self.product_tmpl_id.product_variant_ids.ids,
-                ),
+                ("order_id.state", "=", "done"),
+                ("product_id", "in", self.product_tmpl_id.product_variant_ids.ids),
                 ("partner_id", "in", self.partner_id.ids),
             ],
-            order="date_order desc",
+            ["partner_id", "product_id"],
+            ["date_order:max"],
         )
+        last_by_key = {
+            (partner.id, product.id): date_order
+            for partner, product, date_order in groups
+        }
         for supplier in self:
-            products = supplier.product_tmpl_id.product_variant_ids
-            for purchase in purchases:
-                if purchase.partner_id != supplier.partner_id:
-                    continue
-                if not (products & purchase.line_ids.product_id):
-                    continue
-                supplier.date_last_purchase = purchase.date_order
-                break
+            dates = [
+                last_by_key[(supplier.partner_id.id, product.id)]
+                for product in supplier.product_tmpl_id.product_variant_ids
+                if (supplier.partner_id.id, product.id) in last_by_key
+            ]
+            supplier.date_last_purchase = max(dates) if dates else False
 
     def _compute_show_set_supplier_button(self):
         self.show_set_supplier_button = True
@@ -73,26 +64,17 @@ class ProductSupplierinfo(models.Model):
                 )
                 supplier.display_name = f"{supplier.partner_id.display_name} ({supplier.min_qty} {supplier.product_uom_id.name} - {price_str})"
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def action_set_supplier(self):
         self.ensure_one()
         orderpoint_id = self.env.context.get("orderpoint_id")
         if not orderpoint_id:
             return None
         orderpoint = self.env["stock.warehouse.orderpoint"].browse(orderpoint_id)
-        if "buy" not in orderpoint.route_id.rule_ids.mapped("action"):
-            domain = Domain.AND(
+        if not orderpoint.route_id._has_buy_rule():
+            domain = Domain("action", "=", "buy") & Domain.OR(
                 [
-                    [("action", "=", "buy")],
-                    Domain.OR(
-                        [
-                            [("company_id", "=", orderpoint.company_id.id)],
-                            [("company_id", "=", False)],
-                        ],
-                    ),
+                    Domain("company_id", "=", orderpoint.company_id.id),
+                    Domain("company_id", "=", False),
                 ],
             )
             orderpoint.route_id = (

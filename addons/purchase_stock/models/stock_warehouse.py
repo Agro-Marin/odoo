@@ -6,10 +6,6 @@ from odoo.tools.translate import _
 class StockWarehouse(models.Model):
     _inherit = "stock.warehouse"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     buy_to_resupply = fields.Boolean(
         string="Buy to Resupply",
         default=True,
@@ -23,47 +19,29 @@ class StockWarehouse(models.Model):
         copy=False,
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     def _compute_buy_to_resupply(self):
         for warehouse in self:
             buy_route = warehouse.buy_pull_id.route_id
-            warehouse.buy_to_resupply = warehouse.id in buy_route.warehouse_ids.ids
-
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
+            warehouse.buy_to_resupply = warehouse in buy_route.warehouse_ids
 
     def _inverse_buy_to_resupply(self):
         for warehouse in self:
             buy_route = warehouse.buy_pull_id.route_id
             if not buy_route:
-                buy_route = (
-                    self.env["stock.rule"]
-                    .search(
-                        [("action", "=", "buy"), ("warehouse_id", "=", warehouse.id)],
-                    )
-                    .route_id
-                )
+                buy_route = self.env["stock.rule"]._get_buy_routes(warehouse=warehouse)
             if warehouse.buy_to_resupply:
                 buy_route.warehouse_ids = [Command.link(warehouse.id)]
             else:
                 buy_route.warehouse_ids = [Command.unlink(warehouse.id)]
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _create_or_update_route(self):
         purchase_route = self._get_or_create_global_route(
             "purchase_stock.route_warehouse0_buy",
             _("Buy"),
         )
-        for warehouse in self:
-            if warehouse.buy_to_resupply:
-                purchase_route.warehouse_ids = [Command.link(warehouse.id)]
+        to_link = self.filtered("buy_to_resupply")
+        if to_link:
+            purchase_route.warehouse_ids = [Command.link(wh.id) for wh in to_link]
         return super()._create_or_update_route()
 
     def _prepare_global_route_rule_vals(self):
@@ -102,17 +80,11 @@ class StockWarehouse(models.Model):
 
     def _get_all_routes(self):
         routes = super()._get_all_routes()
-        routes |= (
-            self.filtered(
-                lambda self: (
-                    self.buy_to_resupply
-                    and self.buy_pull_id
-                    and self.buy_pull_id.route_id
-                ),
-            )
-            .mapped("buy_pull_id")
-            .mapped("route_id")
-        )
+        routes |= self.filtered(
+            lambda warehouse: (
+                warehouse.buy_to_resupply and warehouse.buy_pull_id.route_id
+            ),
+        ).buy_pull_id.route_id
         return routes
 
     def _get_rules_dict(self):
@@ -125,7 +97,3 @@ class StockWarehouse(models.Model):
         routes = super()._prepare_route_vals()
         routes.update(self._prepare_receive_route_vals("buy_to_resupply"))
         return routes
-
-    # No `_update_name_and_code` override: the buy rule's name is built by
-    # `_format_rulename` from the warehouse *code*, not its name, so the former
-    # `.replace(warehouse.name, ...)` rename here never matched anything.

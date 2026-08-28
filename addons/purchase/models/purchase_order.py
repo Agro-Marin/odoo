@@ -139,6 +139,7 @@ class PurchaseOrder(models.Model):
     purchase_warning_text = fields.Text(
         string="Purchase Warning",
         compute="_compute_purchase_warning_text",
+        depends_context=("uid",),
         help="Internal warning for the partner or the products as set by the user.",
     )
     duplicated_order_ids = fields.Many2many(comodel_name="purchase.order")
@@ -214,12 +215,9 @@ class PurchaseOrder(models.Model):
     )
     def _compute_receipt_reminder_email(self):
         for order in self:
-            order.receipt_reminder_email = order.partner_id.with_company(
-                order.company_id,
-            ).receipt_reminder_email
-            order.reminder_date_before_receipt = order.partner_id.with_company(
-                order.company_id,
-            ).reminder_date_before_receipt
+            partner = order.partner_id.with_company(order.company_id)
+            order.receipt_reminder_email = partner.receipt_reminder_email
+            order.reminder_date_before_receipt = partner.reminder_date_before_receipt
 
     @api.depends("state", "line_ids", "line_ids.date_commitment")
     def _compute_date_commitment(self):
@@ -659,7 +657,7 @@ class PurchaseOrder(models.Model):
             already_seller = partners & line.product_id.seller_ids.mapped("partner_id")
             if (
                 already_seller
-                or len(line.product_id.seller_ids) > const.MAX_SUPPLIERS_PER_PRODUCT
+                or len(line.product_id.seller_ids) >= const.MAX_SUPPLIERS_PER_PRODUCT
             ):
                 seen_tmpls.add(tmpl.id)
                 continue
@@ -726,11 +724,12 @@ class PurchaseOrder(models.Model):
                 ("state", "=", "done"),
                 ("acknowledged", "=", False),
                 ("receipt_reminder_email", "=", True),
+                # A reminder asks the vendor to confirm a *physical* receipt
+                # date, so an order buying nothing but services has nothing to
+                # confirm. Existential semantics on the x2many: keep the order
+                # when at least one line is not a service.
+                ("line_ids.product_id.type", "!=", "service"),
             ],
-        ).filtered(
-            lambda p: (
-                p.mapped("line_ids.product_id.product_tmpl_id.type") != ["service"]
-            ),
         )
 
     def _get_product_price_and_data(self, product):
@@ -784,31 +783,37 @@ class PurchaseOrder(models.Model):
         pass
 
     @api.model
+    def _get_dashboard_count_domains(self):
+        # Each key is a dashboard card; each domain must stay identical to the
+        # search filter of the same name in `view_purchase_order_filter`, which
+        # is what the card toggles when clicked.
+        return {
+            "draft": [("state", "=", "draft")],
+            "sent": [("sent", "=", True), ("state", "=", "draft")],
+            "late": [
+                ("state", "=", "draft"),
+                ("date_order", "<", fields.Datetime.now()),
+            ],
+            "not_acknowledged": [("state", "=", "done"), ("acknowledged", "=", False)],
+            "late_receipt": [("state", "=", "done"), ("is_late", "=", True)],
+        }
+
+    @api.model
     def prepare_dashboard(self):
         if not self.env.user._is_internal():
             raise AccessDenied
 
         self.browse().check_access("read")
 
+        count_domains = self._get_dashboard_count_domains()
         result = {
-            "global": {
-                "draft": {"all": 0, "priority": 0},
-                "sent": {"all": 0, "priority": 0},
-                "late": {"all": 0, "priority": 0},
-                "not_acknowledged": {"all": 0, "priority": 0},
-                "late_receipt": {"all": 0, "priority": 0},
+            scope: {
+                **{key: {"all": 0, "priority": 0} for key in count_domains},
                 "days_to_order": 0,
-            },
-            "my": {
-                "draft": {"all": 0, "priority": 0},
-                "sent": {"all": 0, "priority": 0},
-                "late": {"all": 0, "priority": 0},
-                "not_acknowledged": {"all": 0, "priority": 0},
-                "late_receipt": {"all": 0, "priority": 0},
-                "days_to_order": 0,
-            },
-            "days_to_purchase": 0,
+            }
+            for scope in ("global", "my")
         }
+        result["days_to_purchase"] = 0
 
         def _update(key, dict_to_update, group):
             for priority, user_id, count in group:
@@ -822,68 +827,43 @@ class PurchaseOrder(models.Model):
                 if priority != "0":
                     dict_to_update["my"][key]["priority"] += count
 
-        groupby = ["priority", "user_id"]
-        aggregate = ["id:count_distinct"]
-        rfq_draft_domain = [("state", "=", "draft")]
-        rfq_draft_group = self.env["purchase.order"]._read_group(
-            rfq_draft_domain,
-            groupby,
-            aggregate,
-        )
-        _update("draft", result, rfq_draft_group)
+        for key, domain in count_domains.items():
+            _update(
+                key,
+                result,
+                self._read_group(
+                    domain, ["priority", "user_id"], ["id:count_distinct"]
+                ),
+            )
 
-        rfq_sent_domain = [("sent", "=", True), ("state", "=", "draft")]
-        rfq_sent_group = self.env["purchase.order"]._read_group(
-            rfq_sent_domain,
-            groupby,
-            aggregate,
-        )
-        _update("sent", result, rfq_sent_group)
+        three_months_ago = fields.Datetime.now() - relativedelta(months=3)
 
-        rfq_late_domain = [
-            ("state", "=", "draft"),
-            ("date_order", "<", fields.Datetime.now()),
-        ]
-        rfq_late_group = self.env["purchase.order"]._read_group(
-            rfq_late_domain,
-            groupby,
-            aggregate,
+        # Route the average through `_search`, so it is scoped by the same record
+        # rules and allowed companies as the counts above. Querying
+        # `purchase_order` directly answered with orders the reader cannot open:
+        # two companies, 2 and 40 days to confirm, reported 21 to a user who
+        # could see only the first.
+        confirmed = self._search(
+            [
+                ("state", "=", "done"),
+                ("date_confirmed", "!=", False),
+                ("create_date", ">=", three_months_ago),
+            ],
         )
-        _update("late", result, rfq_late_group)
-
-        rfq_not_acknowledge = [("state", "=", "done"), ("acknowledged", "=", False)]
-        rfq_not_acknowledge_group = self.env["purchase.order"]._read_group(
-            rfq_not_acknowledge,
-            groupby,
-            aggregate,
-        )
-        _update("not_acknowledged", result, rfq_not_acknowledge_group)
-
-        rfq_late_receipt = [("state", "=", "done"), ("is_late", "=", True)]
-        rfq_late_receipt_group = self.env["purchase.order"]._read_group(
-            rfq_late_receipt,
-            groupby,
-            aggregate,
-        )
-        _update("late_receipt", result, rfq_late_receipt_group)
-
-        three_months_ago = fields.Datetime.to_string(
-            fields.Datetime.now() - relativedelta(months=3),
-        )
-
         self.env.cr.execute(
-            """
-            SELECT
-                AVG(EXTRACT(EPOCH FROM (date_confirmed - create_date))) AS avg_global_seconds,
-                AVG(CASE WHEN user_id = %s
-                    THEN EXTRACT(EPOCH FROM (date_confirmed - create_date))
-                    END) AS avg_my_seconds
-            FROM purchase_order
-            WHERE state = 'done'
-              AND create_date >= %s
-              AND date_confirmed IS NOT NULL
-            """,
-            [self.env.user.id, three_months_ago],
+            SQL(
+                """
+                SELECT
+                    AVG(EXTRACT(EPOCH FROM (date_confirmed - create_date))) AS avg_global_seconds,
+                    AVG(CASE WHEN user_id = %(uid)s
+                        THEN EXTRACT(EPOCH FROM (date_confirmed - create_date))
+                        END) AS avg_my_seconds
+                FROM purchase_order
+                WHERE id IN %(confirmed)s
+                """,
+                uid=self.env.user.id,
+                confirmed=confirmed.subselect(),
+            ),
         )
         row = self.env.cr.fetchone()
         avg_global_deliveries_seconds = row[0] or 0
@@ -898,11 +878,10 @@ class PurchaseOrder(models.Model):
             2,
         )
 
-        count_keys = ("draft", "sent", "late", "not_acknowledged", "late_receipt")
         result["multiuser"] = (
             any(
                 result["global"][key]["all"] != result["my"][key]["all"]
-                for key in count_keys
+                for key in count_domains
             )
             or result["global"]["days_to_order"] != result["my"]["days_to_order"]
         )
@@ -1039,7 +1018,26 @@ class PurchaseOrder(models.Model):
             ),
         }
 
+    def _is_date_commitment_updatable(self):
+        # The portal route that reaches this is `auth="public"` and resolves to a
+        # sudo record on a *read*-level token, so this is the only thing standing
+        # between an emailed link and a write. A draft RFQ stays open on purpose
+        # -- proposing an arrival date is part of negotiating one -- but a
+        # cancelled order has no arrival left to promise, and a locked one is
+        # locked.
+        self.ensure_one()
+        return self.state != "cancel" and not self.locked
+
     def _update_order_lines_date_commitment(self, updated_dates):
+        self.ensure_one()
+        if not self._is_date_commitment_updatable():
+            raise UserError(
+                _(
+                    "The expected arrival date of %(order)s can no longer be updated.",
+                    order=self.display_name,
+                ),
+            )
+
         activity = self.env["mail.activity"].search(
             [
                 ("summary", "=", _("Date Updated")),

@@ -45,6 +45,7 @@ class AccountMove(models.Model):
     purchase_warning_text = fields.Text(
         string="Purchase Warning",
         compute="_compute_purchase_warning_text",
+        depends_context=("uid",),
         help="Internal warning for the partner or the products as set by the user.",
     )
 
@@ -292,6 +293,7 @@ class AccountMove(models.Model):
                 ("company_id", "=", self.company_id.id),
                 ("origin", "=", self.name),
             ],
+            limit=2,
         )
         if len(purchase_exist) > 1:
             raise UserError(
@@ -305,13 +307,18 @@ class AccountMove(models.Model):
             purchase = self.env["purchase.order"].create(
                 self._prepare_purchase_order_vals(),
             )
-            for move_line_id, vals in self._prepare_purchase_line_vals(
-                purchase,
-            ).items():
-                move_line = self.env["account.move.line"].browse(move_line_id)
-                move_line.purchase_line_ids = self.env["purchase.order.line"].create(
-                    vals,
-                )
+            line_vals_by_move_line = self._prepare_purchase_line_vals(purchase)
+            purchase_lines = self.env["purchase.order.line"].create(
+                list(line_vals_by_move_line.values()),
+            )
+            for move_line_id, purchase_line in zip(
+                line_vals_by_move_line,
+                purchase_lines,
+                strict=True,
+            ):
+                self.env["account.move.line"].browse(
+                    move_line_id,
+                ).purchase_line_ids = purchase_line
         return True
 
     def _find_and_set_purchase_orders(
@@ -631,9 +638,7 @@ class AccountMove(models.Model):
         # See sale's counterpart: `account.tax` serves several companies, and the
         # domain helper is what knows about parent companies. Reading
         # `company_ids` in Python needs `sudo()`.
-        company_domain = self.env["account.tax"]._check_company_domain(
-            self.company_id
-        )
+        company_domain = self.env["account.tax"]._check_company_domain(self.company_id)
         for line in self.invoice_line_ids.filtered(
             lambda ln: ln.display_type == "product",
         ):

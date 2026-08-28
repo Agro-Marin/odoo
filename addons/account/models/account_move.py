@@ -222,6 +222,7 @@ class AccountMove(models.Model):
         comodel_name="account.payment",
         string="Payment",
         compute="_compute_origin_payment_id",
+        compute_sudo=True,
         search="_search_origin_payment_id",
     )
     matched_payment_ids = fields.Many2many(

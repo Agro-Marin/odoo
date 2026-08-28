@@ -1,4 +1,5 @@
 from . import test_account
+from . import test_audit_2026_08
 from . import test_create_picking
 from . import test_stock
 from . import test_move_cancel_propagation

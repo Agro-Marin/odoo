@@ -67,7 +67,9 @@ class StockWarehouse(models.Model):
         # the route is global so we need to check all rules regardless of company
         all_rules = route_id.sudo().rule_ids.filtered(lambda r: r.active)
         for company in self.company_id:
-            company_rules = all_rules.filtered(lambda r: r.company_id == company)
+            company_rules = all_rules.filtered(
+                lambda r, company=company: r.company_id == company
+            )
             company.dropship_subcontractor_pick_type_id.active = bool(
                 company_rules.filtered(lambda r: r.action == "pull")
             )

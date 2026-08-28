@@ -41,8 +41,8 @@ class PurchaseOrder(models.Model):
             }
         return None
 
-    def _get_location_destination(self):
+    def _get_location_destination_record(self):
         self.ensure_one()
         if self.default_location_dest_id_is_subcontracting_loc:
-            return self.dest_address_id.property_stock_subcontractor.id
-        return super()._get_location_destination()
+            return self.dest_address_id.property_stock_subcontractor
+        return super()._get_location_destination_record()

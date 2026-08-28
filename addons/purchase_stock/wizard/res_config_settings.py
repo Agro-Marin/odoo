@@ -15,8 +15,11 @@ class ResConfigSettings(models.TransientModel):
     def get_values(self):
         res = super().get_values()
         res.update(
-            is_installed_sale=self.env["ir.module.module"]
-            .search([("name", "=", "sale"), ("state", "=", "installed")])
-            .id,
+            is_installed_sale=bool(
+                self.env["ir.module.module"].search_count(
+                    [("name", "=", "sale"), ("state", "=", "installed")],
+                    limit=1,
+                ),
+            ),
         )
         return res

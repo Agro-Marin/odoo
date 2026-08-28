@@ -9,11 +9,11 @@ export class PurchaseSuggestCatalogKanbanModel extends ProductCatalogKanbanModel
      */
     async _loadData(params, ...rest) {
         const sortBySuggested = (list) => {
-            const suggestProducts = list.filter((record) => record.suggested_qty > 0);
-            const notSuggestedProducts = list.filter(
-                (record) => record.suggested_qty === 0,
-            );
-            return [...suggestProducts, ...notSuggestedProducts];
+            // A real partition: `filter(x => x === 0)` for the remainder dropped
+            // every record whose suggested_qty was neither positive nor exactly 0.
+            const suggested = list.filter((record) => record.suggested_qty > 0);
+            const rest = list.filter((record) => !(record.suggested_qty > 0));
+            return [...suggested, ...rest];
         };
         const suggest = getSuggestToggleState(
             this.config.context.product_catalog_order_state,

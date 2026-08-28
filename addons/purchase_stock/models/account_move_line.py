@@ -1,16 +1,11 @@
-from odoo import models
+from odoo import fields, models
 
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _get_price_unit_val_dif_and_relevant_qty(self):
         self.ensure_one()
-        # Valuation_price unit is always expressed in invoice currency, so that it can always be computed with the good rate
         valuation_price_unit = self.product_id.uom_id._compute_price(
             self.product_id.standard_price,
             self.product_uom_id,
@@ -30,9 +25,29 @@ class AccountMoveLine(models.Model):
         )
         price_unit = self._get_gross_unit_price()
         price_unit_val_dif = price_unit - valuation_price_unit
-        # If there are some valued moves, we only consider their quantity already used
         relevant_qty = self.quantity
         return price_unit_val_dif, relevant_qty
 
     def _get_stock_moves(self):
         return super()._get_stock_moves() | self.purchase_line_ids.move_ids
+
+    def _prepare_price_difference_vals(self, quantity, amount_currency, account):
+        self.ensure_one()
+        return {
+            "name": self.name[:64],
+            "move_id": self.move_id.id,
+            "partner_id": self.partner_id.id or self.move_id.commercial_partner_id.id,
+            "product_id": self.product_id.id,
+            "product_uom_id": self.product_uom_id.id,
+            "quantity": quantity,
+            "balance": self.currency_id._convert(
+                amount_currency,
+                self.company_currency_id,
+                self.company_id,
+                fields.Date.today(),
+            ),
+            "account_id": account.id,
+            "analytic_distribution": self.analytic_distribution,
+            "display_type": "cogs",
+            "tax_ids": [],
+        }

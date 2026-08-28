@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { useEnv, useSubEnv } from "@odoo/owl";
 import { ProductCatalogKanbanController } from "@product/product_catalog/kanban_controller";
+import { browser } from "@web/core/browser/browser";
 import { useDebounced } from "@web/core/utils/timing";
+
+import { SUGGEST_TOGGLE_STORAGE_KEY } from "./utils.js";
 
 export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanbanController {
     setup() {
@@ -55,8 +58,10 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
 
     toggleSuggest() {
         this.suggest.suggestToggle.isOn = !this.suggest.suggestToggle.isOn;
-        localStorage.setItem(
-            "purchase_stock.suggest_toggle_state",
+        // Same accessor as the reader in utils.js: through `browser` so HOOT can
+        // mock it, and the key from one constant rather than two string literals.
+        browser.localStorage.setItem(
+            SUGGEST_TOGGLE_STORAGE_KEY,
             JSON.stringify({ isOn: this.suggest.suggestToggle.isOn }),
         );
         this.env.searchModel.toggleFilters(

@@ -1,15 +1,12 @@
 from dateutil import relativedelta
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 from odoo.tools.translate import _
 
 
 class StockWarehouseOrderpoint(models.Model):
     _inherit = "stock.warehouse.orderpoint"
-
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     show_supplier = fields.Boolean(
         string="Show supplier column",
@@ -46,43 +43,32 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _compute_days_to_order(self):
         res = super()._compute_days_to_order()
-        # Avoid computing rule_ids if no stock.rules with the buy action
-        if not self.env["stock.rule"].search([("action", "=", "buy")]):
+        if not self.env["stock.rule"]._search_buy_rules():
             return res
-        # Compute rule_ids only for orderpoint whose compnay_id.days_to_purchase != orderpoint.days_to_order
         orderpoints_to_compute = self.filtered(
             lambda orderpoint: (
                 orderpoint.days_to_order != orderpoint.company_id.days_to_purchase
             ),
         )
         for orderpoint in orderpoints_to_compute:
-            if "buy" in orderpoint.rule_ids.mapped("action"):
+            if orderpoint.rule_ids._has_buy_action():
                 orderpoint.days_to_order = orderpoint.company_id.days_to_purchase
         return res
 
     @api.depends("product_id.seller_ids")
     def _compute_rule_ids(self):
-        """Extend the dependencies: `_get_total_routes_by_product` reaches the Buy
-        route through `seller_ids`, so a product gaining its first vendor changes
-        which rules its orderpoints resolve to.
-        """
         super()._compute_rule_ids()
 
     @api.depends("vendor_ids")
     def _compute_show_supply_warning(self):
-        # `not orderpoint.show_supply_warning` used to guard this branch. The field
-        # is protected during its own compute, so that read always returned the
-        # Boolean default and the guard was always true: it said nothing and hid
-        # what the branch actually keys on, which is the rule's action.
         for orderpoint in self:
-            if "buy" in orderpoint.rule_ids.mapped("action"):
+            if orderpoint.rule_ids._has_buy_action():
                 orderpoint.show_supply_warning = not orderpoint.vendor_ids
                 continue
             super(StockWarehouseOrderpoint, orderpoint)._compute_show_supply_warning()
 
     @api.depends("supplier_id")
     def _compute_deadline_date(self):
-        """Extend to add more depends values"""
         super()._compute_deadline_date()
 
     @api.depends(
@@ -94,9 +80,6 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id.seller_ids.product_uom_id",
     )
     def _compute_qty_to_order_computed(self):
-        """Extend to add more depends values
-        TODO: Probably performance costly due to x2many in depends
-        """
         return super()._compute_qty_to_order_computed()
 
     @api.depends("supplier_id")
@@ -105,15 +88,9 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.depends("effective_route_id")
     def _compute_show_supplier(self):
-        buy_route = [
-            res["route_id"][0]
-            for res in self.env["stock.rule"].search_read(
-                [("action", "=", "buy")],
-                ["route_id"],
-            )
-        ]
+        buy_routes = self.env["stock.rule"]._get_buy_routes()
         for orderpoint in self:
-            orderpoint.show_supplier = orderpoint.effective_route_id.id in buy_route
+            orderpoint.show_supplier = orderpoint.effective_route_id in buy_routes
 
     @api.depends(
         "effective_route_id",
@@ -142,10 +119,6 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoint.supplier_id or orderpoint._get_default_supplier()
             ).partner_id
 
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
-
     def _inverse_route_id(self):
         for orderpoint in self:
             if not orderpoint.route_id:
@@ -153,71 +126,60 @@ class StockWarehouseOrderpoint(models.Model):
         super()._inverse_route_id()
 
     def _inverse_supplier_id(self):
+        buy_routes = None
         for orderpoint in self:
-            if not orderpoint.route_id and orderpoint.supplier_id:
-                orderpoint.route_id = (
-                    self.env["stock.rule"].search([("action", "=", "buy")])[0].route_id
+            if orderpoint.route_id or not orderpoint.supplier_id:
+                continue
+            if buy_routes is None:
+                buy_routes = self.env["stock.rule"]._get_buy_routes()
+            if not buy_routes:
+                raise UserError(
+                    _(
+                        "No Buy route is available, so a vendor cannot be set on "
+                        '%(orderpoint)s. Enable "Buy to Resupply" on a warehouse first.',
+                        orderpoint=orderpoint.display_name,
+                    ),
                 )
-
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
+            orderpoint.route_id = buy_routes[0]
 
     def _search_effective_vendor_id(self, operator, value):
         vendors = self.env["res.partner"].search([("id", operator, value)])
-        orderpoints = (
-            self.env["stock.warehouse.orderpoint"]
-            .search([])
-            .filtered(lambda orderpoint: orderpoint.effective_vendor_id in vendors)
+        candidates = self.search([("product_id.seller_ids", "!=", False)])
+        orderpoints = candidates.filtered(
+            lambda orderpoint: orderpoint.effective_vendor_id in vendors,
         )
         return [("id", "in", orderpoints.ids)]
 
     def _search_available_vendor(self, operator, value):
         vendors = self.env["res.partner"].search([("id", operator, value)])
-        orderpoints = (
-            self.env["stock.warehouse.orderpoint"]
-            .search([])
-            .filtered(
-                lambda orderpoint: (
-                    orderpoint.product_id._prepare_sellers().mapped(
-                        "partner_id",
-                    )
-                    & vendors
-                ),
-            )
+        candidates = self.search([("product_id.seller_ids", "!=", False)])
+        orderpoints = candidates.filtered(
+            lambda orderpoint: (
+                orderpoint.product_id._prepare_sellers().partner_id & vendors
+            ),
         )
         return [("id", "in", orderpoints.ids)]
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def action_view_purchase(self):
-        """This function returns an action that display existing
-        purchase orders of given orderpoint.
-        """
         result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_order"
         )
 
-        # Drop the context: the action displays RFQs, not confirmed POs.
+        self.ensure_one()
         result["context"] = {}
-        order_line_ids = self.env["purchase.order.line"].search(
-            [("orderpoint_id", "=", self.id)],
+        purchase_ids = (
+            self.env["purchase.order.line"]
+            .search(
+                [("orderpoint_id", "=", self.id)],
+            )
+            .order_id
         )
-        purchase_ids = order_line_ids.mapped("order_id")
-
-        result["domain"] = "[('id','in',%s)]" % (purchase_ids.ids)
-
+        result["domain"] = [("id", "in", purchase_ids.ids)]
         return result
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_default_route_map(self):
         routes = super()._get_default_route_map()
-        buy_routes = self.env["stock.rule"].search([("action", "=", "buy")]).route_id
+        buy_routes = self.env["stock.rule"]._get_buy_routes()
         for orderpoint in self.filtered("location_id"):
             route_id = orderpoint.rule_ids.route_id & buy_routes
             if orderpoint.product_id.seller_ids and route_id:
@@ -261,12 +223,9 @@ class StockWarehouseOrderpoint(models.Model):
         bought = self.filtered(
             lambda orderpoint: (
                 orderpoint.product_id
-                and any(
-                    rule.action == "buy"
-                    for rule in (
-                        orderpoint.effective_route_id or orderpoint.product_id.route_ids
-                    ).rule_ids
-                )
+                and (
+                    orderpoint.effective_route_id or orderpoint.product_id.route_ids
+                )._has_buy_rule()
             ),
         )
         result = super(
@@ -279,9 +238,6 @@ class StockWarehouseOrderpoint(models.Model):
             horizon_days = orderpoint._get_horizon_days()
             if horizon_days:
                 planned_date -= relativedelta.relativedelta(days=horizon_days)
-            # `rule_ids` is `_get_rules_from_location` for this product, location and
-            # route -- the very chain `_get_dates_info` would resolve again. Handing
-            # it over turns a grouped `stock.rule` query per rendered row into none.
             dates_info = orderpoint.product_id._get_dates_info(
                 planned_date or today,
                 orderpoint.location_id,
@@ -305,7 +261,7 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _quantity_in_progress(self):
         res = super()._quantity_in_progress()
-        qty_by_product_location, _ = self.product_id._get_quantity_in_progress(
+        qty_by_product_location, __ = self.product_id._get_quantity_in_progress(
             self.location_id.ids,
         )
         for orderpoint in self:

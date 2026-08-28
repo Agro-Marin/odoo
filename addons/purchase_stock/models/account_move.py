@@ -1,32 +1,18 @@
-from odoo import api, fields, models
-from odoo.tools import float_compare
+from odoo import api, models
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     @api.depends("line_ids.purchase_line_ids.order_id.incoterm_location")
     def _compute_incoterm_location(self):
-        # base_order_stock owns the body; this override only declares the
-        # purchase dependency. It replaces a depends on `purchase_id`, which is
-        # a non-stored field and so never triggered a recompute, while the value
-        # actually read lives behind line_ids.purchase_line_ids.
         super()._compute_incoterm_location()
 
     def _get_order_incoterm_locations(self):
-        # Extends base_order_stock: contribute the purchase orders' incoterms.
         return [
             *super()._get_order_incoterm_locations(),
             *self.line_ids.purchase_line_ids.order_id.mapped("incoterm_location"),
         ]
-
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def _post_entries(self):
 
@@ -37,13 +23,7 @@ class AccountMove(models.Model):
 
         return super()._post_entries()
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _stock_account_get_last_step_stock_moves(self):
-        """Overridden from stock_account.
-        Returns the stock moves associated to this invoice."""
         rslt = super()._stock_account_get_last_step_stock_moves()
         for invoice in self.filtered(lambda x: x.move_type == "in_invoice"):
             rslt += invoice.mapped(
@@ -60,28 +40,7 @@ class AccountMove(models.Model):
         return rslt
 
     def _stock_account_prepare_anglo_saxon_in_lines_vals(self):
-        """Prepare values used to create the journal items (account.move.line) corresponding to the price difference
-        lines for vendor bills. It only concerns the quantities that have been delivered before the bill
-        Example:
-        Buy a product having a cost of 9 and a supplier price of 10 and being a storable product and having a perpetual
-        valuation in FIFO. Deliver the product and then post the bill. The vendor bill's journal entries looks like:
-
-        Account                                     | Debit | Credit
-        ---------------------------------------------------------------
-        101120 Stock Account                        | 10.0  |
-        ---------------------------------------------------------------
-        101100 Account Payable                      |       | 10.0
-        ---------------------------------------------------------------
-        This method computes values used to make two additional journal items:
-        ---------------------------------------------------------------
-        101120 Stock Account                        |       | 1.0
-        ---------------------------------------------------------------
-        xxxxxx Expenses                             | 1.0   |
-        ---------------------------------------------------------------
-        :return: A list of Python dictionary to be passed to env['account.move.line'].create.
-        """
         lines_vals_list = []
-        price_unit_prec = self.env["decimal.precision"].get_precision("Product Price")
 
         for move in self:
             if (
@@ -92,30 +51,15 @@ class AccountMove(models.Model):
 
             move = move.with_company(move.company_id)
             for line in move.invoice_line_ids:
-                # Filter out lines being not eligible for price difference.
-                # Moreover, this function is used for standard cost method only.
                 if (
                     not line._eligible_for_stock_account()
                     or line.product_id.cost_method != "standard"
                 ):
                     continue
 
-                # Retrieve accounts needed to generate the price difference.
-
-                debit_pdiff_account = False
-                if line.product_id.cost_method == "standard":
-                    debit_pdiff_account = (
-                        line.product_id.categ_id.property_price_difference_account_id
-                    )
-                    debit_pdiff_account = move.fiscal_position_id.map_account(
-                        debit_pdiff_account,
-                    )
-                else:
-                    debit_pdiff_account = (
-                        line.product_id.product_tmpl_id._get_product_accounts(
-                            fiscal_pos=move.fiscal_position_id,
-                        )["expense"]
-                    )
+                debit_pdiff_account = move.fiscal_position_id.map_account(
+                    line.product_id.categ_id.property_price_difference_account_id,
+                )
                 if not debit_pdiff_account:
                     continue
 
@@ -124,59 +68,17 @@ class AccountMove(models.Model):
                 )
                 price_subtotal = relevant_qty * price_unit_val_dif
 
-                # We consider there is a price difference if the subtotal is not zero. In case a
-                # discount has been applied, we can't round the price unit anymore, and hence we
-                # can't compare them.
-                if (
-                    not move.currency_id.is_zero(price_subtotal)
-                    and float_compare(
-                        line["price_unit"],
-                        line.price_unit,
-                        precision_digits=price_unit_prec,
-                    )
-                    == 0
-                ):
-                    # Add price difference account line.
-                    vals = {
-                        "name": line.name[:64],
-                        "move_id": move.id,
-                        "partner_id": line.partner_id.id
-                        or move.commercial_partner_id.id,
-                        "product_id": line.product_id.id,
-                        "product_uom_id": line.product_uom_id.id,
-                        "quantity": relevant_qty,
-                        "balance": line.currency_id._convert(
+                if not move.currency_id.is_zero(price_subtotal):
+                    lines_vals_list += [
+                        line._prepare_price_difference_vals(
+                            relevant_qty,
                             relevant_qty * price_unit_val_dif,
-                            line.company_currency_id,
-                            line.company_id,
-                            fields.Date.today(),
+                            debit_pdiff_account,
                         ),
-                        "account_id": debit_pdiff_account.id,
-                        "analytic_distribution": line.analytic_distribution,
-                        "display_type": "cogs",
-                        "tax_ids": [],
-                    }
-                    lines_vals_list.append(vals)
-
-                    # Correct the amount of the current line.
-                    vals = {
-                        "name": line.name[:64],
-                        "move_id": move.id,
-                        "partner_id": line.partner_id.id
-                        or move.commercial_partner_id.id,
-                        "product_id": line.product_id.id,
-                        "product_uom_id": line.product_uom_id.id,
-                        "quantity": relevant_qty,
-                        "balance": line.currency_id._convert(
+                        line._prepare_price_difference_vals(
+                            relevant_qty,
                             relevant_qty * -price_unit_val_dif,
-                            line.company_currency_id,
-                            line.company_id,
-                            fields.Date.today(),
+                            line.account_id,
                         ),
-                        "account_id": line.account_id.id,
-                        "analytic_distribution": line.analytic_distribution,
-                        "display_type": "cogs",
-                        "tax_ids": [],
-                    }
-                    lines_vals_list.append(vals)
+                    ]
         return lines_vals_list

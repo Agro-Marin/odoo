@@ -1,7 +1,7 @@
 import base64
 from datetime import datetime
 
-from odoo import _, http
+from odoo import _, fields, http
 from odoo.exceptions import AccessError, MissingError
 from odoo.http import request
 from odoo.tools.image import image_process
@@ -203,6 +203,13 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
                 "error": _("You are not allowed to update this purchase order."),
             }
 
+        if not order_sudo._is_date_commitment_updatable():
+            return {
+                "success": False,
+                "error": _("This purchase order can no longer be updated."),
+            }
+
+        today = fields.Date.context_today(order_sudo)
         updated_dates = []
         for id_str, date_str in kw.items():
             try:
@@ -214,13 +221,16 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
                 return {"success": False, "error": _("Invalid order line.")}
 
             try:
-                updated_date = line._convert_to_middle_of_day(
-                    datetime.strptime(date_str, "%Y-%m-%d")
-                )
+                parsed = datetime.strptime(date_str, "%Y-%m-%d")
             except TypeError, ValueError:
                 return {"success": False, "error": _("Invalid date.")}
+            if parsed.date() < today:
+                return {
+                    "success": False,
+                    "error": _("The expected arrival date cannot be in the past."),
+                }
 
-            updated_dates.append((line, updated_date))
+            updated_dates.append((line, line._convert_to_middle_of_day(parsed)))
 
         if updated_dates:
             order_sudo._update_order_lines_date_commitment(updated_dates)

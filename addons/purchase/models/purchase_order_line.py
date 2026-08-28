@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.fields import Command
-from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, SQL, get_lang
+from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, SQL, float_compare, get_lang
 
 
 class PurchaseOrderLine(models.Model):
@@ -45,6 +45,7 @@ class PurchaseOrderLine(models.Model):
 
     purchase_line_warn_msg = fields.Text(
         compute="_compute_purchase_line_warn_msg",
+        depends_context=("uid",),
     )
     product_no_variant_attribute_value_ids = fields.Many2many(
         comodel_name="product.template.attribute.value",
@@ -640,7 +641,13 @@ class PurchaseOrderLine(models.Model):
         company_id,
         partner_id,
         po,
+        seller=None,
     ):
+        """
+        :param seller: vendor pricelist line already chosen by the caller. Pass it
+            when the vendor decided *which* purchase order this line joins, so the
+            two decisions cannot resolve to different supplierinfo records.
+        """
         values = self.env.context.get("procurement_values", {})
         uom_po_qty = product_uom_id._compute_quantity(
             product_qty,
@@ -648,13 +655,16 @@ class PurchaseOrderLine(models.Model):
             rounding_method="HALF-UP",
         )
         today = fields.Date.context_today(self)
-        seller = product_id.with_company(company_id)._select_seller(
-            partner_id=partner_id,
-            quantity=product_qty if values.get("force_uom") else uom_po_qty,
-            date=max(fields.Date.context_today(self, timestamp=po.date_order), today),
-            uom_id=product_uom_id if values.get("force_uom") else product_id.uom_id,
-            params={"force_uom": values.get("force_uom")},
-        )
+        if seller is None:
+            seller = product_id.with_company(company_id)._select_seller(
+                partner_id=partner_id,
+                quantity=product_qty if values.get("force_uom") else uom_po_qty,
+                date=max(
+                    fields.Date.context_today(self, timestamp=po.date_order), today
+                ),
+                uom_id=product_uom_id if values.get("force_uom") else product_id.uom_id,
+                params={"force_uom": values.get("force_uom")},
+            )
         if (
             seller
             and (seller.product_uom_id or seller.product_tmpl_id.uom_id)
@@ -707,10 +717,7 @@ class PurchaseOrderLine(models.Model):
         if product_lang.description_purchase:
             name += "\n" + product_lang.description_purchase
 
-        date_commitment = self.order_id.date_commitment or self._get_date_commitment(
-            seller,
-            po=po,
-        )
+        date_commitment = self._get_date_commitment(seller, po=po)
         discount = seller.discount or 0.0
 
         return {
@@ -798,30 +805,38 @@ class PurchaseOrderLine(models.Model):
                     )
                 return
 
+    def _convert_invoiced_amount(self, inv_line, amount, round=True):
+        # A refund must subtract. Both summers below route their conversion
+        # through here so the sign cannot be applied in one and forgotten in the
+        # other, which is how a credit note came to be *added* to the amount
+        # already invoiced.
+        return inv_line.move_id.direction_sign * inv_line.currency_id._convert(
+            amount,
+            self.currency_id,
+            self.company_id,
+            inv_line.invoice_date or fields.Date.today(),
+            round=round,
+        )
+
     def _sum_invoiced_amounts(self, invoice_lines):
         qty = 0.0
         amount_taxexc = 0.0
         amount_taxinc = 0.0
 
         for inv_line in invoice_lines:
-            sign = inv_line.move_id.direction_sign
-            date = inv_line.invoice_date or fields.Date.today()
-
-            qty += sign * inv_line.product_uom_id._compute_quantity_reconcile(
-                inv_line.quantity,
-                self.product_uom_id,
+            qty += inv_line.move_id.direction_sign * (
+                inv_line.product_uom_id._compute_quantity_reconcile(
+                    inv_line.quantity,
+                    self.product_uom_id,
+                )
             )
-            amount_taxexc += sign * inv_line.currency_id._convert(
+            amount_taxexc += self._convert_invoiced_amount(
+                inv_line,
                 inv_line.price_subtotal,
-                self.currency_id,
-                self.company_id,
-                date,
             )
-            amount_taxinc += sign * inv_line.currency_id._convert(
+            amount_taxinc += self._convert_invoiced_amount(
+                inv_line,
                 inv_line.price_total,
-                self.currency_id,
-                self.company_id,
-                date,
             )
 
         return {
@@ -834,19 +849,17 @@ class PurchaseOrderLine(models.Model):
         total = 0.0
 
         for inv_line in invoice_lines:
-            converted_price = inv_line.currency_id._convert(
-                inv_line.price_unit,
-                self.currency_id,
-                self.company_id,
-                inv_line.date or fields.Date.today(),
+            line_amount = self._convert_invoiced_amount(
+                inv_line,
+                inv_line.price_unit * inv_line.quantity,
                 round=False,
             )
-            line_amount = converted_price * inv_line.quantity
 
             if inv_line.tax_ids.filtered(lambda t: t.price_include):
-                line_amount = inv_line.tax_ids.compute_all(line_amount)[
-                    "total_excluded"
-                ]
+                line_amount = inv_line.tax_ids.compute_all(
+                    line_amount,
+                    currency=self.currency_id,
+                )["total_excluded"]
 
             total += line_amount
 
@@ -856,7 +869,11 @@ class PurchaseOrderLine(models.Model):
         self.date_commitment = updated_date
 
     def _has_discount_differences(self, invoice_lines):
-        return any(inv_line.discount != self.discount for inv_line in invoice_lines)
+        precision = self.env["decimal.precision"].get_precision("Discount")
+        return any(
+            float_compare(inv_line.discount, self.discount, precision_digits=precision)
+            for inv_line in invoice_lines
+        )
 
     def _price_update_blocked(self):
         if self.invoice_line_ids:

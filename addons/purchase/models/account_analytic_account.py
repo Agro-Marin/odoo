@@ -10,19 +10,28 @@ class AccountAnalyticAccount(models.Model):
         compute="_compute_purchase_order_count",
     )
 
+    def _get_purchase_order_domain(self):
+        return [
+            (
+                "line_ids.invoice_line_ids.analytic_line_ids."
+                + self.plan_id._column_name(),
+                "in",
+                self.ids,
+            ),
+        ]
+
     @api.depends("line_ids")
     def _compute_purchase_order_count(self):
+        # `for account in self:` is load-bearing, not habit. This is one
+        # `search_count` per record and `py_x2many_count` counts it as such --
+        # but only for a loop whose iterable is literally `self`, so spelling it
+        # `self.filtered("plan_id")` takes the debt off the gate's books without
+        # removing it. `fields.Count` cannot express this one: the orders are
+        # reached through a domain traversal, not an x2many on this record.
         for account in self:
             account.purchase_order_count = (
                 self.env["purchase.order"].search_count(
-                    [
-                        (
-                            "line_ids.invoice_line_ids.analytic_line_ids."
-                            + account.plan_id._column_name(),
-                            "in",
-                            account.ids,
-                        ),
-                    ],
+                    account._get_purchase_order_domain(),
                 )
                 if account.plan_id
                 else 0
@@ -30,24 +39,18 @@ class AccountAnalyticAccount(models.Model):
 
     def action_view_purchase_orders(self):
         self.ensure_one()
-        purchase_orders = self.env["purchase.order"].search(
-            [
-                (
-                    "line_ids.invoice_line_ids.analytic_line_ids."
-                    + self.plan_id._column_name(),
-                    "=",
-                    self.id,
-                ),
-            ]
-        )
         result = {
             "name": _("Purchase Orders"),
             "type": "ir.actions.act_window",
             "res_model": "purchase.order",
-            "domain": [["id", "in", purchase_orders.ids]],
+            "domain": self._get_purchase_order_domain(),
             "view_mode": "list,form",
         }
-        if len(purchase_orders) == 1:
+        if self.purchase_order_count == 1:
+            purchase_order = self.env["purchase.order"].search(
+                self._get_purchase_order_domain(),
+                limit=1,
+            )
             result["view_mode"] = "form"
-            result["res_id"] = purchase_orders.id
+            result["res_id"] = purchase_order.id
         return result

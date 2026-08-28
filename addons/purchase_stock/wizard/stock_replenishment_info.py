@@ -13,7 +13,7 @@ class StockReplenishmentInfo(models.TransientModel):
     )
     show_vendor_tab = fields.Boolean(compute="_compute_show_vendor_tab")
 
-    @api.depends("orderpoint_id")
+    @api.depends("orderpoint_id", "orderpoint_id.product_id.seller_ids")
     def _compute_supplierinfo_ids(self):
         for replenishment_info in self:
             replenishment_info.supplierinfo_ids = (
@@ -24,8 +24,8 @@ class StockReplenishmentInfo(models.TransientModel):
     def _compute_show_vendor_tab(self):
         for replenishment_info in self:
             orderpoint = replenishment_info.orderpoint_id
-            replenishment_info.show_vendor_tab = not orderpoint.route_id or (
-                orderpoint.route_id and "buy" in orderpoint.rule_ids.mapped("action")
+            replenishment_info.show_vendor_tab = (
+                not orderpoint.route_id or orderpoint.rule_ids._has_buy_action()
             )
 
 
