@@ -1,5 +1,4 @@
 import logging
-import sys
 import traceback
 import xmlrpc.client
 from collections import defaultdict
@@ -13,7 +12,7 @@ from odoo.http import Controller, Response, dispatch_rpc, request, route
 from odoo.tools import lazy
 from odoo.tools.misc import ReadonlyDict, frozendict
 
-from . import RPC_DEPRECATION_NOTICE, _check_request
+from .common import detach_database, warn_endpoint_is_deprecated
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,6 @@ logger = logging.getLogger(__name__)
 # constants are also defined client-side and must remain in sync.
 # User code must use the exceptions defined in ``odoo.exceptions`` (not
 # create directly ``xmlrpc.client.Fault`` objects).
-RPC_FAULT_CODE_CLIENT_ERROR = 1  # indistinguishable from app. error.
 RPC_FAULT_CODE_APPLICATION_ERROR = 1
 RPC_FAULT_CODE_WARNING = 2
 RPC_FAULT_CODE_ACCESS_DENIED = 3
@@ -29,6 +27,20 @@ RPC_FAULT_CODE_ACCESS_ERROR = 4
 
 # 0 to 31, excluding tab, newline, and carriage return
 CONTROL_CHARACTERS = dict.fromkeys(set(range(32)) - {9, 10, 13})
+
+
+def _format_traceback(e: BaseException) -> str:
+    """The traceback of *this* exception, rather than of whatever is in flight.
+
+    Both handlers used to read `sys.exc_info()`, which is the exception the
+    *caller's* `except` block is handling. Inside `xmlrpc_1`/`xmlrpc_2` that is
+    the same object, but it makes both functions depend on ambient state
+    instead of their own argument: called anywhere else -- a unit test, a
+    second surface reusing the mapping -- `sys.exc_info()` is `(None, None,
+    None)` and the fault carries the string "NoneType: None" in place of the
+    error.
+    """
+    return "".join(traceback.format_exception(type(e), e, e.__traceback__))
 
 
 def xmlrpc_handle_exception_int(e):
@@ -41,9 +53,9 @@ def xmlrpc_handle_exception_int(e):
     elif isinstance(e, odoo.exceptions.UserError):
         fault = xmlrpc.client.Fault(RPC_FAULT_CODE_WARNING, str(e))
     else:
-        info = sys.exc_info()
-        formatted_info = "".join(traceback.format_exception(*info))
-        fault = xmlrpc.client.Fault(RPC_FAULT_CODE_APPLICATION_ERROR, formatted_info)
+        fault = xmlrpc.client.Fault(
+            RPC_FAULT_CODE_APPLICATION_ERROR, _format_traceback(e)
+        )
 
     return dumps(fault)
 
@@ -61,9 +73,7 @@ def xmlrpc_handle_exception_string(e):
         fault = xmlrpc.client.Fault(f'warning -- UserError\n\n{e}', '')
     # InternalError
     else:
-        info = sys.exc_info()
-        formatted_info = "".join(traceback.format_exception(*info))
-        fault = xmlrpc.client.Fault(str(e), formatted_info)
+        fault = xmlrpc.client.Fault(str(e), _format_traceback(e))
 
     return dumps(fault)
 
@@ -80,9 +90,13 @@ class _MarshallerDispatch(dict):
     """
 
     def __missing__(self, cls):
-        # Not every lookup is by type: the interpreter's own fallback reaches for
-        # the "_arbitrary_instance" key, and issubclass() raises TypeError rather
-        # than returning False when handed a non-class.
+        # `issubclass()` raises TypeError rather than returning False when handed
+        # a non-class, so the key is type-checked before it is asked about. The
+        # only non-type key in play is the interpreter's "_arbitrary_instance"
+        # fallback, and copying `Marshaller.dispatch` brings that key along, so
+        # today it is found and never reaches here -- measured. The guard is for
+        # the day it is not: a TypeError out of a dispatch miss reads as a
+        # marshalling bug, a KeyError reads as the missing handler it is.
         if isinstance(cls, type) and issubclass(cls, ReadonlyDict):
             # dict.__getitem__, not self[...]: were the ReadonlyDict entry below
             # ever dropped, a plain lookup would re-enter this method and recurse
@@ -136,7 +150,13 @@ class OdooMarshaller(xmlrpc.client.Marshaller):
     dispatch[str] = dump_unicode
     dispatch[Command] = dispatch[int]
     dispatch[defaultdict] = dispatch[dict]
-    dispatch[Markup] = lambda self, value, write: self.dispatch[str](self, str(value), write)
+    # `str(value)` is load-bearing, not tidying: `Markup.replace` escapes its
+    # replacement, so xmlrpc.client's own `escape()` turns "&" into "&amp;amp;"
+    # when handed a Markup. Marshalling one as itself double-escapes every
+    # rendered HTML field on the wire.
+    dispatch[Markup] = lambda self, value, write: self.dispatch[str](
+        self, str(value), write
+    )
 
 
 def dumps(params: list | tuple | xmlrpc.client.Fault) -> str:
@@ -170,8 +190,8 @@ class XMLRPC(Controller):
         This entrypoint is historical and non-compliant, but kept for
         backwards-compatibility.
         """
-        logger.warning(RPC_DEPRECATION_NOTICE, __name__)
-        _check_request()
+        warn_endpoint_is_deprecated(logger, __name__)
+        detach_database()
         try:
             response = self._xmlrpc(service)
         except Exception as error:
@@ -185,8 +205,8 @@ class XMLRPC(Controller):
     @route("/xmlrpc/2/<service>", auth="none", methods=["POST"], csrf=False, save_session=False)
     def xmlrpc_2(self, service):
         """XML-RPC service that returns faultCode as int."""
-        logger.warning(RPC_DEPRECATION_NOTICE, __name__)
-        _check_request()
+        warn_endpoint_is_deprecated(logger, __name__)
+        detach_database()
         try:
             response = self._xmlrpc(service)
         except Exception as error:

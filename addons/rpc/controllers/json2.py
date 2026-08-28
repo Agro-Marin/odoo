@@ -1,4 +1,5 @@
 import annotationlib
+import functools
 import inspect
 import logging
 from collections.abc import Mapping, Sequence
@@ -16,6 +17,18 @@ from odoo.service.model import get_public_method
 from odoo.tools import frozendict
 
 _logger = logging.getLogger(__name__)
+
+
+@functools.lru_cache(maxsize=4096)
+def _signature(func):
+    """The signature of a public model method, computed once per registry class.
+
+    `get_public_method` returns the unbound class function, which is stable for
+    the life of a registry, so this caches cleanly. FORWARDREF is not optional:
+    the annotations name types the ORM only imports under TYPE_CHECKING, and
+    plain `inspect.signature` raises trying to evaluate them.
+    """
+    return inspect.signature(func, annotation_format=annotationlib.Format.FORWARDREF)
 
 
 class WebJson2Controller(http.Controller):
@@ -76,11 +89,10 @@ class WebJson2Controller(http.Controller):
             raise UnprocessableEntity(e)
 
         records = Model.browse(ids)
-        signature = inspect.signature(
-            func, annotation_format=annotationlib.Format.FORWARDREF
-        )
+        # Bind before calling so a caller's own argument mistake is a 422 and
+        # not confused with a TypeError raised inside the method itself.
         try:
-            signature.bind(records, **kwargs)
+            _signature(func).bind(records, **kwargs)
         except TypeError as exc:
             raise UnprocessableEntity(exc.args[0]) from exc
 

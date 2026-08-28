@@ -50,6 +50,9 @@ on:
       # The certificate lane below, for the same reason the two above are listed:
       # without it a certificate-only pull request triggers no DB-backed workflow.
       - 'addons/certificate/**'
+      # The rpc lane below. `rpc` lives in odoo/addons, not addons/, so it was
+      # not covered by any entry here either.
+      - 'odoo/addons/rpc/**'
       - 'crates/odoo_rust/**'
       - 'requirements*.txt'
       - '.github/workflows/integration_tests.yml'
@@ -177,6 +180,32 @@ env:
   # TestIrModelFieldsTranslation -- re-include both once the runner has a
   # confirmed headless Chrome, at which point the floor moves to 1345.
   STOCK_TEST_TAGS: /stock,-:TestStockPickingTour,-:TestStockReportTour
+
+  # rpc, added 2026-08-27 -- the module that owns /xmlrpc, /xmlrpc/2, /jsonrpc
+  # and /json/2, i.e. every way into this server that is not the web client.
+  # The word `rpc` appeared in no workflow in this directory: it is in none of
+  # the lanes above, `module_installability.yml` asks only whether the graph
+  # assembles, and `test_http` installs rpc as a dependency but selects
+  # `/test_http`. So its suite ran nowhere.
+  #
+  # What that cost, found in one audit of the module: the argument pre-flights
+  # in `tools/preflight.py` read the sort argument as `kwargs["order"]` alone,
+  # so every POSITIONAL order -- args[3] of `search`, args[4] of `search_read`,
+  # args[6] of `formatted_read_group` -- and `read_group`'s `orderby` in BOTH
+  # forms went unchecked, while the keyword spelling of the same call was
+  # refused. `formatted_read_group`'s `having` and `export_data`'s field list
+  # were read by nothing at all. Each is a check a caller steps around by
+  # moving an argument, and each has a test now -- tests that this lane is what
+  # makes binding.
+  #
+  # Runs WITH the HTTP server, unlike every lane above. rpc's three HttpCase
+  # classes drive real XML-RPC and /json/2 requests through `url_open` and
+  # `ServerProxy`; none of them is a tour and none needs a browser, so there is
+  # nothing here for `--no-http` to protect against and 25 of the 106 tests --
+  # the only end-to-end coverage of the wire format -- are what it would skip.
+  # Verified: the suite passes headless.
+  RPC_INSTALL: rpc
+  RPC_TEST_TAGS: /rpc
 
 jobs:
   base-smoke:
@@ -431,5 +460,43 @@ jobs:
           if [ "$RAN" -lt 1200 ]; then
             echo "::error::only $RAN stock tests ran, below the floor of 1200 —"
             echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run rpc suite
+        # Its own database (ci_rpc), same reasoning as the suites above.
+        # No `--no-http`: see the RPC_* env block for why this lane differs.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_rpc \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${RPC_INSTALL}" \
+            --test-enable --test-tags "${RPC_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/rpc-suite.log
+
+      - name: Assert the rpc suite actually ran
+        # Same guard as the suites above, and it earns its place twice here:
+        # dropping `--no-http` is what makes the three HttpCase classes run, and
+        # a re-added `--no-http` skips 25 tests at setUpClass as successes that
+        # an exit code cannot tell from a clean pass. 106 tests today; the floor
+        # sits above what a --no-http run reports (82), so that regression fails
+        # here rather than passing quietly.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/rpc-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — rpc did not report a count"
+            exit 1
+          fi
+          echo "rpc tests run: $RAN (floor: 90)"
+          if [ "$RAN" -lt 90 ]; then
+            echo "::error::only $RAN rpc tests ran, below the floor of 90 —"
+            echo "::error::something was skipped rather than failed. A run with"
+            echo "::error::--no-http reports 82: the HttpCase classes skipped."
             exit 1
           fi

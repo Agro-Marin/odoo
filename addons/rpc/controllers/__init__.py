@@ -1,21 +1,7 @@
 import odoo.release
 from odoo.http import request, route
 
-from . import json2
-
-RPC_DEPRECATION_NOTICE = """\
-The /xmlrpc, /xmlrpc/2 and /jsonrpc endpoints are deprecated in Odoo 19 \
-and scheduled for removal in Odoo 20. Please report the problem to the \
-client making the request.
-Mute this logger: --log-handler %s:ERROR
-https://www.odoo.com/documentation/latest/developer/reference/external_api.html#migrating-from-xml-rpc-json-rpc"""
-
-
-def _check_request():
-    if request.db:
-        request.detach_database()
-
-
+from . import common, json2
 from .jsonrpc import JSONRPC
 from .xmlrpc import XMLRPC
 
