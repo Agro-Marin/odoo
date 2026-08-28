@@ -36,10 +36,10 @@ class BaseTaxCommon(TransactionCase):
         )
 
     def _base_line(self, taxes, price_unit, quantity=1.0, **kw):
+        kw.setdefault("company_id", self.company)
+        kw.setdefault("currency_id", self.currency)
         return self.env["account.tax"]._prepare_base_line_for_taxes_computation(
             None,
-            company_id=self.company,
-            currency_id=self.currency,
             tax_ids=taxes,
             price_unit=price_unit,
             quantity=quantity,
