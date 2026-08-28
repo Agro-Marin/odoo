@@ -170,6 +170,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
             "qty": line.product_qty,
             "uom": line.product_uom_id,
             "currency": line.currency_id,
+            "company": line.company_id,
             "date": line.date_order and line.date_order.date(),
         }
 
@@ -186,7 +187,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
             price = currency._convert(
                 price,
                 self.currency_id,
-                self.env.company,
+                sample["company"] or self.env.company,
                 sample["date"] or fields.Date.context_today(self),
                 round=False,
             )
