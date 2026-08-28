@@ -83,7 +83,7 @@ class AccountAccount(models.Model):
         ],
         string="Type",
         required=True,
-        compute="_compute_account_type",
+        compute="_compute_account_type_and_tags",
         store=True,
         readonly=False,
         precompute=True,
@@ -144,7 +144,7 @@ class AccountAccount(models.Model):
     tag_ids = fields.Many2many(
         comodel_name="account.account.tag",
         relation="account_account_account_tag",
-        compute="_compute_account_tags",
+        compute="_compute_account_type_and_tags",
         readonly=False,
         store=True,
         precompute=True,
@@ -489,59 +489,63 @@ class AccountAccount(models.Model):
         }
 
     @api.depends("code")
-    def _compute_account_type(self):
+    def _compute_account_type_and_tags(self):
+        """Default ``account_type`` and ``tag_ids`` from the closest parent.
+
+        Computed together, sharing one fetch of the chart of accounts,
+        instead of as two independent computes each re-scanning the whole
+        company on their own.
+        """
         accounts_to_process = self.filtered(
-            lambda account: account.code and not account.account_type,
+            lambda account: (
+                account.code and (not account.account_type or not account.tag_ids)
+            ),
         )
         self._get_closest_parent_account(
             accounts_to_process,
-            "account_type",
-            default_value="asset_current",
+            {"account_type": "asset_current", "tag_ids": []},
         )
 
-    @api.depends("code")
-    def _compute_account_tags(self):
-        accounts_to_process = self.filtered(
-            lambda account: account.code and not account.tag_ids,
-        )
-        self._get_closest_parent_account(
-            accounts_to_process,
-            "tag_ids",
-            default_value=[],
-        )
-
-    def _get_closest_parent_account(
-        self,
-        accounts_to_process,
-        field_name,
-        default_value,
-    ):
+    def _get_closest_parent_account(self, accounts_to_process, field_defaults):
         """Retrieve the closest parent account by code prefix.
 
-        Assigns the value of the parent's *field_name* to each account
-        in *accounts_to_process*.
+        Assigns the value of the parent's field(s), named by the keys of
+        *field_defaults*, to each account in *accounts_to_process* --
+        defaulting to the matching value in *field_defaults* when there is
+        no parent. All requested fields are fetched in a single query, so
+        the chart of accounts is scanned once regardless of how many fields
+        need defaulting.
         """
-        assert field_name in self._fields
+        field_names = list(field_defaults)
+        assert all(field_name in self._fields for field_name in field_names)
 
         all_accounts = self.search_read(
             domain=self._check_company_domain(self.env.company),
-            fields=["code", field_name],
+            fields=["code", *field_names],
             order="code",
         )
-        accounts_with_codes = {}
+        accounts_with_values = {}
         for account in all_accounts:
-            accounts_with_codes[account["code"]] = account[field_name]
+            accounts_with_values[account["code"]] = {
+                field_name: account[field_name] for field_name in field_names
+            }
         # ``all_accounts`` is fetched ordered by ``code``, so the dict keys are
         # already sorted -- build the bisect list once instead of rebuilding it
         # for every account to process.
-        codes_list = list(accounts_with_codes.keys())
+        codes_list = list(accounts_with_values.keys())
         for account in accounts_to_process:
             closest_index = bisect_left(codes_list, account.code) - 1
-            account[field_name] = (
-                accounts_with_codes[codes_list[closest_index]]
+            parent_values = (
+                accounts_with_values[codes_list[closest_index]]
                 if closest_index != -1
-                else default_value
+                else None
             )
+            for field_name, default_value in field_defaults.items():
+                if account[field_name]:
+                    continue
+                account[field_name] = (
+                    parent_values[field_name] if parent_values else default_value
+                )
 
     @api.depends("account_type")
     def _compute_include_initial_balance(self):
