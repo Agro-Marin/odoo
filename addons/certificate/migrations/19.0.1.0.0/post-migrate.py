@@ -20,6 +20,10 @@ _MIGRATIONS = (
 
 
 def _remove_persisted_pem_keys(env):
+    # Only load-bearing for an upgrade from the pre-fork `certificate_encryption`
+    # module (see pre-migrate.py in this same version folder, and commit
+    # f8f278b9c7c that dissolved it into this module): the current `pem_key`
+    # field is store=False, so a fresh install never creates these attachments.
     attachments = env["ir.attachment"].search(
         [("res_model", "=", "certificate.key"), ("res_field", "=", "pem_key")],
     )
