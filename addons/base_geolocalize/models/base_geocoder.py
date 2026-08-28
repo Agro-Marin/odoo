@@ -178,7 +178,12 @@ class BaseGeocoder(models.AbstractModel):
         url = "https://maps.googleapis.com/maps/api/geocode/json"
         params = {"sensor": "false", "address": addr, "key": apikey}
         if kw.get("force_country"):
-            params["components"] = "country:%s" % kw["force_country"]
+            country = self.env["res.country"].search(
+                [("name", "=", kw["force_country"])], limit=1
+            )
+            params["components"] = "country:%s" % (
+                country.code if country else kw["force_country"]
+            )
         import requests
 
         try:
