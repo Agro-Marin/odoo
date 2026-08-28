@@ -430,7 +430,7 @@ class TestProjectSaleExpenseProfitability(
         self.env["sale.order.line"].create(
             {
                 "product_id": product_new_project_task.id,
-                "product_uom_qty": 1,
+                "product_qty": 1,
                 "order_id": sale_order.id,
             }
         )

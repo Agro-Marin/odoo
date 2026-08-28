@@ -2,11 +2,11 @@ from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 
-from odoo.addons.sale_purchase.tests.common import TestCommonSalePurchaseNoChart
+from odoo.addons.sale_purchase.tests.common import TestSalePurchaseCommon
 
 
 @tagged("-at_install", "post_install")
-class TestSalePurchase(TestCommonSalePurchaseNoChart):
+class TestSalePurchase(TestSalePurchaseCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -42,7 +42,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         cls.sol1_service_deliver = cls.env["sale.order.line"].create(
             {
                 "product_id": cls.company_data["product_service_delivery"].id,
-                "product_uom_qty": 1,
+                "product_qty": 1,
                 "order_id": cls.sale_order_1.id,
                 "tax_ids": False,
             }
@@ -50,7 +50,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         cls.sol1_product_order = cls.env["sale.order.line"].create(
             {
                 "product_id": cls.company_data["product_order_no"].id,
-                "product_uom_qty": 2,
+                "product_qty": 2,
                 "order_id": cls.sale_order_1.id,
                 "tax_ids": False,
             }
@@ -58,7 +58,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         cls.sol1_service_purchase_1 = cls.env["sale.order.line"].create(
             {
                 "product_id": cls.service_purchase_1.id,
-                "product_uom_qty": 4,
+                "product_qty": 4,
                 "order_id": cls.sale_order_1.id,
                 "tax_ids": False,
             }
@@ -74,7 +74,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         cls.sol2_product_deliver = cls.env["sale.order.line"].create(
             {
                 "product_id": cls.company_data["product_delivery_no"].id,
-                "product_uom_qty": 5,
+                "product_qty": 5,
                 "order_id": cls.sale_order_2.id,
                 "tax_ids": False,
             }
@@ -82,7 +82,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         cls.sol2_service_order = cls.env["sale.order.line"].create(
             {
                 "product_id": cls.company_data["product_service_order"].id,
-                "product_uom_qty": 6,
+                "product_qty": 6,
                 "order_id": cls.sale_order_2.id,
                 "tax_ids": False,
             }
@@ -90,7 +90,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         cls.sol2_service_purchase_2 = cls.env["sale.order.line"].create(
             {
                 "product_id": cls.service_purchase_2.id,
-                "product_uom_qty": 7,
+                "product_qty": 7,
                 "order_id": cls.sale_order_2.id,
                 "tax_ids": False,
             }
@@ -235,7 +235,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         )
         self.assertEqual(
             purchase_line.product_qty,
-            self.sol2_service_purchase_2.product_uom_qty * 12,
+            self.sol2_service_purchase_2.product_qty * 12,
             "The quantity from the SO should be converted with th UoM factor on the PO line",
         )
 
@@ -292,7 +292,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         )
         self.assertEqual(
             purchase_line.product_qty,
-            self.sol1_service_purchase_1.product_uom_qty,
+            self.sol1_service_purchase_1.product_qty,
             "Quantity on SO line is not the same on the purchase line (same UoM)",
         )
 
@@ -345,7 +345,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         )
         self.assertEqual(
             purchase_line.product_qty,
-            self.sol1_service_purchase_1.product_uom_qty,
+            self.sol1_service_purchase_1.product_qty,
             "Quantity on SO line should still be the same on the purchase line (same UoM)",
         )
 
@@ -393,7 +393,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         )
         self.assertEqual(
             purchase_line.product_qty,
-            self.sol1_service_purchase_1.product_uom_qty,
+            self.sol1_service_purchase_1.product_qty,
             "Quantity on SO line is not the same on the purchase line (same UoM)",
         )
 
@@ -430,26 +430,26 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         )
         self.assertEqual(
             purchase_line.product_qty,
-            self.sol1_service_purchase_1.product_uom_qty,
+            self.sol1_service_purchase_1.product_qty,
             "Quantity on SO line is not the same on the purchase line (same UoM)",
         )
 
         # increase the ordered quantity on sale line
         self.sol1_service_purchase_1.write(
-            {"product_uom_qty": self.sol1_service_purchase_1.product_uom_qty + 12}
-        )  # product_uom_qty = 16
+            {"product_qty": self.sol1_service_purchase_1.product_qty + 12}
+        )  # product_qty = 16
         self.assertEqual(
             purchase_line.product_qty,
-            self.sol1_service_purchase_1.product_uom_qty,
+            self.sol1_service_purchase_1.product_qty,
             "The quantity of draft PO line should be increased as the one from the sale line changed",
         )
 
-        sale_line_old_quantity = self.sol1_service_purchase_1.product_uom_qty
+        sale_line_old_quantity = self.sol1_service_purchase_1.product_qty
 
         # decrease the ordered quantity on sale line
         self.sol1_service_purchase_1.write(
-            {"product_uom_qty": self.sol1_service_purchase_1.product_uom_qty - 3}
-        )  # product_uom_qty = 13
+            {"product_qty": self.sol1_service_purchase_1.product_qty - 3}
+        )  # product_qty = 13
         self.assertEqual(
             len(purchase_order.activity_ids),
             1,
@@ -471,8 +471,8 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
 
         # decrease the ordered quantity on sale line
         self.sol1_service_purchase_1.write(
-            {"product_uom_qty": self.sol1_service_purchase_1.product_uom_qty - 5}
-        )  # product_uom_qty = 8
+            {"product_qty": self.sol1_service_purchase_1.product_qty - 5}
+        )  # product_qty = 8
 
         self.env.invalidate_all()  # Note: creating a second activity will not refresh the cache
 
@@ -500,8 +500,8 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
         # increase the ordered quantity on sale line
         delta = 8
         self.sol1_service_purchase_1.write(
-            {"product_uom_qty": self.sol1_service_purchase_1.product_uom_qty + delta}
-        )  # product_uom_qty = 16
+            {"product_qty": self.sol1_service_purchase_1.product_qty + delta}
+        )  # product_qty = 16
 
         self.assertEqual(
             purchase_line.product_qty,
@@ -587,7 +587,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
                         {
                             "name": service.name,
                             "product_id": service.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         },
                     )
                 ],
@@ -642,7 +642,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
                         {
                             "name": self.service_purchase_1.name,
                             "product_id": self.service_purchase_1.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                             "product_custom_attribute_value_ids": [
                                 Command.create(
                                     {
@@ -695,7 +695,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
                     Command.create(
                         {
                             "product_id": self.service_purchase_1.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     )
                 ],
@@ -715,7 +715,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
                     Command.create(
                         {
                             "product_id": self.service_purchase_1.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     )
                 ],

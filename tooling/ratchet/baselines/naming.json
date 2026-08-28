@@ -1,4 +1,4 @@
 {
-  "count": 112,
-  "note": "crm: the three abolished verbs in the module, and the misnamed public tooltip method. _assign_userless_lead_in_team -> _update_userless_leads_with_team_leader and _assign_and_convert_leads -> _update_members_with_leads (both assign a value and were spelled for the business word, not the operation), _fetch_children_partners_for_hierarchy -> _get_children_partners_for_hierarchy. prepare_pls_tooltip_data is not counted by the gate but was the same mistake in the other direction: a prepare_* that ends in self.write(), so it is update_and_get_pls_tooltip_data. Call sites repointed in crm_livechat and website_crm_partner_assign, and in the JS that RPCs the tooltip. 115 -> 112."
+  "count": 110,
+  "note": "PROVISIONAL -- rebase resolution pending measurement."
 }

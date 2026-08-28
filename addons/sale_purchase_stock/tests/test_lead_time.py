@@ -3,11 +3,11 @@ from datetime import timedelta
 from odoo import Command, fields
 from odoo.tests import tagged
 
-from odoo.addons.sale_purchase.tests.common import TestCommonSalePurchaseNoChart
+from odoo.addons.sale_purchase.tests.common import TestSalePurchaseCommon
 
 
 @tagged("post_install", "-at_install")
-class TestLeadTime(TestCommonSalePurchaseNoChart):
+class TestLeadTime(TestSalePurchaseCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

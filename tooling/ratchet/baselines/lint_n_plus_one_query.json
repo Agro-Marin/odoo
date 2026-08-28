@@ -1,4 +1,4 @@
 {
-  "count": 362,
-  "note": "event: 364 -> 362, both in odoo/addons/event. event.registration._check_seats_availability grouped its records in Python and issued a _read_group per distinct event; one grouped read on (event_id, event_slot_id, event_ticket_id) now covers the batch. res.partner._compute_event_count ran a child_of search_count per record -- 2 queries per partner, 80 for 40 -- and is one grouped read plus one query per level of the contact hierarchy, res.partner not being a _parent_store. Measured with tooling/lint/py_lint.py odoo addons --count at c038f33392e and at its parent."
+  "count": 361,
+  "note": "PROVISIONAL -- rebase resolution pending measurement."
 }

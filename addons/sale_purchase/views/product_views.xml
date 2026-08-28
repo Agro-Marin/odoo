@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="purchase.view_product_supplier_inherit"/>
         <field name="arch" type="xml">
             <xpath expr="//group[@name='bill']" position="before">
-                <group string="Reordering" invisible="type != 'service'">
+                <group string="Subcontracting" invisible="type != 'service' or expense_policy != 'no'">
                     <field name="service_to_purchase"/>
                 </group>
             </xpath>

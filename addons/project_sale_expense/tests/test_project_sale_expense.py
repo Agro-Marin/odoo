@@ -26,7 +26,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
                         {
                             "name": self.product_a.name,
                             "product_id": self.product_a.id,
-                            "product_uom_qty": 2,
+                            "product_qty": 2,
                             "price_unit": self.product_a.list_price,
                         }
                     )
@@ -83,7 +83,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
                     {
                         "name": self.product_c.name,
                         "product_id": self.product_c.id,
-                        "product_uom_qty": 2,
+                        "product_qty": 2,
                         "price_unit": self.product_c.list_price,
                     }
                 )

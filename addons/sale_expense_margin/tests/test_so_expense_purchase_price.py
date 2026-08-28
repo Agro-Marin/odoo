@@ -33,7 +33,7 @@ class TestExpenseMargin(TestExpenseCommon):
                             {
                                 "name": product_with_cost.name,
                                 "product_id": product_with_cost.id,
-                                "product_uom_qty": 2.0,
+                                "product_qty": 2.0,
                             }
                         )
                     ],

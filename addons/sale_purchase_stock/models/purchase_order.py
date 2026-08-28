@@ -8,6 +8,20 @@ class PurchaseOrder(models.Model):
     def _compute_sale_order_count(self):
         super()._compute_sale_order_count()
 
+    @api.depends("line_ids.sale_order_id.partner_shipping_id")
+    def _compute_dest_address_id(self):
+        super()._compute_dest_address_id()
+        for order in self:
+            if not order._should_set_dest_address():
+                continue
+            shipping_addresses = order._get_sale_orders().partner_shipping_id
+            if len(shipping_addresses) == 1:
+                order.dest_address_id = shipping_addresses
+
+    def _should_set_dest_address(self):
+        self.ensure_one()
+        return bool(self.dest_address_id)
+
     def _get_sale_orders(self):
         return super()._get_sale_orders() | self.reference_ids.sale_ids
 

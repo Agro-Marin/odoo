@@ -12,34 +12,45 @@ class ProductTemplate(models.Model):
         help="If ticked, each time you sell this product through a SO, a RfQ is automatically created to buy the product. Tip: don't forget to set a vendor on the product.",
     )
 
-    @api.constrains("service_to_purchase", "seller_ids", "type")
+    @api.constrains("service_to_purchase", "seller_ids", "type", "expense_policy")
     def _check_service_to_purchase(self):
-        for template in self:
-            if template.service_to_purchase:
-                if template.type != "service":
-                    raise ValidationError(
-                        _("Product that is not a service can not create RFQ.")
-                    )
-                template._check_vendor_for_service_to_purchase(template.seller_ids)
+        # `service_to_purchase` is company-dependent while everything it needs --
+        # the vendors, the type, the expense policy -- is shared. Checking only the
+        # current company lets a write made from one company break another's setup,
+        # so every company this user answers for is checked.
+        for company in self.env.user.company_ids or self.env.company:
+            for template in self.with_company(company).filtered("service_to_purchase"):
+                template._check_service_to_purchase_in_company(company)
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            if vals.get("service_to_purchase"):
-                self._check_vendor_for_service_to_purchase(vals.get("seller_ids"))
-        return super().create(vals_list)
-
-    def _check_vendor_for_service_to_purchase(self, sellers):
-        if not sellers:
+    def _check_service_to_purchase_in_company(self, company):
+        self.ensure_one()
+        if self.type != "service":
             raise ValidationError(
                 _(
-                    "Please define the vendor from whom you would like to purchase this service automatically."
+                    "%(product)s is set up as a subcontracted service in %(company)s, which only a service can be.",
+                    product=self.display_name,
+                    company=company.display_name,
+                )
+            )
+        if self.expense_policy != "no":
+            raise ValidationError(
+                _(
+                    "%(product)s is re-invoiced at cost, so it is already bought through the expense and cannot also raise a RfQ in %(company)s.",
+                    product=self.display_name,
+                    company=company.display_name,
+                )
+            )
+        if not self.seller_ids:
+            raise ValidationError(
+                _(
+                    "Please define the vendor from whom you would like to purchase %(product)s automatically for %(company)s.",
+                    product=self.display_name,
+                    company=company.display_name,
                 )
             )
 
     @api.onchange("type", "expense_policy")
     def _onchange_service_to_purchase(self):
-        products_template = self.filtered(
+        self.filtered(
             lambda p: p.type != "service" or p.expense_policy != "no"
-        )
-        products_template.service_to_purchase = False
+        ).service_to_purchase = False

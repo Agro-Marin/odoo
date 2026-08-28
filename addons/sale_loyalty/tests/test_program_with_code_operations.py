@@ -589,13 +589,11 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         order.line_ids = [Command.create({"product_id": self.product_C.id})]
         order.action_confirm()
 
-        order.line_ids.product_updatable = True  # in case `sale_project` is installed
         order._apply_program_reward(discount10, coupon)
         reward_line = order.line_ids.filtered("is_reward_line")
         self.assertEqual(order.amount_total, 90, "10% discount should be applied")
         self.assertEqual(coupon.points, 9, "10% discount reward should use 1 point")
 
-        order.line_ids.product_updatable = True  # in case `sale_project` is installed
         order._apply_program_reward(discount50, coupon)
         self.assertIn(reward_line, order.line_ids, "Reward line should be re-used")
         self.assertEqual(order.amount_total, 50, "50% discount should be applied")

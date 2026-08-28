@@ -14,6 +14,7 @@ from . import (
     _checker_orm_import,
     _checker_shadowed_def,
     _checker_sql,
+    _checker_tax_company,
     _checker_unlink,
     _pretty_xml,
     _py_scan,
@@ -1459,6 +1460,70 @@ class TestSuppressionSpans(BaseCase):
             """)
         self.assertEqual(self._spans(source).get(1, 1), 1)
         self.assertFalse(self._suppresses(source, 1, "sql-injection"))
+
+
+@no_retry
+class TestTaxCompanySingularLint(BaseCase):
+    """`account.tax` has `company_ids`; the singular name raises at runtime."""
+
+    def _check(self, snippet):
+        return [
+            v.lineno
+            for v in _checker_tax_company.check(ast.parse(dedent(snippet).strip()))
+        ]
+
+    def test_filtered_over_a_tax_field_is_flagged(self):
+        self.assertEqual(
+            self._check("""
+        taxes = product.taxes_id.filtered(lambda t: t.company_id == company)
+        """),
+            [1],
+        )
+
+    def test_a_compound_lambda_is_flagged(self):
+        self.assertEqual(
+            self._check("""
+        taxes = product.supplier_taxes_id.filtered(
+            lambda t: t.active and t.company_id in company.parent_ids
+        )
+        """),
+            [2],
+        )
+
+    def test_the_many2many_spelling_is_clean(self):
+        self.assertFalse(
+            self._check("""
+        taxes = line.tax_ids.filtered(lambda t: company in t.company_ids)
+        """)
+        )
+
+    def test_filtered_domain_is_clean(self):
+        self.assertFalse(
+            self._check("""
+        taxes = product.taxes_id.filtered_domain(domain)
+        """)
+        )
+
+    def test_company_id_on_a_non_tax_field_is_clean(self):
+        self.assertFalse(
+            self._check("""
+        lines = order.line_ids.filtered(lambda l: l.company_id == company)
+        """)
+        )
+
+    def test_a_shadowing_outer_name_is_not_the_lambda_parameter(self):
+        self.assertFalse(
+            self._check("""
+        taxes = product.taxes_id.filtered(lambda t: other.company_id == company)
+        """)
+        )
+
+    def test_the_message_names_the_replacement(self):
+        [violation] = _checker_tax_company.check(
+            ast.parse("x = p.taxes_id.filtered(lambda t: t.company_id == c)")
+        )
+        self.assertIn("company_ids", violation.message)
+        self.assertIn("_check_company_domain", violation.message)
 
 
 @no_retry

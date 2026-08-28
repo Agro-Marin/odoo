@@ -552,6 +552,44 @@ class TestDropship(common.TransactionCase):
             self.env.ref("stock.stock_location_customers"),
         )
 
+    def test_cancelled_sale_warns_the_buyer_of_the_dropship_rfq(self):
+        """A dropship RfQ exists only to serve its sale order, and cancelling that
+        order leaves it standing: without a warning the vendor ships to a customer
+        who cancelled. `sale_purchase` schedules the warning from the sale line link,
+        which the procurement engine sets on dropshipped lines."""
+        product = self.env["product.product"].create(
+            {
+                "name": "Dropshipped widget",
+                "type": "consu",
+                "is_storable": True,
+                "purchase_ok": True,
+                "route_ids": [
+                    Command.set(
+                        self.env.ref("stock_dropshipping.route_drop_shipping").ids
+                    )
+                ],
+                "seller_ids": [
+                    Command.create({"partner_id": self.supplier.id, "price": 3.0})
+                ],
+            }
+        )
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.customer.id,
+                "line_ids": [
+                    Command.create({"product_id": product.id, "product_qty": 5})
+                ],
+            }
+        )
+        sale_order.action_confirm()
+        purchase_order = sale_order.line_ids.purchase_line_ids.order_id
+        self.assertTrue(purchase_order, "the dropship RfQ links back to the sale line")
+        self.assertFalse(purchase_order.activity_ids)
+
+        sale_order._action_cancel()
+
+        self.assertEqual(len(purchase_order.activity_ids), 1)
+
     def test_non_dropship_mtso_unaffected_by_dropship_logic(self):
         """
         When using MTSO routes, ensure that purchases are only created for the

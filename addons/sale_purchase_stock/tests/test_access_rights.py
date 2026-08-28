@@ -2,11 +2,11 @@ from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import tagged
 
-from odoo.addons.sale_purchase.tests.common import TestCommonSalePurchaseNoChart
+from odoo.addons.sale_purchase.tests.common import TestSalePurchaseCommon
 
 
 @tagged("post_install", "-at_install")
-class TestAccessRights(TestCommonSalePurchaseNoChart):
+class TestAccessRights(TestSalePurchaseCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

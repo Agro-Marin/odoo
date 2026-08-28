@@ -23,6 +23,7 @@ from . import (
     _checker_orm_import,
     _checker_shadowed_def,
     _checker_sql,
+    _checker_tax_company,
     _checker_unlink,
 )
 
@@ -197,6 +198,12 @@ RULES: tuple[Rule, ...] = (
         "hoist the query out of the loop and index the result in memory",
     ),
     Rule(
+        "tax-company-singular",
+        "E8514",
+        "account.tax has company_ids, not company_id: use "
+        "`filtered_domain(env['account.tax']._check_company_domain(company))`",
+    ),
+    Rule(
         "orm-import",
         "E8508",
         "reach the ORM through odoo.api / odoo.fields / odoo.models",
@@ -300,6 +307,10 @@ def _shadowed_def(unit: Unit) -> Iterable[object]:
     return _checker_shadowed_def.check(unit.tree, unit.nodes)
 
 
+def _tax_company(unit: Unit) -> Iterable[object]:
+    return _checker_tax_company.check(unit.tree, unit.nodes)
+
+
 def _anywhere(unit: Unit) -> bool:
     return True
 
@@ -355,6 +366,7 @@ CHECKERS: tuple[Checker, ...] = (
     Checker(_onchange, _in_an_addon, frozenset({"onchange-domain"})),
     Checker(_config_patch, _anywhere, frozenset({"config-chainmap-patch"})),
     Checker(_shadowed_def, _anywhere, frozenset({"shadowed-definition"})),
+    Checker(_tax_company, _anywhere, frozenset({"tax-company-singular"})),
 )
 
 #: Rules produced by something other than a `Checker` over a single `Unit`:

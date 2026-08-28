@@ -3,7 +3,7 @@ from odoo import Command
 from odoo.addons.sale.tests.common import TestSaleCommon
 
 
-class TestCommonSalePurchaseNoChart(TestSaleCommon):
+class TestSalePurchaseCommon(TestSaleCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

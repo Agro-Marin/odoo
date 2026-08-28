@@ -1,5 +1,7 @@
 from odoo import _, api, fields, models
 
+from .exception_activity import group_by_order, notify_orders_of_exception
+
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
@@ -17,8 +19,7 @@ class SaleOrder(models.Model):
 
     def _action_confirm(self):
         result = super()._action_confirm()
-        for order in self:
-            order.line_ids.sudo()._purchase_service_generation()
+        self.line_ids.sudo()._purchase_service_generation()
         return result
 
     def _action_cancel(self):
@@ -31,27 +32,13 @@ class SaleOrder(models.Model):
 
     def action_view_purchase_orders(self):
         self.ensure_one()
-        purchase_order_ids = self._get_purchase_orders().ids
-        action = {
-            "res_model": "purchase.order",
-            "type": "ir.actions.act_window",
-        }
-        if len(purchase_order_ids) == 1:
-            action.update(
-                {
-                    "view_mode": "form",
-                    "res_id": purchase_order_ids[0],
-                }
-            )
-        else:
-            action.update(
-                {
-                    "name": _("Purchase Order generated from %s", self.name),
-                    "domain": [("id", "in", purchase_order_ids)],
-                    "view_mode": "list,form",
-                }
-            )
-        return action
+        purchase_orders = self._get_purchase_orders()
+        title = (
+            {"name": _("Purchase Order generated from %s", self.name)}
+            if len(purchase_orders) > 1
+            else {}
+        )
+        return purchase_orders._get_records_action(**title)
 
     def _get_purchase_orders(self):
         return self.line_ids.purchase_line_ids.order_id
@@ -60,28 +47,14 @@ class SaleOrder(models.Model):
         """If some SO are cancelled, we need to put an activity on their generated purchase. If sale lines of
         different sale orders impact different purchase, we only want one activity to be attached.
         """
-        purchase_to_notify_map = {}  # map PO -> recordset of SOL as {purchase.order: set(sale.order.line)}
-
-        purchase_order_lines = self.env["purchase.order.line"].search(
-            [
-                ("sale_line_id", "in", self.mapped("line_ids").ids),
-                ("state", "!=", "cancel"),
-                ("product_id.service_to_purchase", "=", True),
-            ]
+        purchase_lines = self.line_ids.purchase_line_ids.filtered(
+            lambda pol: pol.state != "cancel"
         )
-        for purchase_line in purchase_order_lines:
-            purchase_to_notify_map.setdefault(
-                purchase_line.order_id, self.env["sale.order.line"]
-            )
-            purchase_to_notify_map[purchase_line.order_id] |= purchase_line.sale_line_id
-
-        for purchase_order, sale_order_lines in purchase_to_notify_map.items():
-            purchase_order._activity_schedule_with_view(
-                "mail.mail_activity_data_warning",
-                user_id=purchase_order.user_id.id or self.env.uid,
-                views_or_xmlid="sale_purchase.exception_purchase_on_sale_cancellation",
-                render_context={
-                    "sale_orders": sale_order_lines.mapped("order_id"),
-                    "sale_order_lines": sale_order_lines,
-                },
-            )
+        notify_orders_of_exception(
+            group_by_order(purchase_lines, lambda pol: pol.order_id),
+            "sale_purchase.exception_purchase_on_sale_cancellation",
+            lambda lines: {
+                "sale_orders": lines.sale_line_id.order_id,
+                "sale_order_lines": lines.sale_line_id,
+            },
+        )

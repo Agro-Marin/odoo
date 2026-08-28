@@ -1,11 +1,11 @@
 from odoo.exceptions import AccessError
 from odoo.tests import tagged
 
-from odoo.addons.sale_purchase.tests.common import TestCommonSalePurchaseNoChart
+from odoo.addons.sale_purchase.tests.common import TestSalePurchaseCommon
 
 
 @tagged("-at_install", "post_install")
-class TestAccessRights(TestCommonSalePurchaseNoChart):
+class TestAccessRights(TestSalePurchaseCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -52,7 +52,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
             .create(
                 {
                     "product_id": self.service_purchase_1.id,
-                    "product_uom_qty": 4,
+                    "product_qty": 4,
                     "order_id": sale_order.id,
                     "tax_ids": False,
                 }

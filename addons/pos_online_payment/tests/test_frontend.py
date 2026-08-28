@@ -249,7 +249,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
     # Code from addons/point_of_sale/tests/test_point_of_sale_flow.py
     def compute_tax(self, product, price, qty=1, taxes=None):
         if not taxes:
-            taxes = product.taxes_id.filtered(lambda t: t.company_id.id == self.env.company.id)
+            taxes = product.taxes_id.filtered_domain(self.env['account.tax']._check_company_domain(self.env.company))
         currency = self.pos_config.currency_id
         res = taxes.compute_all(price, currency, qty, product=product)
         untax = res['total_excluded']

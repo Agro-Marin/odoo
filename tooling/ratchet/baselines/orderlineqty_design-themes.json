@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "First baseline for this scope. `architecture.yml` in the community fork invokes order_line_qty.py without `--roots`, so it measures `odoo/` and `addons/` and this repository was checked by nothing -- a regression here was caught by nothing and a fix here credited by nothing. Measured 0 with `order_line_qty.py --roots design-themes --count` on 2026-08-28. A floor of 0 is a contract, not debt: this repository writes the derived field nowhere."
+}

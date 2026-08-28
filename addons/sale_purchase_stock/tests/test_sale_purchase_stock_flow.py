@@ -227,7 +227,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
                         {
                             "name": self.mto_product.name,
                             "product_id": self.mto_product.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     ),
                 ],
@@ -277,7 +277,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
                         {
                             "name": product_1.name,
                             "product_id": product_1.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                             "price_unit": 10,
                         }
                     ),
@@ -285,7 +285,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
                         {
                             "name": product_2.name,
                             "product_id": product_2.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                             "price_unit": 20,
                         }
                     ),

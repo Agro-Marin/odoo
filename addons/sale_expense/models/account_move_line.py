@@ -32,10 +32,10 @@ class AccountMoveLine(models.Model):
         mapping_from_invoice.update(self._get_so_mapping_from_expense())
         return mapping_from_invoice
 
-    def _sale_prepare_sale_line_values(self, order, price):
+    def _sale_prepare_sale_line_values(self, order, price, sequence=None):
         # EXTENDS sale
         # Add expense quantity to sales order line and update the sales order price because it will be charged to the customer in the end.
-        res = super()._sale_prepare_sale_line_values(order, price)
+        res = super()._sale_prepare_sale_line_values(order, price, sequence)
         if self.expense_id:
             res.update(
                 {

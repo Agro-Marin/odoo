@@ -30,6 +30,14 @@ class SaleOrderLine(models.Model):
         rewards = self.filtered("reward_id")
         return super(SaleOrderLine, self - rewards)._compute_price_and_discount()
 
+    @api.depends("is_reward_line")
+    def _compute_product_readonly(self):
+        """A reward line's product belongs to the promotion engine, which rewrites
+        it in place when the reward changes. Nothing a user did makes it readonly,
+        and `sale_project` marking service products so would strand the line."""
+        super()._compute_product_readonly()
+        self.filtered("is_reward_line").product_readonly = False
+
     @api.depends("reward_id")
     def _compute_is_reward_line(self):
         for line in self:
@@ -50,8 +58,8 @@ class SaleOrderLine(models.Model):
                 )
             )
             # If company_id is set, always filter taxes by the company
-            taxes = line.tax_ids.filtered(
-                lambda r: not line.company_id or r.company_id == line.company_id
+            taxes = line.tax_ids.filtered_domain(
+                self.env["account.tax"]._check_company_domain(line.company_id)
             )
             line.tax_ids = fpos.map_tax(taxes)
 
