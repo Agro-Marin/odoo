@@ -35,7 +35,7 @@ function createProvisionalStore(env) {
  * @param {Record} record
  * @param {typeof Record} Model
  * @param {string} name
- * @param {Record} recordFullProxy
+ * @param {Record} receiver
  */
 function recordProxyGet(record, Model, name, receiver) {
     // `receiver`, not the downgraded proxy: the trap this came from read

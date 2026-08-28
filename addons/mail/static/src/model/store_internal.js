@@ -34,10 +34,6 @@ export class StoreInternal extends RecordInternal {
     UPDATE = 0;
 
     /**
-     * @param {"delete"|"compute"|"sort"|"onAdd"|"onDelete"|"onUpdate"|"hard_delete"} type
-     * @param {...any} params
-     */
-    /**
      * @param {Map} queue
      * @param {import("./record").Record} record
      * @param {string} fieldName
