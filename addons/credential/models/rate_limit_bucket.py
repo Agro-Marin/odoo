@@ -1,11 +1,9 @@
-import hashlib
 import logging
 from datetime import timedelta
 from typing import Any
 
-from psycopg import errors as psycopg_errors
-
 from odoo import api, fields, models
+from odoo.db import insert_or_existing
 
 _logger = logging.getLogger(__name__)
 
@@ -118,6 +116,55 @@ class RateLimitBucket(models.Model):
         return bucket.consume_token(strict=strict)
 
     @api.model
+    def consume_for_key(
+        self,
+        bucket_key: str,
+        *,
+        subject_model: str,
+        subject_id: int = 0,
+        capacity: float,
+        refill_rate: float | None = None,
+        window_seconds: int = 60,
+        strict: bool = False,
+        company_id: int | None = None,
+    ) -> bool:
+        """Consume a token for a subject that is not an endpoint record.
+
+        ``consume_for`` needs something with ``_name``, ``id`` and
+        ``rate_limit_requests``, which is right when the thing being limited is
+        a configured endpoint. It is not the only thing worth limiting: a user
+        id, a peer address and a chat are all rate-limit subjects that no record
+        represents, and both callers that had one built a ``SimpleNamespace``
+        carrying exactly those three attributes to get past the signature. Two
+        independent fakes of one record is the signature asking for this method.
+
+        ``subject_model``/``subject_id`` are what lands in the row's
+        ``endpoint_model``/``endpoint_id`` columns, which are required and are
+        how ``cron_gc_old_buckets`` and the views group buckets. Name a subject
+        namespace there (``mcp_server.ip``), not a model that must resolve --
+        nothing browses it, because ``capacity`` and ``refill_rate`` are passed
+        explicitly and so ``_get_endpoint_config`` never runs.
+
+        :param bucket_key: the bucket's identity, unique across all subjects
+        :param capacity: bucket size, in tokens
+        :param refill_rate: tokens per second; defaults to filling ``capacity``
+            once per ``window_seconds``
+        :param strict: refuse rather than allow when the bucket cannot be read
+        """
+        if refill_rate is None:
+            refill_rate = capacity / window_seconds if window_seconds else 0.0
+        bucket = self.sudo()._get_or_create_by_key(
+            bucket_key,
+            subject_model=subject_model,
+            subject_id=subject_id,
+            company_id=company_id,
+            capacity=capacity,
+        )
+        return bucket.consume_token(
+            strict=strict, capacity=capacity, refill_rate=refill_rate
+        )
+
+    @api.model
     def get_or_create_bucket(
         self,
         endpoint_record: Any,
@@ -128,43 +175,62 @@ class RateLimitBucket(models.Model):
         bucket_key = (
             bucket_key or f"{endpoint_record._name}:{endpoint_record.id}:{company_part}"
         )
+        max_requests = getattr(endpoint_record, "rate_limit_requests", None)
+        return self._get_or_create_by_key(
+            bucket_key,
+            subject_model=endpoint_record._name,
+            subject_id=endpoint_record.id,
+            company_id=company_id,
+            capacity=100 if max_requests is None else max_requests,
+        )
 
+    @api.model
+    def _get_or_create_by_key(
+        self,
+        bucket_key: str,
+        *,
+        subject_model: str,
+        subject_id: int,
+        company_id: int | None,
+        capacity: float,
+    ) -> Any:
+        """The one creation path, racing safely against a concurrent caller.
+
+        Through ``odoo.db.insert_or_existing``, which is the framework's own
+        spelling of this: insert inside a *flushing* savepoint, and on
+        ``UniqueViolation`` return the row the winner created. The hand-rolled
+        version here opened a bare ``SAVEPOINT`` and let the ORM defer the
+        INSERT, so the violation escaped the guard and surfaced somewhere else
+        entirely -- and its recovery ran ``search()`` after a rollback the ORM
+        cache knew nothing about. A flushing savepoint restores that cache; a
+        bare one cannot.
+        """
         bucket = self.search([("bucket_key", "=", bucket_key)], limit=1)
         if bucket:
             return bucket
 
-        max_requests = getattr(endpoint_record, "rate_limit_requests", None)
-        if max_requests is None:
-            max_requests = 100
-
-        savepoint = (
-            f"bucket_create_{hashlib.sha256(bucket_key.encode()).hexdigest()[:16]}"
-        )
-        self.env.cr.execute(f'SAVEPOINT "{savepoint}"')
-        try:
-            bucket = self.create(
+        bucket, created = insert_or_existing(
+            self.env.cr,
+            lambda: self.create(
                 {
                     "bucket_key": bucket_key,
-                    "endpoint_model": endpoint_record._name,
-                    "endpoint_id": endpoint_record.id,
+                    "endpoint_model": subject_model,
+                    "endpoint_id": subject_id,
                     "company_id": company_id,
-                    "tokens": max_requests,
+                    "tokens": capacity,
                     "last_refill": fields.Datetime.now(),
                 },
-            )
-            self.env.cr.execute(f'RELEASE SAVEPOINT "{savepoint}"')
+            ),
+            lambda: self.search([("bucket_key", "=", bucket_key)], limit=1),
+            conflict=f"rate limit bucket {bucket_key!r}",
+        )
+        if created:
             _logger.info(
                 "Created rate limit bucket: %s (capacity: %d)",
                 bucket_key,
-                max_requests,
+                capacity,
             )
-            return bucket
-        except psycopg_errors.UniqueViolation:
-            self.env.cr.execute(f'ROLLBACK TO SAVEPOINT "{savepoint}"')
-            bucket = self.search([("bucket_key", "=", bucket_key)], limit=1)
-            if not bucket:
-                raise
-            return bucket
+        return bucket
 
     STRICT_LOCK_TIMEOUT_MS = 3000
 

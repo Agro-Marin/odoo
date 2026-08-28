@@ -8,6 +8,7 @@ from . import test_rate_limit_bucket
 from . import test_credential_category_display
 from . import test_authentication_tools
 from . import test_rate_limit_bucket_get_or_create
+from . import test_rate_limit_bucket_keyed
 from . import test_session_cache_helpers
 from . import test_access_log_immutability
 from . import test_security_topology

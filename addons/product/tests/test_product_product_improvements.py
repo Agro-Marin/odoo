@@ -42,8 +42,16 @@ class TestProductProductImprovements(ProductCommon):
             "sanity: the generic name_search answers a zero limit the same way",
         )
 
-    def test_name_search_limit_zero_reaches_every_branch(self):
-        """limit=0 is normalised once, so no branch of the method sees LIMIT 0."""
+    def test_name_search_unlimited_reaches_every_branch(self):
+        """Every branch is reachable, not just the first one that matches.
+
+        This used to pass `limit=0` and call it "unlimited", because the method
+        normalised a zero limit away. It no longer does: `limit=0` asks for no
+        rows here exactly as it does on `product.template`, `product.category`
+        and `_search`. `None` is the sentinel for unlimited, so that is what the
+        branch coverage is expressed with, and a zero limit is asserted to
+        return nothing from each branch instead.
+        """
         template = self.env["product.template"].create(
             {
                 "name": "EveryBranchProbe",
@@ -74,7 +82,7 @@ class TestProductProductImprovements(ProductCommon):
                     Product.name_search(name=term, operator="ilike", limit=100)
                 )
                 unlimited = dict(
-                    Product.name_search(name=term, operator="ilike", limit=0)
+                    Product.name_search(name=term, operator="ilike", limit=None)
                 )
                 self.assertIn(
                     product.id, bounded, f"sanity: {branch} works when bounded"
@@ -82,7 +90,12 @@ class TestProductProductImprovements(ProductCommon):
                 self.assertIn(
                     product.id,
                     unlimited,
-                    f"{branch} must survive limit=0, which means unlimited here",
+                    f"{branch} must be reachable with no limit",
+                )
+                self.assertEqual(
+                    Product.name_search(name=term, operator="ilike", limit=0),
+                    [],
+                    f"a zero limit asks {branch} for no rows",
                 )
 
     def test_name_search_limit_positive_still_bounded(self):

@@ -1,3 +1,4 @@
+import operator as py_operator
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
@@ -5,6 +6,17 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.fields import Domain
 from odoo.libs.numbers import float_round
+
+# `suggested_qty` is compared in Python by its search method; membership
+# operators have no meaning against a scalar quantity and are declined.
+_SUGGESTED_QTY_OPERATORS = {
+    "=": py_operator.eq,
+    "!=": py_operator.ne,
+    "<": py_operator.lt,
+    "<=": py_operator.le,
+    ">": py_operator.gt,
+    ">=": py_operator.ge,
+}
 
 
 class ProductProduct(models.Model):
@@ -154,17 +166,37 @@ class ProductProduct(models.Model):
     # ------------------------------------------------------------
 
     def _search_product_with_suggested_quantity(self, operator, value):
-        if operator in ["in", "not in"]:
+        if operator not in _SUGGESTED_QTY_OPERATORS:
             return NotImplemented
 
-        search_domain = self.env.context.get("suggest_domain") or [
-            ("type", "=", "consu"),
-        ]
-        safe_search_domain = [
-            c if c[0] != "suggested_qty" else [1, "=", 1] for c in search_domain
-        ]
+        search_domain = Domain(
+            self.env.context.get("suggest_domain") or [("type", "=", "consu")]
+        )
+
+        # The search below re-enters _search, so any `suggested_qty` condition
+        # left in the domain would resolve through this very method again. It
+        # has to be neutralised wherever it sits, not only where a flat scan can
+        # reach: a list comprehension over the domain's elements inspects
+        # `c[0]`, which is an operator string for '&'/'|' and never a field
+        # name, so a nested condition slipped through and recursed until the
+        # optimiser gave up with "Domain nesting too deep to optimize".
+        def drop_self_reference(condition):
+            if condition.field_expr == "suggested_qty":
+                return Domain.TRUE
+            return condition
+
+        safe_search_domain = search_domain.map_conditions(drop_self_reference)
         products = self.search_fetch(safe_search_domain, ["suggested_qty"])
-        ids = products.filtered_domain([("suggested_qty", operator, value)]).ids
+
+        # Compare the computed values here rather than through filtered_domain.
+        # `suggested_qty` is not stored and carries a `search=`, so a domain
+        # naming it resolves through THIS method -- filtered_domain would call
+        # its own caller, and the optimiser eventually gives up with "Domain
+        # nesting too deep to optimize".
+        compare = _SUGGESTED_QTY_OPERATORS[operator]
+        ids = [
+            product.id for product in products if compare(product.suggested_qty, value)
+        ]
         return [("id", "in", ids)]
 
     # ------------------------------------------------------------
