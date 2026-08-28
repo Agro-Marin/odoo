@@ -72,10 +72,10 @@ class SaleOrderLine(models.Model):
 
     @api.depends("purchase_line_count")
     def _compute_product_readonly(self):
-        """Extend product_readonly for dropshipped products.
+        """Extend product_readonly for lines with purchase order lines.
 
-        In addition to base conditions, dropshipped products become readonly
-        if there are associated purchase order lines.
+        For users in the purchase group, a line becomes readonly once it has
+        associated purchase order lines (e.g. dropshipped products).
         """
         super()._compute_product_readonly()
         if self.env.user.has_group("purchase.group_purchase_user"):
