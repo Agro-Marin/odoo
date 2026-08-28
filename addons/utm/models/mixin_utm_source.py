@@ -2,9 +2,7 @@ from odoo import _, api, fields, models
 
 
 class MixinUtmSource(models.AbstractModel):
-    """Mixin responsible of generating the name of the source based on the content
-    (field defined by _rec_name) of the record (mailing, social post,...).
-    """
+    """Mixin generating a source's name from its `_rec_name` content."""
 
     _name = "mixin.utm.source"
     _description = "UTM Source Mixin"
