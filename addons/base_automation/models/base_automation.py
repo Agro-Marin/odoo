@@ -180,6 +180,8 @@ def get_webhook_request_payload():
 
 
 class BaseAutomation(models.Model):
+    """Rule that triggers server actions on a model event, a schedule, or a webhook."""
+
     _name = "base.automation"
     _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.inbound.gate"]
     _description = "Automation Rule"
@@ -1433,7 +1435,7 @@ class BaseAutomation(models.Model):
 
     def _get_eval_context(self, payload=None):
         """Prepare the context used when evaluating python code
-        :returns: dict -- evaluation context given to safe_eval
+        :return: dict -- evaluation context given to safe_eval
         """
         self.ensure_one()
         model = self.env[self.model_name]
@@ -2164,7 +2166,7 @@ class BaseAutomation(models.Model):
     # DEPRECATED METHODS
     # ------------------------------------------------------------
 
-    @api.deprecated("Since 19.0, use _cron_process_time_based_automations")
+    @api.deprecated("Since 19.0, use _cron_process_time_based_actions")
     def _check(self, automatic=False, use_new_cursor=False):
         if not automatic:
             raise RuntimeError("can run time-based automations only in automatic mode")
