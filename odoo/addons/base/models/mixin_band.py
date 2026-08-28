@@ -27,6 +27,15 @@ class MixinBand(models.AbstractModel):
         "the next band. 0 means no upper limit, which the highest band of a "
         "scale should use so nothing falls off the top.",
     )
+    # _check_band skips the overlap check on an inactive band, so this mixin
+    # needs its own active field rather than assuming a consumer supplies
+    # one: unlike mixin.attribute/mixin.attribute.value, this mixin does not
+    # inherit mixin.catalog. A consumer that provides no active field of its
+    # own (directly or through another parent) would otherwise crash with an
+    # AttributeError the moment min_value/max_value is written.
+    active = fields.Boolean(
+        default=True,
+    )
 
     def _is_band(self):
         """Whether this record takes part in a scale.
