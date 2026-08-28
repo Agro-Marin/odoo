@@ -291,7 +291,7 @@ class Headers(Proxy):
     add = ProxyFunc(None)
     add_header = ProxyFunc(None)
     clear = ProxyFunc(None)
-    copy = ProxyFunc(lambda v: Headers(v))  # noqa: PLW0108  see comment above
+    copy = ProxyFunc(lambda v: Headers(v))  # noqa: PLW0108  self-reference: Headers isn't defined yet when the class body evaluates this lambda, so PLW0108's "redundant lambda" check doesn't apply
     extend = ProxyFunc(None)
     get = ProxyFunc()
     get_all = ProxyFunc()

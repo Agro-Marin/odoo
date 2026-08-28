@@ -67,7 +67,7 @@ def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
         annotation = param.annotation
         if isinstance(annotation, str):
             try:
-                annotation = eval(annotation, getattr(endpoint, "__globals__", None))  # noqa: S307  see comment above
+                annotation = eval(annotation, getattr(endpoint, "__globals__", None))  # noqa: S307  resolves a stringified forward-ref annotation against the endpoint's own module globals; only ever fed types the addon author wrote on their own route signature, never request-supplied data
             except Exception:
                 _logger.debug(
                     "%s: cannot resolve annotation %r for %r; parameter left uncoerced",
