@@ -55,10 +55,34 @@ use pyo3::types::{
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Compare two Python objects using `<` / `>` (Python's `__lt__`/`__gt__`).
+/// Compare two Python objects the way `list.sort` does: with `<`, and nothing
+/// else.
 ///
-/// Equivalent to Python's `Py_LT` / `Py_GT` rich comparison.  Returns
-/// `Ordering::Equal` and sets `*sort_err` on any comparison error.
+/// `Ordering::Greater` is decided by asking `b < a` rather than `a > b`.
+/// CPython's sort never invokes `__gt__` — a key type only has to implement
+/// `__lt__` to be sortable — so probing it reads a second protocol the
+/// reference implementation never touches. Measured consequences of the `a > b`
+/// probe this replaced, both against the pure-Python path:
+///
+/// - a key type that implements `__lt__` and whose `__gt__` *raises* sorted
+///   fine in CPython and failed here;
+/// - a key type whose `__gt__` contradicts its `__lt__` diverged on 2494 of
+///   6000 randomized sorts (only with `reverse=True`, where a comparator that
+///   can never say `Greater` becomes one that can never say `Less`).
+///
+/// Neither is reachable from a well-behaved key, and every value that gets
+/// this far has already failed to be representable natively, so this is the
+/// contract being honest rather than a bug being fixed. What it is NOT is a
+/// re-ordering risk for ordinary types: a stable sort only ever acts on
+/// `Less`, which both spellings compute with the same `__lt__` call.
+///
+/// `Ordering::Equal` for "neither is less" is required as well as correct:
+/// `sort_by` needs a real total order, and reporting a tie as `Greater` would
+/// break stability. It does cost a second `__lt__` call where CPython makes
+/// one; a comparator that returned only `Less`/`Greater` would match CPython's
+/// call count but hand `sort_by` an order it documents as unspecified.
+///
+/// Returns `Ordering::Equal` and sets `*sort_err` on any comparison error.
 ///
 /// SAFETY: `va` and `vb` must be valid, non-null Python object pointers.
 #[inline]
@@ -77,7 +101,7 @@ unsafe fn compare_py(
         if lt != 0 {
             return std::cmp::Ordering::Less;
         }
-        let gt = ffi::PyObject_RichCompareBool(va, vb, ffi::Py_GT);
+        let gt = ffi::PyObject_RichCompareBool(vb, va, ffi::Py_LT);
         if gt < 0 {
             *sort_err = Some(PyErr::fetch(py));
             return std::cmp::Ordering::Equal;
@@ -129,6 +153,25 @@ pub fn sort_ids_by_values<'py>(
     reverse: bool,
     null_high: Option<bool>,
 ) -> PyResult<Py<PyTuple>> {
+    // Bounds contract, matching `batch_group_ids` and `batch_cache_fill`.
+    // Without it the two lengths disagreed silently in one direction and
+    // obscurely in the other: a longer `values` dropped its tail, and a
+    // shorter one surfaced as `IndexError: list index out of range` from
+    // `get_item` — while the pure-Python reference zipped non-strictly and
+    // returned a tuple with fewer ids than it was given, which a caller would
+    // read as records vanishing from a `sorted()`. Checked ahead of the n<=1
+    // shortcut so a one-record sort is held to the same contract.
+    //
+    // Nothing in the ORM passes a mismatched pair — `sorted()` reaches
+    // `sort_ids_by_cache`, which reads its values out of the cache keyed by
+    // the very ids it is sorting. This is a contract the two implementations
+    // now state identically instead of two different accidents.
+    if values.len() != ids.len() {
+        return Err(PyValueError::new_err(
+            "sort_ids_by_values: `values` must have the same length as `ids`",
+        ));
+    }
+
     let n = ids.len();
     if n <= 1 {
         return Ok(ids.clone().unbind());
@@ -306,7 +349,16 @@ fn build_entries<'a>(
     false_ptr: *mut ffi::PyObject,
 ) -> Option<Vec<Entry<'a>>> {
     let mut entries: Vec<Entry<'a>> = Vec::with_capacity(holder.len());
-    // Column kind tag (1=int, 2=float, 3=str, 4=date/datetime) for uniformity.
+    // Column kind tag for uniformity: 1=int, 2=float, 3=str, 4=datetime,
+    // 5=date. `date` and `datetime` are tagged SEPARATELY even though both
+    // decode into `Key::Date`. They shared a tag, so a column holding both
+    // stayed on the native path and sorted chronologically — while Python
+    // REFUSES to compare them (`datetime.date(2021, 1, 1) <
+    // datetime.datetime(2021, 1, 1)` raises TypeError, because `datetime` is a
+    // `date` subclass that declines the mixed comparison). That is the same
+    // divergence the aware-datetime branch below rejects the native path to
+    // avoid, in the same function, three lines apart. Splitting the tag sends a
+    // mixed column to the FFI fallback, which raises exactly what Python does.
     let mut kind: u8 = 0;
 
     for v in holder {
@@ -364,7 +416,7 @@ fn build_entries<'a>(
             )
         } else if let Ok(d) = v.cast::<PyDate>() {
             (
-                4,
+                5,
                 Key::Date([
                     d.get_year(),
                     d.get_month() as i32,
@@ -519,8 +571,14 @@ pub fn batch_group_ids<'py>(
     let n = ids.len() as ffi::Py_ssize_t;
 
     // SAFETY: All pointers are borrowed from live Python objects.
-    // PyDict_GetItem returns a borrowed ref (NULL on miss, no exception set
-    // unless the hash fails — we check PyErr_Occurred for that case).
+    // PyDict_GetItemRef reports the three outcomes separately — 1 found (and
+    // hands back a STRONG ref we must release), 0 missing, -1 error — so an
+    // unhashable group key propagates instead of being swallowed. Its
+    // predecessor `PyDict_GetItem` cannot: it restores the pre-call exception
+    // state and drops the new exception, which made the `PyErr_Occurred()`
+    // check that used to stand here dead code, and on 3.14 also printed
+    // "Exception ignored in PyDict_GetItem()" plus a full traceback to stderr
+    // before the eventual TypeError arrived from somewhere else.
     // PyList_Append INCREFs the appended object internally.
     // PyDict_SetItem INCREFs both key and value — we DECREF our local ref
     // to the new list after SetItem so the dict owns the only reference.
@@ -538,41 +596,45 @@ pub fn batch_group_ids<'py>(
             let val_obj = ffi::PyList_GET_ITEM(values_ptr, i);
 
             // Try to find the existing group list.
-            let existing = ffi::PyDict_GetItem(result, val_obj);
-            if !existing.is_null() {
-                // Found — append to existing list.
-                if ffi::PyList_Append(existing, id_obj) < 0 {
+            let mut existing: *mut ffi::PyObject = std::ptr::null_mut();
+            match ffi::PyDict_GetItemRef(result, val_obj, &raw mut existing) {
+                -1 => {
+                    // Unhashable group key — the reference raises here too.
                     ffi::Py_DECREF(result);
                     return Err(PyErr::fetch(py));
                 }
-            } else {
-                // Check for a real error (e.g. unhashable type).
-                // PyDict_GetItem sets no exception on a clean miss.
-                if !ffi::PyErr_Occurred().is_null() {
-                    ffi::Py_DECREF(result);
-                    return Err(PyErr::fetch(py));
+                1 => {
+                    // Found — append to the existing list, then release the
+                    // strong reference GetItemRef handed us.
+                    let appended = ffi::PyList_Append(existing, id_obj);
+                    ffi::Py_DECREF(existing);
+                    if appended < 0 {
+                        ffi::Py_DECREF(result);
+                        return Err(PyErr::fetch(py));
+                    }
                 }
+                _ => {
+                    // New key — create a fresh list with this first element.
+                    // Use PyList_New(1) + SET_ITEM to avoid Append's resize path
+                    // for the common case of small singleton groups.
+                    let new_list = ffi::PyList_New(1);
+                    if new_list.is_null() {
+                        ffi::Py_DECREF(result);
+                        return Err(PyErr::fetch(py));
+                    }
+                    // SET_ITEM steals the reference; INCREF first.
+                    ffi::Py_INCREF(id_obj);
+                    ffi::PyList_SET_ITEM(new_list, 0, id_obj);
 
-                // New key — create a fresh list with this first element.
-                // Use PyList_New(1) + SET_ITEM to avoid Append's resize path
-                // for the common case of small singleton groups.
-                let new_list = ffi::PyList_New(1);
-                if new_list.is_null() {
-                    ffi::Py_DECREF(result);
-                    return Err(PyErr::fetch(py));
-                }
-                // SET_ITEM steals the reference; INCREF first.
-                ffi::Py_INCREF(id_obj);
-                ffi::PyList_SET_ITEM(new_list, 0, id_obj);
-
-                // Insert into result dict; dict acquires its own reference.
-                if ffi::PyDict_SetItem(result, val_obj, new_list) < 0 {
+                    // Insert into result dict; dict acquires its own reference.
+                    if ffi::PyDict_SetItem(result, val_obj, new_list) < 0 {
+                        ffi::Py_DECREF(new_list);
+                        ffi::Py_DECREF(result);
+                        return Err(PyErr::fetch(py));
+                    }
+                    // Release our local reference — dict holds the only one now.
                     ffi::Py_DECREF(new_list);
-                    ffi::Py_DECREF(result);
-                    return Err(PyErr::fetch(py));
                 }
-                // Release our local reference — dict holds the only one now.
-                ffi::Py_DECREF(new_list);
             }
         }
 

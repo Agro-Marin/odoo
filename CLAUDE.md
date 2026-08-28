@@ -63,15 +63,32 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
   no fallback, a stale `.so` segfaults on a cyclic `fast_clone` and silently
   mis-orders timezone-aware columns, and neither failure names its cause. CI
   never sees it — every lane builds the extension fresh — so it is a
-  long-lived-virtualenv problem only. `crates/odoo_rust/build.rs` therefore
-  stamps a CRC of the crate sources into the binary and `odoo/init.py` refuses
-  to start when it disagrees with the crate on disk, naming the rebuild command.
-  Rebuild after any `git pull` that touched `crates/`; the escape hatch, should
-  you ever need it, is `ODOO_SKIP_RUST_FRESHNESS_CHECK=1`.
+  long-lived-virtualenv problem only. Each crate's `build.rs` therefore stamps a
+  CRC of its sources into the binary (`crates/odoo_build`) and
+  `odoo/libs/native.py` refuses to proceed when it disagrees with the crate on
+  disk, naming the rebuild command. Rebuild after any `git pull` that touched
+  `crates/`; the escape hatch, should you ever need it, is
+  `ODOO_SKIP_RUST_FRESHNESS_CHECK=1`.
 
-  `.github/workflows/rust.yml` gates `cargo fmt --check`,
-  `cargo clippy -D warnings`, `cargo test`, the maturin build and the exported
-  symbols. It blocks; it does not warn.
+- **`crates/` is a cargo workspace of three.** `odoo_rust` is the runtime
+  extension above. `odoo_lint` carries the parallel source scanner behind four
+  `test_lint` gates and is **not** a runtime dependency — build it only to run
+  those gates:
+
+  ```bash
+  cd crates/odoo_lint && maturin develop
+  ```
+
+  It is a separate wheel because it is test-only and dominated the runtime one:
+  1156 KB and 35 crates with it, 266 KB and 15 without. `odoo_build` is the
+  build-script support they share, so the fingerprint algorithm that must match
+  `odoo/libs/native.py` exists once. Run `cargo fmt --all` / `cargo clippy
+  --workspace` / `cargo test --workspace` from `crates/`, not from a member.
+
+  `.github/workflows/rust.yml` gates `cargo fmt --all --check`, `cargo clippy
+  --workspace -D warnings`, `cargo test --workspace`, both maturin builds and
+  the exported symbols — including that `odoo_rust` has **not** regained the
+  scanner. It blocks; it does not warn.
 
 
 ## Pre-Work Check

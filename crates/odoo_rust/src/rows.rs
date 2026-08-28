@@ -18,15 +18,9 @@
 
 use pyo3::ffi;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple};
+use pyo3::types::{PyList, PyTuple};
 
-// _PyDict_NewPresized is a CPython internal API (stable since 3.3) that
-// pre-allocates the hash table.  PyO3 doesn't expose it, so we declare
-// it here.  Falls back to PyDict_New if it ever disappears (it won't —
-// CPython uses it heavily in its own codebase).
-unsafe extern "C" {
-    fn _PyDict_NewPresized(minused: ffi::Py_ssize_t) -> *mut ffi::PyObject;
-}
+use crate::ffi_ext::_PyDict_NewPresized;
 
 /// Convert a list of row tuples to a list of dicts.
 ///
@@ -109,34 +103,4 @@ pub fn rows_to_dicts<'py>(
             .cast_into_unchecked::<PyList>()
             .unbind())
     }
-}
-
-/// Convert a list of row tuples to a list of dicts (safe PyO3 variant).
-///
-/// Same as `rows_to_dicts` but uses checked PyO3 APIs.  ~1.5x faster than
-/// Python (vs ~2.5x for the unsafe variant).  Kept as documentation of the
-/// safe approach; not exported.
-#[allow(dead_code)]
-fn rows_to_dicts_safe<'py>(
-    py: Python<'py>,
-    names: &Bound<'py, PyTuple>,
-    rows: &Bound<'py, PyList>,
-) -> PyResult<Py<PyList>> {
-    let ncols = names.len();
-    let nrows = rows.len();
-
-    let mut result: Vec<Bound<'py, PyDict>> = Vec::with_capacity(nrows);
-
-    for i in 0..nrows {
-        let item = rows.get_item(i)?;
-        let row: Bound<'py, PyTuple> = item.cast_into()?;
-
-        let dict = PyDict::new(py);
-        for j in 0..ncols {
-            dict.set_item(names.get_item(j)?, row.get_item(j)?)?;
-        }
-        result.push(dict);
-    }
-
-    Ok(PyList::new(py, &result)?.unbind())
 }

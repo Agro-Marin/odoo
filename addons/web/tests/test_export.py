@@ -1,10 +1,12 @@
 import io
+import unittest
 import zipfile
 from http import HTTPStatus
 from unittest.mock import patch
 
 import xlsxwriter
 from lxml import etree
+from odoo_rust import csv_export
 
 from odoo import Command, http
 from odoo.libs.json import dumps as json_dumps
@@ -29,6 +31,68 @@ def _sheet_text(xlsx_bytes: bytes) -> str:
         elif cell.get("t") == "inlineStr":
             values.append(cell.findtext("m:is/m:t", default="", namespaces=_XLSX_NS))
     return " | ".join(values)
+
+
+class TestCsvExportCells(unittest.TestCase):
+    """`CSVExport.from_data` is one Rust call; these pin its cell semantics.
+
+    No database and no HTTP — the function takes a header list and a row list
+    and returns the finished bytes, so the rules worth pinning (QUOTE_ALL, the
+    `None`/`False` blanking, the formula guard, and what an undecodable cell
+    raises) are testable directly.
+    """
+
+    def test_quote_all_and_embedded_quotes(self):
+        self.assertEqual(
+            csv_export(["h"], [['a"b']]),
+            b'"h"\r\n"a""b"\r\n',
+        )
+
+    def test_none_and_false_are_blank_but_zero_is_not(self):
+        """Identity, not truthiness: `0` and `""` are values, not blanks."""
+        self.assertEqual(
+            csv_export(["a", "b", "c", "d"], [[None, False, 0, ""]]),
+            b'"a","b","c","d"\r\n"","","0",""\r\n',
+        )
+
+    def test_leading_formula_characters_are_neutralised(self):
+        """OWASP's CSV-injection set, guarded on strings only."""
+        row = ["=cmd", "-cmd", "+cmd", "@cmd", "\tcmd", "\rcmd"]
+        self.assertEqual(
+            csv_export(["h"] * len(row), [row]),
+            b'"h","h","h","h","h","h"\r\n'
+            b'"\'=cmd","\'-cmd","\'+cmd","\'@cmd","\'\tcmd","\'\rcmd"\r\n',
+        )
+
+    def test_a_formula_character_that_is_not_leading_is_left_alone(self):
+        self.assertEqual(csv_export(["h"], [["a=b"]]), b'"h"\r\n"a=b"\r\n')
+
+    def test_non_strings_are_stringified_without_the_guard(self):
+        """The guard tracks the Python original: `isinstance(d, str)` only."""
+        self.assertEqual(
+            csv_export(["a", "b", "c"], [[-5, 1.5, True]]),
+            b'"a","b","c"\r\n"-5","1.5","True"\r\n',
+        )
+
+    def test_utf8_bytes_are_decoded(self):
+        self.assertEqual(
+            csv_export(["h"], [["ré".encode()]]), '"h"\r\n"ré"\r\n'.encode()
+        )
+
+    def test_undecodable_bytes_raise_unicodedecodeerror(self):
+        """It used to raise `TypeError: function takes exactly 5 arguments`.
+
+        `UnicodeDecodeError` takes five (encoding, object, start, end, reason),
+        and the error was constructed from a single message string, so it blew
+        up on construction — an export of a binary column failed with a
+        TypeError naming no encoding, no row and no column.
+        """
+        with self.assertRaises(UnicodeDecodeError) as caught:
+            csv_export(["h"], [[b"\xff\xfe"]])
+        self.assertEqual(caught.exception.encoding, "utf-8")
+
+    def test_no_rows_still_emits_the_header(self):
+        self.assertEqual(csv_export(["a", "b"], []), b'"a","b"\r\n')
 
 
 class ExportControllerCase(HttpCase):

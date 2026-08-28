@@ -188,6 +188,16 @@ jobs:
           maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
           python -m pip install --no-index --find-links dist odoo_rust
 
+      - name: Build + install the odoo_lint extension
+        # The lint scanner is a SEPARATE wheel from odoo_rust: it is used by
+        # four gates and never by a running server, and keeping it in the
+        # runtime extension cost 890 KB and twenty crates that no production
+        # code path can reach. A lane that runs a scan-backed gate has to
+        # install it explicitly; one that does not, must not.
+        run: |
+          maturin build --release --manifest-path crates/odoo_lint/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_lint
+
       - name: Install system + Python dependencies
         run: |
           sudo apt-get update

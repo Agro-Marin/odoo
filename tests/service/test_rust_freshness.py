@@ -4,9 +4,12 @@ from pathlib import Path
 import odoo_rust
 import pytest
 
-from odoo.init import _rust_source_crc
+from odoo.libs.native import assert_fresh, source_crc
 
-CRATE = Path(__file__).resolve().parents[2] / "crates" / "odoo_rust"
+_rust_source_crc = source_crc
+
+CRATES = Path(__file__).resolve().parents[2] / "crates"
+CRATE = CRATES / "odoo_rust"
 
 pytestmark = pytest.mark.skipif(
     not CRATE.is_dir(), reason="no crate sources — an installed deployment"
@@ -14,10 +17,53 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_the_installed_extension_matches_the_crate():
-    assert odoo_rust.__source_crc__ == _rust_source_crc(CRATE), (
+    assert odoo_rust.__source_crc__ == source_crc(CRATE), (
         "the installed odoo_rust predates the crate in this checkout — rebuild "
         "it (maturin build --release ...), or see odoo/init.py for the message"
     )
+
+
+def test_every_native_crate_is_covered_by_a_freshness_check():
+    """The check is per crate; a new one must not be able to arrive unguarded.
+
+    `odoo_lint` was split out of `odoo_rust` and inherited nothing
+    automatically — its guard lives in `odoo/libs/lint/scan.py`, at its own
+    single import site, because that module is the only importer and is loaded
+    only by the lint gates.
+    """
+    crates = {p.name for p in CRATES.iterdir() if (p / "Cargo.toml").is_file()}
+    # odoo_build ships no extension: it is a build script's dependency.
+    extensions = crates - {"odoo_build"}
+    assert extensions == {"odoo_rust", "odoo_lint"}, (
+        f"native extension crates are now {sorted(extensions)}; each needs an "
+        f"assert_fresh() at its import site, and this list updated"
+    )
+    for name in sorted(extensions):
+        assert (CRATES / name / "build.rs").read_text().find("stamp_source_crc") > 0, (
+            f"{name}/build.rs does not stamp a source crc, so nothing can "
+            f"detect a stale build of it"
+        )
+
+
+def test_assert_fresh_raises_on_a_mismatch_and_passes_on_a_match(tmp_path):
+    class Module:
+        __name__ = "pretend_ext"
+        __source_crc__ = "deadbeef"
+
+    crate = tmp_path / "pretend_ext"
+    (crate / "src").mkdir(parents=True)
+    (crate / "Cargo.toml").write_text("[package]\n")
+    (crate / "src" / "lib.rs").write_text("// lib\n")
+
+    module = Module()
+    with pytest.raises(RuntimeError, match="stale"):
+        assert_fresh(module, crate)
+
+    module.__source_crc__ = source_crc(crate)
+    assert_fresh(module, crate)  # matching: silent
+
+    # A crate that is not on disk is an installed deployment, not a failure.
+    assert_fresh(Module(), tmp_path / "absent")
 
 
 def test_the_fingerprint_covers_every_build_input(tmp_path):

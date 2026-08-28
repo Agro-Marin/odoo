@@ -1,21 +1,34 @@
-name: Rust Extension (odoo_rust)
+name: Rust Extensions (odoo_rust · odoo_lint)
 
-# odoo_rust is a HARD dependency of the core framework — there is no pure-Python
-# fallback. It is imported unconditionally by web export and the ORM hot paths
-# (db/cursor, orm/fields/base, orm/models/mixins/read, orm/runtime/environment,
-# orm/helpers, libs/json/fast_clone, libs/_field_access, libs/lint/scan). A crate
-# that fails to format, lint, test, build, or export its required symbols must
-# BLOCK the merge, not warn — so this gate is intentionally NOT continue-on-error.
+# `crates/` is a cargo workspace with three members:
+#
+#   odoo_rust   — a HARD dependency of the core framework. There is no
+#                 pure-Python fallback; it is imported unconditionally by web
+#                 export and the ORM hot paths (db/cursor, orm/fields/base,
+#                 orm/models/mixins/read, orm/runtime/environment, orm/helpers,
+#                 libs/json/fast_clone, libs/_field_access).
+#   odoo_lint   — the parallel source scanner behind four test_lint gates.
+#                 Split out of odoo_rust because it is test-only and dominated
+#                 the runtime wheel: 1156 KB and 35 crates with it, 266 KB and
+#                 15 without. Not a runtime dependency; libs/lint/scan.py is
+#                 its only importer.
+#   odoo_build  — the build-script support both share, so the source-fingerprint
+#                 algorithm that must match odoo/libs/native.py exists once.
+#
+# A crate that fails to format, lint, test, build, or export its required
+# symbols must BLOCK the merge, not warn — so this gate is intentionally NOT
+# continue-on-error.
 
 on:
-  # Mainline re-verification: re-check the native crate on every push to a
-  # protected branch so a direct commit / merge-skew cannot break it unnoticed.
+  # Mainline re-verification: re-check the native crates on every push to a
+  # protected branch so a direct commit / merge-skew cannot break them unnoticed.
   push:
     branches: ['19.0-marin', '19.0']
   pull_request:
     branches: ['*']
     paths:
       - 'crates/**'
+      - 'odoo/libs/native.py'
       - '.github/workflows/rust.yml'
 
 permissions:
@@ -28,7 +41,7 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: crates/odoo_rust
+        working-directory: crates
 
     steps:
       - name: Checkout
@@ -52,54 +65,83 @@ jobs:
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: crates/odoo_rust
+          workspaces: crates
 
       - name: Format check
-        run: cargo fmt --check
+        # Workspace-wide from `crates/`. Before the split this ran in
+        # crates/odoo_rust, where "the only crate" and "every crate" were the
+        # same set; a second crate added outside the workspace would have been
+        # formatted, linted and tested by nothing.
+        run: cargo fmt --all --check
 
       - name: Clippy (warnings are errors)
         # Default features (extension-module off) — same config the test build
-        # uses; this crate has no cfg-gated code, so it lints identically.
-        run: cargo clippy --all-targets -- -D warnings
+        # uses; these crates have no cfg-gated code, so they lint identically.
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Unit tests
         # No --features extension-module: that build links libpython for the
-        # test harness. maturin re-enables it for the wheel (next step).
-        run: cargo test
+        # test harness. maturin re-enables it for the wheels (next step).
+        run: cargo test --workspace
 
-      - name: Build + install the extension (maturin)
+      - name: Build + install both extensions (maturin)
         run: |
           python -m pip install --upgrade pip
           python -m pip install 'maturin>=1.0,<2.0'
-          maturin build --release --out dist
-          python -m pip install --no-index --find-links dist odoo_rust
+          maturin build --release --manifest-path odoo_rust/Cargo.toml --out dist
+          maturin build --release --manifest-path odoo_lint/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_rust odoo_lint
 
       - name: Symbol contract — the unconditional Python imports must resolve
         working-directory: ${{ github.workspace }}
         run: |
           python - <<'PY'
-          import odoo_rust
+          import odoo_rust, odoo_lint
 
-          # Every symbol the core framework imports without a fallback. Keep this
-          # list in sync with the `from odoo_rust import ...` sites in core.
-          required = [
-              "csv_export",            # addons/web/controllers/export.py
-              "fast_clone",            # odoo/libs/json/fast_clone.py
-              "rows_to_dicts",         # odoo/db/cursor.py, orm/runtime/environment.py
-              "origin_ids",            # odoo/orm/helpers.py
-              "to_prefetch_ids",       # odoo/orm/fields/base.py
-              "scan_byte_patterns",    # odoo/libs/lint/scan.py
-              "scan_regex_patterns",   # odoo/libs/lint/scan.py
-              "batch_cache_fill",      # odoo/libs/_field_access, orm/models/mixins/read.py
-              "batch_cache_filter",    # odoo/libs/_field_access
-              "batch_cache_get",       # odoo/libs/_field_access
-              "batch_cache_values",    # odoo/libs/_field_access
-              "batch_group_ids",       # odoo/libs/_field_access
-              "sort_ids_by_values",    # odoo/libs/_field_access
-              "sort_ids_by_cache",     # odoo/libs/_field_access, orm/models/mixins/traversal.py
-          ]
-          missing = [s for s in required if not hasattr(odoo_rust, s)]
-          if missing:
-              raise SystemExit(f"odoo_rust is missing required exports: {missing}")
-          print(f"odoo_rust exports all {len(required)} required symbols")
+          # Every symbol the framework imports without a fallback, per module.
+          # Keep in sync with the `from odoo_rust import ...` / `odoo_lint.`
+          # sites; a symbol landing in the wrong wheel is an ImportError at
+          # startup for the whole server, or a lint gate that cannot run.
+          required = {
+              odoo_rust: [
+                  "csv_export",            # addons/web/controllers/export.py
+                  "fast_clone",            # odoo/libs/json/fast_clone.py
+                  "rows_to_dicts",         # odoo/db/cursor.py, orm/runtime/environment.py
+                  "origin_ids",            # odoo/orm/helpers.py
+                  "to_prefetch_ids",       # odoo/orm/fields/base.py
+                  "batch_cache_fill",      # odoo/libs/_field_access, orm/models/mixins/read.py
+                  "batch_cache_filter",    # odoo/libs/_field_access
+                  "batch_cache_get",       # odoo/libs/_field_access
+                  "batch_cache_values",    # odoo/libs/_field_access
+                  "batch_group_ids",       # odoo/libs/_field_access
+                  "sort_ids_by_values",    # odoo/libs/_field_access
+                  "sort_ids_by_cache",     # odoo/libs/_field_access, orm/models/mixins/traversal.py
+              ],
+              odoo_lint: [
+                  "scan_byte_patterns",    # odoo/libs/lint/scan.py
+                  "scan_regex_patterns",   # odoo/libs/lint/scan.py
+              ],
+          }
+          for module, names in required.items():
+              missing = [n for n in names if not hasattr(module, n)]
+              if missing:
+                  raise SystemExit(f"{module.__name__} is missing: {missing}")
+              print(f"{module.__name__} exports all {len(names)} required symbols")
+
+          # The runtime extension must not regain the scanner: that is the
+          # whole point of the split, and nothing else would notice.
+          leaked = [n for n in ("scan_byte_patterns", "scan_regex_patterns")
+                    if hasattr(odoo_rust, n)]
+          if leaked:
+              raise SystemExit(
+                  f"odoo_rust exports {leaked}; the lint scanner belongs in "
+                  f"odoo_lint, which no deployment installs"
+              )
+
+          # Both must carry a build fingerprint, or odoo/libs/native.py cannot
+          # tell a stale wheel from a fresh one.
+          for module in required:
+              if not getattr(module, "__source_crc__", None):
+                  raise SystemExit(f"{module.__name__} has no __source_crc__")
+          print("both extensions are fingerprinted")
           PY

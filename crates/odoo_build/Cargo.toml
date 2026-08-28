@@ -1,0 +1,9 @@
+[package]
+name = "odoo_build"
+version = "0.1.0"
+edition = "2024"
+description = "Build-script support shared by the workspace's native extensions"
+publish = false
+
+[lib]
+doctest = false

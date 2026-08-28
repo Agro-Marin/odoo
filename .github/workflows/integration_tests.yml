@@ -53,7 +53,7 @@ on:
       # The rpc lane below. `rpc` lives in odoo/addons, not addons/, so it was
       # not covered by any entry here either.
       - 'odoo/addons/rpc/**'
-      - 'crates/odoo_rust/**'
+      - 'crates/**'
       - 'requirements*.txt'
       - '.github/workflows/integration_tests.yml'
 

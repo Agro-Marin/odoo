@@ -2816,12 +2816,16 @@ class TestLifecycleSketches(unittest.TestCase):
             self.assertIn(name, block, f"the boot sketch dropped {name}")
 
     def test_bootstrap_order_matches_odoo_init(self) -> None:
-
+        # `assert_fresh`, not `__source_crc__`: the comparison moved into
+        # odoo/libs/native.py when a second native extension (odoo_lint) needed
+        # the same check at its own import site, so init.py names the call and
+        # the attribute is read one level down. The step is what this pins, not
+        # the spelling.
         src = (ROOT / "odoo" / "init.py").read_text(encoding="utf-8")
         marks = [
             "MIN_PY_VERSION",
             "import odoo_rust",
-            "__source_crc__",
+            "assert_fresh(odoo_rust",
             "gc.set_threshold",
             "patch_init",
         ]

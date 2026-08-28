@@ -1,8 +1,13 @@
 //! Rust/PyO3 accelerator for Odoo ORM field cache access hot paths.
 //!
 //! Uses raw CPython C-API (`pyo3::ffi`) internally to minimize per-operation
-//! overhead.  Safe PyO3 variants are kept as `_safe` functions for
-//! documentation and semantic comparison.
+//! overhead.  The semantic reference is `odoo/libs/_field_access/_fallback.py`
+//! — a pure-Python implementation of every function here that the Python test
+//! suite runs the *same* assertions against, so the two cannot drift unnoticed.
+//! Rust-side `_safe` twins were kept for that job once and could not do it:
+//! nothing called them, so nothing compared them, and `clone_inner_safe` had
+//! silently acquired different subclass semantics from the function it
+//! documented.
 //!
 //! Design invariants:
 //! - Sentinel comparison uses pointer identity (`==`), NOT Python `__eq__`.
@@ -11,9 +16,16 @@
 //! - The functions work with raw Python dicts — no Odoo imports in Rust.
 //!
 //! Python 3.14 notes:
-//! - `PyDict_GetItem` returns borrowed refs and is safe under the GIL.
-//!   For free-threaded builds, these would need `PyDict_GetItemRef` (strong
-//!   refs) and careful synchronization — tracked separately.
+//! - `PyDict_GetItem` returns borrowed refs and is safe under the GIL, which
+//!   is the only reason the `Py_INCREF` a few instructions later is sound: no
+//!   other thread can replace the dict entry and free the object in between.
+//!   Free-threaded builds need `PyDict_GetItemRef` (strong refs) on every one
+//!   of these paths — `batch_group_ids` already took that change — plus an
+//!   audit of the remaining borrows. Until then the module declares
+//!   `gil_used = true` (see `lib.rs`), which is what keeps a free-threaded
+//!   interpreter from running these concurrently.
+
+use std::ptr::NonNull;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::ffi;
@@ -22,34 +34,53 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Append a `Py_ssize_t` integer to a partially-built `PyList`.
+/// Probe the field cache for one record id.
 ///
-/// Returns `Err` on allocation failure (OOM), including proper cleanup of
-/// `list_ptr` and any other list that needs cleanup.  The `extra_decref`
-/// parameter allows the caller to pass a second list to DECREF on error
-/// (used when two lists are being built in parallel).
+/// Returns the cached value, or `None` when it is not usable. "Not usable" is
+/// one rule with two spellings — the id is absent, or it holds the `PENDING`
+/// sentinel — and it is the branch every function in this module turns on, as
+/// well as every one of their counterparts in `_fallback.py`. Stating it once
+/// is the point: the four copies that used to spell it out could disagree, and
+/// nothing would have compared them.
 ///
-/// SAFETY: `list_ptr` must be a valid `PyList *` with `j` already-filled
-/// slots (0..j).  On error, `list_ptr` is DECREF'd before returning.
+/// Returns a **borrowed** pointer. `PyDict_GetItem` is the right primitive
+/// here, not `PyDict_GetItemRef`: its hazard is that it swallows an exception
+/// raised while hashing the key, and these keys are record ids — `int`, always
+/// hashable, never able to raise. Skipping the strong reference keeps the hot
+/// path free of refcount traffic. `batch_group_ids` in `sort.rs` looks the same
+/// and is not: its keys are arbitrary cached *values*, so it uses
+/// `PyDict_GetItemRef` and pays for it.
+///
+/// `Option<NonNull<_>>`, which is pointer-sized — a bare `*mut` has no niche,
+/// so `Option<*mut _>` would carry a tag word. Three shapes were measured on
+/// `batch_cache_filter` over a half-missing cache, against the four
+/// hand-written copies this replaced: `Option<*mut>` testing the sentinel first
+/// +6%, a raw `*mut` return +7%, and this one **+3.7% on the miss path with
+/// the hit paths at parity** (five interleaved runs, half-missing cache). The
+/// residual is real and it is the price of stating the rule once; it is also
+/// about half a nanosecond per missing id, on a path whose next act is a
+/// database fetch. Do not "simplify" this to a raw pointer, or reorder the two
+/// tests below, without re-measuring — both were tried and both were worse.
+///
+/// SAFETY: `cache` must be a valid `PyDict *`, `id_obj` and `pending` valid
+/// object pointers, with the GIL held. The returned pointer is valid only
+/// until the cache is next mutated.
 #[inline]
-unsafe fn append_index(
-    py: Python<'_>,
-    list_ptr: *mut ffi::PyObject,
-    j: ffi::Py_ssize_t,
-    idx: ffi::Py_ssize_t,
-    extra_decref: *mut ffi::PyObject,
-) -> PyResult<()> {
-    unsafe {
-        let int_obj = ffi::PyLong_FromSsize_t(idx);
-        if int_obj.is_null() {
-            if !extra_decref.is_null() {
-                ffi::Py_DECREF(extra_decref);
-            }
-            ffi::Py_DECREF(list_ptr);
-            return Err(PyErr::fetch(py));
-        }
-        ffi::PyList_SET_ITEM(list_ptr, j, int_obj);
-        Ok(())
+unsafe fn cache_probe(
+    cache: *mut ffi::PyObject,
+    id_obj: *mut ffi::PyObject,
+    pending: *mut ffi::PyObject,
+) -> Option<NonNull<ffi::PyObject>> {
+    // Null FIRST, then the sentinel — the order the four hand-written copies
+    // used, and it is load-bearing. A miss is the common case here and a null
+    // pointer settles it in one compare; testing `pending` first makes every
+    // miss pay two, which measured as a consistent 4-6% on
+    // `batch_cache_filter` over a half-missing cache.
+    let value = NonNull::new(unsafe { ffi::PyDict_GetItem(cache, id_obj) })?;
+    if value.as_ptr() == pending {
+        None
+    } else {
+        Some(value)
     }
 }
 
@@ -93,14 +124,15 @@ pub fn batch_cache_get<'py>(
 
         for i in 0..n {
             let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i);
-            let value = ffi::PyDict_GetItem(cache_ptr, id_obj);
-
-            if value.is_null() || value == pending_ptr {
+            let Some(value) = cache_probe(cache_ptr, id_obj, pending_ptr) else {
                 // Cache miss or PENDING sentinel
                 ffi::Py_INCREF(none_val_ptr);
                 ffi::PyList_SET_ITEM(result, i, none_val_ptr);
                 miss_items.push(i);
-            } else if value == none_ptr {
+                continue;
+            };
+            let value = value.as_ptr();
+            if value == none_ptr {
                 // Cache hit but value is None — substitute none_val
                 ffi::Py_INCREF(none_val_ptr);
                 ffi::PyList_SET_ITEM(result, i, none_val_ptr);
@@ -111,25 +143,15 @@ pub fn batch_cache_get<'py>(
             }
         }
 
-        // Build miss indices list
-        let miss_n = miss_items.len() as ffi::Py_ssize_t;
-        let misses = ffi::PyList_New(miss_n);
-        if misses.is_null() {
-            ffi::Py_DECREF(result);
-            return Err(PyErr::fetch(py));
-        }
-        for (j, &idx) in miss_items.iter().enumerate() {
-            append_index(py, misses, j as ffi::Py_ssize_t, idx, result)?;
-        }
-
-        Ok((
-            Bound::from_owned_ptr(py, result)
-                .cast_into_unchecked::<PyList>()
-                .unbind(),
-            Bound::from_owned_ptr(py, misses)
-                .cast_into_unchecked::<PyList>()
-                .unbind(),
-        ))
+        // The results list is the hot output and stays hand-built; the miss
+        // list is empty on the path that matters (every id cached), so it is
+        // built with the checked API. The hand-rolled version needed a helper
+        // that took over cleanup of BOTH half-built lists through an
+        // `extra_decref` out-parameter — an ownership contract spread across
+        // three call sites, to save an allocation on a list that is usually
+        // length zero.
+        let result = Bound::from_owned_ptr(py, result).cast_into_unchecked::<PyList>();
+        Ok((result.unbind(), PyList::new(py, &miss_items)?.unbind()))
     }
 }
 
@@ -165,19 +187,18 @@ pub fn batch_cache_filter<'py>(
 
         for i in 0..n {
             let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i);
-            let value = ffi::PyDict_GetItem(cache_ptr, id_obj);
-
-            if value.is_null() || value == pending_ptr {
-                miss_items.push(i);
-            } else {
-                let truthy = ffi::PyObject_IsTrue(value);
-                if truthy < 0 {
-                    return Err(PyErr::fetch(py));
+            match cache_probe(cache_ptr, id_obj, pending_ptr) {
+                None => miss_items.push(i),
+                Some(value) => {
+                    let truthy = ffi::PyObject_IsTrue(value.as_ptr());
+                    if truthy < 0 {
+                        return Err(PyErr::fetch(py));
+                    }
+                    if truthy == 1 {
+                        passing.push(id_obj);
+                    }
+                    // falsy (truthy == 0): neither pass nor miss
                 }
-                if truthy == 1 {
-                    passing.push(id_obj);
-                }
-                // falsy (truthy == 0): neither pass nor miss
             }
         }
 
@@ -192,25 +213,10 @@ pub fn batch_cache_filter<'py>(
             ffi::PyList_SET_ITEM(pass_list, j as ffi::Py_ssize_t, id_ptr);
         }
 
-        // Build miss list
-        let miss_n = miss_items.len() as ffi::Py_ssize_t;
-        let miss_list = ffi::PyList_New(miss_n);
-        if miss_list.is_null() {
-            ffi::Py_DECREF(pass_list);
-            return Err(PyErr::fetch(py));
-        }
-        for (j, &idx) in miss_items.iter().enumerate() {
-            append_index(py, miss_list, j as ffi::Py_ssize_t, idx, pass_list)?;
-        }
-
-        Ok((
-            Bound::from_owned_ptr(py, pass_list)
-                .cast_into_unchecked::<PyList>()
-                .unbind(),
-            Bound::from_owned_ptr(py, miss_list)
-                .cast_into_unchecked::<PyList>()
-                .unbind(),
-        ))
+        // See `batch_cache_get`: the passing list is the hot output, the miss
+        // list is normally empty.
+        let pass_list = Bound::from_owned_ptr(py, pass_list).cast_into_unchecked::<PyList>();
+        Ok((pass_list.unbind(), PyList::new(py, &miss_items)?.unbind()))
     }
 }
 
@@ -247,14 +253,13 @@ pub fn batch_cache_values<'py>(
 
         for i in 0..n {
             let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i);
-            let value = ffi::PyDict_GetItem(cache_ptr, id_obj);
-
-            if value.is_null() || value == pending_ptr {
+            let Some(value) = cache_probe(cache_ptr, id_obj, pending_ptr) else {
                 // Miss or PENDING — bail.  Slots 0..i are owned,
                 // slots i..n are NULL.  Py_DECREF handles cleanup.
                 ffi::Py_DECREF(result);
                 return Ok(None);
-            }
+            };
+            let value = value.as_ptr();
 
             ffi::Py_INCREF(value);
             ffi::PyList_SET_ITEM(result, i, value);
@@ -271,7 +276,7 @@ pub fn batch_cache_values<'py>(
 /// Batch cache fill for `_read_format()` scalar stored-field fast path.
 ///
 /// For each index `i` in `0..len(ids)`:
-/// - If `results[i]` is an empty dict (cleared = missing record): skip.
+/// - If `results[i]` is falsy (an empty dict = cleared = missing record): skip.
 /// - Look up `ids[i]` in `field_cache`:
 ///   - Hit, not `pending`, not `None`: `results[i][name] = value`
 ///   - Hit, not `pending`, is `None`: `results[i][name] = none_val`
@@ -318,235 +323,82 @@ pub fn batch_cache_fill<'py>(
         let mut miss_items: Vec<ffi::Py_ssize_t> = Vec::new();
 
         for i in 0..n {
+            // Re-checked every iteration, not hoisted: the generic lane below
+            // runs `PyObject_IsTrue` and `PyObject_SetItem`, both of which can
+            // dispatch to Python (`__bool__`, `__len__`, `__setitem__`) and so
+            // can shrink `results` under us. `PyList_GET_ITEM` does not bounds
+            // check, so the next iteration would read past the end. The load
+            // is one compare against a length already in cache — measured at
+            // the noise floor of a function that costs ~53ns per element.
+            if ffi::PyList_GET_SIZE(results_ptr) != n {
+                return Err(PyValueError::new_err(
+                    "batch_cache_fill: `results` changed length during the fill",
+                ));
+            }
             let vals_ptr = ffi::PyList_GET_ITEM(results_ptr, i);
 
-            // Skip non-dicts (defensive) and empty dicts (cleared = missing records).
-            // PyDict_CheckExact guards first so PyDict_Size never sees a non-dict.
-            if ffi::PyDict_CheckExact(vals_ptr) == 0 || ffi::PyDict_Size(vals_ptr) == 0 {
+            // `results` holds plain dicts on every path the ORM takes, so that
+            // is the fast lane: one pointer compare, then a size read and a
+            // `PyDict_SetItem` that skip the abstract-object machinery.
+            //
+            // Anything else takes the generic lane rather than being skipped.
+            // Skipping is what this did before, and the failure mode was
+            // silent: a `dict` subclass came back WITHOUT the field and
+            // WITHOUT its index in the miss list, so the caller would report a
+            // record that simply had no value for it, while the Python
+            // reference filled it; a non-mapping returned success where the
+            // reference raises `TypeError`.
+            //
+            // No caller can reach that today — `_read_format` builds
+            // `results` as `[{"id": id_} for id_ in ids]`, plain dicts every
+            // time, and clears them with `.clear()` rather than replacing
+            // them. This is the contract agreeing with its own reference
+            // implementation, not a live bug being fixed. It is worth the two
+            // extra branches anyway: the accelerated and pure-Python halves of
+            // `_field_access` are held to the *same* assertions by the test
+            // suite, and a divergence that no test can express is one the
+            // suite silently stops checking.
+            let exact = ffi::PyDict_CheckExact(vals_ptr) != 0;
+            let empty = if exact {
+                ffi::PyDict_Size(vals_ptr) == 0
+            } else {
+                // Mirrors the reference's `if not vals: continue`.
+                match ffi::PyObject_IsTrue(vals_ptr) {
+                    -1 => return Err(PyErr::fetch(py)),
+                    truthy => truthy == 0,
+                }
+            };
+            if empty {
                 continue;
             }
 
             let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i);
-            let value = ffi::PyDict_GetItem(cache_ptr, id_obj);
-
-            if value.is_null() || value == pending_ptr {
+            let Some(value) = cache_probe(cache_ptr, id_obj, pending_ptr) else {
                 // Cache miss or PENDING — needs Field.__get__ fallback
                 miss_items.push(i);
                 continue;
-            }
+            };
+            let value = value.as_ptr();
 
             // Cache hit — write into the result dict.
-            // PyDict_SetItem INCREFs both key and value; no manual INCREF needed.
+            // Both setters INCREF key and value; no manual INCREF needed.
             let write_val = if value == none_ptr {
                 none_val_ptr
             } else {
                 value
             };
-            if ffi::PyDict_SetItem(vals_ptr, name_ptr, write_val) < 0 {
+            let stored = if exact {
+                ffi::PyDict_SetItem(vals_ptr, name_ptr, write_val)
+            } else {
+                // Raises TypeError for a non-mapping, exactly as the
+                // reference's `vals[name] = value` does.
+                ffi::PyObject_SetItem(vals_ptr, name_ptr, write_val)
+            };
+            if stored < 0 {
                 return Err(PyErr::fetch(py));
             }
         }
 
-        // Build miss indices list
-        let miss_n = miss_items.len() as ffi::Py_ssize_t;
-        let misses = ffi::PyList_New(miss_n);
-        if misses.is_null() {
-            return Err(PyErr::fetch(py));
-        }
-        for (j, &idx) in miss_items.iter().enumerate() {
-            append_index(py, misses, j as ffi::Py_ssize_t, idx, std::ptr::null_mut())?;
-        }
-
-        Ok(Bound::from_owned_ptr(py, misses)
-            .cast_into_unchecked::<PyList>()
-            .unbind())
-    }
-}
-
-/// Single-record cache lookup for `_make_scalar_get` hot path.
-///
-/// Performs the triple dict lookup:
-///   `env_dict["_field_cache_memo"][field][record_id]`
-///
-/// Returns the cached value if found and not `pending`.
-/// Returns `sentinel` on any miss (KeyError at any level) or if `pending`.
-///
-/// NOTE: Not exported — the Python fallback is faster on the hit path.
-/// Python's `dict[key]` compiles to `BINARY_SUBSCR` → C-level `PyDict_GetItem`,
-/// so 3 subscripts = 3 C-level lookups with zero Python overhead.  The PyO3
-/// function-call boundary adds ~35ns that exceeds any savings.  Kept as
-/// documentation of the ffi approach.
-#[allow(dead_code)]
-fn scalar_cache_get<'py>(
-    py: Python<'py>,
-    env_dict: &Bound<'py, PyDict>,
-    field: &Bound<'py, PyAny>,
-    record_id: &Bound<'py, PyAny>,
-    pending: &Bound<'py, PyAny>,
-    sentinel: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let memo_key_ptr = pyo3::intern!(py, "_field_cache_memo").as_ptr();
-
-    // SAFETY: All pointers are borrowed from live Python objects with 'py
-    // lifetime.  PyDict_GetItem returns borrowed refs (NULL on miss, no
-    // exception set).  We Py_INCREF only the value we return.
-    unsafe {
-        let env_ptr = env_dict.as_ptr();
-        let field_ptr = field.as_ptr();
-        let record_id_ptr = record_id.as_ptr();
-        let pending_ptr = pending.as_ptr();
-        let sentinel_ptr = sentinel.as_ptr();
-
-        // Level 1: env_dict["_field_cache_memo"]
-        let memo = ffi::PyDict_GetItem(env_ptr, memo_key_ptr);
-        if memo.is_null() {
-            ffi::Py_INCREF(sentinel_ptr);
-            return Ok(Bound::from_owned_ptr(py, sentinel_ptr));
-        }
-
-        // Level 2: memo[field]
-        let field_cache = ffi::PyDict_GetItem(memo, field_ptr);
-        if field_cache.is_null() {
-            ffi::Py_INCREF(sentinel_ptr);
-            return Ok(Bound::from_owned_ptr(py, sentinel_ptr));
-        }
-
-        // Level 3: field_cache[record_id]
-        let value = ffi::PyDict_GetItem(field_cache, record_id_ptr);
-        if value.is_null() || value == pending_ptr {
-            ffi::Py_INCREF(sentinel_ptr);
-            return Ok(Bound::from_owned_ptr(py, sentinel_ptr));
-        }
-
-        ffi::Py_INCREF(value);
-        Ok(Bound::from_owned_ptr(py, value))
-    }
-}
-
-// ── Safe PyO3 variants (documentation / semantic reference) ──────────────────
-
-/// Safe variant of `batch_cache_get` using checked PyO3 APIs.
-/// ~1.5-2x slower due to Bound wrappers and refcount on every get_item.
-#[allow(dead_code)]
-fn batch_cache_get_safe<'py>(
-    py: Python<'py>,
-    field_cache: &Bound<'py, PyDict>,
-    ids: &Bound<'py, PyTuple>,
-    pending: &Bound<'py, PyAny>,
-    none_val: &Bound<'py, PyAny>,
-) -> PyResult<(Py<PyList>, Py<PyList>)> {
-    let n = ids.len();
-    let mut result_items: Vec<Bound<'py, PyAny>> = Vec::with_capacity(n);
-    let mut miss_items: Vec<i64> = Vec::new();
-
-    for i in 0..n {
-        let id_obj = ids.get_item(i)?;
-        match field_cache.get_item(&id_obj)? {
-            Some(value) => {
-                if value.is(pending) {
-                    result_items.push(none_val.clone());
-                    miss_items.push(i as i64);
-                } else if value.is_none() {
-                    result_items.push(none_val.clone());
-                } else {
-                    result_items.push(value);
-                }
-            }
-            None => {
-                result_items.push(none_val.clone());
-                miss_items.push(i as i64);
-            }
-        }
-    }
-
-    let results = PyList::new(py, &result_items)?;
-    let misses = PyList::new(py, &miss_items)?;
-    Ok((results.unbind(), misses.unbind()))
-}
-
-/// Safe variant of `batch_cache_filter` using checked PyO3 APIs.
-#[allow(dead_code)]
-fn batch_cache_filter_safe<'py>(
-    py: Python<'py>,
-    field_cache: &Bound<'py, PyDict>,
-    ids: &Bound<'py, PyTuple>,
-    pending: &Bound<'py, PyAny>,
-) -> PyResult<(Py<PyList>, Py<PyList>)> {
-    let n = ids.len();
-    let mut passing: Vec<Bound<'py, PyAny>> = Vec::new();
-    let mut miss_items: Vec<i64> = Vec::new();
-
-    for i in 0..n {
-        let id_obj = ids.get_item(i)?;
-        match field_cache.get_item(&id_obj)? {
-            Some(value) => {
-                if value.is(pending) {
-                    miss_items.push(i as i64);
-                } else if value.is_truthy()? {
-                    passing.push(id_obj);
-                }
-            }
-            None => {
-                miss_items.push(i as i64);
-            }
-        }
-    }
-
-    let passing_list = PyList::new(py, &passing)?;
-    let misses = PyList::new(py, &miss_items)?;
-    Ok((passing_list.unbind(), misses.unbind()))
-}
-
-/// Safe variant of `batch_cache_values` using checked PyO3 APIs.
-#[allow(dead_code)]
-fn batch_cache_values_safe<'py>(
-    py: Python<'py>,
-    field_cache: &Bound<'py, PyDict>,
-    ids: &Bound<'py, PyTuple>,
-    pending: &Bound<'py, PyAny>,
-) -> PyResult<Option<Py<PyList>>> {
-    let n = ids.len();
-    let mut values: Vec<Bound<'py, PyAny>> = Vec::with_capacity(n);
-
-    for i in 0..n {
-        let id_obj = ids.get_item(i)?;
-        match field_cache.get_item(&id_obj)? {
-            Some(value) if !value.is(pending) => values.push(value),
-            _ => return Ok(None),
-        }
-    }
-
-    Ok(Some(PyList::new(py, &values)?.unbind()))
-}
-
-/// Safe variant of `scalar_cache_get` using checked PyO3 APIs.
-/// ~3-4x slower due to Bound wrappers, get_item refcount, and cast checks.
-#[allow(dead_code)]
-fn scalar_cache_get_safe<'py>(
-    env_dict: &Bound<'py, PyDict>,
-    field: &Bound<'py, PyAny>,
-    record_id: &Bound<'py, PyAny>,
-    pending: &Bound<'py, PyAny>,
-    sentinel: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let memo = match env_dict.get_item(pyo3::intern!(env_dict.py(), "_field_cache_memo"))? {
-        Some(m) => m,
-        None => return Ok(sentinel.clone()),
-    };
-    let memo_dict = memo.cast::<PyDict>()?;
-    let field_cache = match memo_dict.get_item(field)? {
-        Some(fc) => fc,
-        None => return Ok(sentinel.clone()),
-    };
-    let fc_dict = field_cache.cast::<PyDict>()?;
-    match fc_dict.get_item(record_id)? {
-        Some(value) => {
-            if value.is(pending) {
-                Ok(sentinel.clone())
-            } else {
-                Ok(value)
-            }
-        }
-        None => Ok(sentinel.clone()),
+        Ok(PyList::new(py, &miss_items)?.unbind())
     }
 }

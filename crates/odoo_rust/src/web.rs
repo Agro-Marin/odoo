@@ -104,10 +104,30 @@ fn write_cell(
         return Ok(());
     }
 
-    // Bytes: decode UTF-8, then treat as string (with formula protection)
+    // Bytes: decode UTF-8, then treat as string (with formula protection).
+    //
+    // A non-decodable cell must raise what the Python original's `d.decode()`
+    // raises. `PyUnicodeDecodeError::new_err(msg)` did not: `UnicodeDecodeError`
+    // takes five arguments (encoding, object, start, end, reason), so passing
+    // one message string produced `TypeError: function takes exactly 5
+    // arguments (1 given)` at raise time — an error naming no encoding, no
+    // position and no reason.
+    //
+    // `bytes` cells are real: `ir.attachment.datas` exports one. Undecodable
+    // ones are not reachable through any core field, because `Binary` exports
+    // base64, which is always ASCII. This is the quality of an error nobody
+    // has hit yet, on the branch that exists precisely for the field that
+    // eventually does.
     if let Ok(b) = cell.cast::<PyBytes>() {
-        let val = std::str::from_utf8(b.as_bytes())
-            .map_err(|e| pyo3::exceptions::PyUnicodeDecodeError::new_err(e.to_string()))?;
+        let raw = b.as_bytes();
+        let val = match std::str::from_utf8(raw) {
+            Ok(val) => val,
+            Err(e) => {
+                return Err(
+                    pyo3::exceptions::PyUnicodeDecodeError::new_utf8(cell.py(), raw, e)?.into(),
+                );
+            }
+        };
         write_string_cell(buf, val);
         return Ok(());
     }

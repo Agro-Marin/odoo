@@ -126,7 +126,7 @@ in about a second while the worst case is unchanged.
 | **PostgreSQL** | every cross-process signal travels through it; CI runs 18 |
 | **The filestore** | attachment bytes; must be backed up *with* the database ([`data.md`](data.md#the-dual-storage-seam)) |
 | **Addons on disk** | `addons_path`; earlier entries shadow later ones |
-| **`odoo_rust`** | imported unconditionally at startup — no pure-Python fallback |
+| **`odoo_rust`** | imported unconditionally at startup — no pure-Python fallback. `odoo_lint`, the sibling extension carrying the `test_lint` source scanner, is **not** a deployment dependency: it is a separate wheel that only the lint gates import |
 
 ## What this view does not cover
 

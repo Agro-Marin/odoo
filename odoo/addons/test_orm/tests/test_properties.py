@@ -1,6 +1,7 @@
 import datetime
 import json
 import unittest
+from collections import OrderedDict as _OrderedDict
 from collections import abc
 from unittest.mock import patch
 
@@ -4454,6 +4455,61 @@ class PropertiesRecordsetWriteCase(TestPropertiesMixin):
             self.message_1.attributes = {"mym2o": self.partner}
             self.env.flush_all()
         self.assertIn("mym2o", str(capture.exception))
+
+
+class PropertiesCallerIsolationCase(TestPropertiesMixin):
+    """Writing a Properties value must copy it, whatever mapping type it is.
+
+    `Properties.convert_to_cache` accepts anything `isinstance(value, dict)`
+    accepts, `_recordsets_to_ids` hands a value with no recordsets straight
+    back, and `fast_clone` is the only thing between the caller's object and
+    the field cache. While that clone dispatched on `PyDict_CheckExact`, a
+    `dict` SUBCLASS fell through every container branch to the
+    share-by-reference tail and the cache ended up holding the caller's own
+    live object — so mutating your own dict after the write silently rewrote
+    the record.
+    """
+
+    def _write_and_mutate(self, payload, mutate):
+        self.discussion_1.attributes_definition = [
+            {"name": "note", "string": "Note", "type": "char"},
+        ]
+        self.message_1.attributes = payload
+        before = dict(self.message_1.attributes)
+        mutate(payload)
+        return before, dict(self.message_1.attributes)
+
+    def test_a_plain_dict_is_copied(self):
+        payload = {"note": "original"}
+        before, after = self._write_and_mutate(
+            payload, lambda d: d.__setitem__("note", "mutated")
+        )
+        self.assertEqual(before, after)
+        self.assertEqual(after["note"], "original")
+
+    def test_a_dict_subclass_is_copied_too(self):
+        payload = _OrderedDict(note="original")
+        before, after = self._write_and_mutate(
+            payload, lambda d: d.__setitem__("note", "mutated")
+        )
+        self.assertEqual(
+            after["note"],
+            "original",
+            "the caller's post-write mutation reached the record: the field "
+            "cache is holding the caller's object, not a copy of it",
+        )
+        self.assertEqual(before, after)
+
+    def test_a_nested_container_is_copied(self):
+        inner = {"deep": "original"}
+        payload = _OrderedDict(note="x", nested=inner)
+        self.discussion_1.attributes_definition = [
+            {"name": "note", "string": "Note", "type": "char"},
+        ]
+        self.message_1.attributes = payload
+        inner["deep"] = "mutated"
+        stored = dict(self.message_1.attributes)
+        self.assertNotIn("mutated", str(stored), "a nested dict was shared, not cloned")
 
 
 class PropertiesDefinitionRoundTripCase(TestPropertiesMixin):

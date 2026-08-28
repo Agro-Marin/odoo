@@ -18,10 +18,8 @@ doctest = false
 # pyproject.toml [tool.maturin]).
 pyo3 = { version = "0.28.2" }
 
-# File scanning (used by test_lint for parallel pattern matching)
-memchr = "2"     # SIMD-accelerated byte search
-regex = "1"      # Compiled regex patterns
-ignore = "0.4"   # Parallel directory walking
+[build-dependencies]
+odoo_build = { path = "../odoo_build" }
 
 [features]
 extension-module = ["pyo3/extension-module"]

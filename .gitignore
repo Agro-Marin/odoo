@@ -62,3 +62,9 @@ crates/*/target/
 /man/
 /share/
 /src/
+
+# cargo's build directory. `crates/` is a workspace, so there is ONE target/
+# for all members — not one per crate. The old per-crate rule stopped matching
+# the moment odoo_lint was split out, and a `git add -A` then staged 1100 build
+# artifacts including two multi-megabyte .so files.
+/crates/target/

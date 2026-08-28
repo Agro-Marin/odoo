@@ -1,0 +1,8 @@
+# One workspace, so the three crates share a lock file and a target directory
+# and `cargo fmt` / `cargo clippy --all-targets` from here cover all of them.
+# Before the split there was one crate, and "the gate runs in crates/odoo_rust"
+# was the same thing as "the gate runs over everything"; a second crate outside
+# a workspace would have been linted by nothing.
+[workspace]
+resolver = "3"
+members = ["odoo_build", "odoo_lint", "odoo_rust"]

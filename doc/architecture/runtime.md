@@ -35,7 +35,7 @@ executes **`odoo/init.py`**, the framework bootstrap, in this order:
 |---|---|---|
 | 1 | enforce `MIN_PY_VERSION` | `SystemExit` naming the required version |
 | 2 | import the mandatory `odoo_rust` native extension | a hard, explained error — there is no pure-Python fallback |
-| 3 | compare `odoo_rust.__source_crc__` against the crate on disk | refuses to start when the built extension is **stale**, naming the rebuild command. Skipped when the crate directory is absent (an installed wheel) or `ODOO_SKIP_RUST_FRESHNESS_CHECK` is set |
+| 3 | compare `odoo_rust.__source_crc__` against the crate on disk (`odoo/libs/native.py`) | refuses to start when the built extension is **stale**, naming the rebuild command. Skipped when the crate directory is absent (an installed wheel) or `ODOO_SKIP_RUST_FRESHNESS_CHECK` is set. The sibling `odoo_lint` extension is checked the same way, but at *its* import site in `odoo/libs/lint/scan.py` — it is not a runtime dependency and a server that never runs a lint gate never loads it |
 | 4 | retune the GC threshold set | — |
 | 5 | `_monkeypatches.patch_init()` | anything that must be patched before third-party modules load has to run from here |
 

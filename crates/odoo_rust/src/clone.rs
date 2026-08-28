@@ -8,21 +8,48 @@
 //! - `_PyDict_NewPresized` pre-allocates the hash table (no resizes)
 //! - `PyDict_Next` iterates the internal array directly (no iterator object)
 //! - `PyList_SET_ITEM` writes slots directly (no bounds check, steals ref)
-//! - Type dispatch via `PyDict_CheckExact` (single pointer compare)
+//! - Type dispatch via a single type-flag test (`PyDict_Check` et al.)
 //! - No Python function-call overhead per recursion level
 //!
-//! The safe PyO3 variant is kept as `fast_clone_safe` for documentation.
+//! # What is copied and what is shared
+//!
+//! Dicts, lists and tuples are rebuilt — **including subclasses**, which are
+//! normalized to the plain builtin type.
+//!
+//! Handling subclasses at all is not hypothetical hardening. While the
+//! dispatch used `CheckExact` a subclass matched no container branch and fell
+//! through to the share-by-reference tail, so the "clone" returned the
+//! caller's own object — and `Properties.convert_to_cache` reaches here with
+//! whatever `isinstance(value, dict)` accepted, handed straight back by
+//! `_recordsets_to_ids` when it holds no recordset. Writing an `OrderedDict`
+//! to a Properties field therefore put the caller's live mapping in the field
+//! cache, and mutating that mapping afterwards rewrote the record with nothing
+//! raised. `PropertiesCallerIsolationCase` in `test_orm` is that path, and it
+//! fails against a build without this.
+//!
+//! Normalizing the type rather than preserving it is deliberate: what the
+//! callers buy is isolation, not type fidelity, and reconstructing the exact
+//! class would mean calling back into Python for its constructor — which no
+//! caller needs and every caller would pay for. The visible cost is that a
+//! `namedtuple` comes back as a plain tuple; JSON and Properties values cannot
+//! contain one.
+//!
+//! Everything else is shared by reference. For the immutable leaves this
+//! clone exists for (str/int/float/bool/None) that is free and invisible.
+//! It also means a **mutable non-container leaf is aliased, not copied** — a
+//! `set` or `bytearray` reached through a cloned dict is the original object.
+//! JSON and Properties values cannot hold one (both round-trip through
+//! `orjson` before reaching here), which is why this is a documented boundary
+//! rather than a supported case.
+//!
+//! Aliasing *between* slots is not preserved either: `copy.deepcopy` memoizes,
+//! so a substructure reachable twice stays one object in the copy, while this
+//! clone duplicates it. For a tree — which JSON is — the two agree.
 
 use pyo3::ffi;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple};
 
-// _PyDict_NewPresized pre-allocates dict hash tables at the right size,
-// avoiding resize during fill.  CPython internal API, stable since 3.3,
-// used extensively by CPython itself.
-unsafe extern "C" {
-    fn _PyDict_NewPresized(minused: ffi::Py_ssize_t) -> *mut ffi::PyObject;
-}
+use crate::ffi_ext::_PyDict_NewPresized;
 
 /// Maximum container nesting `clone_inner` will follow before refusing.
 ///
@@ -63,8 +90,11 @@ unsafe fn clone_inner(
     }
     unsafe {
         // Dict — most common container in Odoo JSON blobs.
-        // CheckExact skips subclass traversal; JSON dicts are always plain dict.
-        if ffi::PyDict_CheckExact(obj) != 0 {
+        // `PyDict_Check` is a `Py_TPFLAGS_DICT_SUBCLASS` flag test, so taking
+        // subclasses too costs nothing; `PyDict_Next` walks the concrete
+        // storage a subclass shares with `dict`, ignoring any Python-level
+        // `keys`/`__iter__` override. The result is a plain dict (see above).
+        if ffi::PyDict_Check(obj) != 0 {
             let size = ffi::PyDict_Size(obj);
             let new_dict = _PyDict_NewPresized(size);
             if new_dict.is_null() {
@@ -99,7 +129,7 @@ unsafe fn clone_inner(
         }
 
         // List — second most common (JSON arrays, One2many values).
-        if ffi::PyList_CheckExact(obj) != 0 {
+        if ffi::PyList_Check(obj) != 0 {
             let n = ffi::PyList_GET_SIZE(obj);
             let new_list = ffi::PyList_New(n);
             if new_list.is_null() {
@@ -123,8 +153,10 @@ unsafe fn clone_inner(
             return Ok(new_list);
         }
 
-        // Tuple — rare in JSON data but handled for completeness.
-        if ffi::PyTuple_CheckExact(obj) != 0 {
+        // Tuple — rare in JSON data, and immutable, but still rebuilt: a
+        // tuple's *elements* can be mutable dicts that the caller must not
+        // share with the cache.
+        if ffi::PyTuple_Check(obj) != 0 {
             let n = ffi::PyTuple_GET_SIZE(obj);
             let new_tuple = ffi::PyTuple_New(n);
             if new_tuple.is_null() {
@@ -147,54 +179,9 @@ unsafe fn clone_inner(
             return Ok(new_tuple);
         }
 
-        // Leaf value (str, int, float, bool, None) — share by reference
+        // Leaf — anything that is not a dict/list/tuple. Shared by reference;
+        // see the module docs for why that is safe here and where it is not.
         ffi::Py_INCREF(obj);
         Ok(obj)
     }
-}
-
-// ── Safe PyO3 variant (documentation / semantic reference) ──────────────
-
-/// Safe variant of `fast_clone` using checked PyO3 APIs.
-/// ~1.5-2x slower due to Bound wrappers, downcast checks, and iterator
-/// overhead per container.
-#[allow(dead_code)]
-fn fast_clone_safe(obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    clone_inner_safe(obj)
-}
-
-#[allow(dead_code)]
-fn clone_inner_safe(obj: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    let py = obj.py();
-
-    if let Ok(dict) = obj.cast::<PyDict>() {
-        let new_dict = PyDict::new(py);
-        for (key, value) in dict.iter() {
-            let cloned_value = clone_inner_safe(&value)?;
-            new_dict.set_item(key, cloned_value)?;
-        }
-        return Ok(new_dict.unbind().into_any());
-    }
-
-    if let Ok(list) = obj.cast::<PyList>() {
-        let len = list.len();
-        let mut items: Vec<Py<PyAny>> = Vec::with_capacity(len);
-        for item in list.iter() {
-            items.push(clone_inner_safe(&item)?);
-        }
-        let new_list = PyList::new(py, &items)?;
-        return Ok(new_list.unbind().into_any());
-    }
-
-    if let Ok(tuple) = obj.cast::<PyTuple>() {
-        let len = tuple.len();
-        let mut items: Vec<Py<PyAny>> = Vec::with_capacity(len);
-        for i in 0..len {
-            items.push(clone_inner_safe(&tuple.get_item(i)?)?);
-        }
-        let new_tuple = PyTuple::new(py, &items)?;
-        return Ok(new_tuple.unbind().into_any());
-    }
-
-    Ok(obj.clone().unbind())
 }

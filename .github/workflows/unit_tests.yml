@@ -29,12 +29,12 @@ on:
     branches: ['*']
     paths:
       - 'odoo/orm/components/**'
-      - 'odoo/libs/_field_access/**'
+      - 'odoo/libs/**'
       - 'odoo/orm/model_test_env.py'
       - 'odoo/orm/tests/**'
       - 'odoo/_testing_bootstrap.py'
       - 'pytest.ini'
-      - 'crates/odoo_rust/**'
+      - 'crates/**'
       - '.github/workflows/unit_tests.yml'
       # The other two Tier-2 paths, and the sources they cover. Without these
       # a change to odoo/http or odoo/service would not trigger the suite that
@@ -97,6 +97,16 @@ jobs:
           maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
           python -m pip install --no-index --find-links dist odoo_rust
 
+      - name: Build + install the odoo_lint extension
+        # The lint scanner is a SEPARATE wheel from odoo_rust: it is used by
+        # four gates and never by a running server, and keeping it in the
+        # runtime extension cost 890 KB and twenty crates that no production
+        # code path can reach. A lane that runs a scan-backed gate has to
+        # install it explicitly; one that does not, must not.
+        run: |
+          maturin build --release --manifest-path crates/odoo_lint/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_lint
+
       - name: Install runtime requirements
         # requirements-test.txt pulls in both runtime files, so this lane builds
         # whatever has no wheel for 3.14 — pycairo (rlPyCairo's dependency)
@@ -110,6 +120,15 @@ jobs:
 
       - name: Run _field_access (Tier-1, Rust-backed)
         run: python -m pytest odoo/libs/_field_access/tests -q
+
+      - name: Run the rest of odoo/libs (Tier-1)
+        # `_field_access` above was the only libs suite this lane ran, so every
+        # other one — json/fast_clone, lint/scan, text, sql, filesystem, xml,
+        # collections … — was in Tier 1's `testpaths` and in no CI lane at all.
+        # odoo/libs/lint/tests is the reason it matters now: it pins what the
+        # scanner counts, and the four gates that consume those counts are
+        # exact-mode ratchets.
+        run: python -m pytest odoo/libs -q
 
       - name: Run the Tier-2 suites (real import — one separate invocation)
         # MUST be a separate invocation: the Tier-1 conftests above register
