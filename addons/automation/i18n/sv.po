@@ -1,0 +1,1064 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * automation
+#
+# Translators:
+# Kim Asplund <kim.asplund@gmail.com>, 2022
+# Martin Wilderoth <martin.wilderoth@linserv.se>, 2022
+# Kristoffer Grundström <lovaren@gmail.com>, 2022
+# Simon S, 2022
+# Chrille Hedberg <hedberg.chrille@gmail.com>, 2022
+# Martin Trigaux, 2022
+# Anders Wallenquist <anders.wallenquist@vertel.se>, 2022
+# Mikael Åkerberg <mikael.akerberg@mariaakerberg.com>, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Jakob Krabbe <jakob.krabbe@vertel.se>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 15.5alpha1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-11-06 18:00+0000\n"
+"Last-Translator: Jakob Krabbe <jakob.krabbe@vertel.se>\n"
+"Language-Team: Swedish <https://translate.odoo.com/projects/odoo-19/"
+"automation/sv/>\n"
+"Language: sv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid ""
+"\"\n"
+"                (ID:"
+msgstr ""
+"\"\n"
+"                (ID:"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/group_config_menu_patch.js:0
+msgid "\"%s\" tag is added"
+msgstr "\"%s\"-taggen har lagts till"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"\"On live update\" automation rules can only be used with \"Execute Python "
+"Code\" action type."
+msgstr ""
+"Automatiseringsreglerna \"Vid liveuppdatering\" kan endast användas med "
+"åtgärdstypen \"Utför Python-kod\"."
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_actions_one2many_field.js:0
+msgid "%s actions"
+msgstr "%s åtgärder"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_actions_one2many_field.js:0
+msgid "1 action"
+msgstr "1 åtgärd"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "<code>env</code>: environment on which the action is triggered"
+msgstr "<code>env</code>: miljö där åtgärden utlöses"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<code>model</code>: model of the record on which the action is triggered; is "
+"a void recordset"
+msgstr ""
+"<code>model</code>: modell för den post som åtgärden utlöses på; är en void "
+"recordset"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<code>payload</code>: the payload of the call (GET parameters, JSON body), "
+"as a dict."
+msgstr ""
+"<code>payload</code>: anropets nyttolast (GET-parametrar, JSON-kropp), som "
+"en dict."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<code>time</code>, <code>datetime</code>, <code>dateutil</code>, "
+"<code>timezone</code>: useful Python libraries"
+msgstr ""
+"<code>time</code>, <code>datetime</code>, <code>dateutil</code>, "
+"<code>timezone</code>: användbara Pythonbibliotek"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_kanban
+msgid "<i class=\"fa fa-2x fa-arrow-right text-primary\" title=\"Actions\"/>"
+msgstr "<i class=\"fa fa-2x fa-arrow-right text-primary\" title=\"Åtgärder\"/>"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<i class=\"fa fa-info-circle\"/> The default target record getter will work "
+"out-of-the-box for any webhook coming from another Odoo instance."
+msgstr ""
+"<i class=\"fa fa-info-circle\"/> Standardinställningen för att hämta "
+"målposter fungerar direkt för alla webhook som kommer från en annan Odoo-"
+"instans."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<i class=\"fa fa-warning\"/> Automation rules triggered by UI changes will "
+"be executed <em>every time</em> the watched fields change, <em>whether you "
+"save or not</em>."
+msgstr ""
+"<i class=\"fa fa-warning\"/> Automatiseringsregler som utlöses av ändringar "
+"i användargränssnittet kommer att utföras <em>varje gång</em> de bevakade "
+"fälten ändras, <em> oavsett om du sparar eller inte</em>."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_server_action_form
+msgid "<span class=\"o_stat_text\">Automation</span>"
+msgstr "<span class=\"o_stat_text\">automatisering</span>"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "<span class=\"text-muted\"> Available variables: </span>"
+msgstr "<span class=\"text-muted\"> Tillgängliga variabler: </span>"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_needaction
+msgid "Action Needed"
+msgstr "Åtgärd krävs"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__action_server_ids
+msgid "Actions"
+msgstr "Åtgärder"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Actions To Do"
+msgstr "Åtgärder att vidta"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__active
+msgid "Active"
+msgstr "Aktiv"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_ids
+msgid "Activities"
+msgstr "Aktiviteter"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "Aktivitet undantaget dekoration"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_state
+msgid "Activity State"
+msgstr "Aktivitetsläge"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "Ikon för aktivitetstyp"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_mode__after
+msgid "After"
+msgstr "Efter"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_time_created
+msgid "After creation"
+msgstr "Efter skapandet"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_time_updated
+msgid "After last update"
+msgstr "Efter senaste uppdatering"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__filter_domain
+msgid "Apply on"
+msgstr "Ansök på"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_kanban
+msgid "Archived"
+msgstr "Arkiverad"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_attachment_count
+msgid "Attachment Count"
+msgstr "Antal bilagor"
+
+#. module: automation
+#: model_terms:ir.actions.act_window,help:automation.automation_act
+msgid "Automate <em>everything</em> with Automation Rules"
+msgstr "Automatisera <em>allt</em> med automatiseringsregler"
+
+#. module: automation
+#: model:ir.model,name:automation.model_automation_rule
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__automation_rule_id
+#: model:ir.model.fields,field_description:automation.field_ir_cron__automation_rule_id
+#: model:ir.model.fields.selection,name:automation.selection__ir_actions_server__usage__automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Automation Rule"
+msgstr "Regel för automatisering"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__name
+msgid "Automation Rule Name"
+msgstr "Namn på automatiseringsregel"
+
+#. module: automation
+#: model:ir.actions.act_window,name:automation.automation_act
+#: model:ir.ui.menu,name:automation.menu_automation_form
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_kanban
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_tree
+msgid "Automation Rules"
+msgstr "Regler för automatisering"
+
+#. module: automation
+#: model:ir.actions.server,name:automation.ir_cron_data_automation_check_ir_actions_server
+msgid "Automation Rules: check and execute"
+msgstr "Automatiseringsregler: kontrollera och utföra"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/group_config_menu_patch.js:0
+msgid "Automations"
+msgstr "Automatiseringar"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_time
+msgid "Based on date field"
+msgstr "Baserat på datumfält"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_mode__before
+msgid "Before"
+msgstr "Före"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__filter_pre_domain
+msgid "Before Update Domain"
+msgstr "Före uppdatering av domän"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__create_uid
+msgid "Created by"
+msgstr "Skapad av"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__create_date
+msgid "Created on"
+msgstr "Skapad den"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Custom"
+msgstr "Anpassad"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_type__day
+msgid "Days"
+msgstr "Dagar"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_range
+msgid "Delay"
+msgstr "Försening"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_range_mode
+msgid "Delay mode"
+msgstr "Fördröjningsläge"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"Delay must be positive. Set 'Delay mode' to 'Before' to negate the delay."
+msgstr ""
+"Fördröjningen måste vara positiv. Ställ in 'Fördröjningsläge' på 'Före' för "
+"att neutralisera fördröjningen."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_range_type
+msgid "Delay unit"
+msgstr "Fördröjningsenhet"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Deprecated (do not use)"
+msgstr "Föråldrad (använd inte)"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__description
+msgid "Description"
+msgstr "Beskrivning"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid "Disable"
+msgstr "Inaktivera"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__display_name
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__display_name
+#: model:ir.model.fields,field_description:automation.field_ir_cron__display_name
+msgid "Display Name"
+msgstr "Visningsnamn"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid "Edit"
+msgstr "Redigera"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Email Events"
+msgstr "E-post evenemang"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"Email, follower or activity action types cannot be used when deleting "
+"records, as there are no more records to apply these changes to!"
+msgstr ""
+"Åtgärdstyperna e-post, följare eller aktivitet kan inte användas när poster "
+"raderas, eftersom det inte finns några fler poster att tillämpa dessa "
+"ändringar på!"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "External"
+msgstr "Extern"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__on_change_field_ids
+msgid "Fields that trigger the onchange."
+msgstr "Fält som utlöser onchange."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_follower_ids
+msgid "Followers"
+msgstr "Följare"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "Följare (kontakter)"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Following child actions have warnings: %(children)s"
+msgstr "Följande underaktiviteter har varningar: %(children)s"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__activity_type_icon
+msgid "Font awesome icon e.g. fa-tasks"
+msgstr "Font Awesome-ikon t.ex. fa-tasks"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__model_is_mail_thread
+msgid "Has Mail Thread"
+msgstr "Har posttråd"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__has_message
+msgid "Has Message"
+msgstr "Har meddelande"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_type__hour
+msgid "Hours"
+msgstr "Timmar"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__id
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__id
+#: model:ir.model.fields,field_description:automation.field_ir_cron__id
+msgid "ID"
+msgstr "ID"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_exception_icon
+msgid "Icon"
+msgstr "Ikon"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "Ikon för att indikera en undantagsaktivitet."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "Om markerat, nya meddelanden kräver din uppmärksamhet."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__message_has_error
+#: model:ir.model.fields,help:automation.field_automation_rule__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "Om markerad, några meddelanden har leveransfel."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__filter_domain
+msgid ""
+"If present, this condition must be satisfied before executing the automation "
+"rule."
+msgstr ""
+"Om detta villkor finns måste det uppfyllas innan automatiseringsregeln körs."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__filter_pre_domain
+msgid ""
+"If present, this condition must be satisfied before the update of the "
+"record. Not checked on record creation."
+msgstr ""
+"Om det finns måste detta villkor vara uppfyllt innan posten uppdateras. Inte "
+"markerat vid postskapande."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"If renewed, update the secret URL in the third-party app that calls this "
+"webhook."
+msgstr ""
+"Om den förnyas, uppdatera den hemliga URL:en i tredjepartsappen som anropar "
+"denna webhook."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_search
+msgid "Include Archived"
+msgstr "Inkludera arkiverade"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_is_follower
+msgid "Is Follower"
+msgstr "Är Följare"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Keep track of what this automation does and why it exists..."
+msgstr "Håll koll på vad automatiseringen gör och varför den finns..."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__last_run
+msgid "Last Run"
+msgstr "Senaste körning"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__write_uid
+msgid "Last Updated by"
+msgstr "Senast uppdaterad av"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__write_date
+msgid "Last Updated on"
+msgstr "Senast uppdaterad den"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__log_webhook_calls
+msgid "Log Calls"
+msgstr "Logga samtal"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Logs"
+msgstr "Loggar"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"Mail event can not be configured on model %s. Only models with discussion "
+"feature can be used."
+msgstr ""
+"E-posthändelse kan inte konfigureras på modell %s. Endast modeller med "
+"diskussionsfunktion kan användas."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_has_error
+msgid "Message Delivery error"
+msgstr "Meddelande leveransfel"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_ids
+msgid "Messages"
+msgstr "Meddelanden"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_type__minutes
+msgid "Minutes"
+msgstr "Minuter"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__model_id
+msgid "Model"
+msgstr "Modell"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__model_name
+msgid "Model Name"
+msgstr "Modellnamn"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/ir_actions_server.py:0
+msgid ""
+"Model of action %(action_name)s should match the one from automated rule %"
+"(rule_name)s."
+msgstr ""
+"Modell för åtgärd %(action_name)s ska matcha den från automatiserad regel %"
+"(rule_name)s."
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_type__month
+msgid "Months"
+msgstr "Månader"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "Mina aktiviteters deadline"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_calendar_event_id
+msgid "Next Activity Calendar Event"
+msgstr "Nästa Kalenderhändelse för aktivitet"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "Nästa slutdatum för aktivitet"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_summary
+msgid "Next Activity Summary"
+msgstr "Nästa aktivitetssammanställning"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_type_id
+msgid "Next Activity Type"
+msgstr "Nästa aktivitetstyp"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "No record to run the automation on was found."
+msgstr "Inget register att köra automatiseringen på hittades."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Notes"
+msgstr "Noter"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_needaction_counter
+msgid "Number of Actions"
+msgstr "Antal åtgärder"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_has_error_counter
+msgid "Number of errors"
+msgstr "Antal fel"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "Antal meddelanden som kräver åtgärd"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "Antal meddelanden med leveransfel"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__on_change_field_ids
+msgid "On Change Fields Trigger"
+msgstr "Vid ändring Fält Trigger"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_change
+msgid "On UI change"
+msgstr "Förändring av användargränssnittet"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_archive
+msgid "On archived"
+msgstr "På arkiverad"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_create
+msgid "On create"
+msgstr "Vid skapa"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_create_or_write
+msgid "On create and edit"
+msgstr "Vid skapa och redigera"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_unlink
+msgid "On deletion"
+msgstr "Vid radering"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_message_received
+msgid "On incoming message"
+msgstr "Vid inkommande meddelande"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_message_sent
+msgid "On outgoing message"
+msgstr "På utgående meddelande"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_unarchive
+msgid "On unarchived"
+msgstr "På oarkiverad"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_write
+msgid "On update"
+msgstr "På uppdatering"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_webhook
+msgid "On webhook"
+msgstr "På webhook"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__previous_domain
+msgid "Previous Domain"
+msgstr "Förgående domän"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_priority_set
+msgid "Priority is set to"
+msgstr "Prioritet är inställd på"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__rating_ids
+msgid "Ratings"
+msgstr "Betyg"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__record_getter
+msgid "Record Getter"
+msgstr "Hämta poster"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Renew"
+msgstr "Förnya"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_user_id
+msgid "Responsible User"
+msgstr "Ansvarig användare"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "SMS leveransfel"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Scheduled Action"
+msgstr "Schemalagd åtgärd"
+
+#. module: automation
+#: model:ir.model,name:automation.model_ir_cron
+msgid "Scheduled Actions"
+msgstr "Schemalagda åtgärder"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Scheduled action"
+msgstr "Schemalagd aktivitet"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Secret URL"
+msgstr "Välj URL"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Select a date field..."
+msgstr "Välj ett datumfält..."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Select a value..."
+msgstr "Välj ett värde..."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Select fields..."
+msgstr "Välj fält..."
+
+#. module: automation
+#: model_terms:ir.actions.act_window,help:automation.automation_act
+msgid ""
+"Send an email when an object changes state, archive records\n"
+"                after a month of inactivity or remind yourself to follow-up "
+"on\n"
+"                tasks when a specific tag is added."
+msgstr ""
+"Skicka ett e-postmeddelande när ett objekt ändrar status, arkivera poster\n"
+"                efter en månads inaktivitet eller påminn dig själv om att "
+"följa upp\n"
+"                uppgifter när en specifik tagg läggs till."
+
+#. module: automation
+#: model_terms:digest.tip,tip_description:automation.digest_tip_automation_0
+msgid ""
+"Send an email when an object changes state, archive records after a month of "
+"inactivity or remind yourself to follow-up on tasks when a specific tag is "
+"added.<br>With Automation Rules, you can automate any workflow."
+msgstr ""
+"Skicka ett e-postmeddelande när ett objekt ändrar tillstånd, arkivera poster "
+"efter en månads inaktivitet eller påminn dig själv om att följa upp "
+"uppgifter när en specifik tagg läggs till. <br> Med Automation Rules kan du "
+"automatisera vilket arbetsflöde som helst."
+
+#. module: automation
+#: model:ir.model,name:automation.model_ir_actions_server
+msgid "Server Action"
+msgstr "Serveraktivitet"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Set an explicit name"
+msgstr "Ange ett uttryckligt namn"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trg_selection_field_id
+msgid ""
+"Some triggers need a reference to a selection field. This field is used to "
+"store it."
+msgstr ""
+"Vissa triggers behöver en referens till ett urvalsfält. Detta fält används "
+"för att lagra det."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trg_field_ref
+msgid ""
+"Some triggers need a reference to another field. This field is used to store "
+"it."
+msgstr ""
+"Vissa triggers behöver en referens till ett annat fält. Detta fält används "
+"för att lagra den."
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_stage_set
+msgid "Stage is set to"
+msgstr "Scenen är inställd på"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/group_config_menu_patch.js:0
+msgid "Stage is set to \"%s\""
+msgstr "Scenen är inställd på \"%s\""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_state_set
+msgid "State is set to"
+msgstr "Staten är inställd på att"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"Status baserad på aktiviteter\n"
+"Försenade: Leveranstidpunkten har passerat\n"
+"Idag: Aktivitetsdatum är idag\n"
+"Kommande: Framtida aktiviteter."
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_tag_set
+msgid "Tag is added"
+msgstr "Tagg har lagts till"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Target Record"
+msgstr "Målrekord"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Target model of actions %(action_names)s are different from rule model."
+msgstr ""
+"Målmodellen för åtgärder %(action_names)s skiljer sig från regelmodellen."
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"The \"%(trigger_value)s\" %(trigger_label)s can only be used with the \"%"
+"(state_value)s\" action type"
+msgstr ""
+"\"%(trigger_value)s\" %(trigger_label)s kan endast användas med åtgärdstypen "
+"\"%(state_value)s\""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trigger_field_ids
+msgid ""
+"The automation rule will be triggered if and only if one of these fields is "
+"updated.If empty, all fields are watched."
+msgstr ""
+"Automatiseringsregeln utlöses om och endast om ett av dessa fält uppdateras. "
+"Om de är tomma övervakas alla fält."
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid ""
+"The error occurred during the execution of the automation rule\n"
+"                \""
+msgstr ""
+"Felet uppstod under utförandet av automatiseringsregeln\n"
+"                \""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "The scheduled action for Automation Rules seems to have vanished."
+msgstr ""
+"Den schemalagda åtgärden för automatiseringsregler verkar ha försvunnit."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__record_getter
+msgid ""
+"This code will be run to find on which record the automation rule should be "
+"run."
+msgstr ""
+"Denna kod kommer att användas för att avgöra på vilken post "
+"automatiseringsregeln ska köras."
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Timing Conditions"
+msgstr "Villkor för tidsinställning"
+
+#. module: automation
+#: model:digest.tip,name:automation.digest_tip_automation_0
+#: model_terms:digest.tip,tip_description:automation.digest_tip_automation_0
+msgid "Tip: Automate everything with Automation Rules"
+msgstr "Tips: Automatisera allt med automatiseringsregler"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trigger
+msgid "Trigger"
+msgstr "Utlösare"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_id
+msgid "Trigger Date"
+msgstr "Utlösningsdatum"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_selection_field_id
+msgid "Trigger Field"
+msgstr "Utlösningsfält"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_field_ref_model_name
+msgid "Trigger Field Model"
+msgstr "Modell för utlösningsfält"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trigger_field_ids
+msgid "Trigger Fields"
+msgstr "Fält för utlösare"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_field_ref
+msgid "Trigger Reference"
+msgstr "Referens för utlösare"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "Typ av undantagsaktivitet som har registrerats."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__url
+msgid "Url"
+msgstr "Url"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__usage
+#: model:ir.model.fields,field_description:automation.field_ir_cron__usage
+msgid "Usage"
+msgstr "Användning"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_calendar_id
+msgid "Use Calendar"
+msgstr "Använd kalender"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__url
+msgid "Use this URL in the third-party app to call this webhook."
+msgstr "Använd den här URL:en i tredjepartsappen för att anropa denna webhook."
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_user_set
+msgid "User is set"
+msgstr "Användaren är inställd"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Values Updated"
+msgstr "Värden uppdaterade"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Warning"
+msgstr "Varning"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Webhook Log"
+msgstr "Webhook-logg"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Webhook Logs"
+msgstr "Webhook-loggar"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__webhook_uuid
+msgid "Webhook UUID"
+msgstr "UUID för webhook"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__website_message_ids
+msgid "Website Messages"
+msgstr "Webbplatsmeddelanden"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__website_message_ids
+msgid "Website communication history"
+msgstr "Webbplatsens kommunikationshistorik"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trg_date_calendar_id
+msgid ""
+"When calculating a day-based timed condition, it is possible to use a "
+"calendar to compute the date based on working days."
+msgstr ""
+"Vid beräkning av ett dagbaserat tidsvillkor är det möjligt att använda en "
+"kalender för att beräkna datumet baserat på arbetsdagar."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trg_date_id
+msgid ""
+"When should the condition be triggered.\n"
+"                If present, will be checked by the scheduler. If empty, will "
+"be checked at creation and update."
+msgstr ""
+"När ska villkoret utlösas.\n"
+"                Om det finns kommer det att kontrolleras av schemaläggaren. "
+"Om tomt, kommer att kontrolleras vid skapande och uppdatering."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__active
+msgid "When unchecked, the rule is hidden and will not be executed."
+msgstr "Om den är avmarkerad är regeln dold och kommer inte att utföras."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "When updating"
+msgstr "Vid uppdatering"
+
+#. module: automation
+#: model_terms:ir.actions.act_window,help:automation.automation_act
+msgid ""
+"With Automation Rules, you can automate\n"
+"                <em>any</em> workflow."
+msgstr ""
+"Med automatiseringsregler kan du automatisera\n"
+"                <em>vilket</em> arbetsflöde som helst."
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid "You can ask an administrator to disable or fix this automation."
+msgstr ""
+"Du kan be en administratör att inaktivera eller åtgärda den här "
+"automatiseringen."
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"You cannot send an email, add followers or create an activity for a deleted "
+"record.  It simply does not work."
+msgstr ""
+"Du kan inte skicka ett e-postmeddelande, lägga till följare eller skapa en "
+"aktivitet för en raderad post.  Det fungerar helt enkelt inte."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_kanban
+msgid "based on"
+msgstr "baserat på"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_actions_one2many_field.xml:0
+msgid "no action defined..."
+msgstr "ingen åtgärd definierad..."
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "path"
+msgstr "sökväg"
+
+#~ msgid "Action Name"
+#~ msgstr "Åtgärdsnamn"
+
+#~ msgid "Delay after trigger date"
+#~ msgstr "Ledtid efter utlösningsdatum"
+
+#~ msgid "Delay type"
+#~ msgstr "Ledtidstyp"

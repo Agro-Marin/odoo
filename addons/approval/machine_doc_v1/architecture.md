@@ -744,7 +744,7 @@ The three declared in `__manifest__.py`:
 | Module | Integration |
 |--------|------------|
 | `mail` | Activities, chatter, message_post, message_subscribe |
-| `base_automation` | Automation templates linked to categories (`approval.category.automation_id`, `approval.request.automation_runtime_id`) |
+| `automation` | Automation templates linked to categories (`approval.category.automation_id`, `approval.request.automation_runtime_id`) |
 | `base_sql_report` | `mixin.sql.report`, the `_auto = False` / `_table_query` base of `approval.metrics` and `approver.performance` |
 
 **Not a dependency: `product`.** Product lines left this module in

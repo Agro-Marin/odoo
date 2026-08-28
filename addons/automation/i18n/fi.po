@@ -1,0 +1,1078 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * automation
+#
+# Translators:
+# Miika Nissi <miika.nissi@tawasta.fi>, 2022
+# Teemu Ahonen <teemu.ahonen@web-veistamo.fi>, 2022
+# Veikko Väätäjä <veikko.vaataja@gmail.com>, 2022
+# Tomi Tiainen, 2022
+# Jussi Lehto <jussi@gulfeo.com>, 2022
+# Eino Mäkitalo <eino.makitalo@netitbe.fi>, 2022
+# Miku Laitinen <miku.laitinen@gmail.com>, 2022
+# Martin Trigaux, 2022
+# Tuomo Aura <tuomo.aura@web-veistamo.fi>, 2022
+# Jarmo Kortetjärvi <jarmo.kortetjarvi@gmail.com>, 2022
+# Kari Lindgren <kari.lindgren@emsystems.fi>, 2022
+# Ossi Mantylahti <ossi.mantylahti@obs-solutions.fi>, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+# Saara Hakanen <sahak@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 15.5alpha1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-12-20 09:33+0000\n"
+"Last-Translator: Saara Hakanen <sahak@odoo.com>\n"
+"Language-Team: Finnish <https://translate.odoo.com/projects/odoo-19/"
+"automation/fi/>\n"
+"Language: fi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid ""
+"\"\n"
+"                (ID:"
+msgstr ""
+"\"\n"
+"                (ID:"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/group_config_menu_patch.js:0
+msgid "\"%s\" tag is added"
+msgstr "lisätään tunniste \"%s\""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"\"On live update\" automation rules can only be used with \"Execute Python "
+"Code\" action type."
+msgstr ""
+"\"On live update\" -automaatiosääntöjä voidaan käyttää vain toimintatyypin "
+"\"Execute Python Code\" kanssa."
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_actions_one2many_field.js:0
+msgid "%s actions"
+msgstr "%s toimet"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_actions_one2many_field.js:0
+msgid "1 action"
+msgstr "1 toimenpide"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "<code>env</code>: environment on which the action is triggered"
+msgstr "<code>env</code>: ympäristö, jossa toiminto käynnistetään"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<code>model</code>: model of the record on which the action is triggered; is "
+"a void recordset"
+msgstr ""
+"<code>model</code>: sen tietueen malli, johon toiminto kohdistuu; on tyhjä "
+"tietuesarja"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<code>payload</code>: the payload of the call (GET parameters, JSON body), "
+"as a dict."
+msgstr ""
+"<code>payload</code>: kutsun hyötykuorma (GET-parametrit, JSON-runko) dict-"
+"muodossa."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<code>time</code>, <code>datetime</code>, <code>dateutil</code>, "
+"<code>timezone</code>: useful Python libraries"
+msgstr ""
+"<code>time</code>, <code>datetime</code>, <code>dateutil</code>, "
+"<code>timezone</code>: käytännöllisiä Python-kirjastoja"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_kanban
+msgid "<i class=\"fa fa-2x fa-arrow-right text-primary\" title=\"Actions\"/>"
+msgstr ""
+"<i class=\"fa fa-2x fa-arrow-right text-primary\" title=\"Toimenpiteet\"/>"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<i class=\"fa fa-info-circle\"/> The default target record getter will work "
+"out-of-the-box for any webhook coming from another Odoo instance."
+msgstr ""
+"<i class=\"fa fa-info-circle\"/> Oletuskohdetietueen hakija toimii heti, kun "
+"kyseessä on toisesta Odoo-instanssista tuleva webhook."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"<i class=\"fa fa-warning\"/> Automation rules triggered by UI changes will "
+"be executed <em>every time</em> the watched fields change, <em>whether you "
+"save or not</em>."
+msgstr ""
+"<i class=\"fa fa-warning\"/> Käyttöliittymämuutosten käynnistämät "
+"automaatiosäännöt suoritetaan <em>aina, kun</em> seurattavat kentät "
+"muuttuvat, <em>riippumatta siitä, tallennatko vai et</em>."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_server_action_form
+msgid "<span class=\"o_stat_text\">Automation</span>"
+msgstr "<span class=\"o_stat_text\">Automaatio</span>"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "<span class=\"text-muted\"> Available variables: </span>"
+msgstr "<span class=\"text-muted\"> Käytettävissä olevat muuttujat: </span>"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_needaction
+msgid "Action Needed"
+msgstr "Vaatii toimenpiteitä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__action_server_ids
+msgid "Actions"
+msgstr "Toiminnot"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Actions To Do"
+msgstr "Tehtävälista"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__active
+msgid "Active"
+msgstr "Aktiivinen"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_ids
+msgid "Activities"
+msgstr "Toiminnot"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "Poikkeustoiminnon tyyli"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_state
+msgid "Activity State"
+msgstr "Toiminnon tila"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "Toimintotyypin kuvake"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_mode__after
+msgid "After"
+msgstr "Jälkeen"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_time_created
+msgid "After creation"
+msgstr "Luomisen jälkeen"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_time_updated
+msgid "After last update"
+msgstr "Viimeisimmän päivityksen jälkeen"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__filter_domain
+msgid "Apply on"
+msgstr "Aseta"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_kanban
+msgid "Archived"
+msgstr "Arkistoitu"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_attachment_count
+msgid "Attachment Count"
+msgstr "Liitteiden määrä"
+
+#. module: automation
+#: model_terms:ir.actions.act_window,help:automation.automation_act
+msgid "Automate <em>everything</em> with Automation Rules"
+msgstr "Automatisoi <em>kaikki</em> automaatiosääntöjen avulla"
+
+#. module: automation
+#: model:ir.model,name:automation.model_automation_rule
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__automation_rule_id
+#: model:ir.model.fields,field_description:automation.field_ir_cron__automation_rule_id
+#: model:ir.model.fields.selection,name:automation.selection__ir_actions_server__usage__automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Automation Rule"
+msgstr "Automaatiosääntö"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__name
+msgid "Automation Rule Name"
+msgstr "Automaatiosäännön nimi"
+
+#. module: automation
+#: model:ir.actions.act_window,name:automation.automation_act
+#: model:ir.ui.menu,name:automation.menu_automation_form
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_kanban
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_tree
+msgid "Automation Rules"
+msgstr "Automaatiosäännöt"
+
+#. module: automation
+#: model:ir.actions.server,name:automation.ir_cron_data_automation_check_ir_actions_server
+msgid "Automation Rules: check and execute"
+msgstr "Automaatiosäännöt: tarkista ja suorita"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/group_config_menu_patch.js:0
+msgid "Automations"
+msgstr "Automaatiot"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_time
+msgid "Based on date field"
+msgstr "Perustuu päivämääräkenttään"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_mode__before
+msgid "Before"
+msgstr "Ennen"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__filter_pre_domain
+msgid "Before Update Domain"
+msgstr "Ennen toimialueen päivittämistä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__create_uid
+msgid "Created by"
+msgstr "Luonut"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__create_date
+msgid "Created on"
+msgstr "Luotu"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Custom"
+msgstr "Mukautettu"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_type__day
+msgid "Days"
+msgstr "Päivää"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_range
+msgid "Delay"
+msgstr "Viive"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_range_mode
+msgid "Delay mode"
+msgstr "Viivetila"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"Delay must be positive. Set 'Delay mode' to 'Before' to negate the delay."
+msgstr ""
+"Viiveen on oltava positiivinen. Aseta 'Viivetila' arvoon 'Ennen' kumotaksesi "
+"viiveen."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_range_type
+msgid "Delay unit"
+msgstr "Viiveen yksikkö"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Deprecated (do not use)"
+msgstr "Vanhentunut (älä käytä)"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__description
+msgid "Description"
+msgstr "Kuvaus"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid "Disable"
+msgstr "Poista käytöstä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__display_name
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__display_name
+#: model:ir.model.fields,field_description:automation.field_ir_cron__display_name
+msgid "Display Name"
+msgstr "Näyttönimi"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid "Edit"
+msgstr "Muokkaa"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Email Events"
+msgstr "Sähköpostitapahtumat"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"Email, follower or activity action types cannot be used when deleting "
+"records, as there are no more records to apply these changes to!"
+msgstr ""
+"Sähköposti, seuraaja tai toiminto -toimintatyyppejä ei voi käyttää tietueita "
+"poistettaessa, koska tietueita, joihin näitä muutoksia voidaan soveltaa, ei "
+"enää ole!"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "External"
+msgstr "Ulkoinen"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__on_change_field_ids
+msgid "Fields that trigger the onchange."
+msgstr "Kentät, jotka käynnistävät onchange-laukaisimen."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_follower_ids
+msgid "Followers"
+msgstr "Seuraajat"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "Seuraajat (kumppanit)"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Following child actions have warnings: %(children)s"
+msgstr "Seuraavilla alisteisilla toiminnoilla on varoituksia: %(children)s"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__activity_type_icon
+msgid "Font awesome icon e.g. fa-tasks"
+msgstr "Font awesome -kuvake, esim. fa-tasks"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__model_is_mail_thread
+msgid "Has Mail Thread"
+msgstr "On sähköpostin ketju"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__has_message
+msgid "Has Message"
+msgstr "Sisältää viestin"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_type__hour
+msgid "Hours"
+msgstr "Tunnit"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__id
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__id
+#: model:ir.model.fields,field_description:automation.field_ir_cron__id
+msgid "ID"
+msgstr "ID"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_exception_icon
+msgid "Icon"
+msgstr "Kuvake"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "Kuvake, joka kertoo poikkeustoiminnosta."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "Jos valittu, uudet viestit vaativat huomiotasi."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__message_has_error
+#: model:ir.model.fields,help:automation.field_automation_rule__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "Jos valittu, joitakin viestejä ei voitu toimitettaa virheen vuoksi."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__filter_domain
+msgid ""
+"If present, this condition must be satisfied before executing the automation "
+"rule."
+msgstr ""
+"Jos ehto on olemassa, sen on täytyttävä ennen automaatiosäännön "
+"suorittamista."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__filter_pre_domain
+msgid ""
+"If present, this condition must be satisfied before the update of the "
+"record. Not checked on record creation."
+msgstr ""
+"Jos tämä ehto on olemassa, se on täytettävä ennen tietueen päivittämistä. Ei "
+"tarkisteta tietuetta luotaessa."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid ""
+"If renewed, update the secret URL in the third-party app that calls this "
+"webhook."
+msgstr ""
+"Jos uusitaan, päivitä salainen URL-osoite kolmannen osapuolen sovelluksessa, "
+"joka kutsuu tätä webhookia."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_search
+msgid "Include Archived"
+msgstr "Sisällytä arkistoidut"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_is_follower
+msgid "Is Follower"
+msgstr "Seuraaja"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Keep track of what this automation does and why it exists..."
+msgstr "Seuraa, mitä tämä automaatio tekee ja miksi se on olemassa..."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__last_run
+msgid "Last Run"
+msgstr "Viimeisin suoritus"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__write_uid
+msgid "Last Updated by"
+msgstr "Viimeksi päivittänyt"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__write_date
+msgid "Last Updated on"
+msgstr "Viimeksi päivitetty"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__log_webhook_calls
+msgid "Log Calls"
+msgstr "Kutsuloki"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Logs"
+msgstr "Lokit"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"Mail event can not be configured on model %s. Only models with discussion "
+"feature can be used."
+msgstr ""
+"Postitapahtumaa ei voi määrittää mallissa %s. Vain malleja, joissa on "
+"keskusteluominaisuus, voidaan käyttää."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_has_error
+msgid "Message Delivery error"
+msgstr "Ongelma viestin toimituksessa"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_ids
+msgid "Messages"
+msgstr "Viestit"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_type__minutes
+msgid "Minutes"
+msgstr "Minuutit"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__model_id
+msgid "Model"
+msgstr "Malli"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__model_name
+msgid "Model Name"
+msgstr "Mallin nimi"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/ir_actions_server.py:0
+msgid ""
+"Model of action %(action_name)s should match the one from automated rule %"
+"(rule_name)s."
+msgstr ""
+"Toiminnon %(action_name)s mallin on vastattava automaattisen säännön %"
+"(rule_name)s mallia."
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trg_date_range_type__month
+msgid "Months"
+msgstr "Kuukaudet"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "Toimenpiteeni eräpäivä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_calendar_event_id
+msgid "Next Activity Calendar Event"
+msgstr "Seuraavan toiminnon kalenterimerkintä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "Seuraavan toiminnon määräaika"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_summary
+msgid "Next Activity Summary"
+msgstr "Seuraavan toiminnon kuvaus"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_type_id
+msgid "Next Activity Type"
+msgstr "Seuraavan toiminnon tyyppi"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "No record to run the automation on was found."
+msgstr "Ei löytynyt tietuetta, johon automaatio voitaisiin suorittaa."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Notes"
+msgstr "Muistiinpanot"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_needaction_counter
+msgid "Number of Actions"
+msgstr "Toimintojen määrä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_has_error_counter
+msgid "Number of errors"
+msgstr "Virheiden määrä"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "Toimenpiteitä vaativien viestien määrä"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "Toimitusvirheellisten viestien määrä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__on_change_field_ids
+msgid "On Change Fields Trigger"
+msgstr "Muuttuvan kentän laukaisin"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_change
+msgid "On UI change"
+msgstr "Käyttöliittymän muutoksesta"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_archive
+msgid "On archived"
+msgstr "Arkistoidusta"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_create
+msgid "On create"
+msgstr "Luotaessa"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_create_or_write
+msgid "On create and edit"
+msgstr "Luotaessa ja muokattaessa"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_unlink
+msgid "On deletion"
+msgstr "Poistamisesta"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_message_received
+msgid "On incoming message"
+msgstr "Saapuneesta viestistä"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_message_sent
+msgid "On outgoing message"
+msgstr "Lähtevässä viestissä"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_unarchive
+msgid "On unarchived"
+msgstr "Arkistosta palautettamisesta"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_write
+msgid "On update"
+msgstr "Päivityksestä"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_webhook
+msgid "On webhook"
+msgstr "Webhookista"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__previous_domain
+msgid "Previous Domain"
+msgstr "Aiempi domain"
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_priority_set
+msgid "Priority is set to"
+msgstr "Prioriteetti on asetettu"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__rating_ids
+msgid "Ratings"
+msgstr "Arvioinnit"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__record_getter
+msgid "Record Getter"
+msgstr "Tietueen noutaja"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Renew"
+msgstr "Uudista"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_user_id
+msgid "Responsible User"
+msgstr "Vastuukäyttäjä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "Tekstiviestin toimitusvirhe"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Scheduled Action"
+msgstr "Ajoitettu toiminto"
+
+#. module: automation
+#: model:ir.model,name:automation.model_ir_cron
+msgid "Scheduled Actions"
+msgstr "Ajoitetut toiminnot"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Scheduled action"
+msgstr "Ajastettu toiminto"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Secret URL"
+msgstr "Salainen URL"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Select a date field..."
+msgstr "Valitse päivämääräkenttä..."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Select a value..."
+msgstr "Valitse arvo..."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Select fields..."
+msgstr "Valitse kentät..."
+
+#. module: automation
+#: model_terms:ir.actions.act_window,help:automation.automation_act
+msgid ""
+"Send an email when an object changes state, archive records\n"
+"                after a month of inactivity or remind yourself to follow-up "
+"on\n"
+"                tasks when a specific tag is added."
+msgstr ""
+"Lähetä sähköposti, kun kohteen tila muuttuu. Arkistoi tietueet\n"
+"                kuukauden epäaktiivisuuden jälkeen tai muistuta itseäsi "
+"tehtävien seurannasta,\n"
+"                kun tietty tunniste on lisätty."
+
+#. module: automation
+#: model_terms:digest.tip,tip_description:automation.digest_tip_automation_0
+msgid ""
+"Send an email when an object changes state, archive records after a month of "
+"inactivity or remind yourself to follow-up on tasks when a specific tag is "
+"added.<br>With Automation Rules, you can automate any workflow."
+msgstr ""
+"Lähetä sähköposti, kun kohteen tila muuttuu. Arkistoi tietueet kuukauden "
+"epäaktiivisuuden jälkeen tai muistuta itseäsi tehtävien seurannasta, kun "
+"tietty tunniste on lisätty.<br>Voit automatisoida minkä tahansa työnkulun "
+"automaatiosääntöjen avulla."
+
+#. module: automation
+#: model:ir.model,name:automation.model_ir_actions_server
+msgid "Server Action"
+msgstr "Palvelintoiminto"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Set an explicit name"
+msgstr "Aseta tarkka nimi"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trg_selection_field_id
+msgid ""
+"Some triggers need a reference to a selection field. This field is used to "
+"store it."
+msgstr ""
+"Jotkin laukaisimet tarvitsevat viittauksen valintakenttään. Tätä kenttää "
+"käytetään sen tallentamiseen."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trg_field_ref
+msgid ""
+"Some triggers need a reference to another field. This field is used to store "
+"it."
+msgstr ""
+"Jotkin laukaisimet tarvitsevat viittauksen toiseen kenttään. Tätä kenttää "
+"käytetään sen tallentamiseen."
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_stage_set
+msgid "Stage is set to"
+msgstr "Vaiheeksi on asetettu"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/group_config_menu_patch.js:0
+msgid "Stage is set to \"%s\""
+msgstr "Vaiheeksi on asetettu \"%s\""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_state_set
+msgid "State is set to"
+msgstr "Tilaksi on asetettu"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"Tila aktiviteetin perusteella\n"
+"Myöhässä: Eräpäivä on menneisyydessä\n"
+"Tänään: Eräpäivä on tänään\n"
+"Suunniteltu: Toimintoja tulevaisuudessa."
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_tag_set
+msgid "Tag is added"
+msgstr "Etiketti on lisätty"
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "Target Record"
+msgstr "Kohdetietue"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Target model of actions %(action_names)s are different from rule model."
+msgstr "Toimien kohdemalli %(action_names)s eroaa sääntömallista."
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"The \"%(trigger_value)s\" %(trigger_label)s can only be used with the \"%"
+"(state_value)s\" action type"
+msgstr ""
+"Laukaisinta \"%(trigger_value)s\" %(trigger_label)s voidaan käyttää vain \"%"
+"(state_value)s\" toimintatyypissä"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trigger_field_ids
+msgid ""
+"The automation rule will be triggered if and only if one of these fields is "
+"updated.If empty, all fields are watched."
+msgstr ""
+"Automaatiosääntö käynnistyy, jos ja vain jos jokin näistä kentistä "
+"päivitetään. Jos kenttä on tyhjä, kaikkia kenttiä tarkkaillaan."
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid ""
+"The error occurred during the execution of the automation rule\n"
+"                \""
+msgstr ""
+"Virhe tapahtui automaatiosäännön suorittamisen aikana\n"
+"                \""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "The scheduled action for Automation Rules seems to have vanished."
+msgstr "Automaatiosääntöjen ajastettu toiminto näyttää kadonneen."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__record_getter
+msgid ""
+"This code will be run to find on which record the automation rule should be "
+"run."
+msgstr ""
+"Tämä koodi suoritetaan selvittämään, minkä tietueen kohdalla "
+"automatisointisääntö on tehtävä."
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Timing Conditions"
+msgstr "Ajoitusehdot"
+
+#. module: automation
+#: model:digest.tip,name:automation.digest_tip_automation_0
+#: model_terms:digest.tip,tip_description:automation.digest_tip_automation_0
+msgid "Tip: Automate everything with Automation Rules"
+msgstr "Vinkki: Automaatiosääntöjen avulla voit automatisoida mitä vain"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trigger
+msgid "Trigger"
+msgstr "Liipaisin"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_id
+msgid "Trigger Date"
+msgstr "Liipaisupäivämäärä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_selection_field_id
+msgid "Trigger Field"
+msgstr "Laukaisukenttä"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_field_ref_model_name
+msgid "Trigger Field Model"
+msgstr "Laukaisukentän malli"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trigger_field_ids
+msgid "Trigger Fields"
+msgstr "Laukeavat kentät"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_field_ref
+msgid "Trigger Reference"
+msgstr "Laukaisimen viite"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "Kirjattu poikkeustoimenpiteen tyyppi."
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__url
+msgid "Url"
+msgstr "URL"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__usage
+#: model:ir.model.fields,field_description:automation.field_ir_cron__usage
+msgid "Usage"
+msgstr "Käyttö"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__trg_date_calendar_id
+msgid "Use Calendar"
+msgstr "Käytä kalenteria"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__url
+msgid "Use this URL in the third-party app to call this webhook."
+msgstr ""
+"Käytä tätä URL-osoitetta kolmannen osapuolen sovelluksessa kutsuaksesi tätä "
+"webhookia."
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_rule__trigger__on_user_set
+msgid "User is set"
+msgstr "Käyttäjä on asetettu"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_trigger_selection_field.js:0
+msgid "Values Updated"
+msgstr "Arvot on päivitetty"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Warning"
+msgstr "Varoitus"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Webhook Log"
+msgstr "Webhook-loki"
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "Webhook Logs"
+msgstr "Webhook-lokit"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__webhook_uuid
+msgid "Webhook UUID"
+msgstr "Webhookin UUID"
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__website_message_ids
+msgid "Website Messages"
+msgstr "Verkkosivun viestit"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__website_message_ids
+msgid "Website communication history"
+msgstr "Verkkosivun viestihistoria"
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trg_date_calendar_id
+msgid ""
+"When calculating a day-based timed condition, it is possible to use a "
+"calendar to compute the date based on working days."
+msgstr ""
+"Päiväkohtaista ajastusehtoa laskettaessa on mahdollista laskea päivämäärä "
+"työpäivien perusteella kalenterin avulla."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__trg_date_id
+msgid ""
+"When should the condition be triggered.\n"
+"                If present, will be checked by the scheduler. If empty, will "
+"be checked at creation and update."
+msgstr ""
+"Milloin ehto pitäisi laukaista.\n"
+"                 Jos asetettu, Odoon eräajo-ohjelma (cron) käsittelee tämän. "
+"Jos tyhjä, tarkistetaan luonnin ja päivityksen yhteydessä."
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__active
+msgid "When unchecked, the rule is hidden and will not be executed."
+msgstr "Kun tätä ei ole valittu, sääntö on piilotettu ja sitä ei suoriteta."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form
+msgid "When updating"
+msgstr "Kun päivität"
+
+#. module: automation
+#: model_terms:ir.actions.act_window,help:automation.automation_act
+msgid ""
+"With Automation Rules, you can automate\n"
+"                <em>any</em> workflow."
+msgstr ""
+"Automaatiosääntöjen avulla voit automatisoida\n"
+"               <em>minkä tahansa</em> työnkulun."
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_error_dialog.xml:0
+msgid "You can ask an administrator to disable or fix this automation."
+msgstr ""
+"Voit pyytää ylläpitäjää poistamaan käytöstä tai korjaamaan tämän automaation."
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid ""
+"You cannot send an email, add followers or create an activity for a deleted "
+"record.  It simply does not work."
+msgstr ""
+"Et voi lähettää sähköpostia, lisätä seuraajia tai luoda aktiviteettia "
+"poistetulle tietueelle.   Se nyt ei vain toimi niin."
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_kanban
+msgid "based on"
+msgstr "perustuen"
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/automation_actions_one2many_field.xml:0
+msgid "no action defined..."
+msgstr "ei määritelty toimintaa..."
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation.py:0
+msgid "path"
+msgstr "polku"
+
+#~ msgid "Action Name"
+#~ msgstr "Toiminnon nimi"
+
+#~ msgid "Delay after trigger date"
+#~ msgstr "Viive ajastetun päivämäärän jälkeen"
+
+#~ msgid "Delay type"
+#~ msgstr "Viivästyksen tyyppi"
+
+#~ msgid ""
+#~ "If present, this condition must be satisfied before the update of the "
+#~ "record."
+#~ msgstr ""
+#~ "Jos käytössä, niin tämän ehdon pitää täyttyä ennen tietueen päivitystä."
+
+#~ msgid "Least Delay Msg"
+#~ msgstr "Viimeisimmän viiveen viesti"

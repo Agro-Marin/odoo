@@ -1378,7 +1378,7 @@ msgstr "Nach dem Plandatum"
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_exception_decoration__warning
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_exception_decoration__warning
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_exception_decoration__warning
@@ -4468,7 +4468,7 @@ msgstr "Vollbildmodus aktivieren!"
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_exception_decoration__danger
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_exception_decoration__danger
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_exception_decoration__danger
@@ -8685,7 +8685,7 @@ msgstr "Postausgangsserver"
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_state__overdue
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_state__overdue
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_state__overdue
@@ -9009,7 +9009,7 @@ msgstr "Planbasierte Organisation ist nur für Dokumente verfügbar."
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_state__planned
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_state__planned
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_state__planned
@@ -12034,7 +12034,7 @@ msgstr "An:"
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_state__today
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_state__today
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_state__today

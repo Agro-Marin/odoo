@@ -1332,7 +1332,7 @@ msgstr "계획일 이후"
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_exception_decoration__warning
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_exception_decoration__warning
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_exception_decoration__warning
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_exception_decoration__warning
@@ -4368,7 +4368,7 @@ msgstr "전체 화면을 시작하세요!"
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_exception_decoration__danger
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_exception_decoration__danger
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_exception_decoration__danger
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_exception_decoration__danger
@@ -8504,7 +8504,7 @@ msgstr "보내는 메일 서버"
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_state__overdue
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_state__overdue
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_state__overdue
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_state__overdue
@@ -8828,7 +8828,7 @@ msgstr "플랜 기준의 일정 예약은 문서에서만 적용이 가능합니
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_state__planned
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_state__planned
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_state__planned
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_state__planned
@@ -11770,7 +11770,7 @@ msgstr "받는 사람 :"
 #: model:ir.model.fields.selection,name:mail.selection__account_journal__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__account_move__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__account_payment__activity_state__today
-#: model:ir.model.fields.selection,name:mail.selection__base_automation__activity_state__today
+#: model:ir.model.fields.selection,name:mail.selection__automation_rule__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__card_campaign__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__crm_lead__activity_state__today
 #: model:ir.model.fields.selection,name:mail.selection__event_booth__activity_state__today

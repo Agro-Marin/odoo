@@ -171,7 +171,7 @@ class DocumentsDocument(models.Model):
             self.env["ir.module.module"]
             .sudo()
             .search_count(
-                [("name", "=", "base_automation"), ("state", "=", "installed")],
+                [("name", "=", "automation"), ("state", "=", "installed")],
                 limit=1,
             )
         )

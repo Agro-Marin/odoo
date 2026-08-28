@@ -16,7 +16,7 @@ dashboards.
 | Technical name | `approval` |
 | Version | 19.0.1.0.25 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
-| Dependencies | `base_automation`, `base_sql_report`, `mail` |
+| Dependencies | `automation`, `base_sql_report`, `mail` |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
 | Application | Yes |
 | License | LGPL-3 |

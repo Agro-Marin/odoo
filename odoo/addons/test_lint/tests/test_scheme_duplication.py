@@ -44,7 +44,7 @@ _KEYWORDS = {
 SINGLE_BUNDLE_GAP_FLOOR = {
     "account": 4,
     "account_edi_ubl_cii": 1,
-    "base_automation": 0,
+    "automation": 0,
     "base_import": 1,
     "calendar": 2,
     "documents": 11,

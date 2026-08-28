@@ -1120,7 +1120,7 @@ msgid "A card is a flexible and extensible content container. It includes option
 msgstr ""
 
 #. module: website
-#: model:ir.model.fields,help:website.field_base_automation__website_published
+#: model:ir.model.fields,help:website.field_automation_rule__website_published
 #: model:ir.model.fields,help:website.field_ir_actions_server__website_published
 #: model:ir.model.fields,help:website.field_ir_cron__website_published
 msgid "A code server action can be executed from the website, using a dedicated controller. The address is <base>/website/action/<website_path>. Set this field as True to allow users to run this action. If it is set to False the action cannot be run through the website."
@@ -1800,7 +1800,7 @@ msgid "Autosizing"
 msgstr ""
 
 #. module: website
-#: model:ir.model.fields,field_description:website.field_base_automation__website_published
+#: model:ir.model.fields,field_description:website.field_automation_rule__website_published
 #: model:ir.model.fields,field_description:website.field_ir_actions_server__website_published
 #: model:ir.model.fields,field_description:website.field_ir_cron__website_published
 msgid "Available on the Website"
@@ -3815,7 +3815,7 @@ msgid "Extension View"
 msgstr ""
 
 #. module: website
-#: model:ir.model.fields,field_description:website.field_base_automation__xml_id
+#: model:ir.model.fields,field_description:website.field_automation_rule__xml_id
 #: model:ir.model.fields,field_description:website.field_ir_actions_server__xml_id
 #: model:ir.model.fields,field_description:website.field_ir_cron__xml_id
 #: model:ir.model.fields,field_description:website.field_website_page__xml_id
@@ -4770,7 +4770,7 @@ msgid "ID"
 msgstr "ઓળખ"
 
 #. module: website
-#: model:ir.model.fields,help:website.field_base_automation__xml_id
+#: model:ir.model.fields,help:website.field_automation_rule__xml_id
 #: model:ir.model.fields,help:website.field_ir_actions_server__xml_id
 #: model:ir.model.fields,help:website.field_ir_cron__xml_id
 msgid "ID of the action if defined in a XML file"
@@ -8660,7 +8660,7 @@ msgid "The full URL to access the document through the website."
 msgstr ""
 
 #. module: website
-#: model:ir.model.fields,help:website.field_base_automation__website_url
+#: model:ir.model.fields,help:website.field_automation_rule__website_url
 #: model:ir.model.fields,help:website.field_ir_actions_server__website_url
 #: model:ir.model.fields,help:website.field_ir_cron__website_url
 msgid "The full URL to access the server action through the website."
@@ -9886,7 +9886,7 @@ msgid "Website Pages"
 msgstr ""
 
 #. module: website
-#: model:ir.model.fields,field_description:website.field_base_automation__website_path
+#: model:ir.model.fields,field_description:website.field_automation_rule__website_path
 #: model:ir.model.fields,field_description:website.field_ir_actions_server__website_path
 #: model:ir.model.fields,field_description:website.field_ir_cron__website_path
 msgid "Website Path"
@@ -9940,7 +9940,7 @@ msgid "Website URL"
 msgstr ""
 
 #. module: website
-#: model:ir.model.fields,field_description:website.field_base_automation__website_url
+#: model:ir.model.fields,field_description:website.field_automation_rule__website_url
 #: model:ir.model.fields,field_description:website.field_ir_actions_server__website_url
 #: model:ir.model.fields,field_description:website.field_ir_cron__website_url
 msgid "Website Url"

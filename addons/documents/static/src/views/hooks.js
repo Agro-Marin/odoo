@@ -83,11 +83,11 @@ export function useDocumentView(helpers) {
     const bus = env.documentsView.bus;
 
     const _openAutomations = async ({ folderId, folderDisplayName }) => {
-        const checkBaseAutomation = await orm.call(
+        const checkAutomationRule = await orm.call(
             "documents.document",
             "check_automation_available"
         );
-        if (!checkBaseAutomation) {
+        if (!checkAutomationRule) {
             const UpsellDialog = registry
                 .category("documents_automation_upsell")
                 .get("dialog", null);
@@ -101,7 +101,7 @@ export function useDocumentView(helpers) {
                 { title: _t("Access to Automations"), type: "info" }
             );
         }
-        const userHasAccessRight = await user.checkAccessRight("base.automation", "create");
+        const userHasAccessRight = await user.checkAccessRight("automation.rule", "create");
         if (!userHasAccessRight) {
             return notification.add(_t("Contact your Administrator to get access if needed."), {
                 title: _t("Access to Automations"),
@@ -113,7 +113,7 @@ export function useDocumentView(helpers) {
             [["model", "=", "documents.document"]],
             { limit: 1 }
         );
-        return await action.doAction("base_automation.base_automation_act", {
+        return await action.doAction("automation.automation_act", {
             additionalContext: {
                 active_test: false,
                 default_model_id: documentsModelId[0],

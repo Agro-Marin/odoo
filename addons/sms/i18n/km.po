@@ -88,7 +88,7 @@ msgid "Action Needed"
 msgstr ""
 
 #. module: sms
-#: model:ir.model.fields,field_description:sms.field_base_automation__state
+#: model:ir.model.fields,field_description:sms.field_automation_rule__state
 #: model:ir.model.fields,field_description:sms.field_ir_actions_server__state
 #: model:ir.model.fields,field_description:sms.field_ir_cron__state
 msgid "Action To Do"
@@ -187,7 +187,7 @@ msgid "Choose an example"
 msgstr ""
 
 #. module: sms
-#: model:ir.model.fields,help:sms.field_base_automation__sms_method
+#: model:ir.model.fields,help:sms.field_automation_rule__sms_method
 #: model:ir.model.fields,help:sms.field_ir_actions_server__sms_method
 #: model:ir.model.fields,help:sms.field_ir_cron__sms_method
 msgid ""
@@ -889,7 +889,7 @@ msgid "SMS Status"
 msgstr ""
 
 #. module: sms
-#: model:ir.model.fields,field_description:sms.field_base_automation__sms_template_id
+#: model:ir.model.fields,field_description:sms.field_automation_rule__sms_template_id
 #: model:ir.model.fields,field_description:sms.field_ir_actions_server__sms_template_id
 #: model:ir.model.fields,field_description:sms.field_ir_cron__sms_template_id
 #: model_terms:ir.ui.view,arch_db:sms.sms_template_view_form
@@ -997,7 +997,7 @@ msgid "Send as"
 msgstr ""
 
 #. module: sms
-#: model:ir.model.fields,field_description:sms.field_base_automation__sms_method
+#: model:ir.model.fields,field_description:sms.field_automation_rule__sms_method
 #: model:ir.model.fields,field_description:sms.field_ir_actions_server__sms_method
 #: model:ir.model.fields,field_description:sms.field_ir_cron__sms_method
 msgid "Send as (SMS)"
@@ -1147,7 +1147,7 @@ msgid "Type"
 msgstr ""
 
 #. module: sms
-#: model:ir.model.fields,help:sms.field_base_automation__state
+#: model:ir.model.fields,help:sms.field_automation_rule__state
 #: model:ir.model.fields,help:sms.field_ir_actions_server__state
 #: model:ir.model.fields,help:sms.field_ir_cron__state
 msgid ""

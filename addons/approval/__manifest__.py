@@ -30,7 +30,7 @@ activities to a substitute for a dated window; escalation reminds by priority.
     "author": "AgroMarin",
     "license": "LGPL-3",
     "depends": [
-        "base_automation",
+        "automation",
         "base_sql_report",
         "mail",
     ],

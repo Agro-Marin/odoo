@@ -362,7 +362,7 @@ class ApprovalCategory(models.Model):
     )
 
     automation_id = fields.Many2one(
-        comodel_name="base.automation",
+        comodel_name="automation.rule",
         domain="[('trigger', '=', 'on_hand')]",
     )
 

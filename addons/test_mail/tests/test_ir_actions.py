@@ -527,7 +527,7 @@ class TestServerActionsMailRegistryContract(MailCommon):
         `available_model_ids` itself for the rest, which passed this check while
         dropping base's own narrowing for that state. Only a behavioural
         assertion catches that, and it lives where every module has loaded:
-        `test_base_automation`'s `TestAvailableModelsNeverWiden`.
+        `test_automation`'s `TestAvailableModelsNeverWiden`.
         """
         import inspect
 
@@ -941,7 +941,7 @@ class TestServerActionsMailBatch(MailCommon):
     def test_one_unsettled_record_does_not_hold_back_the_others(self):
         """The guard is per record now, because the runner is fed a batch.
 
-        `base_automation` fires a rule once for the whole write since the
+        `automation` fires a rule once for the whole write since the
         runners take `active_ids` as a set. The guard that keeps a half-computed
         record from being mailed twice used to answer for the set -- one record
         still waiting on a recompute stopped the mail for every record in the
@@ -1121,7 +1121,7 @@ class TestServerActionsMailDefaults(MailCommon):
     def test_the_follower_runners_run_through_a_pending_recompute(self):
         """Why they carry no `_is_recompute()` guard, unlike the other two.
 
-        `base_automation` patches `_compute_field_value`, which fires once per
+        `automation` patches `_compute_field_value`, which fires once per
         computed *field*, so one cascade can process the same rule several times.
         `_is_recompute` is what stops `mail_post` and `next_activity` sending a
         mail or scheduling an activity on each pass -- and nothing retries a run
