@@ -58,6 +58,16 @@ class MixinOrderLineAmount(models.AbstractModel):
         precompute=True,
         readonly=False,
     )
+    discount_auto = fields.Float(
+        string="Automatic Discount",
+        digits="Discount",
+        compute="_compute_price_and_discount",
+        store=True,
+        precompute=True,
+        copy=True,
+        help="Discount from the pricelist/seller. Compared with discount to "
+        "detect manual overrides.",
+    )
     tax_ids = fields.Many2many(
         comodel_name="account.tax",
         string="Taxes",
@@ -179,15 +189,20 @@ class MixinOrderLineAmount(models.AbstractModel):
                 line.price_unit = False
                 line.discount = False
                 line.price_unit_auto = False
+                line.discount_auto = False
                 continue
             if not line.product_id:
                 continue
             auto_price, auto_discount = line._get_auto_price_and_discount()
-            old_shadow = line.price_unit_auto
+            old_price_shadow = line.price_unit_auto
+            old_discount_shadow = line.discount_auto
             line.price_unit_auto = auto_price
-            if line._should_update_price(auto_price, old_shadow, force_recompute):
+            line.discount_auto = auto_discount
+            if line._should_update_price(auto_price, old_price_shadow, force_recompute):
                 line.price_unit = auto_price
-                if line._should_update_discount(auto_discount, force_recompute):
+                if line._should_update_discount(
+                    auto_discount, old_discount_shadow, force_recompute
+                ):
                     line.discount = auto_discount
 
     def _get_auto_price_and_discount(self):
@@ -232,7 +247,9 @@ class MixinOrderLineAmount(models.AbstractModel):
             != 0
         )
 
-    def _should_update_discount(self, new_auto_discount, force_recompute=False):
+    def _should_update_discount(
+        self, new_auto_discount, old_auto_discount, force_recompute=False
+    ):
         """Whether the automatic discount may overwrite the one on the line.
 
         Asked separately from the price because a discount cannot be read
@@ -242,11 +259,30 @@ class MixinOrderLineAmount(models.AbstractModel):
         `_compute_amounts` then precomputed the subtotal from the reset
         value, and the caller's discount was restored afterwards -- leaving
         a stored line whose discount and subtotal disagree.
+
+        Mirrors `_should_update_price`'s stored-record branch: on a stored
+        line, a discount that no longer matches the previous automatic value
+        was set manually and must not be overwritten by a new recompute
+        (e.g. triggered by an unrelated field like `tax_ids` or
+        `selected_seller_id` changing).
         """
         self.ensure_one()
-        if force_recompute or self._origin.id:
+        if force_recompute:
             return True
         precision = self.env["decimal.precision"].get_precision("Discount")
+
+        has_baseline = self._origin.id or old_auto_discount
+        if has_baseline:
+            is_manual = (
+                float_compare(
+                    self.discount,
+                    old_auto_discount,
+                    precision_digits=precision,
+                )
+                != 0
+            )
+            return not is_manual
+
         return not (
             self.discount
             and float_compare(
