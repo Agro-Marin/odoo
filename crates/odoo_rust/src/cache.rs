@@ -15,15 +15,33 @@
 //! - `PyTuple_GET_ITEM` skips bounds checks — caller guarantees valid indices.
 //! - The functions work with raw Python dicts — no Odoo imports in Rust.
 //!
-//! Python 3.14 notes:
-//! - `PyDict_GetItem` returns borrowed refs and is safe under the GIL, which
-//!   is the only reason the `Py_INCREF` a few instructions later is sound: no
-//!   other thread can replace the dict entry and free the object in between.
-//!   Free-threaded builds need `PyDict_GetItemRef` (strong refs) on every one
-//!   of these paths — `batch_group_ids` already took that change — plus an
-//!   audit of the remaining borrows. Until then the module declares
-//!   `gil_used = true` (see `lib.rs`), which is what keeps a free-threaded
-//!   interpreter from running these concurrently.
+//! Free-threading: measured, not assumed.
+//!
+//! `PyDict_GetItem` returns a borrowed reference and is safe under the GIL,
+//! which is the only reason owning it a few instructions later is sound: no
+//! other thread can replace the dict entry and free the object in between.
+//! Without the GIL that window is real, and it is not theoretical — built with
+//! `gil_used = false` against CPython 3.14.7t and run with 8 readers against 6
+//! threads replacing every cache value, **`batch_cache_filter` segfaults**,
+//! four runs out of four. The same harness leaves `batch_cache_get` (128,909
+//! calls), `batch_cache_values` (104,367) and `batch_cache_fill` (101,311)
+//! standing, because CPython's free-threaded build defers reclamation and that
+//! covers a lookup followed immediately by an `Py_INCREF`. `filter` is the one
+//! that hands control back to Python — `PyObject_IsTrue` can call `__bool__` —
+//! while holding only a borrow.
+//!
+//! Two things were tried. Taking a strong reference *around* `PyObject_IsTrue`
+//! does NOT close it: the pointer can already be dangling when the `Py_INCREF`
+//! runs. Converting [`cache_probe`] to `PyDict_GetItemRef`, which acquires the
+//! reference inside the dict's own lock, does — 4 runs of 4 clean, with the
+//! refcount of a cached value unchanged across 80,000 calls. It costs
+//! **+13.3% on `batch_cache_filter`** and +4.2% on `sort_ids_by_cache`.
+//!
+//! That is the price of free-threading for this module, and it is not worth
+//! paying for a configuration the fork does not ship: the extension declares
+//! `gil_used = true` (see `lib.rs`), which a free-threaded interpreter honours
+//! by re-enabling the GIL at import — also measured. Pay it when there is a
+//! lane that proves it.
 
 use std::ptr::NonNull;
 
@@ -50,6 +68,10 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 /// path free of refcount traffic. `batch_group_ids` in `sort.rs` looks the same
 /// and is not: its keys are arbitrary cached *values*, so it uses
 /// `PyDict_GetItemRef` and pays for it.
+///
+/// This is also the single function standing between this module and
+/// free-threading: `PyDict_GetItemRef` here closes the hazard the module docs
+/// measure, at +13.3% on `batch_cache_filter`.
 ///
 /// `Option<NonNull<_>>`, which is pointer-sized — a bare `*mut` has no niche,
 /// so `Option<*mut _>` would carry a tag word. Three shapes were measured on
@@ -172,9 +194,18 @@ pub fn batch_cache_filter<'py>(
 ) -> PyResult<(Py<PyList>, Py<PyList>)> {
     let n = ids.len() as ffi::Py_ssize_t;
 
-    // SAFETY: Same as batch_cache_get.  PyObject_IsTrue can call __bool__
-    // but Odoo field values are immutable types (int/str/bool/float) whose
-    // truthiness check is a pure C-level operation with no side effects.
+    // SAFETY: Same as batch_cache_get, and one step weaker.
+    //
+    // This comment used to read "PyObject_IsTrue can call __bool__ but Odoo
+    // field values are immutable types whose truthiness check is a pure
+    // C-level operation with no side effects". That is an argument about side
+    // EFFECTS, and the hazard is about the LIFETIME of a borrow: `value` is
+    // borrowed from the cache, and `PyObject_IsTrue` is the only place in this
+    // module that hands control back to Python while holding one. Under the
+    // GIL nothing else runs there and the call is sound. Under a free-threaded
+    // interpreter it is the one function here that segfaults — see the module
+    // docs, which measure it. Do not read the old sentence as clearance for
+    // flipping `gil_used`; it was the reasoning that made it look safe.
     unsafe {
         let cache_ptr = field_cache.as_ptr();
         let ids_ptr = ids.as_ptr();

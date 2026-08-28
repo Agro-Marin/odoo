@@ -7,18 +7,16 @@ re-enabled the GIL to import it; from 0.28 an unannotated module declares
 either crate changed when the dependency did, so both silently began telling a
 free-threaded CPython it was safe to run their functions in parallel.
 
-They are not, and `cache.rs` has said so all along: the batch lookups take
-**borrowed** references out of `PyDict_GetItem` and `Py_INCREF` them a few
-instructions later. Under the GIL nothing can run in between. Without it another
-thread can replace the dict entry in that window and drop the last reference —
-which is the pattern CPython added `PyDict_GetItemRef` to replace, and which
-3.14 itself points at when `PyDict_GetItem` swallows an exception.
+They are not, and this is measured. Built with `gil_used = false` against
+CPython 3.14.7t and run with 8 readers against 6 threads replacing every cache
+value, **`batch_cache_filter` segfaults, four runs out of four**; with the
+declaration as it stands, the same harness completes four of four, because the
+interpreter re-enables the GIL at import and says so. The scoping, the two
+attempted fixes and what the working one costs are in `cache.rs`'s module docs.
 
-The decisive argument needs no memory model at all: **neither extension has ever
-been executed under a free-threaded interpreter.** `freethreading.yml` scopes
-itself to the pure-Python `odoo/orm/components` and `odoo/db` suites, precisely
-because they need no native build. Declaring safety that has never been tested
-is wrong whether or not it happens to hold.
+That leaves the declaration a load-bearing safety property rather than a
+formality, which is why it is checked here — and why it is checked against the
+built binary.
 
 This reads the declaration out of the built binary rather than trusting the
 source, because the source did not change when the meaning did. Delete it when

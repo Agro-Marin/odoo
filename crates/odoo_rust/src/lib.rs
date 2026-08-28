@@ -36,15 +36,19 @@ mod web;
 /// unannotated module silently began telling a free-threaded CPython it was
 /// safe to run these functions in parallel.
 ///
-/// It is not, and `cache.rs` has said so all along: the batch lookups take
-/// **borrowed** references out of `PyDict_GetItem` and `Py_INCREF` them a few
-/// instructions later. Under the GIL nothing can run in between. Without it,
-/// another thread can replace the dict entry in that window and drop the last
-/// reference, and the INCREF lands on freed memory. Making this sound means
-/// `PyDict_GetItemRef` on those paths — the same change `batch_group_ids`
-/// already took for a different reason — plus an audit of every other borrow
-/// here; until that is done the honest declaration is that the GIL is
-/// required.
+/// It is not, and this is measured rather than reasoned. Built with
+/// `gil_used = false` against CPython 3.14.7t, `batch_cache_filter` **segfaults
+/// four runs out of four** under 8 readers and 6 threads mutating the cache;
+/// `cache.rs`'s module docs carry the numbers and the scoping. Converting
+/// `cache_probe` to `PyDict_GetItemRef` closes it, and costs +13.3% on that
+/// function — a price worth paying when there is a free-threaded lane to prove
+/// it, and not before.
+///
+/// The declaration is not decorative: on a free-threaded interpreter, importing
+/// this module re-enables the GIL, and CPython says so —
+/// `RuntimeWarning: The global interpreter lock (GIL) has been enabled to load
+/// module 'odoo_rust.odoo_rust', which has not declared that it can run safely
+/// without the GIL`. With it, the same harness completes 4 runs of 4.
 ///
 /// This costs nothing on a GIL-enabled build, which is every build the fork
 /// currently ships. The sibling `odoo_lint` extension declares the same thing
