@@ -148,6 +148,7 @@ class TestEveryToolAgrees:
         ("architecture", "cross_repo_coherence"): "ROOT",
         ("architecture", "compute_context_deps"): "ROOT",
         ("architecture", "edi_vocabulary"): "ROOT",
+        ("architecture", "payment_vocabulary"): "ROOT",
         ("architecture", "env_surface_check"): "REPO_ROOT",
         ("architecture", "external_dependency_pins"): "ROOT",
         ("architecture", "field_hook_naming"): "ROOT",

@@ -2526,7 +2526,7 @@ class TestTheEnforcedClaimIsBounded(unittest.TestCase):
     def test_the_stated_suite_count_matches_the_lane(self) -> None:
 
         yaml = self.INTEGRATION.read_text(encoding="utf-8")
-        words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+        words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven"}
         n = len(re.findall(r"^  (?:\w+_)?INSTALL: (.+)$", yaml, re.MULTILINE))
         self.assertIn(
             f"runs {words[n]} suites, **each against its own database**",

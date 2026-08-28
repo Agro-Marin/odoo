@@ -1,6 +1,6 @@
 """Default-deny gate over model names carrying "payment".
 
-ADR-0068: the word names nine unrelated things in this tree, and five of them are
+ADR-0070: the word names nine unrelated things in this tree, and five of them are
 called "payment method". The pair that actually misleads is method against
 channel -- `account.payment.method` is a capability, `account.payment.method.line`
 is that capability wired to a journal and an outstanding account -- and until
@@ -51,7 +51,7 @@ CHECKOUT_ROOTS = ("addons", "odoo/addons")
 
 SIBLING_ROOTS = ("enterprise", "agromarin", "design-themes")
 
-# ADR-0068's nine senses of the word, plus the two annotations a model needs when
+# ADR-0070's nine senses of the word, plus the two annotations a model needs when
 # "payment" is not its head noun at all. An entry reads "<category>" or
 # "<category> -- <clarifier>".
 CATEGORIES = (
@@ -156,7 +156,7 @@ def save_allowlist(models: dict[str, str]) -> None:
                 "adr": ADR,
                 "note": (
                     "Models whose _name carries 'payment' as a dotted component, "
-                    "each annotated with which of ADR-0068's nine categories it "
+                    "each annotated with which of ADR-0070's nine categories it "
                     "is. `l10n_*` is exempt by rule and is not listed. Add an "
                     "entry only with the category that justifies it; there is no "
                     "--update."

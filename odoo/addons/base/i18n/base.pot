@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0+e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-26 22:39+0000\n"
-"PO-Revision-Date: 2026-08-26 22:39+0000\n"
+"POT-Creation-Date: 2026-08-28 04:26+0000\n"
+"PO-Revision-Date: 2026-08-28 04:26+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -1026,9 +1026,11 @@ msgid ""
 "Approval triggers, configured per approval category:\n"
 "\n"
 "* amount inside ``move_amount_min`` / ``move_amount_max``\n"
-"* move type (invoice, bill, refund) via ``account_move_type``\n"
 "* partners listed in ``move_partner_ids``\n"
-"* journals listed in ``journal_ids``, or a journal type\n"
+"* journals listed in ``journal_ids``\n"
+"\n"
+"``account_move_type`` is **not** a trigger: it only says which kind of\n"
+"invoice/bill a creation-flow category produces when the approval is granted.\n"
 "\n"
 "Per-company settings carry the invoice and bill thresholds\n"
 "(``invoice_approval_threshold``, ``bill_approval_threshold``) and their\n"
@@ -2630,6 +2632,71 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,description:base.module_document_extract_hr_recruitment
+msgid ""
+"\n"
+"Applicant CV Extraction\n"
+"=======================\n"
+"\n"
+"Puts ``mixin.document.extract`` on ``hr.applicant``, replacing\n"
+"``hr_recruitment_extract``'s reading of a CV.\n"
+"\n"
+"A CV is the document type this framework is best at and the old stack was worst\n"
+"at. It is text: a local text reader gets the whole of it for nothing, and a\n"
+"generative strategy reads a name, an address and a phone number out of that text\n"
+"without a page ever reaching a service that charges by the page. The module it\n"
+"replaces sent every CV to a remote reader, including the ones that were already\n"
+"plain text.\n"
+"\n"
+"Nothing is overwritten\n"
+"----------------------\n"
+"A name, an email and a phone number, and each written only into emptiness.\n"
+"``hr_recruitment_extract`` preferred the reading -- ``self.partner_name =\n"
+"name_ocr or self.partner_name`` -- so a recruiter who had corrected a misread\n"
+"name watched the next reading put it back. A person who typed something into a\n"
+"field has said something the document did not.\n"
+"\n"
+"Only a new applicant\n"
+"--------------------\n"
+"Reading is offered while the applicant sits in the first stage of their job's\n"
+"pipeline, which is what the replaced module meant by an extractable state. After\n"
+"that, somebody has been through the record, and a reading that rewrites it is\n"
+"correcting a person from a document they have already read.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_document_extract_hr_recruitment_skills
+msgid ""
+"\n"
+"Applicant CV Skill Extraction\n"
+"=============================\n"
+"\n"
+"Matches the skills read off a CV to ``hr.skill`` records and attaches them to\n"
+"the applicant. Separate from the reading itself because the skill catalogue is\n"
+"``hr_recruitment_skills``' and not every deployment carries it.\n"
+"\n"
+"Read, not scanned\n"
+"-----------------\n"
+"``hr_recruitment_extract`` did not read skills. It lowercased the whole OCR text\n"
+"and searched it for the name of every skill in the catalogue, which finds a\n"
+"skill in any sentence that happens to contain the word -- \"no experience with\n"
+"Java\", a former employer called Ruby, an address on Angular Street. The schema\n"
+"asks for the skills instead, and what comes back is what the document presented\n"
+"as skills.\n"
+"\n"
+"Matched, never invented\n"
+"-----------------------\n"
+"A read skill has to match a catalogue entry by name, case-insensitively and\n"
+"exactly. A CV naming something the catalogue does not carry is not evidence that\n"
+"it should: a skill invented from a misread word is a catalogue entry nobody\n"
+"curated, and every later applicant can then be matched against it.\n"
+"\n"
+"A skill already on the applicant is left alone, including its level. The level a\n"
+"recruiter set is a judgment about a person, and a document that mentions the\n"
+"skill again is not new information about it.\n"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_approval_product
 msgid ""
 "\n"
@@ -2860,17 +2927,41 @@ msgid ""
 "\n"
 "* ``automation.runtime`` -- adds ``st_line_id`` (bank statement line) and\n"
 "  ``diff_partner_id`` to the workflow execution context\n"
-"* ``automation.runtime.line`` -- resolves the latest move, payment and document\n"
-"  date produced by earlier steps\n"
-"* ``ir.actions.server`` -- step helpers: ``create_move_from_template``,\n"
-"  ``create_move_from_template_name``, ``create_payment_from_latest_move``,\n"
-"  ``create_payment_for_move``, ``reconcile_statement_with_latest_move``,\n"
-"  ``reconcile_statement_with_move``, ``mark_action_done_and_continue``\n"
+"* ``automation.runtime.line`` -- walks back through ``predecessor_ids`` for the\n"
+"  move, payment or document date an earlier step produced. The methods are named\n"
+"  ``_get_latest_*`` but return the first match in a depth-first walk, which on a\n"
+"  workflow with parallel branches is not necessarily the newest one\n"
+"* ``ir.actions.server`` -- the step helpers, in two tiers (below)\n"
 "* ``automation.runtime.create`` -- wizard that starts a run from a statement\n"
 "  line, a partner and an amount\n"
 "\n"
+"Step helpers\n"
+"------------\n"
+"\n"
+"A step's ``code`` reaches these through the name ``action``. They come in two\n"
+"tiers, and the distinction is the point rather than an accident:\n"
+"\n"
+"*Supported entry points* -- these take the run's own state and work out the rest,\n"
+"and are what every workflow in ``marin_data`` calls:\n"
+"\n"
+"* ``create_move_from_template(runtime_line, template)``\n"
+"* ``create_payment_from_latest_move(runtime_line)``\n"
+"* ``reconcile_statement_with_latest_move(runtime_line)``\n"
+"* ``mark_action_done_and_continue(runtime_line)``\n"
+"\n"
+"*Explicit-argument variants* -- the same work with the record named outright, for\n"
+"a step that has already resolved it. The ``_latest_`` wrappers delegate to these,\n"
+"so they are reachable but not the first thing to reach for:\n"
+"\n"
+"* ``create_payment_for_move(runtime_line, move)``\n"
+"* ``reconcile_statement_with_move(runtime_line, st_line, move)``\n"
+"* ``create_move_from_template_name(runtime_line, template_name)`` -- resolves a\n"
+"  template by name; no caller today, kept for steps that cannot hold a reference\n"
+"\n"
 "Journal entries come from ``account.move.template``; the CFDI use code and the\n"
-"payment method are read from the step's trigger data. The workflow itself is a\n"
+"payment method are read from the step's trigger data when ``approval``,\n"
+"``telegram_bot_approval`` and ``l10n_mx_edi`` happen to be installed -- none of\n"
+"them is required, and the step works without them. The workflow itself is a\n"
 "``base.automation`` record and each step an ``ir.actions.server`` -- this module\n"
 "adds no workflow engine of its own.\n"
 msgstr ""
@@ -2986,7 +3077,9 @@ msgid ""
 "Two non-order models carry order-shaped helpers that both concrete modules\n"
 "call, rather than each writing its own copy:\n"
 "\n"
-"* **res.partner** — order counts and the application-statistics tile\n"
+"* **res.partner** — order counts, the application-statistics tile, and the\n"
+"  order-activity figures (``recent_orders_count``, ``days_since_last_order``)\n"
+"  measured against the company's order cycle\n"
 "* **product.product** — the catalog \"already on this order\" flag (compute and\n"
 "  search), and the order-line side of a unit-of-measure change\n"
 "\n"
@@ -3346,6 +3439,27 @@ msgstr ""
 msgid ""
 "\n"
 "Bill timesheets logged on helpdesk tickets.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_partner_relationship_blocklist
+msgid ""
+"\n"
+"Blocklist proximity\n"
+"===================\n"
+"\n"
+"``l10n_mx_partner_blocklist`` marks a contact that is itself on the SAT 69-B\n"
+"definitive list. A listed taxpayer reappearing as a relative's company is\n"
+"invisible to that check, which is the shape the problem usually takes.\n"
+"\n"
+"This bridge walks ``partner_relationship``'s graph and reports which listed\n"
+"contacts a contact is connected to, how, and how strongly, on the partner form\n"
+"and through ``_get_blocklisted_relatives()``.\n"
+"\n"
+"**It flags. It does not refuse.** ``l10n_mx_partner_blocklist`` still refuses a\n"
+"CFDI only for a partner listed in its own right. Extending a refusal to relatives\n"
+"is a compliance judgement about *partes relacionadas* that belongs to whoever\n"
+"owns that policy, not to this module.\n"
 msgstr ""
 
 #. module: base
@@ -4282,6 +4396,25 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,description:base.module_delivery_tracking_product_asset_remote_gps
+msgid ""
+"\n"
+"Delivery Tracking Product Asset - GPS Bridge\n"
+"============================================\n"
+"\n"
+"Fills the ``delivery.tracking`` odometer and fuel readings from GPS instead of\n"
+"by hand.\n"
+"\n"
+"* ``get_current_odometer`` and ``get_current_fuel_percentage`` on ``stock.lot``\n"
+"* ``action_update_odometer_start`` / ``_end`` and ``action_update_fuel_start`` /\n"
+"  ``_end`` buttons on the route form\n"
+"* ``stock.picking._action_done`` updates the route's GPS readings on completion\n"
+"\n"
+"Optional: ``delivery_tracking_product_asset`` works without it. GPS itself\n"
+"arrives through ``product_asset_remote`` (``remote`` / ``remote_gps``).\n"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_mass_mailing_themes
 msgid ""
 "\n"
@@ -4469,7 +4602,7 @@ msgid ""
 "\n"
 "``document_extract_ocr`` makes the opposite call about its own engine, and the\n"
 "difference is the point rather than an inconsistency: RapidOCR pulls\n"
-"``onnxruntime``, ``opencv-python`` and a newer ``numpy``, which is a change to\n"
+"``onnxruntime``, ``opencv-python``, which is a change to\n"
 "someone else's environment, so it stays optional and degrades. A dependency\n"
 "worth declaring is one that costs nothing to satisfy.\n"
 msgstr ""
@@ -4587,8 +4720,6 @@ msgid ""
 "  matching tags\n"
 "* folder and tags are assigned from the asset type\n"
 "* asset-specific views and filters on ``documents.document``\n"
-"\n"
-"Expiration tracking comes from ``documents_compliance`` when installed.\n"
 msgstr ""
 
 #. module: base
@@ -4600,16 +4731,22 @@ msgid ""
 "\n"
 "Compliance tracking for the Documents app, per document type.\n"
 "\n"
-"* document types with default validity periods, renewal requirements,\n"
-"  template attachments and instructions\n"
+"* document types with default validity periods, renewal requirements and\n"
+"  instructions, each scoped to the kind of record it is required of\n"
 "* mandatory versus optional types\n"
-"* expiration tracking with per-type notification days (``30,7,1`` by default),\n"
-"  recipients, activities and email\n"
+"* expiration tracking with per-type notification days (``30,7,1`` by\n"
+"  default), recipients and scheduled activities\n"
 "* verification and renewal workflow\n"
-"* compliance percentage and counts of missing, expired and expiring documents\n"
+"* a per-entity compliance dashboard: percentage, and counts of missing,\n"
+"  expired and expiring document types\n"
 "\n"
-"Statistics are computed for each document type over its documents, not per\n"
-"entity.\n"
+"Counts exist at both levels. A document type carries totals over its own\n"
+"documents, and the compliance report aggregates per entity -- partner,\n"
+"employee or vehicle -- against only the mandatory types that apply to that\n"
+"kind of record.\n"
+"\n"
+"Notifications are scheduled as activities on the document. The module sends\n"
+"no email.\n"
 msgstr ""
 
 #. module: base
@@ -5152,6 +5289,69 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,description:base.module_document_extract_hr_expense
+msgid ""
+"\n"
+"Expense Receipt Extraction\n"
+"==========================\n"
+"\n"
+"Puts ``mixin.document.extract`` on ``hr.expense``, replacing\n"
+"``hr_expense_extract``'s reading of a receipt. Both declare ``extract_state``,\n"
+"so a model cannot carry the two and that module is marked uninstallable in the\n"
+"same change -- the third pair after the vendor bill and the CV.\n"
+"\n"
+"What a receipt says, and what it does not\n"
+"----------------------------------------\n"
+"A merchant, a date, a total and the currency it is written in. The ``receipt``\n"
+"schema already carried all four, so nothing here extends it.\n"
+"\n"
+"Two of those fields have a default rather than an empty value, so the mixin's\n"
+"rule -- write only into emptiness -- cannot be read off the field alone. A date\n"
+"defaults to today and a description to \"Untitled Expense\". The reading is\n"
+"therefore applied to a date the employee has not moved off the day the record\n"
+"was made, and to a description they have not renamed. Both tests are the ones\n"
+"the replaced module used; what changed is that a value a person did type is now\n"
+"left alone in every case rather than only some.\n"
+"\n"
+"A total is not a price\n"
+"----------------------\n"
+"An amount read off a receipt is written to the expense's own amount, in the\n"
+"currency the receipt names, and converted to the company's for the accounting\n"
+"figure. Where the expense carries a product with a catalogue price -- a per-diem,\n"
+"a mileage rate -- the printed total is not what the company owes, and that case\n"
+"belongs to ``document_extract_hr_expense_predict`` along with the product.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_document_extract_hr_expense_predict
+msgid ""
+"\n"
+"Expense Receipt Product Prediction\n"
+"==================================\n"
+"\n"
+"Uses the merchant a receipt names to predict the expense's product, and lets a\n"
+"product with a catalogue price decide the amount instead of the printed total.\n"
+"Separate from the reading because ``hr_expense_predict_product`` is separate:\n"
+"the prediction ranks the merchant against the descriptions of expenses this\n"
+"database has already filed, so it is worth nothing until there are some.\n"
+"\n"
+"A catalogue price outranks a printed one\n"
+"----------------------------------------\n"
+"Where the predicted product carries a ``standard_price`` -- a per-diem, a\n"
+"mileage rate, a fixed allowance -- that is what the company owes, and the total\n"
+"printed on the receipt is not. The receipt may say what a meal cost; the policy\n"
+"says what is reimbursed. The replaced module made the same choice and it is kept\n"
+"deliberately: an expense whose amount silently followed the receipt past a flat\n"
+"rate is a policy decided by whoever was holding the till roll.\n"
+"\n"
+"Only a product nobody chose\n"
+"---------------------------\n"
+"A prediction is written into an empty product, never over one an employee\n"
+"picked, and only where the description was still the untitled default -- a\n"
+"person who named the expense has already said what it was.\n"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_documents_hr_expense
 msgid ""
 "\n"
@@ -5509,6 +5709,23 @@ msgid ""
 "  named for their operator and vehicle and can be grouped by source, by day or\n"
 "  combined\n"
 "* live position updates over the Odoo bus\n"
+"* ``remote.device`` resolves the client parcel it is currently on (within a\n"
+"  configurable proximity tolerance), shown on the live GPS map\n"
+"* Client Locations map: customers with GPS coordinates set in Contacts\n"
+"  (Partner Assignment), on the same raster backgrounds as the live GPS map\n"
+"* Every 15 minutes, a device stationary 30+ minutes off any mapped parcel\n"
+"  raises a to-do: for the nearest client's salesperson if one is registered\n"
+"  within 2 km, otherwise for the configured fallback (default: the sales\n"
+"  lead), so the parcel gets mapped and future stops resolve on their own\n"
+"* Live GPS map: optional \"Client Locations (overlay)\" layer draws each\n"
+"  customer's own mapped parcel(s) when any exist, otherwise a small circle\n"
+"  around their Geo Latitude/Longitude, alongside vehicles (off by default)\n"
+"* Client popups (map and overlay) show the assigned salesperson\n"
+"* Every 5 minutes, arrival/departure at the client parcel a device is\n"
+"  currently or was most recently on is tracked and shown on the live map\n"
+"* ``remote.client.visit``: one row per completed (or ongoing) client visit\n"
+"  -- arrival, departure, duration -- under Data & Analytics > Visitas a\n"
+"  Clientes\n"
 "\n"
 "Requires PostGIS. Operator and asset context comes from\n"
 "``product_asset_remote_hr``.\n"
@@ -6361,6 +6578,22 @@ msgid ""
 "\n"
 "* Push notifications to registered devices for direct messages, chatter messages and channel.\n"
 "* Redirection to the Android/iOS mobile app when you click on an Odoo URL.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_mail_oauth2
+msgid ""
+"\n"
+"Mail OAuth2\n"
+"============\n"
+"\n"
+"Provides ``mixin.oauth2.mail.provider``, the abstract authorization-code flow\n"
+"shared by every OAuth2 mail provider: the authorization URI, the IAP fallback,\n"
+"the token exchange and refresh, the CSRF token, and the XOAUTH2 SASL string.\n"
+"\n"
+"A provider supplies its endpoints and its identifiers through a handful of\n"
+"class attributes and hooks, and declares its own credential fields under its\n"
+"own prefix. It does not restate the flow.\n"
 msgstr ""
 
 #. module: base
@@ -7416,6 +7649,43 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,description:base.module_partner_relationship
+msgid ""
+"\n"
+"Partner Relationships\n"
+"=====================\n"
+"\n"
+"Several AgroMarin customers are related to each other -- by blood, by marriage,\n"
+"by *compadrazgo*, or by farming the same land. That is commercially material and\n"
+"was recorded nowhere.\n"
+"\n"
+"**The model.** ``res.partner.relation`` is one row per tie, between two contacts,\n"
+"typed by ``res.partner.relation.type``. A type declares which of three algebras it\n"
+"follows, because they behave differently and collapsing them loses information:\n"
+"\n"
+"* *symmetric* -- ``sibling of``, ``cousin of``, ``compadre of``,\n"
+"  ``business partner of``, ``grows crop together with``. One row is the whole\n"
+"  fact; a mirrored row is rejected, since it would draw two edges and double\n"
+"  every degree count.\n"
+"* *asymmetric* -- ``parent of`` / ``child of``, ``guarantor of`` /\n"
+"  ``guaranteed by``. Stored once, read from either end.\n"
+"* *gendered* -- ``father of`` and ``mother of`` are the same type read against a\n"
+"  contact's ``gender``, as are ``compadre`` and ``comadre``.\n"
+"\n"
+"A type also carries a ``category`` (consanguinity, affinity, ritual kinship,\n"
+"household, business, agricultural), a civil-law ``degree``, and a ``weight_risk``\n"
+"saying how strongly the tie implies a shared economic interest. ``compadre`` is\n"
+"the reason ``category`` and ``degree`` are separate axes: ritual kinship carries\n"
+"real economic obligation at zero genealogical distance.\n"
+"\n"
+"**The analysis.** ``res.partner`` gains a breadth-first walk over that graph --\n"
+"``_get_related_partners()`` for the related-party group and\n"
+"``_get_relation_path()`` for the shortest chain between two contacts, worded from\n"
+"each contact's own end (\"Juan -- husband of -> Maria -- compadre of -> Pedro\").\n"
+"Both are batched one query per degree, not one per record.\n"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_base_geolocalize
 msgid ""
 "\n"
@@ -7604,6 +7874,27 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,description:base.module_product_msds_compliance
+msgid ""
+"\n"
+"Product Documents Compliance\n"
+"============================\n"
+"\n"
+"Bridge between the product document authoring apps and the Documents compliance\n"
+"tracking, so a published safety data sheet, pesticide label or technical data\n"
+"sheet is a tracked document rather than an untracked PDF.\n"
+"\n"
+"Publishing stamps the generated document with its ``documents.type``, the issue\n"
+"date and the expiry derived from the type's validity period, which is what puts\n"
+"it inside ``documents_compliance``'s expiration, notification and renewal\n"
+"machinery. Without this bridge the PDFs are filed correctly but expire silently.\n"
+"\n"
+"The validity periods are the document types' defaults and are meant to be edited\n"
+"per company: an SDS is commonly reviewed every three years, a registered label\n"
+"follows its registration.\n"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_mrp_plm
 msgid ""
 "\n"
@@ -7747,6 +8038,30 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,description:base.module_partner_relationship_credit
+msgid ""
+"\n"
+"Related-party credit exposure\n"
+"=============================\n"
+"\n"
+"A credit limit authorized on one contact says nothing about what the rest of that\n"
+"contact's family already owes. This bridge aggregates the receivable and the\n"
+"overdue balance of everyone reachable through ``partner_relationship``, so the\n"
+"question a credit committee actually asks -- *what is this household on the hook\n"
+"for* -- has an answer on the partner form.\n"
+"\n"
+"Each related party is discounted by the strength of the chain reaching it\n"
+"(``_get_relation_strength_map``), so a spouse counts for nearly all of their\n"
+"balance and a second cousin for little of it. The unweighted totals are shown\n"
+"beside it, because the weighting is a judgement and the raw number is not.\n"
+"\n"
+"**This module warns. It does not enforce.** ``credit_management``'s four-tier\n"
+"``credit_status`` and its blocking checks are untouched: whether a family's\n"
+"aggregate exposure should refuse an order is a policy decision, and it is not\n"
+"made here.\n"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_remote
 msgid ""
 "\n"
@@ -7811,7 +8126,6 @@ msgid ""
 "A companion app on the phone pushes to three Bearer-authenticated endpoints, each\n"
 "accepting a single record, a list, or a list under a key, so a phone that has been\n"
 "out of coverage flushes its whole offline queue in one request:\n"
-"\n"
 "* **Location** -- ``/remote/mobile/<identifier>/location``. Each GPS fix is stored\n"
 "  as a ``remote.data.log.gps`` point, so a phone and a vehicle tracker share the\n"
 "  very same fleet map, geofencing and trail tooling (``remote_gps`` /\n"
@@ -7826,6 +8140,10 @@ msgid ""
 "\n"
 "Recording capture depends on the handset's OEM dialer writing files to disk -- no\n"
 "Android app can record calls itself since Android 10.\n"
+"\n"
+"The batch routes answer with ``accepted``, ``duplicates`` and ``skipped``, and a\n"
+"batch the device had already sent is a delivery rather than a refusal. See\n"
+"``README.rst`` for the response contract the companion app depends on.\n"
 msgstr ""
 
 #. module: base
@@ -7911,6 +8229,7 @@ msgid ""
 "* amount inside ``order_amount_min`` / ``order_amount_max``\n"
 "* customers listed in ``order_partner_ids``\n"
 "* product categories listed in ``product_categ_ids``\n"
+"* products listed in ``product_ids``\n"
 "* customer credit limit (``check_credit_limit``)\n"
 "* rate limit: more than ``so_rate_limit_count`` orders or\n"
 "  ``so_rate_limit_amount`` within ``so_rate_limit_hours``\n"
@@ -8244,25 +8563,6 @@ msgid ""
 "\n"
 "Two directions are supported: request approval for an existing picking, or\n"
 "create the picking from an approved request.\n"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,description:base.module_delivery_tracking_product_asset_remote_gps
-msgid ""
-"\n"
-"Stock Dispatch Product Asset - GPS Bridge\n"
-"=========================================\n"
-"\n"
-"Fills the ``delivery.tracking`` odometer and fuel readings from GPS instead of\n"
-"by hand.\n"
-"\n"
-"* ``get_current_odometer`` and ``get_current_fuel_percentage`` on ``stock.lot``\n"
-"* ``action_update_odometer_start`` / ``_end`` and ``action_update_fuel_start`` /\n"
-"  ``_end`` buttons on the route form\n"
-"* ``stock.picking._action_done`` updates the route's GPS readings on completion\n"
-"\n"
-"Optional: ``delivery_tracking_product_asset`` works without it. GPS itself\n"
-"arrives through ``product_asset_remote`` (``remote`` / ``remote_gps``).\n"
 msgstr ""
 
 #. module: base
@@ -10900,7 +11200,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_document_extract
+#: model:ir.module.module,description:base.module_document_extract_account
 msgid ""
 "\n"
 "Vendor Bill Document Extraction\n"
@@ -10945,6 +11245,38 @@ msgid ""
 "``account_invoice_extract`` is marked uninstallable in this fork rather than\n"
 "merely uninstalled, because it and its glue module ``account_extract`` are both\n"
 "``auto_install`` and would return on the next module update.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_document_extract_account_purchase
+msgid ""
+"\n"
+"Vendor Bill Purchase Order Matching from Extraction\n"
+"===================================================\n"
+"\n"
+"Teaches the ``invoice`` schema that a vendor bill may print the purchase order\n"
+"it answers, and hands whatever is read to the matching core already performs on\n"
+"``invoice_origin``.\n"
+"\n"
+"Replaces ``account_invoice_extract_purchase``, which did the same against the\n"
+"IAP extraction service. What does not come across is that module's\n"
+"``_get_user_infos``: it derived a regex from the purchase order sequence and\n"
+"sent it to the remote reader as a hint about what a reference looks like. A\n"
+"cascade of local extractors has nobody to hint to -- a structured source states\n"
+"the reference or it does not, and a generative extractor is told the field\n"
+"exists by the schema. The regex is not lost so much as it has no addressee.\n"
+"\n"
+"Matching is core's, not this module's\n"
+"-------------------------------------\n"
+"``_find_and_set_purchase_orders`` decides between a total match, a reference\n"
+"match and a subset, and it is the same routine that runs when a person types a\n"
+"reference into ``invoice_origin``. A bill matched from a read reference and a\n"
+"bill matched from a typed one therefore take the same path and go wrong in the\n"
+"same way, which is the point: one matching behaviour to understand.\n"
+"\n"
+"Only an empty bill is touched. A bill that already carries lines has been\n"
+"worked on by somebody, and pulling an order's lines underneath that is how an\n"
+"extraction turns into a correction nobody asked for.\n"
 msgstr ""
 
 #. module: base
@@ -11212,6 +11544,12 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/mixin_band.py:0
+msgid "%(a)s overlaps with %(b)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/ir_ui_view.py:0
 msgid "%(action_name)s is not a valid action on %(model_name)s"
 msgstr ""
@@ -11224,7 +11562,7 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_actions.py:0
 msgid "%(count)s %(model)s record(s) still reference it"
 msgstr ""
 
@@ -11290,6 +11628,26 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_ui_view.py:0
 msgid "%(method)s on %(model)s is private and cannot be called from a button"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/mixin_band.py:0
+msgid "%(name)s: bounds only apply to a band."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/mixin_band.py:0
+msgid "%(name)s: the lower bound cannot be negative."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/mixin_band.py:0
+msgid ""
+"%(name)s: the upper bound (%(max)s) must be greater than the lower bound "
+"(%(min)s), or zero for an open-ended band."
 msgstr ""
 
 #. module: base
@@ -11430,13 +11788,13 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_actions.py:0
 msgid "'%s' is a reserved prefix."
 msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_actions.py:0
 msgid "'%s' is reserved, and can not be used as path."
 msgstr ""
 
@@ -13690,11 +14048,17 @@ msgid ""
 "or a Sunday, so no CFDI sits near a boundary to show which way it fell.\n"
 "\n"
 "To settle it, compare a window that starts on a busy weekday against the emission\n"
-"dates of what came back — which needs the emission date stored beside the stamp\n"
-"date, as it is not today. If the assumption holds, the fix is to send\n"
-"Mexico-local naive datetimes instead of UTC, in\n"
-"``SatSoapClient.request_download`` only; the stored values stay UTC, as\n"
-"everything else in Odoo expects.\n"
+"dates of what came back. ``documents.document.l10n_mx_edi_emission_date`` now\n"
+"stores the issuer's ``Fecha`` beside ``l10n_mx_edi_stamp_date``, so that\n"
+"comparison is available on any session downloaded from here on; existing rows\n"
+"are backfilled the next time their common fields recompute.\n"
+"\n"
+"If the assumption holds, the fix is to send Mexico-local naive datetimes instead\n"
+"of UTC; the stored values stay UTC, as everything else in Odoo expects. Both\n"
+"drivers need it, not one: ``SatSoapClient.request_download`` sends\n"
+"``FechaInicial``/``FechaFinal``, and ``SatPortalClient.request_download`` sends\n"
+"``str(date_to)`` on the same UTC value to a service that types it into the SAT's\n"
+"Mexico-local form.\n"
 "\n"
 "Turning a CFDI into a bill\n"
 "==========================\n"
@@ -13769,13 +14133,16 @@ msgid ""
 "Configuration\n"
 "=============\n"
 "\n"
-"=========================  =================================================  =========\n"
-"Setting                    Key                                                Default\n"
-"=========================  =================================================  =========\n"
-"SAT validation batch size  ``documents_l10n_mx_edi.sat_batch_size``           50\n"
-"Review period, days        ``documents_l10n_mx_edi.sat_status_max_days``      60\n"
-"Max verification attempts  ``documents_l10n_mx_edi.default_max_verify_cfdi``  5\n"
-"=========================  =================================================  =========\n"
+"=========================  ====================================================  =========\n"
+"Setting                    Key                                                   Default\n"
+"=========================  ====================================================  =========\n"
+"SAT validation batch size  ``documents_l10n_mx_edi.sat_batch_size``              50\n"
+"Review period, days        ``documents_l10n_mx_edi.sat_status_max_days``         60\n"
+"Max verification attempts  ``documents_l10n_mx_edi.default_max_verify_cfdi``      40\n"
+"Verification deadline, h   ``documents_l10n_mx_edi.sat_verify_deadline_hours``    12\n"
+"=========================  ====================================================  =========\n"
+"\n"
+"The review period is counted in **calendar** days, not working days.\n"
 "\n"
 "The portal's address and timeout are **not** system parameters. They live on\n"
 "the ``service_sat_portal`` record (Settings → Technical → API → Services), as\n"
@@ -16396,13 +16763,13 @@ msgid "A module cannot declare the same exclusion twice!"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_mimetypes
-msgid "A module to generate exceptions."
+#: model:ir.module.module,description:base.module_test_http
+msgid "A module to test HTTP"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_http
-msgid "A module to test HTTP"
+#: model:ir.module.module,description:base.module_test_mimetypes
+msgid "A module to test MIME-type guessing."
 msgstr ""
 
 #. module: base
@@ -16454,6 +16821,11 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,description:base.module_test_inherit
 msgid "A module to verify the inheritance."
+msgstr ""
+
+#. module: base
+#: model:ir.model.constraint,message:base.constraint_res_partner_age_range_name_uniq
+msgid "A name must be unique"
 msgstr ""
 
 #. module: base
@@ -16551,12 +16923,6 @@ msgstr ""
 msgid ""
 "A user without any rights on Appraisals will be able to see the\n"
 "            application, create and manage appraisals for himself and the people he's manager of."
-msgstr ""
-
-#. module: base
-#. odoo-python
-#: code:addons/base/models/res_partner.py:0
-msgid "A valid email is required for get_or_create to work properly."
 msgstr ""
 
 #. module: base
@@ -17070,6 +17436,11 @@ msgid "Accounting - MRP Subcontracting"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_account_payment_provider
+msgid "Accounting - Payment Providers"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_account_product_asset
 msgid "Accounting / Product Asset Bridge"
 msgstr ""
@@ -17237,7 +17608,7 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_actions.py:0
 msgid ""
 "Action type “%(type)s” does not match the model this action is stored in "
 "(“%(model)s”)."
@@ -17278,6 +17649,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_currency__active
 #: model:ir.model.fields,field_description:base.field_res_lang__active
 #: model:ir.model.fields,field_description:base.field_res_partner__active
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__active
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__active
 #: model:ir.model.fields,field_description:base.field_res_partner_category__active
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__active
@@ -18193,6 +18565,18 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields.selection,name:base.selection__res_currency__position__after
 msgid "After Amount"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner__age
+#: model:ir.model.fields,field_description:base.field_res_users__age
+msgid "Age"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner__age_range_id
+#: model:ir.model.fields,field_description:base.field_res_users__age_range_id
+msgid "Age Range"
 msgstr ""
 
 #. module: base
@@ -19449,12 +19833,6 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/res_partner.py:0
-msgid "An email is required for get_or_create to work"
-msgstr ""
-
-#. module: base
-#. odoo-python
 #: code:addons/base/models/ir_model_fields.py:0
 msgid ""
 "An error occurred while evaluating the domain:\n"
@@ -19623,6 +20001,16 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields.selection,name:base.selection__ir_asset__directive__append
 msgid "Append"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_document_extract_hr_recruitment
+msgid "Applicant CV Extraction"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_document_extract_hr_recruitment_skills
+msgid "Applicant CV Skill Extraction"
 msgstr ""
 
 #. module: base
@@ -21854,6 +22242,12 @@ msgid "Birr"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner__birthdate
+#: model:ir.model.fields,field_description:base.field_res_users__birthdate
+msgid "Birthdate"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_theme_bistro
 msgid "Bistro Theme"
 msgstr ""
@@ -22738,7 +23132,7 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_actions.py:0
 msgid "Cannot delete this action: %s"
 msgstr ""
 
@@ -23727,7 +24121,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.ir_default_search_view
 #: model_terms:ir.ui.view,arch_db:base.view_attachment_search
 #: model_terms:ir.ui.view,arch_db:base.view_company_form
-#: model_terms:ir.ui.view,arch_db:base.view_partner_form
 #: model_terms:ir.ui.view,arch_db:base.view_res_partner_filter
 #: model_terms:ir.ui.view,arch_db:base.view_users_search
 #: model_terms:ir.ui.view,arch_db:base.view_users_simple_form
@@ -23871,6 +24264,7 @@ msgid "Complete ID"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_res_company__complete_name
 #: model:ir.model.fields,field_description:base.field_res_partner__complete_name
 #: model:ir.model.fields,field_description:base.field_res_users__complete_name
 msgid "Complete Name"
@@ -24756,6 +25150,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__create_uid
 #: model:ir.model.fields,field_description:base.field_res_lang__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__create_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_category__create_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_uid
@@ -24848,6 +25243,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__create_date
 #: model:ir.model.fields,field_description:base.field_res_lang__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner__create_date
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_category__create_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__create_date
@@ -25666,6 +26062,11 @@ msgid "Delivery Tracking Product Asset"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_delivery_tracking_product_asset_remote_gps
+msgid "Delivery Tracking Product Asset - GPS Bridge"
+msgstr ""
+
+#. module: base
 #: model:ir.model,name:base.model_ir_demo
 msgid "Demo"
 msgstr ""
@@ -26097,7 +26498,9 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_ui_view_custom__display_name
 #: model:ir.model.fields,field_description:base.field_kpi_provider__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_avatar__display_name
+#: model:ir.model.fields,field_description:base.field_mixin_band__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_catalog__display_name
+#: model:ir.model.fields,field_description:base.field_mixin_favorite__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_format_address__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_format_vat_label__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_image__display_name
@@ -26106,6 +26509,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_mixin_properties_base_definition__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_tag__display_name
 #: model:ir.model.fields,field_description:base.field_mixin_tag_nested__display_name
+#: model:ir.model.fields,field_description:base.field_mixin_user_favorite__display_name
 #: model:ir.model.fields,field_description:base.field_properties_base_definition__display_name
 #: model:ir.model.fields,field_description:base.field_report_base_report_irmodulereference__display_name
 #: model:ir.model.fields,field_description:base.field_report_layout__display_name
@@ -26125,6 +26529,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__display_name
 #: model:ir.model.fields,field_description:base.field_res_lang__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner__display_name
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_category__display_name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__display_name
@@ -27018,7 +27423,7 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_act_window.py:0
 msgid "Empty view mode in view_mode: “%s”"
 msgstr ""
 
@@ -27052,7 +27457,7 @@ msgid "Enable creating AI computed fields in studio"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_payment
+#: model:ir.module.module,summary:base.module_account_payment_provider
 msgid ""
 "Enable customers to pay invoices on the portal and post payments when "
 "transactions are processed."
@@ -28053,6 +28458,22 @@ msgid "Expand Groups"
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/ir_binary.py:0
+msgid "Expected singleton: %(record)s"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_document_extract_hr_expense
+msgid "Expense Receipt Extraction"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_document_extract_hr_expense_predict
+msgid "Expense Receipt Product Prediction"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_hr_expense_stripe
 msgid "Expense cards"
 msgstr ""
@@ -28452,8 +28873,24 @@ msgid "Falkland Islands"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,summary:base.module_partner_relationship
+msgid ""
+"Family, ritual and commercial ties between contacts, drawn as a network"
+msgstr ""
+
+#. module: base
 #: model:res.country,name:base.fo
 msgid "Faroe Islands"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_mixin_favorite__is_favorite
+msgid "Favorite"
+msgstr ""
+
+#. module: base
+#: model:ir.model,name:base.model_mixin_favorite
+msgid "Favorite Mixin"
 msgstr ""
 
 #. module: base
@@ -28484,6 +28921,11 @@ msgid "Fedex Shipping (Legacy)"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields.selection,name:base.selection__res_partner__gender__female
+msgid "Female"
+msgstr ""
+
+#. module: base
 #: model:res.currency,currency_subunit_label:base.CNH
 #: model:res.currency,currency_subunit_label:base.CNY
 msgid "Fen"
@@ -28510,6 +28952,14 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_search
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_selection_search
 msgid "Field"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_binary.py:0
+msgid ""
+"Field \"%(field)s\" is type \"%(type)s\" but it is only possible to stream "
+"Binary or Image fields."
 msgstr ""
 
 #. module: base
@@ -28822,6 +29272,11 @@ msgid "File streaming helper model for controllers"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,summary:base.module_delivery_tracking_product_asset_remote_gps
+msgid "Fill delivery route odometer and fuel readings from GPS devices"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,help:base.field_base_partner_merge_automatic_wizard__absorb_source_values
 msgid ""
 "Fill the destination's empty fields from the contacts merged into it. Turn "
@@ -28988,6 +29443,20 @@ msgid "First Lang"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,help:base.field_res_partner_age_range__max_value
+msgid ""
+"First birth year *after* the cohort -- it is the lower bound of the next "
+"one. 0 means no upper limit, which the newest cohort should use so a newborn"
+" still classifies. The oldest cohort stays closed on its lower side: a birth"
+" year before it predates every cohort here."
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_res_partner_age_range__min_value
+msgid "First birth year of the cohort, inclusive."
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,help:base.field_ir_actions_act_window__mobile_view_mode
 msgid ""
 "First view mode in mobile and small screen environments (default='kanban'). "
@@ -29009,6 +29478,11 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_lang__flag_image_url
 msgid "Flag Image Url"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_partner_relationship_blocklist
+msgid "Flag contacts related to a partner on the SAT 69-B blocklist"
 msgstr ""
 
 #. module: base
@@ -29197,6 +29671,11 @@ msgid ""
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,summary:base.module_mail_oauth2
+msgid "Foundation mixin for OAuth2-authenticated mail servers"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,summary:base.module_base_order
 msgid "Foundation mixins for sale and purchase order types"
 msgstr ""
@@ -29326,6 +29805,11 @@ msgid "From quotations to invoices"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__min_value
+msgid "From year"
+msgstr ""
+
+#. module: base
 #: model:ir.module.category,name:base.module_category_human_resources_frontdesk
 #: model:ir.module.module,shortdesc:base.module_frontdesk
 msgid "Frontdesk"
@@ -29452,11 +29936,6 @@ msgid "GPS Tracking - Product Asset Integration"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_delivery_tracking_product_asset_remote_gps
-msgid "GPS integration bridge for stock dispatch product asset management"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,summary:base.module_remote_gps
 msgid "GPS tracking, telemetry, and health monitoring"
 msgstr ""
@@ -29539,6 +30018,12 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_sale_gelato_stock
 msgid "Gelato/Stock bridge"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner__gender
+#: model:ir.model.fields,field_description:base.field_res_users__gender
+msgid "Gender"
 msgstr ""
 
 #. module: base
@@ -29637,7 +30122,7 @@ msgid ""
 "\n"
 "(This module does not include any type of import format.)\n"
 "\n"
-"OFX and QIF imports are available in Enterprise version."
+"OFX, QIF, CAMT.053 and CSV import formats are provided by separate add-on modules."
 msgstr ""
 
 #. module: base
@@ -30096,6 +30581,11 @@ msgstr ""
 #. module: base
 #: model:res.country,name:base.gg
 msgid "Guernsey"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_document_extract_hr_expense_predict
+msgid "Guess an expense's product from what its receipt says"
 msgstr ""
 
 #. module: base
@@ -30828,7 +31318,9 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_ir_ui_view_custom__id
 #: model:ir.model.fields,field_description:base.field_kpi_provider__id
 #: model:ir.model.fields,field_description:base.field_mixin_avatar__id
+#: model:ir.model.fields,field_description:base.field_mixin_band__id
 #: model:ir.model.fields,field_description:base.field_mixin_catalog__id
+#: model:ir.model.fields,field_description:base.field_mixin_favorite__id
 #: model:ir.model.fields,field_description:base.field_mixin_format_address__id
 #: model:ir.model.fields,field_description:base.field_mixin_format_vat_label__id
 #: model:ir.model.fields,field_description:base.field_mixin_image__id
@@ -30837,6 +31329,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_mixin_properties_base_definition__id
 #: model:ir.model.fields,field_description:base.field_mixin_tag__id
 #: model:ir.model.fields,field_description:base.field_mixin_tag_nested__id
+#: model:ir.model.fields,field_description:base.field_mixin_user_favorite__id
 #: model:ir.model.fields,field_description:base.field_properties_base_definition__id
 #: model:ir.model.fields,field_description:base.field_report_base_report_irmodulereference__id
 #: model:ir.model.fields,field_description:base.field_report_layout__id
@@ -30856,6 +31349,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__id
 #: model:ir.model.fields,field_description:base.field_res_lang__id
 #: model:ir.model.fields,field_description:base.field_res_partner__id
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__id
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__id
 #: model:ir.model.fields,field_description:base.field_res_partner_category__id
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__id
@@ -31920,12 +32414,16 @@ msgid "Integration with access control devices via ISAPI and EHOME tunnel"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_account_inter_company_rules
+msgid "Inter Company Invoicing"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_sale_purchase_stock_inter_company_rules
 msgid "Inter Company Module for Sale/Purchase Orders (with Inventory link)"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_inter_company_rules
 #: model:ir.module.module,shortdesc:base.module_sale_purchase_inter_company_rules
 msgid "Inter Company Module for Sale/Purchase Orders and Invoices"
 msgstr ""
@@ -31946,9 +32444,13 @@ msgid "Intercompany SO/PO"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_inter_company_rules
 #: model:ir.module.module,summary:base.module_sale_purchase_inter_company_rules
 msgid "Intercompany SO/PO/INV rules"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_account_inter_company_rules
+msgid "Intercompany invoice rules"
 msgstr ""
 
 #. module: base
@@ -32120,7 +32622,8 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_act_window.py:0
+#: code:addons/base/models/ir_actions_actions.py:0
 msgid "Invalid model name “%s” in action definition."
 msgstr ""
 
@@ -33210,6 +33713,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__write_uid
 #: model:ir.model.fields,field_description:base.field_res_lang__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner__write_uid
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_category__write_uid
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_uid
@@ -33301,6 +33805,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__write_date
 #: model:ir.model.fields,field_description:base.field_res_lang__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner__write_date
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_category__write_date
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__write_date
@@ -34026,6 +34531,11 @@ msgid "Loti"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,help:base.field_mixin_band__min_value
+msgid "Lower bound of the band, inclusive."
+msgstr ""
+
+#. module: base
 #: model:res.currency,currency_subunit_label:base.AMD
 msgid "Luma"
 msgstr ""
@@ -34209,6 +34719,11 @@ msgid "Mail Mobile"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_mail_oauth2
+msgid "Mail OAuth2"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_mail_plugin
 msgid "Mail Plugin"
 msgstr ""
@@ -34370,6 +34885,11 @@ msgstr ""
 #. module: base
 #: model:res.country,name:base.mv
 msgid "Maldives"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields.selection,name:base.selection__res_partner__gender__male
+msgid "Male"
 msgstr ""
 
 #. module: base
@@ -34972,6 +35492,11 @@ msgid "Master Production Schedule"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,summary:base.module_document_extract_account_purchase
+msgid "Match a read purchase order reference to its order"
+msgstr ""
+
+#. module: base
 #: model:res.country,name:base.mr
 msgid "Mauritania"
 msgstr ""
@@ -35014,6 +35539,11 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_job__max_retries
 msgid "Max Retries"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_mixin_band__max_value
+msgid "Max Value"
 msgstr ""
 
 #. module: base
@@ -35502,6 +36032,11 @@ msgid "Mime Type"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_mixin_band__min_value
+msgid "Min Value"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_line__min_id
 msgid "MinID"
 msgstr ""
@@ -35639,6 +36174,8 @@ msgid "Missing view architecture."
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner__mobile
+#: model:ir.model.fields,field_description:base.field_res_users__mobile
 #: model:ir.model.fields.selection,name:base.selection__res_device__device_type__mobile
 #: model:ir.model.fields.selection,name:base.selection__res_device_log__device_type__mobile
 #: model:ir.module.module,shortdesc:base.module_web_mobile
@@ -35909,18 +36446,19 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_inter_company_rules
-msgid ""
-"Module for synchronization of Documents between several companies. For example, this allow you to have a Sales Order created automatically when a Purchase Order is validated with another company of the system as vendor, and inversely.\n"
-"\n"
-"   Supported documents are invoices/credit notes.\n"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,description:base.module_sale_purchase_stock_inter_company_rules
 msgid ""
 "Module for synchronization of Inventory Documents between several companies.\n"
 "   For example, this allows you to have a delivery receipt created automatically in the receiving company when another company of the system confirms a delivery order.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_account_inter_company_rules
+msgid ""
+"Module for synchronization of invoices between several companies. For example, this allows you to have a Vendor Bill created automatically in company B when company A validates a Customer Invoice addressed to it, and inversely.\n"
+"\n"
+"   Supported documents are invoices/credit notes. The Sales and Purchase Order\n"
+"   half of the inter-company rules lives in sale_purchase_inter_company_rules.\n"
 msgstr ""
 
 #. module: base
@@ -36231,6 +36769,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:base.field_res_groups_privilege__name
 #: model:ir.model.fields,field_description:base.field_res_lang__name
 #: model:ir.model.fields,field_description:base.field_res_partner__name
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__name
 #: model:ir.model.fields,field_description:base.field_res_partner_bank__bank_name
 #: model:ir.model.fields,field_description:base.field_res_partner_category__name
 #: model:ir.model.fields,field_description:base.field_res_partner_industry__name
@@ -36572,6 +37111,13 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/ir_binary.py:0
+msgid ""
+"No record found for xmlid=%(xmlid)s, res_model=%(model)s, id=%(res_id)s"
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/ir_actions_server.py:0
 msgid "No record selected to duplicate."
 msgstr ""
@@ -36592,7 +37138,7 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_act_window.py:0
 msgid "No spaces allowed in view_mode: “%s”"
 msgstr ""
 
@@ -36761,6 +37307,11 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,help:base.field_res_groups__all_users_count
 msgid "Number of users having this group (implicitly or explicitly)"
+msgstr ""
+
+#. module: base
+#: model:ir.model,name:base.model_mixin_band
+msgid "Numeric Band Mixin"
 msgstr ""
 
 #. module: base
@@ -38328,6 +38879,7 @@ msgid "Oswald"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields.selection,name:base.selection__res_partner__gender__other
 #: model:ir.model.fields.selection,name:base.selection__res_partner__type__other
 msgid "Other"
 msgstr ""
@@ -39130,6 +39682,11 @@ msgid "Partner"
 msgstr ""
 
 #. module: base
+#: model:ir.model,name:base.model_res_partner_age_range
+msgid "Partner Age Range"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_partner_autocomplete
 msgid "Partner Autocomplete"
 msgstr ""
@@ -39210,6 +39767,21 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_partner_group_restricted
 msgid "Partner Group Restricted"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_partner_relationship
+msgid "Partner Relationships"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_partner_relationship_credit
+msgid "Partner Relationships / Credit"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_partner_relationship_blocklist
+msgid "Partner Relationships / SAT Blocklist"
 msgstr ""
 
 #. module: base
@@ -39345,13 +39917,7 @@ msgid "Path to show in the URL"
 msgstr ""
 
 #. module: base
-#: model:ir.model.constraint,message:base.constraint_ir_act_client_path_unique
-#: model:ir.model.constraint,message:base.constraint_ir_act_report_xml_path_unique
-#: model:ir.model.constraint,message:base.constraint_ir_act_server_path_unique
-#: model:ir.model.constraint,message:base.constraint_ir_act_url_path_unique
-#: model:ir.model.constraint,message:base.constraint_ir_act_window_path_unique
 #: model:ir.model.constraint,message:base.constraint_ir_actions_path_path_unique
-#: model:ir.model.constraint,message:base.constraint_ir_actions_path_unique
 msgid "Path to show in the URL must be unique! Please choose another one."
 msgstr ""
 
@@ -39394,11 +39960,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.category,name:base.module_category_accounting_payment
 msgid "Payment"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,shortdesc:base.module_account_payment
-msgid "Payment - Account"
 msgstr ""
 
 #. module: base
@@ -40444,6 +41005,11 @@ msgid "Product Comparison"
 msgstr ""
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_product_msds_compliance
+msgid "Product Documents Compliance"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_product_email_template
 msgid "Product Email Template"
 msgstr ""
@@ -41346,8 +41912,18 @@ msgid "Read a scan locally, with no key and no per-page charge"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_document_extract
+#: model:ir.module.module,summary:base.module_document_extract_account
 msgid "Read a vendor bill's own document with document_extract"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_document_extract_hr_recruitment
+msgid "Read an applicant's CV with document_extract"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_document_extract_hr_expense
+msgid "Read an expense's receipt with document_extract"
 msgstr ""
 
 #. module: base
@@ -41417,12 +41993,6 @@ msgid "Record"
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_actions.py:0
-msgid "Record %s is not a valid action type"
-msgstr ""
-
-#. module: base
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window__res_id
 #: model:ir.model.fields,field_description:base.field_ir_model_data__res_id
 msgid "Record ID"
@@ -41468,8 +42038,19 @@ msgid "Record does not exist or has been deleted."
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/ir_binary.py:0
+msgid "Record has no field \"%(field_name)s\"."
+msgstr ""
+
+#. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_rule_form
 msgid "Record rules"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_document_extract_hr_recruitment_skills
+msgid "Record the skills a CV names against the skill catalogue"
 msgstr ""
 
 #. module: base
@@ -41601,6 +42182,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_model_fields.py:0
 msgid "Related field \"%(related_field)s\" does not have type \"%(type)s\""
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_partner_relationship_credit
+msgid "Related-party credit exposure across the relationship network"
 msgstr ""
 
 #. module: base
@@ -42003,9 +42589,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.module.module,summary:base.module_base_attribute_mixin
-msgid ""
-"Reusable EAV and classification mixins: attribute, attribute value, "
-"attribute line and numeric band."
+msgid "Reusable EAV mixins: attribute, attribute value and attribute line."
 msgstr ""
 
 #. module: base
@@ -43761,6 +44345,19 @@ msgid "Shopper's Wishlist"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_res_company__code
+msgid "Short Code"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_res_company__code
+msgid ""
+"Short, untranslated handle for the company, shown wherever the company is "
+"referenced instead of its full legal name. Companies without one are "
+"referenced by name."
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,summary:base.module_link_tracker
 msgid "Shorten URLs and use them to track clicks and UTMs"
 msgstr ""
@@ -44728,11 +45325,6 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_stock_blocked_location
 msgid "Stock Blocked Location"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,shortdesc:base.module_delivery_tracking_product_asset_remote_gps
-msgid "Stock Dispatch Product Asset - GPS Bridge"
 msgstr ""
 
 #. module: base
@@ -46030,6 +46622,11 @@ msgid "The company name must be unique!"
 msgstr ""
 
 #. module: base
+#: model:ir.model.constraint,message:base.constraint_res_company_code_uniq
+msgid "The company short code must be unique!"
+msgstr ""
+
+#. module: base
 #: model_terms:ir.actions.act_window,help:base.act_ir_actions_todo_form
 msgid ""
 "The configuration wizards are used to help you configure a new instance of\n"
@@ -46254,7 +46851,7 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_act_window.py:0
 msgid "The modes in view_mode must not be duplicated: %s"
 msgstr ""
 
@@ -46335,12 +46932,6 @@ msgid "The number of digits cannot be negative."
 msgstr ""
 
 #. module: base
-#. odoo-python
-#: code:addons/base/models/ir_model_fields_selection.py:0
-msgid "The ondelete policy \"%(policy)s\" is not valid for field \"%(field)s\""
-msgstr ""
-
-#. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_model_fields_form
 msgid "The only predefined variables are"
 msgstr ""
@@ -46381,7 +46972,7 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_actions.py:0
 msgid ""
 "The path should contain only lowercase alphanumeric characters, underscore, "
 "and dash, and it should start with a letter."
@@ -46606,8 +47197,8 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_actions_server.py:0
 msgid ""
-"The value %(value)r configured on action '%(action)s' is not a valid number "
-"for field '%(field)s'."
+"The value '%(value)s' configured on action '%(action)s' is not a valid "
+"number for field '%(field)s'."
 msgstr ""
 
 #. module: base
@@ -47506,6 +48097,11 @@ msgid "To return an action, assign: <code>action = {...}</code>"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_res_partner_age_range__max_value
+msgid "To year"
+msgstr ""
+
+#. module: base
 #: model:ir.module.category,name:base.module_category_productivity_to-do
 #: model:ir.module.module,shortdesc:base.module_project_todo
 msgid "To-Do"
@@ -47618,6 +48214,11 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,summary:base.module_maintenance
 msgid "Track equipment and manage maintenance requests"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_product_msds_compliance
+msgid "Track expiry and renewal of published SDS, labels and technical sheets"
 msgstr ""
 
 #. module: base
@@ -48451,7 +49052,7 @@ msgstr ""
 #. module: base
 #. odoo-python
 #: code:addons/base/models/ir_actions_report.py:0
-msgid "Unknown report type %s for report %s."
+msgid "Unknown report type %(type)s for report %(report)s."
 msgstr ""
 
 #. module: base
@@ -48476,7 +49077,7 @@ msgstr ""
 
 #. module: base
 #. odoo-python
-#: code:addons/base/models/ir_actions.py:0
+#: code:addons/base/models/ir_actions_actions.py:0
 msgid "Unknown view type(s) %(unknown)s in %(field)s. Allowed: %(allowed)s"
 msgstr ""
 
@@ -48593,6 +49194,14 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:base.module_form
 #: model_terms:ir.ui.view,arch_db:base.module_view_kanban
 msgid "Upgrading"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_mixin_band__max_value
+msgid ""
+"Upper bound of the band, exclusive -- it is the lower bound of the next "
+"band. 0 means no upper limit, which the highest band of a scale should use "
+"so nothing falls off the top."
 msgstr ""
 
 #. module: base
@@ -48833,6 +49442,11 @@ msgstr ""
 #: model:ir.actions.act_window,name:base.action_user_device
 #: model:ir.ui.menu,name:base.menu_action_user_device
 msgid "User Devices"
+msgstr ""
+
+#. module: base
+#: model:ir.model,name:base.model_mixin_user_favorite
+msgid "User Favorite Mixin"
 msgstr ""
 
 #. module: base
@@ -49100,8 +49714,13 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_document_extract
+#: model:ir.module.module,shortdesc:base.module_document_extract_account
 msgid "Vendor Bill Document Extraction"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_document_extract_account_purchase
+msgid "Vendor Bill Purchase Order Matching from Extraction"
 msgstr ""
 
 #. module: base
@@ -50170,6 +50789,14 @@ msgid "You can not create recursive tags."
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/models/mixins/export.py:0
+msgid ""
+"You can not export the column ID of model %(model)s, because the table "
+"%(table)s is not an ordinary table."
+msgstr ""
+
+#. module: base
 #: model:ir.model.constraint,message:base.constraint_res_users_login_key
 msgid "You can not have two users with the same login!"
 msgstr ""
@@ -50746,6 +51373,11 @@ msgstr ""
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_company_form
+msgid "e.g. MYCO"
+msgstr ""
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.view_company_form
 msgid "e.g. My Company"
 msgstr ""
 
@@ -51147,6 +51779,24 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_rule.py:0
 msgid "write"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/models/mixins/access.py:0
+msgid "write %(spec)s"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/models/mixins/access.py:0
+msgid "write always forbidden"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/models/mixins/access.py:0
+msgid "write gated by a field predicate"
 msgstr ""
 
 #. module: base

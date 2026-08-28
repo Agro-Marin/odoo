@@ -6,10 +6,10 @@
 
 ## Running the checks
 
-The fifty-six blocking checkers do **not** share one CLI, and a loop that
+The fifty-seven blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on sixteen of them.
 
-**Thirty-seven are contract gates.** Each takes bare for a human-readable
+**Thirty-eight are contract gates.** Each takes bare for a human-readable
 report, `--check` for CI (exit 1 on a new violation), `--json` for a
 machine-readable one:
 
@@ -31,7 +31,7 @@ to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 drives them as ratchets, so they belong to this group. Run any of the nineteen bare
 and it reports without enforcing.
 
-Thirty-seven plus nineteen is fifty-six. All three figures derive from the
+Thirty-eight plus nineteen is fifty-seven. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) — an
 enumerated list is a gate only when something independently derives the
@@ -110,7 +110,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **fifty-six** blocking checkers, after
+`Architecture Boundaries` workflow runs **fifty-seven** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -236,7 +236,7 @@ real-tree test — `test_the_real_tree_holds_the_property_today`,
 `test_the_surface_matches_the_committed_baseline` — so a violation fails the
 self-test step, which is blocking.
 
-`cross_repo_coherence.py` is a fifty-seventh checker and the only one outside CI: it
+`cross_repo_coherence.py` is a fifty-eighth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
@@ -249,7 +249,7 @@ Eleven and not eight, which is what counting only the table above would give:
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
 third.
 
-**Seventy-nine** is how many steps CI runs the fifty-six in, each step invoking
+**Eighty** is how many steps CI runs the fifty-seven in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
 `py_function_length` alone accounts for six.
@@ -267,7 +267,7 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns ninety tool
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns ninety-four tool
 counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_stock, jsfunclen_product, jsfunclen_survey, pyfunclen, pyfunclen_addons, pyfunclen_mail, pyfunclen_loyalty, pyfunclen_survey, pyfunclen_tooling, py_x2many_count, py_x2many_count_addons, py_x2many_count_mail, py_x2many_count_account, py_x2many_count_stock, py_x2many_count_project, py_x2many_count_enterprise, py_x2many_count_agromarin, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_shadowed_member, py_shadowed_member_addons, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsserviceshape_account, jsserviceshape_stock, jsforcedrender, jsvacuous, jseagerfixture, jsduplication, prettier_scss, naming, naming_enterprise, naming_agromarin, naming_design-themes, fieldhooks, hookpurity, computectx, translations, mypy_tools, orderlineqty, unresolved_calls, unresolved_calls_enterprise, unresolved_calls_agromarin, bundle_double_eval, lint_docstring, lint_gettext_developer_error, lint_gettext_placeholders, lint_gettext_repr, lint_gettext_variable, lint_manifest_shape, lint_missing_gettext, lint_n_plus_one_query, lint_noqa_rationale, lint_raise_unlink_override, lint_sql_injection, lint_xml_attrib_order, lint_xml_field_order, lint_xml_unformatted, lint_gettext_developer_error_enterprise, lint_missing_gettext_enterprise, lint_n_plus_one_query_enterprise, lint_noqa_rationale_enterprise, lint_raise_unlink_override_enterprise, lint_sql_injection_enterprise, lint_gettext_developer_error_agromarin, lint_gettext_placeholders_agromarin, lint_gettext_repr_agromarin, lint_gettext_variable_agromarin, lint_missing_gettext_agromarin, lint_n_plus_one_query_agromarin, lint_noqa_rationale_agromarin, lint_sql_injection_agromarin and lint_noqa_rationale_design-themes**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
@@ -359,7 +359,7 @@ expected set from the gates the workflows actually drive rather than from a list
 beside it, so the next retirement fails instead of lingering.
 
 **DB-backed integration gate** (`.github/workflows/integration_tests.yml`,
-ADR-0007) — boots PostgreSQL 18 and runs six suites, **each against its own
+ADR-0007) — boots PostgreSQL 18 and runs seven suites, **each against its own
 database**:
 
 | Suite | Database | Notes |
@@ -369,6 +369,8 @@ database**:
 | `test_orm` | `ci_orm` | added 2026-08-08. **1,201 test methods** under its `tests/` directory — the addon written to test the ORM, and the largest thing that was outside the lane. Above all `test_domain_evaluator_parity.py`: the only check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate), with a generative suite asserting the two evaluators agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence |
 | `mrp` | `ci_mrp` | the first suite here that is not a `test_*` addon. Recursive BoM explosion, backorder splitting, multi-level procurement and compute chains across four models make it the deepest ORM consumer among the bundled addons; installing it gives `stock`, `product`, `uom` and `resource` their first DB-backed exercise through a real consumer |
 | `certificate` | `ci_certificate` | added 2026-08-20. Owns X.509 parsing, private-key loading and the signing API for `l10n_mx_edi`, `l10n_cl_edi`, `sign`, `account_edi_proxy_client` and fifteen more consumers, and ran in no lane at all. What it catches is not an ordinary regression: a key that signs with the wrong digest breaks fiscal submission in whichever country is downstream, silently, until a tax authority refuses the file |
+| `stock` | `ci_stock` | added 2026-08-22 — the same hole as `mrp`'s, one layer down: `mrp` installs stock and exercises it as a consumer but selects `/mrp`, so no workflow had ever run one of stock's own 1,337 tests. The 8 HttpCase tours are excluded rather than skipped silently, because `--no-http` would turn each into a success that never ran |
+| `rpc` | `ci_rpc` | added 2026-08-27. The only suite here that runs **with** the HTTP server: its three `HttpCase` classes drive real XML-RPC and `/json/2` requests through `url_open` and `ServerProxy`, so `--no-http` would skip the 25 tests that are the only end-to-end coverage of the wire format. None is a tour and none needs a browser |
 
 Adding `test_orm` paid for itself on the first run:
 `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's

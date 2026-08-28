@@ -4,7 +4,7 @@ NEW = "account_payment_provider"
 OLD_PARAM = f"{OLD}.enable_portal_payment"
 NEW_PARAM = f"{NEW}.enable_portal_payment"
 
-# ADR-0068: the module bridges accounting to the payment engine and defines no
+# ADR-0070: the module bridges accounting to the payment engine and defines no
 # `account.payment` -- that model lives here, in `account`.
 #
 # The rename lives in `account` and not in the renamed module's own
