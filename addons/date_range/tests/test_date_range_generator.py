@@ -200,6 +200,25 @@ class DateRangeGeneratorTest(TransactionCase):
         self.assertEqual(names[0], "Q01")
         self.assertEqual(names[-1], "Q12")
 
+    def test_type_preview_hidden_without_autogeneration_horizon(self):
+        """No autogeneration horizon means no guessed-count preview.
+
+        Without a horizon the type cannot know how many ranges a manual
+        wizard run will ask for, so it used to preview ``count=1`` and show
+        an unpadded index (``Q1``) that disagreed with what a real run with
+        ``count >= 10`` produces (``Q01``).
+        """
+        dr_type = self.env["date.range.type"].create(
+            {
+                "name": "Unpadded",
+                "allow_overlap": True,
+                "name_prefix": "Q",
+                "duration_count": 1,
+                "unit_of_time": str(MONTHLY),
+            }
+        )
+        self.assertFalse(dr_type.range_name_preview)
+
     def test_generator_form(self):
         """Test validation and onchange functionality"""
         form = Form(self.env["date.range.generator"])

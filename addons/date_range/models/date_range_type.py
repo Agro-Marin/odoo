@@ -152,15 +152,28 @@ class DateRangeType(models.Model):
         actually created, said ``P01`` — because a second implementation had to
         guess how many ranges there would be. Not stored: it is a hint about
         what a future run would do, and a stored copy silently goes stale.
+
+        Only shown when autogeneration is fully configured: that is the one
+        case where the generator can derive a real end date from the type
+        alone, so the padding it previews is the padding a real run would
+        produce. Without a horizon, the count is only decided later, at
+        wizard time, by whatever end date or count the user enters —
+        previewing ``count=1`` there just repeats the same "guessed count"
+        mismatch this preview exists to avoid.
         """
         generator = self.env["date.range.generator"]
         for dr_type in self:
-            if not (dr_type.name_expr or dr_type.name_prefix):
+            has_horizon = bool(
+                dr_type.autogeneration_date_start
+                and dr_type.autogeneration_count
+                and dr_type.autogeneration_unit
+            )
+            if not (dr_type.name_expr or dr_type.name_prefix) or not has_horizon:
                 dr_type.range_name_preview = False
                 continue
-            # count=1 is a floor, not an override: when the type configures an
-            # autogeneration horizon the generator derives a real end date and
-            # uses that instead, so the preview shows the padding a real run
+            # count=1 is a floor, not an override: the autogeneration horizon
+            # checked above makes the generator derive a real end date and
+            # use that instead, so the preview shows the padding a real run
             # would produce.
             dr_type.range_name_preview = generator.new(
                 {"type_id": dr_type.id, "count": 1}
