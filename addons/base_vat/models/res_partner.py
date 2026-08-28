@@ -136,9 +136,7 @@ class ResPartner(models.Model):
 
         do_eu_check = False
         prefixed_country = ""
-        eu_prefix_country_group = self.env["res.country.group"].search(
-            [("code", "=", "EU_PREFIX")], limit=1
-        )
+        eu_prefix_country_group = self.env.ref("base.europe_prefix")
         country_code = EU_EXTRA_VAT_CODES_INV.get(vat_prefix, vat_prefix)
         if country_code in eu_prefix_country_group.country_ids.mapped("code"):
             if "EU_PREFIX" in country.country_group_codes and vat_prefix:
