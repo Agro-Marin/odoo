@@ -1474,6 +1474,49 @@ class TestMailThreadTriggers(TransactionCase):
         # Check if triggered
         self.assertEqual(self.test_partner.street, "Message sent")
 
+    def test_on_message_sent_honours_filter_domain(self):
+        """Regression test for BAU-2: mail triggers ignored `filter_domain`.
+
+        Unlike every other trigger (create/write/compute/unlink), the
+        message_post patch only ever called `_filter_pre`, never
+        `_filter_post`/`_filter_post_export_domain` -- so `filter_domain`
+        ("Apply on"), visible and editable for this trigger in the form, had
+        no effect at all. An impossible domain must now block the action.
+        """
+        automation = self.Automation.create(
+            {
+                "name": "On Message Sent With Domain",
+                "model_id": self.model_partner.id,
+                "trigger": "on_message_sent",
+                # No real record can ever match: proves the domain is honoured.
+                "filter_domain": repr([("id", "=", 0)]),
+            }
+        )
+        action = self.Action.create(
+            {
+                "name": "Message Sent Action",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": "record.write({'street': 'Message sent'})",
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+            }
+        )
+        automation.write({"action_server_ids": [Command.link(action.id)]})
+
+        admin_user = self.env.ref("base.user_admin")
+        self.test_partner.with_user(admin_user).message_post(
+            body="Reply to customer",
+            author_id=admin_user.partner_id.id,
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+
+        self.assertFalse(
+            self.test_partner.street,
+            "an impossible filter_domain must block the action",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestUIChangeTrigger(TransactionCase):
