@@ -3,6 +3,7 @@ from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.base_iban.models.res_partner_bank import (
     get_bban_from_iban,
+    get_iban_part,
     normalize_iban,
     pretty_iban,
     validate_iban,
@@ -86,3 +87,17 @@ class TestBaseIban(TransactionCase):
         bank.write(vals)
         self.assertEqual(vals, original)
         self.assertEqual(bank.acc_number, "BE68 5390 0754 7034")
+
+    def test_get_iban_part_extracts_masked_segment(self):
+        """Docstring example: extract the bank/account segments of an Italian IBAN."""
+        it_iban = "IT60X0542811101000000123456"
+        self.assertEqual(get_iban_part(it_iban, "bank"), "05428")
+        self.assertEqual(get_iban_part(it_iban, "account"), "000000123456")
+
+    def test_get_iban_part_unrecognized_kind_returns_false(self):
+        """An unrecognized number_kind returns False, not a falsy string."""
+        self.assertIs(get_iban_part(VALID_IBAN, "not_a_kind"), False)
+
+    def test_get_iban_part_unmapped_country_returns_false(self):
+        """A country code absent from the template map returns False, not ''."""
+        self.assertIs(get_iban_part("ZZ68539007547034", "bank"), False)

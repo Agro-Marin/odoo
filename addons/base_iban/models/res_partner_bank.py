@@ -65,9 +65,12 @@ def get_iban_part(iban, number_kind):
     # Removing the country code from both the IBAN and the mask, since it can have some mask chars
     iban_nocc = iban[2:]
     template_nocc = _map_iban_template.get(country_code, "").replace(" ", "")[2:]
+    if not template_nocc:
+        return False
+
     # strict=False is intentional: a malformed/wrong-length iban must be truncated to
     # the shorter of the two, not raise -- this is a best-effort extractor (see docstring).
-    return template_nocc and "".join(
+    return "".join(
         c for c, t in zip(iban_nocc, template_nocc, strict=False) if t == mask_char
     )
 
