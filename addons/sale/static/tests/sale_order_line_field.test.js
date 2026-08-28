@@ -304,31 +304,14 @@ test("Test combo columns", async () => {
 
     expect(
         queryAllTexts(".o_data_row:contains(Test Combo1) > td").filter(Boolean),
-    ).toEqual(
-        [
-            "Test Combo1",
-            "3.00",
-            "30",
-            "9.00",
-        ],
-        {
-            message:
-                "combo line should only have name, product_qty, discount and `aggregated_fields` columns",
-        },
-    );
+    ).toEqual(["Test Combo1", "3.00", "30", "9.00"], {
+        message:
+            "combo line should only have name, product_qty, discount and `aggregated_fields` columns",
+    });
 
     expect(
         queryAllTexts(".o_data_row:contains(Non Combo Line1) > td").filter(Boolean),
-    ).toEqual(
-        [
-            "Non Combo Line1",
-            "3.00",
-            "3.00",
-            "30",
-            "3.00",
-        ],
-        {
-            message: "Non-combo line should have all columns",
-        },
-    );
+    ).toEqual(["Non Combo Line1", "3.00", "3.00", "30", "3.00"], {
+        message: "Non-combo line should have all columns",
+    });
 });

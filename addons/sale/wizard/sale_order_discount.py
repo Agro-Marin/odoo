@@ -1,5 +1,5 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
 from odoo.tools import float_repr
 
@@ -34,7 +34,7 @@ class SaleOrderDiscount(models.TransientModel):
                 wizard.discount_type in ("sol_discount", "so_discount")
                 and wizard.discount_percentage > 1.0
             ):
-                raise ValidationError(_("Discount percentage must be at most 100%%."))
+                raise ValidationError(_("Discount percentage must be at most 100%."))
             if wizard.discount_type == "amount":
                 currency = wizard.currency_id or wizard.sale_order_id.currency_id
                 if wizard.discount_amount < 0.0:
@@ -113,7 +113,6 @@ class SaleOrderDiscount(models.TransientModel):
                     "product_id": base_line["product_id"].id,
                     "price_unit": base_line["price_unit"],
                     "price_unit_auto": 0,
-                    "product_uom_qty": base_line["quantity"],
                     "tax_ids": [Command.set(base_line["tax_ids"].ids)],
                     "extra_tax_data": AccountTax._export_base_line_extra_tax_data(
                         base_line
@@ -140,7 +139,7 @@ class SaleOrderDiscount(models.TransientModel):
                     self._prepare_discount_product_values()
                 )
             else:
-                raise ValidationError(
+                raise AccessError(
                     _(
                         "There does not seem to be any discount product configured for this company yet."
                         " You can either use a per-line discount, or ask an administrator to grant the"

@@ -2,7 +2,7 @@ import json
 import logging
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.tools import float_compare
 from odoo.tools.translate import _
@@ -13,10 +13,6 @@ _logger = logging.getLogger(__name__)
 class SaleOrder(models.Model):
     _name = "sale.order"
     _inherit = ["sale.order", "mixin.order.stock"]
-
-    # ----------------------------------------------------------------------
-    # FIELDS
-    # ----------------------------------------------------------------------
 
     warehouse_id = fields.Many2one(
         comodel_name="stock.warehouse",
@@ -55,8 +51,6 @@ class SaleOrder(models.Model):
         string="References",
         copy=False,
     )
-    # Selection, compute and store come from mixin.order.stock; only the
-    # customer-facing wording is specific to sales.
     transfer_state = fields.Selection(
         string="Delivery Status",
         help="Blue: Not Delivered/Started\n\
@@ -88,18 +82,7 @@ class SaleOrder(models.Model):
         compute="_compute_json_popover",
     )
 
-    # ----------------------------------------------------------------------
-    # INIT
-    # ----------------------------------------------------------------------
-
     def _init_column(self, column_name):
-        """Ensure the default warehouse_id is correctly assigned
-
-        At column initialization, the ir.model.fields for res.users.property_warehouse_id isn't created,
-        which means trying to read the property field to get the default value will crash.
-        We therefore enforce the default here, without going through
-        the default function on the warehouse_id field.
-        """
         if column_name != "warehouse_id":
             return super()._init_column(column_name)
 
@@ -121,13 +104,8 @@ class SaleOrder(models.Model):
         self.env.cr.execute(query, params)
         return None
 
-    # ----------------------------------------------------------------------
-    # CONSTRAINT METHODS
-    # ----------------------------------------------------------------------
-
     @api.constrains("warehouse_id", "state", "line_ids")
     def _check_warehouse(self):
-        """Ensure that the warehouse is set in case of storable products"""
         orders_without_wh = self.filtered(
             lambda order: (
                 order.state not in ("draft", "cancel") and not order.warehouse_id
@@ -151,7 +129,7 @@ class SaleOrder(models.Model):
                 other_company.add(order_line.route_ids.company_id.id)
                 continue
             if order_line.order_id.company_id.id in company_ids_with_wh:
-                raise UserError(
+                raise ValidationError(
                     _("You must set a warehouse on your sale order to proceed."),
                 )
             self.env["stock.warehouse"].with_company(
@@ -161,25 +139,26 @@ class SaleOrder(models.Model):
             [("company_id", "in", list(other_company))],
         )
         if any(c not in other_company_warehouses.company_id.ids for c in other_company):
-            raise UserError(
+            raise ValidationError(
                 _(
                     "You must have a warehouse for line using a delivery in different company.",
                 ),
             )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
     def write(self, vals):
-
-        if vals.get("line_ids") and self.state == "done":
-            for order in self:
-                pre_order_line_qty = {
-                    order_line: order_line.product_qty
-                    for order_line in order.mapped("line_ids")
-                    if not order_line.is_expense
-                }
+        confirmed = (
+            self.filtered(lambda o: o.state == "done")
+            if vals.get("line_ids")
+            else self.browse()
+        )
+        pre_order_line_qty = {
+            order: {
+                order_line: order_line.product_qty
+                for order_line in order.line_ids
+                if not order_line.is_expense
+            }
+            for order in confirmed
+        }
 
         if vals.get("partner_shipping_id") and self.env.context.get(
             "update_delivery_shipping_partner",
@@ -210,8 +189,6 @@ class SaleOrder(models.Model):
                 )
 
         if "date_commitment" in vals:
-            # protagate date_commitment as the deadline of the related stock move.
-            # TODO: Log a note on each down document
             deadline_datetime = vals.get("date_commitment")
             for order in self:
                 moves = order.line_ids.move_ids.filtered(
@@ -224,53 +201,50 @@ class SaleOrder(models.Model):
 
         res = super().write(vals)
 
-        if vals.get("line_ids") and self.state == "done":
-            for order in self:
-                to_log = {}
-                order.line_ids.fetch(
-                    [
-                        "product_uom_id",
-                        "product_qty",
-                        "display_type",
-                        "is_downpayment",
-                    ],
-                )
-                for order_line in order.line_ids:
-                    if order_line.display_type or order_line.is_downpayment:
-                        continue
-                    if (
-                        float_compare(
-                            order_line.product_qty,
-                            pre_order_line_qty.get(order_line, 0.0),
-                            precision_rounding=order_line.product_uom_id.rounding,
-                        )
-                        < 0
-                    ):
-                        to_log[order_line] = (
-                            order_line.product_qty,
-                            pre_order_line_qty.get(order_line, 0.0),
-                        )
-                if to_log:
-                    documents = (
-                        self.env["mixin.stock.activity"]
-                        .sudo()
-                        ._log_activity_get_documents(
-                            to_log,
-                            "move_ids",
-                            "UP",
-                        )
+        for order in confirmed:
+            previous_qty = pre_order_line_qty[order]
+            to_log = {}
+            order.line_ids.fetch(
+                [
+                    "product_uom_id",
+                    "product_qty",
+                    "display_type",
+                    "is_downpayment",
+                ],
+            )
+            for order_line in order.line_ids:
+                if order_line.display_type or order_line.is_downpayment:
+                    continue
+                if (
+                    float_compare(
+                        order_line.product_qty,
+                        previous_qty.get(order_line, 0.0),
+                        precision_rounding=order_line.product_uom_id.rounding,
                     )
-                    documents = {
-                        k: v for k, v in documents.items() if k[0].state != "cancel"
-                    }
-                    order._log_decrease_ordered_quantity(documents)
+                    < 0
+                ):
+                    to_log[order_line] = (
+                        order_line.product_qty,
+                        previous_qty.get(order_line, 0.0),
+                    )
+            if to_log:
+                documents = (
+                    self.env["mixin.stock.activity"]
+                    .sudo()
+                    ._log_activity_get_documents(
+                        to_log,
+                        "move_ids",
+                        "UP",
+                    )
+                )
+                documents = {
+                    k: v for k, v in documents.items() if k[0].state != "cancel"
+                }
+                order._log_decrease_ordered_quantity(documents)
 
         return res
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
+    @api.depends("picking_ids.date_delay_alert")
     def _compute_json_popover(self):
         for order in self:
             late_stock_picking = order.picking_ids.filtered(
@@ -301,7 +275,6 @@ class SaleOrder(models.Model):
                     ._get_model_defaults("sale.order")
                     .get("warehouse_id")
                 )
-                # Should expect empty
                 if default_warehouse_id is not None:
                     order.warehouse_id = default_warehouse_id
                 else:
@@ -319,8 +292,6 @@ class SaleOrder(models.Model):
             order.count_transfer_outgoing = len(order.picking_ids)
 
     def _filter_effective_pickings(self, pickings):
-        # Sale: only customer-destination deliveries set the effective date.
-        # Overrides mixin.order.stock (base_order_stock).
         return pickings.filtered(
             lambda p: p.state == "done" and p.location_dest_id.usage == "customer",
         )
@@ -333,28 +304,18 @@ class SaleOrder(models.Model):
                 for picking in order.picking_ids
             )
 
-    # _compute_transfer_state is inherited from mixin.order.stock (base_order_stock);
-    # the logic is identical between sale_stock and purchase_stock.
-
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
-
     def _search_late_availability(self, operator, value):
         if operator not in ("=", "!=") or not isinstance(value, bool):
             return NotImplemented
 
-        sub_query = self.env["stock.picking"]._search(
+        late_pickings = self.env["stock.picking"]._search(
             [
                 ("sale_id", "!=", False),
-                ("products_availability_state", operator, "late"),
+                ("products_availability_state", "=", "late"),
             ],
         )
-        return [("picking_ids", "in", sub_query)]
-
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
+        wanted = operator == "=" if value else operator != "="
+        return [("picking_ids", "in" if wanted else "not in", late_pickings)]
 
     @api.onchange("partner_shipping_id")
     def _onchange_partner_shipping_id(self):
@@ -375,28 +336,24 @@ class SaleOrder(models.Model):
             }
         return res
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def _action_cancel(self):
-        documents = None
-
-        for sale_order in self:
-            if sale_order.state == "done" and sale_order.line_ids:
-                sale_order_lines_quantities = {
-                    order_line: (order_line.product_qty, 0)
-                    for order_line in sale_order.line_ids
-                }
-                documents = (
-                    self.env["mixin.stock.activity"]
-                    .with_context(include_draft_documents=True)
-                    ._log_activity_get_documents(
-                        sale_order_lines_quantities,
-                        "move_ids",
-                        "UP",
-                    )
-                )
+        lines_quantities = {
+            order_line: (order_line.product_qty, 0)
+            for sale_order in self
+            if sale_order.state == "done"
+            for order_line in sale_order.line_ids
+        }
+        documents = (
+            self.env["mixin.stock.activity"]
+            .with_context(include_draft_documents=True)
+            ._log_activity_get_documents(
+                lines_quantities,
+                "move_ids",
+                "UP",
+            )
+            if lines_quantities
+            else None
+        )
 
         self.picking_ids.filtered(lambda p: p.state != "done").with_context(
             skip_cancel_activity=True
@@ -422,20 +379,13 @@ class SaleOrder(models.Model):
     def action_view_delivery(self):
         return self._get_action_view_picking(self.picking_ids)
 
-    # ----------------------------------------------------------------------
-    # HELPER METHODS
-    # ----------------------------------------------------------------------
-
     def _add_reference(self, reference):
-        """link the given references to the list of references."""
         self.ensure_one()
         self.stock_reference_ids = [
             Command.link(stock_reference.id) for stock_reference in reference
         ]
 
     def _get_action_view_picking_context(self, pickings):
-        # Default to the delivery's operation type, falling back to any other
-        # shown picking. Overrides mixin.order.stock (base_order_stock).
         picking = (
             pickings.filtered(lambda p: p.picking_type_id.code == "outgoing")[:1]
             or pickings[:1]
@@ -456,10 +406,6 @@ class SaleOrder(models.Model):
             order_exceptions, visited_moves = rendering_context
             visited_moves = list(visited_moves)
             visited_moves = self.env[visited_moves[0]._name].concat(*visited_moves)
-            # `order_exceptions` is keyed by stock move, so a line reached by
-            # several moves (an extra delivery, a return, a cancelled one) shows
-            # up once per move and the note would repeat it verbatim. The change
-            # is recorded per line, so collapsing on the line loses nothing.
             line_exceptions = {}
             for order_line, changes in order_exceptions.values():
                 line_exceptions.setdefault(order_line, changes)
@@ -484,9 +430,6 @@ class SaleOrder(models.Model):
         )
 
     def _prepare_invoice_vals(self):
-        # incoterm_id is declared by mixin.order.stock, but that mixin is last
-        # in the MRO and cannot override _prepare_invoice_vals, so each bridge
-        # propagates the field itself.
         invoice_vals = super()._prepare_invoice_vals()
         invoice_vals["invoice_incoterm_id"] = self.incoterm_id.id
         invoice_vals["delivery_date"] = self.date_effective and (
@@ -495,19 +438,12 @@ class SaleOrder(models.Model):
         return invoice_vals
 
     def _remove_reference(self, reference):
-        """remove the given references from the list of references."""
         self.ensure_one()
         self.stock_reference_ids = [
             Command.unlink(stock_reference.id) for stock_reference in reference
         ]
 
-    # ----------------------------------------------------------------------
-    # VALIDATIONS
-    # ----------------------------------------------------------------------
-
     def _is_display_stock_in_catalog(self):
-        # Not hoisted into mixin.order.stock: that mixin sits below
-        # stock.product_catalog_mixin in the MRO, so its answer never wins.
         return True
 
     def action_delivery_matching(self):

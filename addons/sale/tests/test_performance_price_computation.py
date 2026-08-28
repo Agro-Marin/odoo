@@ -68,7 +68,7 @@ class PriceComputationPerformanceBase(TransactionCase):
                 {
                     "order_id": order.id,
                     "product_id": product.id,
-                    "product_uom_qty": 1 + (i % 10),
+                    "product_qty": 1 + (i % 10),
                 }
             )
 
@@ -235,7 +235,7 @@ class TestPriceComputationPerformance(PriceComputationPerformanceBase):
                             0,
                             {
                                 "product_id": self.products[i % len(self.products)].id,
-                                "product_uom_qty": 1 + (i % 10),
+                                "product_qty": 1 + (i % 10),
                             },
                         )
                         for i in range(50)
@@ -251,7 +251,7 @@ class TestPriceComputationPerformance(PriceComputationPerformanceBase):
 
         with timing("Update quantity on 50 lines"):
             for line in order.line_ids:
-                line.product_uom_qty += 5
+                line.product_qty += 5
 
         self.assertTrue(all(line.price_unit > 0 for line in order.line_ids))
 
@@ -307,7 +307,7 @@ class TestPriceComputationCorrectness(PriceComputationPerformanceBase):
                         0,
                         {
                             "product_id": self.products[0].id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         },
                     )
                 ],

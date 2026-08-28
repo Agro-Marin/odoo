@@ -31,6 +31,7 @@ class AccountMove(models.Model):
     sale_warning_text = fields.Text(
         string="Sale Warning",
         compute="_compute_sale_warning_text",
+        depends_context=("uid",),
         help="Internal warning for the partner or the products as set by the user.",
     )
     sale_customer_invoice_id = fields.Many2one(
@@ -57,9 +58,10 @@ class AccountMove(models.Model):
 
 
     def unlink(self):
-        downpayment_lines = self.mapped("line_ids.sale_line_ids").filtered(
+        own_lines = self.line_ids
+        downpayment_lines = own_lines.sale_line_ids.filtered(
             lambda line: (
-                line.is_downpayment and line.invoice_line_ids <= self.mapped("line_ids")
+                line.is_downpayment and line.invoice_line_ids <= own_lines
             ),
         )
         res = super().unlink()
@@ -282,7 +284,7 @@ class AccountMove(models.Model):
             result = {"type": "ir.actions.act_window_close"}
         return result
 
-    def create_sale_order(self) -> bool:
+    def create_sale_order(self):
         self.ensure_one()
         if any(not line.product_id for line in self.invoice_line_ids):
             raise UserError(
@@ -306,12 +308,14 @@ class AccountMove(models.Model):
                 ),
             )
 
-        if not sale_exist:
-            sale = self.env["sale.order"].create(self._prepare_sale_order_vals())
-            for move_line_id, vals in self._prepare_sale_line_vals(sale).items():
-                move_line = self.env["account.move.line"].browse(move_line_id)
-                move_line.sale_line_ids = self.env["sale.order.line"].create(vals)
-        return True
+        if sale_exist:
+            return sale_exist
+
+        sale = self.env["sale.order"].create(self._prepare_sale_order_vals())
+        for move_line_id, vals in self._prepare_sale_line_vals(sale).items():
+            move_line = self.env["account.move.line"].browse(move_line_id)
+            move_line.sale_line_ids = self.env["sale.order.line"].create(vals)
+        return sale
 
     def _post_entries(self):
         posted = super()._post_entries()

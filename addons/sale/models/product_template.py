@@ -52,6 +52,7 @@ class ProductTemplate(models.Model):
     visible_expense_policy = fields.Boolean(
         string="Re-Invoice Policy visible",
         compute="_compute_visible_expense_policy",
+        depends_context=("uid",),
     )
     optional_product_ids = fields.Many2many(
         comodel_name="product.template",
@@ -162,7 +163,6 @@ class ProductTemplate(models.Model):
     @api.depends("product_variant_ids.sales_count")
     def _compute_sales_count(self):
         variants = self.with_context(active_test=False).product_variant_ids
-        variants.mapped("sales_count")
         count_by_variant = {variant.id: variant.sales_count for variant in variants}
         for template in self:
             template.sales_count = template.uom_id.round(

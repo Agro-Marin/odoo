@@ -124,7 +124,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
                 )
             if wizard.advance_payment_method == "percentage" and wizard.amount > 100.0:
                 raise UserError(
-                    _("The percentage of the down payment cannot exceed 100%%.")
+                    _("The percentage of the down payment cannot exceed 100%.")
                 )
 
 

@@ -20,4 +20,11 @@
         <field name="perm_unlink" eval="0"/>
     </record>
 
+    <!-- Mirrors sale.sale_order_report_comp_rule: no groups, so it is global. -->
+    <record id="customer_delay_report_comp_rule" model="ir.rule">
+        <field name="name">Customer Delay Report multi-company</field>
+        <field name="model_id" ref="model_customer_delay_report"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
 </odoo>

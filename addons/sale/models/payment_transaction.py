@@ -74,7 +74,6 @@ class PaymentTransaction(models.Model):
 
             if pending_tx.operation == "validation":
                 continue
-            sales_orders.mapped("transaction_ids")
             sales_orders._send_mail_order_payment_succeeded()
 
         for authorized_tx in self.filtered(lambda tx: tx.state == "authorized"):
@@ -90,26 +89,25 @@ class PaymentTransaction(models.Model):
             self.filtered(lambda tx: tx.state not in ["pending", "authorized", "done"]),
         )._post_process()
 
-        for done_tx in self.filtered(lambda tx: tx.state == "done"):
+        done_txs = self.filtered(lambda tx: tx.state == "done")
+        params = self.env["ir.config_parameter"].sudo()
+        auto_invoice = bool(done_txs) and str2bool(
+            params.get_param("sale.automatic_invoice"),
+        )
+        async_emails = auto_invoice and str2bool(
+            params.get_param("sale.async_emails"),
+        )
+        for done_tx in done_txs:
             if done_tx.operation != "validation":
                 confirmed_orders = done_tx._check_amount_and_confirm_order()
                 (
                     done_tx.sale_order_ids - confirmed_orders
                 )._send_mail_order_payment_succeeded()
-            auto_invoice = str2bool(
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("sale.automatic_invoice")
-            )
             if auto_invoice:
                 done_tx._invoice_sale_orders()
             super(PaymentTransaction, done_tx)._post_process()
             if auto_invoice and not self.env.context.get("skip_sale_auto_invoice_send"):
-                if str2bool(
-                    self.env["ir.config_parameter"]
-                    .sudo()
-                    .get_param("sale.async_emails")
-                ) and (
+                if async_emails and (
                     send_invoice_cron := self.env.ref(
                         "sale.send_invoice_cron", raise_if_not_found=False
                     )
@@ -151,8 +149,6 @@ class PaymentTransaction(models.Model):
                     and i._is_ready_to_be_sent()
                 )
             )
-            invoice_to_send.is_move_sent = True
-
             send_context = {"allow_raising": False, "allow_fallback_pdf": True}
             default_template_param = (
                 self.env["ir.config_parameter"]

@@ -14,7 +14,7 @@
         <h6>Availability</h6>
         <table class="table table-borderless table-sm">
             <tbody>
-                <t t-if="!props.record.data.is_mto and ['draft', 'sent'].includes(props.record.data.state)">
+                <t t-if="!props.record.data.is_mto and props.record.data.state === 'draft'">
                     <tr>
                         <td><strong t-out="forecastedLabel"/><br/><small>On <span t-out="props.calcData.delivery_date"/></small></td>
                         <td class="text-end">
@@ -34,7 +34,7 @@
                         </td>
                     </tr>
                 </t>
-                <t t-elif="props.record.data.is_mto and ['draft', 'sent'].includes(props.record.data.state)">
+                <t t-elif="props.record.data.is_mto and props.record.data.state === 'draft'">
                     <tr>
                         <td><strong>Expected Delivery</strong></td>
                         <td class="oe-right"><span t-out="props.calcData.delivery_date"/></td>

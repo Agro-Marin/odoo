@@ -24,6 +24,11 @@ class CustomerDelayReport(models.Model):
         string="Product Category",
         readonly=True,
     )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        string="Company",
+        readonly=True,
+    )
     date = fields.Datetime(string="Effective Date", readonly=True)
     qty_total = fields.Float(string="Total Quantity", readonly=True)
     qty_on_time = fields.Float(string="On-Time Quantity", readonly=True)
@@ -36,15 +41,22 @@ class CustomerDelayReport(models.Model):
             CREATE OR replace VIEW customer_delay_report AS(
             SELECT sol.id                AS id,
                 Min(m.date)              AS date,
-                sol.id                   AS sale_line_id,
                 sol.product_id           AS product_id,
                 Min(pc.id)               AS category_id,
                 sol.partner_id           AS partner_id,
+                so.company_id            AS company_id,
                 sol.product_uom_qty      AS qty_total,
                 SUM(CASE
                         WHEN (m.state = 'done' and so.date_commitment::date >= m.date::date) THEN ((ml.quantity * ml_uom.factor) / pt_uom.factor)
                         ELSE 0
-                    END)                 AS qty_on_time
+                    END)                 AS qty_on_time,
+                CASE
+                    WHEN sol.product_uom_qty = 0 THEN 100
+                    ELSE SUM(CASE
+                                WHEN (m.state = 'done' and so.date_commitment::date >= m.date::date) THEN ((ml.quantity * ml_uom.factor) / pt_uom.factor)
+                                ELSE 0
+                             END) / sol.product_uom_qty * 100
+                END                      AS on_time_rate
             FROM stock_move m
                 JOIN sale_order_line sol
                     ON sol.id = m.sale_line_id
@@ -64,14 +76,13 @@ class CustomerDelayReport(models.Model):
                     ON ml_uom.id = ml.product_uom_id
             WHERE so.date_commitment IS NOT NULL
             GROUP BY
-                sol.id
+                sol.id, so.company_id
             )
             """,
         )
 
     def _read_group_select(self, aggregate_spec, query):
         if aggregate_spec == "on_time_rate:sum":
-            # Make a weighted average instead of simple average for these fields
             return SQL(
                 "CASE WHEN SUM(%s) !=0 THEN SUM(%s) / SUM(%s) * 100 ELSE 100 END",
                 self._field_to_sql(self._table, "qty_total", query),
@@ -91,7 +102,7 @@ class CustomerDelayReport(models.Model):
         order=None,
     ):
         if "on_time_rate:sum" in aggregates:
-            having = Domain.AND([having, [("qty_total:sum", ">", "0")]])
+            having = Domain.AND([having, [("qty_total:sum", ">", 0)]])
         return super()._read_group(
             domain, groupby, aggregates, having, offset, limit, order
         )

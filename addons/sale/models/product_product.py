@@ -51,7 +51,6 @@ class ProductProduct(models.Model):
 
 
     @api.readonly
-    @api.readonly
     def action_view_sales(self):
         # The line-level history, not the `sale.report` pivot the button used
         # to open: purchase's twin has always answered "what did each document

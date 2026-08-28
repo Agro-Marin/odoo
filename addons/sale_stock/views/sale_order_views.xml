@@ -98,23 +98,24 @@
     </record>
 
     <record id="view_sale_order_list_2" model="ir.ui.view">
-        <field name="name">sale.order.list.inherit.sale.stock</field>
+        <field name="name">sale.order.list.2.inherit.sale.stock</field>
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_sale_order_list_2" />
         <field name="arch" type="xml">
             <field name="date_commitment" position="attributes">
+                <!-- Red when the promise is at risk: still owing goods past the
+                     promised date. The previous expression ANDed
+                     `date_commitment &lt; date_effective` with
+                     `date_effective &lt;= date_commitment`, which can never both
+                     hold, and then ORed a bare `transfer_state == 'partial'`
+                     that made every other term unreachable. -->
                 <attribute name="decoration-danger">
                     (
-                    (
-                    date_commitment &lt; date_effective
-                    or date_commitment &lt; datetime.datetime.combine(
+                    transfer_state in ['to do', 'partial']
+                    and date_commitment &lt; datetime.datetime.combine(
                     datetime.date.today(),
                     datetime.time(0,0,0)
                     ).to_utc().strftime('%Y-%m-%d %H:%M:%S')
-                    )
-                    and transfer_state in ['to do', 'partial']
-                    and date_effective &lt;= date_commitment
-                    or transfer_state == 'partial'
                     )
                 </attribute>
             </field>

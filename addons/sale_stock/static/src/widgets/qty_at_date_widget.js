@@ -47,6 +47,7 @@ export class QtyAtDateWidget extends Component {
     static components = { Popover: QtyAtDatePopover };
     static template = "sale_stock.QtyAtDate";
     static props = { ...standardWidgetProps };
+    static uomCache = new Map();
     setup() {
         this.popover = usePopover(this.constructor.components.Popover, {
             position: "top",
@@ -73,7 +74,7 @@ export class QtyAtDateWidget extends Component {
             this.calcData.will_be_late =
                 data.date_planned_forecast &&
                 data.date_planned_forecast > data.date_planned;
-            if (["draft", "sent"].includes(data.state)) {
+            if (data.state === "draft") {
                 // Moves aren't created yet, then the forecasted is only based on qty_available_virtual of quant
                 this.calcData.forecasted_issue =
                     !this.calcData.will_be_fulfilled && !data.is_mto;
@@ -87,46 +88,52 @@ export class QtyAtDateWidget extends Component {
 
     async calcDataForDisplay() {
         const { data } = this.props.record;
-        let lineUom;
-        if (data.product_uom_id?.[0]) {
-            lineUom = (
-                await this.orm.read(
-                    "uom.uom",
-                    [data.product_uom_id[0]],
-                    ["factor", "rounding"],
-                )
-            )[0];
+        const lineUomId = data.product_uom_id?.[0];
+        const productId = data.product_id?.[0];
+        if (!lineUomId || !productId) {
+            return;
         }
-        let lineProduct;
-        if (data.product_id?.[0]) {
-            lineProduct = await this.orm.searchRead(
+        // Two round-trips, not three: the product tells us which reference unit
+        // to fetch, and both units are then read in one call. The pair is
+        // memoised per (product, unit) since a popover is typically reopened.
+        const cacheKey = `${productId}/${lineUomId}`;
+        let factors = this.constructor.uomCache.get(cacheKey);
+        if (!factors) {
+            const [product] = await this.orm.read(
                 "product.product",
-                [["id", "=", data.product_id[0]]],
+                [productId],
                 ["uom_id"],
             );
-        }
-        let productUom;
-        if (lineProduct?.[0]?.uom_id?.[0]) {
-            productUom = (
-                await this.orm.searchRead(
-                    "uom.uom",
-                    [["id", "=", lineProduct[0].uom_id[0]]],
-                    ["factor", "name"],
-                )
-            )[0];
-        }
-        if (lineUom && productUom) {
-            this.calcData.product_uom_qty_available_virtual_at_date = roundPrecision(
-                (data.qty_available_virtual_at_date * lineUom.factor) /
-                    productUom.factor,
-                1,
+            const productUomId = product?.uom_id?.[0];
+            if (!productUomId) {
+                return;
+            }
+            const uoms = await this.orm.read(
+                "uom.uom",
+                [...new Set([lineUomId, productUomId])],
+                ["factor", "name"],
             );
-            this.calcData.product_uom_qty_free_today = roundPrecision(
-                (data.qty_free_today * lineUom.factor) / productUom.factor,
-                1,
-            );
-            this.calcData.product_uom_name = productUom.name;
+            const byId = Object.fromEntries(uoms.map((u) => [u.id, u]));
+            if (!byId[lineUomId] || !byId[productUomId]) {
+                return;
+            }
+            factors = {
+                lineFactor: byId[lineUomId].factor,
+                productFactor: byId[productUomId].factor,
+                productName: byId[productUomId].name,
+            };
+            this.constructor.uomCache.set(cacheKey, factors);
         }
+        const ratio = factors.lineFactor / factors.productFactor;
+        this.calcData.product_uom_qty_available_virtual_at_date = roundPrecision(
+            data.qty_available_virtual_at_date * ratio,
+            1,
+        );
+        this.calcData.product_uom_qty_free_today = roundPrecision(
+            data.qty_free_today * ratio,
+            1,
+        );
+        this.calcData.product_uom_name = factors.productName;
     }
 
     updateCalcData() {

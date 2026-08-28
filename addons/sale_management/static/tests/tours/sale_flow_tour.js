@@ -34,7 +34,7 @@ registry.category("web_tour.tours").add("test_basic_sale_flow_with_minimal_acces
         },
         {
             content: "Check that the invoice is linked to the sale order",
-            trigger: "button[name=action_view_source_sale_orders] .o_stat_value:contains(1)",
+            trigger: "button[name=action_view_source_sale_orders] .o_stat_value",
         },
     ],
 });

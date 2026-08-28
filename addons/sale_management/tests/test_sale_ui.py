@@ -34,7 +34,7 @@ class TestUi(AccountTestInvoicingCommon, HttpCase):
                 {
                     "name": "test SO",
                     "partner_id": self.agrolait.id,
-                    "state": "sent",
+                    "sent": True,
                     "require_payment": False,
                     "line_ids": [
                         Command.create(

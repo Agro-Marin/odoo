@@ -27,6 +27,19 @@ class TestSaleOrder(SaleCommon):
         cls.confirmation_email_template = cls.sale_order._get_confirmation_template()
         cls.async_emails_cron = cls.env.ref("sale.send_pending_emails_cron")
 
+    def test_line_name_computes_before_the_order_exists(self):
+        line = self.env["sale.order.line"].new({"product_id": self.product.id})
+        self.assertFalse(line.order_id)
+        self.assertEqual(line.order_id._get_lang(), self.env.lang)
+        self.assertTrue(line.name)
+
+    def test_form_opens_with_a_default_line_and_no_order(self):
+        with Form(self.env["sale.order"]) as order_form:
+            order_form.partner_id = self.partner
+            with order_form.line_ids.new() as line:
+                line.product_id = self.product
+        self.assertTrue(order_form.record.line_ids.name)
+
     def test_computes_auto_fill(self):
         free_product, dummy_product = self.env["product.product"].create(
             [

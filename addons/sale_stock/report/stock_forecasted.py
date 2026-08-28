@@ -30,7 +30,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
             return line
 
         picking = move_out.picking_id
-        # If read is False, line['move_out'] is a stock.move record and will trigger a record update
         if read:
             line["move_out"].update(
                 {
@@ -88,7 +87,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         return res
 
     def _product_sale_domain(self, product_template_ids, product_ids):
-        domain = [("state", "in", ["draft", "sent"])]
+        domain = [("state", "=", "draft")]
         if product_template_ids:
             domain += [("product_template_id", "in", product_template_ids)]
         elif product_ids:

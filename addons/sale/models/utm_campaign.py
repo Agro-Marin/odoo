@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.tools import SQL
 
 
@@ -6,6 +6,11 @@ class UtmCampaign(models.Model):
     _inherit = "utm.campaign"
     _description = "UTM Campaign"
 
+    sale_order_ids = fields.One2many(
+        comodel_name="sale.order",
+        inverse_name="campaign_id",
+        string="Quotations",
+    )
     quotation_count = fields.Integer(
         string="Quotation Count",
         compute="_compute_quotation_count",
@@ -30,6 +35,7 @@ class UtmCampaign(models.Model):
         string="Currency",
     )
 
+    @api.depends("sale_order_ids")
     def _compute_quotation_count(self):
         quotation_data = self.env["sale.order"]._read_group(
             [("campaign_id", "in", self.ids)],
@@ -65,13 +71,11 @@ class UtmCampaign(models.Model):
         else:
             query_res = []
 
-        campaigns = self.browse()
-        for datum in query_res:
-            campaign = self.browse(datum["campaign_id"])
-            campaign.invoiced_amount = datum["price_subtotal"]
-            campaigns |= campaign
-        for campaign in self - campaigns:
-            campaign.invoiced_amount = 0
+        data_map = {
+            datum["campaign_id"]: datum["price_subtotal"] for datum in query_res
+        }
+        for campaign in self:
+            campaign.invoiced_amount = data_map.get(campaign.id, 0)
 
     def action_redirect_to_quotations(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(

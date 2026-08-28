@@ -17,6 +17,7 @@ class AccountMoveLine(models.Model):
     )
     sale_line_warn_msg = fields.Text(
         compute="_compute_sale_line_warn_msg",
+        depends_context=("uid",),
     )
 
 
@@ -63,12 +64,8 @@ class AccountMoveLine(models.Model):
         values_list = super()._prepare_analytic_lines()
 
         move_to_reinvoice = self.env["account.move.line"]
-        if len(values_list) > 0:
-            for index, move_line in enumerate(self):
-                values = values_list[index]
-                if "so_line" not in values:
-                    if move_line._sale_can_be_reinvoice():
-                        move_to_reinvoice |= move_line
+        if values_list and self._sale_can_be_reinvoice():
+            move_to_reinvoice = self
 
         if move_to_reinvoice.filtered(
             lambda aml: not aml.move_id.reversed_entry_id and aml.product_id
@@ -104,113 +101,116 @@ class AccountMoveLine(models.Model):
     def _sale_create_reinvoice_sale_line(self):
         sale_order_map = self._sale_determine_order()
         sale_line_values_to_create = []
-        existing_sale_line_cache = {}
-        map_move_sale_line = {}
+        pending_slot_by_key = {}
+        existing_line_by_key = {}
+        slot_by_move_line = {}
+        sequences = {}
 
         for move_line in self:
             sale_order = sale_order_map.get(move_line.id)
-
             if not sale_order:
                 continue
 
-            if sale_order.state == "draft":
-                raise UserError(
-                    _(
-                        "The Sales Order %(order)s to be reinvoiced must be validated before registering expenses.",
-                        order=sale_order.name,
-                    ),
-                )
-            if sale_order.state == "cancel":
-                raise UserError(
-                    _(
-                        "The Sales Order %(order)s to be reinvoiced is cancelled."
-                        " You cannot register an expense on a cancelled Sales Order.",
-                        order=sale_order.name,
-                    ),
-                )
-            if sale_order.locked:
-                raise UserError(
-                    _(
-                        "The Sales Order %(order)s to be reinvoiced is currently locked."
-                        " You cannot register an expense on a locked Sales Order.",
-                        order=sale_order.name,
-                    ),
-                )
-
+            move_line._sale_check_order_accepts_expense(sale_order)
             price = move_line._sale_get_invoice_price(sale_order)
 
-            sale_line = None
-            if (
-                move_line.product_id.expense_policy == "sales_price"
-                and move_line.product_id.invoice_policy == "transferred"
-                and not self.env.context.get("force_split_lines")
-            ):
-                map_entry_key = (
-                    sale_order.id,
-                    move_line.product_id.id,
-                    price,
-                )
-                sale_line = existing_sale_line_cache.get(map_entry_key)
-                if sale_line:
-                    map_move_sale_line[move_line.id] = sale_line
-                    existing_sale_line_cache[map_entry_key] = sale_line
-                else:
-                    sale_line = self.env["sale.order.line"].search(
-                        [
-                            ("order_id", "=", sale_order.id),
-                            ("price_unit", "=", price),
-                            ("product_id", "=", move_line.product_id.id),
-                            ("is_expense", "=", True),
-                        ],
-                        limit=1,
-                    )
-                    if sale_line:
-                        map_move_sale_line[move_line.id] = existing_sale_line_cache[
-                            map_entry_key
-                        ] = sale_line
-                    else:
-                        sale_line_values_to_create.append(
-                            move_line._sale_prepare_sale_line_values(sale_order, price)
-                        )
-                        existing_sale_line_cache[map_entry_key] = (
-                            len(sale_line_values_to_create) - 1
-                        )
-                        map_move_sale_line[move_line.id] = (
-                            len(sale_line_values_to_create) - 1
-                        )
-            else:
+            if not move_line._sale_reinvoice_is_mergeable():
                 sale_line_values_to_create.append(
-                    move_line._sale_prepare_sale_line_values(sale_order, price)
+                    move_line._sale_prepare_sale_line_values(
+                        sale_order, price, self._sale_take_sequence(sequences, sale_order)
+                    )
                 )
-                map_move_sale_line[move_line.id] = (
-                    len(sale_line_values_to_create) - 1
+                slot_by_move_line[move_line.id] = len(sale_line_values_to_create) - 1
+                continue
+
+            key = (sale_order.id, move_line.product_id.id, price)
+            if key in existing_line_by_key:
+                slot_by_move_line[move_line.id] = existing_line_by_key[key]
+                continue
+            if key in pending_slot_by_key:
+                slot_by_move_line[move_line.id] = pending_slot_by_key[key]
+                continue
+
+            sale_line = self.env["sale.order.line"].search(
+                [
+                    ("order_id", "=", sale_order.id),
+                    ("price_unit", "=", price),
+                    ("product_id", "=", move_line.product_id.id),
+                    ("is_expense", "=", True),
+                ],
+                limit=1,
+            )
+            if sale_line:
+                existing_line_by_key[key] = sale_line
+                slot_by_move_line[move_line.id] = sale_line
+                continue
+
+            sale_line_values_to_create.append(
+                move_line._sale_prepare_sale_line_values(
+                    sale_order, price, self._sale_take_sequence(sequences, sale_order)
                 )
+            )
+            slot = len(sale_line_values_to_create) - 1
+            pending_slot_by_key[key] = slot
+            slot_by_move_line[move_line.id] = slot
 
         new_sale_lines = self.env["sale.order.line"].create(sale_line_values_to_create)
 
-        result = {}
-        for move_line_id, unknown_sale_line in map_move_sale_line.items():
-            if isinstance(unknown_sale_line, int):
-                result[move_line_id] = new_sale_lines[unknown_sale_line]
-            elif isinstance(
-                unknown_sale_line, models.BaseModel
-            ):
-                result[move_line_id] = unknown_sale_line
-        return result
+        return {
+            move_line_id: (new_sale_lines[slot] if isinstance(slot, int) else slot)
+            for move_line_id, slot in slot_by_move_line.items()
+        }
+
+    def _sale_take_sequence(self, sequences, order):
+        if order.id not in sequences:
+            sequences[order.id] = self._sale_next_expense_sequence(order)
+        sequence = sequences[order.id]
+        sequences[order.id] = sequence + 1
+        return sequence
+
+    def _sale_reinvoice_is_mergeable(self):
+        self.ensure_one()
+        return (
+            self.product_id.expense_policy == "sales_price"
+            and self.product_id.invoice_policy == "transferred"
+            and not self.env.context.get("force_split_lines")
+        )
+
+    def _sale_check_order_accepts_expense(self, sale_order):
+        if sale_order.state == "draft":
+            raise UserError(
+                _(
+                    "The Sales Order %(order)s to be reinvoiced must be validated before registering expenses.",
+                    order=sale_order.name,
+                ),
+            )
+        if sale_order.state == "cancel":
+            raise UserError(
+                _(
+                    "The Sales Order %(order)s to be reinvoiced is cancelled."
+                    " You cannot register an expense on a cancelled Sales Order.",
+                    order=sale_order.name,
+                ),
+            )
+        if sale_order.locked:
+            raise UserError(
+                _(
+                    "The Sales Order %(order)s to be reinvoiced is currently locked."
+                    " You cannot register an expense on a locked Sales Order.",
+                    order=sale_order.name,
+                ),
+            )
 
     def _sale_determine_order(self):
         return {}
 
-    def _sale_prepare_sale_line_values(self, order, price):
+    def _sale_prepare_sale_line_values(self, order, price, sequence=None):
         self.ensure_one()
-        last_so_line = self.env["sale.order.line"].search(
-            [("order_id", "=", order.id)], order="sequence desc", limit=1
-        )
-        last_sequence = last_so_line.sequence + 1 if last_so_line else 100
-        fpos = (
-            order.fiscal_position_id
-            or order.fiscal_position_id._get_fiscal_position(order.partner_id)
-        )
+        if sequence is None:
+            sequence = self._sale_next_expense_sequence(order)
+        fpos = order.fiscal_position_id or self.env[
+            "account.fiscal.position"
+        ].with_company(order.company_id)._get_fiscal_position(order.partner_id)
         product_taxes = self.product_id.taxes_id._filter_taxes_by_company(
             order.company_id
         )
@@ -218,7 +218,7 @@ class AccountMoveLine(models.Model):
         return {
             "order_id": order.id,
             "name": self.name,
-            "sequence": last_sequence,
+            "sequence": sequence,
             "price_unit": price,
             "tax_ids": [x.id for x in taxes],
             "discount": 0.0,
@@ -228,6 +228,12 @@ class AccountMoveLine(models.Model):
             "is_expense": True,
             "analytic_distribution": self.analytic_distribution,
         }
+
+    def _sale_next_expense_sequence(self, order):
+        last_line = self.env["sale.order.line"].search(
+            [("order_id", "=", order.id)], order="sequence desc", limit=1
+        )
+        return last_line.sequence + 1 if last_line else 100
 
     def _sale_get_invoice_price(self, order):
         self.ensure_one()

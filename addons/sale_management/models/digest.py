@@ -18,7 +18,7 @@ class DigestDigest(models.Model):
             "sale.report",
             "kpi_all_sale_total_value",
             date_field="date_order",
-            additional_domain=[("state", "not in", ["draft", "cancel", "sent"])],
+            additional_domain=[("state", "not in", ["draft", "cancel"])],
             sum_field="price_total",
         )
 

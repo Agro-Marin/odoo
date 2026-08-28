@@ -309,6 +309,7 @@ class SaleOrder(models.Model):
     sale_warning_text = fields.Text(
         string="Sale Warning",
         compute="_compute_sale_warning_text",
+        depends_context=("uid",),
         help="Internal warning for the partner or the products as set by the user.",
     )
     acknowledged = fields.Boolean(
@@ -344,7 +345,7 @@ class SaleOrder(models.Model):
             if order.require_payment and not (0 < order.prepayment_percent <= 1.0):
                 raise ValidationError(
                     _(
-                        "Prepayment percentage must be greater than 0%% and at most 100%%."
+                        "Prepayment percentage must be greater than 0% and at most 100%."
                     ),
                 )
 
@@ -401,7 +402,7 @@ class SaleOrder(models.Model):
         for order in self:
             order.require_payment = order.company_id.portal_confirmation_pay
 
-    @api.depends("require_payment")
+    @api.depends("company_id", "require_payment")
     def _compute_prepayment_percent(self):
         for order in self:
             order.prepayment_percent = order.company_id.prepayment_percent
@@ -561,15 +562,17 @@ class SaleOrder(models.Model):
             if order.state == "cancel":
                 order.date_planned = False
                 continue
-            dates_list = order.line_ids.filtered(
+            scheduled_lines = order.line_ids.filtered(
                 lambda line: (
                     line.product_id.type == "consu"
                     and not line.display_type
                     and not line._is_delivery()
                 ),
-            ).mapped(lambda line: line and line._get_date_planned())
-            if dates_list:
-                order.date_planned = order._get_date_planned(dates_list)
+            )
+            if scheduled_lines:
+                order.date_planned = order._get_date_planned(
+                    [line._get_date_planned() for line in scheduled_lines],
+                )
             else:
                 order.date_planned = False
 
@@ -672,7 +675,7 @@ class SaleOrder(models.Model):
 
     @api.onchange("line_ids")
     def _onchange_line_ids(self):
-        for _index, line in enumerate(self.line_ids):
+        for line in self.line_ids:
             if line.display_type == "line_subsection" and not line.parent_id:
                 line.display_type = "line_section"
             combo_item_lines = line._get_lines_linked().filtered("combo_item_id")
@@ -1431,6 +1434,8 @@ class SaleOrder(models.Model):
         )
 
     def _get_lang(self):
+        if not self:
+            return self.env.lang
         self.ensure_one()
 
         if self.partner_id.lang and not self.partner_id.is_public:
@@ -1514,7 +1519,6 @@ class SaleOrder(models.Model):
         )
         self.env["ir.cron"]._commit_progress(remaining=len(pending_email_orders))
         for order in pending_email_orders:
-            order = order[0]
             order._send_mail_order_notification(
                 order.pending_email_template_id,
                 allow_deferred_sending=False,

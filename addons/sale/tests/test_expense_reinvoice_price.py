@@ -75,7 +75,7 @@ class TestExpenseReinvoicePrice(TransactionCase):
             {
                 "order_id": self.order.id,
                 "product_id": product.id,
-                "product_uom_qty": 1,
+                "product_qty": 1,
             }
         )
         line.sale_line_ids = [Command.set(order_line.ids)]

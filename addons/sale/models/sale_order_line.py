@@ -81,6 +81,7 @@ class SaleOrderLine(models.Model):
     )
     sale_line_warn_msg = fields.Text(
         compute="_compute_sale_line_warn_msg",
+        depends_context=("uid",),
     )
     product_template_id = fields.Many2one(
         comodel_name="product.template",

@@ -29,7 +29,7 @@ class TestExpenseReinvoiceLines(TransactionCase):
                     Command.create(
                         {
                             "product_id": self.product.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     )
                 ],
@@ -104,6 +104,65 @@ class TestExpenseReinvoiceLines(TransactionCase):
         with self.assertRaises(UserError):
             self._reinvoice(line, order)
 
+    def test_identical_costs_share_one_line_when_charged_at_sales_price(self):
+        order = self._order()
+        merged = self.env["product.product"].create(
+            {
+                "name": "Merged expense",
+                "type": "service",
+                "expense_policy": "sales_price",
+                "invoice_policy": "transferred",
+                "list_price": 100.0,
+                "standard_price": 60.0,
+            }
+        )
+        first = self._cost_line(quantity=2, price=60.0, product=merged)
+        second = self._cost_line(quantity=3, price=60.0, product=merged)
+        lines = first | second
+        result = self._reinvoice(lines, order)
+        self.assertEqual(
+            result[first.id],
+            result[second.id],
+            "two costs with the same order, product and price must land on one line",
+        )
+
+    def test_three_identical_costs_still_share_one_line(self):
+        order = self._order()
+        merged = self.env["product.product"].create(
+            {
+                "name": "Merged expense trio",
+                "type": "service",
+                "expense_policy": "sales_price",
+                "invoice_policy": "transferred",
+                "list_price": 100.0,
+                "standard_price": 60.0,
+            }
+        )
+        costs = self.env["account.move.line"]
+        for quantity in (1, 2, 3):
+            costs |= self._cost_line(quantity=quantity, price=60.0, product=merged)
+        result = self._reinvoice(costs, order)
+        self.assertEqual(len({line.id for line in result.values()}), 1)
+
+    def test_distinct_products_do_not_share_a_line(self):
+        order = self._order()
+        common = {
+            "type": "service",
+            "expense_policy": "sales_price",
+            "invoice_policy": "transferred",
+            "standard_price": 60.0,
+        }
+        one, two = self.env["product.product"].create(
+            [
+                {"name": "Merged A", "list_price": 100.0, **common},
+                {"name": "Merged B", "list_price": 140.0, **common},
+            ]
+        )
+        first = self._cost_line(quantity=1, price=60.0, product=one)
+        second = self._cost_line(quantity=1, price=60.0, product=two)
+        result = self._reinvoice(first | second, order)
+        self.assertNotEqual(result[first.id], result[second.id])
+
     def test_each_cost_gets_its_own_line_by_default(self):
         order = self._order()
         first = self._cost_line(quantity=2, price=60.0)
@@ -111,6 +170,19 @@ class TestExpenseReinvoiceLines(TransactionCase):
         lines = first | second
         result = self._reinvoice(lines, order)
         self.assertNotEqual(result[first.id], result[second.id])
+
+    def test_each_expense_line_gets_its_own_sequence(self):
+        order = self._order()
+        costs = self.env["account.move.line"]
+        for quantity in (1, 2, 3):
+            costs |= self._cost_line(quantity=quantity, price=60.0)
+        result = self._reinvoice(costs, order)
+        sequences = [line.sequence for line in result.values()]
+        self.assertEqual(
+            len(set(sequences)),
+            len(sequences),
+            "expense lines prepared in one batch must not share a sequence",
+        )
 
     def test_expense_line_lands_after_the_quoted_lines(self):
         order = self._order()

@@ -5,10 +5,6 @@ from odoo.fields import Command
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     sale_line_id = fields.Many2one(
         comodel_name="sale.order.line",
         string="Sale Line",
@@ -24,34 +20,18 @@ class StockMove(models.Model):
         copy=False,
     )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
     def write(self, vals):
         res = super().write(vals)
         if "product_id" in vals:
-            for move in self:
-                if (
-                    move.sale_line_id
-                    and move.product_id != move.sale_line_id.product_id
-                ):
-                    move.sale_line_id = False
+            self.filtered(
+                lambda m: m.sale_line_id and m.product_id != m.sale_line_id.product_id,
+            ).sale_line_id = False
         return res
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("sale_line_id", "sale_line_id.product_uom_id")
     def _compute_packaging_uom_id(self):
         super()._compute_packaging_uom_id()
         for move in self:
-            # Only inherit the order line's UoM when it can convert into the
-            # move's own UoM. A phantom-BoM (kit) component move carries the
-            # kit line's UoM (e.g. Units) while the component is measured in a
-            # different category (kg/L); inheriting it would make the packaging
-            # quantity unconvertible. Fall back to the move UoM set by super().
             if move.sale_line_id and move.product_uom_id._has_common_reference(
                 move.sale_line_id.product_uom_id
             ):
@@ -64,8 +44,6 @@ class StockMove(models.Model):
             if move.sale_line_id and not move.description_picking_manual:
                 partner_lang = move.sale_line_id.order_id.partner_id.lang
                 sale_line_id = move.sale_line_id.with_context(lang=partner_lang)
-                # Clear description if it's the same as the default product name
-                # (no translation), to avoid redundancy. Keep it if translated.
                 default_name = move.product_id.display_name
                 if move.description_picking == default_name:
                     move.description_picking = ""
@@ -75,16 +53,10 @@ class StockMove(models.Model):
                     + move.description_picking
                 ).strip()
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def _action_synch_order(self):
         sale_order_lines_vals = []
         for move in self:
             sale_order = move.picking_id.sale_id
-            # Creates new SO line only when pickings linked to a sale order and
-            # for moves with qty. done and not already linked to a SO line.
             if (
                 not sale_order
                 or move.sale_line_id
@@ -102,7 +74,12 @@ class StockMove(models.Model):
             product = move.product_id
 
             if line := sale_order.line_ids.filtered(
-                lambda l, product=product: l.product_id == product,
+                lambda l, product=product: (
+                    l.product_id == product
+                    and not l.display_type
+                    and not l.is_downpayment
+                    and l.state != "cancel"
+                ),
             ):
                 move.sale_line_id = line[:1]
                 continue
@@ -122,14 +99,13 @@ class StockMove(models.Model):
                 "qty_transferred": quantity,
                 "product_uom_id": move.product_uom_id.id,
             }
-            # No unit price if the product is invoiced on the ordered qty.
             if product.invoice_policy == "ordered":
                 so_line_vals["price_unit"] = 0
-            # New lines should be added at the bottom of the SO (higher sequence number)
+            queued_here = sum(
+                1 for v in sale_order_lines_vals if v["order_id"] == sale_order.id
+            )
             so_line_vals["sequence"] = (
-                max(sale_order.line_ids.mapped("sequence"), default=0)
-                + len(sale_order_lines_vals)
-                + 1
+                max(sale_order.line_ids.mapped("sequence"), default=0) + queued_here + 1
             )
             sale_order_lines_vals.append(so_line_vals)
 
@@ -140,19 +116,15 @@ class StockMove(models.Model):
 
         return super()._action_synch_order()
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _post_process_picking(self, new=False):
         super()._post_process_picking(new=new)
-        if new:
-            picking_id = self.mapped("picking_id")
-            sale_order_ids = self.mapped("sale_line_id.order_id")
-            for sale_order_id in sale_order_ids:
-                picking_id.message_post_with_source(
+        if not new:
+            return
+        for picking, moves in self.filtered("picking_id").grouped("picking_id").items():
+            for sale_order in moves.sale_line_id.order_id:
+                picking.message_post_with_source(
                     "mail.message_origin_link",
-                    render_values={"self": picking_id, "origin": sale_order_id},
+                    render_values={"self": picking, "origin": sale_order},
                     subtype_xmlid="mail.mt_note",
                 )
 
@@ -160,15 +132,7 @@ class StockMove(models.Model):
         super()._clean_merged()
         self.write({"created_sale_line_ids": [Command.clear()]})
 
-    def _get_all_related_sm(self, product):
-        return super()._get_all_related_sm(product) | self.filtered(
-            lambda m: m.sale_line_id.product_id == product,
-        )
-
     def _get_related_invoices(self):
-        """Overridden from stock_account to return the customer invoices
-        related to this stock move.
-        """
         rslt = super()._get_related_invoices()
         invoices = self.mapped("picking_id.sale_id.invoice_ids").filtered(
             lambda x: x.state == "posted",
@@ -177,7 +141,6 @@ class StockMove(models.Model):
         return rslt
 
     def _get_sale_order_lines(self):
-        """Return all possible sale order lines for one stock move."""
         self.ensure_one()
         return (
             self + self.browse(self._rollup_move_origs() | self._rollup_move_dests())
@@ -199,11 +162,6 @@ class StockMove(models.Model):
         )
         if created_sl:
             return [(sl.order_id, sl.order_id.user_id, visited) for sl in created_sl]
-        # Prefer a genuine upstream document (the PO/MO bringing the goods, resolved by
-        # purchase_stock/mrp) over this move's own sale order: the sale order is a
-        # *downstream* consumer of a delivery move, not upstream. Returning it before
-        # `super()` (as before) hid the PO from cancel/decrease warning activities, so a
-        # cancelled MTO sale scheduled no activity on the buyer's purchase order.
         documents = super()._get_upstream_documents_and_responsibles(visited)
         if documents:
             return documents
@@ -234,7 +192,6 @@ class StockMove(models.Model):
 
     def _prepare_move_split_vals(self, uom_qty, force_uom_id=False):
         vals = super()._prepare_move_split_vals(uom_qty, force_uom_id=force_uom_id)
-        # When backordering an MTO move, link the backorder to the sale order
         if self.procure_method == "make_to_order" and self.created_sale_line_ids:
             vals["created_sale_line_ids"] = [
                 Command.set(self.created_sale_line_ids.ids),
@@ -244,7 +201,6 @@ class StockMove(models.Model):
 
     def _prepare_procurement_vals(self):
         res = super()._prepare_procurement_vals()
-        # to pass sale_line_id from SO to MO in mto
         if self.sale_line_id:
             res["sale_line_id"] = self.sale_line_id.id
             if self.sale_line_id.analytic_distribution:
@@ -252,27 +208,40 @@ class StockMove(models.Model):
         return res
 
     def _reassign_sale_lines(self, sale_order):
-        current_order = self.sale_line_id.order_id
-        if len(current_order) <= 1 and current_order != sale_order:
-            ids_to_reset = set()
-            if not sale_order:
-                ids_to_reset.update(self.ids)
-            else:
-                line_ids_by_product = dict(
-                    self.env["sale.order.line"]._read_group(
-                        domain=[
-                            ("order_id", "=", sale_order.id),
-                            ("product_id", "in", self.product_id.ids),
-                        ],
-                        aggregates=["id:array_agg"],
-                        groupby=["product_id"],
-                    ),
-                )
-                for move in self:
-                    if line_id := line_ids_by_product.get(move.product_id, [])[:1]:
-                        move.sale_line_id = line_id[0]
-                    else:
-                        ids_to_reset.add(move.id)
+        movable = self.filtered(lambda m: m.sale_line_id.order_id != sale_order)
+        if not movable:
+            return
 
-            if ids_to_reset:
-                self.env["stock.move"].browse(ids_to_reset).sale_line_id = False
+        ids_to_reset = set()
+        if not sale_order:
+            ids_to_reset.update(movable.ids)
+        else:
+            line_ids_by_product = dict(
+                self.env["sale.order.line"]._read_group(
+                    domain=[
+                        ("order_id", "=", sale_order.id),
+                        ("product_id", "in", movable.product_id.ids),
+                    ],
+                    aggregates=["id:array_agg"],
+                    groupby=["product_id"],
+                ),
+            )
+            for move in movable:
+                if line_id := line_ids_by_product.get(move.product_id, [])[:1]:
+                    move.sale_line_id = line_id[0]
+                else:
+                    ids_to_reset.add(move.id)
+
+        if ids_to_reset:
+            self.env["stock.move"].browse(ids_to_reset).sale_line_id = False
+
+    def _get_sale_line_price_unit(self):
+        """Unit cost of the *sale line's* product that these moves fulfil.
+
+        Distinct from :meth:`_get_price_unit`, which answers for the moves' own
+        product. The two coincide until a module makes a line's moves carry
+        something else -- ``sale_mrp``'s kits do -- and asking the second
+        question through the first is how a component came to be priced as a
+        whole kit for every valuation caller that had no interest in kits.
+        """
+        return self._get_price_unit()

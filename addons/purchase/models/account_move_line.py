@@ -14,6 +14,7 @@ class AccountMoveLine(models.Model):
     )
     purchase_line_warn_msg = fields.Text(
         compute="_compute_purchase_line_warn_msg",
+        depends_context=("uid",),
     )
 
     @api.depends("product_id.purchase_line_warn_msg")

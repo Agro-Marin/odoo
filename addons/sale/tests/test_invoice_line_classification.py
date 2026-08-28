@@ -25,7 +25,7 @@ class TestInvoiceLineClassification(TransactionCase):
                     Command.create(
                         {
                             "product_id": self.product.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                         }
                     )
                 ],

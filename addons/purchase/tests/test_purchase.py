@@ -79,7 +79,7 @@ class TestPurchase(AccountTestInvoicingCommon):
                         {
                             "name": self.product_a.name,
                             "product_id": self.product_a.id,
-                            "product_uom_qty": 10,
+                            "product_qty": 10,
                             "product_uom_id": self.product_a.uom_id.id,
                             "price_unit": 1,
                         }

@@ -19,6 +19,11 @@ class CrmTeam(models.Model):
         string="Invoicing Target",
         help="Revenue Target for the current month (untaxed total of paid invoices).",
     )
+    sale_order_ids = fields.One2many(
+        comodel_name="sale.order",
+        inverse_name="team_id",
+        string="Sales Orders",
+    )
     sale_order_count = fields.Integer(
         string="# Sale Orders",
         compute="_compute_sale_order_count",
@@ -80,6 +85,7 @@ class CrmTeam(models.Model):
         for team in self:
             team.invoiced = data_map.get(team._origin.id, 0.0)
 
+    @api.depends("sale_order_ids.state")
     def _compute_sale_order_count(self):
         sale_order_data = self.env["sale.order"]._read_group(
             [
