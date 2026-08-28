@@ -8,6 +8,8 @@ declare module "services" {
     import { busLogsService } from "@bus/debug/bus_logs_service";
     import { presenceService } from "@bus/services/presence_service";
     import { workerService } from "@bus/services/worker_service";
+    import { assetsWatchdogService } from "@bus/services/assets_watchdog_service";
+    import { simpleNotificationService } from "@bus/simple_notification_service";
 
     export interface Services {
         "bus.monitoring_service": typeof busMonitoringservice,
@@ -19,5 +21,7 @@ declare module "services" {
         multi_tab: typeof multiTabService,
         presence: typeof presenceService,
         worker_service: typeof workerService,
+        assetsWatchdog: typeof assetsWatchdogService,
+        simple_notification: typeof simpleNotificationService,
     }
 }
