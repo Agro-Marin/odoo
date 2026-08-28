@@ -565,7 +565,7 @@ class MixinEncryption(models.AbstractModel):
             return
         plain_fields = {plain for plain, _enc, _binary in self._ENCRYPTED_FIELD_PAIRS}
         to_stamp = self.browse()
-        for record, vals in zip(self, vals_list, strict=False):
+        for record, vals in zip(self, vals_list, strict=True):
             if plain_fields & set(vals):
                 to_stamp |= record
         if not to_stamp:
