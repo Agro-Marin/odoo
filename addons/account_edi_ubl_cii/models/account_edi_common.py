@@ -969,7 +969,9 @@ class AccountEdiCommon(models.AbstractModel):
         for tax_node in line_values.pop('tax_nodes'):
             amount = float(tax_node.text)
             domain = [
-                *self.env['account.journal']._check_company_domain(record.company_id),
+                # account.tax's own domain, not account.journal's: the two used
+                # to spell membership the same way and no longer do.
+                *self.env['account.tax']._check_company_domain(record.company_id),
                 ('amount_type', '=', 'percent'),
                 ('type_tax_use', '=', tax_type),
                 ('amount', '=', amount),

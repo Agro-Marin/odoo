@@ -49,7 +49,7 @@
             <field name="model">account.move</field>
             <field name="inherit_id" ref="account.view_invoice_tree"/>
             <field name="arch" type="xml">
-                <field name="status_in_payment" position="after">
+                <field name="display_state" position="after">
                     <field name="l10n_es_edi_verifactu_state" widget="badge"
                            decoration-danger="l10n_es_edi_verifactu_state not in ('cancelled', 'accepted', 'registered_with_errors')"
                            decoration-warning="l10n_es_edi_verifactu_state == 'registered_with_errors'"

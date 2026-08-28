@@ -169,26 +169,26 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         )
 
 
-    def test_status_in_payment_query_sees_unflushed_state(self):
+    def test_display_state_query_sees_unflushed_state(self):
         invoice = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
         )
         self.env.flush_all()
         invoice.action_cancel()
-        self.assertEqual(invoice.status_in_payment, "cancel")
+        self.assertEqual(invoice.display_state, "cancel")
         self.assertEqual(
             self.env["account.move"].search(
-                [("id", "=", invoice.id), ("status_in_payment", "=", "cancel")]
+                [("id", "=", invoice.id), ("display_state", "=", "cancel")]
             ),
             invoice,
-            "search on status_in_payment must flush the columns its SQL reads",
+            "search on display_state must flush the columns its SQL reads",
         )
         self.assertEqual(
             self.env["account.move"]._read_group(
-                [("id", "=", invoice.id)], ["status_in_payment"]
+                [("id", "=", invoice.id)], ["display_state"]
             ),
             [("cancel",)],
-            "grouping on status_in_payment must flush too",
+            "grouping on display_state must flush too",
         )
 
     def test_move_sent_values_query_sees_unflushed_is_move_sent(self):
@@ -205,7 +205,7 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
             [("sent",)],
         )
 
-    def test_status_in_payment_compute_matches_sql_for_every_combination(self):
+    def test_display_state_compute_matches_sql_for_every_combination(self):
         invoice = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=False
         )
@@ -225,11 +225,11 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
                         (state, payment_state, is_sent, invoice.id),
                     )
                     invoice.invalidate_recordset()
-                    computed = invoice.status_in_payment
+                    computed = invoice.display_state
                     if not self.env["account.move"].search(
                         [
                             ("id", "=", invoice.id),
-                            ("status_in_payment", "=", computed),
+                            ("display_state", "=", computed),
                         ]
                     ):
                         mismatches.append(

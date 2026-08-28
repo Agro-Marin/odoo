@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="account_automatic_entry_wizard_form" model="ir.ui.view">
         <field name="name">account.automatic.entry.wizard.form</field>
         <field name="model">account.automatic.entry.wizard</field>
@@ -65,4 +66,5 @@
         <field name="view_mode">form</field>
         <field name="target">new</field>
     </record>
+
 </odoo>

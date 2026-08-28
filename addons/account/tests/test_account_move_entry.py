@@ -2109,7 +2109,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             "",
         )
 
-    def test_status_in_payment_search_matches_the_computed_value(self):
+    def test_display_state_search_matches_the_computed_value(self):
         states = ("draft", "posted", "cancel")
         payment_states = [
             value
@@ -2162,10 +2162,10 @@ class TestAccountMove(AccountTestInvoicingCommon):
 
         expected = {}
         for move in moves:
-            expected.setdefault(move.status_in_payment, set()).add(move.id)
+            expected.setdefault(move.display_state, set()).add(move.id)
 
         selection = dict(
-            self.env["account.move"]._fields["status_in_payment"].selection
+            self.env["account.move"]._fields["display_state"].selection
         )
         for value in selection:
             found = set(
@@ -2173,7 +2173,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
                 .search(
                     [
                         ("id", "in", moves.ids),
-                        ("status_in_payment", "=", value),
+                        ("display_state", "=", value),
                     ]
                 )
                 .ids
@@ -2181,7 +2181,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             self.assertEqual(
                 found,
                 expected.get(value, set()),
-                f"SQL and Python disagree on status_in_payment == {value!r}",
+                f"SQL and Python disagree on display_state == {value!r}",
             )
 
         self.assertFalse(

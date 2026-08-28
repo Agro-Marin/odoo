@@ -1,100 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
-        <!-- ============================================================
-             Form view: add accounting-specific buttons, fields, chatter
-             ============================================================ -->
-        <record id="view_account_form" model="ir.ui.view">
-            <field name="name">account.account.form.account</field>
-            <field name="model">account.account</field>
-            <field name="inherit_id" ref="base_account.view_account_form"/>
-            <field name="arch" type="xml">
-                <xpath expr="//div[@name='button_box']" position="inside">
-                    <button class="oe_stat_button" name="action_open_related_taxes"
-                            type="object" icon="fa-bars"
-                            invisible="related_taxes_amount == 0">
-                        <div class="o_stat_info">
-                            <span class="o_stat_value">
-                                <field name="related_taxes_amount"/>
-                            </span>
-                            <span class="o_stat_text">
-                                Taxes
-                            </span>
-                        </div>
-                    </button>
-                    <button class="oe_stat_button" name="account.action_move_line_select"
-                            type="action" icon="fa-bars">
-                        <div class="o_stat_info">
-                            <span class="o_stat_value">
-                                <field name="current_balance"/>
-                            </span>
-                            <span class="o_stat_text">
-                                Balance
-                            </span>
-                        </div>
-                    </button>
-                </xpath>
-                <!-- Tax field in accounting page -->
-                <xpath expr="//field[@name='account_type']" position="after">
-                    <field name="tax_ids" widget="many2many_tax_tags"
-                           invisible="account_type == 'off_balance'"
-                           options="{'no_quick_create': True}"/>
-                </xpath>
-                <xpath expr="//field[@name='active']" position="after">
-                    <field name="group_id" groups="base.group_no_one"/>
-                </xpath>
-                <xpath expr="//sheet" position="after">
-                    <chatter/>
-                </xpath>
-            </field>
-        </record>
 
-        <!-- ============================================================
-             List view: add accounting-specific columns
-             ============================================================ -->
-        <record id="view_account_list" model="ir.ui.view">
-            <field name="name">account.account.list.account</field>
-            <field name="model">account.account</field>
-            <field name="inherit_id" ref="base_account.view_account_list"/>
-            <field name="arch" type="xml">
-                <xpath expr="//field[@name='account_type']" position="after">
-                    <field name="group_id" optional="hide"/>
-                </xpath>
-                <xpath expr="//field[@name='tag_ids']" position="before">
-                    <field name="tax_ids" optional="hide" widget="many2many_tax_tags"/>
-                </xpath>
-            </field>
-        </record>
+    <record id="view_account_form" model="ir.ui.view">
+        <field name="name">account.account.form.account</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="base_account.view_account_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button class="oe_stat_button" name="action_open_related_taxes"
+                    type="object" icon="fa-bars"
+                    invisible="related_taxes_amount == 0">
+                    <div class="o_stat_info">
+                        <span class="o_stat_value">
+                            <field name="related_taxes_amount" />
+                        </span>
+                        <span class="o_stat_text">
+                            Taxes
+                        </span>
+                    </div>
+                </button>
+                <button class="oe_stat_button" name="account.action_move_line_select"
+                    type="action" icon="fa-bars">
+                    <div class="o_stat_info">
+                        <span class="o_stat_value">
+                            <field name="current_balance" />
+                        </span>
+                        <span class="o_stat_text">
+                            Balance
+                        </span>
+                    </div>
+                </button>
+            </xpath>
+            <!-- Tax field in accounting page -->
+            <xpath expr="//field[@name='account_type']" position="after">
+                <field name="tax_ids" widget="many2many_tax_tags"
+                    invisible="account_type == 'off_balance'"
+                    options="{'no_quick_create': True}" />
+            </xpath>
+            <xpath expr="//field[@name='active']" position="after">
+                <field name="group_id" groups="base.group_no_one" />
+            </xpath>
+            <xpath expr="//sheet" position="after">
+                <chatter />
+            </xpath>
+        </field>
+    </record>
 
-        <!-- ============================================================
-             Search view: add "Account with Entries" filter
-             ============================================================ -->
-        <record id="view_account_search" model="ir.ui.view">
-            <field name="name">account.account.search.account</field>
-            <field name="model">account.account</field>
-            <field name="inherit_id" ref="base_account.view_account_search"/>
-            <field name="arch" type="xml">
-                <xpath expr="//filter[@name='inactiveacc']" position="before">
-                    <filter string="Account with Entries" name="used"
-                            domain="[('used', '=', True)]"/>
-                </xpath>
-            </field>
-        </record>
+    <record id="view_account_list" model="ir.ui.view">
+        <field name="name">account.account.list.account</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="base_account.view_account_list" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='account_type']" position="after">
+                <field name="group_id" optional="hide" />
+            </xpath>
+            <xpath expr="//field[@name='tag_ids']" position="before">
+                <field name="tax_ids" optional="hide" widget="many2many_tax_tags" />
+            </xpath>
+        </field>
+    </record>
 
-        <!-- ============================================================
-             Server action: Unmerge accounts
-             ============================================================ -->
-        <record model="ir.actions.server" id="action_unmerge_accounts">
-            <field name="name">Unmerge account</field>
-            <field name="model_id" ref="base_account.model_account_account"/>
-            <field name="group_ids" eval="[Command.link(ref('account.group_account_manager'))]"/>
-            <field name="binding_model_id" ref="base_account.model_account_account"/>
-            <field name="binding_view_types">form,list,kanban</field>
-            <field name="state">code</field>
-            <field name="code">
+    <record id="view_account_search" model="ir.ui.view">
+        <field name="name">account.account.search.account</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="base_account.view_account_search" />
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='inactiveacc']" position="before">
+                <filter string="Account with Entries" name="used"
+                    domain="[('used', '=', True)]" />
+            </xpath>
+        </field>
+    </record>
+
+    <record model="ir.actions.server" id="action_unmerge_accounts">
+        <field name="name">Unmerge account</field>
+        <field name="model_id" ref="base_account.model_account_account" />
+        <field name="group_ids" eval="[Command.link(ref('account.group_account_manager'))]" />
+        <field name="binding_model_id" ref="base_account.model_account_account" />
+        <field name="binding_view_types">form,list,kanban</field>
+        <field name="state">code</field>
+        <field name="code">
 if records:
     action = records.action_unmerge()
-            </field>
-        </record>
-    </data>
+        </field>
+    </record>
 </odoo>
