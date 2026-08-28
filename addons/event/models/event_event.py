@@ -423,31 +423,16 @@ class EventEvent(models.Model):
     )
     def _compute_seats(self):
         """Determine available, reserved, used and taken seats."""
-        # initialize fields to 0
+        base_vals = {"seats_reserved": 0, "seats_used": 0}
+        results = self.env["event.registration"]._count_taken_seats_by(
+            "event_id", self.ids
+        )
         for event in self:
-            event.seats_reserved = event.seats_used = event.seats_available = 0
-        # aggregate registrations by event and by state
-        state_field = {
-            "open": "seats_reserved",
-            "done": "seats_used",
-        }
-        base_vals = dict.fromkeys(state_field.values(), 0)
-        results = {event_id: dict(base_vals) for event_id in self.ids}
-        if self.ids:
-            query = """ SELECT event_id, state, count(event_id)
-                        FROM event_registration
-                        WHERE event_id = ANY(%s) AND state IN ('open', 'done') AND active = true
-                        GROUP BY event_id, state
-                    """
-            self.env["event.registration"].flush_model(["event_id", "state", "active"])
-            self.env.cr.execute(query, (list(self.ids),))
-            res = self.env.cr.fetchall()
-            for event_id, state, num in res:
-                results[event_id][state_field[state]] = num
-
-        # compute seats_available and expected
-        for event in self:
+            event.seats_available = 0
             event.update(results.get(event._origin.id or event.id, base_vals))
+            # on a multi-slot event seats_max is a per-slot cap, so this total
+            # is a remaining capacity across slots, not a bookable number --
+            # per-slot availability lives on event.slot.seats_available
             seats_max = (
                 event.seats_max * event.event_slot_count
                 if event.is_multi_slots
@@ -457,7 +442,6 @@ class EventEvent(models.Model):
                 event.seats_available = seats_max - (
                     event.seats_reserved + event.seats_used
                 )
-
             event.seats_taken = event.seats_reserved + event.seats_used
 
     @api.depends("date_tz", "start_sale_datetime")
@@ -534,26 +518,31 @@ class EventEvent(models.Model):
                         and event.event_slot_count
                         and (
                             not event.event_ticket_ids
-                            or any(
-                                ticket.is_launched
-                                and not ticket.is_expired
-                                and (
-                                    any(
-                                        availability is None or availability > 0
-                                        for availability in event._get_seats_availability(
-                                            [
-                                                (slot, ticket)
-                                                for slot in event.event_slot_ids
-                                            ]
-                                        )
-                                    )
-                                )
-                                for ticket in event.event_ticket_ids
-                            )
+                            or event._has_available_slot_ticket()
                         )
                     )
                 )
             )
+
+    def _has_available_slot_ticket(self):
+        """Whether any sellable ticket still has room in any slot.
+
+        One availability read for the whole slot x ticket grid: asking per
+        ticket issued a grouped query each time, and the cost only showed up
+        once tickets stopped being available -- exactly when the event is busy.
+        """
+        self.ensure_one()
+        sellable = self.event_ticket_ids.filtered(
+            lambda ticket: ticket.is_launched and not ticket.is_expired
+        )
+        if not sellable:
+            return False
+        availabilities = self._get_seats_availability(
+            [(slot, ticket) for ticket in sellable for slot in self.event_slot_ids]
+        )
+        return any(
+            availability is None or availability > 0 for availability in availabilities
+        )
 
     @api.depends("event_ticket_ids.start_sale_datetime")
     def _compute_start_sale_datetime(self):
@@ -724,10 +713,7 @@ class EventEvent(models.Model):
         onchange: if event type is changed, update event configuration. Changing
         event type content itself should not trigger this method."""
         for event in self:
-            if event.event_type_id.has_seats_limitation != event.seats_limited:
-                event.seats_limited = event.event_type_id.has_seats_limitation
-            if not event.seats_limited:
-                event.seats_limited = False
+            event.seats_limited = event.event_type_id.has_seats_limitation
 
     @api.depends("event_type_id")
     def _compute_event_mail_ids(self):
@@ -827,9 +813,9 @@ class EventEvent(models.Model):
 
     @api.depends("stage_id")
     def _compute_kanban_state(self):
-        for task in self:
-            if task.kanban_state != "cancel":
-                task.kanban_state = "normal"
+        for event in self:
+            if event.kanban_state != "cancel":
+                event.kanban_state = "normal"
 
     @api.depends("event_type_id")
     def _compute_ticket_instructions(self):
@@ -859,23 +845,16 @@ class EventEvent(models.Model):
 
     @api.constrains("date_begin", "date_end", "event_slot_ids", "is_multi_slots")
     def _check_slots_dates(self):
-        multi_slots_event_ids = self.filtered(lambda event: event.is_multi_slots).ids
-        if not multi_slots_event_ids:
+        multi_slots_events = self.filtered(lambda event: event.is_multi_slots)
+        if not multi_slots_events:
             return
-        min_max_slot_dates_per_event = {
-            event: (min_start, max_end)
-            for event, min_start, max_end in self.env["event.slot"]._read_group(
-                domain=[("event_id", "in", multi_slots_event_ids)],
-                groupby=["event_id"],
-                aggregates=["start_datetime:min", "end_datetime:max"],
+        events_w_slots_outside_bounds = [
+            event
+            for event in multi_slots_events
+            if not all(
+                slot._is_within_event_range() for slot in event.event_slot_ids
             )
-        }
-        events_w_slots_outside_bounds = []
-        for event, (min_start, max_end) in min_max_slot_dates_per_event.items():
-            if not (event.date_begin <= min_start <= event.date_end) or not (
-                event.date_begin <= max_end <= event.date_end
-            ):
-                events_w_slots_outside_bounds.append(event)
+        ]
         if events_w_slots_outside_bounds:
             raise ValidationError(
                 _(
@@ -989,14 +968,20 @@ class EventEvent(models.Model):
         if not (all(len(item) == 2 for item in slot_tickets)):
             raise ValueError("Input should be a list of tuples containing slot, ticket")
 
-        if any(slot for (slot, _ticket) in slot_tickets):
+        slot_tickets_nb_registrations = {}
+        asked_slots = list({slot.id for (slot, _ticket) in slot_tickets if slot})
+        asked_tickets = list({ticket.id for (_slot, ticket) in slot_tickets if ticket})
+        if asked_slots and asked_tickets:
             slot_tickets_nb_registrations = {
                 (slot.id, ticket.id): count
                 for (slot, ticket, count) in self.env["event.registration"]
                 .sudo()
                 ._read_group(
+                    # scoped to the pairs asked about: unscoped, asking for one
+                    # pair grouped every registration of the event
                     domain=[
-                        ("event_slot_id", "!=", False),
+                        ("event_slot_id", "in", asked_slots),
+                        ("event_ticket_id", "in", asked_tickets),
                         ("event_id", "in", self.ids),
                         ("state", "in", ["open", "done"]),
                         ("active", "=", True),
@@ -1137,11 +1122,11 @@ class EventEvent(models.Model):
 
     def _get_date_range_str(self, start_datetime=False, lang_code=False):
         self.ensure_one()
-        datetime = start_datetime or self.date_begin
+        start = start_datetime or self.date_begin
         today_tz = (
             fields.Datetime.now().replace(tzinfo=UTC).astimezone(timezone(self.date_tz))
         )
-        event_date_tz = datetime.replace(tzinfo=UTC).astimezone(timezone(self.date_tz))
+        event_date_tz = start.replace(tzinfo=UTC).astimezone(timezone(self.date_tz))
         diff = event_date_tz.date() - today_tz.date()
         if diff.days <= 0:
             return _("today")
@@ -1156,7 +1141,7 @@ class EventEvent(models.Model):
         return _(
             "on %(date)s",
             date=format_date(
-                self.env, datetime, lang_code=lang_code, date_format="medium"
+                self.env, start, lang_code=lang_code, date_format="medium"
             ),
         )
 
@@ -1181,7 +1166,7 @@ class EventEvent(models.Model):
         """Get a url-encoded version of the description for mail templates."""
         return urllib.parse.quote_plus(self._get_external_description())
 
-    def _get_ics_file(self, slot=False):
+    def _get_ics_file(self, slot=None):
         """Returns iCalendar file for the event invitation.
         :param slot: If a slot is given, schedule with the given slot datetimes
         :returns a dict of .ics file content for each event
@@ -1190,6 +1175,7 @@ class EventEvent(models.Model):
         if not vobject:
             return result
 
+        slot = slot or self.env["event.slot"]
         for event in self:
             cal = vobject.iCalendar()
             cal_event = cal.add("vevent")

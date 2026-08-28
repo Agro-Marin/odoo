@@ -46,7 +46,7 @@ class EventQuestion(models.Model):
         for question in self:
             question.event_count = event_count_per_question.get(question, 0)
 
-    @api.depends('is_default', 'event_type_ids')
+    @api.depends('is_default')
     def _compute_is_reusable(self):
         self.filtered('is_default').is_reusable = True
 

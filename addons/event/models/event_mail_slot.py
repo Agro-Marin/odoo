@@ -3,7 +3,7 @@ from odoo import api, fields, models
 from odoo.addons.event.models.event_mail import _INTERVALS
 
 
-class EventMailRegistration(models.Model):
+class EventMailSlot(models.Model):
     _name = 'event.mail.slot'
     _description = 'Slot Mail Scheduler'
     _rec_name = 'scheduler_id'

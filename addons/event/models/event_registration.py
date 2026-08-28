@@ -19,6 +19,35 @@ class EventRegistration(models.Model):
     _mail_defaults_to_email = True
 
     @api.model
+    def _count_taken_seats_by(self, fname, record_ids):
+        """Count live registrations per value of `fname`, for `record_ids`.
+
+        The seat aggregation behind ``event.event``, ``event.slot`` and
+        ``event.event.ticket`` was three copies of the same grouped count,
+        differing only in the column. Returns
+        ``{record_id: {"seats_reserved": n, "seats_used": n}}``, zero-filled.
+        """
+        state_field = {"open": "seats_reserved", "done": "seats_used"}
+        results = {
+            record_id: dict.fromkeys(state_field.values(), 0)
+            for record_id in record_ids
+        }
+        if not record_ids:
+            return results
+        self.flush_model([fname, "state", "active"])
+        for record, state, count in self._read_group(
+            domain=[
+                (fname, "in", list(record_ids)),
+                ("state", "in", list(state_field)),
+                ("active", "=", True),
+            ],
+            groupby=[fname, "state"],
+            aggregates=["__count"],
+        ):
+            results[record.id][state_field[state]] = count
+        return results
+
+    @api.model
     def _default_barcode(self):
         """Generate a string representation of a pseudo-random 8-byte number for barcode
         generation.
@@ -98,14 +127,18 @@ class EventRegistration(models.Model):
     @api.constrains('active', 'state', 'event_id', 'event_slot_id', 'event_ticket_id')
     def _check_seats_availability(self):
         tocheck = self.filtered(lambda registration: registration.state in ('open', 'done') and registration.active)
-        for event, registrations in tocheck.grouped('event_id').items():
-            event._verify_seats_availability([
-                (slot, ticket, 0)
-                for slot, ticket in self.env['event.registration']._read_group(
-                    [('id', 'in', registrations.ids)],
-                    ['event_slot_id', 'event_ticket_id']
-                )
-            ])
+        if not tocheck:
+            return
+        # one grouped read for the whole batch: grouping in Python and reading
+        # per event cost a query per distinct event of an import
+        combinations_per_event = {}
+        for event, slot, ticket in self._read_group(
+            [('id', 'in', tocheck.ids)],
+            ['event_id', 'event_slot_id', 'event_ticket_id'],
+        ):
+            combinations_per_event.setdefault(event, []).append((slot, ticket, 0))
+        for event, slot_tickets in combinations_per_event.items():
+            event._verify_seats_availability(slot_tickets)
 
     @api.model
     def default_get(self, fields):
@@ -120,42 +153,35 @@ class EventRegistration(models.Model):
                 ret_vals[field] = utm_mixin_defaults[mixin_field]
         return ret_vals
 
+    def _compute_from_partner(self, fname):
+        """Fill `fname` from the booking contact when the attendee left it blank.
+
+        Kept as one helper behind four one-line computes rather than a single
+        compute over the four fields: the ORM skips a shared compute for any
+        record that supplies one of its fields, which would break the
+        "give the name, take the rest from the partner" case the form relies on.
+        """
+        for registration in self:
+            if not registration[fname] and registration.partner_id:
+                registration[fname] = registration._synchronize_partner_values(
+                    registration.partner_id, fnames={fname},
+                ).get(fname) or False
+
     @api.depends('partner_id')
     def _compute_name(self):
-        for registration in self:
-            if not registration.name and registration.partner_id:
-                registration.name = registration._synchronize_partner_values(
-                    registration.partner_id,
-                    fnames={'name'},
-                ).get('name') or False
+        self._compute_from_partner('name')
 
     @api.depends('partner_id')
     def _compute_email(self):
-        for registration in self:
-            if not registration.email and registration.partner_id:
-                registration.email = registration._synchronize_partner_values(
-                    registration.partner_id,
-                    fnames={'email'},
-                ).get('email') or False
+        self._compute_from_partner('email')
 
     @api.depends('partner_id')
     def _compute_phone(self):
-        for registration in self:
-            if not registration.phone and registration.partner_id:
-                partner_values = registration._synchronize_partner_values(
-                    registration.partner_id,
-                    fnames={'phone'},
-                )
-                registration.phone = partner_values.get('phone') or False
+        self._compute_from_partner('phone')
 
     @api.depends('partner_id')
     def _compute_company_name(self):
-        for registration in self:
-            if not registration.company_name and registration.partner_id:
-                registration.company_name = registration._synchronize_partner_values(
-                    registration.partner_id,
-                    fnames={'company_name'},
-                ).get('company_name') or False
+        self._compute_from_partner('company_name')
 
     @api.depends('state')
     def _compute_date_closed(self):
@@ -297,7 +323,7 @@ class EventRegistration(models.Model):
         return ret
 
     def _compute_display_name(self):
-        """ Custom display_name in case a registration is nott linked to an attendee
+        """ Custom display_name in case a registration is not linked to an attendee
         """
         for registration in self:
             registration.display_name = registration.name or f"#{registration.id}"

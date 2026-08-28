@@ -14,10 +14,13 @@ class EventController(Controller):
         if request.env.user._is_public():
             lang = request.cookies.get("frontend_lang")
         event = event.with_context(lang=lang)
-        slot_id = int(kwargs["slot_id"]) if kwargs.get("slot_id") else False
-        files = event._get_ics_file(
-            slot=request.env["event.slot"].sudo().browse(slot_id)
+        # only a slot of this very event may drive the schedule: the id comes
+        # from the query string, so an arbitrary one would otherwise render
+        # this event with another event's times
+        slot = event.event_slot_ids.sudo().filtered(
+            lambda slot: str(slot.id) == kwargs.get("slot_id")
         )
+        files = event._get_ics_file(slot=slot)
         if event.id not in files:
             return NotFound()
         content = files[event.id]
@@ -65,6 +68,9 @@ class EventController(Controller):
         event_registrations_sudo = event_sudo.registration_ids.filtered(
             lambda reg: reg.id in registration_ids
         )
+        if not event_registrations_sudo:
+            # the hash covered these ids, but the registrations are gone since
+            raise NotFound
         report_name_prefix = (
             _("Ticket")
             if responsive_html

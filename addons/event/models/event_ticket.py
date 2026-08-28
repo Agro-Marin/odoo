@@ -101,13 +101,7 @@ class EventEventTicket(models.Model):
                 )
                 ticket.is_launched = start_sale_datetime <= current_datetime
 
-    @api.depends(
-        "is_expired",
-        "start_sale_datetime",
-        "event_id.date_tz",
-        "seats_available",
-        "seats_max",
-    )
+    @api.depends("is_expired", "is_launched", "is_sold_out")
     def _compute_sale_available(self):
         for ticket in self:
             ticket.sale_available = (
@@ -117,31 +111,13 @@ class EventEventTicket(models.Model):
     @api.depends("seats_max", "registration_ids.state", "registration_ids.active")
     def _compute_seats(self):
         """Determine available, reserved, used and taken seats."""
-        # initialize fields to 0 + compute seats availability
+        base_vals = {"seats_reserved": 0, "seats_used": 0}
+        results = self.env["event.registration"]._count_taken_seats_by(
+            "event_ticket_id", self.ids
+        )
         for ticket in self:
-            ticket.seats_reserved = ticket.seats_used = ticket.seats_available = 0
-        # aggregate registrations by ticket and by state
-        results = {}
-        if self.ids:
-            state_field = {
-                "open": "seats_reserved",
-                "done": "seats_used",
-            }
-            query = """ SELECT event_ticket_id, state, count(event_id)
-                        FROM event_registration
-                        WHERE event_ticket_id = ANY(%s) AND state IN ('open', 'done') AND active = true
-                        GROUP BY event_ticket_id, state
-                    """
-            self.env["event.registration"].flush_model(
-                ["event_id", "event_ticket_id", "state", "active"]
-            )
-            self.env.cr.execute(query, (list(self.ids),))
-            for event_ticket_id, state, num in self.env.cr.fetchall():
-                results.setdefault(event_ticket_id, {})[state_field[state]] = num
-
-        # compute seats_available
-        for ticket in self:
-            ticket.update(results.get(ticket._origin.id or ticket.id, {}))
+            ticket.seats_available = 0
+            ticket.update(results.get(ticket._origin.id or ticket.id, base_vals))
             if ticket.seats_max > 0:
                 ticket.seats_available = ticket.seats_max - (
                     ticket.seats_reserved + ticket.seats_used
@@ -231,7 +207,8 @@ class EventEventTicket(models.Model):
         into account the given event_slot if applicable.
         If no ticket is created (alone event), event_id argument is used. Then
         return the dictionary with False as key."""
-        event_slot.ensure_one() if event_slot else None
+        if event_slot:
+            event_slot.ensure_one()
         if self:
             slots_seats_available = self.event_id._get_seats_availability(
                 [[event_slot, ticket] for ticket in self]
@@ -248,7 +225,9 @@ class EventEventTicket(models.Model):
             }
         availabilities = {}
         for ticket, seats_available in zip(self, slots_seats_available, strict=True):
-            if not seats_available:  # "No limit"
+            # None is "no limit"; 0 is "sold out" -- `not seats_available` said
+            # both, and handed a sold-out ticket the full per-order allowance
+            if seats_available is None:
                 seats_available = (
                     ticket.limit_max_per_order or ticket.event_id.EVENT_MAX_TICKETS
                 )

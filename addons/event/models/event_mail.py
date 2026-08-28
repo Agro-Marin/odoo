@@ -23,6 +23,7 @@ class EventMail(models.Model):
     """Automated mailing scheduled on an event."""
 
     _name = "event.mail"
+    _inherit = ["mixin.event.mail.schedule"]
     _rec_name = "event_id"
     _description = "Event Automated Mailing"
 
@@ -30,36 +31,6 @@ class EventMail(models.Model):
         "event.event", string="Event", required=True, index=True, ondelete="cascade"
     )
     sequence = fields.Integer("Display order")
-    interval_nbr = fields.Integer("Interval", default=1)
-    interval_unit = fields.Selection(
-        [
-            ("now", "Immediately"),
-            ("hours", "Hours"),
-            ("days", "Days"),
-            ("weeks", "Weeks"),
-            ("months", "Months"),
-        ],
-        string="Unit",
-        default="hours",
-        required=True,
-    )
-    interval_type = fields.Selection(
-        [
-            # attendee based
-            ("after_sub", "After each registration"),
-            # event based: start date
-            ("before_event", "Before the event starts"),
-            ("after_event_start", "After the event started"),
-            # event based: end date
-            ("after_event", "After the event ended"),
-            ("before_event_end", "Before the event ends"),
-        ],
-        string="Trigger ",
-        default="before_event",
-        required=True,
-        help="Indicates when the communication is sent. "
-        "If the event has multiple slots, the interval is related to each time slot instead of the whole event.",
-    )
     scheduled_date = fields.Datetime(
         "Schedule Date", compute="_compute_scheduled_date", store=True
     )
@@ -87,15 +58,6 @@ class EventMail(models.Model):
         compute="_compute_mail_state",
     )
     mail_count_done = fields.Integer("# Sent", copy=False, readonly=True)
-    notification_type = fields.Selection(
-        [("mail", "Mail")], string="Send", compute="_compute_notification_type"
-    )
-    template_ref = fields.Reference(
-        string="Template",
-        ondelete={"mail.template": "cascade"},
-        required=True,
-        selection=[("mail.template", "Mail")],
-    )
 
     @api.depends(
         "event_id.date_begin",
@@ -152,11 +114,6 @@ class EventMail(models.Model):
             else:
                 scheduler.mail_state = "scheduled"
 
-    @api.depends("template_ref")
-    def _compute_notification_type(self):
-        """Assigns the type of template in use, if any is set."""
-        self.notification_type = "mail"
-
     def execute(self):
         now = fields.Datetime.now()
         for scheduler in self._filter_template_ref():
@@ -189,18 +146,7 @@ class EventMail(models.Model):
           slot (last registration, scheduled datetime, ...)
         """
         auto_commit = not modules.module.current_test
-        batch_size = (
-            int(self.env["ir.config_parameter"].sudo().get_param("mail.batch_size"))
-            or 50
-        )  # be sure to not have 0, as otherwise no iteration is done
-        cron_limit = (
-            int(
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param("mail.render.cron.limit")
-            )
-            or 1000
-        )  # be sure to not have 0, as otherwise we will loop
+        batch_size, cron_limit = self._get_scheduler_batch_limits()
         scheduler_record = mail_slot or self
 
         # fetch registrations to contact
@@ -211,7 +157,9 @@ class EventMail(models.Model):
         if mail_slot:
             registration_domain += [("event_slot_id", "=", mail_slot.event_slot_id.id)]
         if scheduler_record.last_registration_id:
-            registration_domain += [("id", ">", self.last_registration_id.id)]
+            registration_domain += [
+                ("id", ">", scheduler_record.last_registration_id.id)
+            ]
         registrations = self.env["event.registration"].search(
             registration_domain, limit=(cron_limit + 1), order="id ASC"
         )
@@ -399,10 +347,11 @@ class EventMail(models.Model):
             # scheduled mails for draft / cancel should be removed as they won't be sent
             (chunk - valid_chunk).unlink()
 
-            # send communications, then update only when being in cron mode (aka no
-            # context registrations) to avoid concurrent updates on scheduler
+            # send communications, then refresh the counters. The guard that
+            # once skipped this outside cron mode is gone: mail_done is derived
+            # from the count, so skipping it left an on-subscription scheduler
+            # reporting a stale total.
             valid_chunk._execute_on_registrations()
-            # if not context_registrations:
             self._refresh_mail_count_done()
             if auto_commit:
                 self.env.cr.commit()
@@ -439,17 +388,14 @@ class EventMail(models.Model):
     def _create_missing_mail_registrations(self, registrations):
         new = self.env["event.mail.registration"]
         for scheduler in self:
-            for _chunk in (
-                self.env["event.registration"].browse(b)
-                for b in batched(registrations.ids, 500, strict=False)
-            ):
+            for chunk in batched(registrations.ids, 500, strict=False):
                 new += self.env["event.mail.registration"].create(
                     [
                         {
-                            "registration_id": registration.id,
+                            "registration_id": registration_id,
                             "scheduler_id": scheduler.id,
                         }
-                        for registration in registrations
+                        for registration_id in chunk
                     ]
                 )
         return new
@@ -459,7 +405,7 @@ class EventMail(models.Model):
             if scheduler.interval_type == "after_sub":
                 total_sent = self.env["event.mail.registration"].search_count(
                     [
-                        ("scheduler_id", "=", self.id),
+                        ("scheduler_id", "=", scheduler.id),
                         ("mail_sent", "=", True),
                     ]
                 )
@@ -484,13 +430,13 @@ class EventMail(models.Model):
             elif scheduler.last_registration_id:
                 total_sent = self.env["event.registration"].search_count(
                     [
-                        ("id", "<=", self.last_registration_id.id),
-                        ("event_id", "=", self.event_id.id),
+                        ("id", "<=", scheduler.last_registration_id.id),
+                        ("event_id", "=", scheduler.event_id.id),
                         ("state", "not in", ["draft", "cancel"]),
                     ]
                 )
                 scheduler.mail_count_done = total_sent
-                scheduler.mail_done = total_sent >= self.event_id.seats_taken
+                scheduler.mail_done = total_sent >= scheduler.event_id.seats_taken
             else:
                 scheduler.mail_count_done = 0
                 scheduler.mail_done = False
@@ -520,7 +466,7 @@ class EventMail(models.Model):
                 scheduler.id,
                 scheduler.event_id.name,
                 scheduler.event_id.id,
-                tpl_model,
+                type_info[scheduler.notification_type],
                 scheduler.template_ref.id,
             )
         for scheduler in invalid:
@@ -532,7 +478,7 @@ class EventMail(models.Model):
                 scheduler.template_ref.name,
                 scheduler.template_ref.id,
                 scheduler.template_ref._name,
-                tpl_model,
+                type_info[scheduler.notification_type],
             )
         return self - missing - invalid
 
@@ -565,20 +511,6 @@ class EventMail(models.Model):
         # backward compatible behavior: event mail scheduler does not force partner
         # creation, email_cc / email_to is kept on outgoing emails
         composer.with_context(mail_composer_force_partners=False)._action_send_mail()
-
-    def _template_model_by_notification_type(self):
-        return {
-            "mail": "mail.template",
-        }
-
-    def _prepare_event_mail_values(self):
-        self.ensure_one()
-        return {
-            "interval_nbr": self.interval_nbr,
-            "interval_unit": self.interval_unit,
-            "interval_type": self.interval_type,
-            "template_ref": "%s,%i" % (self.template_ref._name, self.template_ref.id),
-        }
 
     def _warn_error(self, exception):
         last_error_dt = self.error_datetime

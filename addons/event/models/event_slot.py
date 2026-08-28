@@ -52,18 +52,34 @@ class EventSlot(models.Model):
             if slot.end_hour <= slot.start_hour:
                 raise ValidationError(_("A slot end hour must be later than its start hour.\n%s", slot.display_name))
 
+    def _is_within_event_range(self):
+        """Whether this slot lies inside its event's own time range.
+
+        Shared with ``event.event._check_slots_dates``: an ORM constraint only
+        fires on the model whose fields changed, so moving a slot out of range
+        and shrinking an event under a slot need two constraints -- but not two
+        definitions of what "in range" means.
+        """
+        self.ensure_one()
+        event_start = self.event_id.date_begin
+        event_end = self.event_id.date_end
+        if not (event_start and event_end):
+            return True
+        return (
+            event_start <= self.start_datetime <= event_end
+            and event_start <= self.end_datetime <= event_end
+        )
+
     @api.constrains("date", "start_hour", "end_hour")
     def _check_time_range(self):
         for slot in self:
-            event_start = slot.event_id.date_begin
-            event_end = slot.event_id.date_end
-            if not (event_start <= slot.start_datetime <= event_end) or not (event_start <= slot.end_datetime <= event_end):
+            if not slot._is_within_event_range():
                 raise ValidationError(_(
                     "A slot cannot be scheduled outside of its event time range.\n\n"
                     "Event:\t\t%(event_start)s - %(event_end)s\n"
                     "Slot:\t\t%(slot_name)s",
-                    event_start=format_datetime(self.env, event_start, tz=slot.date_tz, dt_format='medium'),
-                    event_end=format_datetime(self.env, event_end, tz=slot.date_tz, dt_format='medium'),
+                    event_start=format_datetime(self.env, slot.event_id.date_begin, tz=slot.date_tz, dt_format='medium'),
+                    event_end=format_datetime(self.env, slot.event_id.date_end, tz=slot.date_tz, dt_format='medium'),
                     slot_name=slot.display_name,
                 ))
 
@@ -108,30 +124,14 @@ class EventSlot(models.Model):
 
     @api.depends("event_id", "event_id.seats_max", "registration_ids.state", "registration_ids.active")
     def _compute_seats(self):
-        # initialize fields to 0
+        base_vals = {"seats_reserved": 0, "seats_used": 0}
+        results = self.env['event.registration']._count_taken_seats_by(
+            "event_slot_id", self.ids
+        )
         for slot in self:
-            slot.seats_reserved = slot.seats_used = slot.seats_available = 0
-        # aggregate registrations by slot and by state
-        state_field = {
-            'open': 'seats_reserved',
-            'done': 'seats_used',
-        }
-        base_vals = dict.fromkeys(state_field.values(), 0)
-        results = {slot_id: dict(base_vals) for slot_id in self.ids}
-        if self.ids:
-            query = """ SELECT event_slot_id, state, count(event_slot_id)
-                        FROM event_registration
-                        WHERE event_slot_id = ANY(%s) AND state IN ('open', 'done') AND active = true
-                        GROUP BY event_slot_id, state
-                    """
-            self.env['event.registration'].flush_model(['event_slot_id', 'state', 'active'])
-            self.env.cr.execute(query, (list(self.ids),))
-            res = self.env.cr.fetchall()
-            for slot_id, state, num in res:
-                results[slot_id][state_field[state]] = num
-        # compute seats_available
-        for slot in self:
+            slot.seats_available = 0
             slot.update(results.get(slot._origin.id or slot.id, base_vals))
+            # seats_max is the per-slot cap on multi-slot events
             if slot.event_id.seats_max > 0:
                 slot.seats_available = slot.event_id.seats_max - (slot.seats_reserved + slot.seats_used)
             slot.seats_taken = slot.seats_reserved + slot.seats_used

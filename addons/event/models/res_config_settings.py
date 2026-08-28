@@ -1,6 +1,3 @@
-import base64
-import binascii
-
 from odoo import _, api, exceptions, fields, models
 
 
@@ -54,11 +51,9 @@ class ResConfigSettings(models.TransientModel):
 
     def _check_google_maps_static_api_secret(self):
         for config in self:
-            if config.google_maps_static_api_secret:
-                try:
-                    base64.urlsafe_b64decode(config.google_maps_static_api_secret)
-                except binascii.Error as e:
-                    raise exceptions.UserError(_("Please enter a valid base64 secret")) from e
+            secret = config.google_maps_static_api_secret
+            if secret and self.env["res.partner"]._decode_google_maps_secret(secret) is None:
+                raise exceptions.UserError(_("Please enter a valid base64 secret"))
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -67,7 +62,7 @@ class ResConfigSettings(models.TransientModel):
         return configs
 
     def write(self, vals):
-        configs = super().write(vals)
+        result = super().write(vals)
         if vals.get('google_maps_static_api_secret'):
-            configs._check_google_maps_static_api_secret()
-        return configs
+            self._check_google_maps_static_api_secret()
+        return result

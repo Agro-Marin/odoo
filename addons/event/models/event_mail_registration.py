@@ -18,6 +18,11 @@ class EventMailRegistration(models.Model):
     scheduled_date = fields.Datetime('Scheduled Time', compute='_compute_scheduled_date', store=True)
     mail_sent = fields.Boolean('Mail Sent')
 
+    _scheduler_registration_uniq = models.Constraint(
+        'unique(scheduler_id, registration_id)',
+        'A registration can only be scheduled once per communication.',
+    )
+
     @api.depends('registration_id', 'scheduler_id.interval_unit', 'scheduler_id.interval_type')
     def _compute_scheduled_date(self):
         for mail in self:

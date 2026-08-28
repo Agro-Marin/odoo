@@ -1,4 +1,5 @@
 # some inherit require to define those models first
+from . import mixin_event_mail_schedule
 from . import event_type
 from . import event_type_mail
 from . import event_type_ticket
