@@ -1,5 +1,7 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
+from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.tools import clean_context
 
 
 class DocumentsDocument(models.Model):
@@ -29,11 +31,15 @@ class DocumentsDocument(models.Model):
         assert field_name in ('product_template_id', 'product_id')
         Model = self.env[self._fields[field_name].comodel_name]
         if operator == 'in':
-            if True in value:
-                # support for True value
-                return Domain(field_name, 'not in', [False]) | Domain(field_name, 'in', value - {True})
-            if False in value:
-                return Domain('res_model', '!=', Model._name) | self._search_related_product_field(operator, value - {False}, field_name)
+            # `True` and `False` are sentinels for "any" and "no" related product.
+            # Test them by identity, never by equality or membership: Python has
+            # `True == 1` and `False == 0` with equal hashes, so `True in value`
+            # also fires on the real product id 1 and `value - {True}` then drops
+            # that id, widening the search to every product-linked document.
+            if any(v is True for v in value):
+                return Domain(field_name, 'not in', [False]) | Domain(field_name, 'in', [v for v in value if v is not True])
+            if any(v is False for v in value):
+                return Domain('res_model', '!=', Model._name) | self._search_related_product_field(operator, [v for v in value if v is not False], field_name)
             query_model = Model._search(Domain.OR(
                 Domain(Model._rec_name if isinstance(v, str) else 'id', operator, v)
                 for v in value
@@ -50,8 +56,15 @@ class DocumentsDocument(models.Model):
     def create_product_template(self):
         # Creates a single product.template for the whole recordset and links every
         # document to it; the product image is taken from the first image document.
-        product = self.env['product.template'].create({
-            'name': _('Product created from Documents')
+        if not self:
+            raise UserError(self.env._("Select at least one document to create a product from."))
+        # clean_context: the caller is the Documents client, whose context carries
+        # its own `default_*` keys. They must not reach product.template.create -
+        # `default_type='folder'` is a valid documents.document type but not a
+        # valid product one, and `default_active=False` would create the product
+        # archived and invisible.
+        product = self.env['product.template'].with_context(clean_context(self.env.context)).create({
+            'name': self.env._('Product created from Documents')
         })
 
         for document in self:
@@ -70,8 +83,8 @@ class DocumentsDocument(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'product.template',
-            'name': "New product template",
-            'context': self.env.context,
+            'name': self.env._("New product template"),
+            'context': clean_context(self.env.context),
             'view_mode': 'form',
             'views': [(view_id, "form")],
             'res_id': product.id,
