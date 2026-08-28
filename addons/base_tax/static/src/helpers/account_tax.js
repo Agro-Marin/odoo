@@ -721,20 +721,28 @@ export const accountTaxHelpers = {
             special_type: kwargs.special_type || null,
             rate: load("rate", 1.0),
             filter_tax_function: kwargs.filter_tax_function || null,
+            is_refund: load("is_refund", false),
+            partner_id: load("partner_id", {}),
+            account_id: load("account_id", false),
+            analytic_distribution: load("analytic_distribution", null),
         };
 
         const extra_tax_data = this.import_base_line_extra_tax_data(
             base_line,
             load("extra_tax_data", {}) || {},
         );
+        // NOTE: manual_total_excluded[_currency] use `??`, not `||` — 0.0 is a
+        // legitimate override (force the base to zero) and must not be
+        // treated as absent, unlike `||`'s previous behavior here which
+        // silently discarded it in favor of extra_tax_data.
         Object.assign(base_line, {
             manual_total_excluded_currency:
-                kwargs.manual_total_excluded_currency ||
-                extra_tax_data.manual_total_excluded_currency ||
+                kwargs.manual_total_excluded_currency ??
+                extra_tax_data.manual_total_excluded_currency ??
                 null,
             manual_total_excluded:
-                kwargs.manual_total_excluded ||
-                extra_tax_data.manual_total_excluded ||
+                kwargs.manual_total_excluded ??
+                extra_tax_data.manual_total_excluded ??
                 null,
             computation_key:
                 kwargs.computation_key || extra_tax_data.computation_key || null,
@@ -785,6 +793,18 @@ export const accountTaxHelpers = {
                 filter_tax_function: base_line.filter_tax_function,
             },
         );
+
+        if (base_line.special_type === "non_deductible") {
+            const taxes_data = taxes_computation.taxes_data;
+            taxes_computation.taxes_data = [];
+            for (const tax_data of taxes_data) {
+                if (!tax_data.is_reverse_charge) {
+                    taxes_computation.taxes_data.push(tax_data);
+                } else {
+                    taxes_computation.total_included -= tax_data.tax_amount;
+                }
+            }
+        }
 
         const rate = base_line.rate;
         const tax_details = (base_line.tax_details = {
@@ -1572,6 +1592,49 @@ export const accountTaxHelpers = {
             ),
         );
         tax_totals_summary.same_tax_base = encountered_base_amounts.size === 1;
+
+        const taxed_non_deductible_lines = base_lines.filter(
+            (base_line) =>
+                base_line.special_type === "non_deductible" &&
+                base_line.tax_ids.length,
+        );
+        if (taxed_non_deductible_lines.length) {
+            const non_deductible_aggregated_values = this.aggregate_base_lines_tax_details(
+                taxed_non_deductible_lines,
+                tax_group_grouping_function,
+            );
+            const non_deductible_values_per_grouping_key =
+                this.aggregate_base_lines_aggregated_values(
+                    non_deductible_aggregated_values,
+                );
+            for (const subtotal of tax_totals_summary.subtotals) {
+                for (const tax_group of subtotal.tax_groups) {
+                    const tax_values = non_deductible_values_per_grouping_key[
+                        tax_group.id
+                    ] || {
+                        tax_amount: 0.0,
+                        tax_amount_currency: 0.0,
+                        base_amount: 0.0,
+                        base_amount_currency: 0.0,
+                    };
+                    tax_group.non_deductible_tax_amount = tax_values.tax_amount;
+                    tax_group.non_deductible_tax_amount_currency =
+                        tax_values.tax_amount_currency;
+
+                    tax_group.tax_amount -= tax_values.tax_amount;
+                    tax_group.tax_amount_currency -= tax_values.tax_amount_currency;
+                    tax_group.base_amount -= tax_values.base_amount;
+                    tax_group.base_amount_currency -= tax_values.base_amount_currency;
+
+                    subtotal.tax_amount -= tax_values.tax_amount;
+                    subtotal.tax_amount_currency -= tax_values.tax_amount_currency;
+
+                    tax_totals_summary.tax_amount -= tax_values.tax_amount;
+                    tax_totals_summary.tax_amount_currency -=
+                        tax_values.tax_amount_currency;
+                }
+            }
+        }
 
         // Total amount.
         tax_totals_summary.total_amount_currency =
