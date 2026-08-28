@@ -276,7 +276,7 @@ class SaleOrder(models.Model):
             raise_if_not_found=False,
         )
         return {
-            **self.env["project.template.create.wizard"].action_open_template_view(),
+            **self.env["project.template.create.wizard"].action_view_template_view(),
             "name": self.env._("Create a Project"),
             "views": [(view_id.id, "form")],
             "context": {

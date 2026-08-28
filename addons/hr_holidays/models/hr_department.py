@@ -72,7 +72,7 @@ class HrDepartment(models.Model):
             "searchpanel_default_department_id": self.id,
         }
 
-    def action_open_leave_department(self):
+    def action_view_leave_department(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr_holidays.hr_leave_action_action_approve_department"
         )
@@ -83,7 +83,7 @@ class HrDepartment(models.Model):
         }
         return action
 
-    def action_open_allocation_department(self):
+    def action_view_allocation_department(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr_holidays.hr_leave_allocation_action_approve_department"
         )

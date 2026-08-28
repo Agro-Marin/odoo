@@ -80,7 +80,7 @@
             <xpath expr="//button[@name='unlink_action']" position="replace" />
             <xpath expr="//button[@name='run']" position="replace" />
             <xpath
-                expr="//button[@name='action_open_code_history']"
+                expr="//button[@name='action_view_code_history']"
                 position="replace" />
             <xpath expr="//notebook" position="before">
                 <group>

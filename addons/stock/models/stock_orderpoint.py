@@ -989,7 +989,7 @@ class StockWarehouseOrderpoint(models.Model):
         return action
 
     @api.model
-    def action_open_orderpoints(self):
+    def action_view_orderpoints(self):
         return self._get_orderpoint_action()
 
     def action_stock_replenishment_info(self):

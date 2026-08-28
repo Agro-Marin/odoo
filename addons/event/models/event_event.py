@@ -1073,7 +1073,7 @@ class EventEvent(models.Model):
     # ACTIONS
     # ------------------------------------------------------------
 
-    def action_open_slot_calendar(self):
+    def action_view_slot_calendar(self):
         self.ensure_one()
         now = datetime.now().astimezone(timezone(self.env.user.tz or "UTC"))
         next_hour = now + timedelta(hours=1)

@@ -55,7 +55,7 @@ class TestBaseModuleInstallRequest(TransactionCase):
 
     def test_action_view_install_request_wires_default_module(self):
         """The module action opens the request wizard prefilled with the module."""
-        action = self.uninstalled_app.action_open_install_request()
+        action = self.uninstalled_app.action_view_install_request()
         self.assertEqual(action["res_model"], "base.module.install.request")
         self.assertEqual(action["target"], "new")
         self.assertEqual(

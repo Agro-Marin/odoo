@@ -48,7 +48,7 @@
                 <button groups="account.group_account_invoice"
                         type="object"
                         class="oe_stat_button"
-                        name="action_open_declaration_of_intent"
+                        name="action_view_declaration_of_intent"
                         icon="fa-list"
                         invisible="not l10n_it_edi_doi_id">
                     <div class="o_field_widget o_stat_info">

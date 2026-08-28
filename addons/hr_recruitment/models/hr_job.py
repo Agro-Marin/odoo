@@ -485,7 +485,7 @@ class HrJob(models.Model):
     def _creation_subtype(self):
         return self.env.ref("hr_recruitment.mt_job_new")
 
-    def action_open_attachments(self):
+    def action_view_attachments(self):
         return {
             "type": "ir.actions.act_window",
             "res_model": "ir.attachment",
@@ -518,7 +518,7 @@ class HrJob(models.Model):
             ],
         }
 
-    def action_open_activities(self):
+    def action_view_activities(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr_recruitment.action_hr_job_applications"
         )
@@ -550,7 +550,7 @@ class HrJob(models.Model):
             "tag": "reload",
         }
 
-    def action_open_employees(self):
+    def action_view_employees(self):
         self.ensure_one()
         if self.env["hr.employee"].has_access("read"):
             res_model = "hr.employee"

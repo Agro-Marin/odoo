@@ -25,7 +25,7 @@ export class StockOrderpointSearchModel extends SearchModel {
             this._context = false;
             await this.orm.call(
                 "stock.warehouse.orderpoint",
-                "action_open_orderpoints",
+                "action_view_orderpoints",
                 [],
                 {
                     context: {

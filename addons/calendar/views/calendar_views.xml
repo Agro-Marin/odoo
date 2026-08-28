@@ -76,7 +76,7 @@
         <field name="arch" type="xml">
             <list string="Meetings" sample="1" multi_edit="1" js_class="calendar_list_view">
                 <header>
-                    <button name="action_open_composer" type="object" context="{'default_composition_mode':'mass_mail'}"
+                    <button name="action_view_composer" type="object" context="{'default_composition_mode':'mass_mail'}"
                             string="Send Mail"/>
                 </header>
                 <field name="name" string="Subject" decoration-bf="1" readonly="recurrency"/>
@@ -105,7 +105,7 @@
         <field name="arch" type="xml">
             <form string="Meetings" class="o_calendar_event_form_view" js_class="calendar_form">
                 <header>
-                    <button name="action_open_composer" class="btn btn-primary" type="object" string="Send email" invisible="not user_can_edit"/>
+                    <button name="action_view_composer" class="btn btn-primary" type="object" string="Send email" invisible="not user_can_edit"/>
                 </header>
                 <div invisible="not recurrence_id" class="alert alert-info oe_edit_only" role="status">
                     <p>Edit recurring event</p>
@@ -113,7 +113,7 @@
                 </div>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button icon="fa-bars" type="object" name="action_open_calendar_event" invisible="not (res_id and res_model_name)">
+                        <button icon="fa-bars" type="object" name="action_view_calendar_event" invisible="not (res_id and res_model_name)">
                             <field name="res_model_name"/>
                         </button>
                     </div>
@@ -210,7 +210,7 @@
                                     </div>
                                 </div>
                                 <div name="send_buttons" class="d-flex gap-2 mb-auto ms-4">
-                                    <button name="action_open_composer" help="Send Email to attendees" type="object" string=" EMAIL" icon="fa-envelope" invisible="not user_can_edit"/>
+                                    <button name="action_view_composer" help="Send Email to attendees" type="object" string=" EMAIL" icon="fa-envelope" invisible="not user_can_edit"/>
                                 </div>
                             </div>
                             <div class="d-flex align-items-baseline" colspan="2">

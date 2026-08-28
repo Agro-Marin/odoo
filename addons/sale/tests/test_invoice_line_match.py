@@ -105,7 +105,7 @@ class TestInvoiceLineMatch(TransactionCase):
 
     def test_row_opens_its_sale_order(self):
         order = self._confirmed_order()
-        action = self._rows().action_open_line()
+        action = self._rows().action_view_line()
         self.assertEqual(action["res_model"], "sale.order")
         self.assertEqual(action["res_id"], order.id)
 

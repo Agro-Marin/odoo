@@ -25,7 +25,7 @@
         <field name="sequence">60</field>
         <field name="name">Invoices</field>
         <field name="parent_action_id" ref="project.act_project_project_2_project_task_all"/>
-        <field name="python_method">action_open_project_invoices</field>
+        <field name="python_method">action_view_project_invoices</field>
         <field name="context">{"from_embedded_action": true}</field>
         <field name="group_ids" eval="[(4, ref('account.group_account_invoice')), (4, ref('sales_team.group_sale_salesman'))]" />
         <field name="domain">[('allow_billable', '=', True)]</field>
@@ -47,7 +47,7 @@
         <field name="sequence">60</field>
         <field name="name">Invoices</field>
         <field name="parent_action_id" ref="project.project_update_all_action"/>
-        <field name="python_method">action_open_project_invoices</field>
+        <field name="python_method">action_view_project_invoices</field>
         <field name="context">{"from_embedded_action": true}</field>
         <field name="group_ids" eval="[(4, ref('account.group_account_invoice')), (4, ref('sales_team.group_sale_salesman'))]" />
         <field name="domain">[('allow_billable', '=', True)]</field>
@@ -69,7 +69,7 @@
         <field name="sequence">75</field>
         <field name="name">Vendor Bills</field>
         <field name="parent_action_id" ref="project.act_project_project_2_project_task_all"/>
-        <field name="python_method">action_open_project_vendor_bills</field>
+        <field name="python_method">action_view_project_vendor_bills</field>
         <field name="context">{"from_embedded_action": true}</field>
         <field name="group_ids" eval="[(4, ref('account.group_account_invoice')), (4, ref('sales_team.group_sale_salesman'))]"/>
         <field name="domain">[('allow_billable', '=', True)]</field>
@@ -80,7 +80,7 @@
         <field name="sequence">75</field>
         <field name="name">Vendor Bills</field>
         <field name="parent_action_id" ref="project.project_update_all_action"/>
-        <field name="python_method">action_open_project_vendor_bills</field>
+        <field name="python_method">action_view_project_vendor_bills</field>
         <field name="context">{"from_embedded_action": true}</field>
         <field name="group_ids" eval="[(4, ref('account.group_account_invoice')), (4, ref('sales_team.group_sale_salesman'))]"/>
         <field name="domain">[('allow_billable', '=', True)]</field>

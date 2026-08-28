@@ -25,7 +25,7 @@
                         icon="fa-barcode"
                         type="object"
                         context="{'default_uom_id': id}"
-                        name="action_open_packaging_barcodes">
+                        name="action_view_packaging_barcodes">
                         <div class="o_field_widget o_stat_info">
                             <span class="o_stat_text">Packaging Barcodes</span>
                         </div>

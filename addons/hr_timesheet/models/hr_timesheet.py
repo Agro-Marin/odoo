@@ -736,7 +736,7 @@ class AccountAnalyticLine(models.Model):
         """
         return True
 
-    def action_open_timesheet_view_portal(self):
+    def action_view_timesheet_view_portal(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

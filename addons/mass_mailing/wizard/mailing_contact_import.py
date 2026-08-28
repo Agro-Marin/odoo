@@ -37,7 +37,7 @@ class MailingContactImport(models.TransientModel):
                     "message": _("You have to much emails, please upload a file."),
                     "type": "warning",
                     "sticky": False,
-                    "next": self.action_open_base_import(),
+                    "next": self.action_view_base_import(),
                 },
             }
 
@@ -133,7 +133,7 @@ class MailingContactImport(models.TransientModel):
             },
         }
 
-    def action_open_base_import(self):
+    def action_view_base_import(self):
         """Open the base import wizard to import mailing list contacts with a xlsx file."""
         self.ensure_one()
 

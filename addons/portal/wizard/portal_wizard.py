@@ -54,7 +54,7 @@ class PortalWizard(models.TransientModel):
             ]
 
     @api.model
-    def action_open_wizard(self):
+    def action_view_wizard(self):
         portal_wizard = self.create({})
         return portal_wizard._action_view_modal()
 

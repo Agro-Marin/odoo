@@ -1129,7 +1129,7 @@ class MailActivity(models.Model):
         return {"type": "ir.actions.act_window_close"}
 
     @api.readonly
-    def action_open_document(self) -> dict:
+    def action_view_document(self) -> dict:
         self.ensure_one()
         if not self.res_model:
             view_id = self.env.ref("mail.mail_activity_view_form_popup").id

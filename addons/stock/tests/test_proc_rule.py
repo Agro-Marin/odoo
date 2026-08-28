@@ -96,7 +96,7 @@ class TestProcRule(TransactionCase):
         )
 
         with self.assertRaises(UserError):
-            self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+            self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
 
     def test_proc_rule(self):
         product_route = self.env["stock.route"].create(
@@ -617,7 +617,7 @@ class TestProcRule(TransactionCase):
         )
         moves._action_confirm()
         self.env.flush_all()
-        self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
         replenishments = self.env["stock.warehouse.orderpoint"].search(
             [
                 ("product_id", "=", product.id),
@@ -663,7 +663,7 @@ class TestProcRule(TransactionCase):
         )
         move._action_confirm()
         self.env.flush_all()
-        self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
         replenishments = self.env["stock.warehouse.orderpoint"].search(
             [
                 ("product_id", "=", product.id),
@@ -741,7 +741,7 @@ class TestProcRule(TransactionCase):
         )
         moves._action_confirm()
         self.env.flush_all()
-        self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
         replenishments = self.env["stock.warehouse.orderpoint"].search(
             [
                 ("product_id", "in", products.ids),
@@ -879,7 +879,7 @@ class TestProcRule(TransactionCase):
         )
         stock_move._action_confirm()
         shelf1.active = False
-        self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
 
     def test_compute_qty_to_order(self):
         orderpoint = self.env["stock.warehouse.orderpoint"].create(

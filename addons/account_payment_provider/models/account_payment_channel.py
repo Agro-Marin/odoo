@@ -92,7 +92,7 @@ class AccountPaymentChannel(models.Model):
                 )
             )
 
-    def action_open_provider_form(self):
+    def action_view_provider_form(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

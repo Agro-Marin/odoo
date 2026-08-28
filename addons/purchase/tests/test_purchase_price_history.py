@@ -197,7 +197,7 @@ class TestPurchasePriceHistory(TransactionCase):
         )
 
     def test_open_history_targets_the_full_history_action(self):
-        action = self._create_wizard(partner_id=self.vendor_a.id).action_open_history()
+        action = self._create_wizard(partner_id=self.vendor_a.id).action_view_history()
         self.assertEqual(action["res_model"], "purchase.order.line")
         self.assertEqual(action["view_mode"], "list,pivot,graph")
         self.assertIn(("state", "=", "done"), action["domain"])

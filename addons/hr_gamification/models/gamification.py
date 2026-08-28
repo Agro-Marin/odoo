@@ -31,7 +31,7 @@ class GamificationBadgeUser(models.Model):
                 is_hr_user or self.env.uid == self.create_uid.id
             )
 
-    def action_open_badge(self):
+    def action_view_badge(self):
         self.ensure_one()
         return {
             "name": _("Received Badge"),

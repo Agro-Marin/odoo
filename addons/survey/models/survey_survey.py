@@ -1647,9 +1647,9 @@ class SurveySurvey(models.Model):
                 "session_state": "ready",
             }
         )
-        return self.action_open_session_manager()
+        return self.action_view_session_manager()
 
-    def action_open_session_manager(self) -> dict[str, Any]:
+    def action_view_session_manager(self) -> dict[str, Any]:
         self.ensure_one()
 
         return {

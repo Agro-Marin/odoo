@@ -52,7 +52,7 @@ class ResConfigSettings(models.TransientModel):
         # If all goes well we can deactivate the local user.
         proxy_user.active = False
 
-    def action_open_company_form(self):
+    def action_view_company_form(self):
         """ This will be used to ease the configuration by allowing to quickly access the company. """
         self.ensure_one()
         return {

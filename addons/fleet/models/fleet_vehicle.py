@@ -812,7 +812,7 @@ class FleetVehicle(models.Model):
             },
         }
 
-    def action_open_odometer_report(self):
+    def action_view_odometer_report(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "fleet.fleet_vehicle_odometer_reporting_action"

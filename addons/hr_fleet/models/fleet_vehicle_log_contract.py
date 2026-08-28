@@ -9,7 +9,7 @@ class FleetVehicleLogContract(models.Model):
         string="Driver (Employee)",
     )
 
-    def action_open_employee(self):
+    def action_view_employee(self):
         self.ensure_one()
         return {
             "name": _("Related Employee"),

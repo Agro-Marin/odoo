@@ -20,7 +20,7 @@
                         data-hotkey="e"/>
             </xpath>
             <xpath expr="//sheet/div[hasclass('oe_button_box')]" position="inside">
-                <button name="action_open_l10n_in_ewaybill"
+                <button name="action_view_l10n_in_ewaybill"
                         class="oe_stat_button"
                         icon="fa-truck"
                         type="object"

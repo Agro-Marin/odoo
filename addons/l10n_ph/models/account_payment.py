@@ -5,7 +5,7 @@ from odoo.exceptions import UserError
 class AccountPayment(models.Model):
     _inherit = "account.payment"
 
-    def action_open_l10n_ph_2307_wizard(self):
+    def action_view_l10n_ph_2307_wizard(self):
         self.ensure_one()
         if self.payment_type == 'outbound':
             wizard_action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("l10n_ph.view_l10n_ph_2307_wizard_act_window")

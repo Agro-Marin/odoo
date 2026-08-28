@@ -6,15 +6,15 @@ class ProjectProject(models.Model):
     _name = "project.project"
     _inherit = "project.project"
 
-    def action_open_deliveries(self):
+    def action_view_deliveries(self):
         self.ensure_one()
         return self._get_picking_action(_("From WH"), "outgoing")
 
-    def action_open_receipts(self):
+    def action_view_receipts(self):
         self.ensure_one()
         return self._get_picking_action(_("To WH"), "incoming")
 
-    def action_open_all_pickings(self):
+    def action_view_all_pickings(self):
         self.ensure_one()
         return self._get_picking_action(_("Stock Moves"))
 

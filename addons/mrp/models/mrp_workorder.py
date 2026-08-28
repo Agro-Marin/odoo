@@ -1397,7 +1397,7 @@ class MrpWorkorder(models.Model):
         action["domain"] = [("workorder_id", "=", self.id)]
         return action
 
-    def action_open_wizard(self):
+    def action_view_wizard(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_workorder_mrp_production_form"

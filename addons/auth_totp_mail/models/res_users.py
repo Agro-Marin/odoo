@@ -82,7 +82,7 @@ class ResUsers(models.Model):
         values["suggest_2fa"] = suggest_2fa and not self.totp_enabled
         return values
 
-    def action_open_my_account_settings(self):
+    def action_view_my_account_settings(self):
         return {
             "name": _("Security"),
             "type": "ir.actions.act_window",

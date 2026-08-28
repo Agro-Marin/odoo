@@ -34,7 +34,7 @@
                                         <a name="%(action_hr_job_applications)d" type="action">Applications</a>
                                     </div>
                                     <div role="menuitem">
-                                        <a name="action_open_activities" type="object">Activities</a>
+                                        <a name="action_view_activities" type="object">Activities</a>
                                     </div>
                                     <div role="menuitem" name="menu_view_job_posts">
                                         <a name="%(action_hr_job_sources)d" type="action" context="{'default_job_id': id}">Trackers</a>
@@ -137,7 +137,7 @@
                                         groups="hr_recruitment.group_hr_recruitment_interviewer">
                                         <div class="d-flex flex-row justify-content-center mt-1">
                                             <div class="position-relative">
-                                                <button name="action_open_activities" type="object" class="ps-1 pe-1 pt-0 pb-0">
+                                                <button name="action_view_activities" type="object" class="ps-1 pe-1 pt-0 pb-0">
                                                     <i class="fa-regular fa-clock fa-2x" role="img" aria-label="Activities"></i>
                                                     <span class="activity_badge position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger text-light">
                                                         <field name="activity_count"/>
@@ -333,12 +333,12 @@
                 <button class="oe_stat_button"
                     groups="hr_recruitment.group_hr_recruitment_interviewer"
                     icon="fa-regular fa-file-lines"
-                    name="action_open_attachments"
+                    name="action_view_attachments"
                     type="object"
                     invisible="documents_count == 0">
                     <field name="documents_count" widget="statinfo" string="Documents"/>
                 </button>
-                <button name="action_open_employees"
+                <button name="action_view_employees"
                     groups="hr_recruitment.group_hr_recruitment_interviewer"
                     class="oe_stat_button"
                     icon="fa-users"

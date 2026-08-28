@@ -210,7 +210,7 @@ class ResConfigSettings(models.TransientModel):
             "res_id": False,
         }
 
-    def action_open_robots(self):
+    def action_view_robots(self):
         self.website_id._force()
         return {
             "name": _("Robots.txt"),
@@ -221,7 +221,7 @@ class ResConfigSettings(models.TransientModel):
             "target": "new",
         }
 
-    def action_open_blocked_third_party_domains(self):
+    def action_view_blocked_third_party_domains(self):
         self.website_id._force()
         return {
             "name": _("Add external websites"),

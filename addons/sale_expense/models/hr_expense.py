@@ -90,7 +90,7 @@ class HrExpense(models.Model):
                 expense.analytic_distribution = {analytic_account.id: 100}
         return super().action_post()
 
-    def action_open_sale_order(self):
+    def action_view_sale_order(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

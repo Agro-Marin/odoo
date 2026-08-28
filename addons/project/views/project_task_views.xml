@@ -417,7 +417,7 @@
                         <span id="start_rating_buttons" invisible="1"/>
                         <field name="rating_avg" invisible="1"/>
                         <field name="rating_active" invisible="1"/>
-                        <button name="action_open_ratings" type="object" invisible="rating_count == 0 or not rating_active or has_template_ancestor or has_project_template" class="oe_stat_button">
+                        <button name="action_view_ratings" type="object" invisible="rating_count == 0 or not rating_active or has_template_ancestor or has_project_template" class="oe_stat_button">
                             <i class="fa-regular fa-face-smile o_button_icon text-success" invisible="rating_avg &lt; 3.66" title="Happy"/>
                             <i class="fa-regular fa-face-meh o_button_icon text-warning" invisible="rating_avg &lt; 2.33 or rating_avg &gt;= 3.66" title="Neutral"/>
                             <i class="fa-regular fa-face-frown o_button_icon text-danger" invisible="rating_avg &gt;= 2.33" title="Unhappy"/>
@@ -428,7 +428,7 @@
                         </button>
                         <!-- Dummy tag used to organize buttons -->
                         <span id="end_rating_buttons" invisible="1"/>
-                        <button name="action_open_parent_task" type="object" class="oe_stat_button" icon="fa-check" invisible="not parent_id">
+                        <button name="action_view_parent_task" type="object" class="oe_stat_button" icon="fa-check" invisible="not parent_id">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Parent Task</span>
                             </div>

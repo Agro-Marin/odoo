@@ -6,9 +6,9 @@
         <field name="priority" eval="45" />
         <field name="inherit_id" ref="hr.view_employee_form"/>
         <field name="arch" type="xml">
-            <button name="action_open_versions" position="before">
+            <button name="action_view_versions" position="before">
                 <field name="has_subscribed_courses" invisible="1" groups="website_slides.group_website_slides_officer"/>
-                <button name="action_open_courses"
+                <button name="action_view_courses"
                     class="oe_stat_button"
                     groups="website_slides.group_website_slides_officer"
                     icon="fa-graduation-cap"

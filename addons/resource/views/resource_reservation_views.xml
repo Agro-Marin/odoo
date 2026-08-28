@@ -31,7 +31,7 @@
             <form string="Reservation">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_open_origin" type="object"
+                        <button name="action_view_origin" type="object"
                             class="oe_stat_button" icon="fa-external-link"
                             string="Source Record"
                             invisible="not res_model" />

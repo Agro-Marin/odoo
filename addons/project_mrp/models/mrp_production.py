@@ -23,7 +23,7 @@ class MrpProduction(models.Model):
         action["context"]["default_project_id"] = self.project_id.id
         return action
 
-    def action_open_project(self):
+    def action_view_project(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

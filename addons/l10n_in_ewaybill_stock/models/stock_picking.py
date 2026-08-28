@@ -35,7 +35,7 @@ class StockPicking(models.Model):
         action['res_id'] = ewaybill.id
         return action
 
-    def action_open_l10n_in_ewaybill(self):
+    def action_view_l10n_in_ewaybill(self):
         self.ensure_one()
         action = self._get_l10n_in_ewaybill_form_action()
         action['res_id'] = self.l10n_in_ewaybill_ids and self.l10n_in_ewaybill_ids[0].id

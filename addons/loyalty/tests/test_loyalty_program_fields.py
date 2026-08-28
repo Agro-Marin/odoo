@@ -114,4 +114,4 @@ class TestLoyaltyProgramFields(TransactionCase):
 
         self.assertEqual(program.coupon_count_label, items_name)
         self.assertEqual(program.coupon_count_display, f"0 {items_name}")
-        self.assertEqual(program.action_open_loyalty_cards()['name'], items_name)
+        self.assertEqual(program.action_view_loyalty_cards()['name'], items_name)

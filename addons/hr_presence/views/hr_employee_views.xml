@@ -71,7 +71,7 @@
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
         <field name="code">
-            action = records.action_open_leave_request()
+            action = records.action_view_leave_request()
         </field>
     </record>
 

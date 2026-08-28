@@ -258,7 +258,7 @@
                     </xpath>
 
                     <xpath expr="//div[hasclass('crm_team_kanban_bottom')]/field" position="before">
-                        <a name="action_open_unassigned_leads" type="object" class="ms-2 me-auto" invisible="not lead_unassigned_count">
+                        <a name="action_view_unassigned_leads" type="object" class="ms-2 me-auto" invisible="not lead_unassigned_count">
                             <field name="lead_unassigned_count" class="me-1"/>Unassigned Leads
                         </a>
                     </xpath>

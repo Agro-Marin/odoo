@@ -110,7 +110,7 @@ class ProductPricelist(models.Model):
             )
 
     @api.readonly
-    def action_open_pricelist_report(self):
+    def action_view_pricelist_report(self):
         self.ensure_one()
         return {
             "name": _("Pricelist Report Preview"),

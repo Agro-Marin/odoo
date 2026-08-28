@@ -143,7 +143,7 @@ class FleetVehicle(models.Model):
                     vehicle.message_unsubscribe(partner_ids=partners_to_unsubscribe)
         return super().write(vals)
 
-    def action_open_employee(self):
+    def action_view_employee(self):
         self.ensure_one()
         return {
             "name": _("Related Employee"),

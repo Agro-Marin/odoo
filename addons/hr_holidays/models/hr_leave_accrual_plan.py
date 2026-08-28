@@ -168,7 +168,7 @@ class HrLeaveAccrualPlan(models.Model):
                 )
             )
 
-    def action_open_accrual_plan_employees(self):
+    def action_view_accrual_plan_employees(self):
         self.ensure_one()
         return {
             "name": _("Accrual Plan's Employees"),
@@ -198,7 +198,7 @@ class HrLeaveAccrualPlan(models.Model):
             ),
         }
 
-    def action_open_accrual_plan_level(self, level_id):
+    def action_view_accrual_plan_level(self, level_id):
         return {
             "name": self.env._("Milestone Edition"),
             "type": "ir.actions.act_window",

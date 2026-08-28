@@ -36,7 +36,7 @@
                 />
                 <button
                     string="Reward"
-                    name="action_open_reward_wizard"
+                    name="action_view_reward_wizard"
                     type="object"
                     class="btn btn-secondary"
                     help="Update current promotional lines and select new rewards if applicable."
@@ -44,7 +44,7 @@
                 />
                 <button
                     string="Reward"
-                    name="action_open_reward_wizard"
+                    name="action_view_reward_wizard"
                     type="object"
                     class="btn btn-secondary"
                     help="Update current promotional lines and select new rewards if applicable."

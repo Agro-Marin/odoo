@@ -24,7 +24,7 @@ MAPPED_RATES = {
 class Rating(http.Controller):
 
     @http.route('/rate/<string:token>/<int:rate>', type='http', auth="public", website=True)
-    def action_open_rating(self, token, rate, **kwargs):
+    def action_view_rating(self, token, rate, **kwargs):
         if rate not in (RATING_HAPPY_VALUE, RATING_NEUTRAL_VALUE, RATING_UNHAPPY_VALUE):
             raise ValueError(
                 _("Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %(rating_happy)d (received %(rate)d)"),

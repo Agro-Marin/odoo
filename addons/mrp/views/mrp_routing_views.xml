@@ -31,7 +31,7 @@
             <field name="arch" type="xml">
                 <xpath expr="//list" position="inside">
                     <control>
-                        <button name="action_open_operation_form" class="btn-link" type="object" string="Add a line" context="{'default_bom_id': parent.id}"/>
+                        <button name="action_view_operation_form" class="btn-link" type="object" string="Add a line" context="{'default_bom_id': parent.id}"/>
                         <button name="copy_existing_operations" class="btn-link" type="object" string="Copy Existing Operations" context="{'bom_id': parent.id}"/>
                     </control>
                 </xpath>

@@ -216,7 +216,7 @@
                     </t>
                     <t t-name="card" class="flex-row p-1">
                         <aside>
-                            <a type="object" name="action_open_brand_form">
+                            <a type="object" name="action_view_brand_form">
                                 <field name="image_128" widget="image" options="{'img_class': 'object-fit-contain'}"/>
                             </a>
                         </aside>

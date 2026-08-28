@@ -80,7 +80,7 @@
                     </list>
                 </field>
                 <footer>
-                    <button name="action_open_history" type="object"
+                    <button name="action_view_history" type="object"
                         string="Full history" class="btn-secondary"
                         invisible="not product_id" />
                     <button special="cancel" string="Close" class="btn-secondary" />

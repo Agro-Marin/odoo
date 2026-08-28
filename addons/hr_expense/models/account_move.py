@@ -42,7 +42,7 @@ class AccountMove(models.Model):
                     )
                 )
 
-    def action_open_expense(self):
+    def action_view_expense(self):
         self.ensure_one()
         linked_expenses = self.expense_ids
         if len(linked_expenses) > 1:

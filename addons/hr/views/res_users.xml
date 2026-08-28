@@ -111,7 +111,7 @@
             <field name="arch" type="xml">
                 <xpath expr="//sheet" position="inside">
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_open_employees"
+                        <button name="action_view_employees"
                             class="oe_stat_button"
                             icon="fa-users"
                             invisible="employee_count == 0"
@@ -169,7 +169,7 @@
                             <!-- share is not correctly recomputed because it depends on fields of reified view => invisible before saving (id=False) -->
                 </xpath>
                 <xpath expr="//div[@name='button_box']" position="inside">
-                    <button name="action_open_employees"
+                    <button name="action_view_employees"
                         class="oe_stat_button"
                         icon="fa-users"
                         invisible="employee_count == 0"

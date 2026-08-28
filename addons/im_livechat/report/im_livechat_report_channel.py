@@ -301,7 +301,7 @@ class Im_LivechatReportChannel(models.Model):
         return SQL(", ").join([day_number_orderby, other_orderby]) if other_orderby else day_number_orderby
 
     @api.model
-    def action_open_discuss_channel_view(self, domain=()):
+    def action_view_discuss_channel_view(self, domain=()):
         discuss_channels = self.search_fetch(domain, ["channel_id"]).channel_id
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("im_livechat.discuss_channel_action")
         if len(discuss_channels) == 1:

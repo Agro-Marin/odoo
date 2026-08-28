@@ -180,7 +180,7 @@ class RatingRating(models.Model):
                 'consumed': False,
             })
 
-    def action_open_rated_object(self):
+    def action_view_rated_object(self):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',

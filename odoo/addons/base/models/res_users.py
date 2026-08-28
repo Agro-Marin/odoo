@@ -480,11 +480,11 @@ class ResUsers(models.Model):
 
     @api.constrains("action_id")
     def _check_action_id(self) -> None:
-        action_open_website = self.env.ref(
+        action_view_website = self.env.ref(
             "base.action_open_website", raise_if_not_found=False
         )
-        if action_open_website and any(
-            user.action_id.id == action_open_website.id for user in self
+        if action_view_website and any(
+            user.action_id.id == action_view_website.id for user in self
         ):
             raise ValidationError(
                 _('The "App Switcher" action cannot be selected as home action.')

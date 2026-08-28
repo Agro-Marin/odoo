@@ -848,7 +848,7 @@ class HrVersion(models.Model):
         else:
             return self.tz
 
-    def action_open_version(self):
+    def action_view_version(self):
         self.ensure_one()
 
         return {

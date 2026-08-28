@@ -60,7 +60,7 @@ class TestBIR2307Generation(TestPhCommon):
 
     def test_bir_2307_company(self):
         """ Test the report """
-        wizard_action = self.invoice.action_open_l10n_ph_2307_wizard()
+        wizard_action = self.invoice.action_view_l10n_ph_2307_wizard()
         context = wizard_action['context']
         wizard = self.env['l10n_ph_2307.wizard'].with_context(context).create({})
         wizard.action_generate()

@@ -66,7 +66,7 @@ class ProjectProject(models.Model):
     #  Actions
     # ----------------------------
 
-    def action_open_project_purchase_orders(self):
+    def action_view_project_purchase_orders(self):
         purchase_orders = (
             self.env["purchase.order.line"]
             .search(
@@ -154,7 +154,7 @@ class ProjectProject(models.Model):
                     "text": self.env._("Purchase Orders"),
                     "number": self.purchase_orders_count,
                     "action_type": "object",
-                    "action": "action_open_project_purchase_orders",
+                    "action": "action_view_project_purchase_orders",
                     "show": self.purchase_orders_count > 0,
                     "sequence": 36,
                 }

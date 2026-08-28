@@ -282,7 +282,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
             if record.state != 'revoked':
                 record.state = 'terminated'
 
-    def action_open_sale_order_ids(self):
+    def action_view_sale_order_ids(self):
         self.ensure_one()
         return {
             'name': _("Sales Orders using Declaration of Intent %s", self.display_name),
@@ -296,7 +296,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
             },
         }
 
-    def action_open_invoice_ids(self):
+    def action_view_invoice_ids(self):
         self.ensure_one()
         return {
             'name': _("Invoices using Declaration of Intent %s", self.display_name),

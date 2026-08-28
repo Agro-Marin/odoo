@@ -414,7 +414,7 @@
                         invisible="model_name != 'ir.actions.server' or state != 'code'"
                         help="Run this action manually." />
                     <button
-                        name="action_open_code_history"
+                        name="action_view_code_history"
                         string="Code History"
                         type="object"
                         invisible="not show_code_history"
@@ -424,7 +424,7 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             type="object"
-                            name="action_open_parent_action"
+                            name="action_view_parent_action"
                             invisible="not parent_id"
                             class="oe_stat_button"
                             icon="fa-database">
@@ -434,7 +434,7 @@
                         </button>
                         <button
                             type="object"
-                            name="action_open_scheduled_action"
+                            name="action_view_scheduled_action"
                             invisible="not ir_cron_ids or context.get('key') != 'server_action'"
                             context="{'key': 'ir_cron'}"
                             class="oe_stat_button"

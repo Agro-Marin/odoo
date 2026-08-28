@@ -52,7 +52,7 @@ class HrEmployee(models.Model):
         )
         return new_version
 
-    def action_open_work_entries(self, initial_date=False):
+    def action_view_work_entries(self, initial_date=False):
         self.ensure_one()
         ctx = {"default_employee_id": self.id}
         if initial_date:

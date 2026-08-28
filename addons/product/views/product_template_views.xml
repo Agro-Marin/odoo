@@ -563,7 +563,7 @@
                                 string="Configure"
                                 class="float-end btn-secondary"
                                 type="object"
-                                name="action_open_attribute_values"
+                                name="action_view_attribute_values"
                                 groups="product.group_product_variant" />
                         </list>
                     </field>

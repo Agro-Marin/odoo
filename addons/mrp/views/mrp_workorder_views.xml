@@ -265,7 +265,7 @@
                             <field name="state" widget="badge" decoration-warning="state == 'progress'" decoration-success="state == 'done'" decoration-info="state not in ('progress', 'done', 'cancel')"
                                 column_invisible="parent.state == 'draft'"
                                 invisible="production_state == 'draft'"/>
-                            <button class="oe_link float-end" string="View WorkOrder" name="action_open_wizard" type="object"/>
+                            <button class="oe_link float-end" string="View WorkOrder" name="action_view_wizard" type="object"/>
                         </list>
                     </field>
                 </page>

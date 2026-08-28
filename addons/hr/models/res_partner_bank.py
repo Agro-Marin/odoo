@@ -91,9 +91,9 @@ class ResPartnerBank(models.Model):
             matched |= Domain("partner_id", "not in", employee_partners.ids)
         return matched if operator == "in" else ~matched
 
-    def action_open_allocation_wizard(self):
+    def action_view_allocation_wizard(self):
         self.ensure_one()
-        return self.employee_id.action_open_allocation_wizard()
+        return self.employee_id.action_view_allocation_wizard()
 
     @api.depends("partner_id", "partner_id.employee_ids")
     def _compute_employee_id(self):

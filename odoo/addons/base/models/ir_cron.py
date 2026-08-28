@@ -1014,11 +1014,11 @@ class IrCron(models.Model):
         self.env.cr.commit()
         return max(ctx.get("cron_end_time", float("inf")) - time.monotonic(), 0)
 
-    def action_open_parent_action(self) -> dict[str, Any]:
-        return self.ir_actions_server_id.action_open_parent_action()
+    def action_view_parent_action(self) -> dict[str, Any]:
+        return self.ir_actions_server_id.action_view_parent_action()
 
-    def action_open_scheduled_action(self) -> dict[str, Any]:
-        return self.ir_actions_server_id.action_open_scheduled_action()
+    def action_view_scheduled_action(self) -> dict[str, Any]:
+        return self.ir_actions_server_id.action_view_scheduled_action()
 
 
 class IrCronTrigger(models.Model):

@@ -99,7 +99,7 @@ class ResConfigSettings(models.TransientModel):
     # BUSINESS ACTIONS
     # -------------------------------------------------------------------------
 
-    def action_open_peppol_form(self):
+    def action_view_peppol_form(self):
         registration_wizard = self.env['peppol.registration'].create({'company_id': self.company_id.id})
         registration_action = registration_wizard._action_view_peppol_form(reopen=False)
         return registration_action

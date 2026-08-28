@@ -377,7 +377,7 @@ class PosConfig(models.Model):
         for record in self:
             record.status = 'active' if record.has_active_session else 'inactive'
 
-    def action_open_wizard(self):
+    def action_view_wizard(self):
         self.ensure_one()
 
         if not self.current_session_id:

@@ -10,7 +10,7 @@ class StockMoveLine(models.Model):
 
     batch_id = fields.Many2one(related="picking_id.batch_id")
 
-    def action_open_add_to_wave(self):
+    def action_view_add_to_wave(self):
         # This action can be called from the move line list view or from the 'Add to wave' wizard
         if "active_wave_id" in self.env.context:
             wave = self.env["stock.picking.batch"].browse(

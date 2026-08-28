@@ -341,7 +341,7 @@ class MailMail(models.Model):
     def action_retry(self) -> None:
         self.filtered(lambda mail: mail.state == "exception").mark_outgoing()
 
-    def action_open_document(self) -> dict:
+    def action_view_document(self) -> dict:
         self.ensure_one()
         return {
             "res_id": self.res_id,

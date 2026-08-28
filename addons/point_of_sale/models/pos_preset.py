@@ -136,7 +136,7 @@ class PosPreset(models.Model):
 
         return usage
 
-    def action_open_linked_orders(self):
+    def action_view_linked_orders(self):
         self.ensure_one()
         return {
             "name": _("Linked Orders"),
@@ -146,7 +146,7 @@ class PosPreset(models.Model):
             "domain": [("preset_id", "=", self.id)],
         }
 
-    def action_open_linked_config(self):
+    def action_view_linked_config(self):
         self.ensure_one()
         return {
             "name": _("Linked POS Configurations"),

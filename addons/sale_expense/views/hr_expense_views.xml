@@ -6,8 +6,8 @@
         <field name="inherit_id" ref="hr_expense.hr_expense_view_form"/>
         <field name="priority">30</field>
         <field name="arch" type="xml">
-            <button name="action_open_account_move" position="after">
-                <button name="action_open_sale_order"
+            <button name="action_view_account_move" position="after">
+                <button name="action_view_sale_order"
                     class="oe_stat_button"
                     icon="fa-money"
                     type="object"

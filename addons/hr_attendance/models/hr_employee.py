@@ -287,7 +287,7 @@ class HrEmployee(models.Model):
         }
         return {"validated_overtime": validated_overtime, "overtime_adjustments": {}}
 
-    def action_open_last_month_attendances(self):
+    def action_view_last_month_attendances(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

@@ -71,7 +71,7 @@ class DocumentsDocument(models.Model):
 
     # === ACTION METHODS ===#
 
-    def action_open_pdf_form_fields(self):
+    def action_view_pdf_form_fields(self):
         self.ensure_one()
         return {
             "name": _("Form Fields"),

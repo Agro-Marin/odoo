@@ -50,7 +50,7 @@ class ProjectProject(models.Model):
             return self._get_expense_action(domain, [res_id] if res_id else [])
         return super().action_profitability_items(section_name, domain, res_id)
 
-    def action_open_project_expenses(self):
+    def action_view_project_expenses(self):
         self.ensure_one()
         return self._get_expense_action(
             domain=[("analytic_distribution", "in", self.account_id.ids)]

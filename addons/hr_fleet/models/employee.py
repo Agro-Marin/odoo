@@ -24,7 +24,7 @@ class HrEmployee(models.Model):
     )
     mobility_card = fields.Char(groups="fleet.fleet_group_user")
 
-    def action_open_employee_cars(self):
+    def action_view_employee_cars(self):
         self.ensure_one()
 
         return {

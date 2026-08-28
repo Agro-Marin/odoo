@@ -142,7 +142,7 @@ class HrEmployee(models.Model):
             vals["manually_set_present"] = True
         return super().write(vals)
 
-    def action_open_leave_request(self):
+    def action_view_leave_request(self):
         if len(self) == 1:
             model = "hr.leave"
             context = {"default_employee_id": self.id}

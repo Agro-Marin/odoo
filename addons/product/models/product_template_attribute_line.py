@@ -254,7 +254,7 @@ class ProductTemplateAttributeLine(models.Model):
         )
 
     @api.readonly
-    def action_open_attribute_values(self):
+    def action_view_attribute_values(self):
         return {
             "type": "ir.actions.act_window",
             "name": _("Product Variant Values"),

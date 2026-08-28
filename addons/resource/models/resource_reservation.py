@@ -795,7 +795,7 @@ class ResourceReservation(models.Model):
             )
             reservations.browse(orphan_ids).unlink()
 
-    def action_open_origin(self):
+    def action_view_origin(self):
         """Navigate to the source record."""
         self.ensure_one()
         if not self.res_model or not self.res_id:

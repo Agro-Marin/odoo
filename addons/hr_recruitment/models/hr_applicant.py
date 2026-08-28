@@ -1058,7 +1058,7 @@ class HrApplicant(models.Model):
         }
         return res
 
-    def action_open_attachments(self):
+    def action_view_attachments(self):
         return {
             "type": "ir.actions.act_window",
             "res_model": "ir.attachment",
@@ -1087,7 +1087,7 @@ class HrApplicant(models.Model):
             ],
         }
 
-    def action_open_employee(self):
+    def action_view_employee(self):
         self.ensure_one()
         return {
             "name": _("Employee"),
@@ -1097,7 +1097,7 @@ class HrApplicant(models.Model):
             "res_id": self.employee_id.id,
         }
 
-    def action_open_applications(self):
+    def action_view_applications(self):
         self.ensure_one()
         similar_applicants = (
             self.env["hr.applicant"]

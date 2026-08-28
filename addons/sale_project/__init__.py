@@ -26,7 +26,7 @@ def uninstall_hook(env):
             (
                 "python_method",
                 "in",
-                ["action_open_project_invoices", "action_view_sos"],
+                ["action_view_project_invoices", "action_view_sos"],
             ),
         ]
     )

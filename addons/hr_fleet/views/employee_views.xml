@@ -7,8 +7,8 @@
         <field name="inherit_id" ref="hr.view_employee_form" />
         <field name="priority" eval="60" />
         <field name="arch" type="xml">
-            <button name="action_open_versions" position="before">
-                <button name="action_open_employee_cars" type="object"
+            <button name="action_view_versions" position="before">
+                <button name="action_view_employee_cars" type="object"
                         class="oe_stat_button" icon="fa-car" groups="fleet.fleet_group_manager"
                         invisible="employee_cars_count == 0">
                     <field name="employee_cars_count" widget="statinfo" string="Cars History" />

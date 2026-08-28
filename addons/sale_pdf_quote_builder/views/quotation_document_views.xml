@@ -22,7 +22,7 @@
                                     class="oe_inline"
                                 />
                                 <button
-                                    name="action_open_pdf_form_fields"
+                                    name="action_view_pdf_form_fields"
                                     type="object"
                                     string="Configure dynamic fields"
                                     help="Mark fields as safe to fill in the quote."

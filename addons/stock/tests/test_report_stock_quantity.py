@@ -169,7 +169,7 @@ class TestReportStockQuantity(tests.TransactionCase):
         delivery_picking.action_confirm()
 
         self.env.flush_all()
-        self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
 
         orderpoint = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", self.product_replenished.id)]
@@ -178,7 +178,7 @@ class TestReportStockQuantity(tests.TransactionCase):
         self.assertEqual(orderpoint.location_id, self.wh.lot_stock_id)
         self.assertEqual(orderpoint.qty_to_order, 500.0)
         orderpoint.action_replenish()
-        self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
 
         move = self.env["stock.move"].search(
             [
@@ -198,7 +198,7 @@ class TestReportStockQuantity(tests.TransactionCase):
         orderpoint = orderpoint_form.save()
 
         self.assertEqual(orderpoint.qty_to_order, 0.0)
-        self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
+        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
         self.assertEqual(orderpoint.qty_to_order, 0.0)
 
     def test_inter_warehouse_transfer(self):

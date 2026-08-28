@@ -160,7 +160,7 @@ class PrivacyLookupWizard(models.TransientModel):
         self.env.cr.execute(query)
         results = self.env.cr.dictfetchall()
         self.line_ids = [(5, 0, 0)] + [(0, 0, reference) for reference in results]
-        return self.action_open_lines()
+        return self.action_view_lines()
 
     def _post_log(self):
         self.ensure_one()
@@ -196,7 +196,7 @@ class PrivacyLookupWizard(models.TransientModel):
                 ids_str=', '.join('#%s' % (rec_id) for rec_id in ids),
             ) for model, ids in records_by_model.items())
 
-    def action_open_lines(self):
+    def action_view_lines(self):
         self.ensure_one()
         action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('privacy_lookup.action_privacy_lookup_wizard_line')
         action['domain'] = [('wizard_id', '=', self.id)]
@@ -307,7 +307,7 @@ class PrivacyLookupWizardLine(models.TransientModel):
                 continue
             line.action_unlink()
 
-    def action_open_record(self):
+    def action_view_record(self):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',

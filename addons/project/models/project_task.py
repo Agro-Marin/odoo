@@ -3341,7 +3341,7 @@ class ProjectTask(models.Model):
             return self.env["project.task"]
         return children + children._get_subtasks_recursively()
 
-    def action_open_parent_task(self) -> dict:
+    def action_view_parent_task(self) -> dict:
         return {
             "name": _("Parent Task"),
             "view_mode": "form",
@@ -3370,7 +3370,7 @@ class ProjectTask(models.Model):
             {
                 "search_view_ref": "project.project_sharing_project_task_view_search",
             }
-        ).action_open_parent_task()
+        ).action_view_parent_task()
         action["views"] = [
             (
                 self.env.ref("project.project_sharing_project_task_view_form").id,
@@ -3382,7 +3382,7 @@ class ProjectTask(models.Model):
         ).id
         return action
 
-    def action_open_task(self) -> dict:
+    def action_view_task(self) -> dict:
         return {
             "view_mode": "form",
             "res_model": "project.task",
@@ -3392,7 +3392,7 @@ class ProjectTask(models.Model):
         }
 
     def action_project_sharing_open_task(self) -> dict:
-        action = self.action_open_task()
+        action = self.action_view_task()
         action["views"] = [
             [
                 self.env.ref("project.project_sharing_project_task_view_form").id,
@@ -3496,7 +3496,7 @@ class ProjectTask(models.Model):
             "url": f"/my/projects/{self.project_id.id}/task/{self.id}/recurrent_tasks",
         }
 
-    def action_open_ratings(self) -> dict:
+    def action_view_ratings(self) -> dict:
         self.ensure_one()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.rating_rating_action_task"

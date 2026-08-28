@@ -41,8 +41,8 @@ class HrEmployeePublic(models.Model):
         related="company_id.hr_attendance_display_overtime"
     )
 
-    def action_open_last_month_attendances(self):
+    def action_view_last_month_attendances(self):
         self.ensure_one()
         if self.is_user:
-            return self.employee_id.action_open_last_month_attendances()
+            return self.employee_id.action_view_last_month_attendances()
         return None

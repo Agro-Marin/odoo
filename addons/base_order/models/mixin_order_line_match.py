@@ -155,7 +155,7 @@ class MixinOrderLineMatch(models.AbstractModel):
                 line.order_line_id.product_qty = line.product_uom_qty
                 line.order_line_id.price_unit = previous_price_unit
 
-    def action_open_line(self):
+    def action_view_line(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

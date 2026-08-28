@@ -80,7 +80,7 @@ export class ProjectTemplateDropdown extends Component {
         const { id: templateId, name: templateName } = template;
         const action = await this.orm.call(
             "project.template.create.wizard",
-            "action_open_template_view",
+            "action_view_template_view",
             [],
             {
                 context: {

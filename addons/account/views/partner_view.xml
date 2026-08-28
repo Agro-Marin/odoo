@@ -23,7 +23,7 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            name="action_open_related_taxes"
+                            name="action_view_related_taxes"
                             type="object" icon="fa-bars"
                             class="oe_stat_button">
                             <div class="o_stat_info">

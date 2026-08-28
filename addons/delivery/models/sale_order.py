@@ -159,7 +159,7 @@ class SaleOrder(models.Model):
         except UserError as e:
             return {"error": str(e)}
 
-    def action_open_delivery_wizard(self):
+    def action_view_delivery_wizard(self):
         view_id = self.env.ref("delivery.choose_delivery_carrier_view_form").id
         if self.env.context.get("carrier_recompute"):
             name = _("Update shipping cost")

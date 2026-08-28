@@ -35,13 +35,13 @@
                 <field name="self_ordering_mode" invisible="1" />
                 <field name="current_session_id" invisible="1" />
                 <div class="col-6 d-flex flex-wrap align-items-center gap-2" invisible="not self_ordering_mode == 'kiosk'">
-                    <button t-if="!record.current_session_id.raw_value" class="btn btn-primary pos_open_session_btn" name="action_open_wizard" type="object">
+                    <button t-if="!record.current_session_id.raw_value" class="btn btn-primary pos_open_session_btn" name="action_view_wizard" type="object">
                         Start Kiosk
                     </button>
                     <button t-else="" name="action_close_kiosk_session" class="btn btn-secondary" type="object">
                         Close Session
                     </button>
-                    <button t-if="record.current_session_id.raw_value" class="btn btn-secondary" name="action_open_wizard" type="object">
+                    <button t-if="record.current_session_id.raw_value" class="btn btn-secondary" name="action_view_wizard" type="object">
                         Open Kiosk
                     </button>
                 </div>

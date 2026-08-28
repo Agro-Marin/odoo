@@ -87,7 +87,7 @@ class TestPoSSaleLoyalty(TestPointOfSaleHttpCommon):
                 'price_unit': 100,
             })]
         })
-        sale_order.action_open_reward_wizard()
+        sale_order.action_view_reward_wizard()
         self.assertEqual(sale_order.amount_total, 90)
         self.main_pos_config.open_ui()
         self.start_tour("/pos/web?config_id=%d" % self.main_pos_config.id, "test_pos_sale_loyalty_ignored_in_pos", login="accountman")

@@ -23,9 +23,9 @@
                     <footer invisible="not has_timesheet">
                         <button string="Archive Employees" type="object" name="action_archive" class="btn btn-primary"
                             invisible="not has_active_employee" data-hotkey="q"/>
-                        <button string="See Timesheets" type="object" name="action_open_timesheets" class="btn btn-primary" groups="hr_timesheet.group_hr_timesheet_approver"
+                        <button string="See Timesheets" type="object" name="action_view_timesheets" class="btn btn-primary" groups="hr_timesheet.group_hr_timesheet_approver"
                             invisible="has_active_employee" data-hotkey="w"/>
-                        <button string="See Timesheets" type="object" name="action_open_timesheets" class="btn btn-secondary" groups="hr_timesheet.group_hr_timesheet_approver"
+                        <button string="See Timesheets" type="object" name="action_view_timesheets" class="btn btn-secondary" groups="hr_timesheet.group_hr_timesheet_approver"
                             invisible="not has_active_employee" data-hotkey="w"/>
                         <button string="Discard" special="cancel" data-hotkey="x"/>
                     </footer>

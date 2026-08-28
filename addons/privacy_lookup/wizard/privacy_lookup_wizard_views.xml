@@ -11,7 +11,7 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            name="action_open_lines"
+                            name="action_view_lines"
                             type="object"
                             class="oe_stat_button"
                             icon="fa-regular fa-file-lines">
@@ -50,7 +50,7 @@
                 <field name="res_name" column_invisible="True"/>
                 <field name="res_model" column_invisible="True"/>
                 <field name="resource_ref" options="{'model_field': 'res_model_id', 'no_create': True}" invisible="not resource_ref"/>
-                <button name="action_open_record" type="object" icon="fa-external-link" invisible="not resource_ref" title="Open Record"/>
+                <button name="action_view_record" type="object" icon="fa-external-link" invisible="not resource_ref" title="Open Record"/>
                 <field name="res_id" string="ID"/>
                 <field name="has_active" column_invisible="True"/>
                 <field name="execution_details" column_invisible="True"/>

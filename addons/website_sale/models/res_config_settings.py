@@ -137,7 +137,7 @@ class ResConfigSettings(models.TransientModel):
         return self.env["delivery.carrier"].install_more_provider()
 
     @api.readonly
-    def action_open_abandoned_cart_mail_template(self):
+    def action_view_abandoned_cart_mail_template(self):
         return {
             "name": self.env._("Customize Email Templates"),
             "type": "ir.actions.act_window",
@@ -149,7 +149,7 @@ class ResConfigSettings(models.TransientModel):
             ),
         }
 
-    def action_open_extra_info(self):
+    def action_view_extra_info(self):
         self.ensure_one()
         # Add the "edit" parameter in the url to tell the controller
         # that we want to edit even if we are not in a payment flow
@@ -160,7 +160,7 @@ class ResConfigSettings(models.TransientModel):
         )
 
     @api.readonly
-    def action_open_sale_mail_templates(self):
+    def action_view_sale_mail_templates(self):
         return {
             "name": self.env._("Customize Email Templates"),
             "type": "ir.actions.act_window",
@@ -171,7 +171,7 @@ class ResConfigSettings(models.TransientModel):
         }
 
     @api.readonly
-    def action_open_product_feeds(self):
+    def action_view_product_feeds(self):
         """Open the list view to manage the feed specific to the current website."""
         self.ensure_one()
         return {

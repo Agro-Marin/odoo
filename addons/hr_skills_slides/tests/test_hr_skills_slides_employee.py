@@ -31,6 +31,6 @@ class TestHrSkillsSlidesEmployee(TransactionCase):
         employee = self.env["hr.employee"].create(
             {"name": "Learner Emp 2", "user_id": user.id}
         )
-        action = employee.action_open_courses()
+        action = employee.action_view_courses()
         self.assertEqual(action["type"], "ir.actions.act_url")
         self.assertIn(str(user.id), action["url"])

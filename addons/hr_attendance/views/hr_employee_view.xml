@@ -18,10 +18,10 @@
         <field name="inherit_id" ref="hr.view_employee_form"/>
         <field name="priority">110</field>
         <field name="arch" type="xml">
-            <button name="action_open_versions" position="before">
+            <button name="action_view_versions" position="before">
                 <field name="attendance_state" invisible="1"/>
                 <field name="hours_last_month" groups="hr_attendance.group_hr_attendance_officer" invisible="1"/>
-                <button name="action_open_last_month_attendances"
+                <button name="action_view_last_month_attendances"
                         class="oe_stat_button"
                         icon="fa-regular fa-clock"
                         type="object"

@@ -968,7 +968,7 @@ class IrActionsServer(models.Model):
         self.filtered("binding_model_id").write({"binding_model_id": False})
         return True
 
-    def action_open_code_history(self) -> dict[str, Any]:
+    def action_view_code_history(self) -> dict[str, Any]:
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -1463,7 +1463,7 @@ class IrActionsServer(models.Model):
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
 
-    def action_open_parent_action(self) -> dict[str, Any]:
+    def action_view_parent_action(self) -> dict[str, Any]:
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -1473,7 +1473,7 @@ class IrActionsServer(models.Model):
             "res_id": self.parent_id.id,
         }
 
-    def action_open_scheduled_action(self) -> dict[str, Any]:
+    def action_view_scheduled_action(self) -> dict[str, Any]:
         self.ensure_one()
         if not self.ir_cron_ids:
             raise UserError(

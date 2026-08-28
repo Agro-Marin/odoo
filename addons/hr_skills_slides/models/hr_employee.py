@@ -29,7 +29,7 @@ class HrEmployee(models.Model):
             )
             employee.has_subscribed_courses = total > 0
 
-    def action_open_courses(self):
+    def action_view_courses(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_url",

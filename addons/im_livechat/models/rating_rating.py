@@ -13,8 +13,8 @@ class RatingRating(models.Model):
             else:
                 super(RatingRating, rating)._compute_res_name()
 
-    def action_open_rated_object(self):
-        action = super().action_open_rated_object()
+    def action_view_rated_object(self):
+        action = super().action_view_rated_object()
         if self.res_model == 'discuss.channel':
             if self.env[self.res_model].browse(self.res_id):
                 ctx = self.env.context.copy()

@@ -13,5 +13,5 @@ class AccountReport(models.Model):
         if company.country_id.code == 'IN' and self.id == generic_report_id and not self.root_report_id:
             options['buttons'] = [
                 button for button in options['buttons']
-                if button.get('action') != 'action_open_returns'
+                if button.get('action') != 'action_view_returns'
             ]

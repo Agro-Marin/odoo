@@ -467,7 +467,7 @@ class ResUsers(models.Model):
             )
         )
 
-    def action_open_employees(self):
+    def action_view_employees(self):
         self.ensure_one()
         employees = self.employee_ids
         model = (

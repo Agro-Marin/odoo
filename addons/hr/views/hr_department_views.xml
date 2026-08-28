@@ -90,7 +90,7 @@
                                             <a name="action_employee_from_department" type="object">Employees</a>
                                         </div>
                                         <div role="menuitem">
-                                            <a name="action_open_view_child_departments" type="object">Child departments</a>
+                                            <a name="action_view_view_child_departments" type="object">Child departments</a>
                                         </div>
                                     </div>
                                     <div class="col-6 o_kanban_manage_reports">

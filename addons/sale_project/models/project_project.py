@@ -462,7 +462,7 @@ class ProjectProject(models.Model):
             action["context"]["default_advance_payment_method"] = "percentage"
         return action
 
-    def action_open_project_invoices(self):
+    def action_view_project_invoices(self):
         move_lines = self.env["account.move.line"].search_fetch(
             [
                 ("move_id.move_type", "in", ["out_invoice", "out_refund"]),
@@ -1176,7 +1176,7 @@ class ProjectProject(models.Model):
                     "text": self.env._("Invoices"),
                     "number": self.invoice_count,
                     "action_type": "object",
-                    "action": "action_open_project_invoices",
+                    "action": "action_view_project_invoices",
                     "show": bool(self.account_id) and self.invoice_count > 0,
                     "sequence": 30,
                 }
@@ -1188,7 +1188,7 @@ class ProjectProject(models.Model):
                     "text": self.env._("Vendor Bills"),
                     "number": self.vendor_bill_count,
                     "action_type": "object",
-                    "action": "action_open_project_vendor_bills",
+                    "action": "action_view_project_vendor_bills",
                     "show": self.vendor_bill_count > 0,
                     "sequence": 38,
                 }
@@ -1251,7 +1251,7 @@ class ProjectProject(models.Model):
             action["context"] = context
         return action
 
-    def action_open_project_vendor_bills(self):
+    def action_view_project_vendor_bills(self):
         move_lines = self.env["account.move.line"].search_fetch(
             [
                 ("move_id.move_type", "in", ["in_invoice", "in_refund"]),

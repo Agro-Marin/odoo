@@ -379,7 +379,7 @@ class ResPartnerBank(models.Model):
             )
         )
 
-    def action_open_business_doc(self):
+    def action_view_business_doc(self):
         return self._get_records_action()
 
     @api.model_create_multi

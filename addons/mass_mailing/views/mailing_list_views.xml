@@ -42,7 +42,7 @@
                 <header>
                     <button name="action_send_mailing" string="Send Mailing"
                         type="object" class="btn btn-primary"/>
-                    <button name="action_open_import" string="Import Contacts"
+                    <button name="action_view_import" string="Import Contacts"
                         type="object" class="btn btn-secondary"/>
                 </header>
                 <sheet>
@@ -171,7 +171,7 @@
                                 </a>
                             </div>
                             <div class="order-3 order-lg-4 col-5 col-lg-2 py-0 my-auto d-none d-md-flex flex-wrap justify-content-end gap-1">
-                                <button name="action_open_import" string="Import Contacts"
+                                <button name="action_view_import" string="Import Contacts"
                                     type="object" class="btn btn-secondary text-nowrap">
                                     Import Contacts
                                 </button>

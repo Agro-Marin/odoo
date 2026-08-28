@@ -59,7 +59,7 @@
                             <div class="o_row">
                                 <field name="is_multi_slots" string="Multiple Slots"/>
                                 <div invisible="not is_multi_slots">
-                                     <button name="action_open_slot_calendar"
+                                     <button name="action_view_slot_calendar"
                                         type="object" class="btn-link p-0 pb-sm-1">
                                         <field name="event_slot_count" class="oe_inline"/> Slot(s)
                                     </button>

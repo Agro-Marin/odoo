@@ -182,7 +182,7 @@
                 <sheet string="Activity">
                     <div class="oe_button_box" name="button_box" invisible="1">
                         <button
-                            name="action_open_document"
+                            name="action_view_document"
                             type="object"
                             class="oe_link"
                             icon="fa-regular fa-file-lines"
@@ -479,7 +479,7 @@
         <field name="priority">32</field>
         <field name="arch" type="xml">
             <xpath expr="//list" position="attributes">
-                <attribute name="action">action_open_document</attribute>
+                <attribute name="action">action_view_document</attribute>
                 <attribute name="type">object</attribute>
                 <attribute name="js_class">archive_disabled_activity_list</attribute>
                 <attribute name="multi_edit">1</attribute>
@@ -496,7 +496,7 @@
         <field name="arch" type="xml">
             <kanban
                 string="Activity"
-                action="action_open_document"
+                action="action_view_document"
                 type="object"
                 js_class="mail_activity_my_kanban">
                 <templates>

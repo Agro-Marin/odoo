@@ -397,7 +397,7 @@ export class DocumentService {
         }
 
         return await this.action.doActionButton({
-            name: "action_open_documents_server_action_view",
+            name: "action_view_documents_server_action_view",
             type: "object",
             resModel: "ir.actions.server",
         });

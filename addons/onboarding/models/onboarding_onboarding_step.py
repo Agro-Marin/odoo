@@ -28,7 +28,7 @@ class OnboardingOnboardingStep(models.Model):
     panel_step_open_action_name = fields.Char(
         string='Opening action', required=False,
         help='Name of the onboarding step model action to execute when opening the step, '
-             'e.g. action_open_onboarding_1_step_1')
+             'e.g. action_view_onboarding_1_step_1')
 
     current_progress_step_id = fields.Many2one(
         'onboarding.progress.step', string='Step Progress',

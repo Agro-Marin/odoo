@@ -675,7 +675,7 @@ class TestResourceReservation(TransactionCase):
         self.assertEqual(len(list(result[self.resource_b.id])), 0)
 
     # ------------------------------------------------------------------
-    # origin_display and action_open_origin
+    # origin_display and action_view_origin
     # ------------------------------------------------------------------
 
     def test_origin_display(self):
@@ -694,7 +694,7 @@ class TestResourceReservation(TransactionCase):
         self.assertEqual(res.origin_display, "Display Test")
 
     def test_action_view_origin(self):
-        """action_open_origin returns an act_window action."""
+        """action_view_origin returns an act_window action."""
         partner = self.env["res.partner"].create({"name": "Action Test"})
         res = self.Reservation.create(
             {
@@ -706,6 +706,6 @@ class TestResourceReservation(TransactionCase):
                 "res_id": partner.id,
             }
         )
-        action = res.action_open_origin()
+        action = res.action_view_origin()
         self.assertEqual(action["res_model"], "res.partner")
         self.assertEqual(action["res_id"], partner.id)

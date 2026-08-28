@@ -197,7 +197,7 @@ class SaleOrder(models.Model):
             if errors:
                 raise ValidationError('\n'.join(errors))
 
-    def action_open_declaration_of_intent(self):
+    def action_view_declaration_of_intent(self):
         self.ensure_one()
         return {
             'name': _("Declaration of Intent for %s", self.display_name),

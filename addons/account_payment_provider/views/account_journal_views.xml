@@ -13,7 +13,7 @@
                        optional="hide"
                        readonly="payment_provider_state in ('enabled', 'test')"/>
                 <field name="payment_provider_state" column_invisible="True"/>
-                <button name="action_open_provider_form"
+                <button name="action_view_provider_form"
                         type="object"
                         string="SETUP"
                         class="float-end btn-secondary"

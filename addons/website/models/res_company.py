@@ -14,7 +14,7 @@ class ResCompany(models.Model):
             )
 
     @api.model
-    def action_open_website_theme_selector(self):
+    def action_view_website_theme_selector(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website.theme_install_kanban_action"
         )

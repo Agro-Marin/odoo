@@ -2903,7 +2903,7 @@ We can redirect you to the public employee list."""
     def _phone_get_number_fields(self):
         return ["mobile_phone"]
 
-    def action_open_versions(self):
+    def action_view_versions(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -2984,7 +2984,7 @@ We can redirect you to the public employee list."""
         remaining = 100.0 - allocated
         return max(0.0, remaining)
 
-    def action_open_allocation_wizard(self):
+    def action_view_allocation_wizard(self):
         self.ensure_one()
         wizard = self.env["hr.bank.account.allocation.wizard"].create(
             {

@@ -74,7 +74,7 @@ export class AccrualLevels extends Component {
     async openMilestone(id) {
         let action;
         if (id) {
-            action = await this.orm.call("hr.leave.accrual.plan", "action_open_accrual_plan_level",
+            action = await this.orm.call("hr.leave.accrual.plan", "action_view_accrual_plan_level",
                 [this.props.record.evalContext.id], { level_id: id });
         } else {
             action = await this.orm.call("hr.leave.accrual.plan", "action_create_accrual_plan_level",

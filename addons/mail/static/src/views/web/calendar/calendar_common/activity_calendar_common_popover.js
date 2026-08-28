@@ -13,7 +13,7 @@ export class ActivityCalendarCommonPopover extends CalendarCommonPopover {
     }
 
     async openRecord() {
-        const action = await this.orm.call("mail.activity", "action_open_document", [
+        const action = await this.orm.call("mail.activity", "action_view_document", [
             this.props.record.rawRecord.id,
         ]);
         this.actionService.doAction(action, { onClose: () => this.props.model.load() });

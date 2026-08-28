@@ -65,7 +65,7 @@ class HrEmployeeDeleteWizard(models.TransientModel):
             "hr.open_view_employee_list_my"
         )
 
-    def action_open_timesheets(self):
+    def action_view_timesheets(self):
         self.ensure_one()
         employees = self.with_context(active_test=False).employee_ids
         action = {

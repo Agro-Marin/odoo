@@ -20,7 +20,7 @@ class UomUom(models.Model):
             domain.append(Domain("product_id", "in", self.env.context["product_ids"]))
         return Domain.OR(domain) if domain else Domain.TRUE
 
-    def action_open_packaging_barcodes(self):
+    def action_view_packaging_barcodes(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

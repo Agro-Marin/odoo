@@ -97,7 +97,7 @@ class MyInvoisDocumentPoS(models.Model):
 
         return action_vals
 
-    def action_open_consolidate_invoice_wizard(self):
+    def action_view_consolidate_invoice_wizard(self):
         """
         Open the wizard, and set a default date_from/date_to based on the current date as well as already existing
         consolidated invoices.

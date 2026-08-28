@@ -12,7 +12,7 @@
                     <field name="is_template_editor" invisible="1" />
                     <button
                         string="Preview"
-                        name="action_open_mail_preview"
+                        name="action_view_mail_preview"
                         type="object"
                         class="btn-primary"
                         target="new" />

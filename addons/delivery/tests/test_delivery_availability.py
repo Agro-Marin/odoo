@@ -318,7 +318,7 @@ class TestDeliveryAvailability(DeliveryCommon, SaleCommon):
         self.sale_order.partner_shipping_id.property_delivery_carrier_id = (
             self.non_restricted_carrier
         )
-        delivery_wizard = self.sale_order.action_open_delivery_wizard()
+        delivery_wizard = self.sale_order.action_view_delivery_wizard()
         self.assertEqual(
             delivery_wizard["context"]["default_carrier_id"],
             self.non_restricted_carrier.id,
@@ -336,13 +336,13 @@ class TestDeliveryAvailability(DeliveryCommon, SaleCommon):
         self.sale_order.partner_shipping_id.property_delivery_carrier_id = (
             restricted_carrier
         )
-        delivery_wizard = self.sale_order.action_open_delivery_wizard()
+        delivery_wizard = self.sale_order.action_view_delivery_wizard()
         self.assertFalse(delivery_wizard["context"]["default_carrier_id"])
 
     def test_dont_set_default_carrier_when_partner_delivery_method_is_not_set(self):
         """The default carrier is not set as property_delivery_carrier_id is not set on partner."""
         self.sale_order.partner_shipping_id.property_delivery_carrier_id = False
-        delivery_wizard = self.sale_order.action_open_delivery_wizard()
+        delivery_wizard = self.sale_order.action_view_delivery_wizard()
         self.assertFalse(delivery_wizard["context"]["default_carrier_id"])
 
     def test_set_default_carrier_when_sale_order_delivery_method_is_set(self):
@@ -350,7 +350,7 @@ class TestDeliveryAvailability(DeliveryCommon, SaleCommon):
         self.sale_order.carrier_id = self.non_restricted_carrier
         delivery_wizard = self.sale_order.with_context(
             carrier_recompute=True
-        ).action_open_delivery_wizard()
+        ).action_view_delivery_wizard()
         self.assertEqual(
             delivery_wizard["context"]["default_carrier_id"],
             self.non_restricted_carrier.id,

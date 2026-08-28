@@ -741,7 +741,7 @@ class CrmTeam(models.Model):
         action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('crm.crm_lead_action_forecast')
         return self._action_update_to_pipeline(action)
 
-    def action_open_leads(self):
+    def action_view_leads(self):
         action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('crm.crm_case_form_view_salesteams_opportunity')
         rcontext = {
             'team': self,
@@ -749,8 +749,8 @@ class CrmTeam(models.Model):
         action['help'] = self.env['ir.ui.view']._render_template('crm.crm_action_helper', values=rcontext)
         return action
 
-    def action_open_unassigned_leads(self):
-        action = self.action_open_leads()
+    def action_view_unassigned_leads(self):
+        action = self.action_view_leads()
         context_str = action.get('context', '{}')
         if context_str:
             try:
@@ -792,5 +792,5 @@ class CrmTeam(models.Model):
     def action_primary_channel_button(self):
         self.ensure_one()
         if self.use_opportunities:
-            return self.action_open_leads()
+            return self.action_view_leads()
         return super().action_primary_channel_button()

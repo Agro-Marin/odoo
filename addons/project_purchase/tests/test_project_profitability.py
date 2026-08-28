@@ -1085,7 +1085,7 @@ class TestProjectPurchaseProfitability(
             }
         )
 
-        action = project.action_open_project_purchase_orders()
+        action = project.action_view_project_purchase_orders()
         self.assertTrue(action)
         self.assertEqual(action["res_id"], purchase_order.id)
 

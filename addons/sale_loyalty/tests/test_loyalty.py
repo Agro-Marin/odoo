@@ -1856,7 +1856,7 @@ class TestLoyalty(TestSaleCouponCommon):
                 ],
             }
         )
-        sale_order.action_open_reward_wizard()
+        sale_order.action_view_reward_wizard()
         sale_order._update_programs_and_rewards()
         claimable_rewards = sale_order._get_claimable_rewards()
         self.assertFalse(claimable_rewards.get(self.ewallet))

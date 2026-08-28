@@ -504,7 +504,7 @@ class TestDeliveryCost(DeliveryCommon, SaleCommon):
             ]
         })
 
-        del_form = sale_order.action_open_delivery_wizard()
+        del_form = sale_order.action_view_delivery_wizard()
         choose_delivery_carrier = self.env[del_form['res_model']].with_context(del_form['context']).create({
             'carrier_id': delivery.id,
             'order_id': sale_order.id
@@ -514,7 +514,7 @@ class TestDeliveryCost(DeliveryCommon, SaleCommon):
         sale_order.line_ids.write({
             'product_qty': 100,
         })
-        updated_del_form = sale_order.action_open_delivery_wizard()
+        updated_del_form = sale_order.action_view_delivery_wizard()
         self.assertEqual(updated_del_form['context']['default_total_weight'], 100)
 
     def test_base_on_rule_currency_is_converted(self):

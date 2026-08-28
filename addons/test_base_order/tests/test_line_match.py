@@ -206,8 +206,8 @@ class TestLineMatch(BaseOrderTestCase):
         order_row = rows.filtered("order_line_id")[0]
         invoice_row = rows.filtered("aml_id")[0]
 
-        self.assertEqual(order_row.action_open_line()["res_model"], "base.order.test")
-        self.assertEqual(invoice_row.action_open_line()["res_model"], "account.move")
+        self.assertEqual(order_row.action_view_line()["res_model"], "base.order.test")
+        self.assertEqual(invoice_row.action_view_line()["res_model"], "account.move")
 
     def test_a_row_reports_the_reference_of_its_own_side(self):
         order = self._confirmed_order((self.product, 5.0, 10.0))

@@ -43,7 +43,7 @@ class ResPartner(models.Model):
         for partner in self:
             partner.employees_count = counts.get(partner, 0)
 
-    def action_open_employees(self):
+    def action_view_employees(self):
         self.ensure_one()
         if self.employees_count > 1:
             return {

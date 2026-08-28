@@ -6,7 +6,7 @@ export const LivechatGraphRendererMixin = (model) =>
         async onGraphClickedFinal(domain) {
             const action = this.env.services.orm.call(
                 model,
-                "action_open_discuss_channel_view",
+                "action_view_discuss_channel_view",
                 [],
                 { domain },
             );

@@ -55,7 +55,7 @@
                                     <div class="text-muted">
                                         Allow sending and receiving invoices through the Nemhandel network
                                     </div>
-                                    <button name="action_open_nemhandel_form"
+                                    <button name="action_view_nemhandel_form"
                                             type="object"
                                             string="Start sending via Nemhandel"
                                             class="oe_highlight mt-2"/>

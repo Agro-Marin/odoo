@@ -30,12 +30,12 @@
 
                 <xpath expr="//div[@name='kanban_primary_right']" position="inside">
                     <div t-if="record.leave_to_approve_count.raw_value > 0" class="row ml32 g-0" groups="hr_holidays.group_hr_holidays_user">
-                        <a name="action_open_leave_department" class="col" type="object">
+                        <a name="action_view_leave_department" class="col" type="object">
                             <field name="leave_to_approve_count" groups="hr_holidays.group_hr_holidays_user"/> Time Off Requests
                         </a>
                     </div>
                     <div t-if="record.allocation_to_approve_count.raw_value > 0" class="row ml32 g-0" groups="hr_holidays.group_hr_holidays_user">
-                        <a name="action_open_allocation_department" class="col" type="object">
+                        <a name="action_view_allocation_department" class="col" type="object">
                             <field name="allocation_to_approve_count" groups="hr_holidays.group_hr_holidays_user"/> Allocation Requests
                         </a>
                     </div>
@@ -124,7 +124,7 @@
             <xpath expr="//field[@name='hr_icon_display']" position="attributes">
                 <attribute name="widget">hr_presence_status_private</attribute>
             </xpath>
-            <button name="action_open_versions" position="before">
+            <button name="action_view_versions" position="before">
                 <field name="show_leaves" invisible="1"/>
                 <field name="is_absent" invisible="1"/>
                 <field name="hr_icon_display" invisible="1"/>
@@ -166,7 +166,7 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <field name="show_leaves" invisible="1"/>
-                <button name="action_open_time_off_calendar"
+                <button name="action_view_time_off_calendar"
                         type="object"
                         class="oe_stat_button"
                         icon="fa-calendar"

@@ -213,7 +213,7 @@
                         </div>
                     </div>
                     <div invisible="not send_abandoned_cart_email" class="mt8">
-                        <button type="object" name="action_open_abandoned_cart_mail_template" string="Customize Abandoned Email Template" class="btn-link" icon="oi-arrow-right"/>
+                        <button type="object" name="action_view_abandoned_cart_mail_template" string="Customize Abandoned Email Template" class="btn-link" icon="oi-arrow-right"/>
                     </div>
                 </setting>
                 <setting string="Orders Assignment" help="Assignment of online orders">
@@ -253,7 +253,7 @@
                     <div class="mt8" invisible="not group_gmc_feed">
                         <button
                             type="object"
-                            name="action_open_product_feeds"
+                            name="action_view_product_feeds"
                             string="Manage feeds"
                             class="btn-link"
                             icon="oi-arrow-right"

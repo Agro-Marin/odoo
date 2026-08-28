@@ -750,7 +750,7 @@ class MailMessage(models.Model):
 
         return super().export_data(fields_to_export)
 
-    def action_open_document(self) -> dict:
+    def action_view_document(self) -> dict:
         self.ensure_one()
         if not self._is_thread_message() or self.sudo().model not in self.env:
             raise UserError(self.env._("This message is not attached to a document."))

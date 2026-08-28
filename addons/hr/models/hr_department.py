@@ -280,7 +280,7 @@ class HrDepartment(models.Model):
     def get_children_department_ids(self):
         return self.env["hr.department"].search([("id", "child_of", self.ids)])
 
-    def action_open_view_child_departments(self):
+    def action_view_view_child_departments(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

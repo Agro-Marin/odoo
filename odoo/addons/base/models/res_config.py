@@ -390,7 +390,7 @@ class ResConfigSettings(models.TransientModel):
 
         return super().create(vals_list)
 
-    def action_open_template_user(self) -> dict[str, Any]:
+    def action_view_template_user(self) -> dict[str, Any]:
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("base.action_res_users")
         try:
             template_user_id = literal_eval(

@@ -35,7 +35,7 @@ class FleetVehicleModelBrand(models.Model):
 
         return view
 
-    def action_open_brand_form(self):
+    def action_view_brand_form(self):
         self.ensure_one()
         return {
             'name': _('Manufacturer'),

@@ -52,7 +52,7 @@
                         <field name="sale_order_ids" invisible="True"/>
                         <button type="object"
                                 class="oe_stat_button"
-                                name="action_open_invoice_ids"
+                                name="action_view_invoice_ids"
                                 icon="fa-regular fa-pen-to-square"
                                 invisible="not invoice_ids">
                             <div class="o_field_widget o_stat_info">
@@ -61,7 +61,7 @@
                         </button>
                         <button type="object"
                                 class="oe_stat_button"
-                                name="action_open_sale_order_ids"
+                                name="action_view_sale_order_ids"
                                 icon="fa-regular fa-pen-to-square"
                                 invisible="not sale_order_ids">
                             <div class="o_field_widget o_stat_info">

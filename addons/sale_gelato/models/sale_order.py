@@ -53,9 +53,9 @@ class SaleOrder(models.Model):
 
     # === ACTION METHODS === #
 
-    def action_open_delivery_wizard(self):
+    def action_view_delivery_wizard(self):
         """Override of `delivery` to set a Gelato delivery method by default in the wizard."""
-        res = super().action_open_delivery_wizard()
+        res = super().action_view_delivery_wizard()
 
         if not self.env.context.get("carrier_recompute") and any(
             line.product_id.gelato_product_uid for line in self.line_ids

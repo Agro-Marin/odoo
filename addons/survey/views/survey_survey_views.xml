@@ -19,7 +19,7 @@
                     <button name="action_start_session" string="Create Live Session" type="object"
                         class="d-none d-sm-block"
                         invisible="session_state or not active or not session_available" />
-                    <button name="action_open_session_manager" string="Open Session Manager"
+                    <button name="action_view_session_manager" string="Open Session Manager"
                         type="object" class="d-none d-sm-block"
                         invisible="not session_state" />
                     <button name="action_end_session" string="Close Live Session" type="object"

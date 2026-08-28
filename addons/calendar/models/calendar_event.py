@@ -2004,7 +2004,7 @@ class CalendarEvent(models.Model):
     def clear_videocall_location(self):
         return True
 
-    def action_open_calendar_event(self):
+    def action_view_calendar_event(self):
         if self.res_model and self.res_id:
             return self.env[self.res_model].browse(self.res_id).get_formview_action()
         return False
@@ -2019,7 +2019,7 @@ class CalendarEvent(models.Model):
             )
         return True
 
-    def action_open_composer(self):
+    def action_view_composer(self):
         if not self.partner_ids:
             raise UserError(_("There are no attendees on these events"))
         template_id = self.env["ir.model.data"]._xmlid_to_res_id(

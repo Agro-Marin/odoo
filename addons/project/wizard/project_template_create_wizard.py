@@ -60,7 +60,7 @@ class ProjectTemplateCreateWizard(models.TransientModel):
         return self._create_project_from_template().action_view_tasks()
 
     @api.model
-    def action_open_template_view(self) -> dict[str, Any]:
+    def action_view_template_view(self) -> dict[str, Any]:
         view = self.env.ref(
             "project.project_project_view_form_simplified_template",
             raise_if_not_found=False,

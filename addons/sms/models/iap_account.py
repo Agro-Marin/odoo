@@ -6,7 +6,7 @@ class IapAccount(models.Model):
 
     sender_name = fields.Char(help="This is the name that will be displayed as the sender of the SMS.", readonly=True)
 
-    def action_open_registration_wizard(self):
+    def action_view_registration_wizard(self):
         return {
             'type': 'ir.actions.act_window',
             'target': 'new',
@@ -16,7 +16,7 @@ class IapAccount(models.Model):
             'context': {'default_account_id': self.id},
         }
 
-    def action_open_sender_name_wizard(self):
+    def action_view_sender_name_wizard(self):
         return {
             'type': 'ir.actions.act_window',
             'target': 'new',

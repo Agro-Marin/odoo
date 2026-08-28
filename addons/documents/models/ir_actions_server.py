@@ -11,7 +11,7 @@ class IrActionsServer(models.Model):
         ondelete={"documents_embedded": "set ir_actions_server"},
     )
 
-    def action_open_documents_server_action_view(self) -> dict:
+    def action_view_documents_server_action_view(self) -> dict:
         self.check_access("read")
         form_view = self.env.ref(
             "documents.ir_actions_server_view_form_documents", raise_if_not_found=False

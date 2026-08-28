@@ -48,14 +48,14 @@
                     <span class="fw-bold"><field name="untrusted_payments_count" class="oe_inline" />
                         out of <field name="total_payments_amount" class="oe_inline" /> payments
                         will be skipped due to <button class="oe_link p-0 align-baseline"
-                            type="object" name="action_open_untrusted_bank_accounts">untrusted bank
+                            type="object" name="action_view_untrusted_bank_accounts">untrusted bank
                         accounts</button>.</span>
                 </div>
                 <div role="alert" class="alert alert-warning"
                     invisible="not missing_account_partners">
                     <span class="fw-bold">Payments related to partners with no bank account
                         specified will be skipped. <button class="oe_link p-0 align-baseline"
-                            type="object" name="action_open_missing_account_partners">View
+                            type="object" name="action_view_missing_account_partners">View
                         Partner(s)</button></span>
                 </div>
                 <div role="alert" class="alert alert-warning" invisible="not duplicate_payment_ids">

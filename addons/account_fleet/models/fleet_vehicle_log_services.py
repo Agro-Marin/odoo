@@ -29,7 +29,7 @@ class FleetVehicleLogServices(models.Model):
         for log_service in self:
             log_service.amount = log_service.account_move_line_id.debit
 
-    def action_open_account_move(self):
+    def action_view_account_move(self):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',

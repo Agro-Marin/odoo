@@ -76,7 +76,7 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
             default_partner_id=self.sale_order.partner_id.id,
             default_reinvoiced_sale_order_id=self.sale_order.id,
             default_sale_line_id=so_line.id,
-        ).action_open_template_view()
+        ).action_view_template_view()
         self.assertEqual(
             action["context"]["default_partner_id"],
             self.sale_order.partner_id.id,

@@ -13,19 +13,19 @@
             <div name="so_button_below_order_lines" position="inside">
                 <button
                     string="Add shipping"
-                    name="action_open_delivery_wizard"
+                    name="action_view_delivery_wizard"
                     type="object"
                     invisible="is_all_service or not line_ids or delivery_set"/>
                 <button
                     string="Update shipping cost"
-                    name="action_open_delivery_wizard"
+                    name="action_view_delivery_wizard"
                     context="{'carrier_recompute':True}"
                     type="object"
                     class="text-warning btn-secondary"
                     invisible="is_all_service or not recompute_delivery_price or not delivery_set"/>
                 <button
                     string="Update shipping cost"
-                    name="action_open_delivery_wizard"
+                    name="action_view_delivery_wizard"
                     context="{'carrier_recompute':True}"
                     type="object"
                     invisible="is_all_service or recompute_delivery_price or not delivery_set"/>

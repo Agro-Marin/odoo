@@ -21,7 +21,7 @@ export class OpenMatchLineField extends Component {
         await this.action.doActionButton({
             type: "object",
             resId: this.props.record.resId,
-            name: "action_open_line",
+            name: "action_view_line",
             resModel: this.props.record.resModel,
         });
     }

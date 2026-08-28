@@ -95,7 +95,7 @@ class HrLeaveReport(models.Model):
             );
         """)
 
-    def action_open_record(self):
+    def action_view_record(self):
         self.ensure_one()
 
         return {

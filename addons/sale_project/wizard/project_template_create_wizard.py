@@ -35,8 +35,8 @@ class ProjectTemplateCreateWizard(models.TransientModel):
         return res
 
     @api.model
-    def action_open_template_view(self):
-        action = super().action_open_template_view()
+    def action_view_template_view(self):
+        action = super().action_view_template_view()
         if self.env.context.get("from_sale_order_action"):
             context = dict(action.get("context", {}))
             context.update(

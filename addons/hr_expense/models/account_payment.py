@@ -50,7 +50,7 @@ class AccountPayment(models.Model):
             )
         return super().write(vals)
 
-    def action_open_expense(self):
+    def action_view_expense(self):
         self.ensure_one()
         return {
             "name": self.expense_ids.name,

@@ -89,7 +89,7 @@
                                 </div>
                                 <span class="text-truncate">
                                     for
-                                    <a type="object" name="action_open_rated_object" t-att-title="record.res_name.raw_value">
+                                    <a type="object" name="action_view_rated_object" t-att-title="record.res_name.raw_value">
                                         <field name="res_name" />
                                     </a>
                                 </span>
@@ -138,7 +138,7 @@
                                 <field name="partner_id" class="fw-bold fs-5"/>
                                 <div class="mt0">
                                     <i class="fa-solid fa-folder me-2" aria-label="Open folder"></i>
-                                    <a type="object" name="action_open_rated_object" t-att-title="record.res_name.raw_value">
+                                    <a type="object" name="action_view_rated_object" t-att-title="record.res_name.raw_value">
                                         <field name="res_name" />
                                     </a>
                                     <div><i class="fa-regular fa-clock me-2" aria-label="Create date"/> <field name="rated_on" /></div>

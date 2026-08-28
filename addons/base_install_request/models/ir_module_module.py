@@ -4,7 +4,7 @@ from odoo import _, models
 class IrModuleModule(models.Model):
     _inherit = 'ir.module.module'
 
-    def action_open_install_request(self):
+    def action_view_install_request(self):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',

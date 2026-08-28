@@ -769,7 +769,7 @@ class LoyaltyProgram(models.Model):
                 continue
         return rule_products
 
-    def action_open_loyalty_cards(self):
+    def action_view_loyalty_cards(self):
         """Open this program's cards, named after what the program issues."""
         self.ensure_one()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(

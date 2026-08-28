@@ -396,7 +396,7 @@ class AccountFiscalPosition(models.Model):
 
         return all_auto_apply_fpos._get_first_matching_fpos(delivery, company)
 
-    def action_open_related_taxes(self):
+    def action_view_related_taxes(self):
         list_view = self.env.ref(
             "account.account_tax_fiscal_position_view_tree", raise_if_not_found=False
         )

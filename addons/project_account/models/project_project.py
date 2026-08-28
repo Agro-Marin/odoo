@@ -256,7 +256,7 @@ class ProjectProject(models.Model):
             },
         }
 
-    def action_open_analytic_items(self):
+    def action_view_analytic_items(self):
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "analytic.account_analytic_line_action_entries"
         )

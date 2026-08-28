@@ -5,7 +5,7 @@ class OnboardingOnboardingStep(models.Model):
     _inherit = "onboarding.onboarding.step"
 
     @api.model
-    def action_open_step_company_data(self):
+    def action_view_step_company_data(self):
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))
@@ -24,7 +24,7 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
-    def action_open_step_base_document_layout(self):
+    def action_view_step_base_document_layout(self):
         view_id = self.env.ref("web.view_base_document_layout").id
         return {
             "name": _("Configure your document layout"),
@@ -48,11 +48,11 @@ class OnboardingOnboardingStep(models.Model):
         )
 
     @api.model
-    def action_open_step_bank_account(self):
+    def action_view_step_bank_account(self):
         return self.env.company.setting_init_bank_account_action()
 
     @api.model
-    def action_open_step_create_invoice(self):
+    def action_view_step_create_invoice(self):
         return {
             "type": "ir.actions.act_window",
             "name": _("Create first invoice"),
@@ -62,7 +62,7 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
-    def action_open_step_fiscal_year(self):
+    def action_view_step_fiscal_year(self):
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))
@@ -88,7 +88,7 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
-    def action_open_step_chart_of_accounts(self):
+    def action_view_step_chart_of_accounts(self):
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))
@@ -119,7 +119,7 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
-    def action_open_step_sales_tax(self):
+    def action_view_step_sales_tax(self):
         view_id = self.env.ref("account.res_company_form_view_onboarding_sale_tax").id
 
         return {

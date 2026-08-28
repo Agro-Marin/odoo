@@ -74,7 +74,7 @@
                                 <div class="text-muted">
                                     Allow sending and receiving invoices through the Peppol network
                                 </div>
-                                <button name="action_open_peppol_form"
+                                <button name="action_view_peppol_form"
                                         type="object"
                                         string="Activate Electronic Invoicing"
                                         class="oe_highlight mt-2"/>

@@ -346,7 +346,7 @@ class MrpRoutingWorkcenter(models.Model):
             return True
         return super()._skip_bom_line(product, never_attribute_values)
 
-    def action_open_operation_form(self):
+    def action_view_operation_form(self):
         return {
             "type": "ir.actions.act_window",
             "view_mode": "form",

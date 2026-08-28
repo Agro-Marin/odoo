@@ -34,7 +34,7 @@
                     <field name="res_id" invisible="1" />
                     <div class="oe_button_box" name="button_box">
                         <button
-                            name="action_open_document"
+                            name="action_view_document"
                             type="object"
                             class="oe_link"
                             icon="fa-regular fa-file-lines"

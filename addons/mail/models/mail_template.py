@@ -615,7 +615,7 @@ class MailTemplate(models.Model):
             template.ref_ir_act_window = action
         return True
 
-    def action_open_mail_preview(self) -> dict:
+    def action_view_mail_preview(self) -> dict:
         self.ensure_one()
         action = self.env.ref("mail.mail_template_preview_action")._get_action_dict()
         action.update(

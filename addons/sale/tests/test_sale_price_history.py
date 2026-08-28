@@ -130,7 +130,7 @@ class TestSalePriceHistory(TransactionCase):
     def test_open_history_targets_the_sale_history_action(self):
         action = self._create_wizard(
             partner_id=self.customer_a.id
-        ).action_open_history()
+        ).action_view_history()
         self.assertEqual(action["res_model"], "sale.order.line")
         self.assertEqual(action["view_mode"], "list,pivot,graph")
 

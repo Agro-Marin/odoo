@@ -15,7 +15,7 @@ class ProductMargin(models.TransientModel):
         ('draft_open_paid', 'Draft, Open and Paid'),
     ], 'Invoice State', required=True, default="open_paid")
 
-    def action_open_window(self):
+    def action_view_window(self):
         self.ensure_one()
         context = dict(self.env.context, create=False, edit=False)
 

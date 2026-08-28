@@ -36,7 +36,7 @@
         <field name="name">report.hr.holidays.report.leave_all.list</field>
         <field name="model">hr.leave.report</field>
         <field name="arch" type="xml">
-            <list create="0" edit="0" delete="0" action="action_open_record" type="object">
+            <list create="0" edit="0" delete="0" action="action_view_record" type="object">
                 <field name="employee_id"/>
                 <field name="number_of_days" string="Number of Days" sum="Remaining Days" width="110px"/>
                 <field name="number_of_hours" string="Number of Hours" sum="Remaining Hours" width="120px"/>

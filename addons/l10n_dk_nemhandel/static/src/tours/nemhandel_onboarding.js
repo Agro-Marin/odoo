@@ -20,7 +20,7 @@ registry.category("web_tour.tours").add("nemhandel_onboarding_tour", {
         },
         {
             content: "Click to start signing up",
-            trigger: "button[name='action_open_nemhandel_form']",
+            trigger: "button[name='action_view_nemhandel_form']",
             run: "click",
         },
     ],

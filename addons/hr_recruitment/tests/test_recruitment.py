@@ -516,7 +516,7 @@ class TestRecruitment(TransactionCase):
             ]
         )
 
-        res = A1.action_open_applications()
+        res = A1.action_view_applications()
         self.assertEqual(
             len(res["domain"][0][2]), 3, "The list view should display 3 applications"
         )

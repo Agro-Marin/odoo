@@ -6,5 +6,5 @@ class ResConfigSettings(models.TransientModel):
 
     sms_provider = fields.Selection(related='company_id.sms_provider', required=True, readonly=False)
 
-    def action_open_sms_twilio_account_manage(self):
+    def action_view_sms_twilio_account_manage(self):
         return self.company_id._action_view_sms_twilio_account_manage()

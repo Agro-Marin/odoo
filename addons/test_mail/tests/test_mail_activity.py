@@ -31,7 +31,7 @@ class TestActivityCommon(ActivityScheduleCase):
 
 @tests.tagged("mail_activity")
 class TestActivityRights(TestActivityCommon):
-    def test_activity_action_open_document_no_access(self):
+    def test_activity_action_view_document_no_access(self):
         def _employee_no_access(records, operation):
             """Simulates employee having no access to the document"""
             if records.env.uid == self.user_employee.id and not records.env.su:
@@ -56,7 +56,7 @@ class TestActivityRights(TestActivityCommon):
             )
         )
 
-        action = test_activity.with_user(self.user_employee).action_open_document()
+        action = test_activity.with_user(self.user_employee).action_view_document()
         self.assertEqual(action["res_model"], self.test_record._name)
         self.assertEqual(action["res_id"], self.test_record.id)
 
@@ -71,7 +71,7 @@ class TestActivityRights(TestActivityCommon):
                 self.test_record.with_user(self.user_employee).has_access("read")
             )
 
-            action = test_activity.with_user(self.user_employee).action_open_document()
+            action = test_activity.with_user(self.user_employee).action_view_document()
             self.assertEqual(action["res_model"], "mail.activity")
             self.assertEqual(action["res_id"], test_activity.id)
 
@@ -2248,7 +2248,7 @@ class TestActivityStrandedModel(ActivityScheduleCase):
             self.env["mail.activity"]
             .with_user(self.user_employee)
             .browse(self.activity.id)
-            .action_open_document()
+            .action_view_document()
         )
         self.assertEqual(action["res_model"], "mail.activity")
         self.assertEqual(action["res_id"], self.activity.id)
@@ -3771,7 +3771,7 @@ class TestActivityOpenDocument(TestActivityCommon):
             "DELETE FROM mail_test_activity WHERE id = %s", (record.id,)
         )
         self.env.invalidate_all()
-        action = activity.action_open_document()
+        action = activity.action_view_document()
         self.assertEqual(action["res_model"], "mail.activity")
         self.assertEqual(action["res_id"], activity.id)
 

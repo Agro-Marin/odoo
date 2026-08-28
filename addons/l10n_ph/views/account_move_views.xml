@@ -7,6 +7,6 @@
         <field name="binding_model_id" ref="account.model_account_move"/>
         <field name="binding_view_types">list,kanban,form</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_open_l10n_ph_2307_wizard()</field>
+        <field name="code">action = records.action_view_l10n_ph_2307_wizard()</field>
     </record>
 </odoo>

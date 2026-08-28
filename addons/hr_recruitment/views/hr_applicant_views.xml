@@ -99,7 +99,7 @@
             </header>
             <sheet>
                 <div class="oe_button_box" name="button_box">
-                    <button name="action_open_employee"
+                    <button name="action_view_employee"
                             type="object"
                             class="oe_stat_button"
                             icon="fa-regular fa-id-card"
@@ -110,7 +110,7 @@
                             <span class="o_stat_text">Employee</span>
                         </div>
                     </button>
-                    <button name="action_open_applications"
+                    <button name="action_view_applications"
                             class="oe_stat_button"
                             icon="fa-pencil"
                             type="object"
@@ -418,7 +418,7 @@
                             <field name="is_rotting" invisible="1"/>
                             <field name="rotting_days" class="d-flex" widget="rotting"/>
                             <div class="d-flex ms-auto align-items-center">
-                                <a name="action_open_attachments" type="object">
+                                <a name="action_view_attachments" type="object">
                                     <i class='fa-solid fa-paperclip' role="img" aria-label="Documents"/>
                                     <field name="attachment_number"/>
                                 </a>

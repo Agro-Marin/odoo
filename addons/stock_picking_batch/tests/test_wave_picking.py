@@ -149,7 +149,7 @@ class TestBatchPicking(TransactionCase):
     def test_creation_from_lines(self):
         """ Select all the move_lines and create a wave from them """
         all_lines = self.all_pickings.move_line_ids
-        res_dict = all_lines.action_open_add_to_wave()
+        res_dict = all_lines.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': all_lines.ids}
         self.assertEqual(res_dict.get('res_model'), 'stock.add.to.wave')
         wizard_form = Form.from_action(self.env, res_dict)
@@ -177,7 +177,7 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(set(res['context']['picking_to_wave']), set(self.all_pickings.ids))
 
     def test_add_to_existing_wave_from_lines(self):
-        res_dict = self.picking_client_1.move_line_ids.action_open_add_to_wave()
+        res_dict = self.picking_client_1.move_line_ids.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': self.picking_client_1.move_line_ids.ids}
         wizard_form = Form.from_action(self.env, res_dict)
         wizard_form.mode = 'new'
@@ -187,7 +187,7 @@ class TestBatchPicking(TransactionCase):
             ('is_wave', '=', True)
         ])
 
-        res_dict = self.picking_client_2.move_line_ids.action_open_add_to_wave()
+        res_dict = self.picking_client_2.move_line_ids.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': self.picking_client_2.move_line_ids.ids}
         wizard_form = Form.from_action(self.env, res_dict)
         wizard_form.mode = 'existing'
@@ -201,7 +201,7 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(wave.picking_ids, self.picking_client_1 | self.picking_client_2)
 
     def test_add_to_existing_wave_from_pickings(self):
-        res_dict = self.picking_client_1.move_line_ids.action_open_add_to_wave()
+        res_dict = self.picking_client_1.move_line_ids.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': self.picking_client_1.move_line_ids.ids}
         wizard_form = Form.from_action(self.env, res_dict)
         wizard_form.mode = 'new'
@@ -228,7 +228,7 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(len(move), 1)
         all_db_pickings = self.env['stock.picking'].search([])
         all_db_pickings.write({'date_planned': '2025-01-01 00:00:00'})
-        res_dict = lines.action_open_add_to_wave()
+        res_dict = lines.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': lines.ids}
         self.assertEqual(res_dict.get('res_model'), 'stock.add.to.wave')
         wizard_form = Form.from_action(self.env, res_dict)
@@ -255,7 +255,7 @@ class TestBatchPicking(TransactionCase):
         lines = self.picking_internal.move_ids.filtered(lambda m: m.product_id == self.productB).move_line_ids[0:2]
         move = lines.move_id
         all_db_pickings = self.env['stock.picking'].search([])
-        res_dict = lines.action_open_add_to_wave()
+        res_dict = lines.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': lines.ids}
         self.assertEqual(res_dict.get('res_model'), 'stock.add.to.wave')
         wizard_form = Form.from_action(self.env, res_dict)
@@ -302,7 +302,7 @@ class TestBatchPicking(TransactionCase):
         self.assertEqual(dozen_move.move_line_ids.product_uom_id, self.env.ref('uom.product_uom_unit'))
 
         lines = dozen_move.move_line_ids[0:5]
-        res_dict = lines.action_open_add_to_wave()
+        res_dict = lines.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': lines.ids}
         self.assertEqual(res_dict.get('res_model'), 'stock.add.to.wave')
         wizard_form = Form.from_action(self.env, res_dict)
@@ -403,7 +403,7 @@ class TestBatchPicking(TransactionCase):
     def test_wave_trigger_errors(self):
         with self.assertRaises(UserError):
             lines = self.picking_client_1.move_line_ids
-            res_dict = lines.action_open_add_to_wave()
+            res_dict = lines.action_view_add_to_wave()
             wizard_form = Form.from_action(self.env, res_dict)
             wizard_form.mode = 'new'
             wizard = wizard_form.save()
@@ -413,7 +413,7 @@ class TestBatchPicking(TransactionCase):
             self.picking_client_1.company_id = self.env.company
             self.picking_client_2.company_id = self.env['res.company'].create({'name': 'Company 2'})
             lines = (self.picking_client_1 | self.picking_client_2).move_line_ids
-            res_dict = lines.action_open_add_to_wave()
+            res_dict = lines.action_view_add_to_wave()
             res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': lines.ids}
             wizard_form = Form.from_action(self.env, res_dict)
             wizard_form.mode = 'new'
@@ -580,7 +580,7 @@ class TestBatchPicking(TransactionCase):
         picking.move_ids[0].quantity = 10.0
         self.assertRecordValues(picking.move_ids, [{'product_uom_qty': 15.0, 'quantity': 10.0}, {'product_uom_qty': 5.0, 'quantity': 5.0}])
         lines = picking.move_ids.move_line_ids
-        res_dict = lines.action_open_add_to_wave()
+        res_dict = lines.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': lines.ids}
         wizard_form = Form.from_action(self.env, res_dict)
         wizard_form.mode = 'new'
@@ -604,7 +604,7 @@ class TestBatchPicking(TransactionCase):
         move_1.quantity = 0
         self.assertRecordValues(picking.move_ids, [{'product_uom_qty': 15.0, 'quantity': 0.0}, {'product_uom_qty': 5.0, 'quantity': 5.0}])
         lines = picking.move_ids.move_line_ids
-        res_dict = lines.action_open_add_to_wave()
+        res_dict = lines.action_view_add_to_wave()
         res_dict['context'] = {'active_model': 'stock.move.line', 'active_ids': lines.ids}
         wizard_form = Form.from_action(self.env, res_dict)
         wizard_form.mode = 'new'

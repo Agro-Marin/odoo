@@ -20,7 +20,7 @@
                             <span><field name="l10n_my_accept_processing"/> I accept that Odoo will process my e-invoices.</span>
                             <div class="text-muted" invisible="not l10n_my_edi_company_vat">
                                 The TIN
-                                <a name="action_open_company_form" type="object" role="button" class="btn-link">
+                                <a name="action_view_company_form" type="object" role="button" class="btn-link">
                                     <field name="l10n_my_edi_company_vat" class="oe_inline"/>
                                 </a>
                                 will be used when sending e-invoices.<br/>

@@ -2118,7 +2118,7 @@ class ProjectProject(models.Model):
         action["context"] = context
         return action
 
-    def action_open_scatter_plot(self) -> dict:
+    def action_view_scatter_plot(self) -> dict:
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_scatter"
         )
@@ -2158,7 +2158,7 @@ class ProjectProject(models.Model):
         action["display_name"] = _("%(name)s Dashboard", name=self.name)
         return action
 
-    def action_open_share_project_wizard(self) -> dict:
+    def action_view_share_project_wizard(self) -> dict:
         template = self.env.ref(
             "project.mail_template_project_sharing", raise_if_not_found=False
         )

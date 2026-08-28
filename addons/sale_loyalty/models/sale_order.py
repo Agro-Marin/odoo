@@ -238,7 +238,7 @@ class SaleOrder(models.Model):
         self.coupon_point_ids.unlink()
         return res
 
-    def action_open_reward_wizard(self):
+    def action_view_reward_wizard(self):
         self.ensure_one()
         self._update_programs_and_rewards()
         claimable_rewards = self._get_claimable_rewards()

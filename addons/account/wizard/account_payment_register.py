@@ -1661,7 +1661,7 @@ class AccountPaymentRegister(models.TransientModel):
         else:
             return available_partner_banks[:1]
 
-    def action_open_untrusted_bank_accounts(self):
+    def action_view_untrusted_bank_accounts(self):
         self.ensure_one()
         if len(self.untrusted_bank_ids) == 1:
             action = {
@@ -1696,7 +1696,7 @@ class AccountPaymentRegister(models.TransientModel):
 
         return action
 
-    def action_open_missing_account_partners(self):
+    def action_view_missing_account_partners(self):
         self.ensure_one()
         vals = {}
         if len(self.missing_account_partners) > 1:

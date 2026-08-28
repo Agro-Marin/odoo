@@ -8,7 +8,7 @@
         <field name="arch" type="xml">
             <field name="datas" position="after">
                 <button
-                    name="action_open_pdf_form_fields"
+                    name="action_view_pdf_form_fields"
                     type="object"
                     string="Configure dynamic fields"
                     help="Configure the path to fill the form fields."

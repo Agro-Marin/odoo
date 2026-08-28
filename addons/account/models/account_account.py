@@ -854,7 +854,7 @@ class AccountAccount(models.Model):
             )
 
 
-    def action_open_related_taxes(self):
+    def action_view_related_taxes(self):
         related_taxes_ids = (
             self.env["account.tax"]
             .search(

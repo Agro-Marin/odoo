@@ -43,7 +43,7 @@ class TestProjectMrp(TransactionCase):
     def test_action_view_project_targets_the_project(self):
         """The MO open-project action points at the linked project."""
         production = self._production()
-        action = production.action_open_project()
+        action = production.action_view_project()
         self.assertEqual(action["res_model"], "project.project")
         self.assertEqual(action["res_id"], self.project.id)
 

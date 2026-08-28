@@ -240,7 +240,7 @@ class TestPriceHistory(BaseOrderTestCase):
         target = self._confirmed_line(price=50.0)
         wizard = self._wizard(target)
 
-        action = wizard.action_open_history()
+        action = wizard.action_view_history()
 
         self.assertIn(("product_id", "=", self.product.id), action["domain"])
         self.assertEqual(action["res_model"], "base.order.test.line")
