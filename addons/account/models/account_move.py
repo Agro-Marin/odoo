@@ -489,6 +489,7 @@ class AccountMove(models.Model):
         compute="_compute_commercial_partner_id",
         store=True,
         readonly=True,
+        index="btree_not_null",
         ondelete="restrict",
         check_company=True,
     )
