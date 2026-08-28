@@ -3,6 +3,7 @@
 import { simulateBarCode } from "@barcodes/../tests/barcode_test_helpers";
 import { barcodeService } from "@barcodes/barcode_service";
 import { beforeEach, expect, test } from "@odoo/hoot";
+import { advanceTime, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     contains,
@@ -77,6 +78,46 @@ test("widget field_float_scannable", async () => {
         "barcode_scanned",
         onBarcodeScanned,
     );
+});
+
+test.tags("desktop");
+test("an interleaved keystroke does not steal a pending scan's target", async () => {
+    // A scan's terminal debounce timer must dispatch on the target the scan
+    // itself was aimed at, even if an ordinary keystroke lands on an
+    // unrelated element while that timer is still pending.
+    patchWithCleanup(barcodeService, { maxTimeBetweenKeysInMs: 50 });
+
+    const onBarcodeScanned = (event) => {
+        expect.step(`barcode scanned ${event.detail.barcode}`);
+    };
+    await mountView({
+        type: "form",
+        resModel: "product",
+        resId: 1,
+        arch: /*xml*/ `
+            <form>
+                <field name="float_field" widget="field_float_scannable"/>
+            </form>
+        `,
+    });
+
+    const scanInput = queryFirst(".o_field_widget[name=float_field] input");
+    scanInput.addEventListener("barcode_scanned", onBarcodeScanned);
+
+    const otherInput = document.createElement("input");
+    document.body.appendChild(otherInput);
+
+    for (const key of ["6", "0", "1"]) {
+        scanInput.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    }
+    // An ordinary keystroke on an unrelated element, while the scan's own
+    // debounce timer is still pending.
+    otherInput.dispatchEvent(new KeyboardEvent("keydown", { key: "z", bubbles: true }));
+
+    await advanceTime(50);
+    expect.verifySteps(["barcode scanned 601"]);
+
+    otherInput.remove();
 });
 
 test.tags("mobile");
