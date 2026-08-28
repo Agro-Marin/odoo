@@ -1,7 +1,8 @@
 """Every ``from odoo.addons.X import`` finds an X, across the checkouts (ADR-0031).
 
-The Python twin of :mod:`named_export_coherence`, which asks the same question of
-``import { x }`` and has asked it since ADR-0031. Nothing asked it of Python, and
+The Python twin of :mod:`named_export_coherence` (ADR-0073), which asks the same
+question of ``import { x }`` and has asked it since ADR-0031, superseded by
+ADR-0072. Nothing asked it of Python, and
 the omission is not academic: measured 2026-08-27, **published
 ``agromarin/mcp_server`` imports ``odoo.addons.rpc.tools.preflight`` at module
 level, and no published repository provides it.** The module cannot be imported
@@ -31,7 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root, sibling_repos_root
 
-ADR = "0072"
+ADR = "0073"
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_addon_imports")
 SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
