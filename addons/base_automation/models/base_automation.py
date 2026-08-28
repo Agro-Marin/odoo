@@ -1268,7 +1268,7 @@ class BaseAutomation(models.Model):
         exposed as ``env.context['webhook_payload']``.
         """
         self.ensure_one()
-        for action in self.sudo().action_server_ids.sorted("sequence"):
+        for action in self.sudo().action_server_ids._sorted_by_dependency():
             action.with_context(
                 active_model=self.model_name,
                 active_ids=[],
