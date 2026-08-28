@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { blockDom, Component, useRef,useState } from "@odoo/owl";
+import { blockDom, Component, useRef, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { rpc, rpcBus } from "@web/core/network";
@@ -38,7 +38,9 @@ export class BoardController extends Component {
                     const fromColIdx = parseInt(element.parentElement.dataset.idx, 10);
                     const fromActionIdx = parseInt(element.dataset.idx, 10);
                     const toColIdx = parseInt(parent.dataset.idx, 10);
-                    const toActionIdx = previous ? parseInt(previous.dataset.idx, 10) + 1 : 0;
+                    const toActionIdx = previous
+                        ? parseInt(previous.dataset.idx, 10) + 1
+                        : 0;
                     if (fromColIdx !== toColIdx) {
                         // to reduce visual flickering
                         element.classList.add("d-none");
@@ -121,7 +123,10 @@ export class BoardController extends Component {
         const root = document.createElement("rendertostring");
         blockDom.mount(bdom, root);
         const result = xmlSerializer.serializeToString(root);
-        const arch = result.slice(result.indexOf("<", 1), result.indexOf("</rendertostring>"));
+        const arch = result.slice(
+            result.indexOf("<", 1),
+            result.indexOf("</rendertostring>"),
+        );
 
         rpc("/web/view/edit_custom", {
             custom_id: this.board.customViewId,
