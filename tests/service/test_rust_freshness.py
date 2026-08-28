@@ -98,8 +98,8 @@ def test_the_fingerprint_covers_every_build_input(tmp_path):
 def test_the_fingerprint_covers_the_resolved_dependency_versions(tmp_path):
     """`Cargo.toml` names a RANGE; `Cargo.lock` names what was built.
 
-    The manifests ask for `pyo3 = "0.28.2"` and the lock already resolves
-    0.28.3. Hashing only the manifest lets a `cargo update` change the built
+    The manifests ask for `pyo3 = "0.29.2"`, which any 0.29.x satisfies.
+    Hashing only the manifest lets a `cargo update` change the built
     artifact while every hashed byte stays identical -- silent staleness, which
     is the one thing this fingerprint exists to prevent.
     """
@@ -112,11 +112,11 @@ def test_the_fingerprint_covers_the_resolved_dependency_versions(tmp_path):
     without_lock = _rust_source_crc(crate)
 
     lock = workspace / "Cargo.lock"
-    lock.write_text('[[package]]\nname = "pyo3"\nversion = "0.28.2"\n')
+    lock.write_text('[[package]]\nname = "pyo3"\nversion = "0.29.2"\n')
     with_lock = _rust_source_crc(crate)
     assert with_lock != without_lock, "the lock file is not hashed"
 
-    lock.write_text('[[package]]\nname = "pyo3"\nversion = "0.28.3"\n')
+    lock.write_text('[[package]]\nname = "pyo3"\nversion = "0.29.3"\n')
     assert _rust_source_crc(crate) != with_lock, (
         "a resolved dependency version change does not move the fingerprint"
     )

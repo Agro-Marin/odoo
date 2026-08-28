@@ -50,7 +50,7 @@ def source_crc(crate: Path) -> str:
     its ``src/**/*.rs``.
 
     The lock is an input because a manifest names a *range*: these crates ask
-    for ``pyo3 = "0.28.2"`` and the lock resolves 0.28.3, so a ``cargo update``
+    for ``pyo3 = "0.29.2"``, which any 0.29.x satisfies, so a ``cargo update``
     changes the built artifact while every hashed file stays byte-identical. It
     is skipped when absent, which is how a crate copied somewhere for a test
     hashes at all.
