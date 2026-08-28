@@ -12,7 +12,11 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from odoo.libs.lint import scan_byte_patterns, scan_regex_patterns
+# From the leaf module, not from `odoo.libs.lint`: naming this suite on the
+# command line makes `_testing_bootstrap` stub the package it lives under, and
+# a stub carries only `__path__` — its `__init__.py` never runs, so the facade
+# has no attributes to import. See `test_suite_collects_standalone`.
+from odoo.libs.lint.scan import scan_byte_patterns, scan_regex_patterns
 
 # Built, never spelled. This file lives inside the tree `test_lint`'s
 # TestConflictMarkers scans, and a literal marker in a fixture is a finding
