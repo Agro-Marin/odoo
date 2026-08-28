@@ -118,6 +118,23 @@ class TestDataRecycle(TransactionCase):
             self.recycle_model.recycle_record_ids,
             "the fetchmail ids %s would have been archived as partners" % sorted(queued_res_ids))
 
+    def test_changing_the_model_empties_the_queue_at_once(self):
+        """Not only on the next run: in between, the queue reads as work to do."""
+        self.recycle_model._recycle_records()
+        self.assertTrue(self.recycle_model.recycle_record_ids)
+
+        self.recycle_model.res_model_id = self.env['ir.model']._get('res.partner')
+        self.assertFalse(
+            self.env['data_recycle.record'].with_context(active_test=False).search(
+                [('recycle_model_id', '=', self.recycle_model.id)]))
+
+    def test_rewriting_the_same_model_keeps_the_queue(self):
+        self.recycle_model._recycle_records()
+        before = self.recycle_model.recycle_record_ids
+        self.assertTrue(before)
+        self.recycle_model.write({'name': 'renamed', 'res_model_id': self.server_model.id})
+        self.assertEqual(self.recycle_model.recycle_record_ids, before)
+
     def test_a_deleted_record_leaves_the_queue_on_the_next_run(self):
         self.recycle_model._recycle_records()
         self.old_servers[0].unlink()

@@ -227,11 +227,20 @@ class Data_RecycleModel(models.Model):
         return self.env._('Data to Recycle')
 
     def write(self, vals):
+        stale = self.env['data_recycle.model']
         if 'active' in vals and not vals['active']:
+            stale = self
+        elif 'res_model_id' in vals:
+            # The queue holds ids of the table the rule USED to point at, which
+            # name different records in the new one. `_recycle_records` would
+            # reconcile them away on its next run; this closes the window in
+            # between, when the queue reads as a list of records to act on.
+            stale = self.filtered(lambda m: m.res_model_id.id != vals['res_model_id'])
+        if stale:
             # `active_test=False`, or the proposals the user discarded survive the
             # rule they belong to and come back when it is unarchived.
             self.env['data_recycle.record'].with_context(active_test=False).search([
-                ('recycle_model_id', 'in', self.ids),
+                ('recycle_model_id', 'in', stale.ids),
             ]).unlink()
         return super().write(vals)
 
