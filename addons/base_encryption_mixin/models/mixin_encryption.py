@@ -268,8 +268,21 @@ class MixinEncryption(models.AbstractModel):
             cipher = Fernet(self._get_encryption_key())
             return decode(cipher.decrypt(encrypted_bytes))
         except ValidationError:
-            self._warn_encryption_key_missing(binary=binary)
-            return False
+            if not os.environ.get("ODOO_API_ENCRYPTION_KEY"):
+                # Genuinely absent: the deliberate opt-out, not a broken config.
+                self._warn_encryption_key_missing(binary=binary)
+                return False
+            # Present but malformed: distinct from "not configured", and it says
+            # nothing about whether an old key still works, so fall through to
+            # the same old-key fallback path used for a wrong-but-valid key.
+            _logger.error(
+                "Current encryption key is malformed for %s record %s, "
+                "trying old key versions",
+                self._name,
+                self.id,
+            )
+            if not allow_fallback:
+                raise self._prepare_fallback_disabled_error(binary) from None
         except InvalidToken:
             if not allow_fallback:
                 raise self._prepare_fallback_disabled_error(binary) from None
