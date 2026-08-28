@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
+
 
 class ResCity(models.Model):
     _name = "res.city"
@@ -16,6 +18,12 @@ class ResCity(models.Model):
         comodel_name="res.country.state",
         string="State",
         domain="[('country_id', '=', country_id)]",
+    )
+
+    _name_zipcode_country_uniq = name_uniq_index(
+        "zipcode",
+        "country_id",
+        message="A city with this name, zip code and country already exists.",
     )
 
     @api.depends("zipcode")
