@@ -801,7 +801,11 @@ class CalendarRecurrence(models.Model):
         )
 
     def _is_allday(self):
-        """Returns whether a majority of events are allday or not (there might be some outlier events)"""
+        """Returns whether a majority of events are allday or not (there might be some outlier events).
+
+        Ties (as many allday as non-allday outliers) resolve to allday: `>=`,
+        not `>`, is deliberate here, not an oversight.
+        """
         score = sum(1 if e.allday else -1 for e in self.calendar_event_ids)
         return score >= 0
 
