@@ -11,13 +11,14 @@ Attachments list and document indexation
 The `pdfminer.six` Python library has to be installed in order to index PDF files
 """,
     "depends": ["web"],
+    # openpyxl and pdfminer.six are NOT declared: both are guarded in
+    # models/ir_attachment.py -- `try/except ImportError` and `find_spec` -- so
+    # the module starts and indexes everything else without them. Declaring one
+    # would refuse the install instead of degrading. defusedxml is imported at
+    # module level and has no guard, so it is the one that belongs here.
     "external_dependencies": {
-        "python": ["defusedxml", "openpyxl", "pdfminer.six"],
-        "apt": {
-            "defusedxml": "python3-defusedxml",
-            "openpyxl": "python3-openpyxl",
-            "pdfminer.six": "python3-pdfminer",
-        },
+        "python": ["defusedxml"],
+        "apt": {"defusedxml": "python3-defusedxml"},
     },
     "installable": True,
     "author": "Odoo S.A.",
