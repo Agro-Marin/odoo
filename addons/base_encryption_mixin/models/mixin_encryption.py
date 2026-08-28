@@ -515,6 +515,10 @@ class MixinEncryption(models.AbstractModel):
                     continue
                 self[enc_field] = self._encrypt_value(plaintext)
             touched = True
+        if touched:
+            version = self._get_current_encryption_key_version()
+            if version:
+                self._stamp_encryption_key_version(version)
         return touched
 
     def _promote_cleartext_field(
