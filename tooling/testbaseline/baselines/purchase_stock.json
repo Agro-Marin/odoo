@@ -1,0 +1,10 @@
+{
+  "expected": {
+    "purchase_stock/TestStockValuationWithCOA.test_purchase_with_backorders_and_return_and_price_changes": "FAIL"
+  },
+  "note": "AVCO replay order: _run_average_batch walks moves by (product_id, date, id), so moves sharing a second are replayed in creation order rather than the order they were done. A backorder move is created when its parent is validated and validated later, so it sorts ahead of a return that physically preceded it, and the product's total_value (933.33) ends up disagreeing with both the sum of its own moves and standard_price*qty_available (925.0). Older than the audit branch: reproduces with purchase_stock's valuation sign change reverted. Not fixed here because no field records the order moves were actually done.",
+  "run_spec": "-i purchase_stock --test-enable --test-tags '/purchase_stock' --stop-after-init --no-http, fresh DB",
+  "suite": "/purchase_stock",
+  "tests_total": 219,
+  "verified_at": "0897da3f7de"
+}
