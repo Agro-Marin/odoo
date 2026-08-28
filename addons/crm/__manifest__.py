@@ -12,7 +12,7 @@
         'calendar',
         'utm',
         'web_tour',
-        'contacts',
+        'partner',
         'digest',
         'phone_validation',
     ],

@@ -40,6 +40,6 @@
 
     <menuitem action="action_l10n_latam_identification_type"
             id="menu_l10n_latam_identification_type"
-            parent="contacts.res_partner_menu_config"/>
+            parent="partner.res_partner_menu_config"/>
 
 </odoo>

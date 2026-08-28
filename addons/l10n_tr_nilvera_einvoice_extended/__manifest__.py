@@ -11,7 +11,7 @@ Features include:
     3.Configuration of withholding reasons and exemption reasons
     4.Addition of Tax Offices.
     """,
-    'depends': ['l10n_tr_nilvera_einvoice', 'contacts'],
+    'depends': ['l10n_tr_nilvera_einvoice', 'partner'],
     'data': [
         'security/ir.model.access.csv',
         'data/l10n_tr_nilvera_einvoice_extended.tax.office.csv',

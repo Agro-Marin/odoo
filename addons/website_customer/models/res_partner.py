@@ -14,7 +14,7 @@ class ResPartner(models.Model):
     )
 
     def get_backend_menu_id(self):
-        return self.env.ref("contacts.menu_contacts").id
+        return self.env.ref("partner.partner_menu_root").id
 
 
 class ResPartnerTag(models.Model):

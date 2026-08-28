@@ -74,7 +74,7 @@
             id="menu_partner_tag_form"
             name="Website Tags"
             sequence="2"
-            parent="contacts.res_partner_menu_config"
+            parent="partner.res_partner_menu_config"
         />
 
 </odoo>

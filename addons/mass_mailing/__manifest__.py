@@ -6,7 +6,7 @@
     "website": "https://www.odoo.com/app/email-marketing",
     "category": "Marketing/Email Marketing",
     "depends": [
-        "contacts",
+        "partner",
         "mail",
         "html_builder",
         "utm",
