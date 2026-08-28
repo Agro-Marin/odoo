@@ -121,8 +121,8 @@ class UomUom(models.Model):
         "compatible with X" is expressible as a plain domain for the first
         time, which is what `parent_path` never gave callers.
 
-        `point_of_sale` and `pos_blackbox_be` still derive the root from
-        `parent_path` client-side; that field stays, so they are unaffected.
+        `pos_blackbox_be` still derives the root from `parent_path`
+        client-side; that field stays, so it is unaffected.
 
         Deliberately not `precompute`: a root unit is its own reference, and
         the id it needs does not exist until after the INSERT.
@@ -229,6 +229,10 @@ class UomUom(models.Model):
         `compare` and `is_zero` it never reads `self`, so it accepts exactly
         the same receivers they do -- it was the last of the three still
         raising on an unset unit.
+
+        :param value: value to round
+        :return: ``value`` rounded to the 'Product Unit' precision
+        :rtype: float
         """
         self._check_at_most_one()
         return float_round(
@@ -270,6 +274,10 @@ class UomUom(models.Model):
         """Check if the value is zero after rounding with the 'Product Unit' precision
 
         Callable on an empty recordset; see :meth:`_check_at_most_one`.
+
+        :param value: value to check
+        :return: whether ``value`` rounds to zero at the 'Product Unit' precision
+        :rtype: bool
         """
         self._check_at_most_one()
         return float_is_zero(value, precision_digits=self._precision_digits())
