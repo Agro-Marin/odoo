@@ -6821,7 +6821,7 @@ class AccountMove(models.Model):
             ]
         elif allow_fallback:
             return [self._get_invoice_pdf_proforma()]
-        return None
+        return []
 
     def _get_report_filename(self, file_name, extension):
         self.ensure_one()

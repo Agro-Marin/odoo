@@ -1,6 +1,5 @@
 import io
 import zipfile
-from itertools import chain
 
 from odoo import _, http
 from odoo.exceptions import UserError
@@ -115,13 +114,31 @@ class AccountDocumentDownloadController(http.Controller):
                     seen[new_name] = 0
             return docs
 
-        if docs_data := list(
-            chain.from_iterable(move._get_move_zip_export_docs() for move in moves)
-        ):
+        def archive_name(moves):
+            move_types = set(moves.mapped("move_type"))
+            if move_types <= {"in_invoice", "in_refund", "in_receipt"}:
+                return request.env._("VendorBills")
+            if move_types <= {"out_invoice", "out_refund", "out_receipt"}:
+                return request.env._("CustomerInvoices")
+            return request.env._("Documents")
+
+        docs_data = []
+        for move in moves:
+            # Vendors name their files whatever they like, and most of them
+            # settle on the same handful of words. Naming each member after the
+            # move it documents is what makes a bulk export navigable.
+            prefix = move.name.replace("/", "_") if move.name else None
+            for doc in move._get_move_zip_export_docs():
+                if prefix:
+                    _stem, dot, extension = doc["filename"].rpartition(".")
+                    doc["filename"] = f"{prefix}.{extension}" if dot else prefix
+                docs_data.append(doc)
+
+        if docs_data:
             docs_data = rename_duplicates(docs_data)
             zip_content = _build_zip_from_data(docs_data)
             headers = _get_headers(
-                request.env._("Invoices") + ".zip", "application/zip", zip_content
+                archive_name(moves) + ".zip", "application/zip", zip_content
             )
             return request.make_response(zip_content, headers)
         return None
