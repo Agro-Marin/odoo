@@ -28,8 +28,12 @@ class BaseGeocoder(models.AbstractModel):
             .sudo()
             .get_param("base_geolocalize.geo_provider")
         )
+        provider = self.env["base.geo_provider"]
         if prov_id:
-            provider = self.env["base.geo_provider"].browse(int(prov_id))
+            try:
+                provider = self.env["base.geo_provider"].browse(int(prov_id))
+            except ValueError:
+                provider = self.env["base.geo_provider"]
         if not prov_id or not provider.exists():
             provider = self.env["base.geo_provider"].search([], limit=1)
         return provider
