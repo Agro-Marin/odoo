@@ -392,7 +392,9 @@ class RateLimitBucket(models.Model):
         old_buckets = self.search(
             [
                 "|",
+                "&",
                 ("last_request_at", "=", False),
+                ("create_date", "<", threshold),
                 ("last_request_at", "<", threshold),
             ],
         )
