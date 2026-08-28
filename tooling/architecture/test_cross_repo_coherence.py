@@ -213,3 +213,120 @@ def test_consumer_candidates_are_paths_that_exist(tmp_path):
     found = crc._consumer_js_files_importing(root, "@web/gone")
     assert found
     assert all(path.is_file() for path in found)
+
+
+def _init_core(tmp_path: Path, barrel_body: str) -> Path:
+    """A minimal core addons root exporting `barrel_body` from @web/model/barrel."""
+    addons = tmp_path / "core_addons"
+    src = addons / "web" / "static" / "src" / "model"
+    src.mkdir(parents=True)
+    (src / "barrel.js").write_text(barrel_body, encoding="utf-8")
+    return addons
+
+
+def _init_name_consumer(tmp_path: Path, import_line: str) -> Path:
+    repo = tmp_path / "enterprise"
+    src = repo / "web_map" / "static" / "src"
+    src.mkdir(parents=True)
+    (src / "map_model.js").write_text(
+        f"{import_line}\nexport const x = 1;\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "seed",
+        ],
+        check=True,
+    )
+    return repo
+
+
+_CHANGED = {"@web/model/barrel": "addons/web/static/src/model/barrel.js"}
+
+
+def test_find_dangling_names_flags_a_rename_the_consumer_missed(tmp_path):
+    """The case the whole-module half is blind to by construction.
+
+    The file still exists, so nothing is removed and `find_dangling` sees
+    nothing; the NAME moved, and the consumer still imports the old one. This
+    is the shape that killed web.assets_web when `resequence` became
+    `resequenceRecords` and enterprise/web_map was not renamed with it.
+    """
+    core = _init_core(tmp_path, "export function resequenceRecords() {}\n")
+    repo = _init_name_consumer(
+        tmp_path, 'import { resequence } from "@web/model/barrel";'
+    )
+    dangling = crc.find_dangling_names(_CHANGED, [repo], addons_roots=[core])
+    assert [(d.name, d.consumer) for d in dangling] == [
+        ("resequence", "web_map/static/src/map_model.js")
+    ]
+    # Nothing was REMOVED -- the file is still there, so the whole-module half
+    # is handed an empty set and has nothing to say. That is the blind spot.
+    assert crc.find_dangling({}, [repo]) == []
+
+
+def test_find_dangling_names_reads_the_imported_side_of_an_alias(tmp_path):
+    """`import { a as b }` asks the module for `a`, not `b`.
+
+    Reading the local name would have made the motivating incident invisible:
+    it aliased the removed `resequence` TO the name that still exists.
+    """
+    core = _init_core(tmp_path, "export function resequenceRecords() {}\n")
+    repo = _init_name_consumer(
+        tmp_path,
+        'import { resequence as resequenceRecords } from "@web/model/barrel";',
+    )
+    dangling = crc.find_dangling_names(_CHANGED, [repo], addons_roots=[core])
+    assert [d.name for d in dangling] == ["resequence"]
+
+
+def test_find_dangling_names_clean_when_the_consumer_was_renamed_too(tmp_path):
+    core = _init_core(tmp_path, "export function resequenceRecords() {}\n")
+    repo = _init_name_consumer(
+        tmp_path, 'import { resequenceRecords } from "@web/model/barrel";'
+    )
+    assert crc.find_dangling_names(_CHANGED, [repo], addons_roots=[core]) == []
+
+
+def test_find_dangling_names_follows_a_re_export(tmp_path):
+    """The barrel names the export; the definition lives one file deeper."""
+    core = _init_core(
+        tmp_path, 'export { resequenceRecords } from "./resequence.js";\n'
+    )
+    (core / "web" / "static" / "src" / "model" / "resequence.js").write_text(
+        "export function resequenceRecords() {}\n", encoding="utf-8"
+    )
+    ok = _init_name_consumer(
+        tmp_path, 'import { resequenceRecords } from "@web/model/barrel";'
+    )
+    assert crc.find_dangling_names(_CHANGED, [ok], addons_roots=[core]) == []
+
+
+def test_find_dangling_names_ignores_a_module_the_range_did_not_touch(tmp_path):
+    core = _init_core(tmp_path, "export function resequenceRecords() {}\n")
+    repo = _init_name_consumer(
+        tmp_path, 'import { resequence } from "@web/model/barrel";'
+    )
+    assert crc.find_dangling_names({}, [repo], addons_roots=[core]) == []
+
+
+def test_changed_specifiers_maps_modified_core_paths(monkeypatch):
+    monkeypatch.setattr(
+        crc,
+        "_git",
+        lambda *a: "addons/web/static/src/model/barrel.js\0addons/web/README.md\0",
+    )
+    assert crc.changed_specifiers("a", "b") == {
+        "@web/model/barrel": "addons/web/static/src/model/barrel.js"
+    }

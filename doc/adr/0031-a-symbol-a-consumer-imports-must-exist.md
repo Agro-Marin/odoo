@@ -1,6 +1,6 @@
 # ADR-0031: A symbol a consumer imports must still exist — including across repositories
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0072
 - **Date:** 2026-08-14 (retroactive — records decisions already enforced)
 
 ## Context

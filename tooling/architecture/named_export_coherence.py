@@ -45,7 +45,7 @@ from js_imports import strip_comments
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-ADR = "0031"
+ADR = "0072"
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="named_export_coherence")
 

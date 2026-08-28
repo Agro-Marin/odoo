@@ -201,7 +201,7 @@ enforce them.
 | [0028](0028-the-underscore-is-a-claim.md) | In client code the underscore is a claim, and it is budgeted | 2026-08-14 | Accepted |
 | [0029](0029-dependencies-without-import-edges.md) | Inventory the dependencies that produce no import edge | 2026-08-14 | Accepted |
 | [0030](0030-documentation-is-re-derived.md) | Documentation that describes the tree is re-derived against it | 2026-08-14 | Accepted |
-| [0031](0031-a-symbol-a-consumer-imports-must-exist.md) | A symbol a consumer imports must still exist — including across repositories | 2026-08-14 | Accepted |
+| [0031](0031-a-symbol-a-consumer-imports-must-exist.md) | A symbol a consumer imports must still exist — including across repositories | 2026-08-14 | Superseded by ADR-0072 |
 | [0032](0032-half-the-client-graph-is-xml-strings.md) | Half the client's dependency graph is written in XML, as strings | 2026-08-14 | Accepted |
 | [0033](0033-naming-vocabulary-is-counted-not-blocked.md) | The naming vocabulary is a count, and only the decidable part of it | 2026-08-14 | Accepted |
 | [0034](0034-the-core-import-graph-is-acyclic.md) | The core's import graph is acyclic, which direction alone does not give | 2026-08-14 | Accepted |
@@ -242,6 +242,7 @@ enforce them.
 | [0069](0069-a-shadow-root-is-attached-through-the-helper.md) | A shadow root is attached through the helper, so its host can be found | 2026-08-27 | Accepted |
 | [0070](0070-payment-names-nine-things-and-a-channel-is-not-a-method.md) | "Payment" names nine things, and a channel is not a method | 2026-08-26 | Accepted |
 | [0071](0071-one-edge-one-column-and-the-sequence-is-told-directly.md) | One edge, one column — and the sequence is told directly | 2026-08-26 | Accepted |
+| [0072](0072-the-cross-repo-gate-checks-names-not-only-modules.md) | The cross-repo gate checks names, not only modules | 2026-08-28 | Accepted |
 
 ## Template
 

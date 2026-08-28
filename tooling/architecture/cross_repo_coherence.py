@@ -12,7 +12,7 @@ from js_imports import collect_imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root, sibling_repos_root
 
-ADR = "0031"
+ADR = "0072"
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="cross_repo_coherence")
 SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
@@ -153,6 +153,112 @@ def find_dangling(
     return dangling
 
 
+@dataclass
+class DanglingName:
+    specifier: str
+    name: str
+    path: str
+    repo: str
+    consumer: str
+    lineno: int
+
+
+def changed_specifiers(from_ref: str, to_ref: str) -> dict[str, str]:
+    """Core client modules MODIFIED in the range, by specifier.
+
+    The whole-module half above asks which files disappeared. A rename inside a
+    file that stays put disappears from neither the path list nor the specifier
+    list, so this is the other half's starting set: the modules whose exported
+    names could have moved under a consumer.
+    """
+    raw = _git(
+        ROOT, "diff", "--name-only", "-z", "--diff-filter=M", f"{from_ref}..{to_ref}"
+    )
+    changed: dict[str, str] = {}
+    for path in raw.split("\0"):
+        if not path:
+            continue
+        spec = path_to_specifier(path)
+        if spec:
+            changed[spec] = path
+    return changed
+
+
+def _consumer_js_files_importing_any(repo: Path, spec: str) -> list[Path]:
+    raw = _git(
+        repo,
+        "grep",
+        "-l",
+        "-z",
+        "-F",
+        spec,
+        "--",
+        "*/static/src/*.js",
+        "*/static/tests/*.js",
+    )
+    return [repo / name for name in raw.split("\0") if name.strip()]
+
+
+def find_dangling_names(
+    changed: dict[str, str],
+    consumer_repos: list[Path],
+    addons_roots: list[Path] | None = None,
+) -> list[DanglingName]:
+    """Named imports in a consumer that the changed core module no longer exports.
+
+    Imported deferred: :mod:`named_export_coherence` imports this module for its
+    consumer-repo discovery, so a module-level import here is a cycle. The
+    parsing and the export resolution are that gate's, deliberately -- two
+    readings of what a module exports would drift apart, and the one that is
+    wrong is the one nobody runs.
+    """
+    import named_export_coherence as nec
+
+    if not changed:
+        return []
+    resolver = nec.Resolver(
+        nec.discover_addons_roots() if addons_roots is None else addons_roots
+    )
+    dangling: list[DanglingName] = []
+    for repo in consumer_repos:
+        if not repo.is_dir() or not _git(repo, "rev-parse", "--git-dir").strip():
+            # The whole-module half above already said so for this repo.
+            continue
+        for spec, path in changed.items():
+            for consumer in _consumer_js_files_importing_any(repo, spec):
+                try:
+                    source = nec.strip_comments(consumer.read_text(encoding="utf-8"))
+                except OSError, UnicodeDecodeError:  # pragma: no cover
+                    continue
+                for brace_body, imported_spec in nec.NAMED_IMPORT_RE.findall(source):
+                    if imported_spec not in (spec, f"{spec}.js"):
+                        continue
+                    target = resolver.resolve(imported_spec, consumer)
+                    if target is None:
+                        continue
+                    available, complete = resolver.exports_of(target)
+                    if not complete:
+                        continue
+                    dangling.extend(
+                        DanglingName(
+                            specifier=spec,
+                            name=name,
+                            path=path,
+                            repo=repo.name,
+                            consumer=str(consumer.relative_to(repo)),
+                            lineno=_lineno_of(source, brace_body),
+                        )
+                        for name in nec.imported_names(brace_body)
+                        if name not in available
+                    )
+    return dangling
+
+
+def _lineno_of(source: str, brace_body: str) -> int:
+    index = source.find(brace_body)
+    return source.count("\n", 0, index) + 1 if index >= 0 else 0
+
+
 def _default_from_ref() -> str:
 
     upstream = _git(
@@ -171,6 +277,67 @@ def _resolve_refs(args: argparse.Namespace) -> tuple[str, str]:
     return from_ref, to_ref
 
 
+def _print_report(
+    from_ref: str,
+    to_ref: str,
+    span: int,
+    args: argparse.Namespace,
+    consumer_repos: list[Path],
+    removed: dict[str, str],
+    rehomed: dict[str, str],
+    changed: dict[str, str],
+    dangling: list[Dangling],
+    dangling_names: list[DanglingName],
+) -> None:
+    print("Cross-repo symbol-coherence check (core -> consumers)")
+    print("=" * 64)
+    print(f"Range: {from_ref}..{to_ref}  ({span} commit(s))")
+    if "PRE_COMMIT_FROM_REF" not in os.environ and not args.from_ref:
+        print(
+            "(standalone run — to gate every push automatically: "
+            "tooling/install-hooks.sh)"
+        )
+    print(f"Consumer repos: {', '.join(r.name for r in consumer_repos) or '(none)'}")
+    if not span:
+        print("\nNothing to inspect — the range is empty. ✓")
+        return
+    print(f"Core JS modules removed in range: {len(removed)}")
+    for spec, old in removed.items():
+        print(f"  - {spec}  ({old})")
+    if rehomed:
+        print(f"Still provided by core (not removed): {len(rehomed)}")
+        for spec, old in rehomed.items():
+            print(f"  = {spec}  (was {old})")
+    if dangling:
+        print(f"\n{len(dangling)} DANGLING import(s) — these fail the gate:\n")
+        for d in dangling:
+            print(f"  {d.repo}/{d.consumer}:{d.lineno}")
+            print(f"      imports {d.specifier}  (removed: {d.old_path})")
+        print(
+            "\nSync the consumer repo (or ship its adaptation) before pushing "
+            "this removal to the shared branch."
+        )
+    print(f"Core JS modules modified in range: {len(changed)}")
+    if dangling_names:
+        print(
+            f"\n{len(dangling_names)} DANGLING named import(s) "
+            f"-- these fail the gate:\n"
+        )
+        for d in dangling_names:
+            print(f"  {d.repo}/{d.consumer}:{d.lineno}")
+            print(
+                f"      imports {{{d.name}}} from {d.specifier}, "
+                f"which no longer exports it ({d.path})"
+            )
+        print(
+            "\nA named import the module does not export is a LINK-time "
+            "error: the whole bundle dies, not one feature. Rename the "
+            "consumer, or keep the old name exported, before pushing."
+        )
+    if not dangling and not dangling_names:
+        print("\nNo dangling cross-repo imports. Coherent. ✓")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="exit 1 on dangling")
@@ -186,6 +353,8 @@ def main(argv: list[str] | None = None) -> int:
     removed = {s: p for s, p in all_removed.items() if s not in rehomed}
     consumer_repos = default_consumer_repos()
     dangling = find_dangling(removed, consumer_repos)
+    changed = changed_specifiers(from_ref, to_ref)
+    dangling_names = find_dangling_names(changed, consumer_repos)
 
     if args.json:
         print(
@@ -196,48 +365,32 @@ def main(argv: list[str] | None = None) -> int:
                     "removed": removed,
                     "rehomed": rehomed,
                     "consumer_repos": [str(r) for r in consumer_repos],
+                    "changed": changed,
                     "dangling": [d.__dict__ for d in dangling],
+                    "dangling_names": [d.__dict__ for d in dangling_names],
                 },
                 indent=2,
             )
         )
     else:
-        print("Cross-repo symbol-coherence check (core -> consumers)")
-        print("=" * 64)
-        print(f"Range: {from_ref}..{to_ref}  ({span} commit(s))")
-        if "PRE_COMMIT_FROM_REF" not in os.environ and not args.from_ref:
-            print(
-                "(standalone run — to gate every push automatically: "
-                "tooling/install-hooks.sh)"
-            )
-        print(
-            f"Consumer repos: {', '.join(r.name for r in consumer_repos) or '(none)'}"
+        _print_report(
+            from_ref,
+            to_ref,
+            span,
+            args,
+            consumer_repos,
+            removed,
+            rehomed,
+            changed,
+            dangling,
+            dangling_names,
         )
-        if not span:
-            print("\nNothing to inspect — the range is empty. ✓")
-            return 0
-        print(f"Core JS modules removed in range: {len(removed)}")
-        for spec, old in removed.items():
-            print(f"  - {spec}  ({old})")
-        if rehomed:
-            print(f"Still provided by core (not removed): {len(rehomed)}")
-            for spec, old in rehomed.items():
-                print(f"  = {spec}  (was {old})")
-        if dangling:
-            print(f"\n{len(dangling)} DANGLING import(s) — these fail the gate:\n")
-            for d in dangling:
-                print(f"  {d.repo}/{d.consumer}:{d.lineno}")
-                print(f"      imports {d.specifier}  (removed: {d.old_path})")
-            print(
-                "\nSync the consumer repo (or ship its adaptation) before pushing "
-                "this removal to the shared branch."
-            )
-        else:
-            print("\nNo dangling cross-repo imports. Coherent. ✓")
 
-    if args.check and dangling:
+    if args.check and (dangling or dangling_names):
         print(
-            f"\nFAILED: {len(dangling)} dangling cross-repo import(s).", file=sys.stderr
+            f"\nFAILED: {len(dangling)} dangling cross-repo import(s), "
+            f"{len(dangling_names)} dangling named import(s).",
+            file=sys.stderr,
         )
         return 1
     return 0

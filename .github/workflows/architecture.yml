@@ -568,6 +568,15 @@ jobs:
         # architecture workflows (which check out this repo alongside), and
         # dev clones that ran tooling/install-hooks.sh to get the pre-push
         # cross_repo_coherence hook. Intra-repo drift is fully covered here.
+        #
+        # ADR-0072: that pre-push hook now asks the NAME question too, not only
+        # the whole-module one. It has to, and ADR-0031's claim that a name is
+        # "answerable inside one repository" is what this step's scope made
+        # false: a core export renamed under a sibling's import is a link-time
+        # error this run cannot see, because the importer is in a tree CI did
+        # not check out. Renaming `resequence` to `resequenceRecords` under
+        # enterprise/web_map killed the whole web asset bundle that way, and
+        # every gate here was green for it.
         run: |
           set +e
           python tooling/architecture/named_export_coherence.py --check \
