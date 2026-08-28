@@ -101,7 +101,9 @@ class PaymentCommon(BaseCommon):
         cls.partner = cls.default_partner
         cls.reference = "Test Transaction"
 
-        account_payment_module = cls.env["ir.module.module"]._get("account_payment_provider")
+        account_payment_module = cls.env["ir.module.module"]._get(
+            "account_payment_provider"
+        )
         cls.account_payment_installed = account_payment_module.state in (
             "installed",
             "to upgrade",
