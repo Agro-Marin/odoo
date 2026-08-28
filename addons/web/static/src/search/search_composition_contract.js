@@ -186,7 +186,7 @@ export const SEARCH_FAVORITES_SHARED_STATE = [
  * What the rest of the composition may call on this unit.
  * @type {string[]}
  */
-export const SEARCH_SPLIT_DOMAIN_PUBLISHED = ["splitAndAddDomain"];
+export const SEARCH_SPLIT_DOMAIN_PUBLISHED = [];
 
 /**
  * Sibling operations this unit calls. Each one is a reason it cannot be
@@ -212,11 +212,16 @@ export const SEARCH_SPLIT_DOMAIN_REQUIRES = [
  * @type {string[]}
  */
 export const SEARCH_SPLIT_DOMAIN_SHARED_STATE = [
+    "DomainSelectorDialog",
     "defaultGroupBy",
+    "dialog",
     "env",
+    "getDefaultDomain",
+    "globalContext",
     "query",
     "resModel",
     "searchItems",
+    "searchViewFields",
     "treeProcessor",
 ];
 
@@ -245,25 +250,16 @@ export const SEARCH_QUERY_PUBLISHED = [
  * read or tested on its own.
  * @type {string[]}
  */
-export const SEARCH_QUERY_REQUIRES = [
-    "_getSelectedGeneratorIds",
-    "_notify",
-    "isDebugMode",
-    "splitAndAddDomain",
-];
+export const SEARCH_QUERY_REQUIRES = ["_getSelectedGeneratorIds", "_notify"];
 
 /**
  * Host instance state this unit reads or writes.
  * @type {string[]}
  */
 export const SEARCH_QUERY_SHARED_STATE = [
-    "DomainSelectorDialog",
     "blockNotification",
     "defaultGroupBy",
     "defaultGroupByRemoved",
-    "dialog",
-    "getDefaultDomain",
-    "globalContext",
     "globalGroupBy",
     "nextGroupId",
     "nextGroupNumber",
@@ -271,7 +267,6 @@ export const SEARCH_QUERY_SHARED_STATE = [
     "orderByCount",
     "query",
     "referenceMoment",
-    "resModel",
     "searchItems",
     "searchViewFields",
 ];
@@ -384,6 +379,29 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "treeProcessor",
     "viewService",
 ];
+
+/**
+ * One member each unit defines, used only to locate its level in the prototype
+ * chain.
+ *
+ * `_PUBLISHED` did this job until it could not. It is intra-composition by
+ * definition -- what a *sibling unit* may call -- and may legitimately be
+ * empty: `search_split_domain_mixin` publishes nothing to its siblings, while
+ * `splitAndAddDomain` is still called by `search_bar` and patched by
+ * `enterprise/ai`. A chain-order check keyed on `_PUBLISHED` would skip that
+ * unit and report success having verified five levels of six, which is the
+ * kind of silent under-check this file exists to stop.
+ *
+ * @type {Record<string, string>}
+ */
+export const SEARCH_COMPOSITION_IDENTITY = {
+    "search/search_panel/search_panel_mixin.js": "toggleCategoryValue",
+    "search/search_properties_mixin.js": "fillSearchViewItemsProperty",
+    "search/search_favorites_mixin.js": "createNewFavorite",
+    "search/search_split_domain_mixin.js": "splitAndAddDomain",
+    "search/search_query_mixin.js": "toggleSearchItem",
+    "search/search_model.js": "load",
+};
 
 /**
  * Shared state that a loaded `SearchModel` does not necessarily carry.

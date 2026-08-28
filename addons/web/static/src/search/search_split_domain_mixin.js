@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { makeContext } from "@web/core/context";
+import { _t } from "@web/core/translation";
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
 
 /**
@@ -200,5 +201,31 @@ export const SearchSplitDomainMixin = (Base) =>
             });
 
             await this._notify();
+        }
+        /**
+         * Open the custom-filter dialog and hand what it produces to
+         * `splitAndAddDomain`.
+         *
+         * It lives here rather than on the query mixin because that is all it
+         * does: every other name it touches is host state, and the one
+         * operation it calls is this unit's. Owning it from `search_query_mixin`
+         * made the two mixins mutually dependent for a dialog neither of them
+         * is about -- the composition's only remaining mixin-to-mixin cycle.
+         */
+        async spawnCustomFilterDialog() {
+            const domain = this.getDefaultDomain(this.searchViewFields);
+            this.dialog.add(this.DomainSelectorDialog, {
+                resModel: this.resModel,
+                defaultConnector: "|",
+                domain,
+                context: this.globalContext,
+                onConfirm: (/** @type {any} */ domain) =>
+                    this.splitAndAddDomain(domain),
+                disableConfirmButton: (/** @type {any} */ domain) => domain === `[]`,
+                title: _t("Custom Filter"),
+                confirmButtonText: _t("Search"),
+                discardButtonText: _t("Discard"),
+                isDebugMode: this.isDebugMode,
+            });
         }
     };

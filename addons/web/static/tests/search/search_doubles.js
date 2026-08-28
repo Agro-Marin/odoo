@@ -153,13 +153,8 @@ const DOUBLES = {
                 )
                 .map((/** @type {any} */ q) => q.generatorId);
         },
-        isDebugMode: false,
-        splitAndAddDomain: () => {},
-        DomainSelectorDialog: class {},
         defaultGroupBy: undefined,
         defaultGroupByRemoved: false,
-        dialog: {},
-        getDefaultDomain: () => /** @type {any[]} */ ([]),
         globalGroupBy: [],
         orderByCount: false,
         referenceMoment: null,
@@ -210,6 +205,9 @@ const DOUBLES = {
         defaultGroupBy: undefined,
         env: {},
         treeProcessor: {},
+        DomainSelectorDialog: class {},
+        dialog: {},
+        getDefaultDomain: () => /** @type {any[]} */ ([]),
     }),
 };
 

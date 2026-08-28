@@ -12,6 +12,7 @@ import {
     SEARCH_COMPOSITION_BASE_SURFACE,
     SEARCH_COMPOSITION_CONDITIONAL_STATE,
     SEARCH_COMPOSITION_CONTRACT,
+    SEARCH_COMPOSITION_IDENTITY,
     SEARCH_COMPOSITION_ORDER,
 } from "@web/search/search_composition_contract";
 import { SearchModel } from "@web/search/search_model";
@@ -177,29 +178,45 @@ describe("the composition contract and the composition agree", () => {
         }
     });
 
-    test("the chain is composed in the order the contract declares", () => {
-        // Each unit is identified by the level that owns everything it
-        // publishes. SEARCH_COMPOSITION_ORDER is innermost first, so the level
-        // indices -- most-derived first -- must come out strictly decreasing.
-        // This is what catches a reordering of the mixin factories, which
-        // silently changes which unit's override of a shared name wins and
-        // which `super` a call reaches.
+    test("every unit has an identity its level actually owns", () => {
+        // The identity map is what makes the order check total; if an entry
+        // stops naming something exactly one level owns, the order check below
+        // silently narrows rather than failing.
         const levels = chain();
-        /** @type {number[]} */
-        const found = [];
+        /** @type {string[]} */
+        const wrong = [];
         for (const module of MODULES) {
-            const published = SEARCH_COMPOSITION_CONTRACT[module].published;
-            if (!published.length) {
+            const name = SEARCH_COMPOSITION_IDENTITY[module];
+            if (!name) {
+                wrong.push(`${module}: no identity declared`);
                 continue;
             }
-            const index = levels.findIndex((proto) =>
-                published.every((name) => own(proto).includes(name)),
-            );
-            expect(index).not.toBe(-1, {
-                message: `no single level of the chain owns all of ${module}'s published surface`,
-            });
-            found.push(index);
+            const owners = levels.filter((proto) => own(proto).includes(name));
+            if (owners.length !== 1) {
+                wrong.push(`${module}: ${name} owned by ${owners.length} level(s)`);
+            }
         }
+        expect(wrong).toEqual([], {
+            message: "SEARCH_COMPOSITION_IDENTITY no longer locates every unit",
+        });
+    });
+
+    test("the chain is composed in the order the contract declares", () => {
+        // Each unit is located by the level owning its identity member.
+        // SEARCH_COMPOSITION_ORDER is innermost first, so the level indices --
+        // most-derived first -- must come out strictly decreasing. This is what
+        // catches a reordering of the mixin factories, which silently changes
+        // which unit's override of a shared name wins and which `super` a call
+        // reaches.
+        const levels = chain();
+        const found = MODULES.map((module) =>
+            levels.findIndex((proto) =>
+                own(proto).includes(SEARCH_COMPOSITION_IDENTITY[module]),
+            ),
+        );
+        expect(found.includes(-1)).toBe(false, {
+            message: "a unit could not be located in the chain at all",
+        });
         const descending = [...found].sort((a, b) => b - a);
         expect(found).toEqual(descending, {
             message:

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-import { _t } from "@web/core/translation";
-
 import { findGroupByGroupId } from "./search_group_by.js";
 import { fireAndForgetNotify } from "./search_notification.js";
 import { SPECIAL } from "./search_state.js";
@@ -337,23 +335,6 @@ export const SearchQueryMixin = (Base) =>
                 this.query.push({ searchItemId, intervalId });
             }
             return this._notify();
-        }
-
-        async spawnCustomFilterDialog() {
-            const domain = this.getDefaultDomain(this.searchViewFields);
-            this.dialog.add(this.DomainSelectorDialog, {
-                resModel: this.resModel,
-                defaultConnector: "|",
-                domain,
-                context: this.globalContext,
-                onConfirm: (/** @type {any} */ domain) =>
-                    this.splitAndAddDomain(domain),
-                disableConfirmButton: (/** @type {any} */ domain) => domain === `[]`,
-                title: _t("Custom Filter"),
-                confirmButtonText: _t("Search"),
-                discardButtonText: _t("Discard"),
-                isDebugMode: this.isDebugMode,
-            });
         }
 
         async switchGroupBySort() {
