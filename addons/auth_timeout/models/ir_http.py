@@ -93,7 +93,7 @@ class IrHttp(models.AbstractModel):
 
         :return: A dictionary indicating the outcome of the identity check:
 
-            - {"auth_methods": [...]} if no credential is provided,
+            - {"user_id": ..., "login": ..., "auth_methods": [...]} if no credential is provided,
             - {"mfa": True, "auth_methods": [...]} if a second factor is required,
             - None if re-authentication is complete.
 
