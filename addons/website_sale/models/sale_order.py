@@ -505,7 +505,7 @@ class SaleOrder(models.Model):
         if not (order_line := self.line_ids.filtered(lambda sol: sol.id == line_id)):
             # If the line isn't found because of wrong parameters, or because the user updated
             # the cart in other tabs, a warning will be returned.
-            # Note that if the cart is empty, the zero cart_quantity will trigger a page reload
+            # If the cart is empty, the zero cart_quantity will trigger a page reload
             # and this warning won't be shown.
             return {
                 "warning": _(
