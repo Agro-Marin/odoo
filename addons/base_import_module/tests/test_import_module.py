@@ -222,6 +222,21 @@ class TestImportModule(odoo.tests.TransactionCase):
         ):
             self.import_zipfile(files)
 
+    def test_import_zip_malformed_xml_asset_does_not_abort_import(self):
+        """t27114 audit: `_is_studio_custom` walks every `.xml` file
+        extracted from the zip (not just manifest-declared data files),
+        including anything under static/ — before this fix, a malformed
+        or non-Odoo XML asset there raised `lxml.etree.XMLSyntaxError`
+        uncaught, aborting the whole module's import even though the
+        module itself was otherwise valid."""
+        files = [
+            ("foo/__manifest__.py", self.manifest_content()),
+            ("foo/static/src/xml/broken.xml", b"<not><valid</not>"),
+        ]
+        self.import_zipfile(files)
+        module = self.env["ir.module.module"].search([("name", "=", "foo")])
+        self.assertEqual(module.state, "installed")
+
     def test_import_zip_invalid_data(self):
         """Assert no data remains in the db if module import fails"""
         files = [

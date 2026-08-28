@@ -1011,7 +1011,16 @@ def _is_studio_custom(path):
     ]
 
     for fp in xml_files:
-        root = lxml.etree.parse(fp).getroot()
+        try:
+            root = lxml.etree.parse(fp).getroot()
+        except Exception:
+            # t27114: this walk visits every .xml file extracted from the
+            # zip, not just manifest-declared data files (e.g. anything
+            # under static/), so a malformed/non-Odoo XML asset must not
+            # abort the whole module's import — skip it like an
+            # unparseable context below.
+            _logger.debug("skipping unparseable XML file %s", fp)
+            continue
 
         for record in root:
             # there might not be a context if it's a non-studio module
