@@ -12,16 +12,16 @@ class StockRule(models.Model):
 
     def _get_stock_move_values(self, procurement):
         move_values = super()._get_stock_move_values(procurement)
-        if (
-            sol_id := procurement.values.get("sale_line_id")
-        ) is not None and "product_id" in move_values:
-            # if the SOL is for a kit
-            sol = self.env["sale.order.line"].browse(sol_id)
-            if move_values["product_id"] != sol.product_id.id:
-                active_moves = sol.move_ids.filtered(lambda m: m.state != "cancel")
-                bom_line_id = active_moves.bom_line_id.filtered(
-                    lambda bl: bl.product_id.id == move_values.get("product_id")
-                )[:1].id
-                if bom_line_id:
-                    move_values["bom_line_id"] = bom_line_id
+        sol_id = procurement.values.get("sale_line_id")
+        if not sol_id or "product_id" not in move_values:
+            return move_values
+        sol = self.env["sale.order.line"].browse(sol_id)
+        if move_values["product_id"] == sol.product_id.id:
+            return move_values
+        active_moves = sol.move_ids.filtered(lambda move: move.state != "cancel")
+        bom_line = active_moves.bom_line_id.filtered(
+            lambda line: line.product_id.id == move_values["product_id"]
+        )[:1]
+        if bom_line:
+            move_values["bom_line_id"] = bom_line.id
         return move_values

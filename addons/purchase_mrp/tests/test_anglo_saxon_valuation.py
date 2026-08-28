@@ -1,5 +1,3 @@
-from unittest import skip
-
 from odoo.exceptions import UserError
 from odoo.fields import Command, Date, Datetime
 from odoo.tests import Form, tagged
@@ -10,20 +8,45 @@ from odoo.addons.stock_account.tests.common import TestStockValuationCommon
 
 @tagged("post_install", "-at_install")
 class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
-    @skip("Temporary to fast merge new valuation")
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.partner_a, cls.vendor01 = cls.env["res.partner"].create(
+            [{"name": "Vendor A"}, {"name": "Vendor 01"}]
+        )
+        cls.stock_input_account = cls.category_avco_auto.account_stock_variation_id
+        cls.stock_valuation_account = (
+            cls.category_avco_auto.property_stock_valuation_account_id
+        )
+        cls.product_a, cls.product_b = cls.env["product.product"].create(
+            [
+                {"name": "Product A", "is_storable": True},
+                {"name": "Product B", "is_storable": True},
+            ]
+        )
+
+    def _valued_moves(self, product):
+        return (
+            self.env["stock.move"]
+            .search([("product_id", "=", product.id), ("state", "=", "done")])
+            .sorted("id")
+            .filtered("is_valued")
+        )
+
+    def _valued_amounts(self, product):
+        return [
+            -move.value if move.is_out else move.value
+            for move in self._valued_moves(product)
+        ]
+
     def test_kit_anglo_saxo_price_diff(self):
-        """
-        Suppose an automated-AVCO configuration and a Price Difference Account defined on
-        the product category. When buying a kit of that category at a higher price than its
-        cost, the difference should be published on the Price Difference Account
-        """
         kit, compo01, compo02 = self.env["product.product"].create(
             [
                 {
                     "name": name,
                     "standard_price": price,
                     "is_storable": True,
-                    "categ_id": self.avco_category.id,
+                    "categ_id": self.category_avco_auto.id,
                 }
                 for name, price in [("Kit", 0), ("Compo 01", 10), ("Compo 02", 20)]
             ]
@@ -62,14 +85,14 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         invoice.invoice_date = Date.today()
         invoice.action_post()
 
-        svls = po.line_ids.move_ids.stock_valuation_layer_ids
+        valued = po.line_ids.move_ids.filtered("is_valued")
         self.assertEqual(
-            len(svls),
+            len(valued),
             2,
-            "The invoice should have created two SVL (one by kit's component) for the price diff",
+            "One valued move per kit component should carry the price difference",
         )
         self.assertEqual(
-            sum(svls.mapped("value")),
+            sum(valued.mapped("value")),
             100,
             "Should be the standard price of both components",
         )
@@ -79,19 +102,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         )
         self.assertEqual(sum(input_amls.mapped("balance")), 0)
 
-    @skip("Temporary to fast merge new valuation")
     def test_buy_deliver_and_return_kit_with_auto_avco_components(self):
-        """
-        A kit K with two AVCO components
-        - C01, cost share 25%
-        - C02, cost share 75%
-        K in Units
-        C01, C02 in Litres
-        Buy and receive 1 kit @ 100
-        Deliver the kit
-        Update the cost shares
-        Return the delivery
-        """
         stock_location = self.env["stock.location"].search(
             [
                 ("company_id", "=", self.env.company.id),
@@ -110,7 +121,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                 {
                     "name": "Component %s" % name,
                     "is_storable": True,
-                    "categ_id": self.avco_category.id,
+                    "categ_id": self.category_avco_auto.id,
                     "uom_id": uom_litre.id,
                 }
                 for name in ["01", "02"]
@@ -168,8 +179,8 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         self.assertEqual(receipt.state, "done")
         self.assertEqual(receipt.move_line_ids.product_id, component01 | component02)
         self.assertEqual(po.line_ids.qty_transferred, 1)
-        self.assertEqual(component01.stock_valuation_layer_ids.value, 25)
-        self.assertEqual(component02.stock_valuation_layer_ids.value, 75)
+        self.assertEqual(self._valued_amounts(component01), [25])
+        self.assertEqual(self._valued_amounts(component02), [75])
 
         delivery = self.env["stock.picking"].create(
             {
@@ -195,12 +206,8 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         delivery.move_ids.move_line_ids.quantity = 1
         delivery.button_validate()
 
-        self.assertEqual(
-            component01.stock_valuation_layer_ids.mapped("value"), [25, -25]
-        )
-        self.assertEqual(
-            component02.stock_valuation_layer_ids.mapped("value"), [75, -75]
-        )
+        self.assertEqual(self._valued_amounts(component01), [25, -25])
+        self.assertEqual(self._valued_amounts(component02), [75, -75])
 
         with mute_logger("odoo.tests.form.onchange"):
             with Form(bom_kit) as kit_form:
@@ -221,25 +228,17 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         return_picking.move_ids.move_line_ids.quantity = 1
         return_picking.button_validate()
 
-        self.assertEqual(
-            component01.stock_valuation_layer_ids.mapped("value"), [25, -25, 25]
-        )
-        self.assertEqual(
-            component02.stock_valuation_layer_ids.mapped("value"), [75, -75, 75]
-        )
+        self.assertEqual(self._valued_amounts(component01), [25, -25, 25])
+        self.assertEqual(self._valued_amounts(component02), [75, -75, 75])
 
-    @skip("Temporary to fast merge new valuation")
     def test_valuation_multicurrency_with_kits(self):
-        """Purchase a Kit in multi-currency and verify that the amount_currency is correctly computed."""
-
-        # Setup Kit
         kit, cmp = self.env["product.product"].create(
             [
                 {
                     "name": name,
                     "standard_price": 0,
                     "is_storable": True,
-                    "categ_id": self.avco_category.id,
+                    "categ_id": self.category_avco_auto.id,
                 }
                 for name in ["Kit", "Cmp"]
             ]
@@ -253,9 +252,9 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             }
         )
 
-        # Setup Currency
         usd = self.env.ref("base.USD")
         eur = self.env.ref("base.EUR")
+        eur.active = True
         self.env["res.currency.rate"].create(
             {"name": Datetime.today(), "currency_id": usd.id, "rate": 1}
         )
@@ -263,44 +262,32 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             {"name": Datetime.today(), "currency_id": eur.id, "rate": 2}
         )
 
-        # Create Purchase
+        self.vendor01.property_purchase_currency_id = eur
         po_form = Form(self.env["purchase.order"])
         po_form.partner_id = self.vendor01
-        po_form.currency_id = eur
+        self.assertEqual(po_form.currency_id, eur)
         with po_form.line_ids.new() as pol_form:
             pol_form.product_id = kit
-            pol_form.price_unit = 100  # $50
+            pol_form.price_unit = 100
         po = po_form.save()
         po.action_confirm()
 
         po.picking_ids.button_validate()
 
-        svl = po.line_ids.move_ids.stock_valuation_layer_ids.ensure_one()
-        input_aml = self.env["account.move.line"].search(
+        bill = po.create_invoice()
+        bill.invoice_date = Date.today()
+        bill.action_post()
+
+        valued_move = po.line_ids.move_ids.filtered("is_valued").ensure_one()
+        self.assertEqual(valued_move.value, 50)
+
+        valuation_aml = self.env["account.move.line"].search(
             [("account_id", "=", self.stock_valuation_account.id)]
         )
-
-        self.assertEqual(svl.value, 50)  # USD
-        self.assertEqual(input_aml.amount_currency, 100)  # EUR
-        self.assertEqual(input_aml.balance, 50)  # USD
+        self.assertEqual(valuation_aml.amount_currency, 100)
+        self.assertEqual(valuation_aml.balance, 50)
 
     def test_multicurrency_kit_different_uom_categories(self):
-        """
-        Create a kit with an UoM belonging to a different category than its component UoM.
-        Purchase that kit in a different currency than the company currency and validate the receipt.
-        Check the generated account entries.
-
-        This is the test half of upstream odoo/odoo 3670c83f1e5
-        "[FIX] purchase_mrp: UoM category error on kit". The upstream model
-        fix (StockMove._get_qty_received_without_self, currency-convert date
-        from qty_invoiced vs qty_transferred) does NOT apply to this fork: the
-        fork already rewrote purchase valuation (_get_value_from_quotation/
-        _account_move/_bill) to convert at a fixed conversion_date=move.date,
-        so the upstream UoM-mismatch path does not exist here and the
-        multicurrency kit receipt validates correctly. The only fork
-        adaptation needed was the purchase confirm rename
-        (button_confirm -> action_confirm).
-        """
         eur = self.env.ref("base.EUR")
 
         uom_unit = self.env.ref("uom.product_uom_unit")
@@ -364,12 +351,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
 
         self.assertEqual(receipt.move_ids.state, "done")
 
-    @skip("Temporary to fast merge new valuation")
     def test_fifo_cost_adjust_mo_quantity(self):
-        """An MO using a FIFO cost method product as a component should not zero-out the std cost
-        of the product if we unlock it once it is in a validated state and adjust the quantity of
-        component used to be smaller than originally entered.
-        """
         self.product_a.categ_id = self.env["product.category"].create(
             {
                 "name": "FIFO",
@@ -426,13 +408,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
 
         self.assertEqual(self.product_a.standard_price, 100)
 
-    @skip("Temporary to fast merge new valuation")
     def test_average_cost_unbuild_valuation(self):
-        """Ensure that an unbuild for some avg cost product won't leave the `Cost of Production`
-        journal in an imbalanced state if the std price of that product has changed since the MO
-        was completed (i.e., since build time).
-        """
-
         def make_purchase_and_production(product_ids, price_units):
             purchase_orders = self.env["purchase.order"].create(
                 [
@@ -478,7 +454,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             ],
             limit=1,
         )
-        self.avco_category.property_stock_account_production_cost_id = (
+        self.category_avco_auto.property_stock_account_production_cost_id = (
             cost_of_production_account.id
         )
         final_product = self.env["product.product"].create(
@@ -486,7 +462,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                 "name": "final product",
                 "is_storable": True,
                 "standard_price": 0,
-                "categ_id": self.avco_category.id,
+                "categ_id": self.category_avco_auto.id,
                 "route_ids": [
                     (
                         6,
@@ -504,7 +480,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                     "name": name,
                     "is_storable": True,
                     "standard_price": 0,
-                    "categ_id": self.avco_category.id,
+                    "categ_id": self.category_avco_auto.id,
                     "route_ids": [
                         (
                             4,
@@ -562,30 +538,6 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         )
 
     def test_avco_purchase_nested_kit_explode_cost_share(self):
-        """
-        Test the cost share calculation when purchasing a nested kit with several levels of BoMs
-
-        Giga Kit:
-            - C01, cost share 0%
-            - Super Kit, cost share 100%:
-                - C02, cost share 10%
-                - Kit, cost share 60%:
-                    - C02, cost share 25%
-                    - C03, cost share 25%
-                    - Sub Kit, cost share 50%
-                        - C04, cost share 0%
-                        - C05, cost share 0%
-                - Sub Kit, cost share 20%
-                    - C04, cost share 0%
-                    - C05, cost share 0%
-                - Phantom Kit, cost share 0%
-                    - C05, cost share 100%
-                - Triple Kit, cost share 10%
-                    - C01, cost share 0%
-                    - C02, cost share 0%
-                    - C03, cost share 0% (Last line should round to reach 100%)
-        Buy and receive 1 kit Giga Kit @ 1000
-        """
         avco_category = self.env["product.category"].create(
             {
                 "name": "AVCO",
@@ -791,24 +743,6 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         )
         purchase_orders.action_confirm()
 
-        # Actual cost shares:
-        # Component01:
-        #   0 -> No stock valuation for that line
-        #   1.0 * 0.1 * 0.333... (O%) = 0.0333... -> 3.33%
-        # Component02:
-        #   1.0 * 0.1  = 0.1 -> 10%
-        #   1.0 * 0.6 * 0.25 = 0.15 -> 15%
-        #   1.0 * 0.1 * 0.333... (O%) = 0.0333... -> 3.33%
-        # Component03:
-        #   1.0 * 0.6 * 0.25 = 0.15 -> 15%
-        #   1.0 * 0.1 * 0.333... (O%) = 0.0333... -> 3.34% (last exploded line rounded)
-        # Component04:
-        #   1.0 * 0.6 * 0.5 * 0.5 (0%) = 0.15 -> 15%
-        #   1.0 * 0.2 * 0.5 (0%) = 0.1 -> 10%
-        # Component05:
-        #   1.0 * 0.6 * 0.5 * 0.5 (0%) = 0.15 -> 15%
-        #   1.0 * 0.2 * 0.5 (0%) = 0.1 -> 10%
-        #   1.0 * 0.0 * 1.0 = 0.0 -> 0%
         self.assertEqual(
             [
                 sum(moves.mapped("cost_share"))
@@ -819,7 +753,6 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             [100, 100],
         )
         receipts = purchase_orders.picking_ids
-        # Create a backorder by receiving only the half of component01
         receipts[1].move_line_ids.filtered(
             lambda ml: ml.product_id.id == component01.id
         ).quantity = 3
@@ -846,7 +779,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             15.0,
             15.0,
             15.0,
-            15.0,  # receipt 1
+            15.0,
             0.0,
             3.3333333333333,
             3.3333333333333,
@@ -857,8 +790,8 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             15.0,
             15.0,
             15.0,
-            15.0,  # receipt 2
-            3.3333333333333,  # receipt 2 backorder
+            15.0,
+            3.3333333333333,
         ]
         for actual, expected in zip(
             cost_share_values, expected_cost_share, strict=True
@@ -915,10 +848,6 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         )
 
     def test_kit_bom_cost_share_constraint_with_variants(self):
-        """
-        Check that the cost share constraint is well behaved with respect to product attribute values:
-        the sum of the cost share's of the bom of any product variant should either be 0% or 100%
-        """
         avco_category = self.env["product.category"].create(
             {
                 "name": "AVCO",
@@ -963,7 +892,6 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             [{"name": f"Comp {i + 1}", "categ_id": avco_category.id} for i in range(3)]
         )
 
-        # Total cost share is 100% but in reality it is either 25% or 75% depending on the variant -> Invalid
         with self.assertRaises(UserError):
             self.env["mrp.bom"].create(
                 {
@@ -985,7 +913,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                     )
                                 ],
                             }
-                        ),  # S size
+                        ),
                         Command.create(
                             {
                                 "product_id": c2.id,
@@ -999,12 +927,11 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                     )
                                 ],
                             }
-                        ),  # M size
+                        ),
                     ],
                 }
             )
 
-        # The total cost share for Blue is 100% but for Red is 105% -> Invalid
         with self.assertRaises(UserError):
             self.env["mrp.bom"].create(
                 {
@@ -1026,7 +953,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                     )
                                 ],
                             }
-                        ),  # Blue
+                        ),
                         Command.create(
                             {
                                 "product_id": c2.id,
@@ -1040,15 +967,14 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                     )
                                 ],
                             }
-                        ),  # Red
+                        ),
                         Command.create(
                             {"product_id": c3.id, "product_qty": 1, "cost_share": 75}
-                        ),  # All attributes
+                        ),
                     ],
                 }
             )
 
-        # Check that optional lines (with a product_qty of 0) are ignored -> Valid
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": product_template.id,
@@ -1058,15 +984,14 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                 "bom_line_ids": [
                     Command.create(
                         {"product_id": c1.id, "product_qty": 1, "cost_share": 100}
-                    ),  # All attributes
+                    ),
                     Command.create(
                         {"product_id": c2.id, "product_qty": 0, "cost_share": 100}
-                    ),  # All attributes - Qty 0 are Optional so the cost share should not impact the validation
+                    ),
                 ],
             }
         )
 
-        # Variant with S attribute sum up to 100% others to 0% -> Valid
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": product_template.id,
@@ -1087,7 +1012,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # S size
+                    ),
                     Command.create(
                         {
                             "product_id": c1.id,
@@ -1101,15 +1026,14 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # S size
+                    ),
                     Command.create(
                         {"product_id": c2.id, "product_qty": 1, "cost_share": 0}
-                    ),  # All attributes
+                    ),
                 ],
             }
         )
 
-        # All attribute values of a given attribute are equi-distributed -> Valid
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": product_template.id,
@@ -1130,7 +1054,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # S
+                    ),
                     Command.create(
                         {
                             "product_id": c1.id,
@@ -1144,7 +1068,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # M
+                    ),
                     Command.create(
                         {
                             "product_id": c2.id,
@@ -1158,19 +1082,17 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # M
+                    ),
                     Command.create(
                         {"product_id": c2.id, "product_qty": 1, "cost_share": 70}
-                    ),  # All attributes
+                    ),
                 ],
             }
         )
 
-        # Keep only the S Blue and the M Red variant
         product_template.product_variant_ids[1:3].action_archive()
         self.assertEqual(product_template.product_variant_count, 2)
 
-        # Set up is fine for S Blue and M Red but fails for other non existing combination -> Valid
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": product_template.id,
@@ -1188,15 +1110,15 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                     size_attribute_lines.product_template_value_ids[
                                         0
                                     ].id
-                                ),  # S
+                                ),
                                 Command.link(
                                     color_attribute_lines.product_template_value_ids[
                                         0
                                     ].id
-                                ),  # Blue
+                                ),
                             ],
                         }
-                    ),  # S or Blue
+                    ),
                     Command.create(
                         {
                             "product_id": c2.id,
@@ -1207,26 +1129,23 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                     size_attribute_lines.product_template_value_ids[
                                         1
                                     ].id
-                                ),  # M
+                                ),
                                 Command.link(
                                     color_attribute_lines.product_template_value_ids[
                                         1
                                     ].id
-                                ),  # Red
+                                ),
                             ],
                         }
-                    ),  # M or Red
+                    ),
                     Command.create(
                         {"product_id": c3.id, "product_qty": 1, "cost_share": 70}
-                    ),  # All attributes
+                    ),
                 ],
             }
         )
 
     def test_kit_cost_share_variant_and_optional_lines(self):
-        """
-        Ensure the cost share is well computed when purchasing a kit with optional or variant specific lines
-        """
         avco_category = self.env["product.category"].create(
             {
                 "name": "AVCO",
@@ -1282,7 +1201,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # S size
+                    ),
                     Command.create(
                         {
                             "product_id": c2.id,
@@ -1294,7 +1213,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # S size
+                    ),
                     Command.create(
                         {
                             "product_id": c3.id,
@@ -1306,7 +1225,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # M size
+                    ),
                     Command.create(
                         {
                             "product_id": c4.id,
@@ -1318,17 +1237,16 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                                 )
                             ],
                         }
-                    ),  # L sizes
+                    ),
                     Command.create(
                         {"product_id": c5.id, "product_qty": 1, "cost_share": 0}
-                    ),  # All sizes
+                    ),
                     Command.create(
                         {"product_id": c6.id, "product_qty": 0, "cost_share": 100}
-                    ),  # All sizes
+                    ),
                 ],
             }
         )
-        # Purchase one variant for each sizes
         vendor = self.env["res.partner"].create({"name": "Super vendor"})
         purchase_order = self.env["purchase.order"].create(
             {
@@ -1372,16 +1290,13 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
                 lambda m: (m.purchase_line_id.product_id.id, m.product_id.id)
             ),
             [
-                # S attribute
                 {"product_id": c1.id, "value": 250.0},
                 {"product_id": c2.id, "value": 750.0},
                 {"product_id": c5.id, "value": 0.0},
                 {"product_id": c6.id, "value": 0.0},
-                # M attribute
                 {"product_id": c3.id, "value": 1000.0},
                 {"product_id": c5.id, "value": 0.0},
                 {"product_id": c6.id, "value": 0.0},
-                # L attribute - Cost share 0% automatically splitted
                 {"product_id": c4.id, "value": 500.0},
                 {"product_id": c5.id, "value": 500.0},
                 {"product_id": c6.id, "value": 0.0},
@@ -1389,10 +1304,6 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         )
 
     def test_kit_components_cost_distribution(self):
-        """
-        Test that the cost of a kit without set cost_share is equidistributed among component moves
-        and that the associated rounding error introduced by this process is handled at closing.
-        """
         kit, *components = self.env["product.product"].create(
             [
                 {
@@ -1433,17 +1344,13 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         purchase_order.action_confirm()
         receipt = purchase_order.picking_ids
         receipt.button_validate()
-        # Check that the monetary value of each component move is set to 16.67 ~ 100/6
-        # Even if the total value is therefore of 100.02 rather than 100
         self.assertRecordValues(
             receipt.move_ids,
             [{"value": val} for val in (16.67, 16.67, 16.67, 16.67, 16.67, 16.67)],
         )
 
-        # Upload the associated bill and process the valuation closing
         self._create_bill(kit, 1, 100)
         correction_data = receipt.move_ids.company_id.action_close_stock_valuation()
-        # Check that correction data's counter balance the move values rounding issue
         closing_move = self.env["account.move"].browse(correction_data["res_id"])
         valuation_aml = closing_move.line_ids.filtered(
             lambda l: l.account_id == self.account_stock_valuation

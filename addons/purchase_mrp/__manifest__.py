@@ -1,4 +1,3 @@
-
 {
     "name": "Purchase and MRP Management",
     "version": "1.0",
@@ -25,7 +24,7 @@ from purchase order.
     "auto_install": True,
     "assets": {
         "web.assets_backend": [
-            "mrp/static/src/**/*.js",
+            "purchase_mrp/static/src/**/*",
         ],
     },
     "author": "Odoo S.A.",

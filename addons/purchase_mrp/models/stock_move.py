@@ -8,10 +8,11 @@ class StockMove(models.Model):
     def _get_cost_ratio(self, quantity):
         self.ensure_one()
         if self.bom_line_id.bom_id.type == "phantom":
-            uom_quantity = self.product_uom_id._compute_quantity(
-                self.quantity, self.product_id.uom_id
+            product_uom = self.product_id.uom_id
+            uom_quantity = self.product_uom_id._compute_quantity_stored(
+                self.quantity, product_uom
             )
-            if not self.product_uom_id.is_zero(uom_quantity):
+            if not self.product_uom_id._is_zero_stored(uom_quantity, product_uom):
                 unit_kit_purchase = 1
                 if self.purchase_line_id:
                     active_moves = self.purchase_line_id.move_ids.filtered(
@@ -21,11 +22,16 @@ class StockMove(models.Model):
                             and m.picking_id != self.picking_id
                         ),
                     )
-                    active_quantity = quantity + sum(active_moves.mapped("quantity"))
+                    active_quantity = quantity + sum(
+                        move.product_uom_id._compute_quantity_stored(
+                            move.quantity, product_uom
+                        )
+                        for move in active_moves
+                    )
                     if active_quantity:
                         unit_kit_purchase = (
                             quantity / active_quantity
-                        ) * self.purchase_line_id.product_qty
+                        ) * self.purchase_line_id.product_uom_qty
                 return (
                     (self.cost_share / 100)
                     * (quantity / uom_quantity)
@@ -85,13 +91,6 @@ class StockMove(models.Model):
             valuation_total_qty = kit_bom.product_uom_id._compute_quantity(
                 valuation_total_qty, related_aml.product_id.uom_id
             )
-            # The `or` here used to pick a rounding *source*:
-            #   float_is_zero(qty, precision_rounding=aml.product_uom_id.rounding
-            #                                         or aml.product_id.uom_id.rounding)
-            # Hoisting it into the condition (upstream eda6d59b50b) turned it
-            # into "if the line has a unit at all", which is always true, so
-            # every kit bill line raised. `rounding` is a single global value
-            # now, so both operands of that fallback are equal and one is enough.
             if related_aml.product_id.uom_id.is_zero(valuation_total_qty):
                 raise UserError(
                     _(

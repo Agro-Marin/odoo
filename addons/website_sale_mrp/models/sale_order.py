@@ -64,19 +64,19 @@ class SaleOrder(models.Model):
                     line.product_id, company_id=self.company_id.id, bom_type="phantom"
                 )[line.product_id]
             )
-            component_qties = line._get_bom_component_qty(line_kit_bom)
+            component_qties, line_kit_qty = line_kit_bom._get_kit_component_qty(
+                line.product_id
+            )
             unavailable_qty += (
-                component_qties.get(product.id, {}).get("qty", 0)
-                * line.product_uom_qty
-                / line_kit_bom.product_qty
+                component_qties.get(product, 0) * line.product_uom_qty / line_kit_qty
             )
             if product.is_kit:
                 # If the product is a kit, the availability of its components can be influenced by other kits.
                 for component in unavailable_component_qties:
                     unavailable_component_qties[component] += (
-                        component_qties.get(component.id, {}).get("qty", 0)
+                        component_qties.get(component, 0)
                         * line.product_uom_qty
-                        / line_kit_bom.product_qty
+                        / line_kit_qty
                     )
 
         if product.is_kit:

@@ -51,6 +51,43 @@ class TestKitUnavailability(TransactionCase):
             order._get_unavailable_quantity_from_kits(self.component_a), 2 * qty
         )
 
+    def test_bom_stated_in_another_uom_consumes_the_full_quantity(self):
+        """A BoM stated per dozen used to under-report what its line consumes.
+
+        `_get_bom_component_qty` converted one product-unit into the BoM's unit
+        and rounded (1/12 -> 0.08), then exploded that fraction, so the shop
+        thought a kit line consumed 1.92 components where it consumes 2 -- and
+        could oversell on the 4% it did not count.
+        """
+        component = self.env["product.product"].create(
+            {"name": "Dozen-BoM component", "type": "consu", "is_storable": True}
+        )
+        kit = self.env["product.product"].create(
+            {"name": "Dozen-BoM kit", "type": "consu", "is_storable": True}
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": kit.product_tmpl_id.id,
+                "type": "phantom",
+                "product_qty": 1,
+                "product_uom_id": self.env.ref("uom.product_uom_dozen").id,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 24})
+                ],
+            }
+        )
+        order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "line_ids": [Command.create({"product_id": kit.id})],
+            }
+        )
+
+        self.assertEqual(
+            order._get_unavailable_quantity_from_kits(component),
+            2 * order.line_ids.product_uom_qty,
+        )
+
     def test_unrelated_product_is_unaffected_by_kit(self):
         """A product not in any kit is not made unavailable by kit lines."""
         order = self._order_with_kit()

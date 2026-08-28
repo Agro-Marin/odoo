@@ -1,5 +1,3 @@
-from unittest import skip
-
 from odoo import Command
 from odoo.tests import Form, tagged
 
@@ -28,11 +26,6 @@ class TestSaleMrpKitBom(BaseCommon):
         )
 
     def test_reset_avco_kit(self):
-        """
-        Test a specific use case : One product with 2 variant, each variant has its own BoM with either component_1 or
-        component_2. Create a SO for one of the variant, confirm, cancel, reset to draft and then change the product of
-        the SO -> There should be no traceback
-        """
         component_1 = self.env["product.product"].create({"name": "compo 1"})
         component_2 = self.env["product.product"].create({"name": "compo 2"})
 
@@ -64,7 +57,6 @@ class TestSaleMrpKitBom(BaseCommon):
             }
         )
         product_variant_ids = product_template.product_variant_ids
-        # BoM 1 with component_1
         self.env["mrp.bom"].create(
             {
                 "product_id": product_variant_ids[0].id,
@@ -77,7 +69,6 @@ class TestSaleMrpKitBom(BaseCommon):
                 ],
             }
         )
-        # BoM 2 with component_2
         self.env["mrp.bom"].create(
             {
                 "product_id": product_variant_ids[1].id,
@@ -96,7 +87,6 @@ class TestSaleMrpKitBom(BaseCommon):
                 "partner_id": partner.id,
             }
         )
-        # Create the order line
         self.env["sale.order.line"].create(
             {
                 "name": "Order line",
@@ -109,25 +99,12 @@ class TestSaleMrpKitBom(BaseCommon):
         so.action_draft()
         with Form(so) as so_form:
             with so_form.line_ids.edit(0) as line_ids_change:
-                # The actual test, there should be no traceback here
                 line_ids_change.product_id = product_variant_ids[1]
 
-    @skip("Temporary to fast merge new valuation")
     def test_sale_mrp_kit_cost(self):
-        """
-        Check the total cost of a KIT:
-           # BoM of Kit A:
-               # - BoM Type: Kit
-               # - Quantity: 1
-               # - Components:
-               # * 1 x Component A (Cost: $ 6, QTY: 1, UOM: Dozens)
-               # * 1 x Component B (Cost: $ 10, QTY: 2, UOM: Unit)
-           # cost of Kit A = (6 * 1 * 12) + (10 * 2) = $ 92
-        """
         self.customer = self.env["res.partner"].create({"name": "customer"})
 
         self.kit_product = self._create_product("Kit Product", True, 1.00)
-        # Creating components
         self.component_a = self._create_product("Component A", True, 1.00)
         self.component_a.product_tmpl_id.standard_price = 6
         self.component_b = self._create_product("Component B", True, 1.00)
@@ -165,7 +142,6 @@ class TestSaleMrpKitBom(BaseCommon):
             }
         )
 
-        # Create a SO with one unit of the kit product
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.customer.id,
@@ -176,37 +152,26 @@ class TestSaleMrpKitBom(BaseCommon):
                         {
                             "name": self.kit_product.name,
                             "product_id": self.kit_product.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                         },
                     )
                 ],
             }
         )
         so.action_confirm()
-        line = so.line_ids
-        purchase_price = line.product_id.with_company(
-            line.company_id
-        )._compute_average_price(0, line.product_uom_qty, line.move_ids)
+
         self.assertEqual(
-            line.move_ids.mapped("description_picking"),
+            so.line_ids.move_ids.mapped("description_picking"),
             ["Kit Product - 1/2", "Kit Product - 2/2"],
         )
+        self.kit_product.button_bom_cost()
         self.assertEqual(
-            purchase_price,
+            self.kit_product.standard_price,
             92,
-            "The purchase price must be the total cost of the components multiplied by their unit of measure",
+            "The cost of the kit must be the total cost of the components multiplied by their unit of measure",
         )
 
     def test_sale_mrp_kit_sale_price(self):
-        """Check the total sale price of a KIT:
-        # BoM of Kit A:
-            # - BoM Type: Kit
-            # - Quantity: 1
-            # - Components:
-            # * 1 x Component A (Price: $ 8, QTY: 10, UOM: Meter)
-            # * 1 x Component B (Price: $ 5, QTY: 2, UOM: Dozen)
-        # sale price of Kit A = (8 * 10) + (5 * 2 * 12) = $ 200
-        """
         if "sale_price" not in self.env["stock.move.line"]._fields:
             self.skipTest(
                 "This test only runs with both sale_mrp and stock_delivery installed"
@@ -225,7 +190,6 @@ class TestSaleMrpKitBom(BaseCommon):
         )
 
         self.kit_product = self._create_product("Kit Product", "product", 1.00)
-        # Creating components
         self.component_a = self._create_product("Component A", "product", 1.00)
         self.component_a.uom_id = self.env.ref("uom.product_uom_meter").id
         self.component_a.product_tmpl_id.list_price = 8
@@ -272,7 +236,6 @@ class TestSaleMrpKitBom(BaseCommon):
             }
         )
 
-        # Create a SO with one unit of the kit product
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.customer.id,
@@ -283,7 +246,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         {
                             "name": self.kit_product.name,
                             "product_id": self.kit_product.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                             "product_uom_id": self.kit_product.uom_id.id,
                         },
                     )
@@ -299,14 +262,11 @@ class TestSaleMrpKitBom(BaseCommon):
         )
 
     def test_qty_transferred_with_bom(self):
-        """Check the quantity delivered, when a bom line has a non integer quantity"""
-
         self.env.ref("uom.decimal_product_uom").digits = 5
 
         self.kit = self._create_product("Kit", True, 0.00)
         self.comp = self._create_product("Component", True, 0.00)
 
-        # Create BoM for Kit
         bom_product_form = Form(self.env["mrp.bom"])
         bom_product_form.product_tmpl_id = self.kit.product_tmpl_id
         bom_product_form.product_qty = 1.0
@@ -349,19 +309,14 @@ class TestSaleMrpKitBom(BaseCommon):
         picking.move_ids.write({"quantity": 0.86000, "picked": True})
         picking.button_validate()
 
-        # Checks the delivery amount (must be 10).
         self.assertEqual(so.line_ids.qty_transferred, 10)
 
     def test_qty_transferred_with_bom_using_kit(self):
-        """Check the quantity delivered, when one product is a kit
-        and his bom uses another product that is also a kit"""
-
         self.kitA = self._create_product("Kit A", False, 0.00)
         self.kitB = self._create_product("Kit B", False, 0.00)
         self.compA = self._create_product("ComponentA", False, 0.00)
         self.compB = self._create_product("ComponentB", False, 0.00)
 
-        # Create BoM for KitB
         bom_product_formA = Form(self.env["mrp.bom"])
         bom_product_formA.product_tmpl_id = self.kitB.product_tmpl_id
         bom_product_formA.product_qty = 1.0
@@ -374,7 +329,6 @@ class TestSaleMrpKitBom(BaseCommon):
             bom_line.product_qty = 1
         self.bomA = bom_product_formA.save()
 
-        # Create BoM for KitA
         bom_product_formB = Form(self.env["mrp.bom"])
         bom_product_formB.product_tmpl_id = self.kitA.product_tmpl_id
         bom_product_formB.product_qty = 1.0
@@ -403,7 +357,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         {
                             "name": self.kitA.name,
                             "product_id": self.kitA.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                             "price_unit": 1,
                             "tax_ids": False,
                         },
@@ -419,15 +373,9 @@ class TestSaleMrpKitBom(BaseCommon):
         picking = so.picking_ids
         picking.button_validate()
 
-        # Checks the delivery amount (must be 1).
         self.assertEqual(so.line_ids.qty_transferred, 1)
 
     def test_sale_kit_show_kit_in_delivery(self):
-        """Create a kit with 2 product and activate 2 steps
-        delivery and check that every stock move contains
-        a bom_line_id
-        """
-
         wh = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.user.id)], limit=1
         )
@@ -437,7 +385,6 @@ class TestSaleMrpKitBom(BaseCommon):
         compA = self._create_product("ComponentA", True, 0.00)
         compB = self._create_product("ComponentB", True, 0.00)
 
-        # Create BoM for KitB
         bom_product_formA = Form(self.env["mrp.bom"])
         bom_product_formA.product_tmpl_id = kitA.product_tmpl_id
         bom_product_formA.product_qty = 1.0
@@ -466,7 +413,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         {
                             "name": kitA.name,
                             "product_id": kitA.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                             "price_unit": 1,
                             "tax_ids": False,
                         },
@@ -499,12 +446,6 @@ class TestSaleMrpKitBom(BaseCommon):
         )
 
     def test_qty_transferred_with_bom_using_kit2(self):
-        """Create 2 kits products that have common components and activate 2 steps delivery
-        Then create a sale order with these 2 products, and put everything in a pack in
-        the first step of the delivery. After the shipping is done, check the done quantity
-        is correct for each products.
-        """
-
         wh = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.user.id)], limit=1
         )
@@ -516,7 +457,6 @@ class TestSaleMrpKitBom(BaseCommon):
         compB = self._create_product("ComponentB", True, 0.00)
         compC = self._create_product("ComponentC", True, 0.00)
 
-        # Create BoM for KitB
         bom_product_formA = Form(self.env["mrp.bom"])
         bom_product_formA.product_tmpl_id = kitAB.product_tmpl_id
         bom_product_formA.product_qty = 1.0
@@ -529,7 +469,6 @@ class TestSaleMrpKitBom(BaseCommon):
             bom_line.product_qty = 1
         bom_product_formA.save()
 
-        # Create BoM for KitA
         bom_product_formB = Form(self.env["mrp.bom"])
         bom_product_formB.product_tmpl_id = kitABC.product_tmpl_id
         bom_product_formB.product_qty = 1.0
@@ -561,7 +500,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         {
                             "name": kitAB.name,
                             "product_id": kitAB.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                             "price_unit": 1,
                             "tax_ids": False,
                         },
@@ -572,7 +511,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         {
                             "name": kitABC.name,
                             "product_id": kitABC.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                             "price_unit": 1,
                             "tax_ids": False,
                         },
@@ -599,26 +538,6 @@ class TestSaleMrpKitBom(BaseCommon):
             )
 
     def test_kit_in_delivery_slip(self):
-        """
-        Suppose this structure:
-        Sale order:
-            - Kit 1 with a sales description("test"):
-                |- Compo 1
-            - Product 1
-            - Kit 2
-                * Variant 1
-                    - Compo 1
-                * Variant 2
-                    - Compo 1
-            - Kit 4:
-                - Compo 1
-            - Kit 5
-                - Kit 4
-                - Compo 1
-
-        This test ensures that, when delivering a Kit product with a sales description,
-        the delivery report is correctly printed with all the products.
-        """
         kit_1, component_1, product_1, kit_3, kit_4 = self.env[
             "product.product"
         ].create(
@@ -734,7 +653,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         0,
                         {
                             "product_id": kit_1.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                         },
                     ),
                     (
@@ -742,7 +661,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         0,
                         {
                             "product_id": product_1.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                         },
                     ),
                     (
@@ -750,7 +669,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         0,
                         {
                             "product_id": kit_2.product_variant_ids[0].id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                         },
                     ),
                     (
@@ -758,7 +677,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         0,
                         {
                             "product_id": kit_2.product_variant_ids[1].id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                         },
                     ),
                     (
@@ -766,7 +685,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         0,
                         {
                             "product_id": kit_3.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                         },
                     ),
                     (
@@ -774,7 +693,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         0,
                         {
                             "product_id": kit_4.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                         },
                     ),
                 ],
@@ -828,10 +747,9 @@ class TestSaleMrpKitBom(BaseCommon):
         self.env["stock.quant"]._update_available_quantity(
             component, warehouse.lot_stock_id, 30
         )
-        # 6 kit_prod == 5 component
         self.env["mrp.bom"].create(
             [
-                {  # 2 kit_prod == 5 sub_kit
+                {
                     "product_tmpl_id": kit_prod.product_tmpl_id.id,
                     "product_qty": 2.0,
                     "type": "phantom",
@@ -846,7 +764,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         )
                     ],
                 },
-                {  # 3 sub_kit == 1 component
+                {
                     "product_tmpl_id": sub_kit.product_tmpl_id.id,
                     "product_qty": 3.0,
                     "type": "phantom",
@@ -880,20 +798,15 @@ class TestSaleMrpKitBom(BaseCommon):
                 ],
             }
         )
-        # Validate the SO
         so.action_confirm()
         picking_pick = so.picking_ids[0]
         picking_pick.picking_type_id.create_backorder = "never"
 
-        # Check the component qty in the created picking should be 25
         self.assertEqual(picking_pick.move_ids.product_qty, 30 * 5 / 6)
 
-        # Update the kit quantity in the SO
         so.line_ids[0].product_qty = 60
-        # Check the component qty after the update should be 50
         self.assertEqual(picking_pick.move_ids.product_qty, 60 * 5 / 6)
 
-        # Deliver half the quantity 25 component == 30 kit_prod
         picking_pick.move_ids.quantity = 25
         picking_pick.button_validate()
 
@@ -903,7 +816,6 @@ class TestSaleMrpKitBom(BaseCommon):
         picking_ship.button_validate()
         self.assertEqual(so.line_ids.qty_transferred, 25 / 5 * 6)
 
-        # Return 10 components
         stock_return_picking_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=picking_ship.ids,
@@ -917,11 +829,9 @@ class TestSaleMrpKitBom(BaseCommon):
         res = return_wiz.action_create_returns()
         return_pick = self.env["stock.picking"].browse(res["res_id"])
 
-        # Process all components and validate the return
         return_pick.button_validate()
         self.assertEqual(so.line_ids.qty_transferred, 15 / 5 * 6)
 
-        # Resend 5 components
         stock_return_picking_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=return_pick.ids,
@@ -934,13 +844,11 @@ class TestSaleMrpKitBom(BaseCommon):
             return_move.write({"quantity": 5, "to_refund": True})
         res = return_wiz.action_create_returns()
 
-        # Validate the return
         self.env["stock.picking"].browse(res["res_id"]).button_validate()
         self.assertEqual(so.line_ids.qty_transferred, 20 / 5 * 6)
 
     def test_sale_kit_qty_change(self):
 
-        # Create record rule
         mrp_bom_model = self.env["ir.model"]._get("mrp.bom")
         self.env["ir.rule"].create(
             {
@@ -950,7 +858,6 @@ class TestSaleMrpKitBom(BaseCommon):
             }
         )
 
-        # Create BoM
         kit_product = self._create_product("Kit Product", "product", 1)
         component_a = self._create_product("Component A", "product", 1)
         self.env["mrp.bom"].create(
@@ -966,7 +873,6 @@ class TestSaleMrpKitBom(BaseCommon):
             }
         )
 
-        # Create sale order
         partner = self.env["res.partner"].create({"name": "Testing Man"})
         so = self.env["sale.order"].create(
             {
@@ -988,10 +894,6 @@ class TestSaleMrpKitBom(BaseCommon):
         self.assertEqual(sum(sol.move_ids.mapped("product_uom_qty")), 5)
 
     def test_sale_kit_with_mto_components_qty_change(self):
-        """
-        Check that updating the demand on a sale order line for a kit product
-        updates the associated deliveries accordingly
-        """
         partner = self.env["res.partner"].create({"name": "Test Partner"})
         warehouse = self.env.ref("stock.warehouse0")
         mto_route = self.env.ref("stock.route_warehouse0_mto")
@@ -1026,7 +928,7 @@ class TestSaleMrpKitBom(BaseCommon):
         )
         self.env["mrp.bom"].create(
             [
-                {  # 2 kit_prod -> 5 comp and 3 mto_comp
+                {
                     "product_tmpl_id": kit_product.product_tmpl_id.id,
                     "product_qty": 2.0,
                     "type": "phantom",
@@ -1035,7 +937,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         Command.create({"product_id": mto_comp.id, "product_qty": 3}),
                     ],
                 },
-                {  # bom to manufacture mto_comp
+                {
                     "product_tmpl_id": mto_comp.product_tmpl_id.id,
                     "product_qty": 1.0,
                     "bom_line_ids": [
@@ -1059,7 +961,6 @@ class TestSaleMrpKitBom(BaseCommon):
                 ],
             }
         )
-        # confirm the SO and check the delivery
         so.action_confirm()
         self.assertRecordValues(
             so.picking_ids.move_ids.sorted("product_uom_qty"),
@@ -1071,8 +972,6 @@ class TestSaleMrpKitBom(BaseCommon):
         with Form(so) as so_form:
             with so_form.line_ids.edit(0) as line_form:
                 line_form.product_qty = 10
-        # the moves assocaited to the mto component are expected to be separated as
-        # the are linked to a different MO
         self.assertRecordValues(
             so.picking_ids.move_ids.sorted("product_uom_qty"),
             [
@@ -1083,14 +982,9 @@ class TestSaleMrpKitBom(BaseCommon):
         )
 
     def test_inter_company_qty_transferred_with_kit(self):
-        """
-        Test that the delivered quantity is updated on a sale order line when selling a kit
-        through an inter-company transaction.
-        """
         self.env.user.write(
             {"group_ids": [(4, self.env.ref("base.group_multi_company").id)]}
         )
-        # Create the kit product and BoM
         kit_product = self._create_product("Kit", "product", 1)
         component_product = self._create_product("Component", "product", 1)
         self.env["mrp.bom"].create(
@@ -1106,7 +1000,6 @@ class TestSaleMrpKitBom(BaseCommon):
             }
         )
 
-        # Create the sale order with a partner that uses the inter company location
         inter_comp_location = self.env.ref("stock.stock_location_inter_company")
         partner = self.env["res.partner"].create({"name": "Testing Partner"})
         partner.property_stock_customer = inter_comp_location
@@ -1121,7 +1014,7 @@ class TestSaleMrpKitBom(BaseCommon):
                         {
                             "name": kit_product.name,
                             "product_id": kit_product.id,
-                            "product_uom_qty": 1.0,
+                            "product_qty": 1.0,
                         },
                     )
                 ],
@@ -1139,10 +1032,6 @@ class TestSaleMrpKitBom(BaseCommon):
         self.assertEqual(so.line_ids.qty_transferred, 1)
 
     def _confirm_kit_sale(self, kit_uom, component_uom, kit_qty=3.0, comp_per_kit=2.0):
-        """Create and confirm a SO for a phantom-BoM kit (measured in
-        ``kit_uom``) with a single component (measured in ``component_uom``),
-        and return the component's delivery move.
-        """
         kit = self.env["product.product"].create(
             {
                 "name": "Kit",
@@ -1193,13 +1082,6 @@ class TestSaleMrpKitBom(BaseCommon):
         return move
 
     def test_kit_component_packaging_uom_falls_back_cross_category(self):
-        """A kit measured in Units exploding into a component measured in a
-        different category (kg) must NOT stamp the kit line's Units onto the
-        component move: `packaging_uom_id` would then be cross-category with the
-        move UoM and the strict `quantity_packaging_uom` recompute would raise a
-        UserError, blocking the delivery (task 24021). The component move keeps
-        its own UoM and the packaging quantity stays convertible.
-        """
         uom_unit = self.env.ref("uom.product_uom_unit")
         uom_kg = self.env.ref("uom.product_uom_kgm")
         self.assertFalse(uom_kg._has_common_reference(uom_unit))
@@ -1211,22 +1093,16 @@ class TestSaleMrpKitBom(BaseCommon):
             uom_unit,
             "the kit sale line is legitimately measured in Units",
         )
-        # The guard: fall back to the component's own UoM, not the kit's Units.
         self.assertEqual(move.packaging_uom_id, uom_kg)
-        # Strict recompute now yields a value (3 kits * 2 kg) instead of raising.
         self.assertEqual(move.quantity_packaging_uom, move.product_uom_qty)
         self.assertEqual(move.quantity_packaging_uom, 6.0)
 
     def test_kit_component_packaging_uom_inherited_when_compatible(self):
-        """The guard only skips cross-category UoMs: a component sharing the
-        kit line's reference still inherits the line UoM (unchanged behavior).
-        """
         uom_unit = self.env.ref("uom.product_uom_unit")
         uom_dozen = self.env.ref("uom.product_uom_dozen")
         self.assertTrue(uom_dozen._has_common_reference(uom_unit))
 
         move = self._confirm_kit_sale(uom_unit, uom_dozen)
 
-        # Same reference (Unit/Dozen): the kit line's Units UoM is inherited.
         self.assertEqual(move.packaging_uom_id, uom_unit)
         self.assertEqual(move.sale_line_id.product_uom_id, uom_unit)

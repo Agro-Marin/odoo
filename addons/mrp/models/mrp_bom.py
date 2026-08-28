@@ -879,6 +879,27 @@ class MrpBom(models.Model):
         lines_done = self._round_last_line_done(lines_done)
         return boms_done, lines_done
 
+    def _get_kit_component_qty(self, product):
+        """``({component: qty per BoM batch}, kits per batch)``, in the
+        products' own UoMs.
+
+        Explodes ONE whole batch, never a fraction of one: :meth:`_explode`
+        rounds every component line UP, so asking it for a third of a batch
+        inflates each component by an amount that varies with the quantity
+        asked about. Callers scale the result themselves.
+        """
+        self.ensure_one()
+        kit_qty = self.product_uom_id._compute_quantity(
+            self.product_qty, product.uom_id, round=False
+        )
+        _dummy, exploded_lines = self._explode(product, 1)
+        component_qty = defaultdict(float)
+        for line, line_data in exploded_lines:
+            component_qty[line.product_id] += line.product_uom_id._compute_quantity(
+                line_data["qty"], line.product_id.uom_id, round=False
+            )
+        return component_qty, kit_qty
+
     def _get_kit_closure(
         self, product, picking_type=False, never_attribute_values=False
     ):
@@ -1160,7 +1181,7 @@ class MrpBom(models.Model):
         orderpoint.qty_to_order = max(orderpoint.qty_to_order, bom_qty)
         return orderpoint.action_stock_replenishment_info()
 
-    def action_open_operation_form(self):
+    def action_view_operation_form(self):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",

@@ -1,13 +1,15 @@
+import contextlib
+from pathlib import Path
+
 from odoo import Command
-from odoo.tests import tagged
+from odoo.modules import Manifest
+from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install", "-at_install")
 class TestPurchaseMrpBomStructure(AccountTestInvoicingCommon):
-    """BoM structure report surfacing the buy route of a purchasable component."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -58,13 +60,11 @@ class TestPurchaseMrpBomStructure(AccountTestInvoicingCommon):
         cls.report = cls.env["report.mrp.report_bom_structure"]
 
     def test_bom_structure_reports_buy_route(self):
-        """A purchasable component with no stock is resupplied by buy (estimated)."""
         data = self.report._get_report_data(bom_id=self.bom.id)
         component = data["lines"]["components"][0]
         self.assertEqual(component["availability_state"], "estimated")
 
     def test_bom_structure_in_stock_component_available(self):
-        """A component with enough stock is available, not buy-estimated (boundary)."""
         self.env["stock.quant"]._update_available_quantity(
             self.buy_component, self.warehouse.lot_stock_id, 100.0
         )
@@ -73,10 +73,39 @@ class TestPurchaseMrpBomStructure(AccountTestInvoicingCommon):
         self.assertEqual(component["availability_state"], "available")
 
     def test_bom_structure_route_alert_below_vendor_min_qty(self):
-        """A BoM qty below the vendor's min_qty raises the route_alert flag."""
         self.buy_component.seller_ids.min_qty = 50
 
         data = self.report._get_report_data(bom_id=self.bom.id)
 
         component = data["lines"]["components"][0]
         self.assertTrue(component["route_alert"])
+
+
+@tagged("post_install", "-at_install")
+class TestPurchaseMrpAssets(TransactionCase):
+    def test_own_static_sources_are_bundled(self):
+        module_path = Path(Manifest.for_addon("purchase_mrp").path)
+        sources = {
+            f"purchase_mrp/{path.relative_to(module_path).as_posix()}"
+            for path in (module_path / "static" / "src").rglob("*")
+            if path.is_file() and path.suffix in (".js", ".scss", ".css", ".xml")
+        }
+        self.assertTrue(sources, "the module ships no static sources to check")
+
+        IrAsset = self.env["ir.asset"]
+        params = IrAsset._prepare_assets_params()
+        bundled = set()
+        for bundle in set(IrAsset.search([]).mapped("bundle")) | {
+            key
+            for manifest in Manifest.all_addon_manifests()
+            for key in (manifest.get("assets") or {})
+        }:
+            with contextlib.suppress(Exception):
+                bundled.update(
+                    entry.path.lstrip("/")
+                    for entry in IrAsset._get_asset_paths(bundle, params)
+                )
+        self.assertFalse(
+            sources - bundled,
+            "static sources declared by no bundle, so never served",
+        )

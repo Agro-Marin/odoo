@@ -21,7 +21,7 @@ class SaleOrderLine(models.Model):
                 price_unit_from_delivery = (
                     line.move_ids.filtered(
                         lambda m: m.state == "done"
-                    )._get_price_unit()
+                    )._get_sale_line_price_unit()
                     if qty_from_delivery > 0
                     else 0
                 )

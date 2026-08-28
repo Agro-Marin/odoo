@@ -212,7 +212,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             "line_ids": [(0, 0, {
                 "name": "Cable Management Box",
                 "product_id": self.product_cable_management_box.id,
-                "product_uom_qty": 2,
+                "product_qty": 2,
                 "price_unit": 750.00,
             })],
         })
@@ -233,7 +233,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             "line_ids": [(0, 0, {
                 "name": "Another product to deliver",
                 "product_id": self.product_11.id,
-                "product_uom_qty": 2,
+                "product_qty": 2,
                 "price_unit": 750.00,
             })],
         })
@@ -263,7 +263,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             "line_ids": [(0, 0, {
                 "name": "Cable Management Box",
                 "product_id": self.product_cable_management_box.id,
-                "product_uom_qty": 1,
+                "product_qty": 1,
                 "price_unit": 750.00,
             })],
         })

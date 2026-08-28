@@ -1,6 +1,6 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
-from odoo.tools import float_is_zero, float_round
+from odoo.exceptions import ValidationError
+from odoo.tools import float_compare, float_is_zero
 
 
 class MrpBom(models.Model):
@@ -16,26 +16,33 @@ class MrpBom(models.Model):
     def _check_bom_lines(self):
         res = super()._check_bom_lines()
         for bom in self:
-            if all(not bl.cost_share for bl in bom.bom_line_ids):
+            lines = bom.bom_line_ids
+            if all(float_is_zero(bl.cost_share, precision_digits=2) for bl in lines):
                 continue
-            if any(bl.cost_share < 0 for bl in bom.bom_line_ids):
-                raise UserError(
+            if any(
+                float_compare(bl.cost_share, 0, precision_digits=2) < 0 for bl in lines
+            ):
+                raise ValidationError(
                     _("Components cost share have to be positive or equals to zero.")
                 )
-            for product in bom.product_tmpl_id.product_variant_ids:
+            variants = bom.product_id or bom.product_tmpl_id.product_variant_ids
+            if not lines.bom_product_template_attribute_value_ids:
+                variants = variants[:1]
+            for product in variants:
                 total_variant_cost_share = sum(
-                    bom.bom_line_ids.filtered(
+                    lines.filtered(
                         lambda bl, product=product: (
                             not bl._skip_bom_line(product)
                             and not bl.product_uom_id.is_zero(bl.product_qty)
                         )
                     ).mapped("cost_share")
                 )
-                if float_round(total_variant_cost_share, precision_digits=2) not in [
-                    0,
-                    100,
-                ]:
-                    raise UserError(
+                if (
+                    not float_is_zero(total_variant_cost_share, precision_digits=2)
+                    and float_compare(total_variant_cost_share, 100, precision_digits=2)
+                    != 0
+                ):
+                    raise ValidationError(
                         _("The total cost share for a BoM's component have to be 100")
                     )
         return res
@@ -60,11 +67,20 @@ class MrpBomLine(models.Model):
         "The total of all components' cost have to be equal to 100.",
     )
 
-    def _get_cost_share(self):
+    @api.constrains("cost_share")
+    def _check_bom_line_cost_share(self):
+        for line in self:
+            if float_compare(line.cost_share, 0, precision_digits=2) < 0:
+                raise ValidationError(
+                    _("Components cost share have to be positive or equals to zero.")
+                )
+
+    def _get_cost_share(self, product=None):
         self.ensure_one()
-        product = self.env.context.get("bom_variant_id", self.env["product.product"])
+        if product is None:
+            product = self.env["product.product"]
         cache = self.env.context.get("bom_cost_share_cache", {})
-        variant_cache_key = (self.bom_id.id, product.id)
+        variant_cache_key = ("cost_share", self.bom_id.id, product.id)
         if variant_cache_key not in cache:
             variant_bom_lines = self.bom_id.bom_line_ids.filtered(
                 lambda bl: (
@@ -116,7 +132,4 @@ class MrpBomLine(models.Model):
             ),
             100,
         )
-        return (
-            parent_cost_share
-            * self.with_context(bom_variant_id=product)._get_cost_share()
-        )
+        return parent_cost_share * self._get_cost_share(product)

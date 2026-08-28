@@ -12,14 +12,17 @@ class SaleOrder(models.Model):
     mrp_production_ids = fields.Many2many(
         "mrp.production",
         compute="_compute_mrp_production_ids",
-        string="Manufacturing orders associated with this sales order.",
+        string="Manufacturing Orders",
         groups="mrp.group_mrp_user",
     )
 
-    @api.depends("stock_reference_ids.production_ids")
+    @api.depends(
+        "stock_reference_ids.production_ids",
+        "stock_reference_ids.production_ids.state",
+        "stock_reference_ids.production_ids.production_group_id.parent_ids",
+    )
     def _compute_mrp_production_ids(self):
         for sale in self:
-            # We want only manufacturing orders of first level
             mos = sale.stock_reference_ids.production_ids
             sale.mrp_production_ids = mos.filtered(
                 lambda mo: (

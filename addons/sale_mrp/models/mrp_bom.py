@@ -5,19 +5,7 @@ from odoo.exceptions import UserError
 class MrpBom(models.Model):
     _inherit = "mrp.bom"
 
-    def write(self, vals):
-        if not vals.get("active", True) or (
-            "phantom" in self.mapped("type")
-            and vals.get("type", "phantom") != "phantom"
-        ):
-            self._ensure_bom_is_free()
-        return super().write(vals)
-
-    def unlink(self):
-        self._ensure_bom_is_free()
-        return super().unlink()
-
-    def _ensure_bom_is_free(self):
+    def _check_bom_is_free(self):
         product_ids = []
         for bom in self:
             if not bom.active or bom.type != "phantom":
@@ -27,15 +15,18 @@ class MrpBom(models.Model):
             )
         if not product_ids:
             return
+        owed = ("no", "to do", "partial")
         lines = (
             self.env["sale.order.line"]
             .sudo()
             .search(
                 [
                     ("state", "=", "done"),
-                    ("invoice_state", "in", ("no", "to do")),
                     ("product_id", "in", product_ids),
                     ("move_ids.state", "!=", "cancel"),
+                    "|",
+                    ("invoice_state", "in", owed),
+                    ("transfer_state", "in", owed),
                 ]
             )
         )
@@ -49,3 +40,12 @@ class MrpBom(models.Model):
                     product_names,
                 )
             )
+
+    def write(self, vals):
+        if not vals.get("active", True) or vals.get("type", "phantom") != "phantom":
+            self._check_bom_is_free()
+        return super().write(vals)
+
+    def unlink(self):
+        self._check_bom_is_free()
+        return super().unlink()
