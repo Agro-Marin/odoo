@@ -14,7 +14,7 @@ class TestTaxSettingsCompany(BaseTaxCommon):
         )
         cls.other_company = cls.env["res.company"].create(
             {
-                "name": "base_tax settings company",
+                "name": "account_tax settings company",
                 "country_id": cls.other_country.id,
             }
         )
@@ -22,7 +22,7 @@ class TestTaxSettingsCompany(BaseTaxCommon):
             cls.other_company.account_fiscal_country_id = cls.other_country
         cls.cross_country_group = cls.env["account.tax.group"].create(
             {
-                "name": "base_tax cross-country group",
+                "name": "account_tax cross-country group",
                 "company_ids": [Command.set(cls.company.ids)],
                 "country_id": cls.other_country.id,
             }

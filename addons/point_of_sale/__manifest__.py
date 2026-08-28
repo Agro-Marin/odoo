@@ -154,7 +154,7 @@
             "point_of_sale/static/src/customer_display/utils.js",
             ("remove", "point_of_sale/static/src/app/main.js"),
             ("include", "point_of_sale.base_tests"),
-            "base_tax/static/src/helpers/*.js",
+            "account_tax/static/src/helpers/*.js",
             "account/static/src/helpers/*.js",
             "account/static/src/services/account_move_service.js",
             "mail/static/src/core/common/sound_effects_service.js",

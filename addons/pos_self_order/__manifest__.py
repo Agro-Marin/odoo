@@ -93,8 +93,8 @@
             "pos_self_order/static/src/app/**/*",
             "web/static/src/core/utils/render.js",
             "pos_self_order/static/src/app/store/order_change_receipt_template.xml",
-            # account tax engine: base_tax owns the JS mirror; account re-exports it
-            "base_tax/static/src/helpers/*.js",
+            # account tax engine: account_tax owns the JS mirror; account re-exports it
+            "account_tax/static/src/helpers/*.js",
             "account/static/src/helpers/*.js",
             'web/static/src/core/utils/operation.js',
             "web/static/src/core/parsers.js",

@@ -1,3 +1,3 @@
 /** @odoo-module native */
 
-export { accountTaxHelpers } from "@base_tax/helpers/account_tax";
+export { accountTaxHelpers } from "@account_tax/helpers/account_tax";

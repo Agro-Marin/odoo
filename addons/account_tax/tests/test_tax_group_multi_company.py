@@ -11,21 +11,21 @@ class TestTaxGroupMultiCompany(BaseTaxCommon):
     def setUpClass(cls):
         super().setUpClass()
         cls.company_b = cls.env["res.company"].create(
-            {"name": "base_tax group company B", "country_id": cls.country.id}
+            {"name": "account_tax group company B", "country_id": cls.country.id}
         )
         cls.company_c = cls.env["res.company"].create(
-            {"name": "base_tax group company C", "country_id": cls.country.id}
+            {"name": "account_tax group company C", "country_id": cls.country.id}
         )
         cls.shared_group = cls.env["account.tax.group"].create(
             {
-                "name": "base_tax shared group",
+                "name": "account_tax shared group",
                 "company_ids": [Command.set((cls.company + cls.company_b).ids)],
                 "country_id": cls.country.id,
             }
         )
         cls.own_group_c = cls.env["account.tax.group"].create(
             {
-                "name": "base_tax company C group",
+                "name": "account_tax company C group",
                 "company_ids": [Command.set(cls.company_c.ids)],
                 "country_id": cls.country.id,
             }
@@ -110,7 +110,7 @@ class TestTaxGroupMultiCompany(BaseTaxCommon):
         Group = self.env["account.tax.group"]
         reader = self.env["res.users"].create(
             {
-                "name": "base_tax group reader",
+                "name": "account_tax group reader",
                 "login": "base_tax_group_reader",
                 "company_id": self.company_c.id,
                 "company_ids": [Command.set(self.company_c.ids)],

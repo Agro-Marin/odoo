@@ -8,7 +8,7 @@ class TestGlobalDiscount(BaseTaxCommon):
     """F012: `_prepare_global_discount_lines`/`_dispatch_global_discount_lines`/
     `_squash_global_discount_lines` had zero coverage in this suite (they are
     exercised indirectly by `account`/`sale`'s own test suites, but nothing
-    here would catch a regression when auditing base_tax in isolation)."""
+    here would catch a regression when auditing account_tax in isolation)."""
 
     def test_percent_discount_reduces_totals(self):
         tax = self._tax(21.0)

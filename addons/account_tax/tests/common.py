@@ -12,7 +12,7 @@ class BaseTaxCommon(TransactionCase):
             cls.company.country_id = cls.country
         cls.tax_group = cls.env["account.tax.group"].create(
             {
-                "name": "base_tax test group",
+                "name": "account_tax test group",
                 "company_ids": [Command.set(cls.company.ids)],
                 "country_id": cls.country.id,
             }

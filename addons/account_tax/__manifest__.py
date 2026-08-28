@@ -13,7 +13,7 @@ models (via ``_inherit``) to add accounting-specific fields and methods such as
 journal accounts, tax tags, exigibility, and CABA handling.
 
 Modules that need tax computation without the full accounting stack (e.g.
-``base_order``, ``sale``, ``purchase``) can depend on ``base_tax`` directly.
+``base_order``, ``sale``, ``purchase``) can depend on ``account_tax`` directly.
 
 Models:
 -------
@@ -40,10 +40,10 @@ Key API:
     ],
     "assets": {
         "web.assets_backend": [
-            "base_tax/static/src/helpers/*.js",
+            "account_tax/static/src/helpers/*.js",
         ],
         "web.assets_frontend": [
-            "base_tax/static/src/helpers/*.js",
+            "account_tax/static/src/helpers/*.js",
         ],
     },
 }

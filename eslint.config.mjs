@@ -83,7 +83,7 @@ const COMMUNITY_MODULES = [
     "addons/l10n_br_website_sale",
     // Accounting / stock / sale / mrp stack (onboarded to ESLint)
     "addons/account",
-    "addons/base_tax",
+    "addons/account_tax",
     "addons/analytic",
     "addons/product",
     "addons/uom",
@@ -252,7 +252,7 @@ const COMMUNITY_NO_CONSOLE_MODULES = [
     "addons/purchase",
     "addons/bus",
     "addons/account",
-    "addons/base_tax",
+    "addons/account_tax",
     "addons/analytic",
     "addons/product",
     "addons/uom",
