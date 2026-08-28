@@ -4,9 +4,11 @@ from pathlib import Path
 import pytest
 from _repo_root import (
     ODOO_MARKER,
+    SIBLING_REPOS,
     find_odoo_root,
     find_workspace,
     in_workspace,
+    sibling_repo_paths,
     sibling_repos_root,
 )
 
@@ -375,3 +377,66 @@ class TestShellBootstrapsAgree:
             f"shell bootstrap handles only <ws>/addons/odoo: {offenders} — the "
             f"workspace is flat (<ws>/odoo) now; see _repo_root.in_workspace"
         )
+
+
+# ── The sibling-repository vocabulary ────────────────────────────────────────
+
+
+def test_the_sibling_vocabulary_is_not_empty_and_excludes_this_repo():
+    assert SIBLING_REPOS, "the vocabulary is empty; every scoped gate silently widens"
+    assert "odoo" not in SIBLING_REPOS, (
+        "'odoo' is this checkout, not a sibling of it — a tool that adds "
+        "SIBLING_REPOS to its own root would scan this tree twice"
+    )
+    assert len(set(SIBLING_REPOS)) == len(SIBLING_REPOS), "duplicate entries"
+
+
+def test_nothing_redeclares_the_sibling_vocabulary():
+    """One fact, one place — checked, because it was five places.
+
+    `SIBLING_ROOTS` was declared in `patchorder`, `edi_vocabulary` and
+    `payment_vocabulary`, and spelled out again as inline `ROOT.parent /
+    "enterprise"` lists in `js_component_face` and `js_face_boundary`. One of
+    the five had drifted to a different order. A sixth repository would have had
+    to be added in five places, and a gate that missed it would simply stop
+    seeing that repository — silently, because a tool scanning a tree it was
+    never pointed at reports nothing rather than failing.
+    """
+    offenders = []
+    for path in sorted(ODOO_ROOT.joinpath("tooling").rglob("*.py")):
+        if path == Path(__file__).resolve() or path.name == "_repo_root.py":
+            continue
+        text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(ODOO_ROOT)
+        if "SIBLING_ROOTS" in text and "=" in text.split("SIBLING_ROOTS", 1)[1][:3]:
+            offenders.append(f"{rel}: declares SIBLING_ROOTS")
+        for name in SIBLING_REPOS:
+            if f'ROOT.parent / "{name}"' in text or f"ROOT.parent / '{name}'" in text:
+                offenders.append(f"{rel}: spells out ROOT.parent / {name!r}")
+                break
+    assert offenders == [], (
+        "the sibling repositories are named in more than one place:\n  "
+        + "\n  ".join(offenders)
+        + "\nimport SIBLING_REPOS or sibling_repo_paths from _repo_root instead"
+    )
+
+
+def test_sibling_repo_paths_reports_only_what_is_checked_out(tmp_path):
+    """An absent checkout is not an empty one — it is not scanned at all."""
+    workspace = tmp_path / "ws"
+    odoo = workspace / "odoo"
+    (odoo / "tooling").mkdir(parents=True)
+    (odoo / ODOO_MARKER).write_text("")
+    # A workspace is recognised by a *.conf or a <child>/bin/python beside it.
+    (workspace / "env.conf").write_text("")
+    (workspace / SIBLING_REPOS[0]).mkdir()
+
+    found = sibling_repo_paths(odoo)
+    assert [p.name for p in found] == [SIBLING_REPOS[0]]
+
+    # Outside a workspace — CI's shape, and a bare git worktree's — there are no
+    # siblings to report and that is not an error.
+    lone = tmp_path / "lone" / "odoo"
+    lone.mkdir(parents=True)
+    (lone / ODOO_MARKER).write_text("")
+    assert sibling_repo_paths(lone) == []

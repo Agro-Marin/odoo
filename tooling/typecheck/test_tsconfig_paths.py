@@ -7,17 +7,15 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import tsconfig_paths
 from _repo_root import find_odoo_root
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_tsconfig_paths")
 TSCONFIG = ROOT / "tsconfig.json"
 
-CHECKOUTS = (
-    (ROOT / "addons", "addons"),
-    (ROOT.parent / "enterprise", "../enterprise"),
-    (ROOT.parent / "agromarin", "../agromarin"),
-    (ROOT.parent / "design-themes", "../design-themes"),
-)
+# The gate's own list, not a copy of it: a test that restates the thing it is
+# testing agrees with itself and with nothing else.
+CHECKOUTS = tsconfig_paths.CHECKOUTS
 SKIP = ("/static/lib/", "/node_modules/")
 IMPORT_ALIAS = re.compile(r"""from\s*["']@([A-Za-z_0-9]+)/""")
 

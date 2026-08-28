@@ -29,7 +29,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _repo_root import find_odoo_root, find_workspace, in_workspace
+from _repo_root import (
+    find_odoo_root,
+    find_workspace,
+    in_workspace,
+    sibling_repo_paths,
+)
 
 ADR = "0048"
 
@@ -38,14 +43,12 @@ ALLOWLIST = Path(__file__).with_name("edi_vocabulary_allowlist.json")
 
 CHECKOUT_ROOTS = ("addons", "odoo/addons")
 
-SIBLING_ROOTS = ("enterprise", "agromarin", "design-themes")
-
 
 def scan_roots() -> list[Path]:
     roots = [ROOT / rel for rel in CHECKOUT_ROOTS]
     workspace = find_workspace(ROOT)
     if workspace is not None:
-        roots += [workspace / rel for rel in SIBLING_ROOTS]
+        roots += sibling_repo_paths(ROOT)
     return [r for r in roots if r.is_dir()]
 
 

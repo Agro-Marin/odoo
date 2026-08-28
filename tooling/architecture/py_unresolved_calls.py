@@ -96,6 +96,11 @@ def _names_a_string_binds(node: ast.AST) -> set[str]:
 #: third-party receivers the community fork never touches, and one flat list
 #: would silence those names in ``odoo/`` too. Same rule as EXTERNAL: an entry is
 #: a claim about the receiver, checked at the call site.
+#:
+#: Keyed by repository name, matched against ``scope.name``, so every key must be
+#: one of :data:`~_repo_root.SIBLING_REPOS`. An entry for a repository that is
+#: not checked out is inert rather than wrong — that is the normal shape in CI,
+#: which checks this repository out alone.
 EXTERNAL_BY_ROOT: dict[str, frozenset[str]] = {
     # zeep's WS-Security helpers, reached as `wsse.signature.<name>` on
     # `from zeep import wsse` in l10n_nl_reports' SBR wizard.

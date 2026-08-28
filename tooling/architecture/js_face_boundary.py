@@ -7,7 +7,7 @@ from js_imports import collect_imports, collect_type_imports
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _sources
-from _repo_root import find_odoo_root
+from _repo_root import SIBLING_REPOS, find_odoo_root
 
 ADR = "0020"
 
@@ -15,12 +15,7 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_face_boundary")
 WEB = ROOT / "addons" / "web"
 WEB_SRC = WEB / "static" / "src"
 
-CONSUMER_ROOTS = (
-    ROOT,
-    ROOT.parent / "enterprise",
-    ROOT.parent / "agromarin",
-    ROOT.parent / "design-themes",
-)
+CONSUMER_ROOTS = (ROOT, *(ROOT.parent / name for name in SIBLING_REPOS))
 
 KNOWN_VIOLATIONS: dict[str, str] = {}
 

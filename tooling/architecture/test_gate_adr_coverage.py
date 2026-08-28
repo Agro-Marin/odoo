@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import re
 import sys
 from pathlib import Path
 
@@ -47,12 +48,17 @@ def declared_adr(path: Path) -> str | None:
     return None
 
 
-def _status_kind(path: Path) -> str:
+def _status_line(path: Path) -> str:
+    """The whole Status line, so a supersession can name its successor."""
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("- **Status:**"):
-            rest = line.removeprefix("- **Status:**").split()
-            return rest[0] if rest else ""
+            return line.removeprefix("- **Status:**").strip()
     return ""
+
+
+def _status_kind(path: Path) -> str:
+    status = _status_line(path)
+    return status.split()[0] if status else ""
 
 
 def test_the_gate_list_is_not_empty():
@@ -81,9 +87,22 @@ def test_every_cited_record_exists_and_is_accepted():
             f"{path.name} cites ADR-{adr}, which is not in doc/adr/. If the "
             f"record moved, follow it."
         )
-        kind = _status_kind(matches[0])
+        status = _status_line(matches[0])
+        kind = status.split()[0] if status else ""
+        # A superseded record names its replacement; say so, because "follow the
+        # record" is a two-minute job when you are told where it went and a hunt
+        # through doc/adr when you are not. py_addon_imports cited ADR-0031 for
+        # a fortnight after ADR-0072 superseded it, and the message it got back
+        # named neither the successor nor the fact that there was one.
+        successor = re.search(r"Superseded by (ADR-\d{4})", status)
+        follow = (
+            f" It was superseded by {successor.group(1)}; if that record still "
+            f"argues for this gate, cite it."
+            if successor
+            else ""
+        )
         assert kind == "Accepted", (
-            f"{path.name} cites ADR-{adr}, whose status is {kind}. A gate "
+            f"{path.name} cites ADR-{adr}, whose status is {kind}.{follow} A gate "
             f"enforces a decision that has landed; cite an Accepted record, or "
             f'declare ADR = "{lc.UNRECORDED}" until this one is.'
         )

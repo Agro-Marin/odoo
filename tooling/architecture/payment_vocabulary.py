@@ -37,7 +37,12 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _repo_root import find_odoo_root, find_workspace, in_workspace
+from _repo_root import (
+    find_odoo_root,
+    find_workspace,
+    in_workspace,
+    sibling_repo_paths,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _ast_cache
@@ -49,7 +54,6 @@ ALLOWLIST = Path(__file__).with_name("payment_vocabulary_allowlist.json")
 
 CHECKOUT_ROOTS = ("addons", "odoo/addons")
 
-SIBLING_ROOTS = ("enterprise", "agromarin", "design-themes")
 
 # ADR-0070's nine senses of the word, plus the two annotations a model needs when
 # "payment" is not its head noun at all. An entry reads "<category>" or
@@ -74,7 +78,7 @@ def scan_roots() -> list[Path]:
     roots = [ROOT / rel for rel in CHECKOUT_ROOTS]
     workspace = find_workspace(ROOT)
     if workspace is not None:
-        roots += [workspace / rel for rel in SIBLING_ROOTS]
+        roots += sibling_repo_paths(ROOT)
     return [r for r in roots if r.is_dir()]
 
 

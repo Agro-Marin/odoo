@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _repo_root import find_odoo_root
+from _repo_root import SIBLING_REPOS, find_odoo_root
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="tsconfig_paths")
 TSCONFIG = ROOT / "tsconfig.json"
@@ -53,9 +53,7 @@ HEADER = f"""{INDENT}{BEGIN} -- do not hand-edit.
 
 CHECKOUTS = (
     (ROOT / "addons", "addons"),
-    (ROOT.parent / "enterprise", "../enterprise"),
-    (ROOT.parent / "agromarin", "../agromarin"),
-    (ROOT.parent / "design-themes", "../design-themes"),
+    *((ROOT.parent / name, f"../{name}") for name in SIBLING_REPOS),
 )
 
 

@@ -10,15 +10,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from _repo_root import find_odoo_root, find_workspace
+from _repo_root import find_odoo_root, find_workspace, sibling_repo_paths
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="patchorder")
 
 _DESCRIPTION = "Cross-repo staleness sweep for mail's double-patch allowlist."
 
 ALLOWLIST_REL = "addons/mail/static/tests/core/patch_order_audit.test.js"
-SIBLING_ROOTS = ("design-themes", "enterprise", "agromarin")
-
 MIN_SITES = 2
 
 _PATCH_CALL = re.compile(r"(?<![.\w])patch\(\s*")
@@ -200,7 +198,7 @@ def default_roots(odoo_root: Path) -> list[Path]:
     roots = [odoo_root / "addons", odoo_root / "odoo" / "addons"]
     workspace = find_workspace(odoo_root)
     if workspace:
-        roots += [workspace / name for name in SIBLING_ROOTS]
+        roots += sibling_repo_paths(ROOT)
     return [r for r in roots if r.is_dir()]
 
 

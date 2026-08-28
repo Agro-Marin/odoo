@@ -8,6 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import py_unresolved_calls as gate
+from _repo_root import SIBLING_REPOS
 
 
 def _measure(tmp_path: Path, **sources: str) -> list[gate.UnresolvedCall]:
@@ -189,11 +190,21 @@ def test_a_scoped_external_entry_does_not_leak_to_the_default_scope(tmp_path):
 
 
 def test_every_scoped_external_entry_names_a_real_root():
-    roots = {p.name for p in gate.ROOT.parent.iterdir() if p.is_dir()}
+    """A key must be a repository this workspace HAS, not one it has CHECKED OUT.
+
+    This read the filesystem — `ROOT.parent.iterdir()` — which made the verdict
+    depend on the developer's directory layout. It passed on a workstation with
+    the siblings cloned beside the fork and failed everywhere else: in a
+    `git worktree`, and in CI, which checks this repository out alone and is the
+    one place the gate had to work. The key is matched against `scope.name`, and
+    the names a scope can have are a vocabulary, so that is what to check
+    against.
+    """
     for name in gate.EXTERNAL_BY_ROOT:
-        assert name in roots, (
-            f"EXTERNAL_BY_ROOT names {name!r}, which is no repository beside this "
-            f"checkout, so its entries can never apply"
+        assert name in SIBLING_REPOS, (
+            f"EXTERNAL_BY_ROOT names {name!r}, which is not one of the workspace "
+            f"repositories {list(SIBLING_REPOS)} — it can never match a scope, so "
+            f"its entries can never apply"
         )
 
 

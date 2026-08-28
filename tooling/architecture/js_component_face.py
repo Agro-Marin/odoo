@@ -49,17 +49,15 @@ from pathlib import Path
 
 from js_layer_check import ROOT
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import SIBLING_REPOS
+
 ADR = "0047"
 
 WEB_STATIC = ROOT / "addons" / "web" / "static"
 COMPONENTS = WEB_STATIC / "src" / "components"
 
-CONSUMER_ROOTS = (
-    ROOT / "addons",
-    ROOT.parent / "enterprise",
-    ROOT.parent / "agromarin",
-    ROOT.parent / "design-themes",
-)
+CONSUMER_ROOTS = (ROOT / "addons", *(ROOT.parent / name for name in SIBLING_REPOS))
 
 SPECIFIER = re.compile(r"""["']@web/components/(?P<rest>[^"']+)["']""")
 
