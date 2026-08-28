@@ -275,3 +275,15 @@ class TestSignupHttpRoutes(HttpCaseWithUserDemo):
         res = self.url_open("/web/signup?token=not-a-real-token")
         self.assertEqual(res.status_code, 200)
         self.assertIn("Invalid signup token", res.text)
+
+    def test_well_known_change_password_redirects(self):
+        """`/.well-known/change-password` must take a password manager straight
+        to our reset form (WICG change-password-url). Browsers and password
+        managers probe this well-known path to offer "change your password"
+        without the user hunting for the form."""
+        res = self.url_open("/.well-known/change-password", allow_redirects=False)
+        self.assertEqual(res.status_code, 303)
+        self.assertTrue(
+            res.headers["Location"].endswith("/web/reset_password"),
+            f"expected a redirect to the reset form, got {res.headers['Location']!r}",
+        )
