@@ -1,6 +1,6 @@
 # Base Module Conventions
 
-Module-specific patterns, rules, and gotchas for working in `core/odoo/addons/base/`.
+Module-specific patterns, rules, and gotchas for working in `odoo/addons/base/`.
 
 ## No Controllers
 

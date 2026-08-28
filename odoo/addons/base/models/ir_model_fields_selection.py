@@ -379,11 +379,8 @@ class IrModelFieldsSelection(models.Model):
                         records.unlink()
                     else:
                         raise ValueError(
-                            _(
-                                'The ondelete policy "%(policy)s" is not valid for field "%(field)s"',
-                                policy=ondelete,
-                                field=f"{field_record.model}.{field.name}",
-                            )
+                            f'The ondelete policy "{ondelete}" is not valid for '
+                            f'field "{field_record.model}.{field.name}"'
                         )
 
     def _bypass_assignment(self, records: Any, field: Any, value: Any) -> SQL:

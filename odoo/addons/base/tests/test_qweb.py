@@ -3905,7 +3905,7 @@ class TestQWebStandaloneBodyContent(TransactionCase):
             QwebCallParameters({}, "r", None, None, False, "t-set", None),
         )
         with self.assertRaises(AttributeError):
-            getattr(content, "__deepcopy__")  # noqa: B009
+            getattr(content, "__deepcopy__")  # noqa: B009 - the constant name is the subject: a dunder arriving by name must not render
         self.assertIsNone(content.html, "the snippet was rendered by a dunder probe")
 
     def test_non_template_argument_is_rejected(self):

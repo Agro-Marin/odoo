@@ -4,7 +4,7 @@
 
 Transform `base_automation` into a best-in-class workflow engine with:
 
-- **Visual DAG editor** (via `web_flow` with BPMN-js)
+- **Visual DAG editor** (library undecided — see Decision 1)
 - **Per-execution isolation** (every trigger creates an `automation.runtime`)
 - **Typed nodes** (code, write, email, http, wait, branch, parallel, join,
   approval, subflow)
@@ -18,22 +18,77 @@ fiscal rules and posts a `mail.activity` is trivial here.
 
 ---
 
-## Design Decisions (Locked)
+## Design Decisions
 
-### Decision 1: Visual Layer
+Decisions 2–4 are locked. **Decision 1 was reopened on 2026-08-26** because the
+module it rested on was deleted as unused on 2026-04-21, four months before this
+document noticed.
 
-`web_flow` (`agromarin/web_flow/`) provides the visual editor today:
-- BPMN-js modeler (536KB, interactive) + viewer (180KB, read-only)
-- Mermaid widget (alternative for simpler diagrams)
-- OWL `flow` view type registerable in XML
+### Decision 1: Visual Layer — OPEN
 
-Both visual systems coexist. `web_flow` is a candidate for promotion to
-`odoo/addons/` when the workflow engine stabilizes. Business case determines
-timing — do not force the move prematurely.
+This decision previously read that `web_flow` (agromarin/web_flow/) provided a
+BPMN-js modeler, a Mermaid widget and an OWL `flow` view type, and that
+`flow.diagram` would become the layout layer. That was **true when written on
+2026-03-10 and false six weeks later**: `agromarin` `60b5a7eef` (2026-04-21,
+task 21062) deleted the module as unused, and nothing connected the deletion to
+this document. Re-derive before believing either version:
 
-The `flow.diagram` model (BPMN XML + element_mappings JSON) becomes the visual
-layout layer for `base.automation` workflows: one diagram per automation rule,
-with element IDs mapped to `ir.actions.server` IDs and edge IDs.
+```bash
+find odoo enterprise agromarin design-themes -maxdepth 3 -type d -name web_flow
+grep -rl -E 'web_flow|flow\.diagram|bpmn' --include='*.py' --include='*.xml' \
+    --include='*.js' agromarin odoo/addons enterprise
+```
+
+The first returns nothing; the second returns only this directory and an unrelated
+mention in agromarin/web_network/README.md. This module carries no factcheck
+harness, which is how a locked decision outlived its own subject by four months.
+
+**Read the removal before proposing BPMN again.** `60b5a7eef` did not delete
+`web_flow` to make room for something better — it deleted it as dead weight:
+
+>     flow_diagram table has 0 records in marin190
+>     No module declares web_flow as a dependency (web_flow_demo,
+>     its only consumer, was removed in T-21048)
+>     Bundled 2.9MB of dead JS assets (bpmn-js + mermaid) served
+>     on every session
+>     The `flow` view type has no active consumers
+
+That is this fork's own measured verdict on a BPMN canvas: nobody drew a diagram
+with it, and it cost every session 2.9 MB to offer. Both facts constrain the
+replacement — see the notation and lazy-loading points below.
+
+So the visual layer is **undecided**. What the reopening settled, and what a
+replacement decision must respect:
+
+* **BPMN is the wrong notation, and was already tried.** It models business
+  processes with pools, lanes and gateways; this engine is a plain DAG of server
+  actions. A BPMN editor means adopting a notation whose semantics the engine does
+  not implement — and `web_flow` shipped exactly that, to zero diagrams.
+* **No React.** The fork is OWL and vendors no React, so a React SDK — including
+  `synergycodes/workflowbuilder`, the proposal that prompted this review — is
+  rejected on runtime grounds: two component systems, two state systems and two
+  theming systems on one page. The objection is *not* the build step; the fork
+  bundles with esbuild 0.25 and would compile it fine.
+* **The integration constraint is one file.** A library must be reducible to a
+  single browser-ready ESM file vendored into `<addon>/static/lib/` and declared
+  under the module manifest's `esm.external_libs` key. That is weaker than it
+  sounds: agromarin/geoengine/static/lib/ol/ builds exactly such a file from a
+  curated entry.js with a pinned esbuild, and that recipe is the one to copy.
+* **Load it lazily.** A top-level import in `web.assets_backend` resolves on every
+  backend page — the 2.9 MB `web_flow` charged every session is the cautionary
+  measurement, and agromarin/geoengine hit the same wall at ~770 KB and moved to
+  a single dynamic `import()`. Only `base.automation` form views need a canvas, so
+  it belongs in a lazy bundle (`web.ace_lib` is the pattern).
+
+Recommendation pending sign-off: **JointJS core** (MPL-2.0, zero runtime
+dependencies, ships `joint.mjs`, SVG-in-DOM so nodes theme from Odoo's own SCSS),
+with **diagram-js** (MIT, notation-agnostic) as the fallback. Rete.js is rejected —
+its core is framework-agnostic but no vanilla renderer exists. Full comparison,
+including the licence trap in elkjs (EPL-2.0 against LGPL-3 addons):
+agromarin-knowledge/research/2026-08-26-workflow-visual-layer-options.md.
+
+**This decision is not blocking.** Phase 2 (`workflow.edge`) and node coordinate
+storage gate the canvas, and no library supplies either — see Phase 4.
 
 ### Decision 2: Async / Wait Nodes
 
@@ -70,36 +125,42 @@ first. The doc is the design contract; the code implements it.
 
 | Concern | Current State | Target |
 |---------|--------------|--------|
-| Execution isolation | `action_state` on definition (broken) | All state on `automation.runtime.line` |
-| Trigger coverage | Only `on_hand` creates `automation.runtime` | All triggers create instances |
+| Execution isolation | **done** — all state on `automation.runtime.line` | — |
+| `automation.runtime` scope | **done** — `automation_id` carries no domain | — |
+| `use_workflow_dag` flag | **done** — removed, every automation is DAG-capable | — |
+| Trigger coverage | partial — `_process` creates a runtime for any automation whose actions have predecessors, not only `on_hand` | All triggers create instances |
 | Edge model | Many2many (`predecessor_ids`) — untyped | `workflow.edge` with `condition` field |
 | Node types | Only `ir.actions.server` existing states | + wait, branch, parallel, join, approval, subflow |
-| `automation.runtime` scope | Meta-workflows only (domain restriction) | All workflows |
-| Visual layer | `web_flow` in `agromarin/` (standalone) | Integrated with `base.automation` form |
-| `use_workflow_dag` flag | Required to enable DAG | Removed — all automations are DAG-capable |
-| Execution history | Only `last_run` timestamp | Full `automation.runtime` history per trigger |
+| Node coordinates | **none** — nothing persists a node position | stored, so a canvas can round-trip a layout |
+| Visual layer | **none — `web_flow` was deleted as unused, 2026-04-21** | Integrated with `base.automation` form |
+| Execution history | `automation.runtime` per DAG run; `last_run` only for the rest | Full history per trigger |
 
 ---
 
 ## Phased Roadmap
 
-### Phase 1 — Execution Model Foundation
+### Phase 1 — Execution Model Foundation — MOSTLY DONE
 
 Goal: make `automation.runtime` the canonical execution record for all triggers.
 
-1. Remove `use_workflow_dag` and `auto_execute_workflow` from `base.automation`.
-   All automations become DAG-capable.
-2. Remove `action_state`, `is_ready`, `error_message` from `ir.actions.server`
-   (they belong on `automation.runtime.line`).
-3. Remove domain restriction on `automation.runtime.automation_id` — any
-   automation can have runtime instances, not just meta-workflows.
-4. Wire all trigger paths to create an `automation.runtime` + lines before
-   executing `ir.actions.server` actions.
+1. ~~Remove `use_workflow_dag` and `auto_execute_workflow` from `base.automation`.~~
+   **Done** — neither field exists; every automation is DAG-capable.
+2. ~~Remove `action_state`, `is_ready`, `error_message` from `ir.actions.server`.~~
+   **Done** — none is declared there, and `error_message` now lives on
+   `automation.runtime.line` where it belongs. `factcheck.sh` asserts all three
+   stay gone, so a reintroduction fails the gate rather than silently
+   resurrecting the corruption this phase removed.
+3. ~~Remove domain restriction on `automation.runtime.automation_id`.~~
+   **Done** — the field declares no domain.
+4. **Open.** `_process` creates a runtime and lines for any automation whose
+   actions carry predecessors, which is broader than the original `on_hand`-only
+   behaviour but still not every trigger path. A single-action automation on a
+   plain `on_create` still executes without a runtime record.
 5. Preserve backward-compat: simple automations with one action still work;
    the runtime record is created transparently.
 
-Outcome: every automation execution is traceable. `action_state` corruption
-on concurrent runs is eliminated.
+Outcome, once 4 lands: every automation execution is traceable. The
+`action_state` corruption on concurrent runs is already eliminated by 1–3.
 
 ### Phase 2 — Edge Model
 
@@ -139,14 +200,21 @@ requires `automation.runtime.state` to have `waiting_resume` as a new value.
 
 Goal: `base.automation` form view shows the workflow as an interactive DAG.
 
-1. Promote `web_flow` to `odoo/addons/web_flow/` (or integrate directly into
-   `base_automation`'s static assets).
-2. Replace the `action_server_ids` list view in the automation form with the
-   BPMN-js modeler embedded in an OWL component.
+0. **Add node coordinate storage.** Nothing in the module persists a node
+   position today — no `pos_x`/`pos_y`, no diagram blob. A canvas cannot round-trip
+   a layout without it, and this step was missing from the roadmap entirely.
+1. Settle Decision 1, then vendor the chosen library per that decision's
+   constraints: one ESM file under `static/lib/`, declared in `esm.external_libs`,
+   built by a build.sh with a pinned esbuild, reached through a lazy bundle.
+2. Replace the `action_server_ids` kanban in the automation form with an OWL
+   component wrapping that library.
 3. Saving a diagram auto-creates/updates `ir.actions.server` nodes and
-   `workflow.edge` records via RPC.
+   `workflow.edge` records via RPC, with `_check_no_dag_cycle` and
+   `_check_predecessors_scope` still enforcing on the server side.
 4. Execution monitoring: overlay live `automation.runtime` state onto the diagram
    (highlight running/done/error nodes in real time via polling or websocket).
+   `automation.runtime.line.state` and `automation.runtime.progress` already model
+   everything this needs.
 
 ---
 

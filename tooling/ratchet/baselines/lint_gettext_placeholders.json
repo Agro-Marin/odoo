@@ -1,4 +1,4 @@
 {
-  "count": 5,
-  "note": "Unchanged from the literal it replaces.\n\nFirst baseline. The floor used to be a Python literal in the test module; twenty-four of test_lint's last forty commits changed nothing there but an integer and the comment above it, and five of the six gates red at 598cf211cc2 were floor drift rather than defects. `assert_ratchet` now takes a gate name and refuses an integer outright, so a floor cannot go back into Python. Measured at CI scope -- `--addons-path=odoo/addons,addons`, only test_lint installed -- against a `git archive` of HEAD carrying this change and nothing else, because the shared checkout holds other sessions' uncommitted work."
+  "count": 4,
+  "note": "5 -> 4, the one unit base was carrying.\n\n  ir_actions_report.py:2215  _('Unknown report type %s for report %s.', type, name)\n\nTwo unnamed placeholders in one _() is the shape a translator cannot reorder: the\ntarget language may want the report before its type, and positional %s pins the\norder to English. Named now (%(type)s, %(report)s).\n\nControl run at 3bbd93238b3 with none of my files applied reports 5, which is the\nfloor, so this gate was green before and the whole move is this change."
 }

@@ -1,6 +1,6 @@
 # Base Module Architecture
 
-High-level structure, data flow, and component organization for `core/odoo/addons/base/`.
+High-level structure, data flow, and component organization for `odoo/addons/base/`.
 
 ## Module Identity
 
@@ -31,7 +31,7 @@ High-level structure, data flow, and component organization for `core/odoo/addon
 │  ┌────────┴────────┐  ┌────────┴──────────┐  ┌─────────┴──────────┐  │
 │  │ UI Framework    │  │ Actions           │  │ Infrastructure     │  │
 │  │ ir.ui.view      │  │ ir.actions.*      │  │ ir.cron            │  │
-│  │ ir.ui.menu      │  │ ir.actions.server │  │ ir.mail.server     │  │
+│  │ ir.ui.menu      │  │ ir.actions.server │  │ ir.mail_server     │  │
 │  │ ir.asset        │  │ ir.actions.report │  │ ir.sequence        │  │
 │  │ ir.qweb         │  │ ir.embedded.*     │  │ ir.attachment      │  │
 │  └─────────────────┘  └───────────────────┘  └────────────────────┘  │
@@ -67,7 +67,7 @@ access control, and ORM extensions that those controllers depend on.
 ## Directory Structure
 
 ```
-core/odoo/addons/base/
+odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
 ├── models/                      # 63 Python model files (core ORM infrastructure)
@@ -183,7 +183,7 @@ registry, access control, UI framework, scheduling, and module system.
 | Sequences | ir.sequence, ir.sequence.date_range | Auto-incrementing sequences |
 | Configuration | ir.config_parameter, ir.default, ir.filters, ir.exports | System params, defaults, saved filters |
 | Module System | ir.module.module, ir.module.category | Module lifecycle management |
-| Mail | ir.mail.server | SMTP configuration and email sending |
+| Mail | ir.mail_server | SMTP configuration and email sending |
 | HTTP | ir.http | Routing, auth dispatch, translations |
 | Logging | ir.logging, ir.profile | Server logs, code profiling |
 | Import | ir.fields.converter | Data import type conversion |

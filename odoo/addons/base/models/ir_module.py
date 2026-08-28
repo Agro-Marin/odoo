@@ -700,7 +700,7 @@ class IrModuleModule(models.Model):
         self.flush_model(["name", "state"])
         self.env["ir.module.module.dependency"].flush_model(["module_id", "name"])
         known_deps = known_deps or self.browse()
-        self.env.cr.execute(
+        self.env.cr.execute(  # noqa: E8501  _DOWNSTREAM_/_UPSTREAM_CLOSURE_QUERY only
             query,
             {
                 "seed_ids": list(self.ids),

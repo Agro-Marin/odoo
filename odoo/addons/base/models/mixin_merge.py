@@ -95,115 +95,127 @@ class MixinMerge(models.AbstractModel):
         self.env.invalidate_all()
 
         for table, column in relations:
-            tbl = SQL.identifier(table)
-            col = SQL.identifier(column)
+            self._repoint_table(table, column, src_records, dst_record)
 
-            columns = [
-                col
-                for col in sql_tools.table_columns(self.env.cr, table)
-                if col != column
-            ]
+    def _repoint_table(
+        self,
+        table: str,
+        column: str,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
+        tbl = SQL.identifier(table)
+        col = SQL.identifier(column)
 
+        other_columns = [
+            name
+            for name in sql_tools.table_columns(self.env.cr, table)
+            if name != column
+        ]
+
+        self.env.cr.execute(
+            SQL(
+                "SELECT FROM %s WHERE %s = ANY(%s) LIMIT 1",
+                tbl,
+                col,
+                list(src_records.ids),
+            )
+        )
+        if self.env.cr.fetchone() is None:
+            return
+
+        if len(other_columns) <= 1:
+            if other_columns:
+                self._repoint_join_rows(
+                    tbl, col, SQL.identifier(other_columns[0]), src_records, dst_record
+                )
+        elif not self._has_check_or_unique_constraint(table, column):
+            self._repoint_rows(tbl, col, src_records.ids, dst_record.id)
+        else:
+            try:
+                with mute_logger("odoo.db"), self.env.cr.savepoint():
+                    self._repoint_rows(tbl, col, src_records.ids, dst_record.id)
+            except psycopg.Error:
+                self._repoint_rows_one_by_one(table, column, src_records, dst_record)
+
+    def _repoint_join_rows(
+        self,
+        tbl: SQL,
+        col: SQL,
+        val: SQL,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
+        for record in src_records:
             self.env.cr.execute(
                 SQL(
-                    "SELECT FROM %s WHERE %s = ANY(%s) LIMIT 1",
-                    tbl,
-                    col,
-                    list(src_records.ids),
-                )
-            )
-            if self.env.cr.fetchone() is None:
-                continue
-
-            if len(columns) <= 1:
-                if not columns:
-                    continue
-                val = SQL.identifier(columns[0])
-                for record in src_records:
-                    self.env.cr.execute(
-                        SQL(
-                            """
-                        UPDATE %s as ___tu
-                        SET %s = %s
+                    """
+                UPDATE %s as ___tu
+                SET %s = %s
+                WHERE
+                    %s = %s AND
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM %s as ___tw
                         WHERE
                             %s = %s AND
-                            NOT EXISTS (
-                                SELECT 1
-                                FROM %s as ___tw
-                                WHERE
-                                    %s = %s AND
-                                    ___tu.%s = ___tw.%s
-                            )""",
-                            tbl,
-                            col,
-                            dst_record.id,
-                            col,
-                            record.id,
-                            tbl,
-                            col,
-                            dst_record.id,
-                            val,
-                            val,
-                        )
-                    )
-            elif not self._has_check_or_unique_constraint(table, column):
-                self.env.cr.execute(
-                    SQL(
-                        "UPDATE %s SET %s = %s WHERE %s = ANY(%s)",
-                        tbl,
-                        col,
-                        dst_record.id,
-                        col,
-                        list(src_records.ids),
-                    )
+                            ___tu.%s = ___tw.%s
+                    )""",
+                    tbl,
+                    col,
+                    dst_record.id,
+                    col,
+                    record.id,
+                    tbl,
+                    col,
+                    dst_record.id,
+                    val,
+                    val,
                 )
-            else:
-                try:
-                    with mute_logger("odoo.db"), self.env.cr.savepoint():
-                        self.env.cr.execute(
-                            SQL(
-                                "UPDATE %s SET %s = %s WHERE %s = ANY(%s)",
-                                tbl,
-                                col,
-                                dst_record.id,
-                                col,
-                                list(src_records.ids),
-                            )
-                        )
-                except psycopg.Error:
-                    for record in src_records:
-                        try:
-                            with mute_logger("odoo.db"), self.env.cr.savepoint():
-                                self.env.cr.execute(
-                                    SQL(
-                                        "UPDATE %s SET %s = %s WHERE %s = ANY(%s)",
-                                        tbl,
-                                        col,
-                                        dst_record.id,
-                                        col,
-                                        [record.id],
-                                    )
-                                )
-                        except psycopg.Error as error:
-                            _logger.warning(
-                                "Merging %s into %s: re-pointing %s.%s failed (%s), "
-                                "deleting the %s rows of %s to keep the merge going",
-                                src_records.ids,
-                                dst_record.id,
-                                table,
-                                column,
-                                error.__class__.__name__,
-                                table,
-                                record.id,
-                            )
-                            self.env.cr.execute(
-                                SQL(
-                                    "DELETE FROM %s WHERE %s = ANY(%s)",
-                                    tbl,
-                                    col,
-                                    [record.id],
-                                )
-                            )
+            )
+
+    def _repoint_rows(
+        self, tbl: SQL, col: SQL, src_ids: Iterable[int], dst_id: int
+    ) -> None:
+        self.env.cr.execute(
+            SQL(
+                "UPDATE %s SET %s = %s WHERE %s = ANY(%s)",
+                tbl,
+                col,
+                dst_id,
+                col,
+                list(src_ids),
+            )
+        )
+
+    def _repoint_rows_one_by_one(
+        self,
+        table: str,
+        column: str,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
+        tbl = SQL.identifier(table)
+        col = SQL.identifier(column)
+        for record in src_records:
+            try:
+                with mute_logger("odoo.db"), self.env.cr.savepoint():
+                    self._repoint_rows(tbl, col, [record.id], dst_record.id)
+            except psycopg.Error as error:
+                _logger.warning(
+                    "Merging %s into %s: re-pointing %s.%s failed (%s), "
+                    "deleting the %s rows of %s to keep the merge going",
+                    src_records.ids,
+                    dst_record.id,
+                    table,
+                    column,
+                    error.__class__.__name__,
+                    table,
+                    record.id,
+                )
+                self.env.cr.execute(
+                    SQL("DELETE FROM %s WHERE %s = ANY(%s)", tbl, col, [record.id])
+                )
 
     @api.model
     def _update_reference_fields_generic(
@@ -219,88 +231,145 @@ class MixinMerge(models.AbstractModel):
             src_records.ids,
         )
 
-        def update_records(
-            model: str,
-            src: models.BaseModel,
-            field_model: str = "model",
-            field_id: str = "res_id",
-        ) -> None:
-            Model = self.env.get(model, None)
-            if Model is None:
-                return
-            records = Model.sudo().search(
-                [(field_model, "=", referenced_model), (field_id, "=", src.id)]
-            )
-            if not records:
-                return
-            if not self._has_check_or_unique_constraint(records._table, field_id):
-                records.sudo().write({field_id: dst_record.id})
-                records.env.flush_all()
-                return
-            try:
-                with mute_logger("odoo.db"), self.env.cr.savepoint():
-                    records.sudo().write({field_id: dst_record.id})
-                    records.env.flush_all()
-            except psycopg.Error:
-                records.sudo().unlink()
+        self._repoint_sidecar_rows(
+            referenced_model, src_records, dst_record, additional_update_records or []
+        )
+        self._repoint_reference_fields(referenced_model, src_records, dst_record)
+        self._repoint_company_dependent_many2ones(src_records, dst_record)
+        self._repoint_company_dependent_defaults(src_records, dst_record)
 
-        additional_update_records = additional_update_records or []
+        self.env.flush_all()
+        self.env["ir.default"]._invalidate_defaults_cache()
+
+    def _repoint_sidecar_rows(
+        self,
+        referenced_model: str,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+        additional_update_records: list[dict[str, str]],
+    ) -> None:
         for record in src_records:
-            update_records("ir.attachment", src=record, field_model="res_model")
-            update_records("mail.followers", src=record, field_model="res_model")
-            update_records("mail.activity", src=record, field_model="res_model")
-            update_records("mail.message", src=record)
-            update_records("ir.model.data", src=record)
+            self._repoint_model_rows(
+                "ir.attachment", referenced_model, record, dst_record, "res_model"
+            )
+            self._repoint_model_rows(
+                "mail.followers", referenced_model, record, dst_record, "res_model"
+            )
+            self._repoint_model_rows(
+                "mail.activity", referenced_model, record, dst_record, "res_model"
+            )
+            self._repoint_model_rows(
+                "mail.message", referenced_model, record, dst_record
+            )
+            self._repoint_model_rows(
+                "ir.model.data", referenced_model, record, dst_record
+            )
             for update_record in additional_update_records:
-                update_records(
+                self._repoint_model_rows(
                     update_record["model"],
-                    src=record,
-                    field_model=update_record["field_model"],
+                    referenced_model,
+                    record,
+                    dst_record,
+                    update_record["field_model"],
                 )
 
-        records = (
+    def _repoint_model_rows(
+        self,
+        model: str,
+        referenced_model: str,
+        src: models.BaseModel,
+        dst_record: models.BaseModel,
+        field_model: str = "model",
+        field_id: str = "res_id",
+    ) -> None:
+        Model = self.env.get(model, None)
+        if Model is None:
+            return
+        records = Model.sudo().search(
+            [(field_model, "=", referenced_model), (field_id, "=", src.id)]
+        )
+        if not records:
+            return
+        if not self._has_check_or_unique_constraint(records._table, field_id):
+            records.sudo().write({field_id: dst_record.id})
+            records.env.flush_all()
+            return
+        try:
+            with mute_logger("odoo.db"), self.env.cr.savepoint():
+                records.sudo().write({field_id: dst_record.id})
+                records.env.flush_all()
+        except psycopg.Error:
+            records.sudo().unlink()
+
+    def _repoint_reference_fields(
+        self,
+        referenced_model: str,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
+        declarations = (
             self.env["ir.model.fields"]
             .sudo()
             .search([("ttype", "=", "reference"), ("store", "=", True)])
         )
-        for record in records:
+        src_values = [f"{referenced_model},{src.id}" for src in src_records]
+        new_value = f"{referenced_model},{dst_record.id}"
+        for declaration in declarations:
             try:
-                Model = self.env[record.model]
-                field = Model._fields[record.name]
+                Model = self.env[declaration.model]
+                field = Model._fields[declaration.name]
             except KeyError:
                 continue
 
             if Model._abstract or field.compute is not None:
                 continue
 
-            src_values = [f"{referenced_model},{src.id}" for src in src_records]
-            records_ref = Model.sudo().search([(record.name, "in", src_values)])
+            records_ref = Model.sudo().search(  # noqa: E8507  Model varies per turn
+                [(declaration.name, "in", src_values)]
+            )
             if not records_ref:
                 continue
-            new_value = f"{referenced_model},{dst_record.id}"
             try:
                 with mute_logger("odoo.db"), self.env.cr.savepoint():
-                    records_ref.sudo().write({record.name: new_value})
+                    records_ref.sudo().write({declaration.name: new_value})
                     records_ref.env.flush_all()
             except psycopg.Error:
-                for rec in records_ref:
-                    try:
-                        with mute_logger("odoo.db"), self.env.cr.savepoint():
-                            rec.sudo().write({record.name: new_value})
-                            rec.env.flush_all()
-                    except psycopg.Error as error:
-                        _logger.warning(
-                            "Merging %s into %s: re-pointing %s.%s failed (%s), "
-                            "deleting %s#%s to keep the reference consistent",
-                            src_records.ids,
-                            dst_record.id,
-                            record.model,
-                            record.name,
-                            error.__class__.__name__,
-                            rec._name,
-                            rec.id,
-                        )
-                        rec.sudo().unlink()
+                self._repoint_reference_rows_one_by_one(
+                    records_ref, declaration, new_value, src_records, dst_record
+                )
+
+    def _repoint_reference_rows_one_by_one(
+        self,
+        records_ref: models.BaseModel,
+        declaration: models.BaseModel,
+        new_value: str,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
+        for rec in records_ref:
+            try:
+                with mute_logger("odoo.db"), self.env.cr.savepoint():
+                    rec.sudo().write({declaration.name: new_value})
+                    rec.env.flush_all()
+            except psycopg.Error as error:
+                _logger.warning(
+                    "Merging %s into %s: re-pointing %s.%s failed (%s), "
+                    "deleting %s#%s to keep the reference consistent",
+                    src_records.ids,
+                    dst_record.id,
+                    declaration.model,
+                    declaration.name,
+                    error.__class__.__name__,
+                    rec._name,
+                    rec.id,
+                )
+                rec.sudo().unlink()
+
+    def _repoint_company_dependent_many2ones(
+        self,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
         for field in self.env.registry.many2one_company_dependents[dst_record._name]:
             self.env.cr.execute(
                 SQL(
@@ -329,6 +398,11 @@ class MixinMerge(models.AbstractModel):
                 )
             )
 
+    def _repoint_company_dependent_defaults(
+        self,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
         self.env.cr.execute(
             SQL(
                 """
@@ -351,9 +425,6 @@ class MixinMerge(models.AbstractModel):
                 model_name=dst_record._name,
             )
         )
-
-        self.env.flush_all()
-        self.env["ir.default"]._invalidate_defaults_cache()
 
     @api.model
     def _update_company_dependent_values_generic(
@@ -419,6 +490,7 @@ class MixinMerge(models.AbstractModel):
 
         values = {}
         values_by_company = defaultdict(dict)
+        companies = self.env["res.company"].sudo().search([])
         for column in model_fields:
             field = dst_record._fields[column]
             if field.type not in ("many2many", "one2many") and field.compute is None:
@@ -432,7 +504,7 @@ class MixinMerge(models.AbstractModel):
                             values[column] = write_serializer(item[column])
             elif field.company_dependent and column in summable_fields:
                 records = (src_records + dst_record).sudo()
-                for company in self.env["res.company"].sudo().search([]):
+                for company in companies:
                     values_by_company[company][column] = sum(
                         records.with_company(company).mapped(column)
                     )

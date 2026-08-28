@@ -413,16 +413,20 @@ class ResLang(models.Model):
         res = super().write(vals)
 
         if vals.get("active"):
-            for long_lang in self.filtered(lambda lang: "_" in lang.url_code):
+            long_langs = self.filtered(lambda lang: "_" in lang.url_code)
+            short_codes = {lang.code.split("_")[0] for lang in long_langs}
+            by_url_code = {}
+            if short_codes:
+                for candidate in self.with_context(active_test=False).search(
+                    [("url_code", "in", list(short_codes))]
+                ):
+                    by_url_code.setdefault(candidate.url_code, candidate)
+            for long_lang in long_langs:
                 short_code = long_lang.code.split("_")[0]
-                short_lang = self.with_context(active_test=False).search(
-                    [
-                        ("url_code", "=", short_code),
-                    ],
-                    limit=1,
-                )
+                short_lang = by_url_code.get(short_code)
                 if (
                     short_lang
+                    and short_lang.url_code == short_code
                     and not short_lang.active
                     and short_lang.code != short_code
                 ):

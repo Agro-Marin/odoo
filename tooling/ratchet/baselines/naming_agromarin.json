@@ -1,0 +1,4 @@
+{
+  "count": 37,
+  "note": "First baseline for this scope, same argument as `naming_enterprise`: the in-odoo gate runs without `--roots`, so this repository was ungated for \u00a72.4 naming. 37 offenders, measured 2026-08-27 with `naming_vocabulary.py --roots agromarin --count`.\n\n`--mode no-increase` for the cross-repo reason: an exact floor here would go red on every fix until `odoo` banked the new number."
+}

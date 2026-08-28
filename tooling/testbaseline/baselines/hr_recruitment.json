@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "Zero on arrival. The suite's one standing failure -- TestRecruitmentProcess.test_00_recruitment_process, AccessError on hr.job.platform from inside the inbound-mail route -- is fixed by the commit this is verified at, so there is no debt to record: the baseline exists so the thirty-eighth failure is reported as new rather than rediscovered by hand. The workspace CLAUDE.md carried that failure as a known defect from 2026-08-26; a baseline lives inside odoo/ and can be banked by the commit that fixes the test, which is the property the prose table structurally cannot have.",
+  "run_spec": "-i hr_recruitment --test-enable --test-tags '/hr_recruitment' --stop-after-init, fresh database",
+  "suite": "/hr_recruitment",
+  "tests_total": 37,
+  "verified_at": "9c344ac4d02"
+}

@@ -393,13 +393,14 @@ class ResCompany(models.Model):
         delegated_changed = set(vals) & set(
             self._get_company_root_delegated_field_names()
         )
-        for company in self:
-            if delegated_changed and not company.parent_id:
-                branches = self.sudo().search(
-                    [
-                        ("id", "child_of", company.id),
-                        ("id", "!=", company.id),
-                    ]
+        if delegated_changed:
+            roots = self.filtered(lambda company: not company.parent_id)
+            all_branches = self.sudo().search(
+                [("id", "child_of", roots.ids), ("id", "not in", roots.ids)]
+            )
+            for company in roots:
+                branches = all_branches.filtered(
+                    lambda branch, root=company: root in branch.parent_ids
                 )
                 changed_vals = {
                     fname: self._fields[fname].convert_to_write(

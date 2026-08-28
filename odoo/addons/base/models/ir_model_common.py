@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from psycopg.types.json import Jsonb
 
 from odoo import api, models
-from odoo.api import MODULE_UNINSTALL_FLAG  # noqa: F401
+from odoo.api import MODULE_UNINSTALL_FLAG  # noqa: F401 - re-exported downstream
 from odoo.tools import SQL
 from odoo.tools.safe_eval import datetime, dateutil, safe_eval, time
 from odoo.tools.translate import LazyTranslate
@@ -222,7 +222,7 @@ def _build_upsert_query(
     def _pg_cast(fname: str) -> SQL:
         ct = fields[fname].column_type
         if ct and ct[0] not in ("varchar", "text"):
-            return SQL("::%s", SQL(ct[0]))
+            return SQL("::%s", SQL.identifier(ct[0]))
         return SQL("")
 
     casts = [_pg_cast(fname) for fname in fnames]

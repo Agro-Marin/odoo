@@ -1,4 +1,4 @@
 {
-  "count": 18,
-  "note": "23 -> 18, measured at the CI scope. Banked in the change that measured it."
+  "count": 14,
+  "note": "23 -> 14. FOUR OF THE NINE ARE MINE; THE OTHER FIVE HAD ALREADY FALLEN AND WERE NEVER BANKED.\n\nMine are the whole of ir_binary.py, whose four UI exceptions were f-strings:\n\n  :43   MissingError  'No record found for xmlid=..., res_model=..., id=...'\n  :96   UserError     'Expected singleton: ...'\n  :103  UserError     'Record has no field ...'\n  :105  UserError     'Field ... is type ... but it is only possible to stream ...'\n\nMissingError and UserError are both in ERRORS_REQUIRING_GETTEXT, and both render\na dialog: ir.binary is what /web/image and every attachment download go through,\nso these reach a reader in a browser rather than a log. All four are _() with\nnamed placeholders now, and the two that used {x!r} quote the value in the message\ninstead, because %r in a _() is what E8504 counts.\n\nThe remaining five: a control run at 3bbd93238b3 with none of my files applied\nreports 18 against a floor of 23, so the gate was already red by 5 in the falling\ndirection before this change. Recorded here rather than hidden."
 }

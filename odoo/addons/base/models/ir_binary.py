@@ -6,7 +6,7 @@ from typing import Any
 
 import werkzeug.http
 
-from odoo import models
+from odoo import _, models
 from odoo.exceptions import MissingError, UserError
 from odoo.http import Stream, request
 from odoo.libs.filesystem import (
@@ -41,7 +41,13 @@ class IrBinary(models.AbstractModel):
             record = self.env[res_model].browse(res_id).exists()
         if not record:
             raise MissingError(
-                f"No record found for xmlid={xmlid}, res_model={res_model}, id={res_id}"
+                _(
+                    "No record found for xmlid=%(xmlid)s, res_model=%(model)s, "
+                    "id=%(res_id)s",
+                    xmlid=xmlid,
+                    model=res_model,
+                    res_id=res_id,
+                )
             )
         if access_token and verify_limited_field_access_token(
             record, field_name, access_token, scope="binary"
@@ -93,18 +99,24 @@ class IrBinary(models.AbstractModel):
     ) -> Stream:
         with replace_exceptions(
             ValueError,
-            by=UserError(f"Expected singleton: {record}"),
+            by=UserError(_("Expected singleton: %(record)s", record=record)),
         ):
             record.ensure_one()
 
         try:
             field = record._fields[field_name]
         except KeyError:
-            raise UserError(f"Record has no field {field_name!r}.") from None
+            raise UserError(
+                _('Record has no field "%(field_name)s".', field_name=field_name)
+            ) from None
         if field.type != "binary":
             raise UserError(
-                f"Field {field!r} is type {field.type!r} but "
-                f"it is only possible to stream Binary or Image fields."
+                _(
+                    'Field "%(field)s" is type "%(type)s" but it is only possible '
+                    "to stream Binary or Image fields.",
+                    field=field,
+                    type=field.type,
+                )
             )
 
         stream = self._record_to_stream(record, field_name)

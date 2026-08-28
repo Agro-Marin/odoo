@@ -1120,6 +1120,9 @@ class TestReferencedArtifacts(unittest.TestCase):
         "py_shadowed_member_design-themes": "design-themes",
         "unresolved_calls_enterprise": "enterprise",
         "unresolved_calls_agromarin": "agromarin",
+        "naming_enterprise": "enterprise",
+        "naming_agromarin": "agromarin",
+        "naming_design-themes": "design-themes",
     }
 
     #: Scopes whose `lint_<rule>_<scope>` floors are driven by one

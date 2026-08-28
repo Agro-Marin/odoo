@@ -31,6 +31,7 @@ from . import test_test_holes
 from . import test_esm_specifiers
 from . import test_esm_bundles
 from . import test_asset_paths_exist
+from . import test_bundle_double_evaluation
 from . import test_bundles_assemble
 from . import test_copy_translations
 from . import test_menu_parents

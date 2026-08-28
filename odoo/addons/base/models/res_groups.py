@@ -491,7 +491,7 @@ class ResGroups(models.Model):
     def _compute_all_users_count(self) -> None:
         Users = self.env["res.users"]
         for group in self:
-            group.all_users_count = Users.search_count(
+            group.all_users_count = Users.search_count(  # noqa: E8507  see 4a6768ae1f6
                 [("group_ids", "in", group.all_implied_by_ids.ids)]
             )
 

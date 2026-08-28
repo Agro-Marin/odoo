@@ -81,8 +81,16 @@ jobs:
           # DISCOVER, never enumerate: a new machine_doc that ships without a
           # harness, or with a broken one, must not be able to join the tree
           # unnoticed. `-not -path` keeps node_modules out of the walk.
+          #
+          # The roots are `odoo` and `addons` -- the whole repo -- and not
+          # `odoo/addons addons`, which is what they said until 2026-08-27. That
+          # narrower pair enumerated after all: `odoo/tests/machine_doc_v1` sits
+          # in neither, so it shipped and was read as authoritative while this
+          # lane could not see it. A root list is an enumeration wearing a walk's
+          # clothes, and the principle above only holds if the walk starts high
+          # enough to reach everything it claims to cover.
           mapfile -t harnesses < <(
-            find odoo/addons addons -type f -path '*/machine_doc_v*/factcheck.sh' \
+            find odoo addons -type f -path '*/machine_doc_v*/factcheck.sh' \
               -not -path '*/node_modules/*' | sort)
 
           if [ "${#harnesses[@]}" -eq 0 ]; then
@@ -114,6 +122,18 @@ jobs:
               rc=1
             fi
           done
+
+          # Warn for every machine_doc shipping without a harness. This is the
+          # standing list of what is ungated, and it exists because a lane that
+          # only reports on harnesses it found makes a doc with no harness look
+          # exactly like one whose harness is green. Not blocking: writing a
+          # harness is real work, and failing the build for owing one would
+          # only encourage deleting the document instead.
+          while read -r doc; do
+            [ -f "$doc/factcheck.sh" ] && continue
+            echo "::warning::$doc has a machine_doc but no factcheck.sh — its figures are ungated"
+          done < <(find odoo addons -type d -name 'machine_doc_v*' \
+                     -not -path '*/node_modules/*' | sort)
 
           # A single-repo checkout cannot judge fork-wide claims: no workflow
           # passes `repository:` to actions/checkout, so `enterprise`,

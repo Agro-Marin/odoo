@@ -1,4 +1,4 @@
 {
   "count": 1,
-  "note": "2 -> 1, measured at the CI scope. Banked in the change that measured it."
+  "note": "2 -> 1. NONE OF THIS IS MINE.\n\nSame measurement and same reason as lint_gettext_repr: a control run at\n3bbd93238b3 with no working-tree state reports 1 against a floor of 2, and base\nholds none of it before or after this change."
 }

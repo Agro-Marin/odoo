@@ -1,4 +1,4 @@
 {
-  "count": 623,
-  "note": "Unchanged from the literal it replaces.\n\nFirst baseline. The floor used to be a Python literal in the test module; twenty-four of test_lint's last forty commits changed nothing there but an integer and the comment above it, and five of the six gates red at 598cf211cc2 were floor drift rather than defects. `assert_ratchet` now takes a gate name and refuses an integer outright, so a floor cannot go back into Python. Measured at CI scope -- `--addons-path=odoo/addons,addons`, only test_lint installed -- against a `git archive` of HEAD carrying this change and nothing else, because the shared checkout holds other sessions' uncommitted work."
+  "count": 622,
+  "note": "623 -> 622: odoo/addons/base/__manifest__.py had 'assets' before 'demo' rather than after it.\n\nProduced by `_sort_manifests.py odoo/addons/base`, not by hand -- the fixer the\ngate's own advice names. It is the only manifest in the tree the fixer would\nchange, and the only one this commit touches.\n\nControl run at 3bbd93238b3 with none of my files applied passes ManifestLinter,\nso HEAD is 623 and the whole unit is this change."
 }

@@ -187,7 +187,7 @@ class IrActionsActions(models.Model):
                 self.env[model_name]
                 .sudo()
                 .with_context(active_test=False)
-                .search([(field_name, "in", self.ids)])
+                .search([(field_name, "in", self.ids)])  # noqa: E8507  model varies
             )
             if references:
                 found[ondelete].append((model_name, field_name, references))
@@ -221,7 +221,7 @@ class IrActionsActions(models.Model):
                 self.env[model_name]
                 .sudo()
                 .with_context(active_test=False)
-                .search([(field_name, "in", values)])
+                .search([(field_name, "in", values)])  # noqa: E8507  model varies
             )
             if referring:
                 referring.write({field_name: False})

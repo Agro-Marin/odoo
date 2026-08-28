@@ -719,32 +719,7 @@ class IrModelFields(models.Model):
                 _("This column contains module data and cannot be removed!")
             )
 
-        records = self
-        fields_ = OrderedSet()
-        failed_dependencies = []
-
-        for record in self:
-            model = self.env.get(record.model)
-            if model is None:
-                continue
-            field = model._fields.get(record.name)
-            if field is None:
-                continue
-            fields_.add(field)
-            for dep in self.pool.get_dependent_fields(field):
-                if dep.manual:
-                    failed_dependencies.append((field, dep))
-                elif dep.inherited:
-                    fields_.add(dep)
-                    records |= self._get(dep.model_name, dep.name)
-
-        for field in fields_:
-            failed_dependencies.extend(
-                (field, inverse)
-                for inverse in self.pool.field_inverses[field]
-                if inverse.manual and inverse.type == "one2many"
-            )
-
+        records, failed_dependencies = self._collect_field_dependencies()
         self = records
 
         if failed_dependencies:
@@ -803,6 +778,35 @@ class IrModelFields(models.Model):
                 )
 
         return self
+
+    def _collect_field_dependencies(self) -> tuple[Self, list[tuple]]:
+        records = self
+        fields_ = OrderedSet()
+        failed_dependencies = []
+
+        for record in self:
+            model = self.env.get(record.model)
+            if model is None:
+                continue
+            field = model._fields.get(record.name)
+            if field is None:
+                continue
+            fields_.add(field)
+            for dep in self.pool.get_dependent_fields(field):
+                if dep.manual:
+                    failed_dependencies.append((field, dep))
+                elif dep.inherited:
+                    fields_.add(dep)
+                    records |= self._get(dep.model_name, dep.name)
+
+        for field in fields_:
+            failed_dependencies.extend(
+                (field, inverse)
+                for inverse in self.pool.field_inverses[field]
+                if inverse.manual and inverse.type == "one2many"
+            )
+
+        return records, failed_dependencies
 
     def unlink(self) -> bool:
         if not self:
@@ -1261,18 +1265,7 @@ class IrModelFields(models.Model):
                     "enforced against those only" if known else "hidden from everyone",
                 )
         if field_data["ttype"] in ("char", "text", "html"):
-            attrs["translate"] = FIELD_TRANSLATE.get(field_data["translate"], True)
-            if field_data["ttype"] == "char":
-                attrs["size"] = field_data["size"] or None
-            elif field_data["ttype"] == "html":
-                attrs["sanitize"] = field_data["sanitize"]
-                attrs["sanitize_overridable"] = field_data["sanitize_overridable"]
-                attrs["sanitize_tags"] = field_data["sanitize_tags"]
-                attrs["sanitize_attributes"] = field_data["sanitize_attributes"]
-                attrs["sanitize_style"] = field_data["sanitize_style"]
-                attrs["sanitize_form"] = field_data["sanitize_form"]
-                attrs["strip_style"] = field_data["strip_style"]
-                attrs["strip_classes"] = field_data["strip_classes"]
+            self._apply_textual_field_attrs(field_data, attrs)
         elif field_data["ttype"] in ("selection", "reference"):
             attrs["selection"] = self.env[
                 "ir.model.fields.selection"
@@ -1317,6 +1310,23 @@ class IrModelFields(models.Model):
                 f"{field_data['model']}.{field_data['name']}",
             )
         return attrs
+
+    @staticmethod
+    def _apply_textual_field_attrs(
+        field_data: dict[str, Any], attrs: dict[str, Any]
+    ) -> None:
+        attrs["translate"] = FIELD_TRANSLATE.get(field_data["translate"], True)
+        if field_data["ttype"] == "char":
+            attrs["size"] = field_data["size"] or None
+        elif field_data["ttype"] == "html":
+            attrs["sanitize"] = field_data["sanitize"]
+            attrs["sanitize_overridable"] = field_data["sanitize_overridable"]
+            attrs["sanitize_tags"] = field_data["sanitize_tags"]
+            attrs["sanitize_attributes"] = field_data["sanitize_attributes"]
+            attrs["sanitize_style"] = field_data["sanitize_style"]
+            attrs["sanitize_form"] = field_data["sanitize_form"]
+            attrs["strip_style"] = field_data["strip_style"]
+            attrs["strip_classes"] = field_data["strip_classes"]
 
     @api.model
     def get_field_string(self, model_name: str) -> dict[str, str]:

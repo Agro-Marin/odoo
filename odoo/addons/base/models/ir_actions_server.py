@@ -103,6 +103,7 @@ class IrActionsServerHistory(models.Model):
     code = fields.Text()
 
     @api.depends("create_date", "create_uid")
+    @api.depends_context("lang", "tz")
     def _compute_display_name(self) -> None:
         self.display_name = False
         locale = get_lang(self.env).code

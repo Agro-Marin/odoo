@@ -1,0 +1,4 @@
+{
+  "count": 201,
+  "note": "First baseline for this scope. `architecture.yml` in the community fork invokes `naming_vocabulary.py` without `--roots`, so it measures `odoo/` and `addons/` and nothing else: a \u00a72.4 naming regression in this repository was caught by nothing, and a fix here was credited by nothing. 201 offenders, measured 2026-08-27 with `naming_vocabulary.py --roots enterprise --count` from a workspace holding both checkouts.\n\n`--mode no-increase`, as the other cross-repo ratchets (`py_shadowed_member_*`, `lint_*`): an exact floor across a repository boundary makes every fix here red until a matching commit in `odoo` banks it. Growth still fails; lowering is done by hand from a workspace holding all four checkouts."
+}

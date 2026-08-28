@@ -30,6 +30,20 @@ Base action model. All action types inherit from this.
 - `_get_action_dict()` — Return action data dict for webclient
 - `_get_fields_readable()` — Fields safe for web access
 
+#### IrActionsPath — `ir.actions.path` (`_name`)
+
+A side table holding one row per action that declares a URL path, so the
+uniqueness of `ir.actions.actions.path` is a database constraint rather than a
+search. Two `models.Constraint`s carry it: `_path_unique` on the path and
+`_action_unique` on the action.
+
+**Fields:** `path` (Char, required), `action_id` (Many2one → ir.actions.actions)
+
+**Key Methods:**
+- `init()` — Backfill from existing action paths, then WARN about any action
+  whose path could not be backed because another already claims it. Those actions
+  keep an unreachable path and are named in the log rather than dropped.
+
 #### IrActionsAct_Window — `ir.actions.act_window` (`_name`, inherits `ir.actions.actions`)
 
 Window action — opens a view on a model.
@@ -178,6 +192,13 @@ Wizard to view diffs and restore previous code revisions.
 ## Model Registry
 
 ### models/ir_model.py
+
+#### Unknown — `_unknown` (AbstractModel)
+
+The placeholder model. Declares nothing but a name, and exists so code holding
+an unresolvable model can still return a recordset: `odoo/tools/translate.py`
+browses it when a translation's model is not in the registry, rather than raising
+in the middle of an export.
 
 #### IrModel — `ir.model` (`_name`)
 
@@ -473,7 +494,7 @@ Asset bundle management — controls JS/CSS/SCSS file inclusion.
 
 ---
 
-### models/assetsbundle.py
+### models/assetsbundle/bundle.py
 
 #### AssetsBundle (non-ORM class)
 
@@ -507,7 +528,7 @@ QWeb template engine — compiles XML templates to Python functions, renders to 
 
 ### models/ir_qweb_fields.py
 
-#### IrQwebField — `ir.qweb.field` (AbstractModel, 21 subclasses)
+#### IrQwebField — `ir.qweb.field` (AbstractModel, 20 subclasses)
 
 QWeb field value formatters — one subclass per field type.
 
@@ -516,7 +537,31 @@ QWeb field value formatters — one subclass per field type.
 - `record_to_html(record, field_name, options)` — Get value + format
 - `attributes(record, field_name, options, values)` — Generate data-oe-* attributes
 
-**Subclasses:** IrQwebFieldInteger, IrQwebFieldFloat, IrQwebFieldDate, IrQwebFieldDatetime, IrQwebFieldText, IrQwebFieldHtml, IrQwebFieldMonetary, IrQwebFieldSelection, IrQwebFieldMany2one, IrQwebFieldMany2many, IrQwebFieldOne2many, IrQwebFieldImage, IrQwebFieldImage_Url, IrQwebFieldBarcode, IrQwebFieldFloat_Time, IrQwebFieldTime, IrQwebFieldDuration, IrQwebFieldRelative, IrQwebFieldContact, IrQwebFieldQweb
+**Subclasses** — one per field type, each an AbstractModel with its own `_name`
+so a template can address the converter directly (`t-options-widget`):
+
+| Class | Model |
+|-------|-------|
+| IrQwebFieldInteger | `ir.qweb.field.integer` |
+| IrQwebFieldFloat | `ir.qweb.field.float` |
+| IrQwebFieldDate | `ir.qweb.field.date` |
+| IrQwebFieldDatetime | `ir.qweb.field.datetime` |
+| IrQwebFieldText | `ir.qweb.field.text` |
+| IrQwebFieldSelection | `ir.qweb.field.selection` |
+| IrQwebFieldMany2one | `ir.qweb.field.many2one` |
+| IrQwebFieldMany2many | `ir.qweb.field.many2many` |
+| IrQwebFieldOne2many | `ir.qweb.field.one2many` |
+| IrQwebFieldHtml | `ir.qweb.field.html` |
+| IrQwebFieldImage | `ir.qweb.field.image` |
+| IrQwebFieldImage_Url | `ir.qweb.field.image_url` |
+| IrQwebFieldMonetary | `ir.qweb.field.monetary` |
+| IrQwebFieldFloat_Time | `ir.qweb.field.float_time` |
+| IrQwebFieldTime | `ir.qweb.field.time` |
+| IrQwebFieldDuration | `ir.qweb.field.duration` |
+| IrQwebFieldRelative | `ir.qweb.field.relative` |
+| IrQwebFieldBarcode | `ir.qweb.field.barcode` |
+| IrQwebFieldContact | `ir.qweb.field.contact` |
+| IrQwebFieldQweb | `ir.qweb.field.qweb` |
 
 ---
 
@@ -631,7 +676,7 @@ resolved by URI scheme via `_backend_for_key()` (plain sharded keys →
 local filestore). The `_file_*` methods are local-filestore primitives.
 
 Filestore keys are **algorithm-tagged**: `b3/<shard>/<digest>` for the
-BLAKE3 content digest (`odoo/tools/hashing.py`), and the historical
+BLAKE3 content digest (`odoo/libs/hashing.py`), and the historical
 untagged `<shard>/<sha1>` when the extension is absent. Both layouts
 coexist — reads follow the stored `store_fname`, so a digest change needs
 no filestore rewrite. `_gc_rehash_legacy_keys` converges old keys only if
@@ -841,6 +886,14 @@ SMTP server configuration and email sending.
 
 ### models/ir_module.py
 
+#### IrModuleModuleExclusion — `ir.module.module.exclusion` (`_name`)
+
+One row per `excludes` entry in a manifest — the modules that may not be
+installed alongside this one. Read by the installer before it resolves the
+dependency graph.
+
+**Fields:** `name` (Char), `module_id` (Many2one → ir.module.module, cascade), `exclusion_id` (Many2one → ir.module.module), `state` (Selection, computed)
+
 #### IrModuleCategory — `ir.module.category` (`_name`)
 
 Module categories (application groups).
@@ -887,6 +940,16 @@ Server/client log storage (bypasses ORM for performance).
 
 ### models/ir_profile.py
 
+#### BaseEnableProfilingWizard — `base.enable.profiling.wizard` (TransientModel)
+
+Turns profiling on for a bounded window. Profiling is off by default and this is
+the only supported way to enable it, so it cannot be left on by accident: the
+wizard writes an expiry into `ir.config_parameter`.
+
+**Fields:** `duration` (Selection), `expiration` (Datetime, computed from `duration`)
+
+**Key Methods:** `submit()` — Write the expiry into `ir.config_parameter` and close
+
 #### IrProfile — `ir.profile` (`_name`)
 
 Code profiling with Speedscope output.
@@ -921,7 +984,7 @@ Data import type conversion — converts external data formats to ORM field valu
 
 ## Embedded Actions
 
-### models/ir_embedded_actions.py
+### models/ir_actions_embedded.py
 
 #### IrEmbeddedActions — `ir.embedded.actions` (`_name`)
 
@@ -1029,7 +1092,22 @@ Partner tags — hierarchical.
 
 **Fields:** `name` (Char, translatable), `full_name` (Char, translatable), `active` (Boolean)
 
-### models/res_partner_format_address_mixin.py
+### models/res_partner_age_range.py
+
+#### ResPartnerAgeRange — `res.partner.age.range` (`_name`, inherits `mixin.band`, `_order = min_value`)
+
+Named age bands for partners. The band arithmetic and the overlap constraint come
+from `mixin.band`; this model adds the recompute of every partner whose band
+changed when a range is created, edited or removed.
+
+**Fields:** `name` (Char, `UNIQUE(name)`), `active` (Boolean), `min_value`, `max_value` (from `mixin.band`)
+
+**Key Methods:**
+- `_current_spans()`, `_span_domain(...)` — The bands in force and their partner domain
+- `_add_partners_to_compute(...)` — Mark the affected partners on create/write/unlink
+- `_default_min_value()` — Continue from the highest existing band
+
+### models/mixin_format_address.py
 
 #### FormatAddressMixin — `mixin.format.address` (AbstractModel)
 
@@ -1039,7 +1117,7 @@ Customizes address form layout based on country `address_view_id` or `address_fo
 - `_view_get_address(arch)` — Customize address form view
 - `_get_view()` — Override to apply address customization
 
-### models/res_partner_format_vat_mixin.py
+### models/mixin_format_vat_label.py
 
 #### FormatVatLabelMixin — `mixin.format.vat.label` (AbstractModel)
 
@@ -1099,6 +1177,14 @@ API key management with custom SQL table (encrypted key storage).
 - `_check_credentials(*, scope, key)` — Verify API key
 - `_generate(scope, name, expiration_date)` — Generate and store key
 - `_gc_user_apikeys()` — Autovacuum expired keys
+
+#### ResUsersApikeysShow — `res.users.apikeys.show` (AbstractModel)
+
+The one-shot display of a freshly generated key. Abstract on purpose — the key
+is never stored in a table, only rendered once into this form, because the
+database keeps a hash and cannot show the secret again.
+
+**Fields:** `id` (Id), `key` (Char)
 
 #### ResUsersApikeysDescription — `res.users.apikeys.description` (TransientModel)
 
@@ -1340,7 +1426,7 @@ Latest device per session/platform/browser (aggregated view).
 
 ## Mixins
 
-### models/image_mixin.py
+### models/mixin_image.py
 
 #### ImageMixin — `mixin.image` (AbstractModel)
 
@@ -1348,7 +1434,7 @@ Multi-resolution image fields.
 
 **Fields:** `image_1920` (Image, max 1920), `image_1024`, `image_512`, `image_256`, `image_128` (computed, stored, auto-resized)
 
-### models/avatar_mixin.py
+### models/mixin_avatar.py
 
 #### AvatarMixin — `mixin.avatar` (AbstractModel, inherits `mixin.image`)
 
@@ -1360,7 +1446,7 @@ SVG avatar generation from name initials.
 - `_compute_avatar(avatar_field, image_field)` — Use image or generate SVG
 - `_avatar_generate_svg()` — Generate SVG with initials and HSL color
 
-### models/properties_base_definition.py / properties_base_definition_mixin.py
+### models/properties_base_definition.py / mixin_properties_base_definition.py
 
 #### PropertiesBaseDefinition — `properties.base.definition` (`_name`)
 
@@ -1390,6 +1476,126 @@ Adds properties support to any model.
 #### ReportPaperformat — `report.paperformat` (`_name`)
 
 **Fields:** `name` (Char, required), `format` (Selection, default=A4), `orientation` (Selection), margins (top/bottom/left/right Float), `header_spacing` (Integer, mm — used by DIN5008 templates), `css_margins` (Boolean — WeasyPrint body-padding mode), `dpi` (Integer — Web Studio preview zoom), `disable_shrinking` (Boolean — Web Studio preview)
+
+### models/mixin_catalog.py
+
+#### MixinCatalog — `mixin.catalog` (AbstractModel)
+
+Catalog entry — a uniquely-named, archivable reference row. The base every small
+reference table in the fork inherits instead of redeclaring the pair.
+
+**Fields:** `name` (Char, required, translatable), `active` (Boolean, default=True)
+
+The uniqueness is on the SOURCE-LANGUAGE value, not the translated one:
+`_name_src_uniq` is a `models.UniqueIndex` over `(name->>'en_US')` with NULLS NOT
+DISTINCT, because `name` is a translated jsonb column and indexing the whole
+value would let two rows collide in `en_US` while differing in one translation.
+
+**Module-level helpers:**
+- `name_uniq_index(*scope, message=, nulls_distinct=, where=)` — Rebuild the index scoped to more columns (per company, per parent) or filtered
+- `no_name_uniq_index()` — Opt out entirely, for an inheritor whose names are not unique
+
+### models/mixin_tag.py
+
+#### MixinTag — `mixin.tag` (AbstractModel, inherits `mixin.catalog`)
+
+Coloured label with a stable code. The code survives a rename, so data files and
+integrations can point at a tag without depending on its display name.
+
+**Fields:** `name`, `active` (from `mixin.catalog`), `color` (Integer), `code` (Char)
+
+**Key Methods:**
+- `_default_color()` — Deterministic colour from the name
+- `_code_from_name(name)` — Slugified stable code
+
+### models/mixin_tag_nested.py
+
+#### MixinTagNested — `mixin.tag.nested` (AbstractModel, inherits `mixin.tag`)
+
+A tag with a parent/child hierarchy, `_parent_store`d.
+
+**Fields:** `parent_path` (Char, index), plus `parent_id` / `child_ids`
+
+**Key Methods:**
+- `_check_parent_id()` — Reject recursion
+- `_search_display_name(operator, value)` — Match on the full path
+
+### models/tag_tag.py
+
+#### TagTag — `tag.tag` (`_name`, inherits `mixin.tag.nested`)
+
+The concrete generic tag model. Modules that need tags without their own table
+point a Many2many here rather than declaring a fourth `x.tag`.
+
+**Fields:** `parent_id` (Many2one → tag.tag), `child_ids` (One2many)
+
+### models/mixin_band.py
+
+#### MixinBand — `mixin.band` (AbstractModel)
+
+Numeric band — a `[min, max)` interval with the overlap rules enforced. `max_value`
+of zero means open-ended.
+
+**Fields:** `min_value` (Float), `max_value` (Float)
+
+**Key Methods:**
+- `_is_band(record)` — Whether the record participates in banding
+- `_band_siblings()` — The bands this one must not overlap
+- `_ranges_overlap(a, b)`, `_covers(value)` — Interval arithmetic
+- `_check_band()` — Constraint: non-negative lower bound, ordered bounds, no overlap
+
+### models/mixin_favorite.py
+
+#### MixinFavorite — `mixin.favorite` (AbstractModel)
+
+A single per-record favourite flag, not per user. See `mixin.user.favorite` for
+the per-user form.
+
+**Fields:** `is_favorite` (Boolean)
+
+**Key Methods:** `action_toggle_favorite()`
+
+### models/mixin_user_favorite.py
+
+#### MixinUserFavorite — `mixin.user.favorite` (AbstractModel)
+
+Per-user favourites. Replaces the hand-written `_compute_is_favorite` /
+`_search_is_favorite` / `_inverse` triple that models kept redeclaring, and
+declares `@api.depends_context("uid")` once so the compute cannot serve one
+user's answer to another.
+
+**Fields:** `favorite_user_ids` (Many2many → res.users), `is_user_favorite` (Boolean, computed, searchable, inversed)
+
+**Key Methods:**
+- `_update_user_favorite(users, add)` — The write path both the inverse and the action use
+- `_check_user_favorite_access()` — A user may only favourite for themselves
+- `_search_is_user_favorite(operator, value)`, `action_toggle_user_favorite()`
+- `_order_field_to_sql(...)` — Ordering by the flag without a subquery per row
+
+### models/mixin_merge.py
+
+#### MixinMerge — `mixin.merge` (AbstractModel)
+
+Record merge engine. The generic half of what the partner merge wizard used to
+carry inline: re-point every foreign key and every `reference` field from the
+source records onto the destination, then absorb the source values.
+
+**Key Methods:**
+- `_get_relations_to_repoint(model)` — FK (table, column) pairs, minus the excluded tables
+- `_get_fk_on(table)`, `_has_check_or_unique_constraint(table, column)` — Schema introspection
+- `_update_foreign_keys_generic(model, src_records, dst_record)` — Re-point every FK
+- `_repoint_table`, `_repoint_join_rows`, `_repoint_rows`, `_repoint_rows_one_by_one` — The per-table strategies
+- `_update_reference_fields_generic(...)` — Sidecar rows, `reference` fields, company-dependent many2ones and `ir_default`
+- `_update_values_generic(...)` — Merge field values onto the destination
+- `_merge_absorbs_source_values()` — Hook: whether the destination takes the sources' values
+
+### models/kpi_provider.py
+
+#### KpiProvider — `kpi.provider` (AbstractModel)
+
+Contract for anything that publishes a KPI summary.
+
+**Key Methods:** `get_kpi_summary()` — Override to return this provider's KPIs
 
 ---
 
@@ -1431,19 +1637,34 @@ Partner deduplication — manual or automatic merge.
 - `_merge(partner_ids, dst_partner, extra_checks)` — Core merge orchestration
 - `action_start_manual_process()`, `action_start_automatic_process()` — Launch modes
 
+#### BasePartnerMergeLine — `base.partner.merge.line` (TransientModel)
+
+One candidate group the wizard found. Holds `min_id` and `aggr_ids`, the
+partners the automatic pass would merge together.
+
 ### wizard/change_password.py
 
-#### ChangePasswordWizard, ChangePasswordUser, ChangePasswordOwn (TransientModels)
-
 Password change wizards — admin batch change and self-service.
+
+- `change.password.wizard` (ChangePasswordWizard) — Admin form, one line per user
+- `change.password.user` (ChangePasswordUser) — A line: the user and the new password
+- `change.password.own` (ChangePasswordOwn) — Self-service, requires the current password
 
 ### wizard/base_language_install.py / base_import_language.py / base_export_language.py
 
 Language management wizards — install, import PO files, export translations.
 
+- `base.language.install` (BaseLanguageInstall) — Activate languages, optionally overwrite existing terms
+- `base.language.import` (BaseLanguageImport) — Load a `.po`/`.csv` for one language
+- `base.language.export` (BaseLanguageExport) — Emit `.pot`/`.po`/`.tgz`/`.csv` for chosen modules
+
 ### wizard/base_module_update.py / base_module_upgrade.py / base_module_uninstall.py
 
 Module lifecycle wizards — scan, upgrade, uninstall with dependency analysis.
+
+- `base.module.update` (BaseModuleUpdate) — Rescan the addons path into `ir.module.module`
+- `base.module.upgrade` (BaseModuleUpgrade) — Confirm and run the pending upgrade set
+- `base.module.uninstall` (BaseModuleUninstall) — Show the dependency cascade before uninstalling
 
 ### wizard/reset_view_arch.py
 
@@ -1459,12 +1680,34 @@ Create menu item for custom model.
 
 ---
 
+## Reports
+
+### report/report_base_report_irmodulereference.py
+
+#### ReportBaseReport_Irmodulereference — `report.base.report_irmodulereference` (AbstractModel)
+
+Backs the Module Reference report: for each selected `ir.module.module`, the
+models and fields that module owns, resolved through `ir.model.data`.
+
+**Key Methods:**
+- `_get_models_by_module(modules)` — `ir.model` records per module, via `ir.model.data`
+- `_get_field_names_by_model(modules)` — module → model → field names, same route
+- `_get_field_descriptions(model_name, field_names)` — `fields_get` for those fields
+- `_get_report_values(docids, data)` — the report entry point
+
+**Gotcha:** every lookup goes through `ir.model.data` and then `.exists()`, because
+a module may own an `ir.model.data` row whose target was dropped by a later
+migration. `_get_field_descriptions` also swallows a failing `fields_get` and logs
+it, so one unresolvable model degrades that model's field list instead of failing
+the whole report.
+
 ## Model Index
 
 Quick lookup — file → model → primary role:
 
 | File | Model(s) | Role |
 |------|----------|------|
+| `report_base_report_irmodulereference.py` | report.base.report_irmodulereference | Module Reference report values |
 | `ir_actions.py` | ir.actions.actions, .act_window, .act_url, .client, .todo, .act_window_close, .act_window.view | All action types |
 | `ir_actions_report.py` | ir.actions.report | PDF/HTML report rendering (WeasyPrint) |
 | `ir_actions_server.py` | ir.actions.server, .server.history, server.action.history.wizard | Automated actions (code/CRUD/webhook) |
@@ -1477,13 +1720,13 @@ Quick lookup — file → model → primary role:
 | `ir_default.py` | ir.default | Field default values |
 | `ir_demo.py` | ir.demo | Demo data installation |
 | `ir_demo_failure.py` | ir.demo_failure, .demo_failure.wizard | Demo failure tracking |
-| `ir_embedded_actions.py` | ir.embedded.actions | Embedded view actions |
+| `ir_actions_embedded.py` | ir.embedded.actions | Embedded view actions |
 | `ir_exports.py` | ir.exports, ir.exports.line | Export presets |
 | `ir_fields.py` | ir.fields.converter | Import type converters |
 | `ir_filters.py` | ir.filters | Saved search filters |
 | `ir_http.py` | ir.http | HTTP routing/auth/dispatch |
 | `ir_logging.py` | ir.logging | Server/client logs |
-| `ir_mail_server.py` | ir.mail.server | SMTP configuration/sending |
+| `ir_mail_server.py` | ir.mail_server | SMTP configuration/sending |
 | `ir_model.py` | ir.model, ir.model.inherit | Model registry + inheritance |
 | `ir_model_access.py` | ir.model.access | Model-level ACL |
 | `ir_model_reflection.py` | ir.model.constraint, ir.model.relation | DB constraint/relation tracking for uninstall |
@@ -1501,12 +1744,12 @@ Quick lookup — file → model → primary role:
 | `ir_ui_view_base.py` | base (mixin) | Default view generators |
 | `ir_ui_view_custom.py` | ir.ui.view.custom | User view customizations |
 | `ir_ui_view_name_manager.py` | NameManager (utility) | View XML validator |
-| `assetsbundle.py` | AssetsBundle (non-ORM) | Asset compilation |
-| `avatar_mixin.py` | mixin.avatar | SVG avatar generation |
+| `assetsbundle/bundle.py` | AssetsBundle (non-ORM) | Asset compilation |
+| `mixin_avatar.py` | mixin.avatar | SVG avatar generation |
 | `decimal_precision.py` | decimal.precision | Decimal precision config |
-| `image_mixin.py` | mixin.image | Multi-resolution images |
+| `mixin_image.py` | mixin.image | Multi-resolution images |
 | `properties_base_definition.py` | properties.base.definition | Properties definitions |
-| `properties_base_definition_mixin.py` | mixin.properties.base.definition | Properties mixin |
+| `mixin_properties_base_definition.py` | mixin.properties.base.definition | Properties mixin |
 | `report_layout.py` | report.layout | Report templates |
 | `report_paperformat.py` | report.paperformat | Paper format config |
 | `res_bank.py` | res.bank, res.partner.bank | Banks + accounts |
@@ -1520,8 +1763,8 @@ Quick lookup — file → model → primary role:
 | `res_lang.py` | res.lang | Languages |
 | `res_partner.py` | res.partner | Contacts/companies |
 | `res_partner_category.py` | res.partner.category | Partner tags |
-| `res_partner_format_address_mixin.py` | mixin.format.address | Address formatting |
-| `res_partner_format_vat_mixin.py` | mixin.format.vat.label | VAT label formatting |
+| `mixin_format_address.py` | mixin.format.address | Address formatting |
+| `mixin_format_vat_label.py` | mixin.format.vat.label | VAT label formatting |
 | `res_partner_industry.py` | res.partner.industry | Industries |
 | `res_users.py` | res.users | User accounts |
 | `res_users_apikeys.py` | res.users.apikeys, .description, .show | API keys |

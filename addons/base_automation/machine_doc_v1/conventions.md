@@ -9,7 +9,7 @@
 | Edge | `predecessor_ids` / `successor_ids` | Transitional — target is `workflow.edge` |
 | Execution instance | `automation.runtime` | The right model, wrong scope today |
 | Execution step | `automation.runtime.line` | Correct pattern — isolated per execution |
-| Visual diagram | `flow.diagram` | In `web_flow`, BPMN XML + element_mappings |
+| Visual diagram | — | No model yet; the layout layer is undecided along with the editor |
 
 ## Readiness Is `state`, and Only `state`
 
@@ -120,18 +120,23 @@ Nothing to preserve here — do not reintroduce a domain.
 The correct spelling is `_prepare_logging_values`. Upstream's misspelling
 (`_prepare_loggin_values`) is not present in this fork.
 
-## web_flow Integration — Current State
+## There Is No Visual Editor
 
-`web_flow` is in `agromarin/` and has no dependency on `base_automation`.
-It is a standalone visual framework that can render any DAG-shaped data.
+Earlier revisions of this file described integrating a `web_flow` module from
+`agromarin/` via a `flow.diagram` model and BPMN element mappings. That module was
+**deleted as unused** on 2026-04-21 (`agromarin` `60b5a7eef`) and no replacement
+was ever written. `vision.md` Decision 1 carries the removal rationale and the
+constraints on whatever replaces it.
 
-The integration between `web_flow` and `base_automation` does not yet exist as
-code — it is architectural intent. When building the integration:
+Two things follow for anyone building the canvas:
 
-1. `flow.diagram.res_model = "base.automation"`, `res_id = automation.id`
-2. `element_mappings` JSON maps BPMN shape IDs → `ir.actions.server` IDs
-   and BPMN edge IDs → `workflow.edge` IDs (Phase 2)
-3. The automation form view embeds the BPMN modeler via OWL widget
+* **Nothing stores a node position.** There is no `pos_x`/`pos_y` on
+  `ir.actions.server` and no diagram blob anywhere. Coordinate storage is step 0
+  of Phase 4, not an afterthought.
+* **An edge can carry no attributes.** `predecessor_ids`/`successor_ids` are two
+  views of one self-referential many2many, which is why both carry `copy=False`.
+  A canvas can *draw* a conditional branch but has nowhere to persist the
+  condition until `workflow.edge` lands in Phase 2.
 
 ## Test Tags
 

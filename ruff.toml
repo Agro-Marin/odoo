@@ -835,6 +835,12 @@ ignore = [
 "doc/**/*.py" = ["T201"]           # CLA stats script: print() is user-facing output
 "tools/**" = ["T201"]              # FA4 migration scripts: print() is user-facing output
 "**/tooling/**" = ["T201"]         # architecture/dev tooling (root + per-addon, e.g. addons/web/tooling)
+# A machine_doc harness is dev tooling that happens to sit beside the document it
+# derives rather than under a `tooling/` directory, so the glob above misses it.
+# Its print() calls are its interface: `factcheck.sh` reads UPDATED/CURRENT/STALE
+# off stdout and its exit status follows from that, so silencing them would break
+# the gate rather than tidy it.
+"**/machine_doc_v*/**" = ["T201"]
 "setup.py" = ["E402"]
 # odoo/init.py IS the bootstrap: the import ORDER is the behaviour. It retunes the
 # gc thresholds, applies `_monkeypatches` and enables gc timing before anything

@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "New scope, zero from the start, measured 2026-08-27 with `naming_vocabulary.py --roots design-themes --count`.\n\nZero means this floor is a CONTRACT rather than debt: the gate exists here to keep a clean scope clean, the same reasoning as `py_shadowed_member_design-themes`. It rides the cross-repo `architecture.yml` this repository already carries -- which is also why closing this gap no longer needs \"a workflow from scratch for design-themes\", as the workspace CLAUDE.md said it did.\n\n`--mode no-increase` to match its siblings; at a floor of zero the two modes differ only in what they say when the count falls, which it cannot."
+}

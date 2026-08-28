@@ -175,13 +175,17 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         if len(partner_ids) < 2:
             return
 
-        child_ids = Partner.browse()
+        selected = set(partner_ids.ids)
         for partner in partner_ids:
-            child_ids |= Partner.search([("id", "child_of", [partner.id])]) - partner
-        if partner_ids & child_ids:
-            raise UserError(
-                self.env._("You cannot merge a contact with one of his parent.")
-            )
+            ancestor = partner.parent_id
+            while ancestor:
+                if ancestor.id in selected:
+                    raise UserError(
+                        self.env._(
+                            "You cannot merge a contact with one of his parent."
+                        )
+                    )
+                ancestor = ancestor.parent_id
 
         if len(partner_ids.with_context(active_test=False).user_ids) > 1:
             raise UserError(
@@ -389,11 +393,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             "target": "new",
         }
 
-    def _process_query(self, query: SQL | str) -> None:
+    def _process_query(self, query: SQL) -> None:
         self.ensure_one()
         model_mapping = self._compute_models()
 
-        self.env.cr.execute(query if isinstance(query, SQL) else SQL(query))
+        self.env.cr.execute(query)  # noqa: E8501  built by _generate_query
 
         groups = self.env.cr.fetchall()
         all_ids = [pid for _, aggr_ids in groups for pid in aggr_ids]
@@ -456,7 +460,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def parent_migration_process_cb(self) -> dict[str, Any]:
         self.ensure_one()
 
-        query = """
+        query = SQL("""
             SELECT
                 min(p1.id),
                 array_agg(DISTINCT p1.id)
@@ -479,7 +483,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             HAVING COUNT(*) >= 2
             ORDER BY
                 min(p1.id)
-        """
+        """)
 
         self._process_query(query)
 

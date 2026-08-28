@@ -117,9 +117,19 @@ this repo, at agromarin-knowledge/research/2026-08-22-machine-doc-lane-red-since
 Membership is checked in both directions: a quarantined harness that starts
 passing fails the lane too.
 
-It is not total coverage: `odoo/tests`, `odoo/addons/base`, `gamification` and
-`base_automation` carry machine docs with no harness, so their figures are
-checked by nothing.
+Discovery walks `odoo` and `addons` — the whole repo. It said
+`odoo/addons addons` until 2026-08-27, which is a root list rather than a walk:
+`odoo/tests/machine_doc_v1` sits in neither, so it shipped and was read as
+authoritative while the lane could not see it. The lane also **warns** for each
+machine_doc with no harness, which is the standing list of what is ungated.
+
+**That list is empty.** Every machine doc in this repository is gated and
+blocking, as of 2026-08-27 — `base` was the last, and closing it turned up a
+Model Index giving `ir.mail_server` as `ir.mail.server` (no such model; the
+lookup raises), a BLAKE3 pointer still at `odoo/tools/hashing.py` after the
+libs/tools split moved it, and a TEST_TAGS.md claiming 85 test files against
+126. Do not read an empty warning list as "nothing to check": read it as the
+thing to keep true.
 
 ## Tests
 

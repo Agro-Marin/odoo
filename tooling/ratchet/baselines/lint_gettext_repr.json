@@ -1,4 +1,4 @@
 {
   "count": 0,
-  "note": "8 -> 0, measured at the CI scope. The rule is now clean; with no baseline file a floor of zero is implied, but the file is kept so `ratchet.py --list` still shows the gate rather than dropping it from the roster."
+  "note": "8 -> 0. NONE OF THIS IS MINE.\n\nMeasured at 3bbd93238b3 in a detached worktree with no working-tree state applied:\nthe rule reports 0 while its floor stands at 8, so the gate has been red in the\nfalling direction for as long as whatever fixed those eight has been in. base\ncontributes nothing to this rule either before or after this change.\n\nBanked here because this commit re-measures the same scan for six other rules and\nleaving one of them red would make the next reader diff a count nobody owns."
 }

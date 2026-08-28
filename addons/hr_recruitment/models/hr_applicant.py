@@ -1272,8 +1272,15 @@ class HrApplicant(models.Model):
         defaults = {
             "partner_name": partner_name,
         }
-        job_platform = self.env["hr.job.platform"].search(
-            [("email", "=", email_from_normalized)], limit=1
+        # sudo: message_new runs as whoever the mail gateway resolved for the
+        # inbound message, and hr.job.platform is readable by Recruitment
+        # Administrators alone. The lookup only asks whether the SENDER is a job
+        # board, to decide whether to keep their address and whether to pull the
+        # applicant's name out of the subject; no platform data reaches them.
+        job_platform = (
+            self.env["hr.job.platform"]
+            .sudo()
+            .search([("email", "=", email_from_normalized)], limit=1)
         )
 
         if msg_dict.get("from") and not job_platform:

@@ -9,7 +9,7 @@ and the set of `ir.actions.server` nodes that form the DAG.
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `trigger` | Selection (17 values) | When this workflow fires |
+| `trigger` | Selection (19 values) | When this workflow fires |
 | `model_id` | Many2one `ir.model` | Target model (required) |
 | `filter_pre_domain` | Char | Pre-condition: record state *before* write |
 | `filter_domain` | Char | Post-condition: record state *after* event |
@@ -42,10 +42,15 @@ TIME triggers:     on_time, on_time_created, on_time_updated
 
 MAIL triggers:     on_message_received, on_message_sent
 
+UNLINK trigger:    on_unlink
+
 MANUAL trigger:    on_hand
 WEBHOOK trigger:   on_webhook
 ONCHANGE trigger:  on_change  (UI-only, form view onchange)
 ```
+
+Every one of the 19 values appears above; `factcheck.sh` asserts that both ways,
+so a value added to the Selection without a line here fails the gate.
 
 ### Constants (module-level)
 
@@ -186,18 +191,16 @@ still referenced it.)
 
 ---
 
-## flow.diagram (in web_flow)
+## flow.diagram — does not exist
 
-Lives in `agromarin/web_flow/models/flow_diagram.py`.
-Stores BPMN 2.0 XML diagrams associated with any model/record.
+Earlier revisions of this file documented a `flow.diagram` model in
+agromarin/web_flow/models/flow_diagram.py (plain prose: another repo, and a
+deleted file), storing BPMN 2.0 XML and an
+`element_mappings` JSON blob, as the visual layout layer for `base.automation`.
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `res_model` | Char | Model this diagram documents |
-| `res_id` | Integer | Specific record (0 = model-level) |
-| `diagram_xml` | Text | BPMN 2.0 XML content |
-| `element_mappings` | Text (JSON) | BPMN element ID → Odoo record ID |
-
-In the target architecture, `flow.diagram` becomes the *visual layout* layer
-for `base.automation` workflows: one diagram per automation rule, with BPMN
-elements mapped to `ir.actions.server` node IDs and `workflow.edge` IDs.
+**Both were deleted on 2026-04-21** (`agromarin` `60b5a7eef`), and the removal
+commit records that `flow_diagram` held **0 records in production** — the fields
+tabulated here were queryable and never queried. `vision.md` Decision 1 carries
+the full rationale and the replacement constraints; the layout layer is undecided
+along with the editor, and storing node coordinates is an open design question
+rather than a solved one.
