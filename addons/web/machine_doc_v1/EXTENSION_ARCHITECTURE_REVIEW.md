@@ -305,10 +305,13 @@ ungated module would lock past ~66%, and the ones that matter sit at 24–50%, s
 it is a cleanup effort rather than a switch. The cost is now derivable per
 module instead of guessed.
 
-**P2 is started**: seven private override points promoted — three on
-`GraphModel` (hr_holidays, project), two on `SearchModel` (crm, documents) and
-two on `RelationalModel` (crm, project ×2). 28 → 21 remain. Each was a deliberate `super`-calling override whose underscore said
-"internal" when the usage said "extension point".
+**P2 is started**: ten private override points promoted — three on
+`GraphModel` (hr_holidays, project), two on `SearchModel` (crm, documents), two
+on `RelationalModel` (crm, project ×2), and three on `ConfirmationDialog`
+(`confirm`, `cancel`, `dismiss`, promoted project-wide by `4c85b884950`). 28 →
+17 remain (`:promote` entries in `extension_surface_web.txt`). Each was a
+deliberate `super`-calling override whose underscore said "internal" when the
+usage said "extension point".
 
 P3, P4 and P6 are unstarted.
 
