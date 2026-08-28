@@ -1,4 +1,7 @@
+from psycopg.errors import UniqueViolation
+
 from odoo.tests import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 
 @tagged("post_install", "-at_install")
@@ -64,6 +67,25 @@ class TestAddressExtendedOnchanges(TransactionCase):
         self.assertFalse(partner.city)
         self.assertFalse(partner.zip)
         self.assertFalse(partner.state_id)
+
+    def test_duplicate_city_name_zip_country_rejected(self):
+        """A second city with the same name/zip/country is rejected."""
+        with self.assertRaises(UniqueViolation), mute_logger("odoo.db.cursor"):
+            self.env["res.city"].create(
+                {
+                    "name": "Springfield",
+                    "zipcode": "62701",
+                    "country_id": self.country.id,
+                }
+            )
+
+    def test_duplicate_city_name_country_without_zip_rejected(self):
+        """A second city with no zip still collides on name/country."""
+        self.env["res.city"].create({"name": "Nozip", "country_id": self.country.id})
+        with self.assertRaises(UniqueViolation), mute_logger("odoo.db.cursor"):
+            self.env["res.city"].create(
+                {"name": "Nozip", "country_id": self.country.id}
+            )
 
     def test_onchange_city_id_clears_on_new_record(self):
         """Unselecting city_id clears city/zip/state on a new, unsaved record too."""
