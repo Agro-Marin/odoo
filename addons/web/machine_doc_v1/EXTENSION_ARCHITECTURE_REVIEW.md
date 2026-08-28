@@ -390,6 +390,44 @@ design) or **replace** (declared hook, convert the callers). Then extend
 
 ### P3 — Retire the single-use surface
 
+**The classification step is implemented.** Each pinned point now carries a
+disposition — `keep`, `promote`, `generalize`, `inline`, `triage` — written as a
+`:token` after its provenance in `extension_surface_web.txt`, and
+`js_extension_surface.py --check` fails on a point that carries none or one it
+does not know, so new surface cannot land unclassified. `--dispositions` prints
+the worklist; the counts are in the gate's own MEASURED block rather than here.
+
+Points arrive seeded by rule — private → `promote`, several consumers → `keep`,
+otherwise `triage` — and `--update` rewrites provenance without ever touching a
+decision, so a seed replaced by a judgement stays replaced.
+
+**A static field the base declares is not a defect, and the first pass at this
+said it was.** Seeding `generalize` from "the sole override declares only data"
+put `Interaction.selectorNotHas` on the retirement list — this document's own
+exemplar of the shape to imitate — along with `ListRenderer.groupRowTemplate`,
+`useMagicColumnWidths`, `SelectMenu.choiceItemTemplate`,
+`NotificationContainer.notificationComponent`, `SearchPanel.subTemplates` and
+`RelationalModel.DEFAULT_LIMIT`. Every one of those is a knob web declares with a
+default, for a consumer to set; that is `Interaction`'s contract, arrived at
+class by class rather than designed, and it is `keep`. What survives as
+`generalize` is the narrower thing: a getter whose override returns a **constant**
+where the base runs a computation — `ListRenderer.canCreate` → `false`,
+`KanbanRenderer.canUseSortable` → `false`, `CharField.shouldTrim` → `false`. The
+subclass there exists to defeat a computation, which is what a declared value
+would do without a subclass. Seven more read the consumer's own state and are
+behavioural seams, not data; they went back to `triage`.
+
+So `keep` means contract — a declared knob, or a point several consumers reach —
+and only the second half is what the seeding rule can see. `--check` therefore
+does not try to second-guess a `keep` by counting its consumers: a single-use
+knob and a seed whose consumers have fallen away are indistinguishable that way.
+
+Two things the triage that produced it found, neither of them in this document
+before: **no single-use point is a vacuous override** — the five that look like
+pass-throughs each add real logic to the `super` result, so there is no free
+tranche here — and **none is reached from a test file**, so nothing on this list
+is test scaffolding that could be deleted outright.
+
 238 points serve exactly one subclass. Per point: **inline**, **promote**, or
 **generalize**. Run per base class, largest first — `FormController` 64,
 `ListController` 60, `ListRenderer` 55, `KanbanController` 45, `X2ManyField` 36.

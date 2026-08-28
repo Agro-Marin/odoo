@@ -578,6 +578,82 @@ def test_the_pin_matches_the_tree():
     )
 
 
+@pytest.fixture
+def pin(tmp_path, monkeypatch):
+
+    path = tmp_path / "pin.txt"
+    monkeypatch.setattr(jes, "PINNED", path)
+    return path
+
+
+def test_a_disposition_is_read_apart_from_the_provenance():
+    point, scopes, mark = jes._parse_pin("A.m  odoo enterprise  :keep")
+    assert (point, scopes, mark) == ("A.m", frozenset({"odoo", "enterprise"}), "keep")
+
+
+def test_a_line_without_a_disposition_still_pins_its_scopes(pin):
+
+    pin.write_text("A.m  odoo\n", encoding="utf8")
+    assert jes.load_pinned() == {"A.m": frozenset({"odoo"})}
+    assert jes.load_dispositions() == {}
+
+
+def test_a_point_with_no_disposition_is_unclassified(pin):
+    pin.write_text("A.m  odoo\n", encoding="utf8")
+    assert jes.unclassified(jes.load_pinned(), jes.load_dispositions()) == ["A.m"]
+
+
+def test_a_disposition_this_gate_does_not_know_is_unclassified(pin):
+
+    pin.write_text("A.m  odoo  :someday\n", encoding="utf8")
+    assert jes.unclassified(jes.load_pinned(), jes.load_dispositions()) == ["A.m"]
+
+
+def test_a_private_point_seeds_as_promote():
+    assert jes.seed_disposition("SearchModel._reset", single_use=True) == "promote"
+    assert jes.seed_disposition("SearchModel._reset", single_use=False) == "promote"
+
+
+def test_a_point_with_several_consumers_seeds_as_keep():
+    assert jes.seed_disposition("FormController.save", single_use=False) == "keep"
+
+
+def test_a_single_use_point_seeds_as_triage():
+    assert jes.seed_disposition("FormController.save", single_use=True) == "triage"
+
+
+def test_an_update_carries_a_recorded_decision_forward(pin):
+
+    pin.write_text("A.m  odoo  :generalize\n", encoding="utf8")
+    jes.write_pinned({"A.m": frozenset({"odoo"})}, frozenset({"A.m"}))
+    assert jes.load_dispositions() == {"A.m": "generalize"}
+
+
+def test_an_update_seeds_a_point_the_file_has_never_held(pin):
+
+    pin.write_text("A.m  odoo  :keep\n", encoding="utf8")
+    jes.write_pinned(
+        {"A.m": frozenset({"odoo"}), "B._n": frozenset({"odoo"})}, frozenset()
+    )
+    assert jes.load_dispositions() == {"A.m": "keep", "B._n": "promote"}
+
+
+def test_an_update_replaces_a_disposition_it_cannot_read(pin):
+
+    pin.write_text("A.m  odoo  :nonsense\n", encoding="utf8")
+    jes.write_pinned({"A.m": frozenset({"odoo"})}, frozenset({"A.m"}))
+    assert jes.load_dispositions() == {"A.m": "triage"}
+
+
+def test_every_pinned_point_carries_a_known_disposition():
+
+    unmarked = jes.unclassified(jes.load_pinned(), jes.load_dispositions())
+    assert not unmarked, (
+        f"{len(unmarked)} pinned point(s) carry no disposition: {unmarked[:10]}\n"
+        "  say what is to become of each, or regenerate with --update to seed them"
+    )
+
+
 def test_the_docstring_measurements_are_fresh():
     import doc_measured
 
