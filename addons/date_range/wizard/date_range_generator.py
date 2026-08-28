@@ -1,3 +1,4 @@
+import datetime
 import logging
 
 from dateutil.relativedelta import relativedelta
@@ -319,16 +320,23 @@ class DateRangeGenerator(models.TransientModel):
         if not vals:
             raise UserError(self.env._("No ranges to generate with these settings"))
         # Generate another interval to fetch the last end date from
-        vals.append(
-            list(
-                rrule(
-                    freq=int(self.unit_of_time),
-                    interval=self.duration_count,
-                    dtstart=vals[-1].date(),
-                    count=2,
-                )
-            )[-1]
-        )
+        last_boundary = list(
+            rrule(
+                freq=int(self.unit_of_time),
+                interval=self.duration_count,
+                dtstart=vals[-1].date(),
+                count=2,
+            )
+        )[-1]
+        if self.date_end:
+            # `until=self.date_end` above only bounds which occurrences start a
+            # range; nothing bounds where the last one ends, so it can run one
+            # whole interval past the requested end date when that date does
+            # not fall exactly on a boundary. Clamp it back.
+            capped_end = self.date_end + relativedelta(days=1)
+            if last_boundary.date() > capped_end:
+                last_boundary = datetime.datetime.combine(capped_end, datetime.time())
+        vals.append(last_boundary)
         return vals
 
     def generate_names(self, vals):
