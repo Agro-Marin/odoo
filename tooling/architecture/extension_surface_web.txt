@@ -126,9 +126,9 @@ CogMenu.setup  odoo  :triage
 Colibri.addListener  odoo  :triage
 Colibri.setupInteraction  odoo  :triage
 CommandPalette.setCommands  enterprise  :triage
-ConfirmationDialog._cancel  odoo enterprise  :promote
-ConfirmationDialog._confirm  odoo enterprise  :promote
-ConfirmationDialog._dismiss  odoo enterprise  :promote
+ConfirmationDialog.cancel  odoo enterprise  :keep
+ConfirmationDialog.confirm  odoo enterprise  :keep
+ConfirmationDialog.dismiss  odoo enterprise  :keep
 ConfirmationDialog.execButton  odoo  :triage
 ConfirmationDialog.setup  odoo enterprise  :keep
 ControlPanel.setup  odoo enterprise  :keep

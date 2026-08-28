@@ -40,21 +40,21 @@ export class ConfirmationDialog extends Component {
     };
 
     setup() {
-        this.env.dialogData.dismiss = () => this._dismiss();
+        this.env.dialogData.dismiss = () => this.dismiss();
         /** @type {any} */
         this.modalRef = useChildRef();
         this.state = useState({ isProcess: false });
     }
 
-    async _cancel() {
+    async cancel() {
         return this.execButton(this.props.cancel);
     }
 
-    async _confirm() {
+    async confirm() {
         return this.execButton(this.props.confirm);
     }
 
-    async _dismiss() {
+    async dismiss() {
         return this.runButton(this.props.dismiss || this.props.cancel);
     }
 

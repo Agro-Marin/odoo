@@ -16,7 +16,7 @@ export class CategoryAddDialog extends ConfirmationDialog {
         this.lastInputValue;
     }
 
-    _confirm() {
+    confirm() {
         this.execButton(() => {
             if (this.inputRef.el.value === this.lastInputValue) {
                 return;

@@ -20,7 +20,7 @@ export class InputConfirmationDialog extends ConfirmationDialog {
         const onKeydown = (ev) => {
             if (ev.key && ev.key.toLowerCase() === "enter") {
                 ev.preventDefault();
-                this._confirm();
+                this.confirm();
             }
         };
         useEffect(
@@ -40,7 +40,7 @@ export class InputConfirmationDialog extends ConfirmationDialog {
         );
     }
 
-    _confirm() {
+    confirm() {
         this.execButton(() => this.props.confirm({ inputEl: this.inputEl }));
     }
 }

@@ -57,8 +57,8 @@
                 </div>
             </div>
             <t t-set-slot="footer">
-                <button class="btn btn-primary" t-on-click="_confirm">Move</button>
-                <button class="btn btn-secondary" t-on-click="_cancel">Cancel</button>
+                <button class="btn btn-primary" t-on-click="confirm">Move</button>
+                <button class="btn btn-secondary" t-on-click="cancel">Cancel</button>
             </t>
         </Dialog>
     </t>

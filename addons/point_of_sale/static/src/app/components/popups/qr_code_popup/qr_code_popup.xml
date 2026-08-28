@@ -12,10 +12,10 @@
                 </div>
             </div>
         </xpath>
-        <xpath expr="//button[@t-on-click='_confirm']" position="attributes">
+        <xpath expr="//button[@t-on-click='confirm']" position="attributes">
             <attribute name="class" add="btn-secondary" remove="btn-primary" separator=" " />
         </xpath>
-        <xpath expr="//button[@t-on-click='_cancel']" position="attributes">
+        <xpath expr="//button[@t-on-click='cancel']" position="attributes">
             <attribute name="class" add="btn-primary" remove="btn-secondary" separator=" " />
         </xpath>
     </t>

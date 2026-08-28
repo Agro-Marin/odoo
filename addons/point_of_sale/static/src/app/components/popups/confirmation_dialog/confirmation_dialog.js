@@ -10,15 +10,15 @@ patch(ConfirmationDialog.prototype, {
         super.setup();
         this.pos = usePos();
     },
-    async _cancel() {
+    async cancel() {
         this.props.getPayload && this.props.getPayload(false);
         return this.execButton(this.props.cancel);
     },
-    async _confirm() {
+    async confirm() {
         this.props.getPayload && this.props.getPayload(true);
         return this.execButton(this.props.confirm);
     },
-    async _dismiss() {
+    async dismiss() {
         this.props.getPayload && this.props.getPayload(false);
         return this.execButton(this.props.dismiss || this.props.cancel);
     },
