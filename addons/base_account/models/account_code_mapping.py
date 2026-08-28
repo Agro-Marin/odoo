@@ -3,6 +3,8 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import Query
 
+# Must exceed any realistic res.company id: undersizing it silently decodes
+# a packed id to the wrong account/company instead of raising.
 COMPANY_OFFSET = 10**6
 
 
@@ -16,6 +18,8 @@ def _pack_mapping_id(account_id, company_id):
 
 
 class AccountCodeMapping(models.Model):
+    """Per-company code override for an account, keyed by a packed virtual id."""
+
     _name = "account.code.mapping"
     _description = "Mapping of account codes per company"
     _auto = False
