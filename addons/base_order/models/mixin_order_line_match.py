@@ -269,12 +269,11 @@ class MixinOrderLineMatch(models.AbstractModel):
                             remaining_aml.remove(aml)
                             break
 
-                for order_line, aml in zip(
-                    list(remaining_order_lines), list(remaining_aml), strict=False
-                ):
-                    aml[self._link_field] = [Command.link(order_line.id)]
-                    residual_order_lines -= order_line
-                    residual_account_move_lines -= aml
+                # Leftover lines of the same product at different prices have
+                # no further criterion (qty/date/sequence) to pair them on --
+                # positionally zipping them would silently link unrelated
+                # order/invoice lines. Leave them unmatched instead, same as
+                # the different-product case above.
 
         if len(residual_move := self.aml_id.move_id) == 1:
             if residual_account_move_lines:
