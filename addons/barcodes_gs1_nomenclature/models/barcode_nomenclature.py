@@ -7,31 +7,40 @@ from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.barcode import get_barcode_check_digit
 
-FNC1_CHAR = '\x1D'
+FNC1_CHAR = "\x1d"
 
 
 class BarcodeNomenclature(models.Model):
-    _inherit = 'barcode.nomenclature'
+    _inherit = "barcode.nomenclature"
 
     is_gs1_nomenclature = fields.Boolean(
         string="Is GS1 Nomenclature",
-        help="This Nomenclature use the GS1 specification, only GS1-128 encoding rules is accepted is this kind of nomenclature.")
+        help="This Nomenclature use the GS1 specification, only GS1-128 encoding rules is accepted is this kind of nomenclature.",
+    )
     gs1_separator_fnc1 = fields.Char(
-        string="FNC1 Separator", trim=False, default=r'(Alt029|#|\x1D)',
-        help="Alternative regex delimiter for the FNC1. The separator must not match the begin/end of any related rules pattern.")
+        string="FNC1 Separator",
+        trim=False,
+        default=r"(Alt029|#|\x1D)",
+        help="Alternative regex delimiter for the FNC1. The separator must not match the begin/end of any related rules pattern.",
+    )
 
-    @api.constrains('gs1_separator_fnc1')
+    @api.constrains("gs1_separator_fnc1")
     def _check_pattern(self):
         for nom in self:
             if nom.is_gs1_nomenclature and nom.gs1_separator_fnc1:
                 try:
                     re.compile("(?:%s)?" % nom.gs1_separator_fnc1)
                 except re.error as error:
-                    raise ValidationError(_("The FNC1 Separator Alternative is not a valid Regex: %(error)s", error=error)) from error
+                    raise ValidationError(
+                        _(
+                            "The FNC1 Separator Alternative is not a valid Regex: %(error)s",
+                            error=error,
+                        )
+                    ) from error
 
     @api.model
     def gs1_date_to_date(self, gs1_date):
-        """ Converts a GS1 date into a datetime.date.
+        """Converts a GS1 date into a datetime.date.
 
         :param gs1_date: A date formatted as yymmdd
         :type gs1_date: str
@@ -43,57 +52,76 @@ class BarcodeNomenclature(models.Model):
         now = datetime.date.today()
         current_century = now.year // 100
         substract_year = int(gs1_date[0:2]) - (now.year % 100)
-        century = (51 <= substract_year <= 99 and current_century - 1) or\
-            (-99 <= substract_year <= -50 and current_century + 1) or\
-            current_century
+        century = (
+            (51 <= substract_year <= 99 and current_century - 1)
+            or (-99 <= substract_year <= -50 and current_century + 1)
+            or current_century
+        )
         year = century * 100 + int(gs1_date[0:2])
 
-        if gs1_date[-2:] == '00':  # Day is not mandatory, when not set -> last day of the month
-            date = datetime.datetime.strptime(str(year) + gs1_date[2:4], '%Y%m')
+        if (
+            gs1_date[-2:] == "00"
+        ):  # Day is not mandatory, when not set -> last day of the month
+            date = datetime.datetime.strptime(str(year) + gs1_date[2:4], "%Y%m")
             date = date.replace(day=calendar.monthrange(year, int(gs1_date[2:4]))[1])
         else:
             try:
-                date = datetime.datetime.strptime(str(year) + gs1_date[2:], '%Y%m%d')
+                date = datetime.datetime.strptime(str(year) + gs1_date[2:], "%Y%m%d")
             except ValueError as e:
-                raise ValidationError(_(
-                    "A GS1 barcode nomenclature pattern was matched. However, the barcode failed to be converted to a valid date: '%(error_message)s'",
-                    error_message=e
-                )) from e
+                raise ValidationError(
+                    _(
+                        "A GS1 barcode nomenclature pattern was matched. However, the barcode failed to be converted to a valid date: '%(error_message)s'",
+                        error_message=e,
+                    )
+                ) from e
         return date.date()
 
     def parse_gs1_rule_pattern(self, match, rule):
         result = {
-            'rule': rule,
-            'type': rule.type,
-            'ai': match.group(1),
-            'string_value': match.group(2),
+            "rule": rule,
+            "type": rule.type,
+            "ai": match.group(1),
+            "string_value": match.group(2),
         }
-        if rule.gs1_content_type == 'measure':
+        if rule.gs1_content_type == "measure":
             try:
-                decimal_position = 0  # Decimal position begins at the end, 0 means no decimal.
+                decimal_position = (
+                    0  # Decimal position begins at the end, 0 means no decimal.
+                )
                 if rule.gs1_decimal_usage:
                     decimal_position = int(match.group(1)[-1])
                 if decimal_position > 0:
-                    result['value'] = float(match.group(2)[:-decimal_position] + "." + match.group(2)[-decimal_position:])
+                    result["value"] = float(
+                        match.group(2)[:-decimal_position]
+                        + "."
+                        + match.group(2)[-decimal_position:]
+                    )
                 else:
-                    result['value'] = int(match.group(2))
+                    result["value"] = int(match.group(2))
             except Exception as e:
-                raise ValidationError(_(
-                    "There is something wrong with the barcode rule \"%s\" pattern.\n"
-                    "If this rule uses decimal, check it can't get sometime else than a digit as last char for the Application Identifier.\n"
-                    "Check also the possible matched values can only be digits, otherwise the value can't be casted as a measure.",
-                    rule.name)) from e
-        elif rule.gs1_content_type == 'identifier':
+                raise ValidationError(
+                    _(
+                        'There is something wrong with the barcode rule "%s" pattern.\n'
+                        "If this rule uses decimal, check it can't get sometime else than a digit as last char for the Application Identifier.\n"
+                        "Check also the possible matched values can only be digits, otherwise the value can't be casted as a measure.",
+                        rule.name,
+                    )
+                ) from e
+        elif rule.gs1_content_type == "identifier":
             # Reject the barcode if its check digit (last char) is invalid
-            if match.group(2)[-1] != str(get_barcode_check_digit("0" * (18 - len(match.group(2))) + match.group(2))):
+            if match.group(2)[-1] != str(
+                get_barcode_check_digit(
+                    "0" * (18 - len(match.group(2))) + match.group(2)
+                )
+            ):
                 return None
-            result['value'] = match.group(2)
-        elif rule.gs1_content_type == 'date':
+            result["value"] = match.group(2)
+        elif rule.gs1_content_type == "date":
             if len(match.group(2)) != 6:
                 return None
-            result['value'] = self.gs1_date_to_date(match.group(2))
+            result["value"] = self.gs1_date_to_date(match.group(2))
         else:  # when gs1_content_type == 'alpha':
-            result['value'] = match.group(2)
+            result["value"] = match.group(2)
         return result
 
     def gs1_decompose_extended(self, barcode):
@@ -106,22 +134,24 @@ class BarcodeNomenclature(models.Model):
         if self.gs1_separator_fnc1:
             separator_group = "(?:%s)?" % self.gs1_separator_fnc1
         # zxing-library patch, removing GS1 identifiers
-        for identifier in [']C1', ']e0', ']d2', ']Q3', ']J1', FNC1_CHAR]:
+        for identifier in ["]C1", "]e0", "]d2", "]Q3", "]J1", FNC1_CHAR]:
             if barcode.startswith(identifier):
-                barcode = barcode.replace(identifier, '', 1)
+                barcode = barcode.replace(identifier, "", 1)
                 break
         results = []
-        gs1_rules = self.rule_ids.filtered(lambda r: r.encoding == 'gs1-128')
+        gs1_rules = self.rule_ids.filtered(lambda r: r.encoding == "gs1-128")
 
         def find_next_rule(remaining_barcode):
             for rule in gs1_rules:
-                match = re.search("^" + rule.pattern + separator_group, remaining_barcode)
+                match = re.search(
+                    "^" + rule.pattern + separator_group, remaining_barcode
+                )
                 # If match and contains 2 groups at minimun, the first one need to be the AI and the second the value
                 # We can't use regex nammed group because in JS, it is not the same regex syntax (and not compatible in all browser)
                 if match and len(match.groups()) >= 2:
                     res = self.parse_gs1_rule_pattern(match, rule)
                     if res:
-                        return res, remaining_barcode[match.end():]
+                        return res, remaining_barcode[match.end() :]
             return None
 
         while len(barcode) > 0:
@@ -140,7 +170,7 @@ class BarcodeNomenclature(models.Model):
         return super().parse_nomenclature_barcode(barcode)
 
     @api.model
-    def _preprocess_gs1_search_args(self, domain, barcode_types, field='barcode'):
+    def _preprocess_gs1_search_args(self, domain, barcode_types, field="barcode"):
         """Preprocess `domain` in `_search` to support searching with a GS1 barcode.
 
         Strip the GS1 padding when searching on `barcode`, keeping only the
@@ -148,9 +178,13 @@ class BarcodeNomenclature(models.Model):
         """
         domain = Domain(domain)
         nomenclature = self.env.company.nomenclature_id
-        if not self.env.context.get('skip_preprocess_gs1'):
+        if not self.env.context.get("skip_preprocess_gs1"):
+
             def map_gs1_barcode(condition):
-                if condition.field_expr != field or not nomenclature.is_gs1_nomenclature:
+                if (
+                    condition.field_expr != field
+                    or not nomenclature.is_gs1_nomenclature
+                ):
                     return condition
                 # Check operator
                 # handle `in` first and check the rest
@@ -159,18 +193,17 @@ class BarcodeNomenclature(models.Model):
                 if not value:
                     return condition
 
-                if operator in ('in', 'not in') and len(value) > 1:
+                if operator in ("in", "not in") and len(value) > 1:
                     sub_domain = Domain.OR(
-                        map_gs1_barcode(Domain(field, '=', v))
-                        for v in value
+                        map_gs1_barcode(Domain(field, "=", v)) for v in value
                     )
-                    if operator == 'not in':
+                    if operator == "not in":
                         sub_domain = ~sub_domain
                     return sub_domain
-                if operator in ('in', 'not in'):
-                    operator = '=' if operator == 'in' else '!='
+                if operator in ("in", "not in"):
+                    operator = "=" if operator == "in" else "!="
                     value = next(iter(value))
-                elif operator not in ('ilike', 'not ilike', '=', '!='):
+                elif operator not in ("ilike", "not ilike", "=", "!="):
                     return condition
 
                 # Parse the value
@@ -178,17 +211,19 @@ class BarcodeNomenclature(models.Model):
                     return condition
                 try:
                     parsed_data = nomenclature.parse_barcode(value) or []
-                except (ValidationError, ValueError):
+                except ValidationError, ValueError:
                     parsed_data = []
 
-                replacing_operator = 'ilike' if operator in ['ilike', '='] else 'not ilike'
+                replacing_operator = (
+                    "ilike" if operator in ["ilike", "="] else "not ilike"
+                )
                 for data in parsed_data:
-                    data_type = data['type']
-                    value = data['value']
+                    data_type = data["type"]
+                    value = data["value"]
                     if data_type in barcode_types:
-                        if data_type == 'lot':
+                        if data_type == "lot":
                             return Domain(field, operator, value)
-                        match = re.match(r'0*([0-9]+)$', str(value))
+                        match = re.match(r"0*([0-9]+)$", str(value))
                         if match:
                             unpadded_barcode = match.groups()[0]
                             return Domain(field, replacing_operator, unpadded_barcode)
@@ -196,7 +231,7 @@ class BarcodeNomenclature(models.Model):
 
                 # The barcode isn't a valid GS1 barcode, checks if it can be unpadded.
                 if not parsed_data:
-                    match = re.match(r'0+([0-9]+)$', value)
+                    match = re.match(r"0+([0-9]+)$", value)
                     if match:
                         return Domain(field, replacing_operator, match.groups()[0])
                 return condition
