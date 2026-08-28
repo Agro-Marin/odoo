@@ -415,6 +415,40 @@ class TestImportModule(odoo.tests.TransactionCase):
             with self.assertRaisesRegex(UserError, "exceed maximum allowed file size"):
                 self.import_zipfile(files)
 
+    def test_import_zip_static_asset_path_confined(self):
+        """t27114 audit: a static-asset entry is only gated by
+        `is_static = filename.startswith(f"{mod_name}/static")`
+        (models/ir_module.py) — the addon adds no explicit path-confinement
+        of its own for the `z.extract(zip_info, module_dir)` call; it relies
+        entirely on stdlib zipfile.ZipFile.extract()'s own arcname
+        sanitization. That was never pinned by a regression test for this
+        call site. A crafted static-asset entry name containing `../`
+        components must still land under the temporary module directory,
+        never above it."""
+        extracted_paths = []
+        original_extract = ZipFile.extract
+
+        def spy_extract(zip_self, member, path=None, pwd=None):
+            result = original_extract(zip_self, member, path, pwd)
+            extracted_paths.append((path, result))
+            return result
+
+        files = [
+            ("foo/__manifest__.py", self.manifest_content()),
+            ("foo/static/../../../../tmp/evil.txt", b"pwned"),
+        ]
+        with patch.object(ZipFile, "extract", spy_extract):
+            self.import_zipfile(files)
+
+        self.assertTrue(extracted_paths, "the crafted entry should still be extracted")
+        for target_dir, extracted_path in extracted_paths:
+            self.assertTrue(
+                Path(extracted_path)
+                .resolve()
+                .is_relative_to(Path(target_dir).resolve()),
+                f"{extracted_path} escaped the confinement of {target_dir}",
+            )
+
     def test_get_modules_from_apps_reapplies_local_domain(self):
         """t27114: `state` is computed locally (from local install status),
         so apps.odoo.com cannot filter on it — a domain condition on `state`
