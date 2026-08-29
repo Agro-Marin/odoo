@@ -5,7 +5,7 @@ from odoo import Command
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
 
-class TestHolidaysFlow(TestHrHolidaysCommon):
+class TestHrDepartureWizardFlow(TestHrHolidaysCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
