@@ -16,7 +16,7 @@ export class WorkEntryCalendarCommonPopover extends CalendarCommonPopover {
     }
 
     get isSplittable() {
-        return this.props.record.rawRecord.duration >= 1;
+        return !this.isWorkEntryValidated && this.props.record.rawRecord.duration >= 1;
     }
 
     /**
