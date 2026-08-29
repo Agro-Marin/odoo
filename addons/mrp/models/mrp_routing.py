@@ -278,6 +278,18 @@ class MrpRoutingWorkcenter(models.Model):
         if self._has_cycle("blocked_by_operation_ids"):
             raise ValidationError(_("You cannot create cyclic dependency."))
 
+    @api.constrains("blocked_by_operation_ids", "bom_id")
+    def _check_blocked_by_same_bom(self):
+        # The field's `domain=` restricts the widget to same-BoM operations,
+        # but a domain is a client-side filter only -- a programmatic write
+        # can still link operations across two unrelated BoMs.
+        for operation in self:
+            other_boms = operation.blocked_by_operation_ids.bom_id - operation.bom_id
+            if other_boms:
+                raise ValidationError(
+                    _("An operation can only depend on operations of the same BoM.")
+                )
+
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
