@@ -674,9 +674,20 @@ class HrVersion(models.Model):
                         # date range, only the selected ones within it.
                         force_domain &= Domain("id", "in", record_ids)
                     domain_to_nullify |= force_domain
-                    intervals_to_generate[
-                        date_start_work_entries, date_stop_work_entries
-                    ] |= version
+                    if not record_ids:
+                        # Regeneration below re-derives entries for the
+                        # WHOLE date range from the calendar/leaves, with no
+                        # awareness of individual record ids. When the
+                        # caller scoped the nullify to specific records, that
+                        # unconditional regeneration would recreate entries
+                        # overlapping untouched siblings on the same date
+                        # (the exact duplicate the record_ids scoping above
+                        # was meant to prevent). Skip it: the next
+                        # non-scoped generation (cron or manual) backfills
+                        # what's actually missing.
+                        intervals_to_generate[
+                            date_start_work_entries, date_stop_work_entries
+                        ] |= version
                     continue
 
                 # For each version, we found each interval we must generate
