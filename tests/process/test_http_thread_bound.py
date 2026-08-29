@@ -1,18 +1,3 @@
-"""Half-open connections must not exhaust the bounded HTTP thread pool.
-
-``wsgi.http_socket_timeout`` documents a MEASURED denial of service: on the
-threaded server, "six connections sending nine bytes each (``GET /slow``, no
-CRLF) drained the pool to 0/4 and every subsequent request timed out — an
-unauthenticated denial of service costing the attacker almost nothing."
-
-The fix (a per-operation socket timeout on every connection, not only under
-``--test-enable``) is unit-tested in ``tests/service``, but only as "``setup``
-assigns ``self.timeout``".  That assertion would still pass if the timeout were
-never armed on the socket, if werkzeug stopped honouring it, or if the semaphore
-were released on the wrong path — the attack is a property of real sockets
-against a real accept loop, so it is reproduced here as one.
-"""
-
 import contextlib
 import socket
 import time
@@ -21,6 +6,17 @@ from .conftest import requires_pg, requires_posix
 
 MAX_THREADS = 4
 N_ATTACKERS = MAX_THREADS + 2
+
+SOCKET_TIMEOUT_S = 1
+
+RECOVERY_BUDGET_S = 4 * SOCKET_TIMEOUT_S
+
+
+def _time_to_recover(srv, budget=RECOVERY_BUDGET_S):
+    start = time.monotonic()
+    if srv.wait_until(lambda: srv.is_serving(timeout=budget), timeout=budget):
+        return time.monotonic() - start
+    return None
 
 
 @requires_pg
@@ -32,7 +28,7 @@ class TestHalfOpenConnectionsDoNotStarveTheAcceptLoop:
             "0",
             env={
                 "ODOO_MAX_HTTP_THREADS": str(MAX_THREADS),
-                "ODOO_HTTP_SOCKET_TIMEOUT": "1",
+                "ODOO_HTTP_SOCKET_TIMEOUT": str(SOCKET_TIMEOUT_S),
             },
         )
 
@@ -43,14 +39,17 @@ class TestHalfOpenConnectionsDoNotStarveTheAcceptLoop:
                 s.sendall(b"GET /slo")
                 attackers.append(s)
 
-            time.sleep(1.0)
-
-            served = srv.wait_until(lambda: srv.is_serving(timeout=5), timeout=30)
-            assert served, (
+            elapsed = _time_to_recover(srv)
+            assert elapsed is not None, (
                 f"{N_ATTACKERS} half-open connections starved a pool of "
-                f"{MAX_THREADS}: the server stopped answering. The "
-                f"per-operation socket timeout is not bounding the "
-                f"request-read phase."
+                f"{MAX_THREADS}: the server did not answer within "
+                f"{RECOVERY_BUDGET_S}s. The per-operation socket timeout is "
+                f"not bounding the request-read phase."
+            )
+            assert elapsed <= RECOVERY_BUDGET_S, (
+                f"the server recovered, but only after {elapsed:.1f}s against a "
+                f"configured ODOO_HTTP_SOCKET_TIMEOUT of {SOCKET_TIMEOUT_S}s. "
+                f"The bound is being honoured at the wrong magnitude."
             )
         finally:
             for s in attackers:
@@ -63,7 +62,7 @@ class TestHalfOpenConnectionsDoNotStarveTheAcceptLoop:
             "0",
             env={
                 "ODOO_MAX_HTTP_THREADS": str(MAX_THREADS),
-                "ODOO_HTTP_SOCKET_TIMEOUT": "1",
+                "ODOO_HTTP_SOCKET_TIMEOUT": str(SOCKET_TIMEOUT_S),
             },
         )
         for _ in range(3):
@@ -75,9 +74,10 @@ class TestHalfOpenConnectionsDoNotStarveTheAcceptLoop:
                 s.sendall(b"GET /slo")
             for s in attackers:
                 s.close()
-            time.sleep(1.5)
 
-        assert srv.wait_until(lambda: srv.is_serving(timeout=5), timeout=30), (
-            "the thread pool did not recover after repeated half-open bursts; "
-            "a slot is leaking on the EOF path"
-        )
+            elapsed = _time_to_recover(srv)
+            assert elapsed is not None and elapsed <= RECOVERY_BUDGET_S, (
+                f"the thread pool did not recover within {RECOVERY_BUDGET_S}s "
+                f"after a half-open burst (took {elapsed}); a slot is leaking "
+                f"on the EOF path"
+            )

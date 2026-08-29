@@ -1,21 +1,21 @@
 import zlib
-from pathlib import Path
 
 import odoo_rust
 import pytest
 
 from odoo.libs.native import assert_fresh, assert_optimised, source_crc
 
-_rust_source_crc = source_crc
+from .._pg import repo_root
 
-CRATES = Path(__file__).resolve().parents[2] / "crates"
+CRATES = repo_root() / "crates"
 CRATE = CRATES / "odoo_rust"
 
-pytestmark = pytest.mark.skipif(
+needs_crate_sources = pytest.mark.skipif(
     not CRATE.is_dir(), reason="no crate sources — an installed deployment"
 )
 
 
+@needs_crate_sources
 def test_the_installed_extension_matches_the_crate():
     assert odoo_rust.__source_crc__ == source_crc(CRATE), (
         "the installed odoo_rust predates the crate in this checkout — rebuild "
@@ -23,25 +23,16 @@ def test_the_installed_extension_matches_the_crate():
     )
 
 
+@needs_crate_sources
 def test_every_native_crate_is_covered_by_a_freshness_check():
-    """The check is per crate; a new one must not be able to arrive unguarded.
-
-    `odoo_lint` was split out of `odoo_rust` and inherited nothing
-    automatically — its guard lives in `odoo/libs/lint/scan.py`, at its own
-    single import site, because that module is the only importer and is loaded
-    only by the lint gates.
-    """
     crates = {p.name for p in CRATES.iterdir() if (p / "Cargo.toml").is_file()}
-    # odoo_build ships no extension: it is a build script's dependency.
     extensions = crates - {"odoo_build"}
     assert extensions == {"odoo_rust", "odoo_lint"}, (
         f"native extension crates are now {sorted(extensions)}; each needs an "
         f"assert_fresh() at its import site, and this list updated"
     )
     for name in sorted(extensions):
-        assert (CRATES / name / "build.rs").read_text().find(
-            "stamp_build_identity"
-        ) > 0, (
+        assert "stamp_build_identity" in (CRATES / name / "build.rs").read_text(), (
             f"{name}/build.rs does not stamp a build identity, so nothing can "
             f"detect a stale or unoptimised build of it"
         )
@@ -62,9 +53,8 @@ def test_assert_fresh_raises_on_a_mismatch_and_passes_on_a_match(tmp_path):
         assert_fresh(module, crate)
 
     module.__source_crc__ = source_crc(crate)
-    assert_fresh(module, crate)  # matching: silent
+    assert_fresh(module, crate)
 
-    # A crate that is not on disk is an installed deployment, not a failure.
     assert_fresh(Module(), tmp_path / "absent")
 
 
@@ -76,7 +66,7 @@ def test_the_fingerprint_covers_every_build_input(tmp_path):
     (copy / "src" / "lib.rs").write_text("// lib\n")
     (copy / "src" / "clone.rs").write_text("// clone\n")
 
-    baseline = _rust_source_crc(copy)
+    baseline = source_crc(copy)
 
     for target, edited in (
         (copy / "src" / "clone.rs", "// clone edited\n"),
@@ -84,52 +74,36 @@ def test_the_fingerprint_covers_every_build_input(tmp_path):
     ):
         original = target.read_text()
         target.write_text(edited)
-        assert _rust_source_crc(copy) != baseline, f"{target.name} is not hashed"
+        assert source_crc(copy) != baseline, f"{target.name} is not hashed"
         target.write_text(original)
 
-    assert _rust_source_crc(copy) == baseline, (
-        "restoring the sources must restore the crc"
-    )
+    assert source_crc(copy) == baseline, "restoring the sources must restore the crc"
 
     (copy / "src" / "added.rs").write_text("// added\n")
-    assert _rust_source_crc(copy) != baseline, "a new source file is not hashed"
+    assert source_crc(copy) != baseline, "a new source file is not hashed"
 
 
 def test_the_fingerprint_covers_the_resolved_dependency_versions(tmp_path):
-    """`Cargo.toml` names a RANGE; `Cargo.lock` names what was built.
-
-    The manifests ask for `pyo3 = "0.29.2"`, which any 0.29.x satisfies.
-    Hashing only the manifest lets a `cargo update` change the built
-    artifact while every hashed byte stays identical -- silent staleness, which
-    is the one thing this fingerprint exists to prevent.
-    """
     workspace = tmp_path / "crates"
     crate = workspace / "odoo_rust"
     (crate / "src").mkdir(parents=True)
     (crate / "Cargo.toml").write_text("[package]\n")
     (crate / "src" / "lib.rs").write_text("// lib\n")
 
-    without_lock = _rust_source_crc(crate)
+    without_lock = source_crc(crate)
 
     lock = workspace / "Cargo.lock"
     lock.write_text('[[package]]\nname = "pyo3"\nversion = "0.29.2"\n')
-    with_lock = _rust_source_crc(crate)
+    with_lock = source_crc(crate)
     assert with_lock != without_lock, "the lock file is not hashed"
 
     lock.write_text('[[package]]\nname = "pyo3"\nversion = "0.29.3"\n')
-    assert _rust_source_crc(crate) != with_lock, (
+    assert source_crc(crate) != with_lock, (
         "a resolved dependency version change does not move the fingerprint"
     )
 
 
 def test_a_debug_build_is_refused_by_name(monkeypatch):
-    """The crc cannot see the profile: both builds hash identically.
-
-    `maturin develop` defaults to `dev`, and four `odoo_rust` exports are then
-    slower than the pure Python they replace. `test_native_acceleration_pays`
-    does catch it, but reports it as an algorithm that stopped paying.
-    """
-
     class Module:
         __name__ = "pretend_ext"
         __profile__ = "debug"
@@ -142,12 +116,9 @@ def test_a_debug_build_is_refused_by_name(monkeypatch):
     module.__profile__ = "release"
     assert_optimised(module)
 
-    # A wheel built before the stamp existed carries no profile at all; refusing
-    # to start on it would make upgrading harder than what is being checked for.
     del Module.__profile__
     assert_optimised(Module())
 
-    # And the escape hatch, for attaching a debugger to the crate.
     monkeypatch.setenv("ODOO_ALLOW_DEBUG_RUST", "1")
     debug = Module()
     debug.__profile__ = "debug"
@@ -168,7 +139,7 @@ def test_the_fingerprint_does_not_depend_on_where_the_checkout_lives(tmp_path):
         (root / "Cargo.toml").write_text("[package]\n")
         (root / "src" / "lib.rs").write_text("// lib\n")
 
-    assert _rust_source_crc(here) == _rust_source_crc(elsewhere)
+    assert source_crc(here) == source_crc(elsewhere)
 
 
 def test_python_reproduces_the_rust_crc32_parameters():
@@ -184,4 +155,4 @@ def test_a_nul_delimiter_keeps_filenames_from_bleeding_together(tmp_path):
     (first / "src" / "ab.rs").write_text("c")
     (second / "src" / "a.rs").write_text("bc")
 
-    assert _rust_source_crc(first) != _rust_source_crc(second)
+    assert source_crc(first) != source_crc(second)

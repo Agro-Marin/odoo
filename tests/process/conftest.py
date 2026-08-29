@@ -10,9 +10,9 @@ from pathlib import Path
 import psutil
 import pytest
 
-from .._pg import dependency_plugin, pg_reachable
+from .._pg import dependency_plugin, pg_reachable, repo_root
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = repo_root()
 ODOO_BIN = REPO_ROOT / "odoo-bin"
 
 BOOT_TIMEOUT_S = 90.0
@@ -31,10 +31,21 @@ REQUIREMENTS = {
 pytest_configure, _skip_without_dependencies = dependency_plugin(REQUIREMENTS)
 
 
+def free_ports(count: int = 1) -> list[int]:
+    socks = []
+    try:
+        for _ in range(count):
+            s = socket.socket()
+            s.bind(("127.0.0.1", 0))
+            socks.append(s)
+        return [s.getsockname()[1] for s in socks]
+    finally:
+        for s in socks:
+            s.close()
+
+
 def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    return free_ports(1)[0]
 
 
 class ServerHandle:
@@ -62,7 +73,10 @@ class ServerHandle:
             return False
 
     def log_text(self):
-        return Path(self.logfile).read_text(encoding="utf-8", errors="replace")
+        try:
+            return Path(self.logfile).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            return f"<no log at {self.logfile}: {exc.strerror}>"
 
     def children(self):
         try:
@@ -112,38 +126,12 @@ class ServerHandle:
         psutil.wait_procs(procs, timeout=10)
 
 
-#: Per-process PostgreSQL connection cap for the servers this suite boots.
-#: Small because these servers serve a handful of requests and open no
-#: registry; the point is to leave the cluster usable for everything else.
 DB_MAXCONN = 8
 
-#: Seconds the prefork master waits for a SIGINT'd worker before escalating to
-#: SIGKILL, forced small for this suite.
-#:
-#: The default is 60, which is also `test_reload_continuity`'s own budget for
-#: the reload to finish. Those being the same number means the escalation path
-#: is untestable: a worker that needs SIGKILL gets it at exactly the moment the
-#: test gives up waiting, so the suite can only ever report the timeout, never
-#: the recovery. Ten seconds puts the escalation well inside the window.
 GRACEFUL_STOP_TIMEOUT_S = 10.0
 
 
 class Poller(threading.Thread):
-    """Hammers the server on a short interval and counts what came back.
-
-    Shared by the reload and the worker-recycle suites: a transient outage is
-    invisible to a `wait_until(is_serving)`, which asks whether the server is up
-    *now* and answers yes the moment it recovers. Only something already
-    knocking on the door during the window can tell you the door was shut.
-
-    `refused` is the count that matters. The prefork master binds the listen
-    socket and its workers inherit it, so a `ConnectionRefusedError` means the
-    socket was closed or never re-bound — not that a worker was busy. Anything
-    else (a reset from a worker killed mid-request, a timeout) lands in `other`,
-    which is reported but not asserted on: SIGKILLing a worker that is holding a
-    connection drops that connection by definition.
-    """
-
     def __init__(self, port, interval=0.02):
         super().__init__(daemon=True)
         self.port = port
@@ -182,7 +170,7 @@ def server(tmp_path):
     def _start(*args, env=None, wait=True, attempts=3):
         last_error = None
         for attempt in range(attempts):
-            port = free_port()
+            port, gevent_port = free_ports(2)
             logfile = tmp_path / f"srv_{port}_{attempt}.log"
             cmd = [
                 sys.executable,
@@ -190,30 +178,13 @@ def server(tmp_path):
                 "--http-port",
                 str(port),
                 "--gevent-port",
-                str(free_port()),
+                str(gevent_port),
                 "--logfile",
                 str(logfile),
                 "--max-cron-threads",
                 "0",
                 "--job-workers",
                 "0",
-                # Every server this fixture boots asks PostgreSQL for
-                # `db_maxconn` connections PER WORKER PROCESS, and the default
-                # is 64. Uncapped, a two-worker server here reserves more of a
-                # 100-connection cluster than it can be given while anything
-                # else is running, and this workspace normally has several
-                # sessions testing at once.
-                #
-                # It does not fail as a connection error. The worker blocks in
-                # connect, stops answering SIGINT promptly, and the reload it
-                # was part of runs past its deadline — so the suite reports
-                # "reload did not complete within 60s" and "server stopped
-                # serving after a worker died", which read as prefork
-                # supervision defects and are nothing of the kind. The only
-                # evidence is one line at the end of the server's own log:
-                # `FATAL: sorry, too many clients already`. Measured while
-                # these two were failing: 66 of 100 connections held, 15
-                # odoo-bin processes alive.
                 "--db_maxconn",
                 str(DB_MAXCONN),
                 *args,
@@ -241,7 +212,7 @@ def server(tmp_path):
                 time.sleep(0.2)
             last_error = (
                 f"server did not serve within {BOOT_TIMEOUT_S:.0f}s "
-                f"(exit={proc.poll()}); log tail:\n"
+                f"(exit={proc.poll()}); argv={args!r}; log tail:\n"
                 + "\n".join(handle.log_text().splitlines()[-15:])
             )
             handle.kill_tree()

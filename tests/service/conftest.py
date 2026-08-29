@@ -3,8 +3,11 @@ import os
 import pathlib
 import random
 import threading
+import zlib
 
 import pytest
+
+from .._pg import repo_root
 
 SHUFFLE_SEED_VAR = "ODOO_SERVICE_TEST_SHUFFLE_SEED"
 
@@ -16,7 +19,7 @@ def pytest_collection_modifyitems(session, config, items):
     try:
         seed = int(raw)
     except ValueError:
-        seed = abs(hash(raw)) % (2**32)
+        seed = zlib.crc32(raw.encode())
     random.Random(seed).shuffle(items)
 
 
@@ -54,29 +57,43 @@ def _no_global_state_leak():
     yield
 
     after = snapshot()
+    problems = []
     strays = set(_model_mod._PUBLIC_METHOD_CACHE) - classes_before
     if strays:
-        pytest.fail(
-            "this test left classes in odoo.service.model._PUBLIC_METHOD_CACHE, "
-            "which is keyed by class object and never evicted:\n"
+        problems.append(
+            "left classes in odoo.service.model._PUBLIC_METHOD_CACHE, which is "
+            "keyed by class object and never evicted:\n"
             + "\n".join(f"  {c!r}" for c in strays)
-            + "\nPop them in a fixture teardown, as TestGetPublicMethodCache does.",
-            pytrace=False,
+            + "\nPop them in a fixture teardown, as TestGetPublicMethodCache does."
         )
-    leaked = {k: (before[k], after[k]) for k in before if before[k] is not after[k]}
-    leaked = {k: v for k, v in leaked.items() if v[0] != v[1]}
+    leaked = {
+        k: (before[k], after[k])
+        for k in before
+        if before[k] is not after[k] and before[k] != after[k]
+    }
     if leaked:
-        detail = "\n".join(
-            f"  {name}: {old!r} -> {new!r}" for name, (old, new) in leaked.items()
+        problems.append(
+            "left process-global state altered, which changes the meaning of "
+            "every test that runs after it:\n"
+            + "\n".join(
+                f"  {name}: {old!r} -> {new!r}" for name, (old, new) in leaked.items()
+            )
+            + "\nRestore it — usually by adding the name to this test's own patch "
+            "list, so `patch` owns the teardown."
         )
-        pytest.fail(
-            "this test left process-global state altered, which changes the "
-            "meaning of every test that runs after it:\n"
-            f"{detail}\n"
-            "Restore it — usually by adding the name to this test's own patch "
-            "list, so `patch` owns the teardown.",
-            pytrace=False,
-        )
+    if problems:
+        pytest.fail("this test " + "\n\nand ".join(problems), pytrace=False)
+
+
+def _has_inotify() -> bool:
+    from odoo.service import _watcher
+
+    return _watcher.inotify is not None
+
+
+requires_inotify = pytest.mark.skipif(
+    not _has_inotify(), reason="inotify backend not installed"
+)
 
 
 def fake_pg_cursor(*, fetchone=None, fetchone_sequence=None, fetchall=(), execute=None):
@@ -139,10 +156,6 @@ def durable_then_close(env):
     env.cr.closed = True
 
 
-# ---------------------------------------------------------------------------
-# Shared source scan for the patch-target gates
-# ---------------------------------------------------------------------------
-
 _SCANNED_TREES = ("tests/service", "odoo/addons", "addons")
 
 _GATE_MODULES = frozenset({"test_db_patch_targets.py", "test_facade_patch_targets.py"})
@@ -152,7 +165,7 @@ _FACADE_NEEDLES = ("odoo.service", "odoo.api", "odoo.fields", "odoo.models")
 
 @functools.cache
 def patch_target_sources() -> tuple[tuple[pathlib.Path, str], ...]:
-    root = _repo_root()
+    root = repo_root()
     out = []
     for rel in _SCANNED_TREES:
         tree = root / rel
@@ -165,11 +178,3 @@ def patch_target_sources() -> tuple[tuple[pathlib.Path, str], ...]:
             if any(needle in text for needle in _FACADE_NEEDLES):
                 out.append((path, text))
     return tuple(out)
-
-
-@functools.cache
-def _repo_root() -> pathlib.Path:
-    for parent in pathlib.Path(__file__).resolve().parents:
-        if (parent / "odoo-bin").is_file():
-            return parent
-    raise RuntimeError("no odoo-bin marker above this conftest")

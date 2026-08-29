@@ -379,11 +379,6 @@ class TestServerPhoenixSingleSourceOfTruth:
             _ = srv.server
 
 
-# ---------------------------------------------------------------------------
-# lifecycle.start() — watcher cleanup on the error path
-# ---------------------------------------------------------------------------
-
-
 class TestLifecycleStartWatcherCleanup:
     def test_watcher_stopped_when_server_run_raises(self):
         import odoo
@@ -411,11 +406,6 @@ class TestLifecycleStartWatcherCleanup:
         mock_watcher.stop.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# restart() — guard against pre-start invocation
-# ---------------------------------------------------------------------------
-
-
 class TestRestartGuard:
     def test_restart_with_none_server_is_noop(self, srv, caplog):
         with (
@@ -436,7 +426,7 @@ class TestRestartGuard:
 
         with (
             patch("odoo.service.lifecycle.server", fake_server),
-            patch.object(os, "name", "posix"),
+            patch("odoo.service.lifecycle._IS_WINDOWS", False),
             patch.object(os, "kill") as mock_kill,
         ):
             srv.restart()
@@ -457,7 +447,7 @@ class TestRestartGuard:
 
         with (
             patch("odoo.service.lifecycle.server", ts),
-            patch.object(lifecycle.os, "name", "nt"),
+            patch.object(lifecycle, "_IS_WINDOWS", True),
             patch.object(lifecycle, "_reexec") as mock_reexec,
             patch.object(lifecycle.threading, "Thread") as mock_thread,
         ):
@@ -470,11 +460,6 @@ class TestRestartGuard:
             f"_reexec; the process would never re-exec"
         )
         mock_thread.return_value.start.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# SIGHUP — local sentinel, no signal-module monkey-patch
-# ---------------------------------------------------------------------------
 
 
 class TestSigHupSentinel:

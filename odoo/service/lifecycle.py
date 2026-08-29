@@ -20,7 +20,7 @@ from odoo.release import nt_service_name
 from odoo.tools import config, profiler
 from odoo.tools.misc import stripped_sys_argv
 
-from ._env import env_float, env_int
+from ._env import _IS_POSIX, _IS_WINDOWS, env_float, env_int
 from ._watcher import (
     FSWatcherInotify,
     FSWatcherWatchdog,
@@ -97,17 +97,6 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
             env["ir.qweb"]._pregenerate_assets_bundles()
 
-    # No lock dance here.  The post-install suite drives HTTP cases from other
-    # threads, which need ``Registry._lock``, so it must not run under it -- and
-    # it no longer can: ``preload_registries`` takes the lock around
-    # ``Registry.new`` alone and has released it by the time this is called.
-    # This used to release the lock in an unbounded loop, counting releases to
-    # re-acquire them afterwards, because ``ThreadedServer.run`` held it across
-    # the whole preload.  That reached into another module's private lock, probed
-    # a second private API (``_is_owned``) with a silent fallback to ``bool`` --
-    # which answers False, "I do not hold it", so an activated fallback would
-    # have run the whole suite under a held lock -- and left the coupling
-    # invisible from the server that caused it.
     result = loader.run_suite(
         post_install_suite,
         global_report=registry._assertion_report,
@@ -130,7 +119,7 @@ def _narrowing_test_spec() -> str:
 def _limit_resident_registries(dbnames: list[str]) -> None:
     registries_size = env_int("ODOO_REGISTRY_LRU_SIZE", 0, minimum=0, logger=_logger)
     if not registries_size:
-        if os.name == "posix":
+        if _IS_POSIX:
             avgsz = 15 * 1024 * 1024
             limit_memory_soft = (
                 config["limit_memory_soft"]
@@ -143,10 +132,6 @@ def _limit_resident_registries(dbnames: list[str]) -> None:
     if registries_size:
         Registry.registries.count = registries_size
 
-    # Bound resident registries by recency as well as by count: the LRU alone
-    # tracks traffic, not memory, so a worker can be recycled at its memory soft
-    # limit while the LRU still has room. Off (0) unless asked for. Set on the
-    # class before any worker forks, so children inherit it.
     idle_timeout = env_int(
         "ODOO_REGISTRY_MAX_IDLE_TIMEOUT", 0, minimum=0, logger=_logger
     )
@@ -179,11 +164,6 @@ def preload_registries(dbnames: list[str] | None) -> int:
                 current_worker_thread().dbname = dbname
                 update_module = config["init"] or config["update"] or config["reinit"]
 
-                # Explicit, and scoped to exactly the span that needs it.
-                # ``Registry.new`` is ``@locked`` already, so this adds no
-                # exclusion it does not have; what it adds is a lock scope that
-                # is visible where the work happens, and that ENDS before
-                # ``_run_post_install_tests`` below.
                 with Registry._lock:
                     registry = Registry.new(
                         dbname,
@@ -336,7 +316,7 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
                     exc_info=True,
                 )
         else:
-            if os.name == "posix" and platform.system() != "Darwin":
+            if _IS_POSIX and platform.system() != "Darwin":
                 module = "inotify"
             else:
                 module = "watchdog"
@@ -368,7 +348,7 @@ def restart() -> None:
             "restart() called before server.start() assigned the server; ignoring"
         )
         return
-    if os.name == "nt":
+    if _IS_WINDOWS:
         threading.Thread(target=_reexec).start()
     else:
         import signal

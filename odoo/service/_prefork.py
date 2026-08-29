@@ -26,7 +26,7 @@ from odoo.tools.misc import dumpstacks, stripped_sys_argv
 
 from . import lifecycle
 from ._base_server import CommonServer
-from ._env import env_float
+from ._env import _IS_POSIX, env_float
 from ._helpers import cron_real_time_budget, empty_pipe, job_real_time_budget
 from ._worker import Worker, WorkerCron, WorkerHTTP, WorkerJob
 from .lifecycle import _reexec, preload_registries
@@ -80,7 +80,7 @@ class PreforkServer(CommonServer):
         return os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
 
     def _set_socket_cloexec(self) -> None:
-        if os.name != "posix":
+        if not _IS_POSIX:
             return
         fd = self.socket.fileno()
         flags = fcntl.fcntl(fd, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
@@ -307,13 +307,7 @@ class PreforkServer(CommonServer):
     def process_spawn(self) -> None:
         if time.monotonic() < self._respawn_not_before:
             return
-        # ``.snapshot`` is a copy (odoo/libs/lru.py), not the live LRU.
         registries = Registry.registries.snapshot
-        # Signalling is checked at most once per spawn cycle, before the first
-        # worker of that cycle is forked, so no child inherits a stale registry.
-        # Every later call below is a no-op; ``checked`` says so, where the
-        # previous ``registries.clear()`` said it by emptying the copy and read
-        # as if it were emptying the server's live registry cache.
         checked = False
 
         def check_registries():
@@ -352,10 +346,6 @@ class PreforkServer(CommonServer):
                 return
 
     def sleep(self) -> None:
-        # No EINTR guard: since PEP 475 (Python 3.5) ``selectors.select`` retries
-        # the syscall itself and returns early instead of raising, and
-        # ``empty_pipe`` is ``os.read`` under the same rule.  Measured: 20
-        # SIGUSR1 delivered while blocked in ``select`` produced 0 OSError.
         fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
         with selectors.DefaultSelector() as sel:
             for fd in list(fds) + [self.pipe[0]]:

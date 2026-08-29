@@ -1,8 +1,6 @@
 import os
 import subprocess
 
-import pytest
-
 from .._pg import psql_path
 from .conftest import requires_pg, requires_psql
 
@@ -94,7 +92,3 @@ def self_cleanup(scratch_db):
         capture_output=True,
         env={**os.environ, "PGDATABASE": scratch_db},
     )
-
-
-if __name__ == "__main__":
-    raise SystemExit(pytest.main([__file__, "-v"]))

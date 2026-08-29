@@ -31,6 +31,7 @@ from ._cron import (
     drain_cron_notifies,
     order_notified_first,
 )
+from ._env import _IS_POSIX, _IS_WINDOWS
 from ._helpers import (
     CRON_NOTIFY_JITTER_MAX_S,
     SLEEP_INTERVAL,
@@ -73,11 +74,6 @@ class ThreadedServer(CommonServer):
             os._exit(0)
         elif _SIGHUP_AVAILABLE and sig == signal.SIGHUP:
             if self.quit_signals_received:
-                # A shutdown or phoenix restart is already pending. One file
-                # change can emit several SIGHUPs, and a late one lands while
-                # run()'s `finally: self.stop()` is executing -- outside the
-                # `except KeyboardInterrupt` that covers the body -- where
-                # raising would escape run() and exit 129 instead of restarting.
                 return
             lifecycle.server_phoenix = True
             self.quit_signals_received += 1
@@ -151,8 +147,6 @@ class ThreadedServer(CommonServer):
         process_jobs: Any,
         label: str,
     ) -> None:
-        # Shared by the cron and job threads, so the max age has to be resolved
-        # per label rather than read from the cron setting for both.
         max_age = job_max_age() if label == "job" else config["limit_time_worker_cron"]
 
         cron_logger = self.logger.getChild(f"{label}{number}")
@@ -287,7 +281,7 @@ class ThreadedServer(CommonServer):
 
     def start(self, stop: bool = False) -> None:
         self.logger.debug("Setting signal handlers")
-        if os.name == "posix":
+        if _IS_POSIX:
             signal.signal(signal.SIGINT, self.signal_handler)
             signal.signal(signal.SIGTERM, self.signal_handler)
             signal.signal(signal.SIGHUP, self.signal_handler)
@@ -295,7 +289,7 @@ class ThreadedServer(CommonServer):
             signal.signal(signal.SIGQUIT, dumpstacks)
             signal.signal(signal.SIGUSR1, log_ormcache_stats)
             signal.signal(signal.SIGUSR2, log_ormcache_stats)
-        elif os.name == "nt":
+        elif _IS_WINDOWS:
             import win32api
 
             win32api.SetConsoleCtrlHandler(
@@ -354,13 +348,6 @@ class ThreadedServer(CommonServer):
         rc: int | None = None
         self._stop_after_init = stop
         try:
-            # ``Registry._lock`` is NOT held across this.  It used to be, which
-            # made ``preload_registries`` behave differently here than under
-            # PreforkServer (``_prefork.run`` has never taken it) and forced
-            # ``_run_post_install_tests`` to release it by hand before running a
-            # suite that needs it from other threads.  The exclusion that
-            # actually matters still holds: ``preload_registries`` takes the lock
-            # around ``Registry.new`` itself.
             self.start(stop=stop)
             rc = preload_registries(preload)
 
@@ -465,7 +452,7 @@ class EventServer(CommonServer):
         raise KeyboardInterrupt
 
     def start(self) -> None:
-        if os.name == "posix":
+        if _IS_POSIX:
             signal.signal(signal.SIGINT, self._quit_signal_handler)
             signal.signal(signal.SIGTERM, self._quit_signal_handler)
             signal.signal(signal.SIGQUIT, dumpstacks)

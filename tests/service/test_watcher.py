@@ -9,7 +9,7 @@ import pytest
 
 from odoo.service import _watcher
 
-from .conftest import fake_pg_cursor
+from .conftest import fake_pg_cursor, requires_inotify
 
 
 @pytest.fixture(scope="module")
@@ -96,11 +96,6 @@ class TestFSWatcherBase:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# FSWatcherBase.handle_asset_file() — the invalidation itself
-# ---------------------------------------------------------------------------
-
-
 class TestFSWatcherAssetInvalidation:
     @pytest.fixture
     def invalidate(self, srv):
@@ -156,12 +151,7 @@ class TestFSWatcherAssetInvalidation:
         assert invalidate(registries=["a", "b"], failing=["a", "b"]) == []
 
 
-# ---------------------------------------------------------------------------
-# FSWatcherInotify — re-watching a subtree the kernel moved or recreated
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.skipif(_watcher.inotify is None, reason="inotify backend not installed")
+@requires_inotify
 class TestFSWatcherInotifyRewatch:
     @pytest.fixture
     def watcher(self, tmp_path):
@@ -180,7 +170,7 @@ class TestFSWatcherInotifyRewatch:
             if exc.errno != errno.ENOSPC:
                 raise
             pytest.skip(str(exc))
-        obj.handle_file = lambda path: seen.append(path) and None
+        obj.handle_file = seen.append
         obj.start()
         try:
             yield obj, seen, root
@@ -454,11 +444,6 @@ class TestBothBackendsCoalesceAssetBursts:
         while len(flushed) < 2 and time.monotonic() < deadline:
             time.sleep(0.01)
         assert len(flushed) == 2, "the timer never emitted the trailing flush"
-
-
-# ---------------------------------------------------------------------------
-# The wiring each backend depends on — recursion, daemon-ness, the run loop
-# ---------------------------------------------------------------------------
 
 
 class TestWatcherWiring:

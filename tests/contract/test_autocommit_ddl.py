@@ -3,13 +3,14 @@ import uuid
 
 import pytest
 
-from .conftest import requires_pg, requires_psql
+from .._pg import createdb_path, dropdb_path, psql_path
+from .conftest import requires_createdb, requires_pg, requires_psql
 
 
 def _in_transaction(sql: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
-            "psql",
+            psql_path(),
             "-d",
             "postgres",
             "-X",
@@ -26,11 +27,13 @@ def _in_transaction(sql: str) -> subprocess.CompletedProcess:
 
 @pytest.fixture
 def scratch_name():
+    if not (createdb_path() and dropdb_path()):
+        pytest.skip("createdb/dropdb not on PATH")
     name = f"odoo_ac_{uuid.uuid4().hex[:12]}"
     yield name
     for candidate in (name, f"{name}_renamed"):
         subprocess.run(
-            ["dropdb", "--if-exists", "--force", candidate],
+            [dropdb_path(), "--if-exists", "--force", candidate],
             check=False,
             capture_output=True,
         )
@@ -38,6 +41,7 @@ def scratch_name():
 
 @requires_pg
 @requires_psql
+@requires_createdb
 class TestDatabaseDdlNeedsAutocommit:
     def test_create_database_is_refused_inside_a_transaction(self, scratch_name):
         proc = _in_transaction(f'CREATE DATABASE "{scratch_name}"')
@@ -46,7 +50,7 @@ class TestDatabaseDdlNeedsAutocommit:
 
     def test_drop_database_is_refused_inside_a_transaction(self, scratch_name):
         subprocess.run(
-            ["createdb", "-T", "template0", scratch_name],
+            [createdb_path(), "-T", "template0", scratch_name],
             check=True,
             capture_output=True,
         )
@@ -56,7 +60,7 @@ class TestDatabaseDdlNeedsAutocommit:
 
     def test_alter_database_rename_is_ALLOWED_inside_a_transaction(self, scratch_name):
         subprocess.run(
-            ["createdb", "-T", "template0", scratch_name],
+            [createdb_path(), "-T", "template0", scratch_name],
             check=True,
             capture_output=True,
         )

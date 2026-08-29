@@ -4,6 +4,9 @@ import logging
 import math
 import os
 
+_IS_POSIX = os.name == "posix"
+_IS_WINDOWS = os.name == "nt"
+
 
 def env_float(
     name: str,
@@ -50,8 +53,6 @@ def _parse(
         return default
     if conv is float and not math.isfinite(value):
         if logger is not None:
-            # ``label`` carries its own article ("a number"), so it cannot be
-            # slotted into a sentence that already supplies one.
             logger.warning("%s=%r is not finite; using default %s", name, raw, default)
         return default
     if minimum is not None and value < minimum:

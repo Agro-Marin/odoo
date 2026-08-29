@@ -16,8 +16,10 @@ def mod():
 def pooled_db():
     from odoo import db
 
-    if not hasattr(db, "pool_health"):
-        pytest.skip("odoo.db.pool_health is not present in this checkout")
+    assert hasattr(db, "pool_health"), (
+        "odoo.db.pool_health is gone, but odoo/service/_metrics.py still calls "
+        "it while building the exposition — /metrics would raise"
+    )
     return db
 
 

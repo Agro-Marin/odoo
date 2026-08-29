@@ -4,6 +4,7 @@ import functools
 import os
 import shutil
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
@@ -33,6 +34,24 @@ def psql_path() -> str | None:
 @functools.cache
 def pg_dump_path() -> str | None:
     return shutil.which("pg_dump")
+
+
+@functools.cache
+def createdb_path() -> str | None:
+    return shutil.which("createdb")
+
+
+@functools.cache
+def dropdb_path() -> str | None:
+    return shutil.which("dropdb")
+
+
+@functools.cache
+def repo_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "odoo-bin").is_file():
+            return parent
+    raise RuntimeError("no odoo-bin marker above tests/_pg.py")
 
 
 def dependency_plugin(requirements: Requirements):

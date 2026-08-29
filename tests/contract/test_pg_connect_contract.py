@@ -1,20 +1,9 @@
 import psycopg
 import pytest
 
-from .._pg import pg_dump_path, pg_reachable, psql_path
 from .conftest import requires_pg
 
 MISSING_DB = "odoo_contract_no_such_db_xyzzy"
-
-
-def test_dependencies_are_present():
-    import os
-
-    if not os.environ.get("ODOO_CONTRACT_REQUIRE_DEPS"):
-        pytest.skip("set ODOO_CONTRACT_REQUIRE_DEPS=1 to enforce (do this in CI)")
-    assert pg_reachable(), "no reachable PostgreSQL"
-    assert psql_path(), "psql not on PATH"
-    assert pg_dump_path(), "pg_dump not on PATH"
 
 
 class TestPoolConnectFailureTranslation:

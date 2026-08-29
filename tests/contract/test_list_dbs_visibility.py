@@ -3,13 +3,13 @@ import uuid
 
 import pytest
 
-from .._pg import pg_reachable
-from .conftest import requires_pg
+from .._pg import createdb_path, dropdb_path, pg_reachable, psql_path
+from .conftest import requires_createdb, requires_pg, requires_psql
 
 
 def _psql(sql: str, dbname: str = "postgres") -> str:
     proc = subprocess.run(
-        ["psql", "-d", dbname, "-X", "-tAc", sql],
+        [psql_path(), "-d", dbname, "-X", "-tAc", sql],
         capture_output=True,
         text=True,
         check=True,
@@ -20,7 +20,7 @@ def _psql(sql: str, dbname: str = "postgres") -> str:
 def _drop(name: str) -> None:
     subprocess.run(
         [
-            "psql",
+            psql_path(),
             "-d",
             "postgres",
             "-X",
@@ -33,7 +33,7 @@ def _drop(name: str) -> None:
     )
     subprocess.run(
         [
-            "psql",
+            psql_path(),
             "-d",
             "postgres",
             "-X",
@@ -45,7 +45,9 @@ def _drop(name: str) -> None:
         check=False,
     )
     subprocess.run(
-        ["dropdb", "--if-exists", "--force", name], check=False, capture_output=True
+        [dropdb_path(), "--if-exists", "--force", name],
+        check=False,
+        capture_output=True,
     )
 
 
@@ -53,6 +55,8 @@ def _drop(name: str) -> None:
 def cluster(odoo_config):
     if not pg_reachable():
         pytest.skip("no reachable PostgreSQL")
+    if not (psql_path() and createdb_path() and dropdb_path()):
+        pytest.skip("psql/createdb/dropdb not on PATH")
     tag = uuid.uuid4().hex[:10]
     names = {
         "plain": f"odoo_list_plain_{tag}",
@@ -65,7 +69,7 @@ def cluster(odoo_config):
     try:
         for key in ("plain", "template", "noconn"):
             subprocess.run(
-                ["createdb", "-T", "template0", names[key]],
+                [createdb_path(), "-T", "template0", names[key]],
                 check=True,
                 capture_output=True,
             )
@@ -76,7 +80,7 @@ def cluster(odoo_config):
             _psql(f'CREATE ROLE "{role}" LOGIN')
             made_role = True
             subprocess.run(
-                ["createdb", "-T", "template0", "-O", role, names["foreign"]],
+                [createdb_path(), "-T", "template0", "-O", role, names["foreign"]],
                 check=True,
                 capture_output=True,
             )
@@ -90,7 +94,7 @@ def cluster(odoo_config):
         if made_role:
             subprocess.run(
                 [
-                    "psql",
+                    psql_path(),
                     "-d",
                     "postgres",
                     "-X",
@@ -115,6 +119,8 @@ def listed(cluster):
 
 
 @requires_pg
+@requires_psql
+@requires_createdb
 class TestListDbsVisibility:
     def test_a_database_this_role_owns_is_listed(self, cluster, listed):
         assert cluster["plain"] in listed, listed[:20]

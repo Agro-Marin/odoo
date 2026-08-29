@@ -20,7 +20,7 @@ from .conftest import fake_pg_connection, fake_pg_cursor
 
 @pytest.fixture(scope="module")
 def db_mod():
-    import odoo.db.schema  # noqa: F401  see comment above
+    import odoo.db.schema  # noqa: F401
     import odoo.service.db as mod
 
     return mod

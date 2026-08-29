@@ -15,6 +15,8 @@ import pytest
 from odoo.db import PoolError
 from odoo.service import common
 
+from .conftest import requires_inotify
+
 
 class TestPsycopgConnectFailureHierarchy:
     def test_invalid_catalog_name_is_not_an_operational_error(self):
@@ -144,10 +146,7 @@ class TestSignalsDoNotSurfaceAsEINTR:
         assert OSError().errno is None
 
 
-@pytest.mark.skipif(
-    __import__("odoo.service._watcher", fromlist=["inotify"]).inotify is None,
-    reason="inotify backend not installed",
-)
+@requires_inotify
 class TestInotifyPrivateSurface:
     def _trees(self, tmp_path):
         from odoo.service._watcher import INOTIFY_LISTEN_EVENTS, InotifyTrees

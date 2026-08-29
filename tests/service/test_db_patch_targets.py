@@ -1,23 +1,11 @@
 import ast
 import functools
-import pathlib
 import re
 
-import pytest
-
+from .._pg import repo_root
 from .conftest import patch_target_sources
 
-_HERE = pathlib.Path(__file__).resolve()
-
-
-def _repo_root() -> pathlib.Path:
-    for parent in _HERE.parents:
-        if (parent / "odoo-bin").is_file():
-            return parent
-    raise RuntimeError("no odoo-bin marker above this test")
-
-
-ROOT = _repo_root()
+ROOT = repo_root()
 PKG = ROOT / "odoo" / "service" / "db"
 SUBMODULES = frozenset(p.stem for p in PKG.glob("*.py") if p.stem != "__init__")
 
@@ -57,9 +45,6 @@ PACKAGE_LEVEL_OK = frozenset(
 )
 
 
-_sources = patch_target_sources
-
-
 @functools.cache
 def _module_uses(sub: str, name: str) -> bool:
     tree = ast.parse((PKG / f"{sub}.py").read_text(encoding="utf-8"))
@@ -89,7 +74,7 @@ def test_the_package_is_a_package():
 
 def test_no_string_patch_aims_at_the_package():
     bad = []
-    for path, text in _sources():
+    for path, text in patch_target_sources():
         for m in _STRING_TARGET.finditer(text):
             head = m.group(1).split(".")[0]
             if head in SUBMODULES or head in PACKAGE_LEVEL_OK:
@@ -108,7 +93,7 @@ def test_no_string_patch_aims_at_the_package():
 
 def test_no_object_patch_aims_at_the_package():
     bad = []
-    for path, text in _sources():
+    for path, text in patch_target_sources():
         for m in _object_targets(text):
             if m.group(1) in PACKAGE_LEVEL_OK:
                 continue
@@ -124,7 +109,7 @@ def test_no_object_patch_aims_at_the_package():
 
 def test_every_submodule_target_is_real():
     bad = []
-    for path, text in _sources():
+    for path, text in patch_target_sources():
         for m in _STRING_TARGET.finditer(text):
             parts = m.group(1).split(".")
             if parts[0] not in SUBMODULES or len(parts) < 2:
@@ -179,9 +164,3 @@ def test_the_guard_would_catch_a_regression():
     )
     assert _module_uses("lifecycle", "_create_empty_database")
     assert not _module_uses("listing", "_create_empty_database")
-
-
-if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__, "-v"]))

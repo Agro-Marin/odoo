@@ -23,21 +23,20 @@ class TestSighupReloadKeepsServing:
         )
         original = _child_pids(srv)
 
-        poller = Poller(srv.port)
-        poller.start()
-        time.sleep(1.0)
-        baseline = poller.served
-        assert baseline > 0, "the poller never reached the server before the reload"
+        with Poller(srv.port) as poller:
+            time.sleep(1.0)
+            baseline = poller.served
+            assert baseline > 0, "the poller never reached the server before the reload"
 
-        os.kill(srv.proc.pid, signal.SIGHUP)
+            os.kill(srv.proc.pid, signal.SIGHUP)
 
-        def reload_complete():
-            current = _child_pids(srv)
-            return bool(current) and not (original & current) and srv.is_serving(3)
+            def reload_complete():
+                current = _child_pids(srv)
+                return bool(current) and not (original & current) and srv.is_serving(3)
 
-        done = srv.wait_until(reload_complete, timeout=RELOAD_TIMEOUT_S, interval=0.5)
-        poller.stop_flag.set()
-        poller.join(timeout=10)
+            done = srv.wait_until(
+                reload_complete, timeout=RELOAD_TIMEOUT_S, interval=0.5
+            )
 
         assert poller.refused == 0, (
             f"{poller.refused} connection(s) REFUSED during the reload "
@@ -65,11 +64,8 @@ class TestSighupReloadKeepsServing:
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             dead_port = s.getsockname()[1]
-        poller = Poller(dead_port)
-        poller.start()
-        time.sleep(0.5)
-        poller.stop_flag.set()
-        poller.join(timeout=10)
+        with Poller(dead_port) as poller:
+            time.sleep(0.5)
         assert poller.refused > 0, (
             "the poller does not detect a closed port, so the continuity "
             "assertion above would pass no matter what the server did"

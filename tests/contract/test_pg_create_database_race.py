@@ -6,19 +6,24 @@ from concurrent.futures import ThreadPoolExecutor
 import psycopg
 import pytest
 
-from .conftest import requires_pg
+from .._pg import dropdb_path
+from .conftest import requires_createdb, requires_pg
 
 RACERS = 4
 
 
 def _drop(name: str) -> None:
     subprocess.run(
-        ["dropdb", "--if-exists", "--force", name], check=False, capture_output=True
+        [dropdb_path(), "--if-exists", "--force", name],
+        check=False,
+        capture_output=True,
     )
 
 
 @pytest.fixture
 def race_name():
+    if dropdb_path() is None:
+        pytest.skip("dropdb not on PATH")
     name = f"odoo_race_{uuid.uuid4().hex[:12]}"
     try:
         yield name
@@ -43,6 +48,7 @@ def _race(name: str) -> list[str | psycopg.Error]:
 
 
 @requires_pg
+@requires_createdb
 class TestConcurrentCreateDatabaseSqlstate:
     def test_exactly_one_racer_wins(self, race_name):
         outcomes = _race(race_name)
@@ -74,6 +80,7 @@ class TestConcurrentCreateDatabaseSqlstate:
 
 
 @requires_pg
+@requires_createdb
 class TestCreateEmptyDatabaseAnswersUniformly:
     def test_every_losing_racer_gets_database_exists(self, race_name):
         from odoo.service.db import DatabaseExists, _create_empty_database
