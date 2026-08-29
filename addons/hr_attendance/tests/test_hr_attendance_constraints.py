@@ -3,7 +3,7 @@ import time
 from odoo.tests.common import TransactionCase, tagged
 
 
-@tagged("jesaispas")
+@tagged("attendance_constraints")
 class TestHrAttendance(TransactionCase):
     """Tests for attendance date ranges validity"""
 

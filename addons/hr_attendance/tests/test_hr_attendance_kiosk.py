@@ -4,7 +4,7 @@ from odoo.http import Request
 from odoo.tests.common import HttpCase, tagged
 
 
-@tagged("post_install", "-at_install", "hr_attendance_overtime")
+@tagged("post_install", "-at_install", "hr_attendance_kiosk")
 class TestHrAttendanceKiosk(HttpCase):
     """Tests for kiosk"""
 
