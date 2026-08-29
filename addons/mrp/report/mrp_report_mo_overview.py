@@ -501,9 +501,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 kit_operation=self._get_kit_operations(production.bom_id),
             )
             real_cost = (
-                mo_cost
-                if estimate_cost
-                else workorder._get_current_operation_cost()
+                mo_cost if estimate_cost else workorder._get_current_operation_cost()
             )
             real_cost_decorator = False
             mo_cost_decorator = False

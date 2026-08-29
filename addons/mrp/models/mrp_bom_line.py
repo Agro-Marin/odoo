@@ -248,7 +248,9 @@ class MrpBomLine(models.Model):
             ("res_id", "=", self.product_id.product_tmpl_id.id),
         ]
         counts = dict(
-            self.env["documents.document"]._read_group(domain, ["res_model"], ["__count"])
+            self.env["documents.document"]._read_group(
+                domain, ["res_model"], ["__count"]
+            )
         )
         nbr_product_attach = counts.get("product.product", 0)
         nbr_template_attach = counts.get("product.template", 0)

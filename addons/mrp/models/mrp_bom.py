@@ -1067,9 +1067,7 @@ class MrpBom(models.Model):
 
     def _get_extra_attachments(self):
         product_ids, template_ids = self._get_extra_attachment_targets()
-        return self._search_extra_attachments(
-            product_ids, template_ids
-        ).attachment_id
+        return self._search_extra_attachments(product_ids, template_ids).attachment_id
 
     def _get_extra_attachments_by_bom(self):
         """Same answer as ``_get_extra_attachments`` per BoM, in one search."""

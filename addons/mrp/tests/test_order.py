@@ -5623,7 +5623,8 @@ class TestMrpOrder(TestMrpCommon):
         tracked_product = self.env["product.product"].create(
             {
                 "name": "Super Product",
-                "is_storable": True, "tracking": "lot",
+                "is_storable": True,
+                "tracking": "lot",
                 "bom_ids": [
                     Command.create(
                         {

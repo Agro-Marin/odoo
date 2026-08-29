@@ -314,7 +314,9 @@ class ProductProduct(models.Model):
         }
 
     def action_view_bom(self):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.product_open_bom")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "mrp.product_open_bom"
+        )
         template_ids = self.product_tmpl_id.ids
         action["context"] = {
             "default_product_tmpl_id": template_ids[0] if template_ids else False,

@@ -3114,9 +3114,7 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        attachments = (
-            doc_template_bom.attachment_id + doc_product_bom.attachment_id
-        )
+        attachments = doc_template_bom.attachment_id + doc_product_bom.attachment_id
 
         bom = self.env["mrp.bom"].create(
             {
@@ -3127,9 +3125,7 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        self.assertEqual(
-            bom._get_extra_attachments(), doc_template_bom.attachment_id
-        )
+        self.assertEqual(bom._get_extra_attachments(), doc_template_bom.attachment_id)
 
         bom.product_id = self.product_4
         self.assertEqual(bom._get_extra_attachments(), attachments)

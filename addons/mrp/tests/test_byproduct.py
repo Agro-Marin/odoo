@@ -664,9 +664,7 @@ class TestMrpByProduct(common.TransactionCase):
             }
         )
 
-        attachments = (
-            doc_template_bom.attachment_id + doc_product_bom.attachment_id
-        )
+        attachments = doc_template_bom.attachment_id + doc_product_bom.attachment_id
 
         bom = self.env["mrp.bom"].create(
             {

@@ -115,32 +115,22 @@ def test_constraints_are_finalized_before_the_null_check(base_db):
 
 
 def test_inherit_xmlids_are_re_reflected_before_the_orphan_sweep(base_db):
-    """The reflection that keeps a mixin's inherit rows alive runs before the reap.
-
-    ``_reflect_inherits`` writes one xmlid per module in the child model's MRO,
-    so base owns ``model_inherit__mail_guest__mixin_image`` purely because
-    ``mixin.avatar`` is base's -- a row keyed on a model base does not extend and
-    cannot reach. Nothing re-registers those during an update of base alone: the
-    child model is outside base's own scope, and modules load in graph order, so
-    it is not even in the registry when base loads. ``_process_end`` then finds a
-    base-owned xmlid missing from ``loaded_xmlids`` and deletes the record --
-    silently, at INFO, exit 0, taking a live inheritance link with it.
-
-    The whole-registry reflection restores the invariant ``_process_end`` relies
-    on. Its ordering is the half that would regress without a word, which is what
-    this pins: a reflection that runs after the sweep protects nothing.
-    """
     from odoo.modules.loading import _ModuleLoader
     from odoo.modules.registry import Registry
 
     from odoo.addons.base.models.ir_model_data import IrModelData
 
-    # Both the reflection and the sweep return early when nothing was updated,
-    # so a no-op update traces neither. Mark base the way `-u base` does.
     subprocess.run(
-        ["psql", "-d", base_db, "-tAc",
-         "UPDATE ir_module_module SET state='to upgrade' WHERE name='base'"],
-        capture_output=True, text=True, check=True,
+        [
+            "psql",
+            "-d",
+            base_db,
+            "-tAc",
+            "UPDATE ir_module_module SET state='to upgrade' WHERE name='base'",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     )
 
     order: list[str] = []
