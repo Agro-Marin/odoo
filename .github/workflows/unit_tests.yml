@@ -28,20 +28,41 @@ on:
   pull_request:
     branches: ['*']
     paths:
-      - 'odoo/orm/components/**'
-      - 'odoo/libs/**'
-      - 'odoo/orm/model_test_env.py'
-      - 'odoo/orm/tests/**'
-      - 'odoo/_testing_bootstrap.py'
+      # EVERY tree with a suite in pytest.ini's `testpaths`, plus the four
+      # Tier-2 paths. This workflow is the only runner of either tier, so a
+      # tree missing from this list is a tree whose own tests do not gate its
+      # PRs -- caught on the post-merge `push:` trigger instead, which has no
+      # filter, by which point the author has moved on.
+      #
+      # Nine were missing. Measured on the sharpest of them: a name imported
+      # into odoo/tools/__init__.py and absent from __all__ fails
+      # tests/framework::test_all_matches_what_is_reexported, and NONE of the
+      # seven workflows that a change to that file did trigger runs
+      # tests/framework at all.
+      #
+      # `tooling_selftest.yml` already reached this conclusion for its own lane
+      # and dropped its filter entirely; the comment there names the red
+      # mainline (598cf211cc2) that a narrow filter cost. Keep this list in
+      # step with `testpaths`: tooling/test_ci_lanes.py::
+      # test_every_suite_this_lane_runs_is_triggered_by_its_own_source fails
+      # when the two drift.
       - 'pytest.ini'
       - 'crates/**'
       - '.github/workflows/unit_tests.yml'
-      # The other two Tier-2 paths, and the sources they cover. Without these
-      # a change to odoo/http or odoo/service would not trigger the suite that
-      # tests it.
+      - 'odoo/_testing_bootstrap.py'
+      - 'odoo/orm/**'
+      - 'odoo/libs/**'
+      - 'odoo/db/**'
+      - 'odoo/modules/**'
+      - 'odoo/tools/**'
       - 'odoo/http/**'
       - 'odoo/service/**'
+      - 'odoo/addons/base/models/**'
+      - 'addons/account/tools/**'
+      - 'addons/mail/tools/**'
+      - 'tooling/**'
       - 'tests/service/**'
+      - 'tests/framework/**'
 
 permissions:
   contents: read
@@ -146,14 +167,13 @@ jobs:
         # is green. Separate steps also name the suite that broke, which is the
         # reason the steps above are separate too.
         #
-        # `odoo/db/tests` and `odoo/tools/tests` are deliberately NOT here.
-        # Named on their own they are 22 and 11 failed — `AttributeError:
-        # module 'odoo.db' has no attribute '_Pool'` and friends, tests reaching
-        # for state that lives in a package `__init__.py` the stub replaces.
-        # They pass in the bare run, where the stubs turn out to be inert, and
-        # gating them means first deciding whether that code moves to a leaf
-        # module or those tests move to Tier 2. Adding a red lane is not the way
-        # to raise the question.
+        # `odoo/db/tests` and `odoo/tools/tests` are not here either, but they
+        # are no longer ungated: they moved to the Tier-2 step below. This note
+        # used to say gating them meant first deciding whether the code moved to
+        # a leaf module or the tests moved to Tier 2. It was the second — those
+        # suites reach state that lives in a package `__init__.py`, which is the
+        # Tier-2 definition. 22 failed -> 420 passed and 11 failed -> 619
+        # passed, with no production change.
         run: |
           for suite in \
             odoo/orm/domain/tests \
@@ -188,7 +208,10 @@ jobs:
         # `tests/framework` is the fourth: the facade `__all__` gate and the
         # monkeypatch suite, moved out of `base/tests` where they needed a
         # database they never used.
-        run: python -m pytest odoo/orm/tests odoo/http/tests tests/service tests/framework -q
+        run: |
+          python -m pytest \
+            odoo/orm/tests odoo/http/tests odoo/db/tests odoo/tools/tests \
+            tests/service tests/framework -q
 
       - name: Re-run tests/service in shuffled order (order-independence gate)
         # The service suite passed for months only because alphabetical

@@ -165,13 +165,18 @@ process-global `sys.modules` stubs (`odoo/_testing_bootstrap.py`) that would
 shadow the real `import odoo.*` the second group performs.
 
 ```bash
-pytest                                                # DB-free leaf suites
-pytest odoo/orm/tests odoo/http/tests tests/service tests/framework  # real-import
+pytest                                     # DB-free leaf suites
+pytest odoo/orm/tests odoo/http/tests \
+       odoo/db/tests odoo/tools/tests \
+       tests/service tests/framework       # real-import
 ```
 
-**Pass all four paths in the second command.** None of them is in `pytest.ini`'s
+**Pass all six paths in the second command.** None of them is in `pytest.ini`'s
 `testpaths`, so a shorter command silently skips whole suites while still
 reporting success — `odoo/orm/tests` alone never touches http or `tests/service`.
+`odoo/db/tests` and `odoo/tools/tests` are here because they reach state living
+in a package `__init__.py`, which the Tier-1 stubs replace with a namespace-only
+module; that is what makes them real-import suites.
 
 Both must run **from the repo root**: `testpaths` and `pythonpath = .` resolve
 against the rootdir located by `pytest.ini`. Started from a parent, the tree is
