@@ -5,8 +5,8 @@
 ```
 unittest.TestCase
   └─ case.TestCase           (vendored: trimmed run loop, subtests, tb surgery)
-       └─ BaseCase           (tags, retry, HTTP blocking, patch helpers)     [common.py]
-            ├─ TransactionCase        (one class-level tx; savepoint per test) [common.py]
+       └─ BaseCase           (tags, retry, HTTP blocking, patch helpers)     [transaction_case.py]
+            ├─ TransactionCase        (one class-level tx; savepoint per test) [transaction_case.py]
             │    └─ HttpCase          (registry test mode + url_open/browser_js) [http.py]
             └─ SingleTransactionCase  (one tx across all test methods; no savepoints)
 ```

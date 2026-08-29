@@ -22,11 +22,8 @@ from odoo.tests import browser
 from odoo.tests.benchmark import compare_results, compute_stats
 from odoo.tests.case import TestCase
 from odoo.tests.common import (
-    _DELEGATING_STATEMENTS,
-    _STATEMENT_RECORDERS,
     BaseCase,
     HttpCase,
-    RegistryRLock,
     TransactionCase,
     _registry_test_lock,
     mute_logger,
@@ -40,6 +37,11 @@ from odoo.tests.form import O2MValue
 from odoo.tests.result import OdooTestResult, Stat
 from odoo.tests.suite import OdooSuite
 from odoo.tests.tag_selector import TagsSelector
+from odoo.tests.transaction_case import (
+    _DELEGATING_STATEMENTS,
+    _STATEMENT_RECORDERS,
+    RegistryRLock,
+)
 from odoo.tests.utils import (
     InfrastructureUnavailable,
     addon_relative_path,
@@ -360,7 +362,7 @@ Traceback (most recent call last):
     with self.assertQueryCount(system=0):
   File "/usr/lib/python/contextlib.py", line $line, in __exit__
     next(self.gen)
-  File "/root_path/odoo/odoo/tests/common.py", line $line, in assertQueryCount
+  File "/root_path/odoo/odoo/tests/transaction_case.py", line $line, in assertQueryCount
     self.fail(
         "Query count more than expected for user %s: %d > %d in %s at %s:%s"
     ...<$elided>...
@@ -1232,7 +1234,7 @@ class TestChildProcessGuardAgreesWithPsutil(BaseCase):
 
         # imported here, not at module scope: a probe of a private helper must
         # not make the whole test module uncollectable when the helper moves
-        from odoo.tests.common import _has_child_processes
+        from odoo.tests.transaction_case import _has_child_processes
 
         def descendants():
             return len(psutil.Process().children(recursive=True))

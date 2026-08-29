@@ -21,7 +21,9 @@ package live in `odoo/addons/base/tests/` (see Conventions).
 | `result.py` | `OdooTestResult`: log-as-you-fail, counters, per-test stats, `soft_fail` |
 | `loader.py` | Discover test modules per addon, build/run suites (`make_suite`/`run_suite`) |
 | `tag_selector.py` | `TagsSelector`: parses `--test-tags` specs, filters tests |
-| `common.py` | `BaseCase`/`TransactionCase`/`SingleTransactionCase`, assertions, decorators (`tagged`, `users`, `warmup`, …); re-exports the http/browser layers |
+| `common.py` | The public façade: decorators (`tagged`, `users`, `warmup`, `no_retry`, `freeze_time`, `standalone`), `new_test_user`, `test_xsd`, and the re-exports `__all__` names |
+| `transaction_case.py` | `BaseCase`/`TransactionCase`/`SingleTransactionCase`, their assertions, and the registry-lock, statement-recorder and stranded-cursor machinery they own |
+| `matchers.py` | `Like`, `Approx`, `WhitespaceInsensitive`, `RecordCapturer` and the XML normaliser — value comparison, no dependency on the case hierarchy |
 | `http.py` | `HttpCase`/`Opener`/`Transport`/`JsonRpcException` (extracted from common; still re-exported there) |
 | `browser.py` | `ChromeBrowser` CDP client, `Screencaster`, Chrome discovery |
 | `utils.py` | `HOST`, `get_db_name`, `save_test_file`, `env_int` (shared by common+http+browser, no cycle) |

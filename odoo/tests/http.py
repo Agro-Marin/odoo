@@ -23,7 +23,7 @@ from odoo.tools import profiler
 
 from . import common
 from .browser import DEFAULT_SUCCESS_SIGNAL, ChromeBrowser, ChromeBrowserException
-from .common import (
+from .transaction_case import (
     TEST_CURSOR_COOKIE_NAME,
     TransactionCase,
     release_test_lock,

@@ -51,8 +51,8 @@ classes individually silently stops covering new ones.
   `JsonRpcException` live in `http.py` but stay re-exported from `common`;
   `http.browser_js` must keep instantiating via `common.ChromeBrowser`.
   - **Those four http names are resolved by a module-level `__getattr__`, not
-    by an import.** `http.py` subclasses `TransactionCase`, so it must import
-    `common` while executing; `common` importing `http` back was a real cycle,
+    by an import.** `http.py` reaches `common` at module scope for
+    `common.ChromeBrowser`; `common` importing `http` back was a real cycle,
     closed by an import on `common.py`'s last line. That placement also made
     the file order load-bearing -- every name `http.py` takes from `common` had
     to be defined above that line, with nothing enforcing it. Deferring drops
