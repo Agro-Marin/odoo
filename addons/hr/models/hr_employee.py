@@ -406,6 +406,16 @@ class HrEmployee(models.Model):
         tracking=True,
     )
 
+    first_contract_date = fields.Date(
+        compute="_compute_first_contract_date",
+        compute_sudo=True,
+        store=True,
+        groups="hr.group_hr_manager",
+        help="Start of the employee's first contract in this company. A break "
+        "of more than four days between two contracts starts a new "
+        "occupation, so an earlier stint does not count towards it.",
+    )
+
     # All version fields needing a specific group to be accessible should also have `inherited=True` set on its definition to make sure those fields are linked to `_inherits` on `hr.version`
     # Explicitly redefined (like resource_calendar_id) so the delegate is
     # related_sudo=True: reading it must not traverse the group-restricted
@@ -930,6 +940,30 @@ class HrEmployee(models.Model):
             )
         return versions
 
+    def _get_first_contiguous_versions(self, no_gap=True):
+        """The versions covering the employee's current, unbroken occupation.
+
+        Ordered most recent first. Carries no access check of its own on
+        purpose: `_get_first_version_date` guards the user-facing reading, and
+        a stored compute runs for whoever writes the version.
+        """
+        self.ensure_one()
+        versions = self._get_first_versions().sorted("date_start", reverse=True)
+        if not no_gap or len(versions) <= 1:
+            return versions
+        # We do not consider a gap of more than 4 days to be a same occupation
+        # versions are considered to be ordered correctly
+        current_version = versions[0]
+        older_versions = versions[1:]
+        current_date = current_version.date_start
+        for i, other_version in enumerate(older_versions):
+            # Consider current_version.date_end being false as an error and cut the loop
+            gap = (current_date - (other_version.date_end or date(2100, 1, 1))).days
+            current_date = other_version.date_start
+            if gap >= 4:
+                return older_versions[0:i] + current_version
+        return older_versions + current_version
+
     def _get_first_version_date(self, no_gap=True):
         self.ensure_one()
         if not self.env.su and not self.env.user.has_group("hr.group_hr_user"):
@@ -938,29 +972,22 @@ class HrEmployee(models.Model):
                     "Only HR users can access first version date on an employee."
                 )
             )
-
-        def remove_gap(versions):
-            # We do not consider a gap of more than 4 days to be a same occupation
-            # versions are considered to be ordered correctly
-            if not versions:
-                return self.env["hr.version"]
-            if len(versions) == 1:
-                return versions
-            current_version = versions[0]
-            older_versions = versions[1:]
-            current_date = current_version.date_start
-            for i, other_version in enumerate(older_versions):
-                # Consider current_version.date_end being false as an error and cut the loop
-                gap = (current_date - (other_version.date_end or date(2100, 1, 1))).days
-                current_date = other_version.date_start
-                if gap >= 4:
-                    return older_versions[0:i] + current_version
-            return older_versions + current_version
-
-        versions = self._get_first_versions().sorted("date_start", reverse=True)
-        if no_gap:
-            versions = remove_gap(versions)
+        versions = self._get_first_contiguous_versions(no_gap=no_gap)
         return min(versions.mapped("date_start")) if versions else False
+
+    @api.depends(
+        "version_ids.contract_date_start",
+        "version_ids.contract_date_end",
+        "version_ids.date_version",
+    )
+    def _compute_first_contract_date(self):
+        for employee in self:
+            versions = employee._get_first_contiguous_versions().filtered(
+                "contract_date_start"
+            )
+            employee.first_contract_date = (
+                min(versions.mapped("contract_date_start")) if versions else False
+            )
 
     @api.depends("name")
     def _compute_legal_name(self):
