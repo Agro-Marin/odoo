@@ -51,9 +51,12 @@ export class CollaborationSelectionAvatarPlugin extends Plugin {
     }
     handleCollaborationNotification({ notificationName, notificationPayload }) {
         switch (notificationName) {
-            case "ptp_remove":
+            case "ptp_remove": {
+                const info = this.selectionInfos.get(notificationPayload);
+                info?.avatarElement?.remove();
                 this.selectionInfos.delete(notificationPayload);
                 this.refreshSelection();
+            }
         }
     }
 
