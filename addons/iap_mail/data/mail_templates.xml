@@ -153,7 +153,7 @@
                         <div t-if="street" class="o_address_street" t-out="street"/>
                         <div t-if="street2"  class="o_address_street" t-out="street2"/>
                         <span t-if="city" t-out="city"/>
-                        <span t-if="state" toutc="state"/>
+                        <span t-if="state" t-out="state"/>
                         <span t-if="zip_code" t-out="zip_code"/>
                         <div t-if="country" class="o_address_country" t-out="country"/>
                     </div>
