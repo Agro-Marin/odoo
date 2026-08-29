@@ -168,15 +168,22 @@ class GamificationGoal(models.Model):
         flat could never change state: an expired, unmet goal stayed
         ``inprogress`` and un-``closed`` for ever, was re-evaluated by the cron
         on every run, and permanently blocked resetting its challenge to draft.
+
+        Draft goals have not started and closed ones (failed/cancelled) were
+        frozen on purpose; neither should be moved by an automatic
+        recomputation -- including ``current`` itself.  This check used to run
+        only after ``current`` was already staged for writing, so the
+        always-visible "refresh" button (which calls this via ``sudo()``, see
+        ``_write_goal_values``) could silently re-measure and overwrite a
+        closed goal's ``current``, corrupting the frozen history
+        ``_get_adaptive_targets`` reads back from it.
         """
+        if self.state not in ("inprogress", "reached"):
+            return {}
+
         result = {}
         if new_value != self.current:
             result["current"] = new_value
-
-        # Draft goals have not started and cancelled ones were closed by hand;
-        # neither should be moved by an automatic recomputation.
-        if self.state not in ("inprogress", "reached"):
-            return {self: result} if result else {}
 
         condition = self.definition_id.condition
         reached = (condition == "higher" and new_value >= self.target_goal) or (
