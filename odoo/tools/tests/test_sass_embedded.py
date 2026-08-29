@@ -1,8 +1,15 @@
+import os
 import subprocess
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from odoo.tools.sass_embedded import _supports_embedded, find_sass
+from odoo.tools.sass_embedded import (
+    SassEmbeddedCompiler,
+    SassNotFoundError,
+    _supports_embedded,
+    find_sass,
+)
 
 
 class TestSupportsEmbedded(unittest.TestCase):
@@ -92,3 +99,49 @@ class TestFindSass(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRestartDoesNotLeakPipes(unittest.TestCase):
+    # _start overwrote self._process when the old one had died, without closing
+    # its stdin/stdout -- two fds per crash-restart, for the life of the server.
+
+    @staticmethod
+    def _fd_count() -> int:
+        return len(list(Path(f"/proc/{os.getpid()}/fd").iterdir()))
+
+    def setUp(self):
+        if not Path("/proc/self/fd").is_dir():
+            self.skipTest("needs /proc to count descriptors")
+        if find_sass() is None:
+            raise SassNotFoundError("sass is a required dependency of this fork")
+
+    @staticmethod
+    def _kill_running(compiler: SassEmbeddedCompiler) -> None:
+        process = compiler._process
+        assert process is not None
+        process.kill()
+        process.wait()
+
+    def test_the_descriptor_count_is_flat_across_restarts(self):
+        compiler = SassEmbeddedCompiler()
+        self.addCleanup(compiler.close)
+        compiler._start()
+        first = compiler._process
+        assert first is not None
+        steady = self._fd_count()
+
+        for _ in range(3):
+            self._kill_running(compiler)
+            compiler._start()
+            self.assertEqual(self._fd_count(), steady)
+
+        for pipe in (first.stdin, first.stdout):
+            assert pipe is not None
+            self.assertTrue(pipe.closed)
+
+    def test_a_compile_still_works_after_the_process_died(self):
+        compiler = SassEmbeddedCompiler()
+        self.addCleanup(compiler.close)
+        self.assertIn("color: red", compiler.compile_string("a { b { color: red } }"))
+        self._kill_running(compiler)
+        self.assertIn("color: blue", compiler.compile_string("p { color: blue }"))

@@ -50,6 +50,14 @@ type IdRef = dict[str, int | Literal[False]]
 class ParseError(Exception): ...
 
 
+def _require_model(f_model: str | None) -> str:
+    # a raise, not an assert: `python -O` strips asserts, and this validates a
+    # data file. Returns the model so callers keep the narrowing.
+    if not f_model:
+        raise ValueError('Define an attribute model="..." in your .XML file!')
+    return f_model
+
+
 def _get_eval_context(
     self: Any, env: Environment, model_str: str | None
 ) -> dict[str, Any]:
@@ -102,7 +110,7 @@ def _eval_xml_search(
 ) -> Any:
     f_use = node.get("use", "id")
     f_name = node.get("name")
-    assert f_model, 'Define an attribute model="..." in your .XML file!'
+    f_model = _require_model(f_model)
     context = _get_eval_context(self, env, f_model)
     q = safe_eval(f_search, context)
     records = env[f_model].search(q)
@@ -412,9 +420,9 @@ form: module.record_id""" % (xml_id,)
     ) -> Any:
         from odoo.fields import Command
 
+        f_model = _require_model(f_model)
         context = _get_eval_context(self, env, f_model)
         q = safe_eval(f_search, context)
-        assert f_model, 'Define an attribute model="..." in your .XML file!'
         s = env[f_model].search(q)
         f_use = field.get("use", "") or "id"
         _fields = env[rec_model]._fields

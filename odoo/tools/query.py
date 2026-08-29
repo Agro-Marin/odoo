@@ -69,6 +69,12 @@ class Query:
         self._ids: tuple[int, ...] | None = None
 
     def _invalidate_ids(self) -> None:
+        # A memoised *empty* result is deliberately kept: no mutator on this
+        # class can turn an empty query non-empty.  add_table cross-joins,
+        # add_join cannot add left rows, add_where ANDs, GROUP BY/HAVING over
+        # zero rows still yields zero, and set_result_ids refuses a non-virgin
+        # query.  Adding a mutator that CAN repopulate means dropping this
+        # guard -- otherwise the stale () is returned as a real answer.
         if self._ids:
             self._ids = None
 
@@ -105,6 +111,27 @@ class Query:
         self._where_clauses.append(where_clause)
         self._invalidate_ids()
 
+    def _join_on_column(
+        self,
+        kind: str,
+        lhs_alias: str,
+        lhs_column: str,
+        rhs_table: str | SQL,
+        rhs_column: str,
+        link: str,
+    ) -> str:
+        assert lhs_alias in self._tables or lhs_alias in self._joins, (
+            "Alias %r not in %s" % (lhs_alias, str(self))
+        )
+        rhs_alias = self.make_alias(lhs_alias, link)
+        condition = SQL(
+            "%s = %s",
+            SQL.identifier(lhs_alias, lhs_column),
+            SQL.identifier(rhs_alias, rhs_column),
+        )
+        self.add_join(kind, rhs_alias, rhs_table, condition)
+        return rhs_alias
+
     def join(
         self,
         lhs_alias: str,
@@ -113,45 +140,21 @@ class Query:
         rhs_column: str,
         link: str,
     ) -> str:
-        assert lhs_alias in self._tables or lhs_alias in self._joins, (
-            "Alias %r not in %s"
-            % (
-                lhs_alias,
-                str(self),
-            )
+        return self._join_on_column(
+            "JOIN", lhs_alias, lhs_column, rhs_table, rhs_column, link
         )
-        rhs_alias = self.make_alias(lhs_alias, link)
-        condition = SQL(
-            "%s = %s",
-            SQL.identifier(lhs_alias, lhs_column),
-            SQL.identifier(rhs_alias, rhs_column),
-        )
-        self.add_join("JOIN", rhs_alias, rhs_table, condition)
-        return rhs_alias
 
     def left_join(
         self,
         lhs_alias: str,
         lhs_column: str,
-        rhs_table: str,
+        rhs_table: str | SQL,
         rhs_column: str,
         link: str,
     ) -> str:
-        assert lhs_alias in self._tables or lhs_alias in self._joins, (
-            "Alias %r not in %s"
-            % (
-                lhs_alias,
-                str(self),
-            )
+        return self._join_on_column(
+            "LEFT JOIN", lhs_alias, lhs_column, rhs_table, rhs_column, link
         )
-        rhs_alias = self.make_alias(lhs_alias, link)
-        condition = SQL(
-            "%s = %s",
-            SQL.identifier(lhs_alias, lhs_column),
-            SQL.identifier(rhs_alias, rhs_column),
-        )
-        self.add_join("LEFT JOIN", rhs_alias, rhs_table, condition)
-        return rhs_alias
 
     @property
     def order(self) -> SQL | None:

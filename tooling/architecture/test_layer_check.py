@@ -705,3 +705,46 @@ def test_the_gate_refuses_a_tree_it_cannot_find(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         lc.main(["--check"])
     assert exc.value.code == 2
+
+
+def _violations(source: str, module: str = "odoo.tools.probe") -> list[str]:
+    import ast
+
+    tree = ast.parse(source)
+    collector = lc._ImportCollector(module=module)
+    collector.visit(tree)
+    found = lc.violations_for(module, collector.found, "probe.py", collector.deferred)
+    return [v.contract for v in found]
+
+
+CONTRACT = "tools-stays-below-the-serving-tier"
+
+
+def test_tools_may_not_import_odoo_http_at_module_scope():
+    # The edge this bounds is a LOAD-time one: odoo.http imports odoo.tools in
+    # eight modules, so a module-scope import back made `import odoo.tools.urls`
+    # -- which ir_qweb and ~60 payment/delivery/l10n modules do, most only for
+    # urljoin -- pull in the whole serving tier.
+    assert _violations("from odoo.http import request\n") == [CONTRACT]
+    assert _violations("import odoo.http\n") == [CONTRACT]
+
+
+def test_an_import_inside_a_function_is_the_sanctioned_escape():
+    # No load-time edge, so no violation. This is what urls.py and
+    # cache_version.py do, and the gate must not push them back to module scope.
+    assert _violations("def f():\n    from odoo.http import request\n") == []
+    assert _violations("def f():\n    def g():\n        import odoo.http\n") == []
+
+
+def test_the_contract_is_scoped_to_tools():
+    assert _violations("from odoo.http import request\n", "odoo.addons.base.x") == []
+
+
+def test_module_scope_only_does_not_leak_to_other_contracts():
+    # Deferral excuses an import only for contracts that opted in; a contract
+    # about what a layer may *use* still sees a function-body import.
+    deferring = "def f():\n    from odoo.orm.runtime import Environment\n"
+    assert "tools-does-not-reach-the-orm-runtime" in _violations(deferring)
+    assert not next(
+        c for c in lc.CONTRACTS if c.name == "tools-does-not-reach-the-orm-runtime"
+    ).module_scope_only

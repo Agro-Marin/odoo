@@ -43,7 +43,10 @@ def scan_languages() -> list[tuple[str, str]]:
     try:
         return list(_scan_languages())
     except Exception:
-        _logger.error("Could not read res.lang.csv")
+        # exception(), not error(): when language scanning breaks this log line
+        # is the only account of it, and without the traceback it says only that
+        # it broke.
+        _logger.exception("Could not read res.lang.csv")
         return [("en_US", "English")]
 
 

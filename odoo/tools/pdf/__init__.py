@@ -41,8 +41,6 @@ try:
 except AttributeError:
     DependencyError = NotImplementedError
 
-pypdf.filters.decompress = lambda data: decompressobj().decompress(data)
-
 
 class PdfReader(PdfReaderBase):
     def __init__(
@@ -58,25 +56,6 @@ REGEX_SUBTYPE_FORMATED = re.compile(r"^/\w+#2F[\w-]+$")
 
 
 _ = PdfImagePlugin.__name__
-
-
-def _unwrapping_get(self: Any, key: Any, default: Any = None) -> Any:
-    try:
-        return self[key]
-    except KeyError:
-        return default
-
-
-DictionaryObject.get = _unwrapping_get
-
-
-if hasattr(NameObject, "renumber_table"):
-    NameObject.renumber_table.update(
-        {
-            **{chr(i): f"#{i:02X}".encode() for i in b"#()<>[]{}/%"},
-            **{chr(i): f"#{i:02X}".encode() for i in range(33)},
-        }
-    )
 
 
 class BrandedFileWriter(PdfWriter):
@@ -114,8 +93,7 @@ def fill_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None
 def rotate_pdf(pdf: bytes) -> bytes:
     writer = BrandedFileWriter()
     reader = PdfReader(io.BytesIO(pdf), strict=False)
-    for page in range(len(reader.pages)):
-        page = reader.pages[page]
+    for page in reader.pages:
         page.rotate(90)
         writer.add_page(page)
     with io.BytesIO() as _buffer:
@@ -387,17 +365,29 @@ class OdooPdfFileWriter(BrandedFileWriter):
             second_line = stream.readlines(1)[0]
             if second_line.decode("latin-1")[0] == "%" and len(second_line) == 6:
                 self.is_pdfa = True
+        # NOTE: this guard never fires. pypdf's PdfWriter.__init__ binds
+        # `_ID = None`, so hasattr is always True and the source document's /ID
+        # is not carried over -- pypdf generates a fresh one instead.
+        #
+        # Changing it to `if not self._ID` was tried and reverted: the reader
+        # hands back /ID as TextStringObject (str), while encrypt() feeds
+        # _ID[0] to hashlib and needs bytes, so carrying it over breaks
+        # `TestPdf.test_odoo_pdf_file_reader_with_owner_encryption` with
+        # "Strings must be encoded before hashing". Preserving the identifier
+        # would mean coercing to ByteStringObject and re-testing every consumer
+        # of a cloned document; nothing currently asks for it.
         if not hasattr(self, "_ID"):
             self._set_id(reader.trailer.get("/ID", None))
 
     def _set_id(self, pdf_id: Any) -> None:
         if not pdf_id:
             return
-
-        if hasattr(type(self), "_ID"):
-            self.trailers["/ID"] = pdf_id
-        else:
-            self._ID = pdf_id
+        # There used to be a `hasattr(type(self), "_ID")` branch assigning
+        # self.trailers["/ID"] here. `_ID` is an instance attribute on every
+        # pypdf that has it, never a class one, so that branch was unreachable --
+        # and `trailers` is not an attribute of PdfWriter, so reaching it would
+        # have raised AttributeError.
+        self._ID = pdf_id
 
     _PDFA_ANNOT_INVISIBLE = 1 << 0
     _PDFA_ANNOT_HIDDEN = 1 << 1

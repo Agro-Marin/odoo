@@ -121,16 +121,25 @@ class Cloc:
         path = path.rstrip("/")
         exclude_list = []
         for i in odoo.modules.module.MANIFEST_NAMES:
-            manifest_path = str(Path(path, i))
+            manifest_path = Path(path, i)
             try:
-                manifest = Path(manifest_path).read_bytes()
-                exclude_list.extend(DEFAULT_EXCLUDE)
-                d = ast.literal_eval(manifest.decode("utf-8"))
+                manifest = manifest_path.read_bytes()
+            except OSError:
+                continue  # no manifest under this name; try the next
+            try:
+                declared = ast.literal_eval(manifest.decode("utf-8"))
+            except (ValueError, SyntaxError, UnicodeDecodeError) as exc:
+                self.book(
+                    Path(path).name,
+                    i,
+                    (-1, f"Manifest is not a literal, exclusions ignored: {exc}"),
+                )
+                declared = {}
+            exclude_list.extend(DEFAULT_EXCLUDE)
+            if isinstance(declared, dict):
                 for j in ["cloc_exclude", "demo", "demo_xml"]:
-                    exclude_list.extend(d.get(j, []))
-                break
-            except Exception:  # noqa: S110  absent/unparsable manifest just means "try the next name"
-                pass
+                    exclude_list.extend(declared.get(j, []))
+            break
         exclude = set(exclude or ())
         for i in filter(None, exclude_list):
             if ".." in i:

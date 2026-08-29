@@ -53,23 +53,57 @@ from odoo.libs.text import (
     validate_url,
 )
 
+# Every name this module re-exports or defines, per the rule
+# tests/framework/test_public_surfaces.py::TestToolsSubmoduleSurfaces pins:
+# a tools shim publishes what it defines plus what it takes from another
+# odoo module.  Third-party imports are incidental and stay out.
 __all__ = [
+    "HTML_NEWLINES_REGEX",
+    "HTML_TAGS_REGEX",
+    "HTML_TAG_URL_REGEX",
+    "SANITIZE_TAGS",
+    "TEXT_URL_REGEX",
+    "URL_REGEX",
+    "URL_SKIP_PROTOCOL_REGEX",
+    "append_content_to_html",
+    "create_link",
+    "decode_message_header",
+    "email_addr_escapes_re",
+    "email_anonymize",
     "email_domain_extract",
     "email_domain_normalize",
+    "email_escape_char",
     "email_normalize",
     "email_normalize_all",
+    "email_re",
     "email_split",
+    "email_split_and_format",
+    "email_split_and_format_normalize",
+    "email_split_and_normalize",
+    "email_split_tuples",
     "encapsulate_email",
     "formataddr",
+    "fromstring",
+    "generate_tracking_message_id",
+    "getaddresses",
     "html2plaintext",
     "html_escape",
+    "html_keep_url",
     "html_normalize",
     "html_sanitize",
+    "html_to_inner_content",
     "is_html_empty",
+    "mail_header_msgid_re",
     "parse_contact_from_email",
     "plaintext2html",
+    "prepend_html_content",
     "replace_local_links",
+    "safe_attrs",
     "single_email_re",
+    "tag_quote",
+    "unfold_references",
+    "url_domain_extract",
+    "validate_url",
 ]
 
 

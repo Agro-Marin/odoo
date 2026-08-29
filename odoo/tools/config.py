@@ -64,7 +64,7 @@ class _OdooOption(optparse.Option):
 
     @classproperty
     def TYPE_CHECKER(self):
-        return {
+        checkers = {
             "int": lambda _option, _opt, value: int(value),
             "float": lambda _option, _opt, value: float(value),
             "string": lambda _option, _opt, value: str(value),
@@ -75,6 +75,12 @@ class _OdooOption(optparse.Option):
             "addons_path": self.config._check_addons_path,
             "upgrade_path": self.config._check_upgrade_path,
             "pre_upgrade_scripts": self.config._check_scripts,
+        }
+        return {
+            **{name: _accept_none(check) for name, check in checkers.items()},
+            # NOT wrapped: "None" is this type's own spelling of "demo data is
+            # not restricted", handled inside _check_without_demo.  Turning it
+            # into the unset sentinel would silently flip with_demo True -> None.
             "without_demo": self.config._check_without_demo,
         }
 
@@ -166,6 +172,49 @@ class _PosixOnlyOption(_OdooOption):
             attrs["file_loadable"] = False
             attrs["file_exportable"] = False
         super().__init__(*opts, **attrs)
+
+
+class _Unset:
+    """What the literal ``"None"`` parses to, before it becomes ``None``.
+
+    It cannot simply *be* ``None``: optparse leaves an option nobody passed at
+    ``None`` too, and ``_load_cli_options`` reads that to mean "not given on the
+    command line".  A distinct object keeps "the user wrote None" apart from
+    "the user wrote nothing" until each source has had its say.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "None"
+
+
+UNSET = _Unset()
+
+
+def _accept_none(check: Callable[..., Any]) -> Callable[..., Any]:
+    """Make a type checker read the literal ``"None"`` as "this option is unset".
+
+    The sentinel used to live in ``configmanager.parse()``, which serves the
+    config file and the environment but not the command line -- optparse calls
+    the checker directly.  So ``pg_path = None`` in the file unset the option
+    while ``--pg_path None`` resolved to a path named ``None`` under the cwd,
+    and the CLI had no spelling for "unset" at all.  One place, all three
+    sources.
+    """
+
+    @functools.wraps(check)
+    def checked(option: Any, opt: str, value: str) -> Any:
+        if value == "None":
+            return UNSET
+        return check(option, opt, value)
+
+    return checked
+
+
+def _open_private(path: str, flags: int) -> int:
+    """`opener=` for open(), creating the file readable by its owner alone."""
+    return os.open(path, flags, 0o600)
 
 
 def _deduplicate_loggers(loggers: list[str]) -> Generator[str]:
@@ -1391,7 +1440,10 @@ class configmanager:
                 "--limit-time-cpu",
                 dest="limit_time_cpu",
                 my_default=60,
-                help="Maximum allowed CPU time per request (default 60).",
+                help="Maximum allowed CPU time per request (default 60). "
+                "Enforced by RLIMIT_CPU inside each prefork worker, so it has "
+                "no effect with --workers=0: a threaded server bounds a request "
+                "with --limit-time-real instead.",
                 type="int",
             )
         )
@@ -1602,8 +1654,14 @@ class configmanager:
         ]
 
         for arg in keys:
-            if getattr(opt, arg, None) is not None:
-                self._cli_options[arg] = getattr(opt, arg)
+            value = getattr(opt, arg, None)
+            if value is None:
+                # optparse leaves an option nobody passed at None; that is
+                # "absent", not a value, and must fall through to the next source.
+                continue
+            # `--opt None` did reach us -- record the unset explicitly, so it
+            # shadows the file and the environment the way any other CLI value does.
+            self._cli_options[arg] = None if value is UNSET else value
 
         if opt.log_handler:
             self._cli_options["log_handler"] = [
@@ -1919,16 +1977,19 @@ class configmanager:
         if not isinstance(value, str):
             e = f"can only cast strings: {value!r}"
             raise TypeError(e)
-        if value == "None":
-            return None
         option = self.options_index[option_name]
-        check_func: Callable[..., Any]
-        if option.action in ("store_true", "store_false"):
-            check_func = self._check_bool
-        else:
-            option_class: Any = self.parser.option_class
-            check_func = option_class.TYPE_CHECKER[option.type]
-        return check_func(option, option_name, value)
+        # The "None" sentinel is not handled here: it lives in _accept_none,
+        # which wraps every checker in TYPE_CHECKER, so the command line reads
+        # it the same way the file and the environment do.
+        option_class: Any = self.parser.option_class
+        checkers = option_class.TYPE_CHECKER
+        check_func: Callable[..., Any] = (
+            checkers["bool"]
+            if option.action in ("store_true", "store_false")
+            else checkers[option.type]
+        )
+        parsed = check_func(option, option_name, value)
+        return None if parsed is UNSET else parsed
 
     @classmethod
     def _format_string(cls, value: Any) -> str:
@@ -2024,7 +2085,11 @@ class configmanager:
     def save(self, keys: list[str] | None = None) -> None:
         p = configparser.RawConfigParser(inline_comment_prefixes=("#", ";"))
         rc_exists = Path(self["config"]).exists()
-        if rc_exists and keys:
+        if rc_exists:
+            # Read whatever is already there, whether or not `keys` narrows what
+            # we write back: only `[options]` is ever reloaded by _load_file_options,
+            # so a section belonging to someone else survives a --save only if it is
+            # read here first.  Writing a parser that never saw the file drops them.
             p.read([self["config"]])
         if not p.has_section("options"):
             p.add_section("options")
@@ -2044,14 +2109,30 @@ class configmanager:
                 Path(str(Path(self["config"]).parent)).mkdir(0o700, parents=True)
             try:
                 cfg_path = Path(self["config"])
-                with cfg_path.open("w", encoding="utf-8") as file:
-                    cfg_path.chmod(0o600)
+                # Two different jobs, and both are needed.
+                #
+                # The opener sets the mode a NEW file is created with. open("w")
+                # alone creates under the umask -- 0664 on a default one -- and a
+                # later chmod does not revoke a descriptor opened in the meantime,
+                # so a reader winning that race keeps reading admin_passwd and
+                # db_password out of the finished file (measured: an fd captured
+                # in 10 of 20 runs).
+                #
+                # fchmod tightens a file that ALREADY existed, where the opener's
+                # mode is ignored -- a conf left at 0644 by an earlier odoo, or by
+                # hand. On the fd rather than the path, so it cannot be redirected
+                # by a symlink swapped in between.
+                # Path.open() takes no `opener`; the builtin does.
+                with open(
+                    cfg_path, "w", encoding="utf-8", opener=_open_private
+                ) as file:
+                    os.fchmod(file.fileno(), 0o600)
                     p.write(file)
-            except OSError:
-                sys.stderr.write("ERROR: couldn't write the config file\n")
+            except OSError as exc:
+                sys.stderr.write(f"ERROR: couldn't write the config file: {exc}\n")
 
-        except OSError:
-            sys.stderr.write("ERROR: couldn't create the config directory\n")
+        except OSError as exc:
+            sys.stderr.write(f"ERROR: couldn't create the config directory: {exc}\n")
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.options.get(key, default)

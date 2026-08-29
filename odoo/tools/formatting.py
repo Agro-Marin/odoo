@@ -62,6 +62,20 @@ DATETIME_FORMATS_MAP = {
 }
 
 
+def _as_utc(value: datetime.datetime) -> datetime.datetime:
+    """Attach UTC to a naive datetime; convert an aware one instead of relabelling it.
+
+    The ORM hands out naive UTC, which is why `.replace(tzinfo=utc)` was enough
+    for years.  On an aware value it is silently wrong -- it keeps the wall
+    clock and discards the offset, so 12:00-06:00 became 12:00Z, six hours out.
+    `format_date` already guarded against this; `format_datetime` and
+    `format_time` did not, and the asymmetry is what invited the mistake.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=utc)
+    return value.astimezone(utc)
+
+
 def formatLang(
     env: Environment,
     value: float | typing.Literal[""],
@@ -173,7 +187,7 @@ def format_datetime(
         timestamp = value
 
     tz_name = tz or env.user.tz or "UTC"  # type: ignore[attr-defined]
-    utc_datetime = timestamp.replace(tzinfo=utc)
+    utc_datetime = _as_utc(timestamp)
     try:
         context_tz = get_timezone(tz_name)
         localized_datetime = utc_datetime.astimezone(context_tz)
@@ -213,7 +227,7 @@ def format_time(
                 f"format_time() expects a datetime, got {type(value).__name__}"
             )
         tz_name = tz or env.user.tz or "UTC"  # type: ignore[attr-defined]
-        utc_datetime = value.replace(tzinfo=utc)
+        utc_datetime = _as_utc(value)
         try:
             context_tz = get_timezone(tz_name)
             localized_dt = utc_datetime.astimezone(context_tz)

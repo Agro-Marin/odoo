@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from odoo.tools.files import _addons_dir_paths, _root_path, file_path
+from odoo.tools.files import _addons_dir_paths, clear_caches, file_path
 
 import odoo.addons
 
@@ -27,16 +27,16 @@ class _AddonsRoot:
         self._saved_path = list(odoo.addons.__path__)
         self._saved_mod = sys.modules.pop("odoo.addons.mymod", None)
         odoo.addons.__path__[:] = [str(self.addons)]
-        _addons_dir_paths.cache_clear()
-        _root_path.cache_clear()
+        # every path cache at once: the swap invalidates _file_path_resolved
+        # too, which this used to leave warm
+        clear_caches()
         return self
 
     def __exit__(self, *exc):
         odoo.addons.__path__[:] = self._saved_path
         if self._saved_mod is not None:
             sys.modules["odoo.addons.mymod"] = self._saved_mod
-        _addons_dir_paths.cache_clear()
-        _root_path.cache_clear()
+        clear_caches()
         self.tmp.cleanup()
 
 

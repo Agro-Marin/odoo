@@ -47,19 +47,6 @@ KNOWN_PATCHES: dict[tuple[str, str], str] = {
         "Pins tz lookup for sandboxed evaluation. DEBT: belongs in "
         "_monkeypatches/dateutil.py."
     ),
-    ("tools/pdf/__init__.py", "pypdf.filters.decompress"): (
-        "LAUNDERED through `from . import _pypdf as pypdf`. DEBT, and the "
-        "re-export makes it undetectable: a _monkeypatches/pypdf.py would be "
-        "both correct placement and statically visible."
-    ),
-    ("tools/pdf/__init__.py", "DictionaryObject.get"): (
-        "Makes pypdf's DictionaryObject.get resolve IndirectObjects the way "
-        "__getitem__ does, so `.get(k)` and `[k]` stop disagreeing. NO LONGER "
-        "hidden: the module binds pypdf's names by import rather than by tuple "
-        "assignment, so this scan attributes it and the entry is checked in "
-        "both directions. DEBT: _monkeypatches/pypdf.py is the placement the "
-        "rule asks for."
-    ),
 }
 
 _SKIP_TOP = {"addons", "_monkeypatches", "upgrade"}
@@ -196,11 +183,35 @@ class TestThirdPartyPatchPlacement(unittest.TestCase):
         ]
         self.assertEqual(assigns, [])
 
-    def test_the_laundered_pdf_patches_are_still_there(self):
+    def test_the_pdf_patches_moved_to_monkeypatches_and_stay_there(self):
         src = (_CORE / "tools" / "pdf" / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("pypdf.filters.decompress =", src)
-        self.assertIn("DictionaryObject.get =", src)
-        self.assertIn("from . import _pypdf as pypdf", src)
+        for gone in (
+            "pypdf.filters.decompress =",
+            "DictionaryObject.get =",
+            "NameObject.renumber_table.update",
+        ):
+            with self.subTest(patch=gone):
+                self.assertNotIn(gone, src)
+
+        patches = (_CORE / "_monkeypatches" / "pypdf.py").read_text(encoding="utf-8")
+        for present in (
+            "pypdf.filters.decompress =",
+            "DictionaryObject.get =",
+            "NameObject.renumber_table.update",
+        ):
+            with self.subTest(patch=present):
+                self.assertIn(present, patches)
+
+    def test_the_pdf_patches_are_actually_applied(self):
+        from pypdf.generic import DictionaryObject, NameObject
+
+        import odoo.init  # noqa: F401  registers the import hooks
+        import odoo.tools.pdf  # noqa: F401  pulls pypdf in, firing the hook
+        from odoo._monkeypatches import applied
+
+        self.assertIn("pypdf", applied())
+        self.assertEqual(DictionaryObject.get.__name__, "_unwrapping_get")
+        self.assertIn("\n", NameObject.renumber_table)
 
 
 if __name__ == "__main__":

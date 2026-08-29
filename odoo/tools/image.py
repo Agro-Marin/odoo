@@ -38,7 +38,33 @@ from odoo.libs.image import (
 )
 from odoo.tools.translate import LazyTranslate
 
-__all__ = ["image_process"]
+# Every name this module re-exports or defines, per the rule
+# tests/framework/test_public_surfaces.py::TestToolsSubmoduleSurfaces pins:
+# a tools shim publishes what it defines plus what it takes from another
+# odoo module.  Third-party imports are incidental and stay out.
+__all__ = [
+    "EXIF_TAG_ORIENTATION",
+    "FILETYPE_BASE64_MAGICWORD",
+    "IMAGE_MAX_RESOLUTION",
+    "ImageDecodeError",
+    "ImageProcess",
+    "ImageTooLargeError",
+    "LazyTranslate",
+    "NotWebpError",
+    "UserError",
+    "average_dominant_color",
+    "base64_to_image",
+    "binary_to_image",
+    "get_webp_size",
+    "hex_to_rgb",
+    "image_apply_opt",
+    "image_data_uri",
+    "image_fix_orientation",
+    "image_guess_size_from_field_name",
+    "image_process",
+    "image_to_base64",
+    "is_image_size_above",
+]
 _lt = LazyTranslate("base")
 
 

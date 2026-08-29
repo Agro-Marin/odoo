@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import datetime
 import hashlib
@@ -15,17 +17,10 @@ try:
         load_pem_private_key,
     )
     from cryptography.x509 import Certificate, load_pem_x509_certificate
-except ImportError:
-    hashes = None
-    PrivateKeyTypes = None
-    Encoding = None
-    load_pem_private_key = None
-    ec = None
-    ed25519 = None
-    padding = None
-    rsa = None
-    Certificate = None
-    load_pem_x509_certificate = None
+
+    HAS_CRYPTOGRAPHY = True
+except ImportError:  # pragma: no cover  exercised only where the wheel is absent
+    HAS_CRYPTOGRAPHY = False
 
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -74,12 +69,12 @@ class PdfSigner:
     ) -> None:
         self.signing_time = signing_time
         self.company = company
-        if "clone_document_from_reader" not in dir(PdfWriter):
-            _logger.info("PDF signature is supported by Python 3.12 and above")
-            return
-        reader = PdfReader(stream)
         self.writer = PdfWriter()
-        self.writer.clone_document_from_reader(reader)
+        self.usable = "clone_document_from_reader" in dir(PdfWriter)
+        if not self.usable:
+            _logger.info("PDF signature needs a pypdf with clone_document_from_reader")
+            return
+        self.writer.clone_document_from_reader(PdfReader(stream))
 
     def sign_pdf(
         self,
@@ -87,7 +82,7 @@ class PdfSigner:
         field_name: str = "Odoo Signature",
         signer: ResUsers | None = None,
     ) -> io.BytesIO | None:
-        if not self.company or not load_pem_x509_certificate:
+        if not self.company or not HAS_CRYPTOGRAPHY or not self.usable:
             return None
 
         form = self._setup_form(visible_signature, field_name, signer)

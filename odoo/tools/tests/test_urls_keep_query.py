@@ -1,18 +1,12 @@
+import ast
+import contextlib
 import sys
 import types
 import unittest
+from pathlib import Path
 from unittest import mock
 
-if "odoo.http" not in sys.modules:
-    _http_stub = types.ModuleType("odoo.http")
-    _http_stub.request = None  # type: ignore[attr-defined]
-    _http_stub.__odoo_test_stub__ = True  # type: ignore[attr-defined]
-    sys.modules["odoo.http"] = _http_stub
-
 from odoo.tools import urls
-
-if getattr(sys.modules.get("odoo.http"), "__odoo_test_stub__", False):
-    del sys.modules["odoo.http"]
 
 
 class _Args(dict):
@@ -27,9 +21,29 @@ def fake_request(**query):
     return request
 
 
+@contextlib.contextmanager
+def _http_serving(request):
+    """Stand in for a live odoo.http while keep_query runs.
+
+    keep_query imports `request` when it is called, not when the module loads,
+    so the stub has to be in sys.modules at call time -- and only then.
+    """
+    stub = types.ModuleType("odoo.http")
+    stub.request = request  # type: ignore[attr-defined]
+    previous = sys.modules.get("odoo.http")
+    sys.modules["odoo.http"] = stub
+    try:
+        yield
+    finally:
+        if previous is None:
+            del sys.modules["odoo.http"]
+        else:
+            sys.modules["odoo.http"] = previous
+
+
 class TestKeepQuery(unittest.TestCase):
     def _keep(self, query, *keep, **extra):
-        with mock.patch.object(urls, "request", fake_request(**query)):
+        with _http_serving(fake_request(**query)):
             return urls.keep_query(*keep, **extra)
 
     def test_no_arguments_keeps_everything(self):
@@ -70,7 +84,7 @@ class TestKeepQuery(unittest.TestCase):
         self.assertEqual(out, "q=a+b%26c%3Dd")
 
     def test_no_request_yields_only_additional_params(self):
-        with mock.patch.object(urls, "request", None):
+        with _http_serving(None):
             self.assertEqual(urls.keep_query("a", page=4), "page=4")
             self.assertEqual(urls.keep_query(), "")
 
@@ -80,3 +94,45 @@ class TestKeepQuery(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestToolsStaysBelowTheServingTier(unittest.TestCase):
+    """odoo.tools sits below odoo.http, which imports odoo.tools in eight places.
+
+    urls.py used to do `from odoo.http import request` at module scope, so
+    `import odoo.tools.urls` -- which ir_qweb and ~60 other modules do, most of
+    them only for `urljoin` -- dragged in the whole serving tier.  layer_check's
+    `tools-stays-below-the-serving-tier` contract is the repo-wide gate; this is
+    the unit-level one, and it also pins the deferral itself.
+    """
+
+    def test_the_module_does_not_import_odoo_http_at_module_scope(self):
+        tree = ast.parse(Path(urls.__file__).read_text(encoding="utf-8"))
+        for node in tree.body:  # module scope only, not function bodies
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            for name in names:
+                self.assertFalse(
+                    name == "odoo.http" or name.startswith("odoo.http."),
+                    f"{name!r} imported at module scope in {urls.__file__}; "
+                    "import it inside the function that needs it",
+                )
+
+    def test_importing_it_does_not_pull_in_the_http_stack(self):
+        if "odoo.http" in sys.modules:
+            self.skipTest("odoo.http already imported by another suite")
+        importlib = __import__("importlib")
+        importlib.reload(urls)
+        self.assertNotIn("odoo.http", sys.modules)
+
+    def test_all_covers_what_libs_web_publishes(self):
+        from odoo.libs import web
+
+        self.assertEqual(
+            sorted(urls.__all__),
+            sorted([*web.__all__, "keep_query"]),
+            "odoo.tools.urls re-exports odoo.libs.web; keep the two in step",
+        )

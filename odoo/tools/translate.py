@@ -491,6 +491,14 @@ FIELD_TRANSLATE["html_translate"] = html_translate
 FIELD_TRANSLATE["xml_translate"] = xml_translate
 
 
+def _is_iterable_arg(value: object) -> bool:
+    return isinstance(value, Iterable) and not isinstance(value, (str, bytes))
+
+
+def _materialise(value: object) -> object:
+    return list(value) if _is_iterable_arg(value) else value  # type: ignore[call-overload]
+
+
 def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> str:
     assert lang, "missing language for translation"
     if lang == "en_US":
@@ -502,14 +510,21 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
         )
     if not args:
         return translation
-    vals = args.values() if isinstance(args, dict) else args
+    vals: Collection
+    if isinstance(args, dict):
+        args = {k: _materialise(v) for k, v in args.items()}
+        vals = args.values()
+    else:
+        args = tuple(_materialise(v) for v in args)
+        vals = args
+
     has_markup = has_lazy = has_iterable = False
     for v in vals:
         if isinstance(v, Markup):
             has_markup = True
         elif isinstance(v, LazyGettext):
             has_lazy = True
-        elif isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
+        elif _is_iterable_arg(v):
             has_iterable = True
             if not has_markup and any(isinstance(el, Markup) for el in v):
                 has_markup = True
@@ -530,7 +545,7 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
     if has_iterable:
 
         def process_translation_arg(v):
-            if isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
+            if _is_iterable_arg(v):
                 v = [
                     el._translate(lang) if isinstance(el, LazyGettext) else el
                     for el in v
@@ -934,9 +949,11 @@ class PoFileReader:
 
             comment = entry.comment or ""
             comment_match = re.match(r"(module[s]?): (\w+)", comment)
-            module = comment_match.group(2) if comment_match else None
+            entry_module = comment_match.group(2) if comment_match else None
             comments = "\n".join(
-                c for c in comment.split("\n") if not c.startswith("module:")
+                c
+                for c in comment.split("\n")
+                if not c.startswith(("module:", "modules:"))
             )
             source = entry.msgid
             translation = entry.msgstr
@@ -947,7 +964,7 @@ class PoFileReader:
                     occurrence,
                 )
                 if match:
-                    type, model_name, field_name, module, xmlid = match.groups()
+                    type, model_name, field_name, xmlid_module, xmlid = match.groups()
                     yield {
                         "type": type,
                         "imd_model": model_name,
@@ -957,7 +974,7 @@ class PoFileReader:
                         "src": source,
                         "value": translation,
                         "comments": comments,
-                        "module": module,
+                        "module": xmlid_module,
                     }
                     continue
 
@@ -974,7 +991,7 @@ class PoFileReader:
                         "value": translation,
                         "comments": comments,
                         "res_id": int(line_number),
-                        "module": module,
+                        "module": entry_module,
                     }
                     continue
 
@@ -1146,6 +1163,19 @@ class TarFileWriter:
         self.tar.close()
 
 
+def _trans_export(
+    reader: TranslationModuleReader | TranslationRecordReader,
+    lang: str | None,
+    buffer: IO[bytes],
+    format: str,
+) -> bool:
+    if not reader:
+        return False
+    writer = TranslationFileWriter(buffer, fileformat=format, lang=lang)
+    writer.write_rows(reader)
+    return True
+
+
 def trans_export(
     lang: str | None,
     modules: list[str],
@@ -1154,11 +1184,7 @@ def trans_export(
     env: Environment,
 ) -> bool:
     reader = TranslationModuleReader(env.cr, modules=modules, lang=lang)
-    if not reader:
-        return False
-    writer = TranslationFileWriter(buffer, fileformat=format, lang=lang)
-    writer.write_rows(reader)
-    return True
+    return _trans_export(reader, lang, buffer, format)
 
 
 def trans_export_records(
@@ -1170,11 +1196,7 @@ def trans_export_records(
     env: Environment,
 ) -> bool:
     reader = TranslationRecordReader(env.cr, model_name, ids, lang=lang)
-    if not reader:
-        return False
-    writer = TranslationFileWriter(buffer, fileformat=format, lang=lang)
-    writer.write_rows(reader)
-    return True
+    return _trans_export(reader, lang, buffer, format)
 
 
 def _push(

@@ -109,8 +109,15 @@ class PopulateContext:
             finally:
                 _logger.info("Adding indexes back on table %s...", model._table)
                 for index in indexes:
-                    with suppress(Exception):
+                    try:
                         model.env.cr.execute(index["definition"])
+                    except Exception:
+                        _logger.exception(
+                            "Could not restore index %s on %s; the table is left "
+                            "without it",
+                            index["name"],
+                            model._table,
+                        )
         else:
             yield
 
@@ -120,7 +127,11 @@ class PopulateContext:
             yield
             return
         try:
-            model.env.cr.execute("SET session_replication_role TO replica")
+            # inside a savepoint: the failing SET aborts the transaction and has
+            # to be undone, but cr.rollback() would take everything populated so
+            # far with it
+            with model.env.cr.savepoint():
+                model.env.cr.execute("SET session_replication_role TO replica")
         except InsufficientPrivilege:
             _logger.warning(
                 "Cannot ignore Fkey constraints during insertion due to "
@@ -128,7 +139,6 @@ class PopulateContext:
                 "dropping the FK constraint check; the bulk insertion will be "
                 "vastly slower than anticipated."
             )
-            model.env.cr.rollback()
             self.has_session_replication_role = False
             yield
             return

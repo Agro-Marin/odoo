@@ -129,7 +129,9 @@ class SassEmbeddedCompiler:
     def _start(self) -> None:
         if self._started and self._process is not None and self._process.poll() is None:
             return
-        self._started = False
+        # a previous process that died is still holding its stdin/stdout pipes;
+        # overwriting _process below would leak both fds for every restart
+        self.close()
 
         sass_path = self._sass_path
         if sass_path is None:
@@ -152,15 +154,10 @@ class SassEmbeddedCompiler:
             raise SassProtocolError(f"Could not start sass --embedded: {e}") from e
 
         if self._process.poll() is not None:
-            proc = self._process
-            self._process = None
-            for pipe in (proc.stdin, proc.stdout):
-                if pipe is not None:
-                    with contextlib.suppress(OSError):
-                        pipe.close()
-            proc.wait()
+            returncode = self._process.returncode
+            self.close()
             raise SassProtocolError(
-                f"sass --embedded exited immediately with code {proc.returncode}"
+                f"sass --embedded exited immediately with code {returncode}"
             )
         self._started = True
 

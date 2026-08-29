@@ -48,6 +48,15 @@ def _file_path_resolved(
     return _file_path_uncached(file_path, filter_ext, None, check_exists)
 
 
+def clear_caches() -> None:
+    # _file_path_resolved answers "which addons directory provides this path",
+    # keyed on the path alone; odoo.addons.__path__ is the other half and cannot
+    # be in the key. Callers that REPLACE that list must call this.
+    _file_path_resolved.cache_clear()
+    _addons_dir_paths.cache_clear()
+    _root_path.cache_clear()
+
+
 def _file_path_uncached(
     file_path: str,
     filter_ext: tuple[str, ...],
@@ -103,12 +112,23 @@ def file_open(
     filter_ext: tuple[str, ...] = (),
     env: Environment | None = None,
 ) -> IO[Any]:
-    path = file_path(name, filter_ext=filter_ext, env=env, check_exists=False)
-    encoding = None
-    if "b" not in mode:
-        encoding = "utf-8"
-    if any(m in mode for m in ("w", "x", "a")) and not Path(path).is_file():
-        raise FileNotFoundError(f"Not a file: {path}")
+    # write modes reopen an existing file; file_path resolves a name by finding
+    # it, so there is nowhere to put one that does not exist yet
+    writing = any(m in mode for m in ("w", "x", "a"))
+    try:
+        path = file_path(name, filter_ext=filter_ext, env=env, check_exists=False)
+    except FileNotFoundError:
+        if not writing:
+            raise
+        raise FileNotFoundError(
+            f"Cannot create {name!r}: file_open() opens files that already exist. "
+            f"Create the file first, then reopen it in {mode!r}."
+        ) from None
+    if writing and not Path(path).is_file():
+        raise FileNotFoundError(
+            f"Cannot create {path!r}: file_open() opens files that already exist."
+        )
+    encoding = None if "b" in mode else "utf-8"
     return open(path, mode, encoding=encoding)
 
 

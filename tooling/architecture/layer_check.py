@@ -32,6 +32,10 @@ class Contract:
     adr: str
     allow_exact: tuple[str, ...] = ()
     source_exact: tuple[str, ...] = ()
+    # True when the contract bounds *import-time* cost rather than use: an
+    # import inside a function body creates no load-time edge and is the
+    # sanctioned way to satisfy such a contract.
+    module_scope_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -96,6 +100,22 @@ CONTRACTS: tuple[Contract, ...] = (
         rationale=(
             "db/ reaches the ORM only through injected hooks "
             "(BaseCursor._flushing_savepoint_cls), never by importing it."
+        ),
+    ),
+    Contract(
+        name="tools-stays-below-the-serving-tier",
+        adr="0075",
+        source=("odoo.tools",),
+        forbidden=("odoo.http",),
+        allow=(),
+        module_scope_only=True,
+        rationale=(
+            "odoo.http imports odoo.tools in eight modules, so a module-scope "
+            "import back the other way makes `import odoo.tools.<anything>` load "
+            "the whole serving tier.  urls.py did exactly that for `request`, and "
+            "ir_qweb plus ~60 payment/delivery/l10n modules import from it, most "
+            "only for urljoin.  A helper that genuinely needs the request imports "
+            "it inside the function, the way cache_version.py already does."
         ),
     ),
     Contract(
@@ -365,6 +385,30 @@ class _ImportCollector(ast.NodeVisitor):
     module: str
     is_init: bool = False
     found: list[tuple[str, int]] = field(default_factory=list)
+    deferred: set[int] = field(default_factory=set)
+    _depth: int = 0
+
+    def _enter_function(self, node: ast.AST) -> None:
+        # Imports below a def cost nothing until the function is called, so they
+        # create no load-time edge.  Contracts that exist to bound import cost
+        # (module_scope_only) skip them; contracts about what a layer may *use*
+        # still see them.
+        self._depth += 1
+        try:
+            self.generic_visit(node)
+        finally:
+            self._depth -= 1
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._enter_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._enter_function(node)
+
+    def _record(self, name: str, lineno: int) -> None:
+        self.found.append((name, lineno))
+        if self._depth:
+            self.deferred.add(lineno)
 
     def _resolve_relative(self, node_module: str | None, level: int) -> str:
         base = self.module if self.is_init else self.module.rsplit(".", 1)[0]
@@ -376,7 +420,7 @@ class _ImportCollector(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
-            self.found.append((alias.name, node.lineno))
+            self._record(alias.name, node.lineno)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.level:
@@ -384,11 +428,10 @@ class _ImportCollector(ast.NodeVisitor):
         else:
             base = node.module or ""
         if base:
-            self.found.append((base, node.lineno))
-        if base:
+            self._record(base, node.lineno)
             for alias in node.names:
                 if alias.name != "*":
-                    self.found.append((f"{base}.{alias.name}", node.lineno))
+                    self._record(f"{base}.{alias.name}", node.lineno)
 
     def visit_If(self, node: ast.If) -> None:
         if _is_type_checking_test(node.test):
@@ -495,8 +538,12 @@ def _is_known(module: str, target: str) -> bool:
 
 
 def violations_for(
-    module: str, imports: list[tuple[str, int]], path: str
+    module: str,
+    imports: list[tuple[str, int]],
+    path: str,
+    deferred: set[int] | None = None,
 ) -> list[Violation]:
+    deferred = deferred or set()
 
     found: list[Violation] = []
     for contract in CONTRACTS:
@@ -505,6 +552,8 @@ def violations_for(
         reported: set[tuple[int, str]] = set()
         for target, lineno in imports:
             if not _matches(target, contract.forbidden):
+                continue
+            if contract.module_scope_only and lineno in deferred:
                 continue
             if _matches(target, contract.allow):
                 continue
@@ -543,7 +592,12 @@ def check(files: list[Path] | None = None) -> tuple[list[Violation], list[Violat
             continue
         collector = _ImportCollector(module=module, is_init=path.name == "__init__.py")
         collector.visit(tree)
-        for v in violations_for(module, collector.found, str(path.relative_to(ROOT))):
+        for v in violations_for(
+            module,
+            collector.found,
+            str(path.relative_to(ROOT)),
+            collector.deferred,
+        ):
             (known if _is_known(v.module, v.imports) else new).append(v)
     return new, known
 

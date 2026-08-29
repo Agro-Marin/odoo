@@ -15,15 +15,13 @@ _logger = logging.getLogger(__name__)
 
 def find_in_path(name: str) -> str:
     path = os.environ.get("PATH", os.defpath).split(os.pathsep)
-    if config.get("bin_path") and config["bin_path"] != "None":
+    if config["bin_path"]:
         path.append(config["bin_path"])
     return which(name, path=os.pathsep.join(path))
 
 
 def find_pg_tool(name: str) -> str:
-    path = None
-    if config["pg_path"] and config["pg_path"] != "None":
-        path = config["pg_path"]
+    path = config["pg_path"] or None
     try:
         return which(name, path=path)
     except OSError:

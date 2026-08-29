@@ -2,7 +2,7 @@ import collections
 import typing
 from difflib import HtmlDiff
 
-from odoo.libs import xml as xml_lib
+from odoo.libs import xml as _xml_lib
 from odoo.libs.collections import (
     Collector,
     ConstantMapping,
@@ -107,61 +107,97 @@ from .subprocess import (
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
+# Every name this module re-exports or defines, per the rule
+# tests/framework/test_public_surfaces.py::TestToolsSubmoduleSurfaces pins:
+# a tools shim publishes what it defines plus what it takes from another
+# odoo module.  Third-party imports are incidental and stay out.
 __all__ = [
+    "ADDRESS_REGEX",
+    "DATETIME_FORMATS_MAP",
+    "DATE_LENGTH",
     "DEFAULT_SERVER_DATETIME_FORMAT",
     "DEFAULT_SERVER_DATE_FORMAT",
     "DEFAULT_SERVER_TIME_FORMAT",
     "NEGATIVE_SIGN_JOINER",
     "NON_BREAKING_SPACE",
+    "PENDING",
+    "POSIX_TO_LDML",
+    "SENTINEL",
     "SKIPPED_ELEMENT_TYPES",
+    "Callbacks",
+    "Collector",
+    "ConstantMapping",
     "DotDict",
     "LastOrderedSet",
     "OrderedSet",
+    "ReadonlyDict",
+    "ReversedIterable",
+    "Sentinel",
+    "StackMap",
     "babel_locale_parse",
     "clean_context",
     "consteq",
+    "default_parser",
     "discardattr",
+    "dumpstacks",
+    "exec_pg_environ",
     "file_open",
     "file_open_temporary_directory",
     "file_path",
     "find_in_path",
+    "find_pg_tool",
     "formatLang",
     "format_amount",
     "format_amount_parts",
     "format_date",
     "format_datetime",
+    "format_decimalized_amount",
+    "format_decimalized_number",
     "format_duration",
+    "format_frame",
     "format_time",
+    "freehash",
     "frozendict",
+    "get_diff",
+    "get_flag",
     "get_iso_codes",
     "get_lang",
     "groupby",
+    "has_list_types",
     "hash_sign",
     "hmac",
     "html_escape",
     "human_size",
     "is_encodable",
     "is_list_of",
+    "limited_field_access_token",
+    "lower_logging",
     "merge_sequences",
     "mod10r",
     "mute_logger",
+    "named_to_positional_printf",
     "parse_date",
     "partition",
     "posix_to_ldml",
     "real_time",
     "remove_accents",
     "replace_exceptions",
+    "scan_languages",
     "split_every",
     "str2bool",
     "street_split",
+    "stripped_sys_argv",
+    "submap",
     "topological_sort",
     "unique",
+    "unquote",
     "verify_hash_signed",
+    "verify_limited_field_access_token",
 ]
 
-SKIPPED_ELEMENT_TYPES = xml_lib.SKIPPED_ELEMENT_TYPES
+SKIPPED_ELEMENT_TYPES = _xml_lib.SKIPPED_ELEMENT_TYPES
 
-default_parser = xml_lib.default_parser
+default_parser = _xml_lib.default_parser
 
 
 def clean_context(context: dict[str, typing.Any]) -> dict[str, typing.Any]:
