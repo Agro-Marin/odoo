@@ -247,6 +247,7 @@ enforce them.
 | [0074](0074-a-shipped-static-source-reaches-a-bundle.md) | A shipped static source reaches a bundle | 2026-08-28 | Accepted |
 | [0075](0075-tools-stays-below-the-serving-tier.md) | `odoo.tools` stays below the serving tier | 2026-08-29 | Accepted |
 | [0076](0076-runtime-code-does-not-read-a-docstring.md) | Runtime code does not read a docstring | 2026-08-29 | Accepted |
+| [0077](0077-a-hook-the-orm-calls-takes-no-arguments.md) | A hook the ORM calls takes no arguments | 2026-08-29 | Accepted |
 
 ## Template
 

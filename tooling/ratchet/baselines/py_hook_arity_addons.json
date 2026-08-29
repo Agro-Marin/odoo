@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "Same gate over the bundled addons tree (ADR-0075). Zero, and held there: five of the six occurrences that motivated the record were in addons/account and were fixed in the same change that added it.\n\nCommand: python tooling/architecture/py_hook_arity.py --count --addon addons"
+}

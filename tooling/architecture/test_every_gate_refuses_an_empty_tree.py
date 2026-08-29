@@ -42,6 +42,7 @@ GATES = {
     "py_x2many_count": ["--count"],
     "sql_in_placeholder": ["--count"],
     "py_count_as_boolean": ["--count"],
+    "py_hook_arity": ["--count"],
     "py_shadowed_member": ["--count"],
     "py_unresolved_calls": ["--count"],
     "js_service_shape": ["--count"],

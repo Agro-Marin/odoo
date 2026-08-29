@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "A method carrying @api.depends / depends_context / constrains / onchange / ondelete that declares a parameter beyond self (ADR-0075). The ORM calls these with no arguments, so such a parameter is either a TypeError waiting for the hook to fire or -- far more often -- a decorator left on a helper by a refactor that split the real hook out from under it.\n\nZero over the core package, and a contract rather than debt: odoo/odoo, odoo/addons, agromarin and design-themes all measure 0. Only enterprise carries any, and both of its two are masked by a default.\n\nThe shape this exists for cost 96 test failures in one session on 2026-08-29: splitting a long compute by replacing the source from its def line leaves the decorator on whatever helper lands above it, the compute silently stops re-running, and every other gate stays green.\n\nCommand: python tooling/architecture/py_hook_arity.py --count"
+}

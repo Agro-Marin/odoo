@@ -1063,6 +1063,35 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run hook-arity ratchet (core)
+        id: py_hook_arity
+        # ADR-0077. The ORM calls @api.depends / depends_context / constrains /
+        # onchange / ondelete with NO arguments, so a parameter beyond `self` on
+        # one is either a TypeError waiting for the hook to fire or -- far more
+        # often -- a decorator a refactor left on a helper while splitting the
+        # real hook out from under it. That second shape is silent: the compute
+        # stops re-running and every other gate stays green. Floored at zero
+        # because the tree is at zero: a contract, not debt.
+        run: |
+          set +e
+          python tooling/architecture/py_hook_arity.py | tee /tmp/py_hook_arity_core.log
+          python tooling/architecture/py_hook_arity.py --count \
+            | xargs python tooling/ratchet/ratchet.py py_hook_arity --count
+          rc=$?
+          set -e
+          exit $rc
+
+      - name: Run hook-arity ratchet (addons)
+        id: py_hook_arity_addons
+        run: |
+          set +e
+          python tooling/architecture/py_hook_arity.py --addon addons | tee /tmp/py_hook_arity_addons.log
+          python tooling/architecture/py_hook_arity.py --addon addons --count \
+            | xargs python tooling/ratchet/ratchet.py py_hook_arity_addons --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run shadowed-member ratchet (core)
         id: py_shadowed_member
         # ADR-0062. A second `def` of a name already bound in the same class
