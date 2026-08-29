@@ -52,7 +52,9 @@ class GamificationGoalDefinition(models.Model):
         string="Displayed as",
         required=True,
     )
-    model_id = fields.Many2one("ir.model", string="Model", ondelete="cascade")
+    model_id = fields.Many2one(
+        "ir.model", string="Model", index="btree_not_null", ondelete="cascade"
+    )
     model_inherited_ids = fields.Many2many(
         "ir.model", related="model_id.inherited_model_ids"
     )

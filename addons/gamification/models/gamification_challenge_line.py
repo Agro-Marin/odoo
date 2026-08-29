@@ -22,6 +22,7 @@ class GamificationChallengeLine(models.Model):
         "gamification.goal.definition",
         string="Goal Definition",
         required=True,
+        index=True,
         ondelete="cascade",
     )
 
