@@ -436,6 +436,88 @@ class TestEventNotifications(CalendarMailCommon):
             )
             self.assertTrue(user_message, "Organizer must receive a reminder")
 
+    def test_email_alarm_logs_completion(self):
+        """The chatter records which reminder went out.
+
+        The notifications themselves are `message_notify` calls, one per attendee,
+        addressed to that attendee: they say who was written to, never why. Reading
+        the event afterwards there was no way to tell that a reminder had fired at
+        all, let alone which one.
+        """
+        now = fields.Datetime.now()
+        with self.capture_triggers("calendar.ir_cron_scheduler_alarm"):
+            alarm = (
+                self.env["calendar.alarm"]
+                .with_user(self.user)
+                .create(
+                    {
+                        "name": "Alarm",
+                        "alarm_type": "email",
+                        "interval": "minutes",
+                        "duration": 20,
+                    }
+                )
+            )
+            self.event.with_user(self.user).write(
+                {
+                    "name": "test event",
+                    "start": now + relativedelta(minutes=15),
+                    "stop": now + relativedelta(minutes=18),
+                    "partner_ids": [fields.Command.link(self.partner.id)],
+                    "alarm_ids": [fields.Command.link(alarm.id)],
+                }
+            )
+            self.env.flush_all()
+
+        # The reminders themselves are `message_notify` calls: message_type
+        # 'user_notification', one per attendee, each addressed to that attendee.
+        # The log is a plain 'notification' addressed to nobody.
+        domain = [
+            ("model", "=", "calendar.event"),
+            ("res_id", "=", self.event.id),
+            ("message_type", "=", "notification"),
+        ]
+        before = self.env["mail.message"].search(domain)
+
+        with patch.object(fields.Datetime, "now", lambda: now):
+            self.env["calendar.alarm_manager"].with_context(
+                lastcall=now - relativedelta(minutes=25)
+            )._send_reminder()
+            self.env.flush_all()
+
+        logged = self.env["mail.message"].search(domain) - before
+        self.assertEqual(len(logged), 1, "One log entry per event, not per attendee")
+        self.assertFalse(
+            logged.partner_ids,
+            "The log is a note on the event, not a notification to somebody",
+        )
+        self.assertIn("Alarm", logged.body, "The log names the reminder that fired")
+
+    def test_no_alarm_no_completion_log(self):
+        """An invitation is not a reminder, and logs nothing.
+
+        `completion_log_message` defaults to False, so the many other callers of
+        `_notify_attendees` -- invitations, cancellations, reschedules -- keep the
+        chatter they had.
+        """
+        domain = [
+            ("model", "=", "calendar.event"),
+            ("res_id", "=", self.event.id),
+            ("message_type", "=", "notification"),
+        ]
+        before = self.env["mail.message"].search(domain)
+
+        self.event.attendee_ids._notify_attendees(
+            self.env.ref("calendar.calendar_template_meeting_invitation"),
+            force_send=True,
+        )
+        self.env.flush_all()
+
+        self.assertFalse(
+            self.env["mail.message"].search(domain) - before,
+            "Only the alarm path asks for a completion log",
+        )
+
     def test_email_alarm_recurrence(self):
         # test that only a single cron trigger is created for recurring events.
         # Once a notification has been sent, the next one should be created.
