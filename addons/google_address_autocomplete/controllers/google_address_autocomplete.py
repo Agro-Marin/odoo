@@ -226,7 +226,8 @@ class AutoCompleteController(http.Controller):
         ).json()
 
     def _get_api_key(self, use_employees_key):
-        assert request.env.user._is_internal()
+        if not request.env.user._is_internal():
+            raise AccessError(_("You don't have access to the internal API key."))
         return (
             request.env["ir.config_parameter"]
             .sudo()
@@ -245,7 +246,7 @@ class AutoCompleteController(http.Controller):
     ):
         try:
             api_key = self._get_api_key(use_employees_key)
-        except AssertionError:
+        except AccessError:
             api_key = None
         if not api_key:
             return {"results": [], "session_id": session_id}
@@ -270,7 +271,7 @@ class AutoCompleteController(http.Controller):
     ):
         try:
             api_key = self._get_api_key(use_employees_key)
-        except AssertionError as e:
+        except AccessError as e:
             raise AccessError(
                 _("You don't have access to the full autocomplete feature.")
             ) from e
