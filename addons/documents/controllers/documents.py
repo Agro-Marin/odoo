@@ -42,7 +42,6 @@ _ZIP_READ_BLOCK = 256 * 1024
 
 
 class ZipEntry(NamedTuple):
-
     path: str
     stream: Any | None
     document: Any = None
@@ -50,7 +49,6 @@ class ZipEntry(NamedTuple):
 
 
 class _ZipSink:
-
     __slots__ = ("_chunks",)
 
     def __init__(self) -> None:
@@ -90,7 +88,6 @@ def _sanitize_zip_name(name: str) -> str:
 
 
 class ShareRoute(http.Controller):
-
     TEXTUAL_THUMBNAIL_SIZE = 4096
     ZIP_MAX_FILE_COUNT = 10000
     ZIP_MAX_TOTAL_SIZE = 1024 * 1024 * 1024
@@ -149,9 +146,7 @@ class ShareRoute(http.Controller):
             ]
         )
         if not request.env.user._is_public():
-            permission_domain |= Domain(
-                "user_permission", "!=", "none"
-            )
+            permission_domain |= Domain("user_permission", "!=", "none")
 
         return permission_domain & shortcut_domain
 
@@ -1128,7 +1123,6 @@ class ShareRoute(http.Controller):
 
 
 class DocumentsAttachmentController(AttachmentController):
-
     @http.route()
     def mail_attachment_upload(self, *args: Any, **kw: Any) -> Any:
         if kw.get("activity_id"):
