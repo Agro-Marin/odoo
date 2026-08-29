@@ -239,6 +239,19 @@ class TestHrWorkEntry(TransactionCase):
             "A non-selected work entry on the same date must not be swept "
             "into the regeneration -- only record_ids should be affected.",
         )
+        active_entries = self.env["hr.work.entry"].search(
+            [
+                ("employee_id", "=", self.employee_b.id),
+                ("date", "=", date(2024, 1, 1)),
+                ("active", "=", True),
+            ]
+        )
+        self.assertEqual(
+            active_entries,
+            work_entry_b,
+            "record_ids-scoped regeneration must not recreate a duplicate "
+            "entry overlapping the untouched sibling on the same date.",
+        )
 
     def test_nullify_work_entry_tz(self):
         """
