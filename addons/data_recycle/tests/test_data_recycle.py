@@ -416,3 +416,11 @@ class TestDataRecycle(TransactionCase):
     def test_the_queue_survives_a_model_with_no_company(self):
         self.recycle_model._recycle_records()
         self.assertFalse(self.recycle_model.recycle_record_ids.company_id)
+
+    def test_the_record_id_column_is_never_added_up(self):
+        """`res_id` holds ids, and the list aggregates any Integer that declares one."""
+        descriptor = self.env["data_recycle.record"].fields_get(["res_id"])["res_id"]
+        self.assertIsNone(
+            descriptor.get("aggregator"),
+            "grouping the queue would print the sum of the record ids as a total",
+        )

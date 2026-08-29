@@ -37,7 +37,11 @@ class Data_RecycleRecord(models.Model):
     # 200k rows a `(recycle_model_id, res_id)` composite put in its place cost that
     # sort 0.03ms -> 17.5ms while the planner ignored it for every lookup -- the
     # partial index on `recycle_model_id` already serves those.
-    res_id = fields.Integer("Record ID", index=True)
+    # `aggregator=None`: these are ids, not quantities. An Integer defaults to
+    # `sum` and the list aggregates every field whose descriptor carries one, so
+    # grouping the queue -- which our search view offers two ways of doing --
+    # printed the record ids added together as the group total.
+    res_id = fields.Integer("Record ID", aggregator=None, index=True)
     res_model_id = fields.Many2one(related="recycle_model_id.res_model_id", store=True)
     res_model_name = fields.Char(related="recycle_model_id.res_model_name", store=True)
 
