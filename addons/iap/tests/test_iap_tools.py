@@ -89,6 +89,20 @@ class TestIapJsonrpcContract(TransactionCase):
         with self.assertRaises(exceptions.AccessError):
             self._call(payload)
 
+    def test_error_without_name_maps_to_access_error(self):
+        """An error.data with no 'name' key surfaces as an AccessError
+        instead of crashing with a raw AttributeError."""
+        payload = {"error": {"data": {"message": "boom"}}}
+        with self.assertRaises(exceptions.AccessError):
+            self._call(payload)
+
+    def test_error_without_data_maps_to_access_error(self):
+        """An error with no 'data' key at all surfaces as an AccessError
+        instead of crashing with a raw KeyError."""
+        payload = {"error": {}}
+        with self.assertRaises(exceptions.AccessError):
+            self._call(payload)
+
     def test_timeout_maps_to_access_error(self):
         """A transport timeout surfaces as an AccessError (boundary)."""
         with self.assertRaises(exceptions.AccessError):

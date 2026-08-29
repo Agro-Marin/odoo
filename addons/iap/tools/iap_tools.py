@@ -332,12 +332,11 @@ def iap_jsonrpc(url, method="call", params=None, timeout=15):
             "iap jsonrpc %s responded in %.3f seconds", url, req.elapsed.total_seconds()
         )
         if "error" in response:
-            name = response["error"]["data"].get("name").rpartition(".")[-1]
+            error_data = response["error"].get("data") or {}
+            name = (error_data.get("name") or "").rpartition(".")[-1]
             if name == "InsufficientCreditError":
-                credit_error = InsufficientCreditError(
-                    response["error"]["data"].get("message")
-                )
-                credit_error.data = response["error"]["data"]
+                credit_error = InsufficientCreditError(error_data.get("message"))
+                credit_error.data = error_data
                 raise credit_error
             raise IAPServerError("An error occurred on the IAP server")
         return response.get("result")
