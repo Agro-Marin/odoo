@@ -184,6 +184,26 @@ class TestHrWorkEntry(TransactionCase):
             "not silently stay/become draft.",
         )
 
+    def test_check_code_unicity_scoped_to_own_country(self):
+        """A duplicate-code false positive must not be raised for a work entry
+        type whose OWN country doesn't clash, just because another member of
+        the same creation batch happens to share a country with a
+        pre-existing conflicting-code record."""
+        country_be = self.env.ref("base.be")
+        country_fr = self.env.ref("base.fr")
+        self.env["hr.work.entry.type"].create(
+            {"name": "Existing FR", "code": "SHARED", "country_id": country_fr.id}
+        )
+        # Must NOT raise: the BE/"SHARED" record's own country (BE) never
+        # clashes with the pre-existing FR/"SHARED" record, even though a
+        # second batch member (FR/"OTHER") shares FR with it.
+        self.env["hr.work.entry.type"].create(
+            [
+                {"name": "New BE", "code": "SHARED", "country_id": country_be.id},
+                {"name": "New FR", "code": "OTHER", "country_id": country_fr.id},
+            ]
+        )
+
     def test_nullify_work_entry_tz(self):
         """
         Test that the work entries of the previous month are not affected when regenerating the next month work entries
