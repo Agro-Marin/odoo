@@ -1000,7 +1000,11 @@ class HrAttendance(models.Model):
         for attendance in self:
             localized_start, localized_end = attendance._get_localized_times()
             result[attendance] = list(
-                rrule(DAILY, dtstart=localized_start, until=localized_end)
+                rrule(
+                    DAILY,
+                    dtstart=localized_start.date(),
+                    until=localized_end.date(),
+                )
             )
         return result
 
