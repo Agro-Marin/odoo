@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import SQL
 
 
 class HrEmployeeCertificationReport(models.BaseModel):
@@ -21,9 +22,11 @@ class HrEmployeeCertificationReport(models.BaseModel):
     def init(self):
         drop_view_if_exists(self.env.cr, self._table)
 
+        today = fields.Date.context_today(self)
         self.env.cr.execute(
-            """
-        CREATE OR REPLACE VIEW %(table)s AS (
+            SQL(
+                """
+        CREATE OR REPLACE VIEW %s AS (
             SELECT
                 row_number() OVER () AS id,
                 e.id AS employee_id,
@@ -33,7 +36,7 @@ class HrEmployeeCertificationReport(models.BaseModel):
                 s.skill_type_id AS skill_type_id,
                 sl.level_progress / 100.0 AS level_progress,
                 sl.name AS skill_level,
-                (s.valid_to IS NULL OR s.valid_to >= '%(date)s') AND s.valid_from <= '%(date)s' AS active
+                (s.valid_to IS NULL OR s.valid_to >= %s) AND s.valid_from <= %s AS active
             FROM hr_employee e
             LEFT JOIN hr_version v ON e.current_version_id = v.id
             LEFT OUTER JOIN hr_employee_skill s ON e.id = s.employee_id
@@ -41,6 +44,9 @@ class HrEmployeeCertificationReport(models.BaseModel):
             LEFT OUTER JOIN hr_skill_type st ON st.id = sl.skill_type_id
             WHERE e.active AND st.active IS True AND st.is_certification IS TRUE
         )
-        """
-            % {"table": self._table, "date": fields.Date.context_today(self)}
+        """,
+                SQL.identifier(self._table),
+                today,
+                today,
+            )
         )
