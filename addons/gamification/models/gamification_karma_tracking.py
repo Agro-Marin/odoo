@@ -255,6 +255,14 @@ class GamificationKarmaTracking(models.Model):
         self.env["gamification.karma.tracking"].invalidate_model()
         # Karma is a *stored* compute over this table.  Rewriting the table in
         # raw SQL leaves the column and the cache holding the pre-consolidation
-        # value, so drop both and let the next read recompute.
-        self.env["res.users"].invalidate_model(["karma"])
+        # value, so drop both and let the next read recompute.  The one2many
+        # id list on `res.users` is a separate cache entry from the field
+        # values above it: a caller that already read `karma_tracking_ids` in
+        # this same transaction before consolidating would otherwise recompute
+        # `karma` from a stale id list (referencing rows this method just
+        # deleted). Not reachable through the only production caller today
+        # (`_consolidate_cron` runs in a fresh cron env with an empty cache),
+        # but nothing here should depend on every future caller remembering to
+        # invalidate on our behalf.
+        self.env["res.users"].invalidate_model(["karma", "karma_tracking_ids"])
         return True
