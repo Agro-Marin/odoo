@@ -395,8 +395,19 @@ impl Ord for StrKey<'_> {
         match self.prefix.cmp(&other.prefix) {
             Ordering::Equal => {
                 if self.text.len() <= 8 && other.text.len() <= 8 {
-                    // Both fit in the prefix, so an equal prefix IS equality.
-                    Ordering::Equal
+                    // Both fit in the prefix, so the padded bytes agreeing
+                    // means the shorter string's bytes are a prefix of the
+                    // longer's and the remainder is NUL. Length decides it,
+                    // and for equal lengths that is `Equal` — the answer this
+                    // arm used to give unconditionally, which was wrong for
+                    // the one case where the padding is ambiguous: a trailing
+                    // NUL is indistinguishable from the zero padding, so
+                    // `"abc"` and `"abc\0"` tied and `sorted()` left them in
+                    // input order where Python orders the shorter first.
+                    // Still no `memcmp` — both lengths are already loaded for
+                    // the test above, so the low-cardinality column this arm
+                    // exists for is unaffected.
+                    self.text.len().cmp(&other.text.len())
                 } else {
                     self.text.cmp(other.text)
                 }
@@ -897,8 +908,59 @@ pub fn batch_group_ids<'py>(
         }
 
         for i in 0..n {
+            // Re-checked every iteration, not hoisted. The group keys here
+            // are arbitrary cached *values*, so `PyDict_GetItemRef` and
+            // `PyDict_SetItem` hash and compare them and `__hash__`/`__eq__`
+            // are Python — which can shorten `values` while this loop is
+            // indexing it with the unchecked `PyList_GET_ITEM`. That read past
+            // the end of the array is a **reproducible segfault**, not a
+            // theoretical one; the length check up front cannot see it because
+            // the list shrinks after that check has passed.
+            //
+            // `batch_cache_fill` already re-checks its list this way and
+            // documents why; this loop has the same shape and had no guard at
+            // all. Nothing in `grouped()` reaches it — every key a field cache
+            // produces is a builtin — so this is the contract holding rather
+            // than a live bug, which is the standard the rest of this crate is
+            // held to.
+            if ffi::PyList_GET_SIZE(values_ptr) != n {
+                ffi::Py_DECREF(result);
+                return Err(PyValueError::new_err(
+                    "batch_group_ids: `values` changed length during the grouping",
+                ));
+            }
             let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i);
             let val_obj = ffi::PyList_GET_ITEM(values_ptr, i);
+            // The key is held by a strong reference for as long as this
+            // iteration uses it, because `PyDict_GetItemRef` below hashes it
+            // and `__hash__` can drop the last reference to the key itself,
+            // leaving `val_obj` dangling for the `PyDict_SetItem` twenty lines
+            // down. The length check above cannot see that one: it fires on
+            // the NEXT iteration, after the use.
+            //
+            // **The cost is below the noise floor of the machine this was
+            // written on, and no figure for it is recorded here on purpose.**
+            // Alternating rebuilds over a 5000-id low-cardinality column put
+            // guarded-against-unguarded at +21% in one sweep and -7% in
+            // another, with the same binary spreading 15% run to run; a
+            // four-way sweep of the guard variants ranked them differently by
+            // min and by mean. Any single number quoted from that is a
+            // measurement of build layout and machine load. What is known is
+            // the shape: one compare and one refcount pair per element,
+            // against a dict lookup and a list append. Measure it on a quiet
+            // machine before trading any of it away.
+            //
+            // A `Bound` and not the raw `Py_INCREF`/`Py_DECREF` pair the rest
+            // of this function uses, because the raw pair was WRONG here and
+            // the compiler could not say so: four error paths `return` out of
+            // this loop between the two calls, and each one skipped the
+            // release. Measured with `sys.getrefcount` over 1000 calls that
+            // fail on an unhashable group key, that leaked exactly 1000
+            // references to the key. The guard releases on every path,
+            // including the early returns, and its cost is the one this
+            // machine could not measure either way.
+            let val_guard = Bound::from_borrowed_ptr(py, val_obj);
+            let val_obj = val_guard.as_ptr();
 
             // Try to find the existing group list.
             let mut existing: *mut ffi::PyObject = std::ptr::null_mut();
@@ -955,7 +1017,7 @@ mod tests {
     //! path takes Python objects and is covered by Python-level tests
     //! (including a fuzz comparison against the pure-Python fallback); here we
     //! pin the logic that decides the result.
-    use super::{Total, pack_datetime, sort_nullable, sort_plain};
+    use super::{StrKey, Total, pack_datetime, sort_nullable, sort_plain};
     use std::cmp::Ordering;
 
     fn order<K: Ord + Copy>(keys: &[K], reverse: bool) -> Vec<u32> {
@@ -1016,6 +1078,66 @@ mod tests {
     fn sort_nullable_keeps_equal_nulls_in_order() {
         let keys = [None::<i64>, Some(1), None, None];
         assert_eq!(order_opt(&keys, false, true), [1, 0, 2, 3]);
+    }
+
+    /// `StrKey` must order exactly as `str` does, or a `sorted()` on a `char`
+    /// column diverges from the pure-Python reference. Nothing tested it: the
+    /// suite above sorts bare `&str`, which never constructs a `StrKey` and so
+    /// never reaches the packed prefix or its fall-through.
+    #[test]
+    fn strkey_orders_exactly_like_str() {
+        let corpus = [
+            "",
+            "a",
+            "ab",
+            "abc",
+            "abcdefg",
+            "abcdefgh",  // exactly the prefix width
+            "abcdefghi", // one past it
+            "abcdefghZ",
+            "abcdefgh\u{0}",
+            // A trailing NUL is indistinguishable from the prefix's zero
+            // padding, which is what made this arm answer `Equal` for a pair
+            // Python orders. Postgres rejects NUL in a text column, but the
+            // field cache holds the value before the flush that would, and a
+            // non-stored computed `Char` is never flushed at all.
+            "abc\u{0}",
+            "abc\u{0}\u{0}",
+            "\u{0}",
+            "\u{0}\u{0}",
+            "a\u{0}b",
+            "a\u{0}b\u{0}",
+            "zzzzzzzzzzzz",
+            "\u{e9}",
+            "\u{1f600}",
+        ];
+        for a in corpus {
+            for b in corpus {
+                assert_eq!(
+                    StrKey::new(a).cmp(&StrKey::new(b)),
+                    a.cmp(b),
+                    "StrKey disagrees with str on {a:?} vs {b:?}"
+                );
+            }
+        }
+    }
+
+    /// The whole point of the packed prefix is that a low-cardinality column
+    /// resolves without a `memcmp`; keep it sorting correctly through
+    /// `sort_plain`, which is how a real column reaches it.
+    #[test]
+    fn strkey_sorts_a_column_like_python_would() {
+        let column = ["abc\u{0}", "abc", "ab", "abcdefghi", "abcdefgh"];
+        let keys: Vec<StrKey<'_>> = column.iter().map(|s| StrKey::new(s)).collect();
+        let mut expected: Vec<&str> = column.to_vec();
+        expected.sort_unstable();
+        assert_eq!(
+            order(&keys, false)
+                .into_iter()
+                .map(|i| column[i as usize])
+                .collect::<Vec<_>>(),
+            expected
+        );
     }
 
     #[test]

@@ -1,4 +1,5 @@
 import enum
+import sys
 import unittest
 from datetime import date, datetime
 from typing import TYPE_CHECKING
@@ -190,28 +191,12 @@ class _FieldAccessTestMixin(_MixinBase):
         self.assertEqual(misses, [])
 
     def test_prefetch_non_positive_budget_returns_the_record_alone(self) -> None:
-        """A zero or negative budget is `len(result) >= prefetch_max` on step 1.
-
-        The accelerated path took `prefetch_max` as `usize`, so a negative one
-        raised `OverflowError: can't convert negative int to unsigned` from the
-        argument conversion, before any of the logic. `PREFETCH_MAX` is a
-        positive constant and nothing passes either value, so this is the two
-        implementations agreeing rather than a bug being fixed.
-        """
         for budget in (0, -1):
             self.assertEqual(
                 self.to_prefetch_ids(1, (2, 3), {}, budget), (1,), f"budget={budget}"
             )
 
     def test_fill_writes_through_a_dict_subclass(self) -> None:
-        """A mapping that is not exactly `dict` must still be filled.
-
-        The accelerated path dispatched on `PyDict_CheckExact` and skipped
-        anything else, which lost the write in silence: the record came back
-        without the field AND without its index in the miss list, so the caller
-        never learned to fall back to `Field.__get__` for it.
-        """
-
         class Subclass(dict):
             pass
 
@@ -221,8 +206,6 @@ class _FieldAccessTestMixin(_MixinBase):
         self.assertEqual(dict(results[0]), {"id": 1, "f": "v"})
 
     def test_fill_empty_dict_subclass_is_still_skipped(self) -> None:
-        """Falsy means skip, whatever the mapping's exact type is."""
-
         class Subclass(dict):
             pass
 
@@ -233,7 +216,6 @@ class _FieldAccessTestMixin(_MixinBase):
         self.assertEqual(dict(results[0]), {})
 
     def test_fill_non_mapping_raises(self) -> None:
-        """`vals[name] = value` on a list is a TypeError, not a silent skip."""
         with self.assertRaises(TypeError):
             self.batch_cache_fill({1: "v"}, (1,), [[9]], "f", PENDING, None)
 
@@ -242,13 +224,6 @@ class _FieldAccessTestMixin(_MixinBase):
             self.batch_cache_fill({}, (1, 2, 3), [{"id": 1}], "name", PENDING, False)
 
     def test_sort_values_shorter_than_ids_raises(self) -> None:
-        """Short `values` must raise, not return a shorter recordset.
-
-        The pure-Python path zipped non-strictly and returned two ids for three
-        records — records disappearing from a `sorted()` with nothing raised —
-        while the accelerated path raised `IndexError` from deep inside. Both
-        now fail the same way, in the same place, before any sorting happens.
-        """
         with self.assertRaises(ValueError):
             self.sort_ids_by_values((1, 2, 3), ["b", "a"], False)
 
@@ -257,19 +232,10 @@ class _FieldAccessTestMixin(_MixinBase):
             self.sort_ids_by_values((1, 2), ["c", "b", "a"], False)
 
     def test_sort_length_is_checked_before_the_single_record_shortcut(self) -> None:
-        """n<=1 returns early; the contract must be checked ahead of it."""
         with self.assertRaises(ValueError):
             self.sort_ids_by_values((1,), [], False)
 
     def test_group_unhashable_value_raises(self) -> None:
-        """An unhashable group key raises TypeError and nothing else.
-
-        `PyDict_GetItem` swallows the failed hash and restores the previous
-        exception state, so the accelerated path could not see the error at the
-        lookup at all — on 3.14 it printed "Exception ignored in
-        PyDict_GetItem()" and a traceback to stderr before an unrelated-looking
-        TypeError surfaced from the insert.
-        """
         with self.assertRaises(TypeError):
             self.batch_group_ids((1,), [[]])
 
@@ -573,25 +539,7 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
 
 
 class TestAcceleratedMemorySafety(unittest.TestCase):
-    """Cases that only exist for the Rust build's unchecked C-API access.
-
-    Not in the shared mixin: the pure-Python reference cannot reproduce them —
-    it iterates with `enumerate`, which copes with a list shrinking under it by
-    simply stopping — so holding both to the same assertion would be asserting
-    something only one of them can mean.
-    """
-
     def test_a_reentrant_bool_that_shrinks_results_is_refused(self) -> None:
-        """`batch_cache_fill` indexes `results` with `PyList_GET_ITEM`.
-
-        That skips the bounds check, so a `results` entry whose truthiness test
-        dispatches to Python and shortens the list would leave the next
-        iteration reading past the end of the array. Only a non-plain-`dict`
-        entry can get there — the plain-dict lane uses `PyDict_Size`, which
-        runs no Python — but "no caller does that today" is not a memory-safety
-        argument.
-        """
-
         class Evil(dict):
             target: list | None = None
 
@@ -609,6 +557,59 @@ class TestAcceleratedMemorySafety(unittest.TestCase):
                 _rust_batch_cache_fill(cache, ids, results, "f", PENDING, None)
         finally:
             Evil.target = None
+
+    def test_a_reentrant_hash_that_shrinks_values_is_refused(self) -> None:
+        class Evil:
+            target: list | None = None
+
+            def __hash__(self) -> int:
+                if Evil.target is not None:
+                    del Evil.target[1:]
+                return 1
+
+            def __eq__(self, other: object) -> bool:
+                return self is other
+
+        values: list = [Evil(), "b", "c", "d", "e"]
+        ids = tuple(range(1, len(values) + 1))
+        Evil.target = values
+        try:
+            with self.assertRaises(ValueError):
+                _rust_batch_group_ids(ids, values)
+        finally:
+            Evil.target = None
+
+    def test_a_group_key_freed_by_its_own_hash_survives_the_insert(self) -> None:
+        class Suicidal:
+            target: list | None = None
+
+            def __hash__(self) -> int:
+                if Suicidal.target is not None:
+                    Suicidal.target[0] = None
+                return 7
+
+            def __eq__(self, other: object) -> bool:
+                return self is other
+
+        values: list = [Suicidal()]
+        Suicidal.target = values
+        try:
+            result = _rust_batch_group_ids((1,), values)
+        finally:
+            Suicidal.target = None
+        self.assertEqual(list(result.values()), [[1]])
+
+    def test_a_failing_group_releases_the_key_it_borrowed(self) -> None:
+        key: list = ["unhashable"]
+        before = sys.getrefcount(key)
+        for _ in range(100):
+            with self.assertRaises(TypeError):
+                _rust_batch_group_ids((1,), [key])
+        self.assertEqual(
+            sys.getrefcount(key),
+            before,
+            "batch_group_ids leaked a reference to the group key on its error path",
+        )
 
 
 class TestSortDifferential(unittest.TestCase):
@@ -671,22 +672,12 @@ class TestSortDifferential(unittest.TestCase):
         )
 
     def test_diff_mixed_date_datetime(self) -> None:
-        """Python refuses to compare a `date` with a `datetime`; so must we.
-
-        `datetime` is a `date` subclass that declines the mixed comparison, so
-        `sorted()` raises TypeError. The native path used to tag both column
-        kinds the same and sort them chronologically anyway — returning
-        `(3, 2, 1)` where the reference raised. That is precisely the
-        divergence the aware-datetime branch rejects the native path to avoid,
-        so it now defers to the object-comparison fallback for the same reason.
-        """
         values = [date(2021, 1, 2), datetime(2021, 1, 1, 12, 0), date(2021, 1, 1)]
         with self.assertRaises(TypeError):
             sorted(values)
         self._assert_values_match(values)
 
     def test_diff_datetime_subclass_of_date_is_not_a_date_column(self) -> None:
-        """A pure-`datetime` column still takes the native path."""
         self._assert_values_match(
             [datetime(2021, 1, 2), datetime(2021, 1, 1, 12, 0), datetime(2021, 1, 1)]
         )

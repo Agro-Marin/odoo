@@ -66,6 +66,26 @@ impl Hasher for IdHasher {
 type IdBuild = BuildHasherDefault<IdHasher>;
 type IdSet = HashSet<i64, IdBuild>;
 
+/// The reference's `isinstance(value, int) and value > 0`, once.
+///
+/// `PyLong_Check` before `extract`, because `extract` goes through
+/// `__index__` and so accepts objects the reference rejects — see the call
+/// site in [`to_prefetch_ids`] for the divergence that produced and the cost
+/// the check removes. `PyLong_Check` is subclass-permissive, which is what
+/// `isinstance` means; a `bool` passes both, and `True` is 1 in both.
+#[inline]
+fn as_positive_id(obj: &Bound<'_, PyAny>) -> Option<i64> {
+    if unsafe { ffi::PyLong_Check(obj.as_ptr()) } == 0 {
+        return None;
+    }
+    match obj.extract::<i64>() {
+        Ok(value) if value > 0 => Some(value),
+        // Not an error: an id wider than `i64` is one the reference's
+        // `_I64_MIN <= value <= _I64_MAX` also declines.
+        _ => None,
+    }
+}
+
 /// Build the list of IDs to prefetch for a given record.
 ///
 /// This is the computational core of `Field._to_prefetch()`:
@@ -87,10 +107,9 @@ pub fn to_prefetch_ids<'py>(
     prefetch_max: isize,
 ) -> PyResult<Option<Py<PyTuple>>> {
     // Only handle real records (positive int IDs).
-    // NewId objects fail extract::<i64>(), and id=0 is not a valid DB id.
-    let rec_id: i64 = match record_id.extract() {
-        Ok(id) if id > 0 => id,
-        _ => return Ok(None), // Fall back to Python for NewId
+    // NewId is not an int, and id=0 is not a valid DB id.
+    let Some(rec_id) = as_positive_id(record_id) else {
+        return Ok(None); // Fall back to Python for NewId
     };
 
     // `seen` tracks only the IDs WE'VE added to result (to deduplicate).
@@ -124,9 +143,31 @@ pub fn to_prefetch_ids<'py>(
             break;
         }
         let id_obj = prefetch_ids.get_item(i)?;
-        if let Ok(id_val) = id_obj.extract::<i64>()
-            && id_val > 0
-        {
+        // `PyLong_Check` first, and it is not just a fast path. `extract` goes
+        // through `__index__`, so an object that merely *converts* to an int
+        // was read as a database id: the reference spells `isinstance(id_, int)`
+        // and skips it, while this appended it to the tuple handed to
+        // `browse()`. Measured against `_fallback.to_prefetch_ids`, a value
+        // defining `__index__` came back as `(1, Indexy(), 5)` here and
+        // `(1, 5)` there. No id type in the ORM defines `__index__` today —
+        // `NewId` does not — so this is the two implementations agreeing again
+        // rather than a live bug, which is what the shared test suite asserts.
+        //
+        // It also deletes the cost of being wrong. A failed `extract` builds a
+        // `TypeError`, message and all, for every element — and the elements
+        // that fail are the NewIds this loop exists to skip, so the column
+        // that pays most is the one with nothing to do. Measured over 1000
+        // prefetch ids, rebuilt and re-run alternately, 5 rounds, min of each:
+        //
+        //     all NewId      85.67 us -> 1.90 us   (-97.8%)
+        //     all real ints  17.83 us -> 17.25 us  (unchanged)
+        //
+        // The NewId column was 4.8x the cost of the int column it does less
+        // work than; it is now a ninth of it, which is the shape you would
+        // expect from a loop that rejects every element on a type test.
+        // Both figures are pyo3 0.29.2 — an earlier reading of this pair
+        // straddled the 0.28 -> 0.29 bump and is not comparable.
+        if let Some(id_val) = as_positive_id(&id_obj) {
             // O(1) dict lookup — mirrors Python's `id_ not in field_cache`
             let in_cache = unsafe { ffi::PyDict_Contains(cache_ptr, id_obj.as_ptr()) };
             if in_cache < 0 {
