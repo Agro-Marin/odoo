@@ -366,8 +366,8 @@ round-trip to populate the OWL dashboard component. It returns:
 | `get_analytics_summary()` | `gamification.engagement.snapshot` | Latest metrics + 7-day trends |
 | `_get_karma_leaderboard(limit=10)` | `res.users` | Top karma users (privacy-filtered) |
 | `send_kudos_from_dashboard(recipient_id, category_id, message)` | `res.users` | Create kudos from dashboard inline form |
-| `get_season_leaderboard(limit=10)` | `gamification.season` | Karma earned during season window (**instance method**, requires specific record — not `@api.model`) |
-| `get_suggested_mentors(limit=5)` | `gamification.mentorship` | Higher-karma users available for mentoring |
+| `get_season_leaderboard(limit=10)` | `gamification.season` | Karma earned during season window (**instance method**, requires specific record — not `@api.model`). **Not called from any shipped UI** — only from tests; not one of `gamification_dashboard.js`'s 3 `orm.call`s, unlike the four rows above (which the dashboard aggregation method calls internally). A future season-leaderboard widget is this method's intended consumer. |
+| `get_suggested_mentors(limit=5)` | `gamification.mentorship` | Higher-karma users available for mentoring. **Not called from any shipped UI** — only from tests; not one of `gamification_dashboard.js`'s 3 `orm.call`s. A future mentor-suggestion widget is this method's intended consumer. |
 
 ---
 
