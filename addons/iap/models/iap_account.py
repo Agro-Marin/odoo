@@ -14,8 +14,6 @@ from odoo.addons.iap.tools import iap_tools
 
 _logger = logging.getLogger(__name__)
 
-DEFAULT_ENDPOINT = "https://iap.odoo.com"
-
 
 class IapAccount(models.Model):
     _name = "iap.account"
