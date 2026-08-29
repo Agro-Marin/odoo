@@ -37,7 +37,7 @@ export const iapActionButtonsWidget = {
     extractProps: ({ attrs }) => {
         return {
             serviceName: attrs.service_name,
-            showServiceButtons: !Boolean(attrs.hide_service),
+            showServiceButtons: attrs.hide_service !== "1",
         };
     },
 };
