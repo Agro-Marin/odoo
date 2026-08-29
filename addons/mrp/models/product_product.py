@@ -154,9 +154,19 @@ class ProductProduct(models.Model):
         # here -- measured, an orderpoint on the BoM-less sibling still resolves
         # to `['manufacture']`, from the warehouse. What changes is that two
         # variants whose real rules differ stop colliding on one key.
-        boms = self.env["mrp.bom"]._bom_find(
-            self, bom_type="normal", company_id=self.env.company.id
-        )
+        # Scoped per product's own company, not the active one: `self` can
+        # span several companies (both callers pass a batch resolved without
+        # regard to `env.company`), and `_bom_find` only matches a product
+        # against the company it's asked for.
+        boms = {}
+        for company, products in self.grouped("company_id").items():
+            boms.update(
+                self.env["mrp.bom"]._bom_find(
+                    products,
+                    bom_type="normal",
+                    company_id=(company or self.env.company).id,
+                )
+            )
         for product in self:
             if boms.get(product):
                 result[product.id] |= manufacture_routes
