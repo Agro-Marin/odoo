@@ -1407,8 +1407,6 @@ class TestSuppressionSpans(BaseCase):
 
 @no_retry
 class TestTaxCompanySingularLint(BaseCase):
-    """`account.tax` has `company_ids`; the singular name raises at runtime."""
-
     def _check(self, snippet):
         return [
             v.lineno

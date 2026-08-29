@@ -1,26 +1,7 @@
-"""`.company_id` read off an `account.tax` recordset.
-
-`account.tax` carries a many2many `company_ids` in this fork, not a singular
-`company_id`; the attribute does not exist and the read is an `AttributeError`
-at runtime. It survives review because the expression reads like every other
-company check, and it survives testing because the `filtered` lambda only runs
-when the recordset is non-empty -- a product with no taxes exercises the line
-and proves nothing.
-
-Thirteen of these were live across two repositories when the rule was written,
-one of them making every subcontracted-service purchase order fail to generate.
-
-The shape caught is a `filtered()` over a tax-typed field whose lambda reads
-`.company_id` off its own parameter. That is where the ones found actually
-lived; a general "is this expression an account.tax" question is not one a
-static pass can answer.
-"""
-
 import ast
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-#: Fields whose comodel is `account.tax`.
 TAX_FIELDS = frozenset(
     {
         "tax_id",
