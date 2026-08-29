@@ -40,7 +40,9 @@ class RegistrationEditor(models.TransientModel):
         so_line_to_reg = registrations.grouped("sale_order_line_id")
         attendee_list = []
         for so_line in so_lines:
-            registrations = so_line_to_reg.get(so_line, self.env["event.registration"])
+            so_line_registrations = so_line_to_reg.get(
+                so_line, self.env["event.registration"]
+            )
             # Add existing registrations
             attendee_list += [
                 [
@@ -57,7 +59,7 @@ class RegistrationEditor(models.TransientModel):
                         "sale_order_line_id": so_line.id,
                     },
                 ]
-                for reg in registrations
+                for reg in so_line_registrations
             ]
             # Add new registrations
             attendee_list += [
@@ -74,7 +76,9 @@ class RegistrationEditor(models.TransientModel):
                         "phone": so_line.partner_id.phone,
                     },
                 ]
-                for _count in range(int(so_line.product_uom_qty) - len(registrations))
+                for _count in range(
+                    int(so_line.product_uom_qty) - len(so_line_registrations)
+                )
             ]
         res["event_registration_ids"] = attendee_list
         return self._convert_to_write(res)
