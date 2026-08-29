@@ -106,11 +106,15 @@ _TENS = (
 def number_word(value: int) -> str:
     if value < 20:
         return _UNITS[value]
-    tens, unit = divmod(value, 10)
-    return _TENS[tens] if not unit else f"{_TENS[tens]}-{_UNITS[unit]}"
+    if value < 100:
+        tens, unit = divmod(value, 10)
+        return _TENS[tens] if not unit else f"{_TENS[tens]}-{_UNITS[unit]}"
+    hundreds, rest = divmod(value, 100)
+    head = f"{_UNITS[hundreds]}-hundred"
+    return head if not rest else f"{head}-and-{number_word(rest)}"
 
 
-NUMBER_WORDS = {number_word(value): value for value in range(100)}
+NUMBER_WORDS = {number_word(value): value for value in range(1000)}
 NUMBER_WORD_BY_VALUE = {value: word for word, value in NUMBER_WORDS.items()}
 
 ANY_NUMBER = (

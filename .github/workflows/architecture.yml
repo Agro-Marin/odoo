@@ -883,7 +883,6 @@ jobs:
           python tooling/architecture/py_function_length.py --addon tests --count \
             | xargs python tooling/ratchet/ratchet.py pyfunclen_tests --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 

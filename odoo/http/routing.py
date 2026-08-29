@@ -7,7 +7,7 @@ import logging
 import warnings
 from collections.abc import Callable, Collection, Generator, Iterable
 from types import MappingProxyType
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import werkzeug.routing
 
@@ -15,9 +15,11 @@ from odoo.tools import unique
 from odoo.tools.misc import submap
 
 from ._params import build_param_specs
-from ._protocols import Endpoint, HasRouting, RoutedMethod
 from .constants import ROUTING_KEYS
 from .controller import Controller
+
+if TYPE_CHECKING:
+    from ._protocols import Endpoint, HasRouting, RoutedMethod
 from .core import request
 from .dispatcher import _dispatchers
 from .wrappers import Response

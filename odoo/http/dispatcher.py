@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import collections.abc
 import logging
 import typing
 from abc import ABC, abstractmethod
 from http import HTTPStatus
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import werkzeug.exceptions
 import werkzeug.wrappers
@@ -20,7 +22,6 @@ from werkzeug.exceptions import (
 from odoo.exceptions import UserError
 
 from ._params import coerce_params
-from ._protocols import Endpoint, RequestState
 from .constants import (
     CORS_DEFAULT_ALLOWED_METHODS,
     CORS_MAX_AGE,
@@ -31,6 +32,9 @@ from .constants import (
 from .exceptions import SessionExpiredException
 from .helpers import serialize_exception
 from .wrappers import Response, no_content
+
+if TYPE_CHECKING:
+    from ._protocols import Endpoint, RequestState
 
 _logger = logging.getLogger(__name__)
 

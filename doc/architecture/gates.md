@@ -104,8 +104,8 @@ py_unresolved_calls unresolved_calls
 EOF
 
 # The two loops above run each checker once, at its default scope: 58 of the
-# workflow's 82 steps. A gate governing several scopes gets one step per scope,
-# and these are the other 24. The rows are the workflow's own argv, left/right of
+# workflow's 83 steps. A gate governing several scopes gets one step per scope,
+# and these are the other 25. The rows are the workflow's own argv, left/right of
 # the pipe, because a scope is not always spelled `--addon` and the flag is not
 # always `--count`: `js_private_access` counts a second tree with
 # `--count-cross-tree`, and `pyfunclen_addons` is the one floor driven
@@ -134,6 +134,7 @@ py_function_length.py --addon crm --count|pyfunclen_crm --count
 py_function_length.py --addon loyalty --count|pyfunclen_loyalty --count
 py_function_length.py --addon mail --count|pyfunclen_mail --count
 py_function_length.py --addon survey --count|pyfunclen_survey --count
+py_function_length.py --addon tests --count|pyfunclen_tests --count
 py_function_length.py --addon tooling --count|pyfunclen_tooling --count
 py_function_length.py --count --addon addons|pyfunclen_addons --mode no-increase --count
 py_shadowed_member.py --addon addons --count|py_shadowed_member_addons --count
@@ -343,7 +344,7 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns one hundred and two tool
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns one-hundred-and-two tool
 counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_stock, jsfunclen_product, jsfunclen_survey, pyfunclen, pyfunclen_addons, pyfunclen_mail, pyfunclen_crm, pyfunclen_loyalty, pyfunclen_survey, pyfunclen_tooling, pyfunclen_tests, py_x2many_count, py_x2many_count_addons, py_x2many_count_mail, py_x2many_count_account, py_x2many_count_stock, py_x2many_count_project, py_x2many_count_enterprise, py_x2many_count_agromarin, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_shadowed_member, py_shadowed_member_addons, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsserviceshape_account, jsserviceshape_stock, jsforcedrender, jsvacuous, jseagerfixture, jsduplication, prettier_scss, naming, naming_enterprise, naming_agromarin, naming_design-themes, fieldhooks, hookpurity, computectx, translations, mypy_tools, service_types_untyped, mypy_cli, mypy_tests, orderlineqty, orderlineqty_enterprise, orderlineqty_agromarin, orderlineqty_design-themes, unresolved_calls, unresolved_calls_enterprise, unresolved_calls_agromarin, bundle_double_eval, lint_docstring, lint_gettext_developer_error, lint_gettext_placeholders, lint_gettext_repr, lint_gettext_variable, lint_manifest_shape, lint_missing_gettext, lint_n_plus_one_query, lint_noqa_rationale, lint_raise_unlink_override, lint_sql_injection, lint_xml_attrib_order, lint_xml_field_order, lint_xml_unformatted, lint_gettext_developer_error_enterprise, lint_missing_gettext_enterprise, lint_n_plus_one_query_enterprise, lint_noqa_rationale_enterprise, lint_raise_unlink_override_enterprise, lint_sql_injection_enterprise, lint_gettext_developer_error_agromarin, lint_gettext_placeholders_agromarin, lint_gettext_repr_agromarin, lint_gettext_variable_agromarin, lint_missing_gettext_agromarin, lint_n_plus_one_query_agromarin, lint_noqa_rationale_agromarin, lint_sql_injection_agromarin and lint_noqa_rationale_design-themes**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
