@@ -352,6 +352,11 @@ class MrpWorkcenter(models.Model):
         "time_ids.date_end",
     )
     def _compute_effectiveness_times(self):
+        # `performance` is a wall-clock, still-running loss type -- the same
+        # ones `_compute_working_state`/`unblock()` never treat as `blocked`
+        # -- so a workorder that simply overran `duration_expected` is
+        # machine-occupied time, not a stoppage.
+        wall_clock = self.env["mrp.workcenter.productivity.loss"].WALL_CLOCK_LOSS_TYPES
         time_by_workcenter = defaultdict(lambda: {"blocked": 0.0, "productive": 0.0})
         for workcenter, loss_type, duration in self.env[
             "mrp.workcenter.productivity"
@@ -364,7 +369,7 @@ class MrpWorkcenter(models.Model):
             ["workcenter_id", "loss_type"],
             ["duration:sum"],
         ):
-            bucket = "productive" if loss_type == "productive" else "blocked"
+            bucket = "productive" if loss_type in wall_clock else "blocked"
             time_by_workcenter[workcenter.id][bucket] += duration
         for workcenter in self:
             measured = time_by_workcenter[workcenter.id]
