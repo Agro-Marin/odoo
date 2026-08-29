@@ -450,7 +450,7 @@ class IrUiView(models.Model):
 
         arch_tree = html.fromstring(arch)
         attributes = self._get_cleaned_non_editing_attributes(arch_tree.attrib.items())
-        for attr in arch_tree.attrib:
+        for attr in list(arch_tree.attrib):
             if attr in attributes:
                 arch_tree.attrib[attr] = attributes[attr]
             else:
