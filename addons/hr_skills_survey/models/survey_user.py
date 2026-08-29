@@ -26,15 +26,8 @@ class SurveyUser_Input(models.Model):
             [("user_id.partner_id", "in", certification_user_inputs.partner_id.ids)]
         )
         resume_lines = self.env["hr.resume.line"].search(
-            Domain.OR(
-                Domain("employee_id", "=", employee.id)
-                & Domain(
-                    "survey_id",
-                    "in",
-                    user_inputs_by_partner[employee.user_id.partner_id].survey_id.ids,
-                )
-                for employee in employees
-            )
+            Domain("employee_id", "in", employees.ids)
+            & Domain("survey_id", "in", certification_user_inputs.survey_id.ids)
         )
         resume_survey_by_ids = resume_lines.grouped(
             lambda resume_line: (resume_line.employee_id, resume_line.survey_id)
