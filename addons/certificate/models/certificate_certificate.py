@@ -13,7 +13,7 @@ from .certificate_key import STR_TO_HASH, _get_formatted_value
 
 @lru_cache(maxsize=128)
 def _parse_x509_certificate(pem_bytes):
-    """Parse DER-encoded certificate bytes, memoized by content.
+    """Parse PEM-encoded certificate bytes, memoized by content.
 
     ``_get_der_certificate_bytes``/``_get_fingerprint_bytes``/
     ``_get_signature_bytes``/``_get_public_key_bytes`` each call
