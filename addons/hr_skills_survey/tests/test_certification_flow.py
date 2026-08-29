@@ -4,13 +4,12 @@ from markupsafe import Markup
 
 from odoo import Command, fields
 from odoo.tests import tagged
-from odoo.tests.common import HttpCase
 
 from odoo.addons.survey.tests import common
 
 
 @tagged("-at_install", "post_install", "functional")
-class TestCertificationFlow(common.TestSurveyCommon, HttpCase):
+class TestCertificationFlow(common.TestSurveyCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
