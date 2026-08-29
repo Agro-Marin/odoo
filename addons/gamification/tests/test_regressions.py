@@ -1153,3 +1153,77 @@ class TestActivityFeedRendersAtReadTime(common.TransactionCase):
         stored.invalidate_recordset()
 
         self.assertEqual(stored._get_display_summary(), original)
+
+
+class TestClosedGoalCurrentFrozen(common.TransactionCase):
+    """A closed goal's ``current`` must not move on an automatic update.
+
+    ``update_goal()`` is reachable by the goal's own (non-manager) owner
+    through the always-visible "refresh" button, which writes via ``sudo()``
+    to bypass the ``OUTCOME_FIELDS`` guard -- that bypass must not extend to
+    re-measuring a goal that is already closed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.employee = mail_new_test_user(
+            cls.env,
+            login="closed_goal_employee",
+            name="Closed Goal Employee",
+            email="closed_goal@example.com",
+            groups="base.group_user",
+        )
+        # Python mode so the employee-run update_goal() below only ever needs
+        # to read `compute_code` (a Char on gamification.goal.definition
+        # itself, readable by group_user) rather than `model_id.model`,
+        # which needs `ir.model` read access a plain employee doesn't have --
+        # an unrelated, pre-existing gap outside this finding's scope.
+        cls.definition = cls.env["gamification.goal.definition"].create(
+            {
+                "name": "Closed Goal Partners",
+                "computation_mode": "python",
+                "model_id": cls.env["ir.model"]._get("gamification.goal").id,
+                "compute_code": "result = 999",
+                "condition": "higher",
+            }
+        )
+        cls.challenge = cls.env["gamification.challenge"].create(
+            {
+                "name": "Closed Goal Challenge",
+                "user_domain": f'[("id", "=", {cls.employee.id})]',
+                "line_ids": [
+                    (0, 0, {"definition_id": cls.definition.id, "target_goal": 10**9})
+                ],
+            }
+        )
+        cls.challenge.state = "inprogress"
+        cls.goal = cls.env["gamification.goal"].search(
+            [
+                ("challenge_id", "=", cls.challenge.id),
+                ("user_id", "=", cls.employee.id),
+            ]
+        )
+
+    def test_update_goal_does_not_move_current_once_closed(self):
+        # Force a closed goal whose stored `current` disagrees with what a
+        # fresh measurement would produce (`compute_code` always yields 999)
+        # -- exactly the state a goal is in once its period has ended and
+        # its measured value has since moved on.
+        self.goal.sudo().write({"state": "failed", "closed": True, "current": 0})
+
+        self.goal.with_user(self.employee).update_goal()
+        self.goal.invalidate_recordset()
+
+        self.assertEqual(self.goal.current, 0)
+        self.assertEqual(self.goal.state, "failed")
+        self.assertTrue(self.goal.closed)
+
+    def test_a_still_open_goal_still_updates(self):
+        """CONTROL: the refresh button must keep working for open goals."""
+        self.goal.sudo().write({"current": 0})
+
+        self.goal.with_user(self.employee).update_goal()
+        self.goal.invalidate_recordset()
+
+        self.assertEqual(self.goal.current, 999)
