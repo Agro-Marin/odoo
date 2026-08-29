@@ -203,6 +203,37 @@ class TestErrorStatusEndToEnd(HttpCase):
                     f"{response.status_code}",
                 )
 
+    def test_500_error_hook_runs_for_every_5xx_code(self):
+        seen_codes = []
+
+        def _get_values_500_error(cls, env, values, exception):
+            seen_codes.append(values["status_code"])
+            return values
+
+        self.patch(
+            self.registry["ir.http"],
+            "_get_values_500_error",
+            classmethod(_get_values_500_error),
+        )
+
+        for exception, code in (
+            (werkzeug.exceptions.InternalServerError(), 500),
+            (werkzeug.exceptions.NotImplemented(), 501),
+            (werkzeug.exceptions.BadGateway(), 502),
+            (werkzeug.exceptions.ServiceUnavailable(), 503),
+            (werkzeug.exceptions.GatewayTimeout(), 504),
+        ):
+            with self.subTest(code=code):
+                seen_codes.clear()
+                self._raise(exception)
+                response = self.url_open(self.EP, allow_redirects=False)
+                self.assertEqual(response.status_code, code)
+                self.assertEqual(
+                    seen_codes,
+                    [code],
+                    f"_get_values_500_error was not invoked for a {code} response",
+                )
+
     def test_abort_with_a_response_is_still_delivered_verbatim(self):
         def _dispatch(endpoint):
             werkzeug.exceptions.abort(
