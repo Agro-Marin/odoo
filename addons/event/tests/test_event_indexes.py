@@ -50,3 +50,15 @@ class TestEventIndexes(EventCase):
         this column. Rescheduling an event rewrites its slots in bulk.
         """
         self._assert_indexed("event.mail.slot", "event_slot_id")
+
+    def test_event_registration_answer_question_id_is_indexed(self):
+        """`event.registration.answer.question_id` guards every question change.
+
+        Two guards in `event.question` filter the answers table on this column:
+        `write` blocks a `question_type` change once answers exist, and
+        `_unlink_except_answered_question` blocks a delete for the same reason.
+        Postgres adds a third, checking the `ondelete="restrict"` foreign key.
+        The table grows with every answer given, and none of the three could use
+        an index until now.
+        """
+        self._assert_indexed("event.registration.answer", "question_id")
