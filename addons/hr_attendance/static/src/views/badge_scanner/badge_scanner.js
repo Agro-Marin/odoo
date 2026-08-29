@@ -33,6 +33,7 @@ export class BadgeScanner extends Component {
             this.notification.add(_t("Missing Employee ID"), {
                 type: "danger",
             });
+            return;
         }
         try{
             await this.orm.write("hr.employee", [this.employee[0].id], { barcode: barcode })
