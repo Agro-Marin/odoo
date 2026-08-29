@@ -6360,7 +6360,7 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
 
         modules_without_error = set(
             self.env["ir.module.module"]
-            .search([("state", "=", "intalled"), ("name", "in", only_log_modules)])
+            .search([("state", "=", "installed"), ("name", "in", only_log_modules)])
             .mapped("name")
         )
         module_log_views = defaultdict(list)
