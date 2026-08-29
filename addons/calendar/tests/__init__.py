@@ -14,4 +14,5 @@ from . import test_privacy_delegation
 from . import test_res_partner
 from . import test_recurrence_rule
 from . import test_res_users
+from . import test_user_local_dates
 from . import test_regressions

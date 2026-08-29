@@ -1983,7 +1983,9 @@ class CalendarEvent(models.Model):
         """
         self.ensure_one()
         now = fields.Datetime.now()
-        today = fields.Date.today()
+        # Date-only, so it must be the user's today: an all-day meeting is over
+        # when their day has moved past it, not when UTC's has.
+        today = fields.Date.context_today(self)
 
         # For all-day events
         if self.allday:
@@ -2605,7 +2607,9 @@ class CalendarEvent(models.Model):
         :return: date
         """
         if not self.start:
-            return fields.Date.today()
+            # The branch below already answers in the event's timezone; this
+            # fallback used to answer in UTC.
+            return fields.Date.context_today(self)
         if self.recurrency and self.event_tz:
             tz = timezone(self.event_tz)
             # Ensure that all day events date are not calculated around midnight. TZ shift would potentially return bad date

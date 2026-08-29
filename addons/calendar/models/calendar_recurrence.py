@@ -940,7 +940,9 @@ class CalendarRecurrence(models.Model):
             return False
 
         now = fields.Datetime.now()
-        today = fields.Date.today()
+        # See the note on `calendar.event._is_event_over`: date-only comparison,
+        # so it follows the user's day rather than UTC's.
+        today = fields.Date.context_today(self)
 
         return all(
             (event.stop_date < today if event.allday else event.stop < now)
