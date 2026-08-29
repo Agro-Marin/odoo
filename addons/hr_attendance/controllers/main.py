@@ -84,9 +84,7 @@ class HrAttendance(http.Controller):
         if not device_tracking_enabled:
             return response
         try:
-            location = request.env["geocoder"]._get_localisation(
-                latitude, longitude
-            )
+            location = request.env["geocoder"]._get_localisation(latitude, longitude)
         except UserError, RequestException:
             location = _("Unknown")
 
