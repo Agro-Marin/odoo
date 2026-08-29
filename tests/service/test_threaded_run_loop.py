@@ -256,7 +256,7 @@ class TestRunLimitReached:
         thread = MagicMock(ident=4242)
         server.limits_reached_threads = {thread}
         _, dump = self._drive(server, others=False)
-        assert dump.call_args.kwargs["thread_idents"] == [4242], (
+        assert dump.call_args.kwargs["thread_idents"] == {4242}, (
             "dumping every thread buries the one that exceeded the limit"
         )
 
