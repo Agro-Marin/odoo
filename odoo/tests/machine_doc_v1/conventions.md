@@ -50,6 +50,16 @@ classes individually silently stops covering new ones.
   lives in `browser.py`.  Likewise `HttpCase`/`Opener`/`Transport`/
   `JsonRpcException` live in `http.py` but stay re-exported from `common`;
   `http.browser_js` must keep instantiating via `common.ChromeBrowser`.
+  - **Those four http names are resolved by a module-level `__getattr__`, not
+    by an import.** `http.py` subclasses `TransactionCase`, so it must import
+    `common` while executing; `common` importing `http` back was a real cycle,
+    closed by an import on `common.py`'s last line. That placement also made
+    the file order load-bearing -- every name `http.py` takes from `common` had
+    to be defined above that line, with nothing enforcing it. Deferring drops
+    the edge and the rule together. Adding a fifth such name means adding it to
+    `_HTTP_EXPORTS`, to `__all__`, and to the `TYPE_CHECKING` block that keeps
+    ruff's `F822` and the type checker satisfied.
+    `TestCommonHasNoImportEdgeToHttp` pins all of it.
 - `test_cursor.py` / `test_module_operations.py` are import shims for old
   upstream paths — external tooling (runbot) may call
   `python -m odoo.tests.test_module_operations`. Keep until proven dead.

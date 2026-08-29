@@ -99,7 +99,7 @@ class HttpCase(TransactionCase):
 
     @classmethod
     def http_port(cls) -> int | None:
-        httpd = getattr(odoo.service.lifecycle.server, "httpd", None)
+        httpd = getattr(odoo.service._process_state.server, "httpd", None)
         return httpd.server_port if httpd is not None else None
 
     def setUp(self) -> None:
@@ -451,7 +451,7 @@ class HttpCase(TransactionCase):
                     "CPU throttling mode is only suitable for local testing - "
                     "Throttling browser CPU to %sx slowdown and extending timeout to %s sec",
                     cpu_throttling,
-                    timeout,
+                    timeout * cpu_throttling,
                 )
                 browser.throttle(cpu_throttling)
 

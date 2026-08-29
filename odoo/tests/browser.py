@@ -903,7 +903,7 @@ which leads to stray network requests and inconsistencies."""
             e = threading.Event()
             self._frames[frame_id] = e.set
             self._logger.info("Waiting for frame %r to stop loading", frame_id)
-            e.wait(10)
+            e.wait(10 * self.throttling_factor)
 
     def _from_remoteobject(self, arg: dict) -> Any:
         objtype = arg["type"]

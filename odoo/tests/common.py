@@ -3,6 +3,7 @@ import difflib
 import importlib
 import inspect
 import logging
+import pathlib
 import pprint
 import re
 import sys
@@ -53,8 +54,8 @@ from odoo.tools.mail import single_email_re
 from odoo.tools.misc import lower_logging
 from odoo.tools.xml_utils import _check_xml
 
-from . import case
 from .browser import DEFAULT_SUCCESS_SIGNAL, ChromeBrowser, ChromeBrowserException
+from .case import TestCase
 from .cursor import TestCursor
 from .utils import HOST, env_int, get_db_name, save_test_file
 
@@ -62,6 +63,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterable
 
     import odoo.addons.base
+    from .http import HttpCase, JsonRpcException, Opener, Transport
     from .result import OdooTestResult
 
 
@@ -87,6 +89,7 @@ __all__ = [
     "WhitespaceInsensitive",
     "can_import",
     "freeze_time",
+    "gc_test_filestore",
     "get_cache_key_counter",
     "get_db_name",
     "loaded_demo_data",
@@ -232,9 +235,28 @@ def new_test_user(env, login="", groups="base.group_user", context=None, **kwarg
     return env["res.users"].with_context(**context).create(create_values)
 
 
+def _has_child_processes() -> bool:
+    try:
+        return any(
+            (task / "children").read_text().strip()
+            for task in pathlib.Path("/proc/self/task").iterdir()
+        )
+    except OSError:
+        return True  # no procfs: fall through to the portable walk
+
+
+def gc_test_filestore() -> None:
+    try:
+        with Registry(get_db_name()).cursor() as cr:
+            gc_env = api.Environment(cr, api.SUPERUSER_ID, {})
+            gc_env["ir.attachment"]._gc_file_store_unsafe()
+    except Exception:
+        _logger.warning("Could not sweep the filestore after the suite", exc_info=True)
+
+
 def release_stranded_test_cursors(owner: str = "") -> int:
     stranded = TestCursor._cursors_stack
-    for cursor in stranded:
+    for cursor in reversed(stranded):
         _logger.warning(
             "A cursor was remaining in the TestCursor stack at the end of %s; "
             "releasing its registry lock",
@@ -397,7 +419,7 @@ def _normalise_records(
     return rows
 
 
-class BaseCase(case.TestCase):
+class BaseCase(TestCase):
     registry: Registry = None  # type: ignore[assignment]
     env: api.Environment = None  # type: ignore[assignment]
     cr: Cursor = None  # type: ignore[assignment]
@@ -493,6 +515,8 @@ class BaseCase(case.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         def check_remaining_processes() -> None:
+            if not _has_child_processes():
+                return
             current_process = psutil.Process()
             children = current_process.children(recursive=True)
             for child in children:
@@ -571,6 +595,12 @@ class BaseCase(case.TestCase):
 
     def cursor(self) -> Cursor:
         return cast("Cursor", self.registry.cursor())
+
+    @classmethod
+    def _open_class_cursor(cls) -> None:
+        cls.cr = cast("Cursor", cls.registry.cursor())
+        cls.addClassCleanup(cls.cr.close)
+        seed_planner_stats(cls.cr)
 
     @property
     def uid(self):
@@ -1148,15 +1178,8 @@ class TransactionCase(BaseCase):
     _starts_freeze_time_itself = True
 
     @classmethod
-    def _gc_filestore(cls) -> None:
-        with Registry(get_db_name()).cursor() as cr:
-            gc_env = api.Environment(cr, api.SUPERUSER_ID, {})
-            gc_env["ir.attachment"]._gc_file_store_unsafe()
-
-    @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        cls.addClassCleanup(cls._gc_filestore)
         cls.registry = Registry(get_db_name())
         cls.registry_start_invalidated = cls.registry.registry_invalidated
         cls.registry_start_sequence = cls.registry.registry_sequence
@@ -1195,10 +1218,7 @@ class TransactionCase(BaseCase):
         )
         cls.startClassPatcher(cls._signal_changes_patcher)
 
-        cls.cr = cast("Cursor", cls.registry.cursor())
-        cls.addClassCleanup(cls.cr.close)
-
-        seed_planner_stats(cls.cr)
+        cls._open_class_cursor()
 
         cls.addClassCleanup(release_stranded_test_cursors, cls.__name__)
 
@@ -1319,9 +1339,7 @@ class SingleTransactionCase(BaseCase):
         cls.addClassCleanup(cls.registry.reset_changes)
         cls.addClassCleanup(cls.registry.clear_all_caches)
 
-        cls.cr = cast("Cursor", cls.registry.cursor())
-        cls.addClassCleanup(cls.cr.close)
-        seed_planner_stats(cls.cr)
+        cls._open_class_cursor()
 
         if cls.freeze_time:
             cls.startClassPatcher(cls.freeze_time)
@@ -1444,7 +1462,7 @@ class freeze_time:
 
     def __call__(self, arg: Any) -> Any:
         target: Any = arg
-        if isinstance(arg, type) and issubclass(arg, case.TestCase):
+        if isinstance(arg, type) and issubclass(arg, TestCase):
             target.freeze_time = self
             return target
 
@@ -1462,9 +1480,18 @@ class freeze_time:
 
 freezegun.freeze_time = freeze_time
 
-from .http import (  # noqa: E402  http.py imports from this module; a top import would cycle
-    HttpCase,
-    JsonRpcException,
-    Opener,
-    Transport,
-)
+_HTTP_EXPORTS = ("HttpCase", "JsonRpcException", "Opener", "Transport")
+"""Names this module publishes on behalf of :mod:`odoo.tests.http`."""
+
+
+def __getattr__(name: str) -> Any:
+    if name in _HTTP_EXPORTS:
+        from . import http
+
+        globals().update({export: getattr(http, export) for export in _HTTP_EXPORTS})
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *_HTTP_EXPORTS})

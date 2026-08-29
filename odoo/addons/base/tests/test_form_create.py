@@ -1,4 +1,5 @@
 from odoo.tests import Form, TransactionCase, tagged
+from odoo.tests.form import Dotter
 
 
 @tagged("-at_install", "post_install")
@@ -184,3 +185,52 @@ class TestFormAttributeAccess(TransactionCase):
         form = Form.__new__(Form)
         with self.assertRaises(AttributeError):
             _ = form._view
+
+
+@tagged("-at_install", "post_install")
+class TestFormHonoursTheAttributeProtocol(TransactionCase):
+    def test_reading_an_unknown_field_is_both_kinds_of_error(self):
+        """TestFormAttributeAccess above pins AssertionError; the protocol
+        needs AttributeError. FieldNotInView is both, so neither gives way."""
+        form = Form(self.env["res.partner"])
+        with self.assertRaises(AssertionError):
+            form.not_a_field_of_this_view
+        with self.assertRaises(AttributeError) as caught:
+            form.not_a_field_of_this_view
+        self.assertIn("not_a_field_of_this_view", str(caught.exception))
+        self.assertIn("name", str(caught.exception), "the message lists the fields")
+
+    def test_hasattr_and_getattr_answer_instead_of_raising(self):
+        form = Form(self.env["res.partner"])
+        self.assertFalse(hasattr(form, "not_a_field_of_this_view"))
+        self.assertIsNone(getattr(form, "not_a_field_of_this_view", None))
+        self.assertTrue(hasattr(form, "name"), "a real field is still readable")
+
+    def test_writing_an_unknown_field_still_asserts(self):
+        form = Form(self.env["res.partner"])
+        with self.assertRaisesRegex(
+            AssertionError, "'not_a_field_of_this_view' was not found in the view"
+        ):
+            form.not_a_field_of_this_view = 1
+
+
+class TestDotterHonoursTheAttributeProtocol(TransactionCase):
+    def test_a_missing_parent_value_raises_attribute_error(self):
+        dotter = Dotter({"known": 1})
+        self.assertEqual(dotter.known, 1)
+        with self.assertRaises(AttributeError) as caught:
+            dotter.absent
+        message = str(caught.exception)
+        self.assertIn("absent", message)
+        self.assertIn("parent.absent", message, "the message names the expression")
+
+    def test_hasattr_and_getattr_answer_instead_of_raising(self):
+        dotter = Dotter({"known": 1})
+        self.assertFalse(hasattr(dotter, "absent"))
+        self.assertIsNone(getattr(dotter, "absent", None))
+        self.assertTrue(hasattr(dotter, "known"))
+
+    def test_a_nested_mapping_is_still_wrapped(self):
+        dotter = Dotter({"child": {"leaf": 7}})
+        self.assertIsInstance(dotter.child, Dotter)
+        self.assertEqual(dotter.child.leaf, 7)

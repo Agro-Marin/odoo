@@ -133,21 +133,20 @@ class OdooTestResult:
                 queries=db.sql_counter - self.queries_start,
             )
 
-    def addError(self, test: TestLike, err: tuple) -> None:
+    def _record_failure(self, counter: str) -> None:
         if self._soft_fail:
             self.had_failure = True
         else:
-            self.errors_count += 1
-        self.logError("ERROR", test, err)
+            setattr(self, counter, getattr(self, counter) + 1)
         self._checkShouldStop()
 
+    def addError(self, test: TestLike, err: tuple) -> None:
+        self.logError("ERROR", test, err)
+        self._record_failure("errors_count")
+
     def addFailure(self, test: TestLike, err: tuple) -> None:
-        if self._soft_fail:
-            self.had_failure = True
-        else:
-            self.failures_count += 1
         self.logError("FAIL", test, err)
-        self._checkShouldStop()
+        self._record_failure("failures_count")
 
     def addSubTest(
         self, test: case.TestCase, subtest: TestLike, err: tuple | None
@@ -177,10 +176,6 @@ class OdooTestResult:
 
         self.infrastructure_skipped += 1
         if REQUIRE_INFRA:
-            if self._soft_fail:
-                self.had_failure = True
-            else:
-                self.errors_count += 1
             self.log(
                 logging.ERROR,
                 "INFRASTRUCTURE UNAVAILABLE %s : %s (ODOO_REQUIRE_INFRA=1)",
@@ -188,7 +183,7 @@ class OdooTestResult:
                 reason,
                 test=test,
             )
-            self._checkShouldStop()
+            self._record_failure("errors_count")
         else:
             self.log(
                 logging.WARNING,
@@ -393,7 +388,10 @@ class OdooTestResult:
 
         method_tb = None
         file_tb = None
-        filename = inspect.getfile(type(test))
+        try:
+            filename = inspect.getfile(type(test))
+        except OSError, TypeError:
+            filename = None
 
         while error_traceback:
             code = error_traceback.tb_frame.f_code

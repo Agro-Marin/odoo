@@ -68,17 +68,36 @@ class TagsSelector:
             self.include.add(("standard", None, None, None, None))
 
     def check(self, test: Any) -> bool:
+        matches = self._matcher(test)
+        return matches is not None and self._selects(matches)
+
+    def select_params(self, test: Any) -> list:
+        matches = self._matcher(test)
+        if matches is None or not self._selects(matches):
+            test._test_params = []
+        else:
+            test._test_params = [
+                parameter
+                for test_filter, parameter in self.parameters
+                if matches(test_filter)
+            ]
+        return test._test_params
+
+    def _selects(self, matches: Any) -> bool:
+        if any(matches(test_filter) for test_filter in self.exclude):
+            return False
+        return any(matches(test_filter) for test_filter in self.include)
+
+    def _matcher(self, test: Any) -> Any:
         if not getattr(test, "test_tags", None):
             _logger.debug("Skipping test '%s' because no test_tag found.", test)
-            return False
+            return None
 
         test_module = test.test_module
         test_class = test.__class__.__name__
         test_tags = test.test_tags | {test_module}
         test_method = test._testMethodName
         test_module_path = addon_relative_path(test.__module__)
-
-        test._test_params = []
 
         def _is_matching(test_filter: tuple) -> bool:
             tag, module, klass, method, file_path = test_filter
@@ -94,16 +113,4 @@ class TagsSelector:
                 return method == test_method
             return True
 
-        if any(_is_matching(test_filter) for test_filter in self.exclude):
-            return False
-
-        if not any(_is_matching(test_filter) for test_filter in self.include):
-            return False
-
-        test._test_params = [
-            parameter
-            for test_filter, parameter in self.parameters
-            if _is_matching(test_filter)
-        ]
-
-        return True
+        return _is_matching

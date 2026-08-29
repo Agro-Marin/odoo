@@ -1,9 +1,11 @@
+import ast
 import contextlib
 import difflib
 import gc
 import inspect
 import logging
 import os
+import pathlib
 import re
 import sys
 import threading
@@ -715,14 +717,24 @@ class TestRetryAccounting(BaseCase):
 
 
 class TestPatchExecuteStatementApi(TransactionCase):
+    @staticmethod
+    def _marks_a_statement(name):
+        """Whether ``Cursor.<name>`` is a statement entry point.
+
+        Unwrap first. A decorated entry point keeps its mark in the *wrapped*
+        function, while ``__code__`` belongs to the decorator's helper: when
+        ``Cursor.copy`` became a ``@contextmanager`` this scan stopped seeing
+        it, and the gate that exists to catch an unregistered statement API
+        went red pointing at the register rather than at itself.
+        """
+        attr = getattr(Cursor, name, None)
+        if not callable(attr):
+            return False
+        code = getattr(inspect.unwrap(attr), "__code__", None)
+        return code is not None and "_before_statement" in code.co_names
+
     def test_every_marked_entry_point_is_recorded(self):
-        marked = {
-            name
-            for name in dir(Cursor)
-            if callable(getattr(Cursor, name, None))
-            and getattr(getattr(Cursor, name), "__code__", None) is not None
-            and "_before_statement" in getattr(Cursor, name).__code__.co_names
-        }
+        marked = {name for name in dir(Cursor) if self._marks_a_statement(name)}
         self.assertTrue(marked, "Cursor marks no statement entry points at all")
         self.assertEqual(
             sorted(marked),
@@ -1139,3 +1151,250 @@ class TestInfrastructureUnavailable(BaseCase):
             "every environment failure in browser.py must raise "
             "InfrastructureUnavailable so it can be counted and reported",
         )
+
+
+class TestReporterSurvivesAFilelessTestClass(BaseCase):
+    """A failure in a class whose module resolves to no file must be REPORTED.
+
+    ``getErrorCallerInfo`` used to call ``inspect.getfile(type(test))``
+    unguarded, and the ``TypeError`` it raises for such a class escaped
+    ``addError`` -> ``logError`` -> ``TestSuite.run`` -> ``run_suite``, which
+    ``modules/loading.py`` does not guard: the real assertion was never logged
+    and the rest of the suite never ran.
+    """
+
+    @staticmethod
+    def _fileless(name, body):
+        # the shape this file already uses for its own probes
+        return type(
+            name,
+            (BaseCase,),
+            {
+                "__module__": "some.third.party",
+                "test_tags": {"standard", "at_install"},
+                "test_module": "base",
+                "test_x": body,
+            },
+        )
+
+    def test_a_failure_is_reported_and_the_suite_continues(self):
+        ran = []
+        Failing = self._fileless("Failing", lambda self: self.fail("boom"))
+        Later = self._fileless("Later", lambda self: ran.append("later"))
+
+        result = OdooTestResult()
+        with _nested_suite_run(), mute_logger("some.third.party"):
+            OdooSuite([Failing("test_x"), Later("test_x")]).run(result)
+
+        self.assertEqual(
+            result.failures_count, 1, "the real failure was never recorded"
+        )
+        self.assertEqual(
+            ran, ["later"], "a crash in the reporter swallowed the rest of the suite"
+        )
+
+
+class TestStrandedCursorsUnwindInnermostFirst(TransactionCase):
+    """Stranded savepoints are nested, so they must be released newest-first."""
+
+    def test_two_stranded_cursors_leave_the_transaction_usable(self):
+        from psycopg.pq import TransactionStatus
+
+        self.registry_enter_test_mode(register_cleanup=True)
+        outer = self.registry.cursor()
+        outer.execute("SELECT 1")
+        inner = self.registry.cursor()
+        inner.execute("SELECT 1")
+        self.assertIsNotNone(outer._savepoint, "outer never opened a savepoint")
+        self.assertIsNotNone(inner._savepoint, "inner never opened a savepoint")
+
+        with mute_logger("odoo.tests.common"):
+            self.assertEqual(release_stranded_test_cursors("the test above"), 2)
+
+        self.assertNotEqual(
+            self.cr.connection.info.transaction_status,
+            TransactionStatus.INERROR,
+            "releasing the outer savepoint first destroyed the inner one, and "
+            "the failed ROLLBACK TO aborted the class transaction",
+        )
+        self.cr.execute("SELECT 1")
+
+
+class TestChildProcessGuardAgreesWithPsutil(BaseCase):
+    """The cheap guard in front of the per-class ``psutil`` walk must never
+    answer False while a descendant exists, or the walk stops running."""
+
+    def test_the_guard_matches_psutil_in_every_state(self):
+        import subprocess
+        import time
+
+        import psutil
+
+        # imported here, not at module scope: a probe of a private helper must
+        # not make the whole test module uncollectable when the helper moves
+        from odoo.tests.common import _has_child_processes
+
+        def descendants():
+            return len(psutil.Process().children(recursive=True))
+
+        self.assertFalse(_has_child_processes(), "started with a child process")
+        self.assertEqual(descendants(), 0)
+
+        child = subprocess.Popen(["sleep", "30"])
+        grandparent = subprocess.Popen(["bash", "-c", "sleep 30 & wait"])
+        try:
+            time.sleep(0.2)
+            self.assertTrue(descendants() >= 2, "the fixture spawned nothing")
+            self.assertTrue(
+                _has_child_processes(),
+                "the guard would skip the walk while descendants are alive",
+            )
+        finally:
+            child.kill()
+            grandparent.kill()
+            child.wait()
+            grandparent.wait()
+
+        time.sleep(0.2)
+        self.assertEqual(descendants(), 0)
+        self.assertFalse(_has_child_processes())
+
+
+class TestTagSelectorCheckIsPure(BaseCase):
+    """``check()`` answers a question; ``select_params()`` does the writing.
+
+    Folded together, the caller order was load-bearing and unguarded: only the
+    last selector's parameters survived, so swapping ``make_suite``'s operands
+    silently emptied the list ``web/tests/test_js.py`` reads, with every test
+    still selected and nothing failing.
+    """
+
+    class _Probe(BaseCase):
+        test_tags = {"standard", "at_install"}
+        test_module = "base"
+
+        def test_x(self):
+            pass
+
+    def _probe(self):
+        probe = self._Probe("test_x")
+        probe._test_params = ["sentinel"]
+        return probe
+
+    def test_check_does_not_write_to_the_test(self):
+        probe = self._probe()
+        self.assertTrue(TagsSelector("standard[someparam]").check(probe))
+        self.assertEqual(
+            probe._test_params,
+            ["sentinel"],
+            "check() must not touch _test_params",
+        )
+
+    def test_params_survive_either_evaluation_order(self):
+        position = TagsSelector("at_install")
+        config = TagsSelector("standard[someparam]")
+        expected = [("+", "someparam")]
+
+        for first, second in ((position, config), (config, position)):
+            probe = self._probe()
+            self.assertTrue(first.check(probe) and second.check(probe))
+            config.select_params(probe)
+            self.assertEqual(
+                probe._test_params,
+                expected,
+                "the parameters depend on the order the selectors are checked",
+            )
+
+    def test_an_untagged_test_selects_no_parameters(self):
+        probe = self._probe()
+        probe.test_tags = set()
+        self.assertEqual(TagsSelector("standard[someparam]").select_params(probe), [])
+
+
+class TestFilestoreIsSweptOncePerSuite(BaseCase):
+    """The sweep costs a pooled connection, so it belongs to the suite, not to
+    every class: 625 sweeps in one ``-i base,web`` run, each ``0 checked, 0
+    removed``, because ``_GC_CHECKLIST_GRACE`` outlives any run."""
+
+    def test_no_class_cleanup_sweeps_the_filestore(self):
+        source = inspect.getsource(TransactionCase.setUpClass)
+        self.assertNotIn(
+            "_gc_filestore",
+            source,
+            "the filestore sweep is back on the per-class cleanup path",
+        )
+
+    def test_run_suite_sweeps_once(self):
+        from odoo.tests import loader
+
+        self.assertIn(
+            "gc_test_filestore()",
+            inspect.getsource(loader.run_suite),
+            "nothing sweeps the filestore any more",
+        )
+
+
+class TestCommonHasNoImportEdgeToHttp(BaseCase):
+    """``http.py`` subclasses ``TransactionCase``, so it must import
+    ``common`` while executing. ``common`` therefore must not import ``http``
+    back, or the pair is a cycle whose only resolution is an import on the last
+    line -- which additionally makes every name ``http.py`` takes from
+    ``common`` depend on being defined above it, unenforced."""
+
+    @staticmethod
+    def _runtime_imports_of_http():
+        from odoo.tests import common as common_module
+
+        source = pathlib.Path(common_module.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        def is_type_checking_guard(node):
+            return isinstance(node, ast.If) and (
+                getattr(node.test, "id", None) == "TYPE_CHECKING"
+            )
+
+        return [
+            sub.lineno
+            for node in tree.body
+            if not is_type_checking_guard(node)  # declarations carry no edge
+            for sub in ast.walk(node)
+            if isinstance(sub, ast.ImportFrom) and sub.module == "http"
+        ]
+
+    def test_common_does_not_import_http_while_executing(self):
+        self.assertEqual(
+            self._runtime_imports_of_http(),
+            [],
+            "common.py imports http at module scope again; that is the cycle, "
+            "and the bottom-of-file placement that resolves it is what makes "
+            "http.py's imports order-dependent",
+        )
+
+    def test_every_deferred_name_resolves_to_the_http_one(self):
+        from odoo.tests import common as common_module
+        from odoo.tests import http as http_module
+
+        self.assertTrue(common_module._HTTP_EXPORTS, "nothing is being deferred")
+        for name in common_module._HTTP_EXPORTS:
+            self.assertIs(
+                getattr(common_module, name),
+                getattr(http_module, name),
+                f"common.{name} is not http.{name}",
+            )
+
+    def test_the_deferred_names_are_published(self):
+        from odoo.tests import common as common_module
+
+        missing = sorted(set(common_module._HTTP_EXPORTS) - set(common_module.__all__))
+        self.assertEqual(
+            missing,
+            [],
+            "a deferred name outside __all__ will not survive `from odoo.tests "
+            "import *`, which is how the package re-exports it",
+        )
+
+    def test_an_unknown_attribute_still_raises(self):
+        from odoo.tests import common as common_module
+
+        with self.assertRaises(AttributeError):
+            common_module.NotAThingThatExists

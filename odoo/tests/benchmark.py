@@ -1,10 +1,8 @@
-import json
 import logging
 import math
 import statistics
 import time
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from odoo.libs.worker_thread import current_worker_thread
@@ -352,12 +350,6 @@ class BenchmarkTimer:
     @property
     def python_time_ms(self) -> float:
         return self.elapsed_ms - self.db_time_ms
-
-
-def save_results(results: list[dict], path: str) -> None:
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with Path(path).open("a", encoding="utf-8") as f:
-        f.writelines(json.dumps(r, default=str) + "\n" for r in results)
 
 
 def compare_results(baseline: list[dict], current: list[dict]) -> str:

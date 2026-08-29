@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from unittest import TestCase as _StdTestCase
 
 from .. import tools
+from . import common
 from .result import OdooTestResult
 from .suite import OdooSuite
 from .tag_selector import TagsSelector
@@ -91,13 +92,15 @@ def _get_upgrade_test_modules(module: str) -> Generator[Any]:
 def make_suite(module_names: list[str], position: str = "at_install") -> OdooSuite:
     config_tags = TagsSelector(tools.config["test_tags"])
     position_tag = TagsSelector(position)
-    tests = (
+    tests = [
         t
         for module_name in module_names
         for m in get_test_modules(module_name)
         for t in get_module_test_cases(m)
         if position_tag.check(t) and config_tags.check(t)
-    )
+    ]
+    for test in tests:
+        config_tags.select_params(test)
     return OdooSuite(sorted(tests, key=lambda t: getattr(t, "test_sequence", 0)))
 
 
@@ -112,4 +115,5 @@ def run_suite(
         suite.run(results)
     finally:
         module.current_test = False
+        common.gc_test_filestore()
     return results

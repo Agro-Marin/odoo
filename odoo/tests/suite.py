@@ -1,7 +1,8 @@
+import contextlib
 import logging
 import sys
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest import BaseTestSuite, util
 
 import odoo
@@ -11,6 +12,9 @@ from .case import TestCase
 from .http import HttpCase
 from .result import OdooTestResult, stats_logger
 from .utils import InfrastructureUnavailable
+
+if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
 
 __unittest = True
 
@@ -147,36 +151,32 @@ class _ErrorHolder:
 
 
 class OdooSuite(TestSuite):
-    def _handleClassSetUp(self, test: TestCase, result: OdooTestResult) -> None:
-        previous_test_class = result._previousTestClass
-        if not (
-            previous_test_class is not type(test)
-            and hasattr(result, "stats")
-            and stats_logger.isEnabledFor(logging.INFO)
+    @staticmethod
+    def _timing(
+        result: OdooTestResult, measured: type | None, hook: str
+    ) -> AbstractContextManager:
+        if (
+            measured is None
+            or not hasattr(result, "stats")
+            or not stats_logger.isEnabledFor(logging.INFO)
         ):
-            super()._handleClassSetUp(test, result)
-            return
+            return contextlib.nullcontext()
+        return result.collectStats(
+            f"{measured.__module__}.{measured.__qualname__}.{hook}"
+        )
 
-        test_class = type(test)
-        test_id = f"{test_class.__module__}.{test_class.__qualname__}.setUpClass"
-        with result.collectStats(test_id):
+    def _handleClassSetUp(self, test: TestCase, result: OdooTestResult) -> None:
+        entering = type(test) if result._previousTestClass is not type(test) else None
+        with self._timing(result, entering, "setUpClass"):
             super()._handleClassSetUp(test, result)
 
     def _tearDownPreviousClass(
         self, test: TestCase | None, result: OdooTestResult
     ) -> None:
-        previous_test_class = result._previousTestClass
-        if not (
-            previous_test_class
-            and previous_test_class is not type(test)
-            and hasattr(result, "stats")
-            and stats_logger.isEnabledFor(logging.INFO)
-        ):
-            super()._tearDownPreviousClass(test, result)
-            return
-
-        test_id = f"{previous_test_class.__module__}.{previous_test_class.__qualname__}.tearDownClass"
-        with result.collectStats(test_id):
+        leaving = result._previousTestClass
+        if leaving is type(test):
+            leaving = None
+        with self._timing(result, leaving, "tearDownClass"):
             super()._tearDownPreviousClass(test, result)
 
     def has_http_case(self) -> bool:

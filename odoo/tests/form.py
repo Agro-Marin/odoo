@@ -21,6 +21,10 @@ _logger = logging.getLogger(__name__)
 MODIFIER_ALIASES = {"1": "True", "0": "False"}
 
 
+class FieldNotInView(AssertionError, AttributeError):
+    pass
+
+
 def _combine_bool_exprs(op: str, expr1: Any, expr2: Any) -> str:
     expr1, expr2 = str(expr1), str(expr2)
     absorbing, neutral = ("True", "False") if op == "or" else ("False", "True")
@@ -256,6 +260,11 @@ class Form:
         if field_name.startswith("_"):
             raise AttributeError(
                 f"{type(self).__name__!r} object has no attribute {field_name!r}"
+            )
+        if field_name not in self._view["fields"]:
+            raise FieldNotInView(
+                f"{field_name!r} was not found in the view "
+                f"(fields: {', '.join(sorted(self._view['fields']))})"
             )
         return self[field_name]
 
@@ -975,5 +984,11 @@ class Dotter:
         self.__values = values
 
     def __getattr__(self, key: str) -> Any:
-        val = self.__values[key]
+        try:
+            val = self.__values[key]
+        except KeyError:
+            raise AttributeError(
+                f"{key!r} is not a value of the parent record, so a view "
+                f"modifier reading parent.{key} cannot be evaluated"
+            ) from None
         return Dotter(val) if isinstance(val, dict) else val
