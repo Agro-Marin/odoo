@@ -138,8 +138,8 @@ class HrAttendance(http.Controller):
     def set_badge(self, employee_id, badge, token):
         company = self._get_company(token)
         if company:
-            employee = request.env["hr.employee"].browse(employee_id)
-            if employee:
+            employee = request.env["hr.employee"].sudo().browse(employee_id)
+            if employee and employee.company_id == company:
                 employee.write({"barcode": badge})
                 return {"status": "success"}
         return {}
@@ -167,7 +167,7 @@ class HrAttendance(http.Controller):
         type="http",
         auth="public",
         website=True,
-        sitemap=True,
+        sitemap=False,
     )
     def open_kiosk_mode(self, token, from_trial_mode=False):
         company = self._get_company(token)
