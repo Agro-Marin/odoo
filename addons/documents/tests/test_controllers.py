@@ -112,9 +112,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
                 "raw": TEXT,
             }
         )
-        cls.env["ir.config_parameter"].set_param(
-            "ir_attachment.location", "db"
-        )
+        cls.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
         cls.env["ir.config_parameter"].flush_model()
         cls.internal_file_textual_on_db = Doc.create(
             {
@@ -128,9 +126,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
                 "raw": TEXT,
             }
         )
-        cls.env["ir.config_parameter"].set_param(
-            "ir_attachment.location", False
-        )
+        cls.env["ir.config_parameter"].set_param("ir_attachment.location", False)
         cls.env["ir.config_parameter"].flush_model()
         cls.internal_hidden = Doc.create(
             {
