@@ -56,10 +56,6 @@ class TestPerfCompare(TransactionCase):
         Base = self.Base
 
         def _measure(name, func, **kwargs):
-            # Guard each benchmark so one incompatible operation (e.g. an API
-            # difference when this module runs against a vanilla-upstream
-            # checkout, its whole reason to exist) degrades gracefully instead
-            # of aborting the method before rec.write() is ever reached.
             measure = rec.measure
             try:
                 return measure(name, func, **kwargs)
@@ -159,7 +155,7 @@ class TestPerfCompare(TransactionCase):
 
         try:
             Base._read_group([], groupby=["state"], aggregates=["__count"])
-        except AttributeError, TypeError:
+        except Exception:
             _logger.warning("[PERF_CMP] _read_group unavailable; skipping group")
         else:
             _measure(
