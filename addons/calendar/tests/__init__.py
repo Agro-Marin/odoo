@@ -1,5 +1,6 @@
 from . import test_access_rights
 from . import test_attendees
+from . import test_attendee_partner_index
 from . import test_calendar
 from . import test_calendar_activity
 from . import test_calendar_controller
