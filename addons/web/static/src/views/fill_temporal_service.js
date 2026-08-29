@@ -273,67 +273,73 @@ export class FillTemporalPeriod {
  * A specific fill_temporal period configuration will always refer to the same instance
  * unless forceRecompute is true
  */
-export const fillTemporalService = {
-    start() {
-        const _fillTemporalPeriods = {};
+export class FillTemporal {
+    constructor() {
+        this._fillTemporalPeriods = {};
+    }
 
-        /**
-         * Get a fill_temporal period according to the configuration.
-         * The default initial fill_temporal period is the number of [granularity] from [start]
-         * to the end of the [cycle] reached after adding [minGroups]
-         * i.e. we are in october 2020 :
-         *      [start] = 2020-10-01
-         *      [granularity] = 'month',
-         *      [cycle] = 12 (one year)
-         *      [minGroups] = 4,
-         *      => fillTemporalPeriod = 15 months (until the end of december 2021)
-         * Once created, a fill_temporal period for a specific configuration will be stored
-         * until requested again. This allows to manipulate the period and store the changes
-         * to it. This also allows to keep the configuration when switching to another view
-         *
-         * @param {Object} configuration
-         * @param {string} [modelName] directly taken from model.loadParams.modelName.
-         *                             this is the `res_model` from the action (i.e. `crm.lead`)
-         * @param {Object} [field] a dictionary with keys "name" and "type".
-         * @param {string} [field.name] name of the field on which the fill_temporal should apply
-         *                              (i.e. 'date_deadline')
-         * @param {string} [field.type] date field type: 'date' or 'datetime'
-         * @param {string} [granularity] can either be : hour, day, week, month, quarter, year
-         * @param {integer} [minGroups=4] optional minimal amount of desired groups
-         * @param {boolean} [forceRecompute=false] optional whether the fill_temporal period should be
-         *                                         reinstancied
-         * @returns {FillTemporalPeriod}
-         */
-        const getFillTemporalPeriod = ({
-            modelName,
-            field,
-            granularity,
-            minGroups = 4,
-            forceRecompute = false,
-        }) => {
-            if (!(modelName in _fillTemporalPeriods)) {
-                _fillTemporalPeriods[modelName] = {};
-            }
-            if (!(field.name in _fillTemporalPeriods[modelName])) {
-                _fillTemporalPeriods[modelName][field.name] = {};
-            }
-            if (
-                !(granularity in _fillTemporalPeriods[modelName][field.name]) ||
-                forceRecompute
-            ) {
-                _fillTemporalPeriods[modelName][field.name][granularity] =
-                    new FillTemporalPeriod(modelName, field, granularity, minGroups);
-            } else if (
-                _fillTemporalPeriods[modelName][field.name][granularity].minGroups !==
-                minGroups
-            ) {
-                _fillTemporalPeriods[modelName][field.name][granularity].setMinGroups(
-                    minGroups,
-                );
-            }
-            return _fillTemporalPeriods[modelName][field.name][granularity];
-        };
-        return { getFillTemporalPeriod };
+    /**
+     * Get a fill_temporal period according to the configuration.
+     * The default initial fill_temporal period is the number of [granularity] from [start]
+     * to the end of the [cycle] reached after adding [minGroups]
+     * i.e. we are in october 2020 :
+     *      [start] = 2020-10-01
+     *      [granularity] = 'month',
+     *      [cycle] = 12 (one year)
+     *      [minGroups] = 4,
+     *      => fillTemporalPeriod = 15 months (until the end of december 2021)
+     * Once created, a fill_temporal period for a specific configuration will be stored
+     * until requested again. This allows to manipulate the period and store the changes
+     * to it. This also allows to keep the configuration when switching to another view
+     *
+     * @param {Object} configuration
+     * @param {string} [modelName] directly taken from model.loadParams.modelName.
+     *                             this is the `res_model` from the action (i.e. `crm.lead`)
+     * @param {Object} [field] a dictionary with keys "name" and "type".
+     * @param {string} [field.name] name of the field on which the fill_temporal should apply
+     *                              (i.e. 'date_deadline')
+     * @param {string} [field.type] date field type: 'date' or 'datetime'
+     * @param {string} [granularity] can either be : hour, day, week, month, quarter, year
+     * @param {integer} [minGroups=4] optional minimal amount of desired groups
+     * @param {boolean} [forceRecompute=false] optional whether the fill_temporal period should be
+     *                                         reinstancied
+     * @returns {FillTemporalPeriod}
+     */
+    getFillTemporalPeriod({
+        modelName,
+        field,
+        granularity,
+        minGroups = 4,
+        forceRecompute = false,
+    }) {
+        if (!(modelName in this._fillTemporalPeriods)) {
+            this._fillTemporalPeriods[modelName] = {};
+        }
+        if (!(field.name in this._fillTemporalPeriods[modelName])) {
+            this._fillTemporalPeriods[modelName][field.name] = {};
+        }
+        if (
+            !(granularity in this._fillTemporalPeriods[modelName][field.name]) ||
+            forceRecompute
+        ) {
+            this._fillTemporalPeriods[modelName][field.name][granularity] =
+                new FillTemporalPeriod(modelName, field, granularity, minGroups);
+        } else if (
+            this._fillTemporalPeriods[modelName][field.name][granularity].minGroups !==
+            minGroups
+        ) {
+            this._fillTemporalPeriods[modelName][field.name][granularity].setMinGroups(
+                minGroups,
+            );
+        }
+        return this._fillTemporalPeriods[modelName][field.name][granularity];
+    }
+}
+
+export const fillTemporalService = {
+    /** @returns {FillTemporal} */
+    start() {
+        return new FillTemporal();
     },
 };
 

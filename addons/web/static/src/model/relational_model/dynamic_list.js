@@ -419,11 +419,19 @@ export class DynamicList extends EditableListDataPoint {
     }
 
     /**
+     * Public, and not `_warnIfTruncated`, because it is not web's alone: a
+     * "select all" resolves to at most `activeIdsLimit` ids, and every list
+     * view that acts on the selection in bulk has to tell the user when the
+     * rest was left behind. `data_recycle` reached across the tree for the
+     * private spelling rather than reimplement the three-way test; the answer
+     * to a bundled addon needing a behaviour is to publish it, not to let the
+     * reach stand -- `jsprivate_crosstree` counts exactly that.
+     *
      * @param {number[]} resIds
      * @param {() => string} message
      * @returns {void}
      */
-    _warnIfTruncated(resIds, message) {
+    warnIfTruncated(resIds, message) {
         if (
             this.isDomainSelected &&
             resIds.length === this.model.activeIdsLimit &&
@@ -465,7 +473,7 @@ export class DynamicList extends EditableListDataPoint {
         if (!unlinked) {
             return false;
         }
-        this._warnIfTruncated(resIds, () =>
+        this.warnIfTruncated(resIds, () =>
             _t(
                 "Only the first %(count)s records have been deleted (out of %(total)s selected)",
                 { count: resIds.length, total: this.recordCount },
@@ -661,7 +669,7 @@ export class DynamicList extends EditableListDataPoint {
         const action = await this.model.orm.call(this.resModel, method, [resIds], {
             context,
         });
-        this._warnIfTruncated(resIds, () =>
+        this.warnIfTruncated(resIds, () =>
             _t(
                 "Of the %(selectedRecords)s selected records, only the first %(firstRecords)s have been archived/unarchived.",
                 {

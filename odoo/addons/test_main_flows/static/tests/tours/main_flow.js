@@ -1,6 +1,6 @@
 import { markup } from "@odoo/owl";
-import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { stepUtils } from "@web_tour/tour_utils";
 
 registry.category("web_tour.tours").add("main_flow_tour", {
@@ -1222,7 +1222,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             run: "click",
         },
         {
-            isActive: ["mobile"],
+            isActive: ["mobile", ".o_kanban_load_more > button"],
             trigger: ".o_kanban_load_more > button",
             content: _t("Click to load more records"),
             tooltipPosition: "bottom",

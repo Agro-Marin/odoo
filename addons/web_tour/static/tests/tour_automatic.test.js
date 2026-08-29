@@ -11,10 +11,13 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { RpcEvent } from "@web/core/events";
+import { rpcBus } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { Macro } from "@web/core/utils/macro";
 import { Dialog } from "@web/ui/dialog";
+import { TourAutomatic } from "@web_tour/js/tour_automatic/tour_automatic";
 
 describe.current.tags("desktop");
 
@@ -100,6 +103,91 @@ test("Step Tour validity", async () => {
     await getService("tour_service").startTour("tour1");
     await animationFrame();
     expect.verifySteps([waited_error1, waited_error2, waited_error3]);
+});
+
+test("a step waits for an RPC the previous step left in flight", async () => {
+    // The runner dispatches a step's action into the page; it does not await
+    // whatever that action starts.  Clicking a form's statusbar button returns
+    // as soon as the click is delivered, while the handler goes on to save, call
+    // the button and re-read -- so the runner used to walk into the *next* step
+    // mid-save, and a tour that navigated there silently lost the navigation.
+    // `main_flow_tour` failed that way on roughly half its runs.
+    //
+    // Step 1 here leaves an RPC in flight exactly as that click does.  Step 2
+    // must not act until it has answered.
+    class Root extends Component {
+        static components = {};
+        static template = xml /*html*/ `
+            <t>
+                <button class="button0">Button 0</button>
+                <button class="button1">Button 1</button>
+            </t>
+        `;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+
+    const pending = { data: { id: 777 }, url: "/web/dataset/call_kw/x/web_save" };
+    tourRegistry.add("tour_settle", {
+        steps: () => [
+            {
+                trigger: ".button0",
+                run() {
+                    rpcBus.trigger(RpcEvent.REQUEST, pending);
+                },
+            },
+            {
+                trigger: ".button1",
+                run() {
+                    expect.step("second step acted");
+                },
+            },
+        ],
+    });
+
+    await odoo.startTour("tour_settle", { mode: "auto" });
+    // Several frames with the request still open: the second step must sit on
+    // its hands.  Before the fix it acted on the first of them.
+    for (let i = 0; i < 5; i++) {
+        await animationFrame();
+        await advanceTime(265);
+    }
+    expect.verifySteps([]);
+
+    rpcBus.trigger(RpcEvent.RESPONSE, pending);
+    await waitForMacro();
+    expect.verifySteps(["second step acted"]);
+});
+
+test("a request that never answers costs the settle budget once, not per step", async () => {
+    // `RPC:REQUEST` is balanced by `RPC:RESPONSE` everywhere in `rpc.js`
+    // today, aborts included, so this should not happen -- but if one ever
+    // escaped, every remaining step would pay the settle budget again and a
+    // 300-step tour would never finish. The stragglers are dropped once.
+    const tour = new TourAutomatic({ name: "t", steps: [] });
+    tour.pendingRPCs.add(1);
+
+    const first = tour.whenClientSettles(500);
+    await advanceTime(600);
+    expect(await first).toBe(false);
+    expect(tour.pendingRPCs.size).toBe(0);
+
+    // The budget is a timer, not a `Date.now()` bound: a wall-clock bound
+    // cannot end a wait made of timers, and under mocked time the loop would
+    // re-arm forever rather than return at all.
+    expect(await tour.whenClientSettles(500)).toBe(true);
+});
+
+test("the settle wait ends as soon as the pending request answers", async () => {
+    const tour = new TourAutomatic({ name: "t", steps: [] });
+    tour.pendingRPCs.add(7);
+    const settling = tour.whenClientSettles(10000);
+
+    tour.pendingRPCs.delete(7);
+    rpcBus.trigger(RpcEvent.RESPONSE, { data: { id: 7 }, url: "/answered" });
+    await animationFrame();
+
+    expect(await settling).toBe(true);
 });
 
 test("a tour with invalid step trigger", async () => {

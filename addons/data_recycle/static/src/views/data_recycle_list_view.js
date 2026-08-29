@@ -15,7 +15,7 @@ export class DataRecycleListController extends DataCleaningCommonListController 
         await this.orm.call("data_recycle.record", "action_validate", [resIds]);
         // "Select all" resolves to at most `activeIdsLimit` ids: without this the
         // rest is silently left behind and the list just looks like it did not work.
-        list._warnIfTruncated(resIds, () =>
+        list.warnIfTruncated(resIds, () =>
             _t(
                 "Of the %(selectedRecords)s selected records, only the first %(firstRecords)s have been recycled.",
                 { selectedRecords: list.recordCount, firstRecords: resIds.length },

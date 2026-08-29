@@ -71,6 +71,20 @@ const TourSchema = {
 registry.category("web_tour.tours").addValidation(TourSchema);
 const debugMenuRegistry = registry.category("debug").category("default");
 
+// How long `whenTourIsRegistered` waits for a bundle to register a tour that
+// localStorage says is mid-run.
+//
+// Not the 10 s a step spends looking for its trigger, which is what this was
+// first set to: that budget is spent while the machine is otherwise idle,
+// whereas this one is spent *during* a bundle evaluation, competing with it.
+// `test_company_switch_access_error` under `?debug=assets` registers 361 ms
+// after the read on an idle box -- and blew past 10 s on the same box at load
+// average 5.6, turning a slow bundle into a hard test failure. It has to stay
+// comfortably under the runner's own 60 s script timeout, so that a tour that
+// genuinely never arrives is still reported here, with a reason, rather than
+// as an anonymous timeout there.
+const TOUR_REGISTRATION_TIMEOUT = 30000;
+
 export const tourService = {
     // localization dependency to make sure translations used by tours are loaded
     dependencies: ["orm", "effect", "overlay", "localization"],
@@ -186,15 +200,93 @@ export const tourService = {
             }
         }
 
+        /**
+         * Resolve once `tourName` is in the tours registry, or after
+         * `TOUR_REGISTRATION_TIMEOUT` if it never arrives.
+         *
+         * A tour is registered by whatever bundle defines it, and a bundle
+         * served as ESM is evaluated *after* the services start -- so sampling
+         * the registry once, which is what `resumeTour` used to do, is a race
+         * by construction rather than a check.  Measured on
+         * `test_company_switch_access_error` under `?debug=assets`: the
+         * company switch reloads the page, `tourService.start` reads the
+         * registry, and the tour lands in it **361 ms later**.  The one-shot
+         * read lost that race on every run.
+         *
+         * `10000` is the same patience the step-level trigger wait already
+         * spends (`tour_step.js`), and it is only ever spent when something is
+         * actually wrong: a registered tour resolves this synchronously.
+         */
+        function whenTourIsRegistered(tourName, timeout = TOUR_REGISTRATION_TIMEOUT) {
+            if (tourRegistry.contains(tourName)) {
+                return Promise.resolve(true);
+            }
+            return new Promise((resolve) => {
+                let timer;
+                const onUpdate = (ev) => {
+                    if (ev.detail.key !== tourName) {
+                        return;
+                    }
+                    browser.clearTimeout(timer);
+                    tourRegistry.removeEventListener("UPDATE", onUpdate);
+                    resolve(true);
+                };
+                timer = browser.setTimeout(() => {
+                    tourRegistry.removeEventListener("UPDATE", onUpdate);
+                    resolve(false);
+                }, timeout);
+                tourRegistry.addEventListener("UPDATE", onUpdate);
+            });
+        }
+
         async function resumeTour() {
             const tourName = tourState.getCurrentTour();
             const tourConfig = tourState.getCurrentConfig();
 
-            let tour = getTourFromRegistry(tourName);
+            let tour;
             if (tourConfig.fromDB) {
                 tour = await getTourFromDB(tourName);
+            } else {
+                // Synchronous first, and only wait when there is something to
+                // wait for.  Awaiting unconditionally costs a microtask before
+                // `startTour` does anything, and that is not free on a page
+                // that is redirecting: the runner is inside
+                // `Runtime.evaluate` on `odoo.startTour(...)`, and a
+                // navigation landing in the widened window fails the whole
+                // evaluate with "Inspected target navigated or closed".
+                // `test_company_access_error_redirect` -- which exists to
+                // redirect -- went from passing every run to failing three of
+                // six on that one extra tick.
+                tour = getTourFromRegistry(tourName);
+                if (!tour) {
+                    await whenTourIsRegistered(tourName);
+                    tour = getTourFromRegistry(tourName);
+                }
             }
             if (!tour) {
+                if (tourConfig.mode !== "auto") {
+                    // A manual tour can be legitimately absent from the page
+                    // the user happens to be on: not every bundle carries
+                    // every tour, which `startTour` says out loud a few lines
+                    // up ("point_of_sale do not load all tours assets").
+                    // Dropping the state here would end an onboarding tour
+                    // that would have resumed fine on the next page, so it is
+                    // left alone -- as it was before.
+                    return;
+                }
+                // In `auto` mode there is a runner waiting on this tour, and
+                // nothing is going to produce it.  Returning silently left
+                // `current_tour` in localStorage naming a tour nobody can
+                // produce, so every later page load re-entered this function
+                // to return silently again -- and the runner could only report
+                // the 60 s "Script timeout exceeded", which says nothing
+                // about what happened.
+                tourState.clear();
+                browser.console.error(
+                    `Tour "${tourName}" was resumed but is registered nowhere` +
+                        ` (${tourConfig.fromDB ? "database" : "web_tour.tours registry"}).` +
+                        " Its saved state has been dropped.",
+                );
                 return;
             }
 
@@ -343,6 +435,32 @@ export const tourService = {
             return Promise.all([
                 translationIsReady,
                 tour.wait_for || Promise.resolve(),
+                // The automatic runtime, fetched here rather than on the far
+                // side of "ready".
+                //
+                // The only caller of this probe is the test runner, which
+                // starts the tour in `auto` mode the instant it answers true --
+                // and `resumeTour` then has to fetch `web_tour.automatic`
+                // before a single step can run. On a page that unloads while it
+                // is still loading, that fetch races the teardown. The runner
+                // is inside `Runtime.evaluate` on `odoo.startTour(...)` with
+                // `awaitPromise`, so losing the race does not merely delay the
+                // tour: the promise never settles and CDP kills the evaluate
+                // with "Inspected target navigated or closed", which says
+                // nothing about what happened.
+                //
+                // `test_company_access_error_redirect` is that page by
+                // construction -- it opens a record the active company cannot
+                // see, and the client switches company and reloads. Its tour
+                // already declares the consequence on its first step
+                // (`expectUnloadPage`), and that declaration is correct and
+                // sufficient: instrumented, the runs that pass are exactly the
+                // ones where the bundle arrives in time for that step to run
+                // and bank the reload, and the runs that fail are the ones
+                // where it does not. What was missing was never the
+                // declaration -- it was having the runtime that honours it
+                // before the clock starts.
+                loadBundle("web_tour.automatic", { css: false }),
             ]).then(() => true);
         };
 

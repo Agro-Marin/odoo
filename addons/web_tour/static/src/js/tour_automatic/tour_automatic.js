@@ -3,15 +3,26 @@
 import hootDom from "@odoo/hoot-dom";
 import { enableEventLogs, setupEventActions } from "@odoo/hoot-dom-helpers-events";
 import { browser } from "@web/core/browser/browser";
+import { RpcEvent } from "@web/core/events";
+import { rpcBus } from "@web/core/network";
 import { config as transitionConfig } from "@web/core/transition";
 import { Macro } from "@web/core/utils/macro";
 import { TourStepAutomatic } from "@web_tour/js/tour_automatic/tour_step_automatic";
 import { tourState } from "@web_tour/js/tour_state";
 
+// How long `whenClientSettles` waits for the RPCs a previous step started to
+// finish.  Same budget as a step's trigger wait, and only ever spent when the
+// client is genuinely still working.
+const CLIENT_SETTLE_TIMEOUT = 10000;
+const EXPIRED = Symbol("expired");
+const SETTLED = Symbol("settled");
+
 export class TourAutomatic {
     mode = "auto";
     allowUnload = true;
     unloadWatchdog = null;
+    /** ids of the RPCs currently in flight, by `rpcBus` event id. */
+    pendingRPCs = new Set();
     constructor(data) {
         Object.assign(this, data);
         this.steps = this.steps.map(
@@ -32,9 +43,97 @@ export class TourAutomatic {
         return this.config.debug !== false;
     }
 
+    /**
+     * Resolve once the client has no RPC in flight and issues none through the
+     * following frame, or after `timeout` if it never gets there.
+     *
+     * A step's action is dispatched into the page, not awaited by it: clicking
+     * a form's statusbar button returns as soon as the click is delivered,
+     * while the handler it started goes on to `web_save`, then the button's own
+     * call, then a re-read.  The runner used to walk straight into the next
+     * step, so a tour could click a *menu* while the record it had just acted
+     * on was mid-save -- and the navigation was silently lost, because the
+     * outgoing view still had uncommitted work.  Measured on `main_flow_tour`:
+     * the "Produce All" click at step 239 was still in `web_save` when step 242
+     * clicked the Sales app, and the tour then failed 10 s later at step 246 on
+     * a Sales menu that was never opened.  It reproduced on roughly half of the
+     * runs, which is exactly what a race looks like from the outside.
+     *
+     * The frame re-check is the point, not a precaution: a chain issues its
+     * next request from the previous response's continuation, so `pendingRPCs`
+     * passes through zero *between* two calls of the same chain.  A plain
+     * "nothing in flight" test resolves in that gap and races anyway; one frame
+     * is longer than the microtask that issues the follow-up, and is what OWL
+     * already renders on.
+     *
+     * `clickbot` tracks in-flight RPCs off the same bus for the same reason.
+     */
+    async whenClientSettles(timeout = CLIENT_SETTLE_TIMEOUT) {
+        if (!this.pendingRPCs.size) {
+            // Nothing outstanding: the previous step's post-action frame has
+            // already passed, so anything it started has been issued.  Costs
+            // nothing on the overwhelming majority of steps.
+            return true;
+        }
+        // The budget is one timer, not a `Date.now()` bound on the loop.  A
+        // wall-clock bound cannot end a wait that is itself made of timers:
+        // under mocked time -- every hoot test, and any tour driven with
+        // `advanceTime` -- the timers fire while `Date.now()` stands still, so
+        // the loop re-arms forever and the tour never leaves the step.
+        let onExpire;
+        const expired = new Promise((resolve) => {
+            onExpire = () => resolve(EXPIRED);
+        });
+        const timer = browser.setTimeout(onExpire, timeout);
+        const listeners = [];
+        try {
+            while (true) {
+                if (!this.pendingRPCs.size) {
+                    const frame = new Promise((resolve) =>
+                        browser.requestAnimationFrame(() => resolve(SETTLED)),
+                    );
+                    if ((await Promise.race([frame, expired])) === EXPIRED) {
+                        break;
+                    }
+                    if (!this.pendingRPCs.size) {
+                        return true;
+                    }
+                    continue;
+                }
+                const answered = new Promise((resolve) => {
+                    const done = () => resolve(SETTLED);
+                    listeners.push(done);
+                    rpcBus.addEventListener(RpcEvent.RESPONSE, done);
+                });
+                if ((await Promise.race([answered, expired])) === EXPIRED) {
+                    break;
+                }
+            }
+        } finally {
+            browser.clearTimeout(timer);
+            for (const done of listeners) {
+                rpcBus.removeEventListener(RpcEvent.RESPONSE, done);
+            }
+        }
+        // Whatever is still pending has outlived the budget, so stop counting
+        // it: `RPC:REQUEST` is balanced by `RPC:RESPONSE` on every path in
+        // `rpc.js` today, including aborts, but a single request that ever
+        // escaped that would otherwise make *every* later step pay this
+        // timeout again. Presume the stragglers lost and move on -- a bounded
+        // wait once, not a bounded wait forever.
+        this.pendingRPCs.clear();
+        // Not settling is not this function's failure to report: the step is
+        // about to look for its trigger and will say what it could not find.
+        return false;
+    }
+
     start() {
         setupEventActions(document.createElement("div"), { allowSubmit: true });
         enableEventLogs(this.debugMode);
+        const onRPCRequest = (ev) => this.pendingRPCs.add(ev.detail.data.id);
+        const onRPCResponse = (ev) => this.pendingRPCs.delete(ev.detail?.data?.id);
+        rpcBus.addEventListener(RpcEvent.REQUEST, onRPCRequest);
+        rpcBus.addEventListener(RpcEvent.RESPONSE, onRPCResponse);
         const { delayToCheckUndeterminisms, stepDelay } = this.config;
         const macroSteps = this.steps
             .filter((step) => step.index >= this.currentIndex)
@@ -54,6 +153,7 @@ export class TourAutomatic {
                         } else {
                             console.log(step.describeMe);
                         }
+                        await this.whenClientSettles();
                     },
                 },
                 {
@@ -134,6 +234,9 @@ export class TourAutomatic {
             ]);
 
         const end = () => {
+            rpcBus.removeEventListener(RpcEvent.REQUEST, onRPCRequest);
+            rpcBus.removeEventListener(RpcEvent.RESPONSE, onRPCResponse);
+            this.pendingRPCs.clear();
             browser.clearTimeout(this.unloadWatchdog);
             this.unloadWatchdog = null;
             delete window[hootNameSpace];
