@@ -68,28 +68,37 @@ class EventEventConfigurator(models.TransientModel):
     @api.depends("is_multi_slots")
     def _compute_event_slot_id(self):
         """Pre-select the slot of the multi slots event selected if it is the only one"""
-        for configurator in self:
-            if not configurator.is_multi_slots:
-                configurator.event_slot_id = False
-            else:
-                event_slot_ids = self.env["event.slot"].search(
-                    [("event_id", "=", configurator.event_id.id)], limit=2
-                )
-                configurator.event_slot_id = (
-                    event_slot_ids if len(event_slot_ids) == 1 else False
-                )
+        multi_slot_configurators = self.filtered("is_multi_slots")
+        (self - multi_slot_configurators).event_slot_id = False
+        slots_by_event = (
+            self.env["event.slot"]
+            .search([("event_id", "in", multi_slot_configurators.event_id.ids)])
+            .grouped("event_id")
+        )
+        for configurator in multi_slot_configurators:
+            event_slots = slots_by_event.get(
+                configurator.event_id, self.env["event.slot"]
+            )
+            configurator.event_slot_id = event_slots if len(event_slots) == 1 else False
 
     @api.depends("event_id")
     def _compute_event_ticket_id(self):
         """Pre-select the ticket of the event selected if it is the only one"""
-        for configurator in self:
-            event_ticket_ids = self.env["event.event.ticket"].search(
+        tickets_by_pair = (
+            self.env["event.event.ticket"]
+            .search(
                 [
-                    ("event_id", "=", configurator.event_id.id),
-                    ("product_id", "=", configurator.product_id.id),
-                ],
-                limit=2,
+                    ("event_id", "in", self.event_id.ids),
+                    ("product_id", "in", self.product_id.ids),
+                ]
+            )
+            .grouped(lambda ticket: (ticket.event_id.id, ticket.product_id.id))
+        )
+        for configurator in self:
+            event_tickets = tickets_by_pair.get(
+                (configurator.event_id.id, configurator.product_id.id),
+                self.env["event.event.ticket"],
             )
             configurator.event_ticket_id = (
-                event_ticket_ids if len(event_ticket_ids) == 1 else False
+                event_tickets if len(event_tickets) == 1 else False
             )
