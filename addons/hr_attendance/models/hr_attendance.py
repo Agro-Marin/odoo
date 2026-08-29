@@ -161,7 +161,7 @@ class HrAttendance(models.Model):
             if (
                 not attendance.employee_id or not attendance.check_in
             ):  # weird precompute edge cases. Never after creation
-                attendance.date = datetime.today()
+                attendance.date = fields.Datetime.now()
                 continue
             tz = timezone(attendance.employee_id._get_tz())
             attendance.date = (
@@ -187,7 +187,7 @@ class HrAttendance(models.Model):
             else:
                 attendance.color = (
                     1
-                    if attendance.check_in < (datetime.today() - timedelta(days=1))
+                    if attendance.check_in < (fields.Datetime.now() - timedelta(days=1))
                     else 10
                 )
 
@@ -651,7 +651,7 @@ class HrAttendance(models.Model):
 
         # Retrieve employee from xml file
         # Calculate attendances records for the previous month and the current until today
-        now = datetime.now()
+        now = fields.Datetime.now()
         previous_month_datetime = now - relativedelta(months=1)
         date_range = (
             now.day
@@ -936,7 +936,7 @@ class HrAttendance(models.Model):
         """
         Objective is to create technical attendances on absence days to have negative overtime created for that day
         """
-        yesterday = datetime.today().replace(
+        yesterday = fields.Datetime.now().replace(
             hour=0, minute=0, second=0
         ) - relativedelta(days=1)
         companies = self.env["res.company"].search([("absence_management", "=", True)])
