@@ -14,6 +14,7 @@ from . import test_scenario
 from . import test_hr_department
 from . import test_hr_departure_reason
 from . import test_hr_payroll_structure_type
+from . import test_hr_work_location
 from . import test_hr_version
 from . import test_hr_contract_versions
 from . import test_flexible_resource_calendar

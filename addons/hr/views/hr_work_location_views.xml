@@ -24,7 +24,7 @@
                             <group>
                                 <field name="active" invisible="1" />
                                 <field name="name" />
-                                <field name="address_id" />
+                                <field name="address_id" invisible="location_type == 'home'" required="location_type != 'home'" />
                                 <field class="o_homework_icon_types d-flex flex-wrap" name="location_type"
                                        widget="hr_homeworking_radio_image" options="{'horizontal': true}"/>
                             </group>
