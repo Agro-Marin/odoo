@@ -58,7 +58,6 @@ JVBERi0xLjQKJSVFT0Y=
 
 
 class TestMailGateway(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
