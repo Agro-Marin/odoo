@@ -210,7 +210,7 @@
                             <i class="fa-solid fa-key me-1 text-primary" title="Login" invisible="login == work_email"/>
                             <field name="login" placeholder="Login" class="w-75"/><br/>
                         </div>
-                    
+
                         <i class="fa-solid fa-envelope me-1 text-primary" title="Work Email" invisible="login == work_email"/>
                         <field name="email_domain_placeholder" invisible="1" />
                         <field name="work_email" widget="email" string="Work Email" class="w-75" options="{'placeholder_field': 'email_domain_placeholder'}" invisible="login == work_email"/>
