@@ -1,6 +1,7 @@
 import logging
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 from odoo.addons.product.models.product_template import PRICE_CONTEXT_KEYS
 
@@ -42,6 +43,27 @@ class EventTypeTicket(models.Model):
         compute_sudo=True,
         min_display_digits="Product Price",
     )
+
+    @api.constrains("product_id")
+    def _check_event_ticket_service_tracking(self):
+        # The field-level domain=[("service_tracking", "=", "event")] above only
+        # guards the UI/onchange path; a create()/write() via server action, RPC,
+        # or another module bypassing the view can still set product_id to a
+        # mismatched product. product.product's own
+        # _check_event_ticket_service_tracking is keyed off event.event.ticket
+        # (a different model), so it cannot cover this model-level gap.
+        for ticket in self:
+            if ticket.product_id and ticket.product_id.service_tracking != "event":
+                service_tracking = ticket.product_id.fields_get(
+                    ["service_tracking"], ["string", "selection"]
+                )["service_tracking"]
+                raise ValidationError(
+                    _(
+                        'Products linked to an event ticket must have "%(tracking)s" set to "%(event)s".',
+                        tracking=service_tracking["string"],
+                        event=dict(service_tracking["selection"])["event"],
+                    )
+                )
 
     @api.depends("product_id")
     def _compute_price(self):
