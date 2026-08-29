@@ -67,6 +67,13 @@ class EventTypeTicket(models.Model):
 
     @api.depends("product_id")
     def _compute_price(self):
+        # Asymmetric on purpose: switching to a product with a nonzero
+        # lst_price makes `price` follow it, but switching to a product whose
+        # lst_price is falsy (0) leaves an already-set nonzero `price`
+        # untouched instead of zeroing it out. This protects a manually
+        # overridden/discounted price from being silently clobbered by a
+        # product change; it also means the two directions don't mirror each
+        # other, which can read as a bug if this comment goes missing.
         for ticket in self:
             if ticket.product_id and ticket.product_id.lst_price:
                 ticket.price = ticket.product_id.lst_price or 0
