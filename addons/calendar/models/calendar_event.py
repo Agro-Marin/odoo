@@ -2203,7 +2203,6 @@ class CalendarEvent(models.Model):
         return ["email"]
 
     def _setup_event_recurrent_alarms(self, events_by_alarm):
-        """Setup alarms for recurrent events"""
         for event in self:
             if event.recurrence_id:
                 next_date = event.get_next_alarm_date(events_by_alarm)
