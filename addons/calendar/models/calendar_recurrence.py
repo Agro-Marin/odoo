@@ -14,6 +14,10 @@ from odoo.addons.base.models.res_partner import _tz_get
 
 MAX_RECURRENT_EVENT = 720
 
+#: How far ahead an ``end_type='forever'`` recurrence is materialised, in years.
+#: Overridable per database through ``calendar.max_recurrence_years``.
+DEFAULT_MAX_RECURRENCE_YEARS = 15
+
 SELECT_FREQ_TO_RRULE = {
     "daily": rrule.DAILY,
     "weekly": rrule.WEEKLY,
@@ -855,15 +859,39 @@ class CalendarRecurrence(models.Model):
         score = sum(1 if e.allday else -1 for e in self.calendar_event_ids)
         return score >= 0
 
+    def _get_forever_count(self, freq):
+        """How many occurrences to materialise for an unbounded recurrence.
+
+        ``MAX_RECURRENT_EVENT`` bounds the number of rows and nothing else, so
+        how far into the future they reach is left to the frequency: the same
+        720 events are two years of a daily meeting and seven hundred and
+        twenty of a yearly one, every one of them a real ``calendar.event``
+        with its attendees and its push to the connected calendars.
+
+        Bound the horizon in years instead, and leave the occurrence cap as the
+        ceiling for the frequencies that already fall inside it -- 720 dailies
+        are two years and 720 weeklies not quite fourteen.
+
+        :param freq: this recurrence's ``rrule_type``.
+        :rtype: int
+        """
+        years = int(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("calendar.max_recurrence_years", DEFAULT_MAX_RECURRENCE_YEARS)
+        )
+        within_horizon = {"yearly": years, "monthly": years * 12}
+        return min(within_horizon.get(freq, MAX_RECURRENT_EVENT), MAX_RECURRENT_EVENT)
+
     def _get_rrule(self, dtstart=None, bounded=True, count=None):
         """Build the dateutil rrule for this recurrence.
 
         :param bounded: when True (enumerating occurrences) an unbounded
-            ``forever`` recurrence is capped at ``MAX_RECURRENT_EVENT`` so it
+            ``forever`` recurrence is capped by `_get_forever_count` so it
             materialises a finite number of events; when False (serialising to
             the canonical ``rrule`` string) it carries no ``COUNT``, so the
             string round-trips back to ``end_type='forever'`` instead of being
-            re-parsed as ``end_type='count'`` with ``count=MAX_RECURRENT_EVENT``.
+            re-parsed as ``end_type='count'`` with a count nobody asked for.
             For a real ``count`` the string keeps the user's value while
             enumeration still caps at ``MAX_RECURRENT_EVENT``.
         :param count: for a ``count`` recurrence, use this instead of the stored
@@ -900,7 +928,7 @@ class CalendarRecurrence(models.Model):
                 else effective_count
             )
         elif self.end_type == "forever" and bounded:
-            rrule_params["count"] = MAX_RECURRENT_EVENT
+            rrule_params["count"] = self._get_forever_count(freq)
         elif self.end_type == "end_date":  # e.g. stop after 12/10/2020
             rrule_params["until"] = datetime.combine(self.until, time.max)
         return rrule.rrule(freq_to_rrule(freq), **rrule_params)
