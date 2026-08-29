@@ -166,3 +166,72 @@ class TestItRefusesAnEmptyScan(GateCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAHoistedTemplateIsReadThroughItsUses(GateCase):
+    def test_a_constant_every_use_of_which_is_an_sql_argument(self):
+        self.assertEqual(
+            self.kinds(
+                '_SQL_DUPLICATES = """\n'
+                "SELECT id FROM account_move WHERE state IN %(states)s\n"
+                '"""\n'
+                "\n"
+                "def _duplicates(self, states):\n"
+                "    return self.env.execute_query(\n"
+                "        SQL(_SQL_DUPLICATES, states=tuple(states))\n"
+                "    )\n"
+            ),
+            [],
+        )
+
+    def test_the_same_constant_reaching_execute_directly(self):
+        self.assertEqual(
+            self.kinds(
+                '_SQL_DUPLICATES = """\n'
+                "SELECT id FROM account_move WHERE state IN %(states)s\n"
+                '"""\n'
+                "\n"
+                "def _duplicates(self, states):\n"
+                "    self.env.cr.execute(_SQL_DUPLICATES, {'states': states})\n"
+            ),
+            ["in-placeholder"],
+        )
+
+    def test_one_use_outside_sql_forfeits_the_exemption(self):
+        self.assertEqual(
+            self.kinds(
+                '_SQL_DUPLICATES = """\n'
+                "SELECT id FROM account_move WHERE state IN %(states)s\n"
+                '"""\n'
+                "\n"
+                "def _duplicates(self, states):\n"
+                "    self.env.execute_query(SQL(_SQL_DUPLICATES, states=tuple(states)))\n"
+                "\n"
+                "def _logged(self):\n"
+                "    _logger.info(_SQL_DUPLICATES)\n"
+            ),
+            ["in-placeholder"],
+        )
+
+    def test_a_constant_nobody_reads_is_not_exempt(self):
+        self.assertEqual(
+            self.kinds(
+                '_SQL_DUPLICATES = """\n'
+                "SELECT id FROM account_move WHERE state IN %(states)s\n"
+                '"""\n'
+            ),
+            ["in-placeholder"],
+        )
+
+    def test_a_constant_passed_as_an_sql_parameter_is_not_a_template(self):
+        self.assertEqual(
+            self.kinds(
+                '_FRAGMENT = """\n'
+                "AND move.state IN %(states)s\n"
+                '"""\n'
+                "\n"
+                "def _duplicates(self, states):\n"
+                "    self.env.execute_query(SQL('SELECT 1 %s', _FRAGMENT))\n"
+            ),
+            [],
+        )

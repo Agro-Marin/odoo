@@ -93,6 +93,67 @@ def _exempt_literals(tree: ast.Module) -> set[tuple[int, int]]:
     return exempt
 
 
+def _sql_call_arguments(tree: ast.Module) -> set[int]:
+    argued: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            name = (
+                node.func.id
+                if isinstance(node.func, ast.Name)
+                else getattr(node.func, "attr", "")
+            )
+            if name == "SQL":
+                argued.update(id(argument) for argument in node.args)
+    return argued
+
+
+def _module_string_constants(tree: ast.Module) -> dict[str, ast.Constant]:
+    assigned: dict[str, ast.Constant] = {}
+    for statement in tree.body:
+        if isinstance(statement, ast.Assign):
+            targets = statement.targets
+        elif isinstance(statement, ast.AnnAssign):
+            targets = [statement.target]
+        else:
+            continue
+        value = statement.value
+        if (
+            len(targets) == 1
+            and isinstance(targets[0], ast.Name)
+            and isinstance(value, ast.Constant)
+            and isinstance(value.value, str)
+        ):
+            assigned[targets[0].id] = value
+    return assigned
+
+
+def _exempt_sql_constants(tree: ast.Module) -> set[tuple[int, int]]:
+    assigned = _module_string_constants(tree)
+    if not assigned:
+        return set()
+
+    argued = _sql_call_arguments(tree)
+    loads: dict[str, list[ast.Name]] = {}
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in assigned
+        ):
+            loads.setdefault(node.id, []).append(node)
+
+    exempt: set[tuple[int, int]] = set()
+    for name, constant in assigned.items():
+        uses = loads.get(name, [])
+        # A hoisted template is only as safe as its widest use: SQL() expands a
+        # tuple to (%s, %s, ...), while every other consumer binds the
+        # placeholder raw. One reference outside SQL() forfeits the exemption,
+        # and a constant nobody reads never earns it.
+        if uses and all(id(use) in argued for use in uses):
+            exempt.add((constant.lineno, constant.col_offset))
+    return exempt
+
+
 def _is_cursor_execute(node: ast.Call) -> bool:
     func = node.func
     if not isinstance(func, ast.Attribute) or func.attr not in EXECUTE_METHODS:
@@ -129,7 +190,7 @@ def measure(roots: list[Path]) -> tuple[list[Finding], int]:
             tree = ast.parse(path.read_bytes())
         except SyntaxError, ValueError:
             continue
-        exempt = _exempt_literals(tree)
+        exempt = _exempt_literals(tree) | _exempt_sql_constants(tree)
         for node in ast.walk(tree):
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 if (node.lineno, node.col_offset) in exempt:
