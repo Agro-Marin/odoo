@@ -136,3 +136,93 @@ msgstr ""
 #: model:ir.model.fields,field_description:documents_product.field_res_config_settings__product_folder_id
 msgid "product default folder"
 msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/models/product_template.py:0
+msgid "(e.g: product description, ebook, legal notice, ...)."
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/controllers/documents_document.py:0
+msgid "All files uploaded"
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/models/product_template.py:0
+#: model:ir.model.fields,field_description:documents_product.field_mixin_documents_product__product_document_ids
+#: model:ir.model.fields,field_description:documents_product.field_product_product__product_document_ids
+#: model:ir.model.fields,field_description:documents_product.field_product_template__product_document_ids
+#: model_terms:ir.ui.view,arch_db:documents_product.product_template_form_view_documents_button
+msgid "Documents"
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/controllers/documents_document.py:0
+msgid "Documents cannot be attached to this model."
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/models/product_template.py:0
+msgid "Download examples"
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/controllers/documents_document.py:0
+msgid "Invalid record id."
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/models/document.py:0
+msgid "New product template"
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/controllers/documents_document.py:0
+msgid "No file could be uploaded."
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/models/document.py:0
+msgid "Select at least one document to create a product from."
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/controllers/documents_document.py:0
+msgid "Some files could not be uploaded: %s"
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/models/product_template.py:0
+msgid "Upload files to your product"
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/models/product_template.py:0
+msgid ""
+"Use this feature to store any files you would like to share with your "
+"customers"
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/controllers/documents_document.py:0
+msgid "You are not allowed to attach documents to this record."
+msgstr ""
+
+#. module: documents_product
+#. odoo-python
+#: code:addons/documents_product/controllers/documents_document.py:0
+msgid "unnamed file"
+msgstr ""

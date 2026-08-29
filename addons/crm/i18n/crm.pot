@@ -4307,3 +4307,12 @@ msgstr ""
 #: code:addons/crm/static/src/views/crm_form/crm_pls_tooltip_button.xml:0
 msgid "valid phone number"
 msgstr ""
+
+#. module: crm
+#. odoo-python
+#: code:addons/crm/models/crm_lead.py:0
+msgid ""
+"%(lead_name)s is in the won stage %(stage_name)s, which implies a 100%% "
+"probability, but its probability is %(probability)s%%. Move it to another "
+"stage first."
+msgstr ""

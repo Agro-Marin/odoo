@@ -19757,3 +19757,67 @@ msgid ""
 "{{ object.company_id.name }} Self-billing invoice (Ref {{ object.name or "
 "'n/a' }})"
 msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_tax.py:0
+msgid ""
+"%(company)s does not file taxes for %(country)s, so it cannot share the tax "
+"%(tax)s."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/mixin_company_split.py:0
+msgid "%(record)s will be split in %(count)s, one for each company:\n"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/mixin_company_split.py:0
+msgid ""
+"Account %s cannot be unmerged as it already belongs to a single company. The"
+" unmerge operation only splits a record based on its companies."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/wizard/account_tax_merge_wizard.py:0
+msgid "Its distribution differs from %s."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/wizard/account_tax_merge_wizard.py:0
+msgid "Serves the same company as %s."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/wizard/account_tax_merge_wizard.py:0
+msgid "Taxes successfully merged!"
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/wizard/account_tax_merge_wizard.py:0
+msgid "This can only be used on taxes."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/mixin_company_split.py:0
+msgid "This record was split off from %(source)s (%(company_name)s)."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/models/account_tax.py:0
+msgid "You cannot merge taxes."
+msgstr ""
+
+#. module: account
+#. odoo-python
+#: code:addons/account/wizard/account_tax_merge_wizard.py:0
+msgid "You must select at least 2 taxes."
+msgstr ""

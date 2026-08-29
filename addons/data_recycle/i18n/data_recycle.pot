@@ -370,3 +370,32 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:data_recycle.notification
 msgid "records to clean with the '"
 msgstr ""
+
+#. module: data_recycle
+#. odoo-python
+#: code:addons/data_recycle/models/data_recycle_model.py:0
+msgid "%(model)s does not manage archived records. Only deletion is possible."
+msgstr ""
+
+#. module: data_recycle
+#. odoo-python
+#: code:addons/data_recycle/models/data_recycle_model.py:0
+msgid ""
+"Rule %(rule)s selects every %(model)s record: its filter matches everything."
+" Narrow it down -- an age condition is written as ('date', '<=', 'today "
+"-1y') -- or, if every record really is the target, say so explicitly with a "
+"filter such as [('id', '>', 0)]."
+msgstr ""
+
+#. module: data_recycle
+#. odoo-python
+#: code:addons/data_recycle/models/data_recycle_model.py:0
+msgid "Rule %(rule)s targets %(model)s, which is not installed."
+msgstr ""
+
+#. module: data_recycle
+#. odoo-python
+#: code:addons/data_recycle/models/data_recycle_model.py:0
+msgid ""
+"The filter of rule %(rule)s is not a valid domain for %(model)s: %(error)s"
+msgstr ""

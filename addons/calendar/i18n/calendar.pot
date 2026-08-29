@@ -2857,3 +2857,29 @@ msgstr ""
 #: model:mail.template,subject:calendar.calendar_template_meeting_update
 msgid "{{object.name}}: Event update"
 msgstr ""
+
+#. module: calendar
+#. odoo-python
+#: code:addons/calendar/models/calendar_recurrence.py:0
+msgid "A recurrence cannot repeat more than %(maximum)s times."
+msgstr ""
+
+#. module: calendar
+#. odoo-python
+#: code:addons/calendar/models/ir_http.py:0
+msgid "Invalid Invitation Token."
+msgstr ""
+
+#. module: calendar
+#. odoo-python
+#: code:addons/calendar/models/ir_http.py:0
+msgid ""
+"This invitation belongs to somebody else and cannot be forwarded. Please ask"
+" the organizer to add you."
+msgstr ""
+
+#. module: calendar
+#. odoo-python
+#: code:addons/calendar/models/calendar_event.py:0
+msgid "Unknown recurrence update setting: %s"
+msgstr ""

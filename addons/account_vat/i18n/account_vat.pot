@@ -276,3 +276,9 @@ msgstr ""
 #: code:addons/account_vat/models/res_partner.py:0
 msgid "partner [%s]"
 msgstr ""
+
+#. module: account_vat
+#. odoo-python
+#: code:addons/account_vat/models/res_partner.py:0
+msgid "123456789 (TIN) or 12345678901234 (PINFL)"
+msgstr ""
