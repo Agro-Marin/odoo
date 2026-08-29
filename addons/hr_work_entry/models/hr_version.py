@@ -623,8 +623,16 @@ class HrVersion(models.Model):
                         domain_to_nullify |= Domain(
                             [
                                 ("version_id", "=", version.id),
-                                ("date", ">", version_stop.astimezone(tz)),
-                                ("date", "<=", date_stop.astimezone(tz)),
+                                (
+                                    "date",
+                                    ">",
+                                    version_stop.replace(tzinfo=UTC).astimezone(tz),
+                                ),
+                                (
+                                    "date",
+                                    "<=",
+                                    date_stop.replace(tzinfo=UTC).astimezone(tz),
+                                ),
                                 ("state", "!=", "validated"),
                             ]
                         )
@@ -639,12 +647,16 @@ class HrVersion(models.Model):
                             (
                                 "date",
                                 ">=",
-                                date_start_work_entries.astimezone(tz).date(),
+                                date_start_work_entries.replace(tzinfo=UTC)
+                                .astimezone(tz)
+                                .date(),
                             ),
                             (
                                 "date",
                                 "<=",
-                                date_stop_work_entries.astimezone(tz).date(),
+                                date_stop_work_entries.replace(tzinfo=UTC)
+                                .astimezone(tz)
+                                .date(),
                             ),
                             ("state", "!=", "validated"),
                         ]
