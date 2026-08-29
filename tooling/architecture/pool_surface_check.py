@@ -124,14 +124,64 @@ class Report:
 
 
 class _PoolReachCollector(ast.NodeVisitor):
+    """Every reach into the Registry, including through a local bound from it.
+
+    Binding the pool to a name does not make the reach go away, so the scan
+    follows the name: within a function body, `x = <pool expr>` makes `x`
+    pool-like for the rest of that body.  Without this the checker measured a
+    spelling rather than a coupling -- `registration.py` reads three private
+    Registry members through a narrowed local, and they vanished from the
+    report the moment the local was introduced, taking three KNOWN_VIOLATIONS
+    with them and reading as if the couplings had been fixed.
+
+    The alias set is per function, not per module, so a name reused for
+    something else in a sibling function cannot leak into it.
+    """
+
+    #: names bound to the pool in the function body being walked
+    _POOL_RETURNING = frozenset({"registry_of"})
+
     def __init__(self) -> None:
         self.hits: list[tuple[str, int, bool]] = []
+        self._aliases: set[str] = set()
 
-    @staticmethod
-    def _is_pool(node: ast.expr) -> bool:
-        return (isinstance(node, ast.Attribute) and node.attr == "pool") or (
-            isinstance(node, ast.Name) and node.id == "pool"
+    @classmethod
+    def _is_pool_expr(cls, node: ast.expr) -> bool:
+        """Whether `node` evaluates to the registry, before any aliasing."""
+        if isinstance(node, ast.Attribute) and node.attr == "pool":
+            return True
+        if isinstance(node, ast.Name) and node.id == "pool":
+            return True
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in cls._POOL_RETURNING
         )
+
+    def _is_pool(self, node: ast.expr) -> bool:
+        return self._is_pool_expr(node) or (
+            isinstance(node, ast.Name) and node.id in self._aliases
+        )
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        outer, self._aliases = self._aliases, set()
+        for sub in ast.walk(node):
+            targets: list[ast.expr] = []
+            if isinstance(sub, ast.Assign) and self._is_pool_expr(sub.value):
+                targets = list(sub.targets)
+            elif (
+                isinstance(sub, ast.AnnAssign)
+                and sub.value is not None
+                and self._is_pool_expr(sub.value)
+            ):
+                targets = [sub.target]
+            for tgt in targets:
+                if isinstance(tgt, ast.Name):
+                    self._aliases.add(tgt.id)
+        self.generic_visit(node)
+        self._aliases = outer
+
+    visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
         if self._is_pool(node.value):

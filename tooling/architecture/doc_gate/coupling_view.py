@@ -549,15 +549,21 @@ class TestRuntimeSurfaceFigures(unittest.TestCase):
     def test_the_conclusion_survives_its_own_numbers(self) -> None:
 
         measured = self._pool_measurements() | self._env_measurements()
-        self.assertGreater(*measured["`Registry` accesses"])
+        # Registry accesses were Layer-1-heavy only while the collector matched
+        # a spelling: it followed `<expr>.pool` and a name spelled `pool`, so a
+        # registry held under any other name went uncounted.  Teaching it to
+        # follow a local bound from a pool expression levelled the two, and the
+        # conclusion moved from volume to kind with it.
+        self.assertGreaterEqual(*measured["`Registry` accesses"][::-1])
         self.assertGreater(*measured["unsanctioned `Environment` privates"])
         layer1, layer2 = measured["distinct `Registry` members"]
         self.assertGreater(
             layer2, layer1, "Layer 2 is no longer the wider consumer by member"
         )
         self.assertIn(
-            "The inversion is one of volume, not of kind: Layer 2 reaches more "
-            "*distinct* members",
+            "The inversion is one of kind, not of volume: the two reach the "
+            "Registry equally often, and Layer 2 reaches more *distinct* "
+            "members",
             DOC_FLAT,
         )
 

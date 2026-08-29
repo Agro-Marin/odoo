@@ -18,7 +18,7 @@ a question — those live at the bottom of the view that owns the subject, under
 | R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 | **2026-08-09** |
 | R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 | — |
 | R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 | — |
-| R4 | "Enforced" means structural only — 58 gates cannot see behaviour | High | 2026-08-08 | — |
+| R4 | "Enforced" means structural only — 59 gates cannot see behaviour | High | 2026-08-08 | — |
 | R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | **2026-08-14** |
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
 | R7 | Every measured figure is single-process | Medium | 2026-08-08 | **2026-08-28** |
@@ -65,9 +65,9 @@ are not deleted — a closed risk is the evidence that the register is read.
 
 **What.** The direction contracts are clean and always will be, because Layers 1
 and 2 reach the runtime through `self.env` / `self.pool`, which produces no
-import edge. Measured, **Layer 1 is the heavier consumer on both channels** — 4
-unsanctioned `Environment` privates against Layer 2's 2, and 30 Registry sites
-against 28.
+import edge. Measured, **Layer 1 is the heavier consumer on the `Environment`
+channel and the two are level on the `Registry` one** — 4 unsanctioned
+`Environment` privates against Layer 2's 2, and 30 Registry sites against 30.
 
 **Evidence.** `env_surface_check.py`, `pool_surface_check.py`; see
 [`module.md`](module.md#coupling-the-import-graph-cannot-see).
@@ -107,7 +107,7 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 58 are structural and DB-free — and not caught by either DB-free test
+gate — all 59 are structural and DB-free — and not caught by either DB-free test
 tier.
 
 **Narrowed 2026-08-09: the syntactic half is caught, the semantic half is the
@@ -163,9 +163,9 @@ why this entry stays open at High rather than closing on the test above.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 58 boundary checkers read import graphs, call graphs,
+**What.** The 59 boundary checkers read import graphs, call graphs,
 reached-member sets and documents. None executes the framework. A change can
-satisfy all 58 and both DB-free tiers and still be wrong.
+satisfy all 59 and both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
 `OrmCore`'s slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed

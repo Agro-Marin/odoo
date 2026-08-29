@@ -43,7 +43,8 @@ odoo/
 │                   geoip, constants, exceptions, _protocols
 ├── service/        Process lifecycle + the servers
 │   ├── server, _base_server, _threaded (ThreadedServer + EventServer),
-│   │   _prefork, _worker, _watcher, wsgi, _cron, lifecycle
+│   │   _prefork, _worker, _watcher, wsgi, _cron, lifecycle,
+│   │   _factory (picks and runs a server), _process_state (its two globals)
 │   ├── db/         Database management, the /web/database/manager service
 │   │               (ADR-0014). Reads downward:
 │   │               rpc -> {restore -> {lifecycle, listing}, dump -> listing,
@@ -76,6 +77,15 @@ odoo/
                     `facade-boundary`
 ```
 
+`service/` reads in one direction, which it did not until `_factory` and
+`_process_state` were split out of `lifecycle`. `lifecycle` is what the server
+classes import (preload, the re-exec, resident-registry sizing);
+`_process_state` holds the `server` and `server_phoenix` globals they reach for;
+`_factory` picks a class and runs it, so it sits above all three. While those
+three jobs shared one module the graph was two-way, and `lifecycle`, `_watcher`,
+`_metrics`, `_threaded` and `_prefork` each carried a function-body import to
+work around it. None does now.
+
 > **Notation.** A name ending in `/` is a directory and a bare name is a module,
 > both checked against the tree by `tooling/architecture/subsystem_map_check.py`.
 > A name in `[brackets]` is a **logical grouping, not a directory** — `db/` and
@@ -99,7 +109,7 @@ genuine cycle. Moving `errors`/`dsn`/`utils` to `[foundation]` and `helpers` to
 | Tier pair | Downward | Back-edges | Convention |
 |---|---:|---:|---|
 | `db/` `[connectivity]` → `[resilience]` | had 6 connectivity → resilience edges | 1 | counting imported *symbols*, as `layer_check` does |
-| `http/` `[serving]` → `[features]` | 24 serving → features | 1 | counting import *statements*; by symbol it is 52 against 2 |
+| `http/` `[serving]` → `[features]` | 22 serving → features | 1 | counting import *statements*; by symbol it is 47 against 2 |
 
 **These are the pre-fix figures**, re-derived by
 `TestEdgeCountConventions`, which holds the *old* bracket assignment
@@ -133,7 +143,7 @@ contract, the direction is a CI gate rather than a convention.
 | `libs/` | Odoo-agnostic utilities | any `odoo.*` except `odoo.libs` | `libs-is-dependency-free` |
 | `db/` | connections, cursors, DDL, pool resilience | `odoo.orm`, `odoo.models`, `odoo.fields`, `odoo.api` | `db-is-orm-agnostic` |
 | `orm/` | models, fields, domains, Environment/Registry/Transaction, cache & compute | `odoo.service`, `odoo.http`, `odoo.cli` | `orm-below-the-serving-tier` |
-| `tools/` | Odoo-coupled utilities | `odoo.orm.runtime` (Layers 0–1 stay allowed) | `tools-does-not-reach-the-orm-runtime` |
+| `tools/` | Odoo-coupled utilities | `odoo.orm.runtime` (Layers 0–1 stay allowed); `odoo.http` at module scope | `tools-does-not-reach-the-orm-runtime`, `tools-stays-below-the-serving-tier` |
 | `modules/` | the module graph and what loads it | `odoo.addons.<module>` | `core-does-not-depend-on-addons` |
 | `http/` | the WSGI application, routing, dispatch, sessions | `odoo.addons.<module>` | `core-does-not-depend-on-addons` |
 | `service/` | process lifecycle, the servers, cron, RPC services | `odoo.addons.<module>` (2 pinned exceptions) | `core-does-not-depend-on-addons` |
@@ -274,6 +284,7 @@ definition that runs.
 | `libs-is-dependency-free` | `odoo/libs/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
 | `db-is-orm-agnostic` | `odoo/db/**` must not import `odoo.orm/models/fields/api` | ✅ clean |
 | `tools-does-not-reach-the-orm-runtime` | `odoo/tools/**` must not import `odoo.orm.runtime` (Layers 0–1 stay allowed) | ✅ clean |
+| `tools-stays-below-the-serving-tier` | `odoo/tools/**` must not import `odoo.http` **at module scope**; an import inside a function is the sanctioned form (ADR-0075) | ✅ clean |
 | `orm-helpers-and-registration-stay-below-runtime` | `orm/helpers.py` & `orm/registration.py` must not import `orm/runtime` | ✅ clean |
 | `orm-components-are-pure-python` | `odoo/orm/components/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
 | `orm-layer0-is-foundational` | Layer-0 (`primitives`, `parsing`, `validation`, `constants`, `_typing`, `_protocols`) imports no higher ORM layer | ✅ clean |
@@ -334,7 +345,7 @@ per composition. Measured by a live run of that gate:
 
 | Composition | Units | Edges | `cyclic_edges` | `unowned_shared_state` | Root dominates its leaves? |
 |---|---:|---:|---:|---:|---|
-| `BaseModel` (`orm/models/`) | 31 | 105 | 0 | 4 | no |
+| `BaseModel` (`orm/models/`) | 31 | 104 | 0 | 4 | no |
 | `Field` (`orm/fields/`) | 5 | 8 | 0 | 1 | **yes** |
 | `Registry` (`orm/runtime/`) | 6 | 9 | 0 | 0 | **yes** |
 | `Request` (`http/request_class.py`) | 4 | 1 | 0 | 8 | no |
@@ -371,7 +382,7 @@ Under assignment-site ownership `BaseModel` still shows a 2-cycle,
 *one class*, so calling a sibling's method on another recordset of the same
 model couples exactly as much as calling it on `self`. Following locals bound
 from `self.browse(…)`, `self.filtered(…)`, `self.sudo()` and the rest
-(`RECORDSET_PRODUCERS`) adds 8 edges — 105 → 113 — and is ratcheted separately
+(`RECORDSET_PRODUCERS`) adds 8 edges — 104 → 112 — and is ratcheted separately
 (`recordset_max_scc` 1, `recordset_cyclic_edges` 0,
 `recordset_scc_without_base` 1). A cycle spelled through a recordset therefore
 fails CI even where the `self`-only numbers stay clean. The other four are
@@ -433,20 +444,32 @@ Layers 1 and 2 reach the runtime through `self.env` and `self.pool`, not through
 imports. `orm-layer1-below-models-and-runtime` and `orm-models-below-runtime`
 are clean and always will be, because that reach produces no import edge.
 
-**Layer 1 is the heavier consumer on both channels.** Measured:
+**Layer 1 is the heavier consumer on the `Environment` channel; on the
+`Registry` one the two are level.** Measured:
 
 | Channel | Layer 1 (`orm/fields`, `orm/domain`) | Layer 2 (`orm/models`, `orm/registration.py`) |
 |---|---:|---:|
-| `Registry` accesses | **30** | 28 |
-| `pool[<model>]` subscripts | **5** | 3 |
+| `Registry` accesses | 30 | **30** |
+| `pool[<model>]` subscripts | 5 | **5** |
 | distinct `Registry` members | 9 | **15** |
 | unsanctioned `Environment` privates | **4** | 2 |
 | accesses to those privates | **10** | 3 |
 
-The inversion is one of volume, not of kind: Layer 2 reaches more *distinct*
-members, and has private reaches of its own (`_ensure_field_triggers`,
-`_init_modules`, `_database_translated_fields`,
+The inversion is one of kind, not of volume: the two reach the Registry equally
+often, and Layer 2 reaches more *distinct* members and has private reaches of its
+own (`_ensure_field_triggers`, `_init_modules`, `_database_translated_fields`,
 `_database_company_dependent_fields`).
+
+**These figures rose when the checker learned to follow a local.**
+`pool_surface_check` matched `<expr>.pool` and a name spelled `pool`, so a
+registry bound to any other name was invisible: `registration.py` had held one
+as `registry` since before the checker existed, and widening that pattern made
+three KNOWN_VIOLATIONS disappear as though the couplings had been fixed. They
+had not been. The collector now follows a name bound from a pool expression
+within a function body, which is what moved Layer 2 from 17 accesses to 30 and
+Layer 1 from 9 distinct members to 10 — reaches that were always there and
+never counted. `mixin_coupling_check` still has the limit this one shed: it
+does not follow a value once it is bound to a name.
 
 **Consequence:** a reader who takes the contracts as the whole picture predicts
 the wrong blast radius for a change to `Environment` or `Registry`. Recorded as
@@ -504,17 +527,21 @@ Every edge of a cycle can sit inside one layer and cross no boundary. Python
 hides this better than ESM does — a partially-initialised module is a live
 object, so a cycle usually *works* until an entry point changes.
 `py_cycle_check.py` reconstructs the import graph to find them. **The ORM has
-none.** Four are pinned, all the benign package↔submodule shape:
+none.** Three are pinned, all the benign package↔submodule shape:
 
 ```
 odoo.modules <-> odoo.modules.db
 odoo.cli     <-> odoo.cli.command
-odoo.service <-> odoo.service._prefork <-> odoo.service._threaded <-> odoo.service.server
-odoo.tests   <-> odoo.tests.common <-> odoo.tests.http
+odoo.service <-> odoo.service._factory <-> odoo.service._prefork <-> odoo.service._threaded <-> odoo.service._watcher <-> odoo.service.lifecycle <-> odoo.service.server
 ```
 
 Function-local imports are deliberately not counted as edges: a deferred import
-is the sanctioned way to break a cycle.
+is the sanctioned way to break a cycle. `odoo.tests` was a fourth pin until
+`common.py` took that route: `http.py` subclasses `TransactionCase` and so must
+import `common` while executing, and `common` published `HttpCase` back through
+an import on its own last line. A module-level `__getattr__` resolves those four
+names on first use instead, which drops the edge and, with it, the unenforced
+rule that every name `http.py` imported had to be defined above that line.
 
 ## Seams that keep the layers decoupled
 

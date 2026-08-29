@@ -6,10 +6,10 @@
 
 ## Running the checks
 
-The fifty-eight blocking checkers do **not** share one CLI, and a loop that
+The fifty-nine blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on sixteen of them.
 
-**Thirty-nine are contract gates.** Each takes bare for a human-readable
+**Forty are contract gates.** Each takes bare for a human-readable
 report, `--check` for CI (exit 1 on a new violation), `--json` for a
 machine-readable one:
 
@@ -31,7 +31,7 @@ to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 drives them as ratchets, so they belong to this group. Run any of the nineteen bare
 and it reports without enforcing.
 
-Thirty-nine plus nineteen is fifty-eight. All three figures derive from the
+Forty plus nineteen is fifty-nine. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) and,
 since a gate governing several scopes gets a CI step per scope, the scoped
@@ -62,6 +62,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             env_model_surface_check worker_thread_surface_check \
             libs_facade_check facade_surface_check \
             mail_hook_keyword_check py_cycle_check \
+            py_docstring_at_runtime \
             js_layer_check js_cycle_check \
             js_deployment_layers named_export_coherence js_suite_parity \
             js_layer_cohesion js_import_resolution js_self_bridge \
@@ -103,8 +104,8 @@ translation_catalog translations
 py_unresolved_calls unresolved_calls
 EOF
 
-# The two loops above run each checker once, at its default scope: 58 of the
-# workflow's 83 steps. A gate governing several scopes gets one step per scope,
+# The two loops above run each checker once, at its default scope: 59 of the
+# workflow's 84 steps. A gate governing several scopes gets one step per scope,
 # and these are the other 25. The rows are the workflow's own argv, left/right of
 # the pipe, because a scope is not always spelled `--addon` and the flag is not
 # always `--count`: `js_private_access` counts a second tree with
@@ -158,7 +159,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **fifty-eight** blocking checkers, after
+`Architecture Boundaries` workflow runs **fifty-nine** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -175,6 +176,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `mail_hook_keyword_check.py` | the keywords `mail` passes to its own `_notify_*` / `_message_*` / `_track_*` / `_mail_*` hooks, against every override of them — `mail` is a framework whose extension points are implemented in dozens of addons across four repos, so its own **582**-test suite is structurally unable to see a signature it just broke, and `28ed9db3341` broke six overrides and merged green |
 | `external_dependency_pins.py` | every `external_dependencies["python"]` a manifest declares against the requirements file of the repo that owns it — the two halves are written by hand in different files and nothing compared them, so three modules carried one without the other and could not install wherever the package was not dragged in by something else. A sibling may lean on this repo's `requirements.txt`, which every server process imports, but not on `requirements-addons.txt`, which the install command each sibling's own header documents does not read |
 | `py_cycle_check.py` | Python import cycles in the core — the direction gates cannot see them |
+| `py_docstring_at_runtime.py` | runtime code that reads `__doc__` where a `None` would raise — prose is stripped from `odoo/`, `tests/` and `tooling/` by policy, so `upgrade_code` could not print `--help` and `base_sparse_field` could not be imported (ADR-0076) |
 | `subsystem_map_check.py` | the **subsystem map** in the module view against the actual tree |
 | `package_index_check.py` | a package README's module index against the package |
 | `js_layer_check.py` | the web addon's Feature-Sliced JS layers |
@@ -289,7 +291,7 @@ retirement log is the last place to keep one. A backticked path in this repo
 asserts the file exists, so only *where on the page* a name sits distinguishes a
 citation from an assertion.
 
-### Checkers outside the fifty-eight
+### Checkers outside the fifty-nine
 
 Four more block without appearing in the table, enforced by the
 `pytest tooling/architecture/` step rather than a `--check` invocation of their
@@ -301,7 +303,7 @@ produces it). Each carries a real-tree test —
 `test_the_surface_matches_the_committed_baseline`, and for the last one
 `test_every_prose_figure_is_fresh` — so a violation fails the self-test step,
 which is blocking. **Fifty-eight run as steps of their own and four block through
-the self-test: sixty-two in all.** The membership of this list is derived rather
+the self-test: sixty-three in all.** The membership of this list is derived rather
 than kept: `GATES` in
 `test_every_gate_refuses_an_empty_tree.py` is the roster, and it is compared
 against the workflow's, so a gate can be in neither list only by being in no
@@ -313,7 +315,7 @@ which is the failure the paragraph describes: the roster in
 already called it a gate, and this page — the operator's manual for exactly this
 machinery — said three.
 
-`cross_repo_coherence.py` is a sixty-third checker and the only one outside CI: it
+`cross_repo_coherence.py` is a sixty-fourth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
@@ -326,7 +328,7 @@ Eleven and not eight, which is what counting only the table above would give:
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
 third.
 
-**Eighty-three** is how many steps CI runs the fifty-eight in, each step invoking
+**Eighty-four** is how many steps CI runs the fifty-nine in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
 `py_function_length` alone accounts for eight.
@@ -413,7 +415,7 @@ bucket lets one mask the other.
 | Floor | Split off because |
 |---|---|
 | `c901` | cyclomatic complexity in `odoo/`, threshold `[lint.mccabe] max-complexity = 20`. In the `ruff` aggregate a complexity fix could be masked by an unrelated new finding. It gated nothing before: `ruff.toml` selected the `C90` family while ignoring `C901`, its only rule |
-| `c901_addons` | the same gate over `addons/`, where the 628 bundled modules and most business logic live and complexity was unbounded. The two trees move by different hands |
+| `c901_addons` | the same gate over `addons/`, where the 638 bundled modules and most business logic live and complexity was unbounded. The two trees move by different hands |
 
 **A third floor, `ruff_docstring`, existed and is retired.** It is the worked
 example of why the split is worth making and of what to do when the question
@@ -444,7 +446,7 @@ database**:
 |---|---|---|
 | `base` | `ci_smoke` | less the excluded `TestReportsRendering` and `TestIrModelFieldsTranslation` |
 | `test_http` | `ci_http` | |
-| `test_orm` | `ci_orm` | added 2026-08-08. **1,204 test methods** under its `tests/` directory — the addon written to test the ORM, and the largest thing that was outside the lane. Above all `test_domain_evaluator_parity.py`: the only check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate), with a generative suite asserting the two evaluators agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence |
+| `test_orm` | `ci_orm` | added 2026-08-08. **1,208 test methods** under its `tests/` directory — the addon written to test the ORM, and the largest thing that was outside the lane. Above all `test_domain_evaluator_parity.py`: the only check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate), with a generative suite asserting the two evaluators agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence |
 | `mrp` | `ci_mrp` | the first suite here that is not a `test_*` addon. Recursive BoM explosion, backorder splitting, multi-level procurement and compute chains across four models make it the deepest ORM consumer among the bundled addons; installing it gives `stock`, `product`, `uom` and `resource` their first DB-backed exercise through a real consumer |
 | `certificate` | `ci_certificate` | added 2026-08-20. Owns X.509 parsing, private-key loading and the signing API for `l10n_mx_edi`, `l10n_cl_edi`, `sign`, `account_edi_proxy_client` and fifteen more consumers, and ran in no lane at all. What it catches is not an ordinary regression: a key that signs with the wrong digest breaks fiscal submission in whichever country is downstream, silently, until a tax authority refuses the file |
 | `stock` | `ci_stock` | added 2026-08-22 — the same hole as `mrp`'s, one layer down: `mrp` installs stock and exercises it as a consumer but selects `/mrp`, so no workflow had ever run one of stock's own 1,532 tests. The 8 HttpCase tours are excluded rather than skipped silently, because `--no-http` would turn each into a success that never ran |
@@ -486,9 +488,9 @@ stated once above and a second copy of it drifts.
 
 ### The limits of "enforced"
 
-**The integration gate is the only lane that runs addon tests.** All fifty-eight
+**The integration gate is the only lane that runs addon tests.** All fifty-nine
 boundary checkers are structural and DB-free: they read import graphs, call
-graphs, reached-member sets and documents. A change can satisfy all fifty-eight,
+graphs, reached-member sets and documents. A change can satisfy all fifty-nine,
 and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
 (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green. Read a green

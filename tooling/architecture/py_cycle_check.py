@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 from __future__ import annotations
 
 import argparse
@@ -44,28 +43,23 @@ KNOWN_CYCLES: tuple[Known, ...] = (
     Known(
         (
             "odoo.service",
+            "odoo.service._factory",
             "odoo.service._prefork",
             "odoo.service._threaded",
+            "odoo.service._watcher",
+            "odoo.service.lifecycle",
             "odoo.service.server",
         ),
-        _PACKAGE_REEXPORT,
+        _PACKAGE_REEXPORT
+        + " Six submodules read live process state through `from . import "
+        "_process_state`, which is an edge to the PACKAGE: `_process_state` "
+        "holds `server` and `server_phoenix` as module-level variables that "
+        "`set_server`/`set_phoenix` rebind, so importing the names instead "
+        "would snapshot them and readers would never see a change. The "
+        "package's own `__init__` re-exports the six, which closes it.",
     ),
     Known(("odoo.modules", "odoo.modules.db"), _PACKAGE_REEXPORT),
     Known(("odoo.cli", "odoo.cli.command"), _PACKAGE_REEXPORT),
-    Known(
-        ("odoo.tests", "odoo.tests.common", "odoo.tests.http"),
-        "The package<->submodule shape with one submodule<->submodule edge, and "
-        "the only cycle here that is documented AT THE SOURCE: common.py ends "
-        "with `from .http import (...)` under the comment 'Imported last on "
-        "purpose: odoo.tests.http imports from this module, so hoisting this to "
-        "the top makes the cycle unresolvable.' So it is managed, not "
-        "accidental -- but it was invisible rather than tolerated: odoo/tests/ "
-        "was dropped wholesale by the old directory-name filter, so the gate "
-        "reported 323 modules and zero unpinned cycles over a graph that never "
-        "contained the test framework. Pinned to make the existing decision "
-        "visible. Removing it means re-exporting HttpCase from somewhere that "
-        "is not common.py.",
-    ),
 )
 
 

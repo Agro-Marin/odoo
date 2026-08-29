@@ -932,7 +932,7 @@ the decorator and no field declaration mentions the method -- so four families a
 measured by nothing.
 
 **``@api.onchange``** ``[review]``: a hook bound to one field is
-``_onchange_<field>``. **271** of **382** single-field onchange hooks are spelled
+``_onchange_<field>``. **271** of **383** single-field onchange hooks are spelled
 for their field. Four of the rest carry the **pre-9.0 public spelling**
 (``on_change_login``, ``onchange_parent_id``), reachable over RPC by accident.
 
@@ -955,8 +955,8 @@ free-standing form.
   ``_except_`` is a guard and returns, anything else under ``_unlink_`` deletes.
   An ORM-invoked hook is private.
 
-**``@api.constrains``** ``[review]`` is the fourth and largest, at **619** hooks.
-The Validation row governs the spelling and **548** already carry ``_check_``. The
+**``@api.constrains``** ``[review]`` is the fourth and largest, at **620** hooks.
+The Validation row governs the spelling and **549** already carry ``_check_``. The
 rest are names the ratchet counts (``_validate_``, ``_ensure_``, ``_verify_``) and
 the localisation namespace with the verb behind it
 (``_l10n_se_check_payment_reference``). That leaves **47** spelled with a first
@@ -979,11 +979,11 @@ Do not read a prefix as a claim that no other binding exists.
 **One verb per operation** ``[review]``. The table in §2.4 governs prefixes
 carrying an ORM role; every other method opens with a free verb. The abolished
 spellings are wrong, not lesser-preferred. The tree spells single operations many
-ways: 6 stems are written with two or more verbs drawn from one semantic family,
+ways: 7 stems are written with two or more verbs drawn from one semantic family,
 and 104 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,819 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,916 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
@@ -1082,7 +1082,7 @@ neither operation they name, and ``ir.cron``'s ``method_direct_trigger``.
 **The verb leads** ``[review]``. ``naming_vocabulary.classify`` partitions on the
 first token and stops, so a noun in front of the verb hides the verb from the rule
 *and* from its enforcement: ``_import_retrieve_customer`` scores as the verb
-``import``, which carries no rule. Backlog: **152** model methods put an abolished
+``import``, which carries no rule. Backlog: **156** model methods put an abolished
 verb somewhere the ratchet cannot read it -- a candidate population, since some of
 those tokens belong to a noun or a field name.
 
@@ -1139,7 +1139,7 @@ and **read the result**:
   deleting it: ``_get_related_bundle`` → ``_get_bundle_containing_path``.
 
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
-**206** definitions under **98** names in this repository spell it head-first and
+**207** definitions under **98** names in this repository spell it head-first and
 **17** spell it the other way. **The rule is general; the conversion reached one
 family** -- across **19** of them this repository spells **65** definitions
 head-first against **181** the other way. A name in the second count is a backlog
@@ -1217,12 +1217,12 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,504 definitions it is 22.2 % of every method
+**``_get_`` is not a default.** At 5,526 definitions it is 22.2 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
-computing. The split that matters is against ``_prepare_``: 686 definitions are
+computing. The split that matters is against ``_prepare_``: 690 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 725 already spelled ``_prepare_*``.
+spelled ``get_*``, against 726 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1266,7 +1266,7 @@ new ones this way; do not rename the bound ones.
   ``_migrate_attachments_to_local``.
 
 **``_generate_`` is the largest member of the payload family and is not in the
-table** ``[review]``. The four verbs the Payload row abolishes come to **22**
+table** ``[review]``. The four verbs the Payload row abolishes come to **23**
 definitions between them; ``_generate_`` alone is **134**. It carries two meanings
 -- ``_generate_access_token`` builds a value and takes the payload canonical,
 while ``_generate_consume_moves`` **creates records** and takes the domain
@@ -1275,12 +1275,12 @@ more than half its floor, and is owed its own record.
 
 **The assemble verbs are abolished on paper and enforced for one shape**
 ``[review]``: ``naming_vocabulary.py`` reports one only when the name also ends in
-a payload suffix. **22** model methods open with one of those four verbs and the
+a payload suffix. **23** model methods open with one of those four verbs and the
 ratchet flags **4**. The gap hides two things -- the suffix list is short, and
 *object construction takes ``_prepare_`` too*, a factory having a consumer like
 anything else.
 
-Backlog: **33** of this repository's **725** ``_prepare_*`` definitions call
+Backlog: **33** of this repository's **726** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1288,8 +1288,8 @@ assembles is in the wrong family.
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **373** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **196**
+**A ``bool`` return does not make a predicate** ``[review]``. **378** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **199**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1297,7 +1297,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,055 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,057 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (29) plus ``_verify_``,
 ``_ensure_`` and ``_control_`` (49 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
@@ -1342,7 +1342,7 @@ is a hypothesis, not a verdict.** Where the body disagrees, the body wins.
 ~~~~~~~~~~~~~~~~~~~~~
 
 **Do not name a method for the act of running** -- *provisional*. ``_do_``,
-``_run_``, ``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (192
+``_run_``, ``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (194
 definitions) describe execution rather than behaviour; every method executes. Name
 the domain operation: ``_post_entries``, not ``_do_posting``. No mechanical
 rewrite exists.
@@ -1469,12 +1469,12 @@ half that is least true. Name the scope in the imperative --
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (145 definitions) and ``_update_*`` (269) are
+and is wired to nothing. ``_set_*`` (146 definitions) and ``_update_*`` (270) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
 * an ``inverse=`` target is ``_inverse_<field>`` and was never a ``_set_``
-  question -- 238 against 2 now that the count is drained;
+  question -- 238 against 3 now that the count is drained;
 * ``set_values`` / ``get_values`` on ``res.config.settings`` are *bound by name,
   not by inheritance* (§2.4.14);
 * ``set_param`` on ``ir.config_parameter`` is public and reached from JS and XML
@@ -1488,7 +1488,7 @@ the duplicate report this section exists to produce.
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
 for it this section had never named: **60** definitions spell it ``_sync_*`` and
-**13** spell it ``_synchronize_*``, against ``_update_*``'s **269**. It is not
+**13** spell it ``_synchronize_*``, against ``_update_*``'s **270**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.
@@ -1573,8 +1573,8 @@ binding and no prose.
 
 **A private method can be reached from outside the workspace**
 ``[gate doc_restated_counts]``. ``ir.actions.server`` stores **Python source in a
-database column**: **105** distinct private method names are reached that way from
-**114** code blocks in **69** shipped data files of this repository -- and the
+database column**: **108** distinct private method names are reached that way from
+**117** code blocks in **70** shipped data files of this repository -- and the
 shipped files are only the half a grep can see, since the field is edited in the
 UI. **The question is not public against private, but whether a name is written
 down anywhere this workspace cannot rewrite.** ``_for_xml_id`` is the case, and it
@@ -2168,7 +2168,7 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **80** times against ``_unique``'s
+tail -- the tree spells that tail ``_uniq`` **82** times against ``_unique``'s
 **52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**

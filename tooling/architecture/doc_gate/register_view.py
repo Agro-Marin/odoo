@@ -52,8 +52,16 @@ class TestRiskRegisterFigures(unittest.TestCase):
         privates = self._env_unsanctioned_private_members()
         sites = self._registry_sites()
         self.assertGreater(privates["Layer 1"], privates["Layer 2"])
-        self.assertGreater(sites["Layer 1"], sites["Layer 2"])
-        self.assertIn("Layer 1 is the heavier consumer on both channels", DOC_FLAT)
+        # Not assertGreater: the two layers are level on the Registry channel.
+        # They stopped being unequal when the collector learned to follow a
+        # local bound from `.pool` -- the reaches Layer 2 gained were always
+        # there and simply uncounted, so this is the figure correcting, not
+        # Layer 2 growing.
+        self.assertGreaterEqual(sites["Layer 2"], sites["Layer 1"])
+        self.assertIn(
+            "Layer 1 is the heavier consumer on the `Environment` channel",
+            DOC_FLAT,
+        )
 
     def test_no_page_states_a_checker_total_the_workflow_does_not_run(self) -> None:
         expected = len(_doc_measures.workflow_gates())
