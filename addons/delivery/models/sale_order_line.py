@@ -2,16 +2,18 @@ from odoo import fields, models
 
 
 class SaleOrderLine(models.Model):
-    _inherit = 'sale.order.line'
+    _inherit = "sale.order.line"
 
     is_delivery = fields.Boolean(string="Is a Delivery", default=False)
-    recompute_delivery_price = fields.Boolean(related='order_id.recompute_delivery_price')
+    recompute_delivery_price = fields.Boolean(
+        related="order_id.recompute_delivery_price"
+    )
 
     def _can_be_invoiced_alone(self):
         return super()._can_be_invoiced_alone() and not self.is_delivery
 
     def unlink(self):
-        self.filtered('is_delivery').order_id.filtered('carrier_id').carrier_id = False
+        self.filtered("is_delivery").order_id.filtered("carrier_id").carrier_id = False
         return super().unlink()
 
     def _is_delivery(self):
@@ -21,11 +23,12 @@ class SaleOrderLine(models.Model):
     def _get_invalid_delivery_weight_lines(self):
         """Retrieve lines containing physical products with no weight defined."""
         return self.filtered(
-            lambda line:
+            lambda line: (
                 line.product_id
                 and line.product_uom_qty > 0
-                and line.product_id.type not in ('service', 'combo')
-                and line.product_id.weight == 0,
+                and line.product_id.type not in ("service", "combo")
+                and line.product_id.weight == 0
+            ),
         )
 
     # override to allow deletion of delivery line in a confirmed order
@@ -43,6 +46,6 @@ class SaleOrderLine(models.Model):
         return undeletable_lines.filtered(lambda line: not line.is_delivery)
 
     def _compute_pricelist_item_id(self):
-        delivery_lines = self.filtered('is_delivery')
+        delivery_lines = self.filtered("is_delivery")
         super(SaleOrderLine, self - delivery_lines)._compute_pricelist_item_id()
         delivery_lines.pricelist_item_id = False
