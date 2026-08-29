@@ -49,15 +49,13 @@ export class DocumentSelector extends FileSelector {
         const attachments = await super.fetchAttachments(...args);
 
         if (this.selectInitialMedia()) {
-            for (const attachment of attachments) {
-                if (
-                    `/web/content/${attachment.id}` ===
-                    this.props.media
-                        .querySelector("a")
-                        .getAttribute("href")
-                        .replace(/[?].*/, "")
-                ) {
-                    this.selectAttachment(attachment);
+            const link = this.props.media.querySelector("a");
+            const href = link?.getAttribute("href")?.replace(/[?].*/, "");
+            if (href) {
+                for (const attachment of attachments) {
+                    if (`/web/content/${attachment.id}` === href) {
+                        this.selectAttachment(attachment);
+                    }
                 }
             }
         }
