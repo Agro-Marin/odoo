@@ -869,11 +869,12 @@ class LoyaltyProgram(models.Model):
         if "active" in vals:
             for program in self.with_context(active_test=False):
                 program.rule_ids.active = program.active
+                # `loyalty.reward.write()` already cascades this to
+                # `discount_line_product_id` (its own `active` handler calls
+                # `action_archive`/`action_unarchive` on it), so no separate
+                # cascade line is needed here.
                 program.reward_ids.active = program.active
                 program.communication_plan_ids.active = program.active
-                program.reward_ids.with_context(
-                    active_test=True
-                ).discount_line_product_id.active = program.active
 
         return res
 
