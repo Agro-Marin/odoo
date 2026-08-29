@@ -1643,7 +1643,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
             self.assertEqual(
                 res.headers["Content-Type"], "application/json; charset=utf-8"
             )
-            self.assertIsNotNone(res.json()[0])
+            self.assertRegex(res.json()[0], r"^https?://.*/odoo/documents/")
             res = self.url_open(
                 url,
                 data={"csrf_token": http.Request.csrf_token(self)},
@@ -1659,7 +1659,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
             self.assertEqual(
                 res.headers["Content-Type"], "application/json; charset=utf-8"
             )
-            self.assertIsNotNone(res.json()[0])
+            self.assertRegex(res.json()[0], r"^https?://.*/odoo/documents/")
         documents = capture.records
         self.assertEqual(len(documents), 3)
         self.assertEqual(documents[0].type, "folder")
