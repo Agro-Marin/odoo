@@ -2,11 +2,7 @@ from odoo import fields, models
 
 
 class MixinEventMailSchedule(models.AbstractModel):
-    """Add SMS as a channel for event communications.
-
-    Extending the shared mixin reaches both ``event.mail`` and
-    ``event.type.mail``, which each needed the same two lines before.
-    """
+    """Add SMS as a channel for event communications."""
 
     _inherit = "mixin.event.mail.schedule"
 
