@@ -773,9 +773,14 @@ class TestUsersIdentitycheck(HttpCase):
         user_identity_check = form.save()
         action = user_identity_check.with_context(password=form.password).run_check()
 
-        self.assertTrue(
-            self.url_open("/web").url.endswith("/web/login?redirect=%2Fweb%3F")
-        )
+        # ?db= pins the database on the way back. The revoked session is gone,
+        # so this request carries none, and ensure_db() would otherwise resolve
+        # it by scanning the cluster and proceed only when exactly one database
+        # is visible -- landing on the selector rather than the login page
+        # whenever that scan returns anything else.
+        landing = self.url_open(f"/web?db={self.env.cr.dbname}").url
+        self.assertIn("/web/login", landing)
+        self.assertNotIn("/web/database/selector", landing)
 
         self.assertFalse(user_identity_check.password)
 
