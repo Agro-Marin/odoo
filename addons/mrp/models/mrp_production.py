@@ -23,6 +23,8 @@ from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 from odoo.addons.web.controllers.utils import clean_action
 
 SIZE_BACK_ORDER_NUMBERING = 3
+#: Shared by move_raw_ids and move_finished_ids below.
+_NON_INVENTORY_MOVE_DOMAIN = [("location_dest_usage", "!=", "inventory")]
 
 
 class MrpProduction(models.Model):
@@ -325,7 +327,7 @@ class MrpProduction(models.Model):
         store=True,
         readonly=False,
         copy=False,
-        domain=[("location_dest_usage", "!=", "inventory")],
+        domain=_NON_INVENTORY_MOVE_DOMAIN,
     )
     move_finished_ids = fields.One2many(
         "stock.move",
@@ -335,7 +337,7 @@ class MrpProduction(models.Model):
         compute="_compute_move_finished_ids",
         store=True,
         copy=False,
-        domain=[("location_dest_usage", "!=", "inventory")],
+        domain=_NON_INVENTORY_MOVE_DOMAIN,
     )
     all_move_raw_ids = fields.One2many("stock.move", "raw_material_production_id")
     all_move_ids = fields.One2many("stock.move", "production_id")
