@@ -64,6 +64,8 @@ class SaleOrderLine(models.Model):
         """Create registrations linked to a sales order line. A sale
         order line has a product_uom_qty attribute that will be the number of
         registrations linked to this line."""
+        # Only ever called with one order's own lines (see action_confirm).
+        self.order_id.ensure_one()
         registrations_vals = []
         for so_line in self:
             if so_line.service_tracking != "event":
@@ -76,11 +78,9 @@ class SaleOrderLine(models.Model):
                     "sale_order_line_id": so_line.id,
                     "sale_order_id": so_line.order_id.id,
                 }
-                # When confirming in backend a single order, keep paid registrations in draft
-                # so attendee details can be filled before confirmation; free ones stay open for seat checks.
-                if len(self.order_id) == 1 and not so_line.currency_id.is_zero(
-                    so_line.price_total
-                ):
+                # Keep paid registrations in draft so attendee details can be
+                # filled before confirmation; free ones stay open for seat checks.
+                if not so_line.currency_id.is_zero(so_line.price_total):
                     values["state"] = "draft"
                 registrations_vals.append(values)
 
