@@ -23,9 +23,7 @@ from odoo.addons.base.models.res_lang import LangData
 _logger = logging.getLogger(__name__)
 
 _SLUG_NAME = r"\w{1,2}|\w[\w-]+?\w"
-_SLUG_ID = (
-    r"-?\d+"
-)
+_SLUG_ID = r"-?\d+"
 _SLUG_END = r"(?=$|\/|#|\?)"
 _UNSLUG_RE = re.compile(rf"(?:({_SLUG_NAME})-)?({_SLUG_ID}){_SLUG_END}")
 _UNSLUG_ROUTE_PATTERN = rf"(?:(?:{_SLUG_NAME})-)?(?:{_SLUG_ID}){_SLUG_END}"
