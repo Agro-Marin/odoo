@@ -287,6 +287,10 @@ class HrEmployee(models.Model):
         string="Private Country",
         groups="hr.group_hr_user",
         tracking=True,
+        # Most employees live where they work, and the country drives
+        # allowed_country_state_ids: without it the state dropdown starts empty
+        # and a city typed before the country has to be retyped.
+        default=lambda self: self.env.company.country_id,
     )
 
     distance_home_work = fields.Integer(

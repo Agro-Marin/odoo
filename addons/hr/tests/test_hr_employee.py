@@ -963,6 +963,43 @@ class TestHrEmployee(TestHrCommon):
         self.assertNotEqual(partner.email, second_employee.work_email)
         self.assertNotEqual(partner.email, first_employee.work_email)
 
+    def test_private_country_defaults_to_company_country(self):
+        """A new employee starts in their company's country.
+
+        Without it the private address is entered country-last, and
+        ``_compute_allowed_country_state_ids`` leaves the state dropdown empty
+        until the country is picked, so a city typed first has to be retyped.
+        """
+        company = self.env["res.company"].create(
+            {"name": "Mexican Company", "country_id": self.env.ref("base.mx").id}
+        )
+        employee = (
+            self.env["hr.employee"]
+            .with_company(company)
+            .create({"name": "New Hire", "company_id": company.id})
+        )
+        self.assertEqual(employee.private_country_id, company.country_id)
+        self.assertTrue(employee.allowed_country_state_ids)
+
+    def test_private_country_default_yields_to_an_explicit_value(self):
+        """The default never overrides a country the caller passed."""
+        company = self.env["res.company"].create(
+            {"name": "Mexican Company 2", "country_id": self.env.ref("base.mx").id}
+        )
+        belgium = self.env.ref("base.be")
+        employee = (
+            self.env["hr.employee"]
+            .with_company(company)
+            .create(
+                {
+                    "name": "Expat Hire",
+                    "company_id": company.id,
+                    "private_country_id": belgium.id,
+                }
+            )
+        )
+        self.assertEqual(employee.private_country_id, belgium)
+
 
 @tagged("-at_install", "post_install")
 class TestHrEmployeeLinks(HttpCase):
