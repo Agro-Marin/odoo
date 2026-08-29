@@ -21,6 +21,7 @@ export class KioskPinCode extends Component {
             codePin: "",
         });
         this.lockPad = false;
+        this.failedAttempts = 0;
         this.checkedIn = this.props.employeeData.attendance_state === 'checked_in';
 
         const onKeyDown = async (ev) => {
@@ -63,6 +64,12 @@ export class KioskPinCode extends Component {
             this.lockPad = true;
             await this.props.onPinConfirm(this.props.employeeData.id, this.state.codePin)
             this.state.codePin = "";
+            // Escalating delay before the next attempt is accepted: defense-in-depth
+            // against PIN brute-forcing (this component is destroyed on a successful
+            // check-in/out, so the counter only ever grows across wrong guesses).
+            this.failedAttempts += 1;
+            const backoff = Math.min(this.failedAttempts * 500, 5000);
+            await new Promise((resolve) => browser.setTimeout(resolve, backoff));
             this.lockPad = false;
         } else {
             this.state.codePin += value;
