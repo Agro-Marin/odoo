@@ -74,9 +74,19 @@ class MixinMrpProduct(models.AbstractModel):
             # Before `super()`, and reading `active` off the record: the point
             # is to catch the ones whose flag is actually changing, which is
             # unanswerable once the write has landed.
-            self.filtered(lambda record: record.active != vals["active"]).with_context(
-                active_test=False
-            )[self._mrp_bom_field].write({"active": vals["active"]})
+            boms = self.filtered(
+                lambda record: record.active != vals["active"]
+            ).with_context(active_test=False)[self._mrp_bom_field]
+            if vals["active"]:
+                # Only resurrect the BoMs archived *because of* this record --
+                # one archived on its own, independently, stays retired.
+                boms.filtered("archived_with_product").write(
+                    {"active": True, "archived_with_product": False}
+                )
+            else:
+                boms.filtered("active").write(
+                    {"active": False, "archived_with_product": True}
+                )
         return super().write(vals)
 
     def _get_still_used_bom_lines(self):

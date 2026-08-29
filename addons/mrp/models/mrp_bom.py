@@ -45,6 +45,12 @@ class MrpBom(models.Model):
 
     code = fields.Char("Reference")
     active = fields.Boolean("Active", default=True)
+    archived_with_product = fields.Boolean(
+        copy=False,
+        help="Technical: this BoM was archived because its product was, so "
+        "unarchiving the product brings it back. A BoM retired on its own "
+        "does not carry the flag and stays retired.",
+    )
     type = fields.Selection(
         [("normal", "Manufacture this product"), ("phantom", "Kit")],
         "BoM Type",
