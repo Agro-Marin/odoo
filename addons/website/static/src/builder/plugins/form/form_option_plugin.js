@@ -1375,7 +1375,7 @@ export class SetRequirementComparatorAction extends BuilderAction {
  * Sets the dataset value of custom-error attribute which is further used to
  * determine if the input for custom error message should be visible or not.
  *
- * TODO this is basically a toggle whose only purpose is to show more options
+ * TODO this is a toggle whose only purpose is to show more options
  * in the sidebar... its status should not be saved in the website DOM...
  */
 export class SetCustomErrorMessageAction extends BuilderAction {

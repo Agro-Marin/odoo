@@ -27,7 +27,7 @@ export class Share extends Interaction {
 
         // Try and support old use of share snippet as a social link snippet:
         // if the URL does not look like a sharer, then do nothing. This
-        // obviously won't cover all cases (people may have added URL that look
+        // won't cover all cases (people may have added URL that look
         // like sharer but are not but in that case, it was probably already
         // broken before).
         if (

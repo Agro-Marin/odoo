@@ -443,7 +443,7 @@ export function insertSnippet(
                 content: markup(
                     _t("Click on the <b>%s</b> building block.", snippet.name),
                 ),
-                // FIXME `:not(.d-none)` should obviously not be needed but it seems
+                // FIXME `:not(.d-none)` should not be needed but it seems
                 // currently needed when using a tour in user/interactive mode.
                 trigger: `.modal .show:iframe .o_snippet_preview_wrap${snippetIDSelector}:not(.d-none)`,
                 noPrepend: true,
