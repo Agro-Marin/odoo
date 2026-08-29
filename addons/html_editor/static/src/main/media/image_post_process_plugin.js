@@ -229,8 +229,7 @@ export class ImagePostProcessPlugin extends Plugin {
             const cv = document.createElement("canvas");
             cv.width = canvas.width;
             cv.height = canvas.height;
-            applyAll = _applyAll.bind(null, canvas);
-            glFilters[glFilter](glf, cv, filterOptions);
+            glFilters[glFilter](glf, cv, filterOptions, applyAllTo(canvas));
             const filtered = glf.apply(canvas);
             ctx.drawImage(
                 filtered,
@@ -255,6 +254,7 @@ export class ImagePostProcessPlugin extends Plugin {
         const isChanged =
             !!perspective ||
             !!glFilter ||
+            (filter && filter !== "#0000") ||
             originalImg.width !== canvas.width ||
             originalImg.height !== canvas.height ||
             originalImg.width !== processedCanvas.width ||
@@ -316,7 +316,6 @@ export function getImageTransformationData(dataset) {
         {
             glFilter: "",
             filter: "#0000",
-            forceModification: false,
         },
         dataset,
     );
@@ -363,7 +362,7 @@ export async function isImageSupportedForProcessing(imgEl, originalImgMimetype) 
     return !!(imgEl.dataset.originalSrc || (await loadImageInfo(imgEl)).originalSrc);
 }
 
-const _applyAll = (result, filter, filters) => {
+const applyAllTo = (result) => (filter, filters) => {
     filters.forEach((f) => {
         if (f[0] === "blend") {
             const cv = f[1];
@@ -378,12 +377,10 @@ const _applyAll = (result, filter, filters) => {
         }
     });
 };
-let applyAll;
-
 const glFilters = {
     blur: (filter) => filter.addFilter("blur", 10),
 
-    1977: (filter, cv) => {
+    1977: (filter, cv, filterOptions, applyAll) => {
         const ctx = cv.getContext("2d");
         ctx.fillStyle = "rgb(243, 106, 188)";
         ctx.fillRect(0, 0, cv.width, cv.height);
@@ -395,7 +392,7 @@ const glFilters = {
         ]);
     },
 
-    aden: (filter, cv) => {
+    aden: (filter, cv, filterOptions, applyAll) => {
         const ctx = cv.getContext("2d");
         ctx.fillStyle = "rgb(66, 10, 14)";
         ctx.fillRect(0, 0, cv.width, cv.height);
@@ -408,7 +405,7 @@ const glFilters = {
         ]);
     },
 
-    brannan: (filter, cv) => {
+    brannan: (filter, cv, filterOptions, applyAll) => {
         const ctx = cv.getContext("2d");
         ctx.fillStyle = "rgb(161, 44, 191)";
         ctx.fillRect(0, 0, cv.width, cv.height);
@@ -419,7 +416,7 @@ const glFilters = {
         ]);
     },
 
-    earlybird: (filter, cv) => {
+    earlybird: (filter, cv, filterOptions, applyAll) => {
         const ctx = cv.getContext("2d");
         const gradient = ctx.createRadialGradient(
             cv.width / 2,
@@ -440,7 +437,7 @@ const glFilters = {
         ]);
     },
 
-    inkwell: (filter, cv) => {
+    inkwell: (filter, cv, filterOptions, applyAll) => {
         applyAll(filter, [
             ["sepia", 0.3],
             ["brightness", 0.1],
@@ -449,7 +446,7 @@ const glFilters = {
         ]);
     },
 
-    maven: (filter, cv) => {
+    maven: (filter, cv, filterOptions, applyAll) => {
         applyAll(filter, [
             ["sepia", 0.25],
             ["brightness", -0.05],
@@ -458,7 +455,7 @@ const glFilters = {
         ]);
     },
 
-    toaster: (filter, cv) => {
+    toaster: (filter, cv, filterOptions, applyAll) => {
         const ctx = cv.getContext("2d");
         const gradient = ctx.createRadialGradient(
             cv.width / 2,
@@ -479,7 +476,7 @@ const glFilters = {
         ]);
     },
 
-    walden: (filter, cv) => {
+    walden: (filter, cv, filterOptions, applyAll) => {
         const ctx = cv.getContext("2d");
         ctx.fillStyle = "#CC4400";
         ctx.fillRect(0, 0, cv.width, cv.height);
@@ -492,7 +489,7 @@ const glFilters = {
         ]);
     },
 
-    valencia: (filter, cv) => {
+    valencia: (filter, cv, filterOptions, applyAll) => {
         const ctx = cv.getContext("2d");
         ctx.fillStyle = "#3A0339";
         ctx.fillRect(0, 0, cv.width, cv.height);
@@ -504,7 +501,7 @@ const glFilters = {
         ]);
     },
 
-    xpro: (filter, cv) => {
+    xpro: (filter, cv, filterOptions, applyAll) => {
         const ctx = cv.getContext("2d");
         const gradient = ctx.createRadialGradient(
             cv.width / 2,
@@ -524,7 +521,7 @@ const glFilters = {
         ]);
     },
 
-    custom: (filter, cv, filterOptions) => {
+    custom: (filter, cv, filterOptions, applyAll) => {
         const options = Object.assign(
             defaultImageFilterOptions,
             JSON.parse(filterOptions || "{}"),
