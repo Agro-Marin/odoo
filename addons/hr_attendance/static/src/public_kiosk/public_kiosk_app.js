@@ -6,7 +6,7 @@ import { makeEnv, startServices } from "@web/env";
 import { getTemplate } from "@web/core/templates";
 import { _t, appTranslateFn } from "@web/core/translation";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
-import { rpc } from "@web/core/network";
+import { rpc, ConnectionLostError } from "@web/core/network";
 import { useService, useBus } from "@web/core/utils/hooks";
 import { url } from "@web/core/utils/urls";
 import { KioskGreetings } from "@hr_attendance/components/greetings/greetings";
@@ -201,7 +201,11 @@ class kioskAttendanceApp extends Component{
                 );
             }
         } catch (error) {
-            this.displayNotification(error.data.message);
+            if (error instanceof ConnectionLostError) {
+                this.displayNotification(_t("Connection lost. Please try again."));
+            } else {
+                this.displayNotification(error.data.message);
+            }
         } finally {
             this.lockScanner = false;
             this.ui.unblock();
