@@ -296,7 +296,7 @@ class HrVersion(models.Model):
             leaves = mapped_leaves[resource.id]
             worked_leaves = mapped_worked_leaves[resource.id]
 
-            real_attendances = attendances - leaves - worked_leaves
+            plain_attendances = attendances - leaves - worked_leaves
             if not calendar:
                 real_leaves = leaves
                 real_worked_leaves = worked_leaves
@@ -325,8 +325,8 @@ class HrVersion(models.Model):
 
             elif version.has_static_work_entries() or not leaves:
                 # Empty leaves means empty real_leaves
-                real_worked_leaves = attendances - real_attendances - leaves
-                real_leaves = attendances - real_attendances - real_worked_leaves
+                real_worked_leaves = attendances - plain_attendances - leaves
+                real_leaves = attendances - plain_attendances - real_worked_leaves
             else:
                 # In the case of attendance based versions use regular attendances to generate leave intervals
                 static_attendances = calendar._attendance_intervals_batch(
