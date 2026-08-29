@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo><data noupdate="1">
     <!--Ranks-->
-    <!-- note that original motivational messages are duplicated+hidden to ensure they are included in .pot export when demo data installed -->
+    <!-- Original motivational messages are duplicated+hidden to ensure they are included in .pot export when demo data installed -->
     <record id="rank_student" model="gamification.karma.rank">
         <field name="description_motivational" type="html">
             <div hidden="true">Reach the next rank to show the rest of the world you exist.</div>
