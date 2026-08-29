@@ -252,10 +252,6 @@ export class ImagePlugin extends Plugin {
         );
     }
 
-    destroy() {
-        super.destroy();
-    }
-
     get imageSizeName() {
         const targetedImg = this.getTargetedImage();
         if (!targetedImg) {
