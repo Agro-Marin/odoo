@@ -35,6 +35,18 @@ class TestIapAccount(TransactionCase):
         account = self.env["iap.account"].create({"service_id": self.service.id})
         self.assertTrue(account.account_token.endswith("+disabled"))
 
+    def test_service_locked_blocks_service_change(self):
+        """A locked account's service_id cannot be changed."""
+        other_service = self.env["iap.service"].search(
+            [("technical_name", "!=", self.service.technical_name)],
+            limit=1,
+        )
+        account = self.env["iap.account"].create(
+            {"service_id": self.service.id, "service_locked": True}
+        )
+        with self.assertRaises(UserError):
+            account.write({"service_id": other_service.id})
+
     def test_warning_threshold_must_be_positive(self):
         """A negative alert threshold is rejected."""
         account = self.env["iap.account"].create({"service_id": self.service.id})
