@@ -290,7 +290,7 @@ which has its own bus notification logic separate from `_send_gamification_notif
 | karma.rank | read | full CRUD (**group_system**) | read | read |
 | karma.tracking | none | full CRUD (**group_system**) | none | — |
 | streak.type | read | full CRUD | — | — |
-| streak | read, write | full CRUD | — | — |
+| streak | read | full CRUD | — | — |
 | kudos.category | read | full CRUD | — | — |
 | kudos | read, write, create | full CRUD | — | — |
 | achievement | read | full CRUD | — | — |
