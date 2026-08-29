@@ -70,6 +70,7 @@ export class PdfManager extends Component {
         this._selectionScrollTop = 0.0;
         this._selectionScrollLeft = 0.0;
         this._embeddedActionApplied = false;
+        this._pendingFileUploads = 0;
         this._onMouseDown = this._onMouseDown.bind(this);
         this._onMouseUp = this._onMouseUp.bind(this);
         this._onMouseMove = this._onMouseMove.bind(this);
@@ -393,6 +394,7 @@ export class PdfManager extends Component {
             this._objectUrls.push(url);
         }
         const displayName = name;
+        this._pendingFileUploads++;
         this.state.uploadingLock = true;
         const fileId = uniqueId("file");
         try {
@@ -421,7 +423,6 @@ export class PdfManager extends Component {
             }
             this._newFiles[fileId].pageIds = this._newFiles[fileId].selectedPageIds =
                 pageIds;
-            this.state.uploadingLock = false;
 
             await this._loadCanvases({ newPages, pageCount, pdf });
         } catch (error) {
@@ -437,7 +438,10 @@ export class PdfManager extends Component {
                 );
             }
         } finally {
-            this.state.uploadingLock = false;
+            this._pendingFileUploads--;
+            if (this._pendingFileUploads <= 0) {
+                this.state.uploadingLock = false;
+            }
         }
     }
     /**
