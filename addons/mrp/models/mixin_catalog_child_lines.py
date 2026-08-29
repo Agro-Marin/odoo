@@ -36,7 +36,12 @@ class MixinCatalogChildLines(models.AbstractModel):
     ):
         if not child_field:
             return 0
-        line = self[child_field].filtered(lambda line: line.product_id.id == product_id)
+        # A BoM can legally carry more than one line for the same product; a
+        # catalog edit is one absolute quantity, so it must land on a single
+        # line rather than conflating two distinct components.
+        line = self[child_field].filtered(
+            lambda line: line.product_id.id == product_id
+        )[:1]
         if line:
             if quantity != 0:
                 self._update_catalog_line_quantity(line, quantity, **kwargs)
