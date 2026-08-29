@@ -670,7 +670,6 @@ class ShareRoute(http.Controller):
             document_sudo = (
                 request.env["documents.document"]
                 .with_user(SUPERUSER_ID)
-                .sudo()
                 .browse(document_id)
                 .exists()
             )
