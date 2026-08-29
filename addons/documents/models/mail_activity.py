@@ -135,7 +135,7 @@ class MailActivity(models.Model):
         if document_without_attachment and not feedback:
             feedback = _(
                 "Document Request: %(name)s Uploaded by: %(user)s",
-                name=documents[0].name,
+                name=document_without_attachment[0].name,
                 user=self.env.user.name,
             )
         messages, next_activities = super(
