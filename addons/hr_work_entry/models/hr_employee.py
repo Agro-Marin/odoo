@@ -67,7 +67,9 @@ class HrEmployee(models.Model):
             "domain": [("employee_id", "=", self.id)],
         }
 
-    def generate_work_entries(self, date_start, date_stop, force=False):
+    def generate_work_entries(
+        self, date_start, date_stop, force=False, record_ids=None
+    ):
         date_start = fields.Date.to_date(date_start)
         date_stop = fields.Date.to_date(date_stop)
 
@@ -79,4 +81,6 @@ class HrEmployee(models.Model):
             versions = self._get_all_versions_with_contract_overlap_with_period(
                 date_start, date_stop
             )
-        return versions.generate_work_entries(date_start, date_stop, force=force)
+        return versions.generate_work_entries(
+            date_start, date_stop, force=force, record_ids=record_ids
+        )

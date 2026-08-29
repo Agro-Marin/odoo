@@ -202,4 +202,6 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
                 range_by_employee[start, end].append(employee_id)
             for (date_from, date_to), employee_ids in range_by_employee.items():
                 valid_employees = self.env["hr.employee"].browse(employee_ids)
-                valid_employees.generate_work_entries(date_from, date_to, True)
+                valid_employees.generate_work_entries(
+                    date_from, date_to, True, record_ids=record_ids
+                )
