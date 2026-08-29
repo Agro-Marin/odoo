@@ -247,7 +247,10 @@
                                 <group>
                                     <field name="alarm_ids" widget="many2many_tags" options="{'no_quick_create': True}" readonly="not user_can_edit"/>
                                     <field name="recurrence_id" invisible="1" />
-                                    <field name="rrule_type" invisible="1" />
+                                    <!-- Carries the guard too: the modifiers of a field declared
+                                         twice are combined, so leaving this one unqualified would
+                                         make `rrule_type` writable again for a non-editor. -->
+                                    <field name="rrule_type" invisible="1" readonly="not user_can_edit"/>
                                     <label for="recurrency" string="Recurrent"/>
                                     <div class="d-flex align-items-baseline gap-1">
                                         <field name="recurrency" widget="boolean_toggle" options="{'autosave': False}" class="w-auto" readonly="not user_can_edit"/>
@@ -256,8 +259,8 @@
                                     </div>
                                     <label for="interval" class="fw-bold text-900" invisible="not recurrency or rrule_type_ui != 'custom'"/>
                                     <div class="d-flex gap-1" invisible="not recurrency or rrule_type_ui != 'custom'">
-                                        <field name="interval" string="Repeat every" class="oe_inline w-auto o_input_5ch" />
-                                        <field name="rrule_type" nolabel="1" class="oe_inline" required="rrule_type_ui == 'custom'"/>
+                                        <field name="interval" string="Repeat every" class="oe_inline w-auto o_input_5ch" readonly="not user_can_edit"/>
+                                        <field name="rrule_type" nolabel="1" class="oe_inline" required="rrule_type_ui == 'custom'" readonly="not user_can_edit"/>
                                     </div>
                                     <span class="fw-bold text-nowrap" invisible="rrule_type_ui not in ['weekly', 'custom'] or (rrule_type_ui == 'custom' and rrule_type != 'weekly')">Repeat on</span>
                                     <div invisible="rrule_type_ui not in ['weekly', 'custom'] or (rrule_type_ui == 'custom' and rrule_type != 'weekly')" ><widget name="calendar_week_days" readonly="not user_can_edit"/></div>

@@ -575,3 +575,48 @@ class TestAccessRights(TransactionCase):
             recurring_event.partner_ids.ids,
             "Partner should be added as attendee",
         )
+
+    def test_non_editor_cannot_edit_custom_recurrence_fields(self):
+        """`interval` and `rrule_type` follow the rest of the recurrence block.
+
+        Any employee may write any non-private event -- `calendar_event_rule_employee`
+        is `[(1, '=', 1)]` -- so the form is the only thing standing between a
+        non-attendee and somebody else's recurrence. Every other field of the block
+        is `readonly="not user_can_edit"`; these two were not, and the write they let
+        through dies in `_write_recurrence_policy` with "Unable to save the recurrence
+        with This Event" rather than being refused up front.
+        """
+        event = self.create_event(
+            self.john,
+            # The recurrence is only materialised for occurrences still to come, and
+            # `rrule_type_ui` falls back to the plain default without one -- which
+            # would leave both fields invisible rather than merely writable.
+            start=datetime(2040, 2, 6, 8, 0),
+            stop=datetime(2040, 2, 6, 18, 0),
+            recurrency=True,
+            rrule_type="weekly",
+            # interval != 1 is what resolves `rrule_type_ui` to 'custom', the only
+            # state in which these two fields are shown at all.
+            interval=2,
+            end_type="count",
+            count=3,
+            mon=True,
+        )
+        self.assertEqual(event.rrule_type_ui, "custom")
+
+        event_as_raoul = event.with_user(self.raoul)
+        self.assertFalse(
+            event_as_raoul.user_can_edit,
+            "Raoul is neither the organiser nor an attendee",
+        )
+
+        form = Form(event_as_raoul, view="calendar.view_calendar_event_form")
+        for field_name, value in (("interval", 5), ("rrule_type", "monthly")):
+            with (
+                self.subTest(field=field_name),
+                self.assertRaises(
+                    AssertionError,
+                    msg=f"{field_name} must be readonly for a non-editor",
+                ),
+            ):
+                setattr(form, field_name, value)
