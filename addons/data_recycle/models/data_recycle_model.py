@@ -173,12 +173,19 @@ class Data_RecycleModel(models.Model):
         return Domain(ast.literal_eval(self.domain or "[]"))
 
     def _cron_recycle_records(self):
-        # One misconfigured or failing rule must not cost every other rule its
-        # nightly run, which is what a single unguarded pass over `self` did.
         recycle_models = self.sudo().search([])
-        for recycle_model in recycle_models:
+        recycle_models._recycle_records_guarded(batch_commits=True)
+        recycle_models._notify_pending_records()
+
+    def _recycle_records_guarded(self, batch_commits=False):
+        """Recycle rule by rule, so a rule that cannot run costs only itself.
+
+        One misconfigured or failing rule must not cost every other rule its run,
+        which is what a single unguarded pass over `self` did.
+        """
+        for recycle_model in self:
             try:
-                recycle_model._recycle_records(batch_commits=True)
+                recycle_model._recycle_records(batch_commits=batch_commits)
             except UserError as error:
                 # `_recycle_records` raises this from its guards only, before it
                 # writes anything: there is nothing to roll back.
@@ -198,7 +205,6 @@ class Data_RecycleModel(models.Model):
                     recycle_model.name,
                     recycle_model.id,
                 )
-        recycle_models._notify_pending_records()
 
     def _recycle_records(self, batch_commits=False):
         """Make the queue of each rule equal to what the rule currently selects.
@@ -358,3 +364,14 @@ class Data_RecycleModel(models.Model):
         if self.recycle_mode == "manual":
             return self.open_records()
         return None
+
+    def action_refresh_records(self):
+        """Re-run every rule, from the queue itself rather than one form at a time.
+
+        `search` is deliberately not sudoed: it is the access check. Only what it
+        returns is then run with the privileges recycling needs, the same way
+        `action_recycle_records` does for a single rule. No `batch_commits` --
+        this runs inside a web request, and committing halfway through one leaves
+        a caller that cannot roll its own work back.
+        """
+        self.search([]).sudo()._recycle_records_guarded()

@@ -311,6 +311,25 @@ class TestDataRecycle(TransactionCase):
             "the healthy rule must still have run",
         )
 
+    def test_refreshing_the_queue_runs_every_rule_and_survives_a_broken_one(self):
+        """The Refresh in the queue view reaches rules the user never opened."""
+        broken = self.env["data_recycle.model"].create(
+            {
+                "name": "No filter at all",
+                "res_model_id": self.server_model.id,
+                "recycle_action": "archive",
+            }
+        )
+
+        self.env["data_recycle.model"].action_refresh_records()
+
+        self.assertEqual(
+            len(self.recycle_model.recycle_record_ids),
+            5,
+            "a rule the refresh could not run must not cost the others theirs",
+        )
+        self.assertFalse(broken.recycle_record_ids)
+
     def test_action_recycle_records_is_single_record(self):
         self.recycle_model.copy({"name": "Second rule"})
         rules = self.env["data_recycle.model"].search([])
