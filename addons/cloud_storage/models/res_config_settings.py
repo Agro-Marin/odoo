@@ -30,7 +30,6 @@ class ResConfigSettings(models.TransientModel):
         """
         Setup the cloud storage provider and check the validity of the account
         info after saving the config in settings.
-        return: None
         """
         pass
 
