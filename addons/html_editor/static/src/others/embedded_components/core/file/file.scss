@@ -1,6 +1,6 @@
 [data-embedded="file"] {
     [data-embedded-editable] {
-        background-color: white;
+        background-color: o-token(--o-bg-view, $o-view-background-color);
     }
 
     .o_file_name_container {
