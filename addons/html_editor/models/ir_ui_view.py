@@ -5,7 +5,7 @@ import uuid
 from lxml import etree, html
 
 from odoo import _, api, models
-from odoo.exceptions import MissingError, ValidationError
+from odoo.exceptions import MissingError, UserError, ValidationError
 from odoo.fields import Domain
 
 from odoo.addons.base.models.ir_ui_view import MOVABLE_BRANDING
@@ -242,7 +242,15 @@ class IrUiView(models.Model):
         if not section_xpath:
             root = arch
         else:
-            [root] = arch.xpath(section_xpath)
+            matches = arch.xpath(section_xpath)
+            if len(matches) != 1:
+                raise UserError(
+                    _(
+                        "Could not find a unique section to update (the page may have "
+                        "changed since you started editing it, please reload)."
+                    )
+                )
+            [root] = matches
 
         root.text = replacement.text
 
