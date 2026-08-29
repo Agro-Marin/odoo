@@ -671,10 +671,6 @@ class StockMove(models.Model):
         """
         # TODO: Make multi
         self.ensure_one()
-        # It probably needs a priority order:
-        # 1. take from Invoice/Bills
-        # 2. from SO/PO lines
-        # 3. standard_price
 
         valued_qty = remaining_qty = self._get_valued_qty()
         value = 0
