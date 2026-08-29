@@ -634,7 +634,7 @@ class IrHttp(models.AbstractModel):
                     return response
             except werkzeug.exceptions.Forbidden:
                 pass
-        elif code == 500:
+        elif code >= 500:
             values = cls._get_values_500_error(request.env, values, exception)
         try:
             code, html = cls._get_error_html(request.env, code, values)
