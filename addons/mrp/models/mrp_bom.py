@@ -221,7 +221,12 @@ class MrpBom(models.Model):
                 )
 
     @api.constrains(
-        "active", "product_id", "product_tmpl_id", "bom_line_ids", "sequence"
+        "active",
+        "product_id",
+        "product_tmpl_id",
+        "bom_line_ids",
+        "sequence",
+        "company_id",
     )
     def _check_bom_cycle(self):
         # A BoM that is not the one `_bom_find` currently selects is still a BoM
