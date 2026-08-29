@@ -34,8 +34,3 @@ class ResConfigSettings(models.TransientModel):
             icp.get_param("enable_recaptcha", default=True)
         )
         return res
-
-    def set_values(self):
-        super().set_values()
-        icp = self.env["ir.config_parameter"].sudo()
-        icp.set_param("enable_recaptcha", str(self.enable_recaptcha))
