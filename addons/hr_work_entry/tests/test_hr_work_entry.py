@@ -146,6 +146,44 @@ class TestHrWorkEntry(TransactionCase):
             "Work entries with a total duration for a same day > 0h and <= 24h should not conflict.",
         )
 
+    def test_write_state_draft_rechecks_conflict(self):
+        """Un-cancelling/reactivating a work entry with ``write({"state": "draft"})``
+        alone must re-run conflict detection: a day that is still over 24h must not
+        silently stay in "draft" state."""
+        work_entry = self.env["hr.work.entry"].create(
+            {
+                "name": "Test Work Entry",
+                "work_entry_type_id": self.work_entry_type.id,
+                "employee_id": self.employee_b.id,
+                "date": date(2024, 1, 1),
+                "duration": 8,
+            }
+        )
+        work_entry_2 = self.env["hr.work.entry"].create(
+            {
+                "name": "Test Work Entry 2",
+                "work_entry_type_id": self.work_entry_type.id,
+                "employee_id": self.employee_b.id,
+                "date": date(2024, 1, 1),
+                "duration": 17,
+            }
+        )
+        self.assertEqual(
+            (work_entry | work_entry_2).mapped("state"),
+            ["conflict", "conflict"],
+            "Work entries with a total duration for a same day > 24h should conflict.",
+        )
+        # Reactivate via a bare {"state": "draft"} write, the way action_set_to_draft
+        # does, WITHOUT fixing the underlying duration conflict.
+        work_entry.write({"state": "draft"})
+        self.assertEqual(
+            (work_entry | work_entry_2).mapped("state"),
+            ["conflict", "conflict"],
+            "Reactivating one entry must re-run conflict detection: the day is "
+            "still over 24h, so both entries must remain (or return to) conflict, "
+            "not silently stay/become draft.",
+        )
+
     def test_nullify_work_entry_tz(self):
         """
         Test that the work entries of the previous month are not affected when regenerating the next month work entries

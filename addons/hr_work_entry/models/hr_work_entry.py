@@ -354,6 +354,11 @@ class HrWorkEntry(models.Model):
         if "state" in vals:
             if vals["state"] == "draft":
                 vals["active"] = True
+                # Reactivating from a non-draft state (e.g. un-cancelling) must
+                # re-run conflict detection: a day that became over-24h or
+                # duplicated while the entry was cancelled/conflicting would
+                # otherwise stay silently un-flagged after this write.
+                skip_check &= all(self.mapped(lambda w: w.state == "draft"))
             elif vals["state"] == "cancelled":
                 vals["active"] = False
                 skip_check &= all(self.mapped(lambda w: w.state != "conflict"))
