@@ -983,7 +983,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 104 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,815 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,816 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
@@ -1222,7 +1222,7 @@ in this repository's model layer, having absorbed reading, building, deriving an
 computing. The split that matters is against ``_prepare_``: 686 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 724 already spelled ``_prepare_*``.
+spelled ``get_*``, against 725 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1297,7 +1297,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,054 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,055 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (29) plus ``_verify_``,
 ``_ensure_`` and ``_control_`` (49 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /

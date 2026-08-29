@@ -97,20 +97,6 @@ def public_surface_specifiers() -> tuple[int, ...]:
     )
 
 
-def metadata_call_sites() -> tuple[int, ...]:
-    counts = []
-    for attr in ("_name", "_fields"):
-        pattern = re.compile(rf"self\.{attr}\b")
-        counts.append(
-            sum(
-                len(pattern.findall(path.read_text(encoding="utf-8", errors="ignore")))
-                for tree in ("odoo/addons", "addons")
-                for path in (ROOT / tree).rglob("*.py")
-            )
-        )
-    return tuple(counts)
-
-
 def dispatch_names() -> tuple[int, ...]:
     def count(root: Path) -> int:
         total = 0
@@ -318,7 +304,6 @@ def migration_scripts() -> tuple[int, ...]:
 GATES = ROOT / "doc" / "architecture" / "gates.md"
 RISKS = ROOT / "doc" / "architecture" / "risks.md"
 PUBLIC_SURFACE_PIN = ROOT / "tooling" / "architecture" / "public_surface_web.txt"
-METADATA = ROOT / "odoo" / "orm" / "models" / "mixins" / "_metadata.py"
 GUIDELINES = ROOT / "doc" / "coding_guidelines.rst"
 
 
@@ -400,17 +385,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         ),
         migration_scripts,
         _plain,
-    ),
-    Figure(
-        "metadata_call_sites",
-        METADATA,
-        re.compile(
-            r"``self\._name``\s+has\s+about\s+(\d[\d,]*)\s+sites\s+and\s+"
-            r"``self\._fields``\s+about\s+(\d[\d,]*)"
-        ),
-        metadata_call_sites,
-        _rounded,
-        tolerance=0.05,
     ),
     Figure(
         "public_surface_specifiers",

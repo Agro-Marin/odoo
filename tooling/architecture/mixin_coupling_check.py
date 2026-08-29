@@ -4,12 +4,14 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import doc_measured
 from _repo_root import find_odoo_root
 
 ADR = "0024"
@@ -498,12 +500,38 @@ def _verdicts(
     return out
 
 
+METADATA_MODULE = MIXINS / "_metadata.py"
+METADATA_ATTRS = ("_fields", "_name", "_table", "pool")
+
+
+def metadata_metrics() -> dict[str, int]:
+    units = collect_units()
+    metrics = {"units": len(units)}
+    for attr in METADATA_ATTRS:
+        metrics[f"{attr.lstrip('_')}_readers"] = sum(
+            attr in unit.uses for name, unit in units.items() if name != "_metadata"
+        )
+    for attr in ("_name", "_fields"):
+        pattern = re.compile(rf"self\.{attr}\b")
+        metrics[f"{attr.lstrip('_')}_sites"] = sum(
+            len(pattern.findall(path.read_text(encoding="utf-8", errors="ignore")))
+            for tree in ("odoo/addons", "addons")
+            for path in (ROOT / tree).rglob("*.py")
+        )
+    return metrics
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="CI mode: exit 1 on any drift"
     )
     parser.add_argument("--json", action="store_true", help="machine-readable output")
+    parser.add_argument(
+        "--update-doc",
+        action="store_true",
+        help="rewrite the MEASURED block in mixins/_metadata.py",
+    )
     parser.add_argument(
         "--explain",
         nargs=2,
@@ -517,6 +545,11 @@ def main(argv: list[str] | None = None) -> int:
         help="which composition --explain refers to (default: BaseModel)",
     )
     args = parser.parse_args(argv)
+
+    if args.update_doc:
+        doc_measured.update(METADATA_MODULE, metadata_metrics())
+        print("updated:", doc_measured.render(metadata_metrics()))
+        return 0
 
     chosen = next(c for c in COMPOSITIONS if c.label == args.composition)
     m = measure(comp=chosen)
@@ -630,6 +663,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             for label, key, actual, floor, _ in improved:
                 print(f"  {label}.{key}: {floor} -> {actual}", file=sys.stderr)
+            return 1
+        stale = doc_measured.check(METADATA_MODULE, metadata_metrics())
+        if stale:
+            print(
+                "\nFAILED: mixins/_metadata.py MEASURED block is stale:",
+                file=sys.stderr,
+            )
+            for problem in stale:
+                print(f"  {problem}", file=sys.stderr)
+            print(
+                "  python tooling/architecture/mixin_coupling_check.py --update-doc",
+                file=sys.stderr,
+            )
             return 1
         print(
             f"Mixin coupling within baseline, all {len(COMPOSITIONS)} compositions. ✓"

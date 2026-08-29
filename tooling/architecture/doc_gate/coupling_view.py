@@ -114,39 +114,27 @@ class TestCountsRestatedElsewhere(unittest.TestCase):
 
         import mixin_coupling_check as mcc
 
+        metrics = mcc.metadata_metrics()
         units = mcc.collect_units()
-        doc = (ROOT / "odoo" / "orm" / "models" / "mixins" / "_metadata.py").read_text(
-            encoding="utf-8"
-        )
-        docstring = ast.get_docstring(ast.parse(doc)) or ""
-        flat = " ".join(docstring.split())
-
-        total = re.search(r"(\d+) of them, this module plus (\d+) others", flat)
-        self.assertIsNotNone(total, "the unit-count framing changed shape")
-        self.assertEqual(int(total.group(1)), len(units))
-        self.assertEqual(int(total.group(2)), len(units) - 1)
+        self.assertEqual(metrics["units"], len(units))
 
         readers = {
             attr: sum(
                 attr in unit.uses for name, unit in units.items() if name != "_metadata"
             )
-            for attr in ("_fields", "_name", "_table", "pool")
+            for attr in mcc.METADATA_ATTRS
         }
-        stated = dict(
-            zip(
-                ("_fields", "_name", "_table", "pool"),
-                (
-                    int(n)
-                    for n in re.findall(
-                        r"is read by (\d+), ``self\._name`` by (\d+), "
-                        r"``self\._table`` by (\d+) and ``self\.pool`` by (\d+)",
-                        flat,
-                    )[0]
-                ),
-                strict=True,
-            )
-        )
+        stated = {
+            attr: metrics[f"{attr.lstrip('_')}_readers"] for attr in mcc.METADATA_ATTRS
+        }
         self.assertEqual(stated, readers)
+
+        self.assertEqual(
+            mcc.doc_measured.check(mcc.METADATA_MODULE, metrics),
+            [],
+            "mixins/_metadata.py MEASURED block is stale; run "
+            "mixin_coupling_check.py --update-doc",
+        )
 
 
 class TestCompositionTable(unittest.TestCase):
