@@ -80,4 +80,4 @@ class HrVersion(models.Model):
     @api.model
     def _generate_work_entries_postprocess_adapt_to_calendar(self, vals):
         res = super()._generate_work_entries_postprocess_adapt_to_calendar(vals)
-        return res or (not "work_entry_type_id" not in vals and vals.get("leave_id"))
+        return res or ("work_entry_type_id" in vals and vals.get("leave_id"))
