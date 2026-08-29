@@ -17,13 +17,6 @@ ODOO_ROOT = find_odoo_root(HERE, tool="test_repo_root")
 
 
 def _parent_hops(node, known: dict) -> int | None:
-    """How many `.parent` steps `node` is from the file that contains it.
-
-    `Path(__file__).resolve()` is zero. `.parent` adds one and `.parents[n]`
-    adds n + 1, because `p.parents[0]` *is* `p.parent`. A bare name resolves
-    through `known`, which is what lets an intermediate variable be followed.
-    Anything else is not a parent walk and answers None.
-    """
     if isinstance(node, ast.Name):
         return known.get(node.id)
     if isinstance(node, ast.Attribute):
@@ -56,7 +49,6 @@ def _parent_hops(node, known: dict) -> int | None:
 
 
 def _lands_on(path: Path, target: Path) -> list[int]:
-    """Line numbers in `path` whose parent walk lands exactly on `target`."""
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except SyntaxError:
@@ -141,6 +133,7 @@ class TestCheckoutShape:
 class TestEveryToolAgrees:
     ROOT_ATTRS = {
         ("architecture", "_consumer_scopes"): "ROOT",
+        ("architecture", "_doc_measures"): "ROOT",
         ("architecture", "doc_restated_counts"): "ROOT",
         ("architecture", "layer_check"): "ROOT",
         ("architecture", "js_layer_check"): "ROOT",
@@ -260,20 +253,6 @@ class TestEveryToolAgrees:
         assert not offenders, f"private marker walk reintroduced in: {offenders}"
 
     def test_no_tool_counts_parents_to_reach_the_checkout_root(self):
-        """No tool may land on the checkout root by counting parents.
-
-        The property is *where the expression lands*, not how many hops it took.
-        A line-regex could only ask the second question, and got both ends of it
-        wrong: it missed the spelling that goes through a variable --
-
-            HERE = Path(__file__).resolve().parent
-            REPO = HERE.parent.parent            # same sin, invisible to a regex
-
-        -- while a fixed hop count cannot be right for every file anyway, since a
-        module one level below `tooling/` reaches the root in two hops and one
-        two levels below needs three. Resolving each binding against its own
-        location answers the question that is actually being asked.
-        """
         offenders = []
         for path in sorted((ODOO_ROOT / "tooling").rglob("*.py")):
             if "__pycache__" in path.parts or path.name == "test_repo_root.py":
@@ -290,15 +269,6 @@ class TestEveryToolAgrees:
 
 
 class TestTheSweepSeesEverySpelling:
-    """The sweep above is only worth its runtime if it cannot be evaded.
-
-    Its predecessor could be, by assigning the walk to a name and continuing
-    from there, so every spelling that reaches the checkout root is pinned here
-    against a synthetic tree -- including the two that must NOT be flagged,
-    because a sweep that fails those would push tools away from `.parent` for
-    the directory they legitimately own.
-    """
-
     @staticmethod
     def _probe(tmp_path, source):
         root = tmp_path / "checkout"
@@ -379,9 +349,6 @@ class TestShellBootstrapsAgree:
         )
 
 
-# ── The sibling-repository vocabulary ────────────────────────────────────────
-
-
 def test_the_sibling_vocabulary_is_not_empty_and_excludes_this_repo():
     assert SIBLING_REPOS, "the vocabulary is empty; every scoped gate silently widens"
     assert "odoo" not in SIBLING_REPOS, (
@@ -392,16 +359,6 @@ def test_the_sibling_vocabulary_is_not_empty_and_excludes_this_repo():
 
 
 def test_nothing_redeclares_the_sibling_vocabulary():
-    """One fact, one place — checked, because it was five places.
-
-    `SIBLING_ROOTS` was declared in `patchorder`, `edi_vocabulary` and
-    `payment_vocabulary`, and spelled out again as inline `ROOT.parent /
-    "enterprise"` lists in `js_component_face` and `js_face_boundary`. One of
-    the five had drifted to a different order. A sixth repository would have had
-    to be added in five places, and a gate that missed it would simply stop
-    seeing that repository — silently, because a tool scanning a tree it was
-    never pointed at reports nothing rather than failing.
-    """
     offenders = []
     for path in sorted(ODOO_ROOT.joinpath("tooling").rglob("*.py")):
         if path == Path(__file__).resolve() or path.name == "_repo_root.py":
@@ -422,20 +379,16 @@ def test_nothing_redeclares_the_sibling_vocabulary():
 
 
 def test_sibling_repo_paths_reports_only_what_is_checked_out(tmp_path):
-    """An absent checkout is not an empty one — it is not scanned at all."""
     workspace = tmp_path / "ws"
     odoo = workspace / "odoo"
     (odoo / "tooling").mkdir(parents=True)
     (odoo / ODOO_MARKER).write_text("")
-    # A workspace is recognised by a *.conf or a <child>/bin/python beside it.
     (workspace / "env.conf").write_text("")
     (workspace / SIBLING_REPOS[0]).mkdir()
 
     found = sibling_repo_paths(odoo)
     assert [p.name for p in found] == [SIBLING_REPOS[0]]
 
-    # Outside a workspace — CI's shape, and a bare git worktree's — there are no
-    # siblings to report and that is not an error.
     lone = tmp_path / "lone" / "odoo"
     lone.mkdir(parents=True)
     (lone / ODOO_MARKER).write_text("")

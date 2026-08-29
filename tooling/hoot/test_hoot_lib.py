@@ -15,6 +15,15 @@ needs_workspace = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(autouse=True)
+def _never_reach_the_real_state_dir(tmp_path, monkeypatch):
+    state_dir = tmp_path / "hoot_state"
+    state_dir.mkdir()
+    monkeypatch.setattr(H, "SCRIPT_DIR", state_dir)
+    monkeypatch.setattr(H, "STATE_FILE", state_dir / ".hoot_state.json")
+    monkeypatch.setattr(H, "LOG_DIR", state_dir / ".hoot_logs")
+
+
 class TestRootResolution:
     def test_odoo_root_is_the_checkout_root(self):
         assert (H.ODOO_ROOT / "odoo-bin").is_file()
@@ -485,9 +494,6 @@ class TestAffectedSuiteSelection:
         assert not any(s.startswith("@stock/tours/") for s in suites)
 
     def test_a_patch_file_selects_the_suites_that_test_what_it_patches(self):
-        # pos_hr's login_screen.js is imported by nothing -- the bundle loads it
-        # for its patch() side effect -- so the import graph alone returned an
-        # empty list, indistinguishable from "nothing to run".
         suites = H.affected_suites(
             [
                 self._p(
@@ -502,8 +508,6 @@ class TestAffectedSuiteSelection:
             "addons/pos_hr/static/src/app/screens/login_screen/login_screen.js"
         )
         targets = H.patch_targets_of(path)
-        # The file also imports @web/core/utils/patch, _t, hooks -- none of which
-        # it patches. Only the patch() argument counts.
         assert targets == {"@point_of_sale/app/screens/login_screen/login_screen"}
 
     def test_a_file_that_patches_nothing_has_no_patch_targets(self):
@@ -524,15 +528,9 @@ class TestAffectedSuiteSelection:
             f.unlink()
 
     def test_a_test_helper_is_a_hop_a_suite_can_be_reached_through(self):
-        # Nearly every POS suite imports @point_of_sale/../tests/unit/utils
-        # rather than the module under test. That helper is neither src nor
-        # *.test.js, so hops through it used to be invisible.
         helpers = H._iter_hop_files()
         utils = self._p("addons/point_of_sale/static/tests/unit/utils.js")
         assert utils in helpers
-        # No suite file is pulled in as a hop: what the tests tree contributes
-        # is helpers only. (Three stray *.test.js sit under static/src and so
-        # arrive via _iter_src_files, as they did before; not this set's doing.)
         from_tests_tree = [f for f in helpers if "/static/tests/" in f.as_posix()]
         assert from_tests_tree
         assert not any(f.name.endswith(".test.js") for f in from_tests_tree)
@@ -542,7 +540,6 @@ class TestAffectedSuiteSelection:
             [self._p("addons/pos_hr/static/src/app/services/pos_store.js")],
             downstream=True,
         )
-        # Reached only through the shared test helper, i.e. both fixes at once.
         assert any(s.startswith("@pos_discount/") for s in suites), suites
 
     def test_every_selected_suite_is_one_hoot_can_register(self):
@@ -578,6 +575,55 @@ class TestModuleScope:
             H.db_for_modules(H.modules_for_suites(["@mail/a", "@bus/b"]))
             == "hoot_bus_mail"
         )
+
+
+class TestDatabaseNameFitsPostgres:
+    A = (
+        "barcodes",
+        "documents",
+        "html_builder",
+        "html_editor",
+        "im_livechat",
+        "mail",
+        "mrp",
+        "web",
+    )
+    B = A + ("portal", "sign", "test_mail", "web_tour", "website")
+
+    def test_a_short_name_is_left_exactly_alone(self):
+        assert H.db_for_modules(("web", "mail")) == "hoot_mail"
+        assert H.db_for_modules(("web",)) == H.DEFAULT_DB
+        assert H.shorten_db_name("hoot_bus_mail") == "hoot_bus_mail"
+
+    def test_every_derived_name_fits_the_identifier_limit(self):
+        for modules in (self.A, self.B):
+            db = H.db_for_modules(modules)
+            assert len(db) <= H.PG_MAX_IDENTIFIER, f"{db} is {len(db)} chars"
+
+    def test_two_sets_sharing_a_63_byte_prefix_stay_distinct(self):
+        raw_a = "hoot_" + "_".join(sorted(m for m in self.A if m != "web"))
+        raw_b = "hoot_" + "_".join(sorted(m for m in self.B if m != "web"))
+        assert raw_a[: H.PG_MAX_IDENTIFIER] == raw_b[: H.PG_MAX_IDENTIFIER], (
+            "the fixture no longer reproduces the collision it pins"
+        )
+        stored_a = H.db_for_modules(self.A)[: H.PG_MAX_IDENTIFIER]
+        stored_b = H.db_for_modules(self.B)[: H.PG_MAX_IDENTIFIER]
+        assert stored_a != stored_b, (
+            f"both module sets resolve to the database {stored_a!r}, while "
+            f"state_file() and _boot_lock() keep them apart"
+        )
+
+    def test_the_name_is_stable_across_calls(self):
+        assert H.db_for_modules(self.B) == H.db_for_modules(self.B)
+
+    def test_a_hand_passed_over_long_name_is_refused_not_truncated(self):
+        with pytest.raises(SystemExit) as caught:
+            H.check_db_name("h" * (H.PG_MAX_IDENTIFIER + 1))
+        assert "identifier limit" in str(caught.value)
+
+    def test_a_name_at_the_limit_is_accepted(self):
+        exact = "h" * H.PG_MAX_IDENTIFIER
+        assert H.check_db_name(exact) == exact
 
 
 class TestJobIdHash:
@@ -857,6 +903,7 @@ class TestReplacedServerIsNeverAbandoned:
         )
         monkeypatch.setattr(H, "server_is_warm", lambda state: True)
         monkeypatch.setattr(H, "installed_modules", lambda db: {"web"})
+        monkeypatch.setattr(H, "_boot_flags_stale", lambda state: False)
         monkeypatch.setattr(
             H, "_terminate_pid", lambda pid: pytest.fail("killed a healthy server")
         )

@@ -5,6 +5,7 @@ import configparser
 import contextlib
 import fcntl
 import getpass
+import hashlib
 import json
 import logging
 import os
@@ -97,9 +98,6 @@ LOG_DIR = SCRIPT_DIR / ".hoot_logs"
 ALWAYS_MODULES = ("web",)
 
 DEV_FLAGS = "--dev=assets,qweb"
-"""Watch asset sources and invalidate on change, with the asset caches left
-enabled. ``--dev=xml`` would give the same live reload by disabling those
-caches instead, at ~4.5x per ``/web/tests`` render."""
 
 SUCCESS_SIGNAL = "[HOOT] Test suite succeeded"
 RE_FAILED_TEST = re.compile(r'Test "(.+?)" failed')
@@ -156,6 +154,10 @@ def _psql(sql: str) -> str:
     return out.stdout.strip()
 
 
+PG_MAX_IDENTIFIER = 63
+
+_DIGEST_LEN = 8
+
 _DB_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
@@ -165,6 +167,15 @@ def check_db_name(db: str) -> str:
         raise SystemExit(
             f"hoot: refusing database name {db!r} — expected only letters, "
             f"digits and underscores."
+        )
+    if len(db) > PG_MAX_IDENTIFIER:
+        raise SystemExit(
+            f"hoot: refusing database name {db!r} — {len(db)} characters "
+            f"against PostgreSQL's {PG_MAX_IDENTIFIER}-byte identifier limit. "
+            f"CREATE DATABASE would truncate it on a NOTICE, and a `name` "
+            f"comparison truncates the literal too, so two names sharing a "
+            f"{PG_MAX_IDENTIFIER}-byte prefix silently become one database "
+            f"while every path here keeps them apart."
         )
     return db
 
@@ -351,10 +362,20 @@ def module_scope_param(suites: list[str]) -> str:
     return f"&module_scope={addons.pop()}" if len(addons) == 1 else ""
 
 
+def shorten_db_name(name: str, limit: int = PG_MAX_IDENTIFIER) -> str:
+
+    if len(name) <= limit:
+        return name
+    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:_DIGEST_LEN]
+    return f"{name[: limit - _DIGEST_LEN - 1]}_{digest}"
+
+
 def db_for_modules(modules: tuple[str, ...]) -> str:
 
     extras = [m for m in modules if m not in ALWAYS_MODULES]
-    return DEFAULT_DB if not extras else "hoot_" + "_".join(sorted(extras))
+    if not extras:
+        return DEFAULT_DB
+    return shorten_db_name("hoot_" + "_".join(sorted(extras)))
 
 
 def state_file(db: str) -> Path:
@@ -721,15 +742,6 @@ def find_server_processes() -> dict[int, str]:
 
 
 ORPHAN_GRACE = 180.0
-"""How old an unrecorded server must be before it counts as an orphan.
-
-``write_state`` runs only once the server answers HTTP, so throughout a boot --
-12-25s in practice, up to the 120s deadline in ``_boot_server_on`` -- a
-perfectly healthy server is recorded nowhere. Without a grace period longer
-than that deadline, ``--status`` labels every booting server ORPHAN and
-``--stop --all`` kills a session's boot mid-flight. Observed as a phantom
-orphan that had vanished by the next sample.
-"""
 
 
 def _process_age(pid: int) -> float:
@@ -863,17 +875,7 @@ class RunResult:
     error: str | None = None
     incomplete: bool = False
     repeated: int = 0
-    """Re-executions observed on a truncated run: passed-lines minus distinct
-    test names. Non-zero means the selection made HOOT run suites more than
-    once, which is why such a run never reaches its summary."""
     server_died: bool = False
-    """The warm server this ran against was gone by the end of it. Every test
-    still to be configured then fails in `MockServer._loadModels` with
-    `TypeError: Failed to fetch`, which reads as a wall of ordinary test
-    failures and is not one. Measured cause on this box: the per-user inotify
-    instance cap (128, shared with the desktop and every editor), which the
-    server hits and dies on -- `OSError: [Errno 28] inotify is out of
-    capacity`. A result with this set says nothing about the code."""
 
 
 def run_suites(
@@ -1114,13 +1116,6 @@ def _run_hoot_args(tree: ast.Module) -> set[str]:
 
 
 RE_MOBILE_TAG = re.compile(r"""\.tags\([^)]*["']mobile["']""")
-"""A `mobile`-tagged test, matched exactly as `MobileWebSuite` matches one.
-
-A second copy of that pattern, kept honest by
-`test_hoot_lib.py::test_the_mobile_tag_pattern_matches_the_suites_own`: reaching
-for the original costs an odoo bootstrap, which is the wrong price for a hint
-printed after a passing run.
-"""
 
 
 def mobile_tagged_files(suites: list[str]) -> list[Path]:
@@ -1217,14 +1212,6 @@ def _import_bindings(text: str) -> dict[str, str]:
 
 
 def patch_targets_of(path: Path) -> set[str]:
-    """Specifiers this file passes to ``patch()``.
-
-    A patch module is imported by nothing -- the bundle loads it for its side
-    effect -- so the import graph cannot reach it and ``--affected`` selected
-    zero suites for any change to one. 1094 of the fork's src files call
-    ``patch()``. Reading the call sites recovers the edge the graph is missing:
-    a file that patches X affects whatever tests X.
-    """
     try:
         text = strip_comments(path.read_text(encoding="utf-8", errors="replace"))
     except OSError:
@@ -1250,14 +1237,6 @@ def patch_targets_of(path: Path) -> set[str]:
 
 
 def _iter_hop_files() -> list[Path]:
-    """Files a test may reach the changed module THROUGH.
-
-    ``static/src`` plus the non-``.test.js`` files under ``static/tests`` --
-    fixtures and helpers such as ``@point_of_sale/../tests/unit/utils``, which
-    almost every POS suite imports instead of the module under test. They are
-    in neither ``_iter_src_files`` nor ``_iter_test_files``, so a hop through
-    one used to be invisible.
-    """
     return _iter_src_files() + [
         f
         for f in _iter_static_files("tests", "*.js")

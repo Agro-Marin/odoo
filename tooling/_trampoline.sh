@@ -1,25 +1,3 @@
-
-# Sourced by the sh/python polyglots in tooling/ (hoot/hoot, hoot/hoot-shard,
-# hoot/hoot-affected, bench/render_bench, bench/discuss_bench). Each opens with
-#
-#     #!/bin/sh
-#     ''':'
-#     … these lines …
-#     '''
-#
-# which sh reads as '' + ':' — the no-op `:` builtin, so the shell falls through
-# to the code below and re-execs the file under the venv interpreter — while
-# python reads the same span as a triple-quoted string and skips it.
-#
-# Those two delimiters are why every caller wraps them in `# fmt: off` /
-# `# fmt: on`. `ruff format` normalises quotes to double and would rewrite ''' to
-# """: identical Python, but sh reads """ as '' followed by an unterminated ",
-# swallowing the trampoline into a string and killing the runner with
-# `Syntax error: word unexpected`. `ruff check` cannot catch it — the Python half
-# stays valid — and .pre-commit-config.yaml runs ruff-format on staged files, so
-# without the guard a one-line edit to any of these files breaks it on commit.
-# Do not remove the fmt pragmas, and do not "fix" the quotes.
-
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$here"
 while [ "$root" != "/" ] && [ ! -f "$root/odoo-bin" ]; do root="$(dirname "$root")"; done
@@ -33,18 +11,42 @@ else
     ws="$(cd "$root/.." && pwd)"
 fi
 py="${ODOO_VENV_PYTHON:-}"
-if [ -z "$py" ]; then
-    for cand in "$ws"/venv/*/bin/python "$ws"/*/bin/python; do
+if [ -z "$py" ] && [ -n "${ODOO_CONF:-}" ]; then
+    # hoot_lib._find_conf picks <venv name>.conf; this is that rule inverted.
+    # A workspace holding one .conf per environment, each beside its own venv,
+    # is the documented shape -- and it used to make every runner here refuse.
+    env_name="$(basename "${ODOO_CONF}")"
+    env_name="${env_name%.conf}"
+    for cand in "$ws/$env_name/bin/python" "$ws/venv/$env_name/bin/python"; do
         [ -x "$cand" ] || continue
-        if [ -n "$py" ] && [ "$py" != "$cand" ]; then
-            echo "$(basename "$0"): several venvs under $ws; set ODOO_VENV_PYTHON" >&2
-            exit 1
-        fi
         py="$cand"
+        break
     done
     if [ -z "$py" ]; then
-        echo "$(basename "$0"): no venv python under $ws or $ws/venv; set ODOO_VENV_PYTHON" >&2
+        echo "$(basename "$0"): \$ODOO_CONF names $env_name, and neither" >&2
+        echo "  $ws/$env_name/bin/python nor $ws/venv/$env_name/bin/python exists" >&2
         exit 1
     fi
+fi
+if [ -z "$py" ]; then
+    found=""
+    for cand in "$ws"/venv/*/bin/python "$ws"/*/bin/python; do
+        [ -x "$cand" ] || continue
+        case " $found " in *" $cand "*) continue ;; esac
+        found="$found $cand"
+    done
+    set -- $found
+    if [ "$#" -eq 0 ]; then
+        echo "$(basename "$0"): no venv python under $ws or $ws/venv;" >&2
+        echo "  set ODOO_VENV_PYTHON, or ODOO_CONF to name the environment" >&2
+        exit 1
+    elif [ "$#" -gt 1 ]; then
+        echo "$(basename "$0"): $# venvs under $ws and no way to choose:" >&2
+        for cand in "$@"; do echo "    $cand" >&2; done
+        echo "  set ODOO_CONF to the environment's config, or ODOO_VENV_PYTHON" >&2
+        echo "  to the interpreter itself" >&2
+        exit 1
+    fi
+    py="$1"
 fi
 exec "$py" "$0" "$@"

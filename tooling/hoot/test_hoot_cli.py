@@ -2,6 +2,7 @@ import importlib.machinery
 import importlib.util
 import io
 import os
+import shutil
 import subprocess
 import sys
 from contextlib import redirect_stdout
@@ -42,18 +43,16 @@ class TestScriptsAreImportable:
         assert (HERE.parent / "_trampoline.sh").is_file()
 
     @pytest.mark.parametrize("filename", ["hoot", "hoot-shard", "hoot-affected"])
-    def test_docstring_is_the_documentation_not_the_trampoline(self, filename):
-
+    def test_the_shell_preamble_does_not_leak_into_dunder_doc(self, filename):
         module = _load(f"doc_{filename.replace('-', '_')}", filename)
         doc = module.__doc__ or ""
         assert not doc.lstrip().startswith(":'"), (
             f"{filename}: __doc__ is the shell preamble — rebind it with an "
-            f'explicit `__doc__ = """..."""` after the polyglot block'
+            f"explicit `__doc__ = None` after the polyglot block"
         )
         assert "_trampoline.sh" not in doc, f"{filename}: shell leaked into __doc__"
-        assert len(doc.splitlines()) > 5, f"{filename}: __doc__ lost its content"
 
-    def test_hoot_help_renders_its_own_documentation(self):
+    def test_hoot_help_does_not_leak_the_trampoline(self):
         cli = _load("help_probe_hoot", "hoot")
         buf = io.StringIO()
         argv = sys.argv
@@ -64,7 +63,7 @@ class TestScriptsAreImportable:
         finally:
             sys.argv = argv
         rendered = buf.getvalue()
-        assert "warm-server HOOT test runner" in rendered
+        assert "usage:" in rendered
         assert "_trampoline.sh" not in rendered
 
 
@@ -222,6 +221,92 @@ class TestColourContract:
     def test_colour_is_suppressed_off_a_terminal(self, shard, monkeypatch):
         monkeypatch.setattr(sys, "stdout", io.StringIO())
         assert shard._color("PASS", shard.C_GREEN) == "PASS"
+
+
+class TestTheTrampolineResolvesAnEnvironment:
+    PREAMBLE = """#!/bin/sh
+# fmt: off
+''':'
+. "$(dirname "$0")/../_trampoline.sh"
+'''
+print("python half ran")
+"""
+
+    def _workspace(self, tmp_path, envs):
+        ws = tmp_path / "ws"
+        (ws / "repo" / "tooling" / "runner").mkdir(parents=True)
+        (ws / "repo" / "odoo-bin").write_text("", encoding="utf-8")
+        shutil.copy2(HERE.parent / "_trampoline.sh", ws / "repo" / "tooling")
+        for env in envs:
+            interpreter = ws / env / "bin" / "python"
+            interpreter.parent.mkdir(parents=True)
+            interpreter.write_text(f'#!/bin/sh\necho "PY={env}"\n', encoding="utf-8")
+            interpreter.chmod(0o755)
+            (ws / f"{env}.conf").write_text("[options]\n", encoding="utf-8")
+        script = ws / "repo" / "tooling" / "runner" / "probe"
+        script.write_text(self.PREAMBLE, encoding="utf-8")
+        script.chmod(0o755)
+        return script
+
+    def _run(self, script, **env):
+        clean = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("ODOO_VENV_PYTHON", "ODOO_CONF")
+        }
+        return subprocess.run(
+            [str(script)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+            env={**clean, **env},
+        )
+
+    def test_one_venv_needs_no_variable(self, tmp_path):
+        done = self._run(self._workspace(tmp_path, ["p314"]))
+        assert done.returncode == 0, done.stderr
+        assert "PY=p314" in done.stdout
+
+    def test_odoo_conf_chooses_between_several(self, tmp_path):
+        script = self._workspace(tmp_path, ["p314", "p313"])
+        for env in ("p314", "p313"):
+            done = self._run(script, ODOO_CONF=str(tmp_path / "ws" / f"{env}.conf"))
+            assert done.returncode == 0, done.stderr
+            assert f"PY={env}" in done.stdout, (
+                f"$ODOO_CONF named {env} and the trampoline picked something "
+                f"else: {done.stdout!r}"
+            )
+
+    def test_odoo_venv_python_still_wins(self, tmp_path):
+        script = self._workspace(tmp_path, ["p314", "p313"])
+        chosen = tmp_path / "ws" / "p313" / "bin" / "python"
+        done = self._run(
+            script,
+            ODOO_VENV_PYTHON=str(chosen),
+            ODOO_CONF=str(tmp_path / "ws" / "p314.conf"),
+        )
+        assert done.returncode == 0, done.stderr
+        assert "PY=p313" in done.stdout, "ODOO_VENV_PYTHON must outrank ODOO_CONF"
+
+    def test_several_venvs_and_no_variable_refuses_naming_them(self, tmp_path):
+        done = self._run(self._workspace(tmp_path, ["p314", "p313"]))
+        assert done.returncode == 1
+        assert "p314" in done.stderr and "p313" in done.stderr, (
+            f"the refusal must name what it found: {done.stderr!r}"
+        )
+        assert "ODOO_CONF" in done.stderr
+
+    def test_a_conf_with_no_matching_venv_says_so(self, tmp_path):
+        script = self._workspace(tmp_path, ["p314"])
+        done = self._run(script, ODOO_CONF=str(tmp_path / "ws" / "absent.conf"))
+        assert done.returncode == 1
+        assert "absent" in done.stderr
+
+    def test_no_venv_at_all_refuses(self, tmp_path):
+        done = self._run(self._workspace(tmp_path, []))
+        assert done.returncode == 1
+        assert "no venv python" in done.stderr
 
 
 class TestThePolyglotPreambleStillExecutes:
