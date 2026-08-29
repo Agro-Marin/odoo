@@ -474,7 +474,7 @@ class ResPartner(models.Model):
         match = self._check_vat_ch_re.match(vat)
         if match:
             # For new TVA numbers, the last digit is a MOD11 checksum digit build with weighting pattern: 5,4,3,2,7,6,5,4
-            num = [s for s in match.group(1) if s.isdigit()]  # get the digits only
+            num = [s for s in match.group(1) if s.isdigit()]
             factor = (5, 4, 3, 2, 7, 6, 5, 4)
             csum = sum(int(num[i]) * factor[i] for i in range(8))
             check = (11 - (csum % 11)) % 11
@@ -515,10 +515,6 @@ class ResPartner(models.Model):
     )
 
     def check_vat_mx(self, vat):
-        """Mexican VAT verification
-
-        Verificar RFC México
-        """
         m = self._check_vat_mx_re.fullmatch(vat)
         if not m:
             # No valid format
