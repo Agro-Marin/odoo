@@ -535,7 +535,9 @@ class HrVersion(models.Model):
         self.ensure_one()
         return self.work_entry_source == "calendar"
 
-    def generate_work_entries(self, date_start, date_stop, force=False):
+    def generate_work_entries(
+        self, date_start, date_stop, force=False, record_ids=None
+    ):
         # Generate work entries between 2 dates (datetime.date)
         # To correctly englobe the period, the start and end periods are converted
         # using the calendar timezone.
@@ -568,11 +570,15 @@ class HrVersion(models.Model):
             new_work_entries += (
                 versions.with_user(SUPERUSER_ID)
                 .with_company(company)
-                ._generate_work_entries(date_start_tz, date_stop_tz, force=force)
+                ._generate_work_entries(
+                    date_start_tz, date_stop_tz, force=force, record_ids=record_ids
+                )
             )
         return new_work_entries
 
-    def _generate_work_entries(self, date_start, date_stop, force=False):
+    def _generate_work_entries(
+        self, date_start, date_stop, force=False, record_ids=None
+    ):
         # Generate work entries between 2 dates (datetime.datetime)
         # This method considers that the dates are correctly localized
         # based on the target timezone
@@ -641,7 +647,7 @@ class HrVersion(models.Model):
                 date_start_work_entries = max(date_start, version_start)
                 date_stop_work_entries = min(date_stop, version_stop)
                 if force:
-                    domain_to_nullify |= Domain(
+                    force_domain = Domain(
                         [
                             ("version_id", "=", version.id),
                             (
@@ -661,6 +667,13 @@ class HrVersion(models.Model):
                             ("state", "!=", "validated"),
                         ]
                     )
+                    if record_ids:
+                        # Caller asked to regenerate only these specific
+                        # records (e.g. the calendar's "Reset" action on a
+                        # selection): don't sweep in the version's whole
+                        # date range, only the selected ones within it.
+                        force_domain &= Domain("id", "in", record_ids)
+                    domain_to_nullify |= force_domain
                     intervals_to_generate[
                         date_start_work_entries, date_stop_work_entries
                     ] |= version

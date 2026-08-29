@@ -204,6 +204,42 @@ class TestHrWorkEntry(TransactionCase):
             ]
         )
 
+    def test_regenerate_work_entries_record_ids_scoped(self):
+        """Selecting specific work entries in the calendar's "Reset Work
+        Entries" action must not silently sweep in OTHER non-validated
+        entries on the same date that were not selected."""
+        work_entry_a = self.env["hr.work.entry"].create(
+            {
+                "name": "A",
+                "work_entry_type_id": self.work_entry_type.id,
+                "employee_id": self.employee_b.id,
+                "date": date(2024, 1, 1),
+                "duration": 4,
+            }
+        )
+        work_entry_b = self.env["hr.work.entry"].create(
+            {
+                "name": "B",
+                "work_entry_type_id": self.work_entry_type.id,
+                "employee_id": self.employee_b.id,
+                "date": date(2024, 1, 1),
+                "duration": 4,
+            }
+        )
+        self.env["hr.work.entry.regeneration.wizard"].regenerate_work_entries(
+            slots=[{"employee_id": self.employee_b.id, "date": "2024-01-01"}],
+            record_ids=[work_entry_a.id],
+        )
+        self.assertFalse(
+            work_entry_a.active,
+            "The selected work entry should have been nullified.",
+        )
+        self.assertTrue(
+            work_entry_b.active,
+            "A non-selected work entry on the same date must not be swept "
+            "into the regeneration -- only record_ids should be affected.",
+        )
+
     def test_nullify_work_entry_tz(self):
         """
         Test that the work entries of the previous month are not affected when regenerating the next month work entries
