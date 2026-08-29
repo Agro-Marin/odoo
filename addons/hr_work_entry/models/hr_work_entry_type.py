@@ -84,7 +84,7 @@ class HrWorkEntryType(models.Model):
             invalid_work_entry_types = similar_work_entry_types.filtered_domain(
                 [
                     ("code", "=", work_entry_type.code),
-                    ("country_id", "in", self.country_id.ids + [False]),
+                    ("country_id", "in", work_entry_type.country_id.ids + [False]),
                 ]
             )
             if invalid_work_entry_types:
