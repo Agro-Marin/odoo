@@ -77,9 +77,6 @@ class MixinUserFavorite(models.AbstractModel):
         return records
 
     def write(self, vals):
-        # Favoriting needs read access, not write: a user may star a record
-        # they can only see. Routing it through _update_user_favorite keeps
-        # super().write()'s write-access check off that path.
         if "is_user_favorite" in vals:
             self._update_user_favorite(vals.pop("is_user_favorite"))
             if not vals:

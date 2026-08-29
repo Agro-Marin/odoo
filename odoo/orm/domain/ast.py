@@ -186,13 +186,6 @@ def _optimize_nary_sort_key(
 
 
 def _leaf_to_domain(item: tuple | list, internal: bool) -> Domain:
-    """Build the condition for one ``(field, operator, value)`` triple.
-
-    Was written out twice in ``Domain.__new__`` -- once for the
-    single-item shortcut and once inside the parsing loop -- sixteen identical
-    lines including the ``internal`` branch and the rejection of the operators
-    only the optimizer may produce.
-    """
     if not isinstance(item[1], str):
         raise ValueError(f"Domain() invalid item in domain: {item!r}")
     op = item[1].lower()
@@ -430,33 +423,6 @@ class Domain:
         return domain
 
     def _reset_opt_copy(self) -> Domain:
-        """A copy of this domain ready to be optimized for a *different* model.
-
-        Resetting the level is not enough on its own. An optimization whose
-        rewrite depends on the model bakes that model's answer into the copy,
-        and the level says only that it may be optimized again -- not that it
-        is back to what the caller wrote.
-
-        ``_optimize_in_required`` is the one that does this: it strips ``False``
-        from an ``in`` set on the strength of the field being NOT NULL *on that
-        model*, and 25 field names in a base+test_orm registry are NOT NULL on
-        one model and nullable on another. Re-optimizing the stripped condition
-        against the nullable one kept the strip and silently dropped every
-        record whose value is NULL:
-
-            ('state', 'in', [False, 1])  optimized for ir.model.fields
-                -> ('state', 'in', [1])              correct, NOT NULL there
-            the same object, re-optimized for ir.model
-                -> ('state', 'in', [1])              WRONG, nullable there
-            a fresh domain, optimized for ir.model
-                -> ('state', 'in', [False, 1])       what it should be
-
-        That optimization already keeps the pre-strip condition, because the
-        in-memory predicate needs it for records that are not in the database
-        yet. Rebuilding from it is therefore exact rather than approximate: the
-        reset starts from what the caller wrote, and the next model decides the
-        strip for itself.
-        """
         source = getattr(self, "_predicate_fallback", None) or self
         missing = object()
         clone = object.__new__(type(source))

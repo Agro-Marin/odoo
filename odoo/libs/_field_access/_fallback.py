@@ -120,12 +120,6 @@ def sort_ids_by_values(
     reverse: bool,
     null_high: bool | None = None,
 ) -> tuple:
-    # `strict=True`, not the `strict=False` this zipped with before. A short
-    # `values` silently truncated the result, so a caller sorting N records got
-    # back fewer than N ids and read it as records disappearing from a
-    # `sorted()` rather than as the length bug it was. The accelerated twin
-    # raises here; the two must agree, and raising is the agreement worth
-    # having.
     if len(values) != len(ids):
         raise ValueError(
             "sort_ids_by_values: `values` must have the same length as `ids`"
@@ -182,15 +176,6 @@ def scalar_cache_get(
     pending: object,
     sentinel: object,
 ) -> object:
-    """The only function here with no accelerated twin, on purpose.
-
-    `_make_scalar_get`'s lookup is three `dict[key]` subscripts. CPython
-    compiles each to a `BINARY_SUBSCR` that lands on `PyDict_GetItem`, so this
-    is already three C-level hash lookups with no interpreter work between
-    them; crossing the PyO3 boundary to do the same three costs more than they
-    do. Every other function here is a *loop*, which is what makes the crossing
-    pay for itself.
-    """
     try:
         value = env_dict["_field_cache_memo"][field][record_id]
     except KeyError:

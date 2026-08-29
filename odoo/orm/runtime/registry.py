@@ -48,22 +48,13 @@ _REPLICA_RETRY_TIME = 20 * 60
 
 
 def signaling_table_name(cache_name: str) -> str:
-    """Name of the signalling table for a cache group.
-
-    One rule, one place. It was spelled out separately in the constant below, in
-    `signal_changes`, and a third time outside this package in
-    `ir_autovacuum._gc_orm_signaling`, which had to re-derive the whole list
-    because the constant was private.
-    """
     return f"orm_signaling_{cache_name}"
 
 
-#: Every signalling table, in the order the cache groups declare them.
 SIGNALING_TABLES = tuple(
     signaling_table_name(cache_name) for cache_name in ["registry", *CACHES_BY_KEY]
 )
 
-#: Kept for the private name this module used before the derivation was exported.
 _SIGNALING_TABLES = SIGNALING_TABLES
 
 _ASSERTION_REPORTS: dict[str, typing.Any] = {}
@@ -126,14 +117,6 @@ class Registry(
             raise ValueError("Missing database name")
         reg = cls.registries.get(db_name)
         if reg is not None and reg.ready:
-            # Stamp here too, not only in the locked branch below. A *ready*
-            # registry only ever leaves through this fast path -- the locked
-            # branch is reached solely when the registry is absent or still
-            # loading -- so stamping only there would leave `last_used` frozen
-            # at load time for every healthy registry, and `_drop_idle` would
-            # collect the busiest database on the server. Cheap enough to do
-            # unlocked: the write is a single float store, and a lost update
-            # under a race only ever costs one more collection pass.
             reg.last_used = time.monotonic()
             return reg
         with cls._lock:
@@ -245,8 +228,6 @@ class Registry(
         self._init = True
         self.loaded = False
         self.ready = False
-        # A registry must never be born already idle: loading one can take
-        # seconds, and `_drop_idle` runs at the end of every load.
         self.last_used = time.monotonic()
 
         self._init_models_container()
@@ -297,21 +278,6 @@ class Registry(
     @classmethod
     @locked
     def _drop_idle(cls) -> None:
-        """Drop every registry unused for longer than :attr:`idle_timeout`.
-
-        ``registries`` is bounded by a *count*, so on a server with many
-        databases the number of resident registries follows traffic rather than
-        memory: a worker can be recycled at its virtual-memory soft limit while
-        the LRU still has room. This bounds it by recency instead.
-
-        Dropping only detaches a registry from ``registries``. A request already
-        holding one keeps working -- which is what makes this safe to run from a
-        serving process -- and the next lookup rebuilds it.
-
-        Registries that are still loading are skipped: ``new()`` publishes into
-        ``registries`` *before* ``load_modules`` runs, so a concurrent build is
-        visible here and must not be collected out from under itself.
-        """
         if cls.idle_timeout <= 0:
             return
         now = time.monotonic()

@@ -9,7 +9,7 @@ from lxml import etree
 try:
     from ._xml_identity import PARSER as _PARSER
     from ._xml_identity import is_faithful
-except ImportError:  # run as a script: `python _pretty_xml.py <roots>`
+except ImportError:
     from _xml_identity import PARSER as _PARSER
     from _xml_identity import is_faithful
 
@@ -23,11 +23,6 @@ _OPAQUE_TAGS: frozenset[str] = frozenset({"template"})
 
 _PRESERVE_TAGS: frozenset[str] = frozenset({"pre", "textarea"})
 
-#: `tests` is here because a fixture is not a data file. 281 of the XML files
-#: this used to select live under a tests/ directory, 271 of them unformatted,
-#: and canonicalising one changes what its test asserts -- l10n_it_edi's EDI
-#: samples are deliberately malformed, and one of them does not parse at all. No
-#: manifest names a data or demo file under tests/, so nothing that loads is lost.
 EXCLUDED_DIRS: frozenset[str] = frozenset(
     {"_vendor", "static", "node_modules", "tests"}
 )

@@ -15,7 +15,6 @@ _logger = logging.getLogger(__name__)
 
 
 def _removed_paths_by_bundle(installed):
-    """Every ``("remove", path)`` a manifest declares, keyed by bundle."""
     removed = {}
     for name in installed:
         manifest = Manifest.for_addon(name, display_warning=False)
@@ -37,27 +36,6 @@ def _removed_paths_by_bundle(installed):
 @tagged("post_install", "-at_install")
 class TestBundleDoubleEvaluation(lint_case.LintCase):
     def test_a_removed_file_does_not_come_back_as_an_import(self):
-        """A file removed from a bundle must not be re-inlined by an importer.
-
-        `("remove", path)` drops the FILE from the bundle. It does not drop the
-        MODULE: esbuild runs with `--bundle`, so anything still in the bundle
-        importing that specifier pulls it straight back in -- while the bundle
-        the removal was made for the benefit of also carries a copy. Both load
-        on the same page, so the module is evaluated twice, with its own state
-        and its own class identities.
-
-        That is not theoretical. Bootstrap was inlined into both frontend
-        bundles, which gave two `EventHandler` registries and two `Dropdown`
-        classes, and no dropdown on the website opened at all until odoo
-        0d70ae6d55f.
-
-        Importing a removed module is only a defect when the module is then
-        INLINED. A bundle that declares the providing bundle a secondary parent
-        gets a stub instead -- one that resolves through the shared
-        `odoo.loader` registry -- so the import resolves to the provider's
-        single copy and nothing is duplicated. Those specifiers are exempt
-        here, which is also what makes the gate able to credit its own fix.
-        """
         findings = []
         with self.superuser_env() as env:
             installed = (
@@ -79,8 +57,6 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
                 try:
                     paths = ir_asset._get_asset_paths(bundle, params)
                 except Exception:
-                    # `test_bundles_assemble` owns the "does it assemble" gate;
-                    # reporting it here too would double-count one defect.
                     _logger.debug("bundle %s does not assemble", bundle, exc_info=True)
                     continue
                 seeds = set()
@@ -109,10 +85,6 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
             "the shared loader instead of inlined; or give the module a "
             "specifier esbuild leaves external. Detail: agromarin-knowledge/"
             "research/2026-08-27-frontend-bundle-double-evaluation.md.",
-            # The closure is computed over the INSTALLED registry, so the count
-            # falls with the install rather than with the debt -- the same reason
-            # `lint_docstring` is the other gate here that is not exact. A lower
-            # reading at CI scope is a smaller tree, not an improvement to bank.
             exact=False,
         )
         _logger.info(

@@ -30,11 +30,6 @@ LAZY_BUNDLE_RE = re.compile(
 )
 
 
-#: Every source this class scans, read once. The two runtime tests below each
-#: called `_runtime_fetched_bundles()`, which makes three passes -- `*.js` twice
-#: and `*.xml` once -- so the identical 18,953-file sweep ran twice per run:
-#: 37,906 of the 56,754 reads the JS gates performed between them. `_declaration_index`
-#: walked every manifest once per test on top of that.
 @functools.cache
 def _sources(glob: str) -> tuple[tuple[str, str], ...]:
     out = []

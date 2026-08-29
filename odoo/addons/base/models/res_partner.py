@@ -532,9 +532,6 @@ class ResPartner(models.Model):
 
     @api.depends("birthdate")
     def _compute_age_range_id(self) -> None:
-        # Keyed on birth year, not on age: a cohort is permanent, and depending
-        # on age made the value drift silently -- age is derived from today, so
-        # nothing invalidated it as a partner got older.
         age_ranges = self.env["res.partner.age.range"].search([])
         for partner in self:
             if partner.birthdate:

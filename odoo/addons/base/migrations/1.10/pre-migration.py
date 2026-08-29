@@ -6,15 +6,6 @@ _logger = logging.getLogger(__name__)
 
 _TABLE = "res_partner_age_range"
 
-# res.partner.age.range, mixin.band and the partner demographic fields
-# (gender, mobile, birthdate, age, age_range_id) moved into base. Their
-# records already exist; only the module that owns them changes. This has to
-# run here, in base's own pre-migration, and not in a migration of the modules
-# being taken from: base is the first module loaded, so by the time marin or
-# base_attribute_mixin gets a chance to hand anything over, base has already
-# reflected the model and created a second ir_model_data row beside the one it
-# should have adopted -- leaving the original to be reaped as an orphan, and
-# ir.model.fields rows take their columns with them when they go.
 _ADOPTED_NAMES = (
     "model_res_partner_age_range",
     "model_inherit__res_partner_age_range__mixin_band",
@@ -23,10 +14,6 @@ _ADOPTED_NAMES = (
     "field_res_partner__birthdate",
     "field_res_partner__gender",
     "field_res_partner__mobile",
-    # res.users _inherits res.partner, so every field added there is mirrored
-    # onto it under its own xmlid. Left behind, these are ir.model.fields rows
-    # owned by a module that no longer declares them -- and an ir.model.fields
-    # row takes its column with it when it is reaped.
     "field_res_users__age",
     "field_res_users__age_range_id",
     "field_res_users__birthdate",
@@ -38,15 +25,10 @@ _ADOPTED_PATTERNS = (
     "field_res_partner_age_range__%",
     "constraint_res_partner_age_range%",
     "field_mixin_band__%",
-    # A Selection field owns one ir.model.fields.selection record per value,
-    # each under its own xmlid. Reaped, the field keeps its column and loses
-    # the values that make it readable.
     "selection__res_partner__gender__%",
 )
 _DONORS = ("marin", "base_attribute_mixin")
 
-# The ACLs keep their permissions but not their spelling: base names an access
-# rule after the group it grants, and marin named these admin/user.
 _ADOPTED_RENAMES = {
     "access_res_partner_age_range_admin": (
         "access_res_partner_age_range_group_partner_manager"
@@ -54,20 +36,8 @@ _ADOPTED_RENAMES = {
     "access_res_partner_age_range_user": "access_res_partner_age_range_group_user",
 }
 
-# Databases that never reached marin 19.0.1.44 still spell the bounds age_from
-# and age_to. That rename used to run in marin's own pre-migration, which was
-# early enough while marin declared the model -- it no longer is. Reflecting
-# base with the legacy columns still in place adds min_value and max_value
-# empty beside them, and marin 19.0.1.44 then finds both spellings present,
-# declines to rename, and leaves the seeded cohorts classifying nobody.
 _RENAMES = (("age_from", "min_value"), ("age_to", "max_value"))
 
-# The daily sweep this cron ran is gone: res.partner.age.range now re-applies
-# the scale itself whenever a cohort is created, rebounded, archived or
-# deleted, which is immediate where the sweep was up to a day late. Dropping
-# the record belongs here rather than in marin's own upgrade because base is
-# what removes _cron_update_age_range_id: a database that upgrades base alone
-# would otherwise keep firing a cron at a method that no longer exists.
 _RETIRED_CRON = "ir_cron_partner_age_range"
 
 
@@ -101,10 +71,6 @@ def _rename_legacy_bounds(cr):
 
 
 def _adopt(cr):
-    # A base row of the same name can only exist if this migration already ran,
-    # in which case the donor rows are gone and nothing below matches. Should
-    # one somehow collide, base's row already points at the same record, so the
-    # donor's is the one to drop -- (module, name) is unique.
     cr.execute(
         """
         DELETE FROM ir_model_data donor
@@ -166,9 +132,6 @@ def _retire_cron(cr):
     )
     if not rows:
         return 0
-    # ir_cron.ir_actions_server_id is ondelete=restrict, so the delegate row
-    # goes first and the server action it points at second. ir_cron_trigger
-    # cascades off the cron and needs no statement of its own.
     cr.execute("DELETE FROM ir_cron WHERE id = ANY(%s)", ([row[0] for row in rows],))
     cr.execute(
         "DELETE FROM ir_act_server WHERE id = ANY(%s)", ([row[1] for row in rows],)

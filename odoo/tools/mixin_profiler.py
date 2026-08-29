@@ -11,12 +11,6 @@ _logger = logging.getLogger(__name__)
 
 _profile_data = threading.local()
 
-#: `profile_methods` patches the *shared* registry model class, so the wrapper
-#: is installed for every thread in the process while `_profile_data.enabled`
-#: is thread-local. A thread that is not profiling still pays the wrapper: one
-#: thread-local lookup and a branch per call. That is the cost of the design and
-#: it is why this is a development tool, not something to leave switched on.
-
 
 def _get_data():
     if not hasattr(_profile_data, "methods"):

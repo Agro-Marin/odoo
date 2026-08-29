@@ -87,15 +87,6 @@ def test_expired_token_is_rejected():
 
 
 def test_zero_time_limit_is_not_read_as_unset():
-    """0 is a valid offset, and the only value `or` could not tell from unset.
-
-    Under `or`, 0 alone was read as "not supplied" and produced a token good for
-    CSRF_TOKEN_MAX_AGE -- a year -- while -10 and 1 were both honoured. The
-    assertion is on the LIFETIME rather than on acceptance: a 0 offset puts
-    `max_ts` at the current second, and `validate_csrf` expires a token only
-    once `max_ts < now`, so it stays acceptable for that second. That boundary
-    is the validator's and is deliberately left alone here.
-    """
     req = _FakeRequest()
     token = req.csrf_token(time_limit=0)
     lifetime = int(token.rpartition("o")[2]) - int(time.time())

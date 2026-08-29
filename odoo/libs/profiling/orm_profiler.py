@@ -16,22 +16,6 @@ if _orm_profiling_enabled:
 
 
 class _OrmProfile:
-    """A phase timer for one ORM operation, and the emission of its line.
-
-    ``_marks`` is insertion-ordered, so the phases *are* its consecutive pairs
-    and each one is named by the mark that ends it. :meth:`report` derives the
-    whole ``| acl=0.1 prep=0.2 ...`` tail from that.
-
-    It did not, until 2026-08-24. Twenty-six call sites each carried the same
-    ``prof.stop()`` / ``if prof.debug: logger.debug(...)`` block with a
-    hand-written format string listing one ``prof.ms(a, b)`` per phase --
-    about 150 lines of it, and every one an opportunity to name a phase in the
-    format string that the marks do not have. ``write()`` had already taken
-    it: its last phase was marked ``validate1`` and labelled ``inverse=``, so
-    the line said ``validate=`` over the time spent validating and ``inverse=``
-    over something else entirely.
-    """
-
     __slots__ = ("_final", "_marks", "agg", "debug")
 
     def __init__(self, logger: logging.Logger) -> None:
@@ -47,11 +31,6 @@ class _OrmProfile:
             self._marks[name] = time.perf_counter()
 
     def stop(self, final: str = "end") -> None:
-        """Close the last phase, naming it.
-
-        The name goes here rather than to :meth:`report` because it belongs to
-        the phase, which ends at this call and not at the emission.
-        """
         if self.debug or self.agg:
             self._final = final
             self._marks[final] = time.perf_counter()
@@ -64,12 +43,6 @@ class _OrmProfile:
         return self._marks[self._final] - self._marks["start"]
 
     def report(self, logger: logging.Logger, message: str, *args: object) -> None:
-        """Emit ``[<ms>] <message> | <phase>=<ms> ...``, phases and all.
-
-        A no-op below DEBUG, so a caller writes it unconditionally. The phase
-        tail is not passed in because it is already here: `message` describes
-        the operation, the marks describe its shape.
-        """
         if not self.debug:
             return
         times = list(self._marks.values())
@@ -82,10 +55,6 @@ class _OrmProfile:
             )
         else:
             phases = ""
-        # Assembled into a name first: the linter reads a `+` in the call
-        # itself as string-building the logger should have been left to do,
-        # and here it is the *format* being built, above a `debug` guard that
-        # has already returned when logging is off.
         fmt = "[%.3f ms] " + message + phases
         logger.debug(fmt, self.elapsed * 1000.0, *args)
 
@@ -133,10 +102,6 @@ class OrmProfiler:
         record_count: int,
         elapsed: float,
     ) -> None:
-        """Was eight methods, one per operation, each a single call to
-        :meth:`_record` with its own name spelled twice: in the method name and
-        in the string it passed. The operation is data, so it travels as an
-        argument."""
         self._record(operation, model_name, record_count, elapsed)
 
     def report(self) -> None:

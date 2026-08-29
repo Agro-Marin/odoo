@@ -37,7 +37,6 @@ class TestParseAmount(unittest.TestCase):
                 self.assertIsNone(parse_amount(text))
 
     def test_non_finite_literals_are_rejected(self):
-        """float() accepts these silently; a monetary amount must not."""
         for text in ("inf", "-inf", "Infinity", "nan", "NaN", "1e400"):
             with self.subTest(text=text):
                 self.assertIsNone(parse_amount(text))

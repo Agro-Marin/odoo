@@ -29,7 +29,9 @@ class TestIrBinaryNoRequest(TransactionCase):
 
         with (
             patch("odoo.addons.base.models.ir_binary.request", None),
-            patch.object(type(ir_binary), "_get_stream_from_record", return_value=data_stream),
+            patch.object(
+                type(ir_binary), "_get_stream_from_record", return_value=data_stream
+            ),
         ):
             stream = ir_binary._get_stream_image_from_record(
                 partner, "image_1920", width=64, height=64
@@ -142,7 +144,9 @@ class TestIrBinaryImageBranches(TransactionCase):
         with (
             patch("odoo.addons.base.models.ir_binary.request", None),
             patch.object(
-                type(self._binary), "_get_stream_from_record", side_effect=raise_user_error
+                type(self._binary),
+                "_get_stream_from_record",
+                side_effect=raise_user_error,
             ),
             self.assertLogs("odoo.addons.base.models.ir_binary", level="DEBUG") as cm,
         ):
@@ -174,7 +178,9 @@ class TestIrBinaryImageBranches(TransactionCase):
         empty = Stream(type="data", data=b"", mimetype="image/png", size=0)
         with (
             patch("odoo.addons.base.models.ir_binary.request", None),
-            patch.object(type(self._binary), "_get_stream_from_record", return_value=empty),
+            patch.object(
+                type(self._binary), "_get_stream_from_record", return_value=empty
+            ),
         ):
             stream = self._binary._get_stream_image_from_record(partner, "image_1920")
         self.assertEqual(stream.type, "data")

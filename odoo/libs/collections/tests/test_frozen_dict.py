@@ -83,13 +83,6 @@ if __name__ == "__main__":
 
 
 class TestFrozendictRejectsEveryMutator(unittest.TestCase):
-    """Ported from `odoo/addons/base/tests/test_func.py`.
-
-    `TestFrozendictImmutability` above already covers `__setitem__`,
-    `update` and `|=`; these are the five mutators it did not, which the
-    base copy did.
-    """
-
     def setUp(self):
         self.frozen = frozendict({"name": "Joe", "age": 42})
 
@@ -121,9 +114,6 @@ class TestFrozendictHashesNestedValues(unittest.TestCase):
         hash(frozendict({"name": "Joe", "age": 42}))
 
     def test_hash_reaches_into_lists_and_tuples(self):
-        """The base copy built this with `Command.create(...)`, which is a
-        3-tuple; spelled literally here so the suite stays inside `odoo.libs`
-        and does not reach into the ORM for a fixture shape."""
         hash(
             frozendict(
                 {

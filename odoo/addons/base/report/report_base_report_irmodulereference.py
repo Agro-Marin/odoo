@@ -16,7 +16,6 @@ class ReportBaseReport_Irmodulereference(models.AbstractModel):
     _name = "report.base.report_irmodulereference"
     _description = "Module Reference Report (base)"
 
-
     def _get_models_by_module(self, modules: IrModuleModule) -> dict[str, IrModel]:
         data = (
             self.env["ir.model.data"]

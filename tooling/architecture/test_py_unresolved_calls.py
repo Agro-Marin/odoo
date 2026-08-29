@@ -121,9 +121,6 @@ def test_findings_are_sorted_so_a_diff_is_readable(tmp_path):
 
 
 def test_an_unrelated_string_no_longer_silences_a_real_call(tmp_path):
-    # A list of names anywhere in the tree used to bind every one of them, so a
-    # test naming the methods a rename abolished switched this gate off for
-    # exactly the calls it exists to find.
     found = _measure(
         tmp_path,
         caller="self._vanished()\n",
@@ -190,16 +187,6 @@ def test_a_scoped_external_entry_does_not_leak_to_the_default_scope(tmp_path):
 
 
 def test_every_scoped_external_entry_names_a_real_root():
-    """A key must be a repository this workspace HAS, not one it has CHECKED OUT.
-
-    This read the filesystem — `ROOT.parent.iterdir()` — which made the verdict
-    depend on the developer's directory layout. It passed on a workstation with
-    the siblings cloned beside the fork and failed everywhere else: in a
-    `git worktree`, and in CI, which checks this repository out alone and is the
-    one place the gate had to work. The key is matched against `scope.name`, and
-    the names a scope can have are a vocabulary, so that is what to check
-    against.
-    """
     for name in gate.EXTERNAL_BY_ROOT:
         assert name in SIBLING_REPOS, (
             f"EXTERNAL_BY_ROOT names {name!r}, which is not one of the workspace "
@@ -247,8 +234,6 @@ def test_also_define_resolves_without_reporting(tmp_path):
 
 
 def test_a_root_that_does_not_exist_refuses_instead_of_reporting_zero(tmp_path):
-    # Nothing measured passes a no-increase ratchet, so a mistyped or
-    # not-checked-out root would turn the gate green.
     assert gate.main(["--roots", str(tmp_path / "absent"), "--count"]) == 2
     assert gate.main(["--also-define", str(tmp_path / "absent"), "--count"]) == 2
 

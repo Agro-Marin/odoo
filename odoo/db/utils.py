@@ -46,14 +46,6 @@ re_cte_comma = re.compile(r"\s*,\s*")
 
 
 def _skip_ctes(decoded_query: str) -> int:
-    """Return the index right after a leading `WITH ... AS (...)` clause.
-
-    `re_update`/`re_delete` are anchored at the start of the statement, and
-    the plain `re_into`/`re_from` search would otherwise match a CTE's own
-    `SELECT ... FROM` body before the real target table of the statement
-    that follows it. Returns 0 (no skip) if the query doesn't start with
-    `WITH`, or if a CTE's shape doesn't parse (unbalanced parens, etc.).
-    """
     m = re_cte_start.match(decoded_query)
     if not m:
         return 0

@@ -30,18 +30,6 @@ def _role_literal(
 
 
 class _AdmonitionWithLead(Note):
-    """A Sphinx directive that takes an argument, rendered as a note.
-
-    `Note` accepts no arguments, so `.. deprecated:: 19.0` put the version into
-    the *body*: a note whose first paragraph was the bare text "19.0", which
-    tells a reader nothing. Sphinx is not a dependency here and will not
-    become one; giving the two directives their argument back is the cheap
-    half of what it would do.
-
-    The content is optional too -- `.. deprecated:: 19.0` with no body is
-    well-formed in Sphinx, and `BaseAdmonition` aborts on it.
-    """
-
     lead: ClassVar[str] = "%s"
     required_arguments = 0
     optional_arguments = 1
@@ -68,13 +56,6 @@ class _Attribute(_AdmonitionWithLead):
 
 
 def patch_module() -> None:
-    """Stand in for the Sphinx domain, which is not a dependency.
-
-    Odoo renders reStructuredText in two places -- `ir_module`'s
-    `description_html` and `libs/docstring`'s API documentation -- and both
-    meet docstrings written for Sphinx. Without these, every `:meth:` renders
-    as an "Unknown interpreted text role" error inside the output.
-    """
     for role in LITERAL_ROLES:
         roles.register_local_role(role, _role_literal)
 

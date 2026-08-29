@@ -1,13 +1,3 @@
-"""`column_exists` / `index_exists` return a real `bool`, not a truthy rowcount.
-
-Lived in `odoo/libs/sql/tests/test_sql_builder.py`, which is the wrong suite in
-two ways: the subject is `odoo.db.schema`, not the SQL builder, and reaching
-`odoo.db` from a `odoo/libs/sql` suite pulls `odoo.tools.__init__` -> `query` ->
-`from odoo.libs.sql import SQL`, which under the Tier-1 stub for that very
-package is an ImportError. The failure was invisible because the suite could not
-be collected at all when named on its own.
-"""
-
 import unittest
 
 

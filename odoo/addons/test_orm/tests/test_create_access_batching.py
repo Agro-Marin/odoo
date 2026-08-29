@@ -2,17 +2,6 @@ from odoo.tests import TransactionCase
 
 
 class CreateAccessBatchingCase(TransactionCase):
-    """``create()`` must not check record access once per record.
-
-    A ``bypass_search_access`` many2one made ``create()`` call
-    ``check_access("read")`` on the comodel once per value, each on a
-    one-record recordset. With any ``ir.rule`` on the comodel that costs one
-    SELECT per record, because a recordset of one has nothing to prefetch with.
-
-    Asserted as a *marginal* cost -- N=2 against N=200 -- because an absolute
-    query count at N=1 cannot see this class of defect at all.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -51,9 +40,6 @@ class CreateAccessBatchingCase(TransactionCase):
         return self.env.cr.sql_log_count - before
 
     def _warm(self):
-        # ir.model.access / ir.rule are ormcached; a first call through either
-        # field pays for filling them, which would land on whichever arm runs
-        # first rather than on the thing under test.
         self._create_as_user("target_id", 1)
         self._create_as_user("plain_target_id", 1)
 

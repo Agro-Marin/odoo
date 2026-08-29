@@ -37,17 +37,6 @@ def _pg_dump_total_timeout() -> float:
 
 @check_db_management_enabled
 def exp_dump(db_name: str, backup_format: str) -> str:
-    """Dump the database and return its base64-encoded content.
-
-    Encodes in 3 MiB chunks against an on-disk tempfile, so the raw bytes never
-    sit in memory; peak is still ~8N/3 (accumulator + final ``str`` during
-    ``decode``), so a multi-GB dump doubles RSS — use ``dump_db(..., stream=...)``
-    for true streaming.
-
-    Note the web backup UI does NOT call this: it uses ``dump_db(name, None, ...)``
-    and hands the temp file to werkzeug directly, avoiding the base64 round-trip.
-    The only true-streaming caller is the ``odoo db dump`` CLI.
-    """
     check_db_exposed(db_name)
     CHUNK_SIZE = 3 * 1024 * 1024
     encoded = bytearray()
@@ -60,14 +49,6 @@ def exp_dump(db_name: str, backup_format: str) -> str:
 
 
 def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
-    """Read the manifest of an already-open cursor's database.
-
-    Deliberately ungated.  It reads, it takes a cursor the caller already holds,
-    and it is exported from ``odoo.service.db``: gating it made
-    ``list_db = False`` refuse a pure read that discloses nothing the caller
-    cannot already see through that cursor.  The gate belongs on the RPC
-    entry points -- ``dump_db`` and ``exp_dump`` -- where it still is.
-    """
     v = cr.connection.info.server_version
     pg_version = f"{v // 10000}.{v // 100 % 100}"
     cr.execute(

@@ -121,7 +121,6 @@ def test_measure_finds_a_planted_violation(tmp_path):
 
 
 def test_measure_does_not_count_an_override(tmp_path):
-    """An override does not choose its name -- the base does."""
     (tmp_path / "m.py").write_text(
         textwrap.dedent(
             """
@@ -140,7 +139,6 @@ def test_measure_does_not_count_an_override(tmp_path):
 
 
 def test_measure_counts_the_same_name_when_it_is_not_an_override(tmp_path):
-    """The exemption is the `super()` call, not the name."""
     (tmp_path / "m.py").write_text(
         textwrap.dedent(
             """
@@ -158,7 +156,6 @@ def test_measure_counts_the_same_name_when_it_is_not_an_override(tmp_path):
 
 
 def test_measure_counts_an_override_of_a_DIFFERENT_method(tmp_path):
-    """Calling `super().write()` does not licence an abolished verb of its own."""
     (tmp_path / "m.py").write_text(
         textwrap.dedent(
             """

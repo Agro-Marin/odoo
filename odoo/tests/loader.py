@@ -16,13 +16,6 @@ if TYPE_CHECKING:
 
 
 def get_module_test_cases(module: Any) -> Iterator[_StdTestCase]:
-    # The *stdlib* base on purpose, not odoo.tests.case.TestCase: a third-party
-    # test that subclasses unittest.TestCase directly must still be discovered,
-    # and the vendored class is a subclass of this one so it matches either way.
-    # Spelled _StdTestCase because every sibling in this package says
-    # `from . import case`, meaning the vendored module -- the bare name `case`
-    # here used to be the stdlib one, so the same identifier meant two
-    # different modules depending on the file.
     for obj in module.__dict__.values():
         if not isinstance(obj, type):
             continue
@@ -83,20 +76,12 @@ def _get_upgrade_test_modules(module: str) -> Generator[Any]:
                 )
                 if not spec:
                     continue
-                # make_suite runs once per position, so without this check the
-                # module body is executed twice -- at_install then post_install --
-                # producing two distinct sets of class objects for one file.
                 if (pymod := sys.modules.get(spec.name)) is None:
                     pymod = importlib.util.module_from_spec(spec)
                     sys.modules[spec.name] = pymod
                     try:
                         spec.loader.exec_module(pymod)
                     except BaseException:
-                        # Drop the half-initialised module, as importlib's own
-                        # loader does. Leaving it cached made the *second*
-                        # position find it non-None, skip the exec and yield a
-                        # module whose test classes were never defined -- so the
-                        # file's tests silently did not run and nothing failed.
                         sys.modules.pop(spec.name, None)
                         raise
                 yield pymod

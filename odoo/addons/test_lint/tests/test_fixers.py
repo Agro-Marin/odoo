@@ -411,18 +411,6 @@ class TestSortXmlRecords(BaseCase):
 
 @no_retry
 class TestFixersOverTheRepository(LintCase):
-    """Both fixers, over every core data file, in one pass each.
-
-    What this used to assert with `_shape` and `_words` -- sorted projections of
-    the element tree and its text -- is now `_xml_identity.comparable`, which
-    both fixers already refuse to write against. The projections were strictly
-    weaker in every direction but one (attribute-value whitespace), and that one
-    is folded into the shared definition, so re-deriving them here bought
-    nothing: `format_xml_file` cannot return True for output the check rejects.
-    Proven by mutation -- a formatter made to swallow comments was caught 143
-    times by the identity check and 0 times by `_shape`/`_words`.
-    """
-
     def test_the_scan_reaches_the_data_files(self):
         self.assertGreater(
             _xml_sweep.formatter_sweep().checked,
@@ -705,13 +693,6 @@ class TestFixerScope(LintCase):
         )
 
     def test_no_fixture_directory_is_selected_as_data(self):
-        """A fixture is not a data file, and canonicalising one is a defect.
-
-        271 of the 3641 units this gate's floor used to carry lived under a
-        tests/ directory, including l10n_it_edi's deliberately malformed EDI
-        samples -- one of which does not parse at all. No manifest names a data
-        or demo file under tests/, so nothing that loads is lost.
-        """
         self.assertFalse(
             [str(path) for path in core_data_files() if "tests" in path.parts],
             "a tests/ fixture is being held to the data-file conventions",

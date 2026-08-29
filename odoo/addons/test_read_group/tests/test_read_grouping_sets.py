@@ -1,10 +1,6 @@
 from odoo import Command
 from odoo.tests import common, new_test_user
 
-# Shared across TestPrivateReadGroupingSets._read_grouping_sets and
-# TestFormattedReadGroupingSets.formatted_read_grouping_sets: both exercise
-# the exact same grouping-set/order/query-count scenarios against their
-# respective entry point.
 GROUPING_SETS_CASES = [
     {
         "grouping_sets": [
@@ -77,9 +73,6 @@ GROUPING_SETS_CASES = [
 
 
 def _create_mario_luigi_tasks(env):
-    """Shared fixture for the many2many grouping-set tests: two users
-    (Mario, Luigi) and four tasks exercising every combination of the
-    user_ids/customer_ids many2many fields."""
     User = env["test_read_group.user"]
     mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
     tasks = env["test_read_group.task"].create(

@@ -84,24 +84,6 @@ class _QueryMixin(_ModelStubs):
     @api.model
     @ormcache("field_name", "self.env.su", "self.env.user._get_group_ids()")
     def _is_field_sortable(self, field_name: str) -> bool:
-        """Whether this user may order on `field_name`.
-
-        Answering it means composing the ORDER BY term, which for a related or
-        delegated field walks the relation and builds a JOIN. `fields_get`
-        asks for every field it describes and a search view asks for every
-        field on the model -- 160 on res.users, 102 of them delegated to
-        res.partner -- so the same JOINs were composed on every view load.
-
-        The answer moves with the registry and with field access, never with
-        the record, so it is keyed on the group set: measured over four models
-        and three kinds of user, only group membership ever changed it.
-        `ir.model.fields` and `ir.model.access` both clear the `stable` cache,
-        which covers this one.
-
-        Its counterpart `_is_field_groupable` is built the same way but lives in
-        `read_group/sql.py`, because composing a GROUP BY term is that unit's
-        job and reaching for it from here is what made the two units cyclic.
-        """
         try:
             query = self._as_query(ordered=False)
             term = self._order_field_to_sql(

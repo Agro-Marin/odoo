@@ -8,7 +8,7 @@ from lxml import etree
 
 try:
     from ._xml_identity import preserves_content
-except ImportError:  # run as a script: `python _sort_xml_records.py <roots>`
+except ImportError:
     from _xml_identity import preserves_content
 
 try:
@@ -258,10 +258,6 @@ def sort_xml_file(
     if source.endswith(b"\n") and not new_content.endswith(b"\n"):
         new_content += b"\n"
 
-    # The sorter used to write whatever lxml serialised, with no check at all --
-    # `_pretty_xml` refused an unfaithful rewrite and this did not, though this is
-    # the fixer that MOVES elements. Its invariant is order-INSENSITIVE, since
-    # reordering is the job: the same elements, attributes and words come out.
     if not preserves_content(source, new_content):
         print(
             f"  SKIP  {path}: the sorted output would not say the same thing",

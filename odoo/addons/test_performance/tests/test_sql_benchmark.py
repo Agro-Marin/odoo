@@ -20,12 +20,6 @@ WARMUP_ITERATIONS = 5
 
 @tagged("-standard", "sql_benchmark")
 class TestSQLBenchmark(BenchmarkCase, TransactionCase):
-    """Timing only: no test_* method here asserts on a measured value.
-
-    A failure here is an exception, never a performance regression — see
-    BenchmarkCase's own docstring (odoo/tests/benchmark.py).
-    """
-
     benchmark_log_prefix = "SQL_BENCHMARK"
     benchmark_iterations = DEFAULT_ITERATIONS
     benchmark_warmup = WARMUP_ITERATIONS
@@ -328,9 +322,6 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         def bench():
             _ = partner.name
 
-        # invalidate_cache defaults to True, which would wipe the cache
-        # before every timed iteration -- exactly the opposite of what a
-        # "cache hit" benchmark needs.
         self._run_benchmark(
             "Cache Hit (single field)", bench, iterations=100, invalidate_cache=False
         )
@@ -341,9 +332,6 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         def bench():
             _ = partner.name
 
-        # invalidate_cache defaults to True, so the harness already
-        # invalidates the cache before every iteration; no extra setup()
-        # is needed to force a miss.
         self._run_benchmark("Cache Miss (single field)", bench)
 
     def test_72_prefetch_behavior(self):
@@ -353,12 +341,6 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
             for p in partners:
                 _ = p.name
 
-        # invalidate_cache defaults to True, so the harness already
-        # invalidates before every iteration (including the first): the
-        # explicit invalidate_all() this test used to do beforehand was
-        # redundant with it, and this benchmark genuinely wants the cache
-        # cold on every iteration to measure the prefetch-trigger cost
-        # repeatedly, unlike test_70's "Cache Hit".
         self._run_benchmark("Prefetch (100 records)", bench)
 
     def test_80_sequential_operations(self):
@@ -599,11 +581,6 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
             _logger.info("[SQL_BENCHMARK] No results to summarize.")
             return
 
-        # Only guarding the zero-results case let a partial selection
-        # (--test-tags excluding some but not all test_NN_* methods, or an
-        # earlier test erroring) silently print an incomplete summary as
-        # if it were complete. Compare against how many benchmark methods
-        # this class actually defines and say so explicitly instead.
         expected = len(unittest.TestLoader().getTestCaseNames(type(self))) - 1
         if len(self.all_results) < expected:
             _logger.warning(

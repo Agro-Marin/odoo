@@ -28,12 +28,6 @@ def hmac(
         msg = "Non-empty scope required"
         raise ValueError(msg)
 
-    # sudo here, not at every call site. `database.secret` is a server-side
-    # secret, never scoped to the reader, but `get_param` runs `check_access`
-    # and the ACL grants `ir.config_parameter` to `group_system` alone -- so an
-    # un-sudoed call raises AccessError for portal and public users only. Tests
-    # run as admin and cannot see it, which made "works in the test, AccessError
-    # in production" the default outcome of forgetting `su=True`.
     secret = env(su=True)["ir.config_parameter"].get_param("database.secret")
     if not secret:
         raise ValueError(

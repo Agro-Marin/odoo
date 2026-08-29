@@ -1,10 +1,3 @@
-"""DB-free unit tests for OpenAPI generation from routing descriptors.
-
-:mod:`odoo.http.openapi` takes plain :class:`RouteInfo` descriptors, so the whole
-document generator is testable without a registry or werkzeug map. Run in the
-tier-2 (real-import) invocation, e.g. ``pytest odoo/http/tests``.
-"""
-
 import logging
 
 import werkzeug.routing
@@ -42,13 +35,11 @@ def test_effective_methods_strips_implicit_verbs():
 
 
 def test_methods_none_route_emits_operations():
-    """Regression: methods=None used to produce an empty ``{}`` path item."""
     doc = build_openapi([_route("/web/version", methods=frozenset())])
     assert sorted(doc["paths"]["/web/version"]) == ["get", "post"]
 
 
 def test_operation_id_disambiguates_realistic_collision():
-    """Regression: ``/shop/cart`` and ``/shop-cart`` both slug to ``shop_cart``."""
     used = set()
     first = _operation_id("GET", "/shop/cart", used)
     second = _operation_id("GET", "/shop-cart", used)
@@ -70,7 +61,7 @@ def test_build_openapi_no_duplicate_operation_ids():
 
 def test_typed_route_documents_query_params_and_400():
     def handler(self, n: int, flag: bool = False):
-        """List things."""
+        pass
 
     route = _route(
         "/typed",
@@ -103,12 +94,8 @@ def test_typed_jsonrpc_documents_request_body():
 
 
 def test_path_param_not_duplicated_as_query_param():
-    """Regression: a path param that is ALSO annotated on the handler (the usual
-    way to coerce it) was emitted twice — once ``in: path``, once a spurious
-    ``in: query`` telling clients to pass a URL value in the query string."""
-
     def handler(self, ident: int, q: str | None = None):
-        """Get item."""
+        pass
 
     route = _route(
         "/item/<int:ident>",
@@ -124,11 +111,8 @@ def test_path_param_not_duplicated_as_query_param():
 
 
 def test_path_param_not_duplicated_in_request_body():
-    """Same leak on the body side: a json2/jsonrpc path param must not appear as
-    a request-body property — it comes from the URL, not the JSON payload."""
-
     def handler(self, ident: int, name: str):
-        """Create."""
+        pass
 
     route = _route(
         "/item/<int:ident>",
@@ -178,10 +162,6 @@ def test_openapi_from_map_roundtrip():
 
 
 def test_a_colliding_path_template_keeps_the_first_and_warns(caplog):
-    # `/a/<int:x>` and `/a/<string:x>` are two rules, one OpenAPI path. The
-    # document can only carry one operation per (path, method); the second used
-    # to overwrite the first, and `_operation_id`'s collision suffix renamed it
-    # on the way so the loss looked like a naming quirk rather than a drop.
     routes = [
         _route("/a/<int:x>", methods={"GET"}),
         _route("/a/<string:x>", methods={"GET"}),
@@ -197,8 +177,6 @@ def test_a_colliding_path_template_keeps_the_first_and_warns(caplog):
 
 
 def test_a_collision_does_not_burn_an_operation_id():
-    # The dropped operation must not consume `get_a_x`, or a later, unrelated
-    # path picks up a `_2` suffix it did not earn.
     doc = build_openapi(
         [
             _route("/a/<int:x>", methods={"GET"}),

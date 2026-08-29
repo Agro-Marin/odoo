@@ -194,15 +194,6 @@ def load_demo(
 
 
 def force_demo(env: Environment) -> None:
-    """Load demo data into every loaded module, and record which ones took it.
-
-    `demo` says the module *has* demo data loaded, so it is written from what
-    `load_demo` reports, exactly as `load_module_graph` does. Setting the whole
-    column true up front and discarding the return value recorded a module whose
-    demo XML had just raised as carrying demo data -- and set the flag on every
-    uninstalled and uninstallable module in the table as well, 654 of 671 rows on
-    a fresh database, none of which is ever a candidate for it.
-    """
     env.cr.execute(
         "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade', 'to remove')"
     )
@@ -256,22 +247,6 @@ UpdateOperation = typing.Literal["install", "upgrade", "reinit"]
 
 
 class _PackageLoader:
-    """One module's pass through the graph, one method per step.
-
-    The steps are the same ones the loop body always had; naming them is what
-    lets `load_module_graph` read as a schedule instead of as thirty-eight
-    branches over `update_operation`. Each method decides for itself whether it
-    applies, the way `_ModuleLoader`'s phases do -- which is why the caller
-    below is a flat list of calls with no flag threaded through it.
-
-    Order is the contract here, not decomposition: `tests/loading/
-    test_load_modules_phases.py` traces it, and several steps depend on an
-    earlier one having run. The pre-migration must see the old schema; the
-    python module must be imported before `pre_init_hook` can be reached on it;
-    `_init_modules` must be marked before the post-init hook, because a hook
-    that touches the registry would otherwise re-enter this module.
-    """
-
     __slots__ = (
         "cursor_queries_at_start",
         "env",
@@ -542,13 +517,6 @@ class _PackageLoader:
 
 
 def _sweep_gc(registry: Registry, sweeps: int) -> int:
-    """Drop caches and collect when the young generation has run away.
-
-    Loading a full addons tree allocates far more than it retains, and the
-    default generational thresholds do not keep up. `gc.freeze()` moves what
-    survived out of the way so later sweeps do not rescan it; a full collection
-    every sixteenth sweep is what stops the frozen set growing without bound.
-    """
     if gc.get_count()[0] <= _GC_YOUNG_BACKLOG_LIMIT:
         return sweeps
     registry._caches.clear_all()

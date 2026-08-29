@@ -134,20 +134,6 @@ if __name__ == "__main__":
 
 
 class TestOneInvalidationMechanism(unittest.TestCase):
-    """`Savepoint.rollback` used to call `_on_rollback_to_savepoint` itself, on
-    top of `Cursor.execute` detecting the `ROLLBACK TO` it had just issued.
-    Counted per host flavour, that notify was never the thing doing the work:
-
-      * `Cursor`            -> 2 invocations, the scan already fired
-      * raw psycopg cursor  -> the attribute does not exist, no-op
-      * `TestCursor`        -> resolves to `BaseCursor`'s no-op, and
-        `TestCursor._close_savepoint` calls the real hook by hand anyway
-
-    The scan cannot be removed instead: addons issue raw
-    `ROLLBACK TO SAVEPOINT` (see `tests/contract/test_raw_savepoint_hook.py`),
-    so it is the only mechanism that covers every caller.
-    """
-
     def test_rollback_does_not_notify_the_cursor_itself(self):
         import inspect
 

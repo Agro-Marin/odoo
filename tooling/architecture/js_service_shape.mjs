@@ -8,17 +8,6 @@ const PARSE = {
     comment: true,
 };
 
-// Comment lines are skipped so this gate's LARGE and js_function_length.py's
-// MAX_LINES mean the same thing. Both are 80 and test_js_service_shape.py
-// cross-checks the two tools against each other, but funclen measures through
-// eslint max-lines-per-function with skipComments true, deliberately, so that
-// documenting a function does not cost ratchet budget. Counting raw body lines
-// here made connection_recovery_service.js an 86-line offender funclen never
-// reported, and the cross-check failed finding 0 of 1. A line counts as a
-// comment line only when blanking every comment span on it leaves whitespace,
-// which is what eslint means and what a column-0 test would get wrong for the
-// indented comment that is the common case. Blank lines still count, matching
-// skipBlankLines: false there.
 function codeLines(body, comments, sourceLines) {
     const first = body.loc.start.line;
     const last = body.loc.end.line;
@@ -221,12 +210,6 @@ for (const file of process.argv.slice(2)) {
         );
     };
 
-    // A service reaches `.add()` either as a named binding or as an object
-    // literal written straight into the call. Matching only the first left the
-    // second unseen: `stock_warehouse` returned an object literal from `start()`
-    // -- the exact shape this gate faults -- and was reported as no service at
-    // all, so the gate read 0 while the offence was in the tree. Registration
-    // form is not what is being measured, so both are collected here.
     const registered = new Map();
     const objects = new Map();
     let inlineSeq = 0;

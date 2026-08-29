@@ -1,12 +1,3 @@
-"""A savepoint rollback must drop registry caches refilled from rolled-back rows.
-
-`clear_cache` runs inline in create/write/unlink, so a read taken after it and before
-the commit fills a registry-wide LRU from rows only this transaction can see. Full
-rollback is covered by `Registry.reset_changes`; commit is covered because the values
-were true. Savepoint rollback was covered by neither, and nothing re-clears afterwards
--- `signal_changes` only tells other processes.
-"""
-
 import inspect
 
 from odoo.orm.runtime.savepoint import _OrmFlushingSavepoint
@@ -43,12 +34,6 @@ def test_a_transaction_that_invalidated_nothing_pays_nothing():
 
 
 def test_the_groups_stay_named_so_the_commit_still_signals_peers():
-    """Clearing through the public entry point keeps `cache_invalidated` populated.
-
-    `signal_changes` reads that set to bump `orm_signaling_<group>`. Clearing by
-    reaching past it -- `_clear_cache_group` directly -- would empty the set and leave
-    every other worker holding the value this rollback just discarded.
-    """
     registry = _FakeRegistry({"stable"})
 
     _OrmFlushingSavepoint._reclear_invalidated_caches(registry)
@@ -57,16 +42,10 @@ def test_the_groups_stay_named_so_the_commit_still_signals_peers():
 
 
 def test_restore_orm_state_calls_it():
-    """Structural: the hook is wired, not merely defined."""
     src = inspect.getsource(_OrmFlushingSavepoint._restore_orm_state)
     assert "_reclear_invalidated_caches" in src
 
 
 def test_it_runs_before_the_registry_swap_branch():
-    """`_restore_orm_state` may `txn.reset()` when the registry was replaced.
-
-    The clear has to happen against the registry the rolled-back writes invalidated,
-    which is the one on the transaction now -- so it must come first.
-    """
     src = inspect.getsource(_OrmFlushingSavepoint._restore_orm_state)
     assert src.index("_reclear_invalidated_caches") < src.index("txn.reset()")

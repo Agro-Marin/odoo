@@ -4,15 +4,6 @@ _logger = logging.getLogger(__name__)
 
 
 def migrate(cr, version):
-    # Four CHECK constraints land on ir_mail_server with this version. PostgreSQL
-    # refuses to add one that existing rows already violate, and Odoo answers that
-    # by logging the failure and carrying on -- which would leave the guard absent
-    # on exactly the databases that proved they needed it. Repair the rows first.
-    #
-    # A server with no host was never usable: it takes part in from_filter
-    # selection like any other and then raises "Missing SMTP Server" on every mail
-    # routed to it. Archive it rather than invent a transport for it -- mail then
-    # leaves through a server that works, and the record is still there to fix.
     cr.execute(
         """
         UPDATE ir_mail_server
@@ -51,8 +42,6 @@ def migrate(cr, version):
             ", ".join(reset),
         )
 
-    # 0 is the documented "fall back to base.default_max_email_size"; a negative
-    # ceiling turned every attachment on that server into a link, silently.
     cr.execute(
         """
         UPDATE ir_mail_server

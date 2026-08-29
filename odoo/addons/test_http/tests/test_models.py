@@ -207,12 +207,6 @@ class TestHttpPromotionUpload(TestHttpBase):
 
     @mute_logger("odoo.http._serve")
     def test_promotion_rewinds_the_upload_before_the_replay(self):
-        # The read-only -> read/write promotion replays the handler, so the
-        # request body has to be rewound first or the replay reads b"" from a
-        # stream the first attempt drained. ``upload_file_retry`` covers the
-        # *retry* path (a serialization failure inside ``retrying()``); it is
-        # not a readonly route, so nothing exercised the promotion branch of
-        # ``_serve_db`` with a file attached until this.
         res = self.db_url_open(
             "/test_http/promotion_upload",
             files={"ufile": ("gate.txt", b"Chevron seven", "text/plain")},

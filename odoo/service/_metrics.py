@@ -8,8 +8,6 @@ from odoo.modules.registry import Registry
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
-#: Base name of the borrow-wait histogram family.  Its samples are
-#: ``<name>_bucket`` / ``_sum`` / ``_count``; the family is declared once.
 _BORROW_WAIT = "odoo_pool_borrow_wait_seconds"
 
 _LABEL_ESCAPES = str.maketrans({"\\": "\\\\", '"': '\\"', "\n": "\\n"})
@@ -31,15 +29,6 @@ class _Exposition:
         self._base = dict(base_labels or {})
 
     def declare(self, name: str, kind: str, help: str = "") -> None:
-        """Declare a family whose samples carry a suffix.
-
-        A Prometheus histogram is ONE family -- one HELP, one TYPE -- exposed
-        through ``_bucket`` / ``_sum`` / ``_count`` samples.  Declaring each
-        suffix as its own family (two counters and a gauge, which is what this
-        module used to publish) yields something no client reads as a histogram:
-        the quantile functions still work off the ``le`` buckets, but the family
-        has no declared type and the mean has no ``_count`` to divide by.
-        """
         if name in self._declared:
             return
         self._declared.add(name)
@@ -53,7 +42,6 @@ class _Exposition:
         *,
         labels: dict[str, str] | None = None,
     ) -> None:
-        """Emit a sample of an already-declared family, with no TYPE of its own."""
         rendered = int(value) if isinstance(value, bool) else value
         self._lines.append(f"{name}{_labels(self._base | (labels or {}))} {rendered}")
 
@@ -91,11 +79,6 @@ def service_metrics() -> dict[str, Any]:
     }.get(type(server).__name__, type(server).__name__)
 
     if hasattr(server, "workers"):
-        # Only the master knows the fleet.  A worker reached this line holding
-        # the PreforkServer it inherited through os.fork() (_prefork.py:142):
-        # workers_*, population, generation and long_polling_pid are all frozen
-        # at the instant of that fork and never updated in the child, so each
-        # worker would publish a different — and wrong — view of the fleet.
         if os.getpid() == server.pid:
             out["workers"] = {
                 "http": len(server.workers_http),
@@ -122,17 +105,8 @@ def service_metrics() -> dict[str, Any]:
 
 
 def _add_borrow_wait_histogram(exp: _Exposition, mode: str, stats: dict) -> None:
-    """The borrow-wait family: one gauge, then one histogram.
-
-    Split out of ``_add_pool_family`` because it is the only part of that
-    function that emits a multi-sample family rather than one metric per entry
-    of a table, and it is the part whose ordering matters.
-    """
     label = {"pool": mode}
 
-    # Its own family: ``_max`` is not a histogram suffix, so it is declared
-    # first, before the histogram's samples begin -- otherwise its TYPE line
-    # lands in the middle of them.
     exp.add(
         "odoo_pool_borrow_wait_seconds_max",
         stats.get("borrow_wait_seconds_max", 0.0),
@@ -157,9 +131,6 @@ def _add_borrow_wait_histogram(exp: _Exposition, mode: str, stats: dict) -> None
         stats.get("borrow_wait_seconds_total", 0.0),
         labels=label,
     )
-    # The ``+Inf`` bucket IS the observation count, and it comes from the same
-    # snapshot as the rest -- so the mean cannot skew the way it would against a
-    # separately-read counter.
     exp.sample(f"{_BORROW_WAIT}_count", buckets.get("le_+Inf", 0), labels=label)
 
 

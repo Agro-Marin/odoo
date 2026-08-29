@@ -27,16 +27,6 @@ class UniformUpdateCase(TransactionCase):
         self.patch(WriteMixin, "_update_rows_values_sql", values_spy)
 
     def _plain_text_column(self, model_name):
-        """Name a stored text column the collapse is eligible for.
-
-        Naming one in the source is not safe: an installed module may redefine
-        it. `test_inherit` does exactly that to `test_orm.message.body`, giving
-        it `translate=True`, so a suite that assumes `body` is plain passes on
-        its own and fails in any run that installs that module -- which
-        `post_install` guarantees. Resolving the column here also keeps the
-        negative tests honest: one that asserts a differing row *blocks* the
-        collapse proves nothing about a column that could never collapse.
-        """
         for field in self.env[model_name]._fields.values():
             if (
                 field.store

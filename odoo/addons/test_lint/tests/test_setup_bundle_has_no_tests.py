@@ -55,22 +55,6 @@ class TestSetupBundleHasNoTests(lint_case.LintCase):
         )
 
     def test_setup_bundle_globs_reach_no_test_file(self):
-        """The same question asked of the manifests, not of the registry.
-
-        `served_bundle_names` skips a manifest whose module is not installed,
-        and this suite's CI lane installs `test_lint` alone -- so the check
-        above has never actually looked at, say,
-        `im_livechat.embed_assets_unit_tests_setup`, the very bundle it was
-        written for.  Three `.test.js` files were moved into a helper directory
-        that bundle globs, months after being moved out of it, and nothing
-        noticed.
-
-        This one reads the manifests on disk, so it covers every addon on the
-        path whether installed or not.  It resolves plain globs and honours
-        ``('remove', ...)``; it cannot follow ``('include', <bundle>)``, which
-        is exactly what the registry-based check above covers when the module
-        is installed.  The two are complementary; neither is total alone.
-        """
         roots = [Path(p) for p in odoo.addons.__path__]
         roots = [p for p in roots if p.is_dir()]
 

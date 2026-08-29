@@ -25,7 +25,6 @@ from . import (
 
 
 def is_suppressed(source: str, lineno: int, rule: str) -> bool:
-    """`_suppression` holds no policy; this wires the real registry into it."""
     return _suppression.Suppressions.of(
         source, _rules.ALIASES, _rules.UNSUPPRESSABLE
     ).suppresses(lineno, rule)
@@ -295,13 +294,6 @@ class TestOrmImportLint(BaseCase):
         self.assertFalse(self._check("DOC = 'see odoo.orm.fields for details'"))
 
     def test_a_type_checking_import_is_not_a_runtime_dependency(self):
-        """The guidelines recommend exactly this form, and this rule flagged it.
-
-        §2.1 and ADR-0008 allow `odoo.orm` under `if TYPE_CHECKING:` -- it is how
-        a module annotates a `Query` without importing the ORM at run time --
-        and `layer_check.py` enforces the same rule over the core by skipping
-        those blocks. Both spellings of the guard, because both are in the tree.
-        """
         for guard in ("TYPE_CHECKING", "typing.TYPE_CHECKING"):
             with self.subTest(guard=guard):
                 self.assertFalse(
@@ -313,7 +305,6 @@ class TestOrmImportLint(BaseCase):
                 )
 
     def test_the_else_branch_of_a_type_checking_block_still_counts(self):
-        """`else:` under `if TYPE_CHECKING:` is the branch that runs."""
         self.assertTrue(
             self._check("""
             if TYPE_CHECKING:
@@ -456,15 +447,6 @@ class TestSqlLint(BaseCase):
         return list(_checker_sql.SqlInjectionChecker(filepath).check_nodes(nodes))
 
     def test_a_helper_used_many_times_is_one_finding(self):
-        """One fix, one finding.
-
-        The deferred path -- a helper defined AFTER the calls that reach it --
-        yielded once per recorded call site, all anchored at the same `def` line
-        and column, so a helper called from several places counted as several
-        offences against the floor. `_callsites` records some calls twice, which
-        inflated it further: `sale_oyb_wizard.py:736` was ten of agromarin's
-        twenty-two findings, from five call sites.
-        """
         violations = self._check("""
         def a(self, t):
             self.env.cr.execute(build(t))
@@ -483,13 +465,6 @@ class TestSqlLint(BaseCase):
             self.assertIn(f"dummy.py:{line}", violations[0].message)
 
     def test_a_same_named_method_in_another_class_does_not_taint_a_safe_one(self):
-        """Two classes are free to name a method the same thing.
-
-        `_function_defs`/`_callsites` used to be keyed by bare method name, so
-        a safe `A()._query()` -- a constant string, nothing built from input --
-        was flagged purely because an unrelated `B._query` elsewhere in the
-        same file built a query from a variable.
-        """
         violations = self._check("""
         class A:
             def _query(self):
@@ -508,13 +483,6 @@ class TestSqlLint(BaseCase):
         )
 
     def test_a_helper_defined_first_is_reported_at_each_call(self):
-        """The other order is genuinely several findings, and stays several.
-
-        With the helper already known, each `execute` is judged where it stands,
-        so the findings are at distinct lines and each names one risky call --
-        which is what a reader needs to fix them. Only the deferred path
-        collapsed, and only because it reported the same `def` repeatedly.
-        """
         violations = self._check("""
         def build(table):
             return f"SELECT * FROM {table}"
@@ -529,12 +497,6 @@ class TestSqlLint(BaseCase):
         self.assertEqual(sorted(v.lineno for v in violations), [5, 8])
 
     def test_two_queries_on_one_line_are_two_findings(self):
-        """They differ by column, which is what `Finding.col_offset` carries.
-
-        The deduplication above must not reach these: `mixin_sql_report.py:191`
-        and `base_partner_merge.py:398` each really do build two queries on one
-        line, and `odoo` reads 37 findings on 35 lines because of it.
-        """
         violations = self._check(
             "def f(self, a, b):\n"
             '    self.env.cr.execute(f"S {a}"), self.env.cr.execute(f"S {b}")\n'
@@ -1391,13 +1353,6 @@ class TestBatchLint(BaseCase):
 
 @no_retry
 class TestSuppressionSpans(BaseCase):
-    """A directive on the closing line of a wrapped statement counts.
-
-    Ruff anchors on the first line only, and so did this, which made the
-    placement a developer reaches for first do nothing at all -- silently, since
-    an ignored directive looks exactly like an absent one.
-    """
-
     @staticmethod
     def _spans(source: str) -> dict[int, int]:
         return _rules.statement_spans(_rules.walk_with_parents(ast.parse(source)))
@@ -1409,13 +1364,6 @@ class TestSuppressionSpans(BaseCase):
         ).suppresses(lineno, rule, lines)
 
     def test_a_directive_opening_a_wrapped_call_reaches_a_finding_inside_it(self):
-        """`geoengine/models/geo_domain.py:221` did exactly this, and it did nothing.
-
-        The waiver is on the line that OPENS a wrapped `SQL(...)`; the finding is
-        reported against the nested call on the line after. Of the three places a
-        developer writes a directive -- on the finding, opening the statement,
-        closing it -- only the first used to work.
-        """
         source = dedent("""\
             def f(self, op, column):
                 return SQL(  # pylint: disable=sql-injection
@@ -1448,11 +1396,6 @@ class TestSuppressionSpans(BaseCase):
         self.assertFalse(self._suppresses(source, 2, "sql-injection"))
 
     def test_a_block_body_cannot_waive_its_own_header(self):
-        """Otherwise one directive anywhere in a function silences the `def`.
-
-        `_checker_sql` reports a helper that builds a query at the FunctionDef's
-        own line, so the span for a compound statement must stay one line.
-        """
         source = dedent("""\
             def build(table):
                 x = 1  # noqa: E8501  unrelated
@@ -1528,8 +1471,6 @@ class TestTaxCompanySingularLint(BaseCase):
 
 @no_retry
 class TestShadowedDefinitionLint(BaseCase):
-    """A method defined twice in a class body: the first one never runs."""
-
     def _check(self, snippet):
         return [
             v.message

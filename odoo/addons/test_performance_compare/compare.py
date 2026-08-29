@@ -13,8 +13,6 @@ THRESHOLD = 1.05
 
 NOISY_CV = 0.15
 
-# Below the timer's resolution (README "Reading the results — caveats"):
-# ratios of ops this cheap are noise, not signal, on both sides of a comparison.
 SUBMICRO_US = 1.0
 
 

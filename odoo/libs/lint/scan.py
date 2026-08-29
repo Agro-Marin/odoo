@@ -1,12 +1,3 @@
-"""Parallel source scanning for the ``test_lint`` gates.
-
-The scanner lives in its own native extension, ``odoo_lint``, not in
-``odoo_rust``. ``odoo_rust`` is a hard runtime dependency that every deployment
-and every worker carries; this is used by four lint suites and never by a
-running server, and it brought twenty crates and 890 KB of wheel with it. It is
-imported here, lazily, by the only module that needs it.
-"""
-
 from pathlib import Path
 
 from odoo.libs.native import assert_fresh, assert_optimised
@@ -24,10 +15,6 @@ except ImportError as exc:  # pragma: no cover - exercised by not installing it
         "`maturin build --release --manifest-path crates/odoo_lint/Cargo.toml`."
     ) from exc
 
-# A stale scanner does not fail, it counts differently — and every gate it feeds
-# is an exact-mode ratchet that fails in BOTH directions, so the symptom is a
-# ratchet failure that sends you hunting through the tree for a change nobody
-# made. Check before the first scan rather than after the first confusing gate.
 assert_fresh(
     odoo_lint,
     Path(__file__).resolve().parents[3] / "crates" / "odoo_lint",

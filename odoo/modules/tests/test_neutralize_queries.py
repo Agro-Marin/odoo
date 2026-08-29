@@ -12,13 +12,9 @@ BaseCase = unittest.TestCase
 
 
 class _Cursor:
-    """Executes nothing; raises for the module named in `fail_on`."""
-
     def __init__(self, fail_on=None, installed=()):
         self.executed = []
         self.fail_on = fail_on
-        #: read by fetchall(); it was only ever set from outside, so the double
-        #: was a step away from an AttributeError that named nothing
         self.installed = list(installed)
 
     def execute(self, query, params=None):
@@ -88,8 +84,6 @@ class TestQueriesCarryTheirModule(NeutralizeQueryCase):
 
 class TestAFailingQueryNamesItsModule(NeutralizeQueryCase):
     def test_the_note_names_the_file_the_sql_came_from(self):
-        # Each query is a whole .sql file run as one batch, so the driver error
-        # on its own cannot say which of the installed modules produced it.
         self._make_module("probe_good", "UPDATE good SET x = 1;")
         self._make_module("probe_bad", "UPDATE broken SET y = 2;")
         cursor = _Cursor(fail_on="broken")

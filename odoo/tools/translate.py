@@ -196,16 +196,6 @@ def translate_xml_node(
     callback: Callable[[str], str | None],
     serialize: Callable[[etree._Element], str],
 ) -> etree._Element:
-    """Walk ``node``, handing each translatable run of markup to ``callback``.
-
-    The round-trip of a translated fragment is re-parsed with ``parse_html``,
-    deliberately and for both dialects: translators write ``<br>``, which is
-    legal HTML and not well-formed XML, so parsing the result strictly would
-    turn an ordinary translation into an ``XMLSyntaxError``. This used to take a
-    ``parse`` argument that all three call sites supplied and the body never
-    read -- an unused parameter that invited exactly the "fix" that breaks it.
-    """
-
     def nonspace(text):
         return bool(text) and not space_pattern.fullmatch(text)
 
@@ -432,26 +422,11 @@ def is_text(term: str) -> bool:
 
 @dataclass(frozen=True)
 class TranslationDialect:
-    """Everything one markup language needs in order to be translated.
-
-    These five used to be attributes bolted onto the two translate *functions*,
-    which made the set open-ended and its members optional-by-accident:
-    ``xml_translate`` carried a ``term_adapter`` and ``html_translate`` did not,
-    and the only statement of that fact anywhere was a ``hasattr`` in the ORM's
-    translation write path. Spelled as a field with a default, the asymmetry is
-    declared rather than discovered.
-
-    Instances are callable so that ``field.translate(callback, value)`` -- and
-    ``callable(field.translate)``, which the ORM tests to tell a dialect from a
-    plain ``translate=True`` -- keep working unchanged.
-    """
-
     name: str
     translate: Callable[[Callable[[str], str | None], str | None], str | None]
     get_text_content: Callable[[str], str]
     term_converter: Callable[[str], str]
     is_text: Callable[[str], bool]
-    #: Only the XML dialect can adapt a term to a changed structure.
     term_adapter: Callable[[str], Callable[[str], str | None]] | None = None
 
     def __call__(
@@ -1004,13 +979,6 @@ _writer = codecs.getwriter("utf-8")
 
 
 class _UnixDialect(csv.excel):
-    """Excel's quoting, LF line endings.
-
-    Neither stdlib dialect is this: `excel` writes CRLF, `unix` quotes every
-    field. It is ours, so it lives with its one caller rather than in the
-    stdlib registry under a global name.
-    """
-
     lineterminator = "\n"
 
 

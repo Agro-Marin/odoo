@@ -1,12 +1,3 @@
-"""The evaluation-free QWeb renderer, without a database.
-
-`mail` renders a `t-out` body two ways and they must produce the same bytes.
-The half of the second renderer that is a function of a tree and a value lives
-in `odoo.tools.rendering_tools`, so it is pinned here -- in Tier 1, no registry,
-no cursor -- rather than in a `post_install` integration suite that has to
-install `test_mail` to ask what `<p/>` serialises to.
-"""
-
 import unittest
 
 from lxml import html
@@ -24,12 +15,10 @@ from odoo.tools.rendering_tools import (
 
 
 def parse(source):
-    """Parse a body the way the renderer's caller does."""
     return html.fragment_fromstring(source, create_parent="div")
 
 
 def render(source, values=None, missing=None):
-    """Compile ``source`` and fill it from ``values``."""
     values = values or {}
     segments, holes = compile_static_template(parse(source))
     return str(render_static_program(segments, holes, lambda e: values.get(e, missing)))
@@ -63,9 +52,6 @@ class TestCompile(unittest.TestCase):
 
 
 class TestHoleMarkers(unittest.TestCase):
-    """U+E000 is the first Private Use codepoint -- the first glyph of most icon
-    fonts -- so it reaches a mail body by ordinary copy-paste."""
-
     def test_a_marker_in_the_body_is_refused_rather_than_substituted(self):
         source = f'<p>{HOLE_OPEN}0{HOLE_CLOSE}</p><b t-out="a">d</b>'
         with self.assertRaises(StaticRenderUnsupported):
@@ -82,8 +68,6 @@ class TestHoleMarkers(unittest.TestCase):
 
 
 class TestNoValue(unittest.TestCase):
-    """None and False are what `_compile_out_emit` writes the default for."""
-
     def test_none_and_false_take_the_default(self):
         for value in (None, False):
             with self.subTest(value=value):
@@ -116,16 +100,12 @@ class TestEscaping(unittest.TestCase):
         self.assertEqual(render('<p t-out="a"/>', {"a": 12}), "<p>12</p>")
 
     def test_escape_static_text_leaves_quotes_alone(self):
-        """It escapes an element body, where a quote needs no escaping -- and
-        `ir.qweb` emits none there either."""
         self.assertEqual(
             escape_static_text('a & b < c > d "q"'), 'a &amp; b &lt; c &gt; d "q"'
         )
 
 
 class TestSerialisation(unittest.TestCase):
-    """`ir.qweb` writes XHTML; this renderer must write the same bytes."""
-
     def test_an_empty_non_void_element_keeps_both_tags(self):
         self.assertEqual(str(serialize_static_tree(parse("<p></p>"))), "<p></p>")
 

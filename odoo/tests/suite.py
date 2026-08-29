@@ -27,13 +27,6 @@ class TestSuite(BaseTestSuite):
             if not test.__class__._classSetupFailed:
                 test(result)
 
-            # Drop the reference to the finished test, as ``BaseTestSuite.run``
-            # does. Everything a test hangs off ``self`` -- ``env``, ``registry``,
-            # the ``Opener`` and its connection pool, the three ServerProxies,
-            # whatever the addon's own setUp attached -- stays reachable until
-            # the whole suite is discarded otherwise, and a suite is per module:
-            # test_mail builds one of 1387. Measured at 300 tests holding 256KiB
-            # each, this line is the difference between 0 and 78.6MB retained.
             if self._cleanup:
                 self._removeTestAtIndex(index)
 
@@ -81,7 +74,6 @@ class TestSuite(BaseTestSuite):
             result.addSkip(
                 error,
                 str(exception),
-                # a setUpClass can hit the same missing environment a test can
                 infrastructure=isinstance(exception, InfrastructureUnavailable),
             )
         elif not info:
@@ -181,6 +173,4 @@ class OdooSuite(TestSuite):
             super()._tearDownPreviousClass(test, result)
 
     def has_http_case(self) -> bool:
-        # Must be asked *before* run(): finished tests are replaced by None so
-        # they can be collected, so a spent suite answers False either way.
         return any(isinstance(test_case, HttpCase) for test_case in self)

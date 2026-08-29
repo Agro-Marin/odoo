@@ -102,11 +102,6 @@ DOMAIN_RELATIONAL = [
 
 @tagged("standard", "domain_benchmark")
 class TestDomainBenchmark(TransactionCase):
-    """Timing only: no test_* method here asserts on a measured value.
-
-    A failure here is an exception, never a performance regression.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -203,9 +198,6 @@ class TestDomainBenchmark(TransactionCase):
         self._bench("sort_key: DomainAnd", lambda: _optimize_nary_sort_key(d))
 
     def test_21_sort_children(self):
-        # DOMAIN_MANY_CHILDREN is a flat OR of 12 distinct leaves, so
-        # `.children` is a genuinely larger/distinct set to sort — not the
-        # same 3-4 elements of a smaller domain repeated.
         d = Domain(DOMAIN_MANY_CHILDREN)
         items = list(d.children) if hasattr(d, "children") else [d]
         self._bench(

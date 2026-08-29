@@ -1,19 +1,3 @@
-"""A delete must not leave a dereferenced record's name cached.
-
-`_invalidate_after_delete` replaced a blanket `invalidate_all` with a targeted
-sweep driven by `Registry.fields_by_comodel` -- an index of relations whose
-comodel is fixed at setup. A `Many2oneReference` names its model in a sibling
-column instead, so it sits in no comodel bucket and no sweep keyed on the
-deleted model can reach a field computed from one. Such a field caches a value
-read out of a model the registry cannot associate with it, and nothing it
-declares as a dependency changes when that record is deleted, so it keeps
-reporting a record that is gone.
-
-`Registry.fields_reading_through_a_reference` is the index that closes that,
-and these tests pin both halves: the index finds the field, and the delete
-clears it.
-"""
-
 from odoo import api, fields, models
 from odoo.orm.model_test_env import model_test_env
 
@@ -37,12 +21,7 @@ class Pointer(models.Model):
 
     res_model = fields.Char()
     res_id = fields.Many2oneReference(model_field="res_model")
-    # The shape this is all about: non-stored, and computed by browsing a model
-    # named in a sibling column (cf. `documents.document.res_name`,
-    # `ir.attachment.res_name`, `mail.message.record_name`).
     res_name = fields.Char(compute="_compute_res_name")
-    # A stored sibling, to pin that the index leaves those alone: its value
-    # lives in the row, so a dropped cache entry is re-read, not recomputed.
     res_name_stored = fields.Char(compute="_compute_res_name_stored", store=True)
 
     @api.depends("res_model", "res_id")
@@ -51,11 +30,6 @@ class Pointer(models.Model):
             target = self.env[record.res_model].browse(record.res_id)
             record.res_name = target.exists().name or False
 
-    # `Reference` is the other dynamic-model field type: it names its model
-    # inside its own "model,id" value, so it is absent from `fields_by_comodel`
-    # for exactly the same reason. Core has no non-stored compute reading
-    # through one today, which is why this test defines one -- an empty type is
-    # a hole nobody would notice reopening.
     ref = fields.Reference(selection=[("uirr.target", "Target")])
     ref_name = fields.Char(compute="_compute_ref_name")
 
@@ -67,8 +41,6 @@ class Pointer(models.Model):
     @api.depends("ref")
     def _compute_ref_name(self):
         for record in self:
-            # a Reference resolves to a recordset at runtime; the descriptor
-            # is typed str, which is the gap this test exists around
             record.ref_name = (
                 record.ref.exists().name if record.ref else False  # type: ignore[attr-defined]
             )
@@ -125,7 +97,6 @@ def test_the_index_leaves_stored_fields_alone():
 
 
 def test_no_comodel_bucket_can_reach_the_field():
-    """The premise: this is why the sweep keyed on the deleted model misses it."""
     with _env() as env:
         by_comodel = env.registry.fields_by_comodel
         reachable = set(by_comodel.get("uirr.target", ()))
@@ -137,13 +108,6 @@ def _is_cached(env, record, fname):
 
 
 def test_the_delete_sweep_drops_the_cached_name():
-    """`_invalidate_after_delete` is the sweep `unlink` runs after the DELETE.
-
-    It is called directly here: the harness registry carries only the models
-    under test, and the full `unlink` reaches `ir.model.data` and
-    `ir.attachment`. What the sweep does with the cache is the whole of the
-    change, and it is what the caller depends on.
-    """
     with _env() as env:
         target = env["uirr.target"].create({"name": "Target"})
         pointer = env["uirr.pointer"].create(
@@ -161,12 +125,6 @@ def test_the_delete_sweep_drops_the_cached_name():
 
 
 def test_the_sweep_runs_whatever_was_deleted():
-    """Whether a delete matters to a reference reader is not knowable here.
-
-    The column that would say so is exactly the one no comodel index can
-    consult, so the set is swept on every delete. Pinning that keeps the cost
-    visible instead of making it look conditional on the deleted model.
-    """
     with _env() as env:
         target = env["uirr.target"].create({"name": "Target"})
         pointer = env["uirr.pointer"].create(
@@ -174,9 +132,6 @@ def test_the_sweep_runs_whatever_was_deleted():
         )
         assert pointer.res_name == "Target"
 
-        # Deleting the pointer's OWN model would clear the field via the
-        # per-model loop, proving nothing. `uirr.bystander` is in neither
-        # index for `uirr.pointer`, so only the reference sweep can reach it.
         env["uirr.bystander"]._invalidate_after_delete()
 
         assert not _is_cached(env, pointer, "res_name")

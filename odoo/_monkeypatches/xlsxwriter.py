@@ -16,9 +16,6 @@ class PatchedXlsxWorkbook(xlsxwriter.Workbook):
     def _sanitized(self, name: str | None) -> str | None:
         if not name:
             return name
-        # Both sheet kinds share one namespace in `_check_sheetname`, and
-        # `worksheets()` is the list it checks against, so a chartsheet clashes
-        # with a worksheet exactly as two worksheets do.
         return sanitize_excel_sheet_name(
             name, [sheet.name for sheet in self.worksheets()]
         )
@@ -39,17 +36,4 @@ class PatchedXlsxWorkbook(xlsxwriter.Workbook):
 
 
 def patch_module() -> None:
-    """Make `xlsxwriter.Workbook` safe for names and cell values we do not own.
-
-    Two problems, both from data that reaches the workbook without passing a
-    validator. Sheet names come from translated report titles and can break
-    every one of Excel's four naming rules, so they go through
-    `sanitize_excel_sheet_name` first -- xlsxwriter's own check only raises.
-    And `strings_to_formulas` is on by default, which turns an exported cell
-    beginning with `=` into a live formula; it is switched off.
-
-    Patching the `xlsxwriter.Workbook` attribute is enough: every call site in
-    the tree does `import xlsxwriter` and then `xlsxwriter.Workbook(...)`, so
-    none of them bypasses the subclass.
-    """
     xlsxwriter.Workbook = PatchedXlsxWorkbook

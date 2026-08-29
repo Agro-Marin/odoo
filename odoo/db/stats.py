@@ -13,18 +13,6 @@ _PROBE_OUTCOMES: dict[str, str] = {
 
 
 class PoolStats:
-    """Counters behind `ConnectionPool.health()`, and the lock that makes them true.
-
-    Every field is mutated only through the methods below, each of which holds
-    `_lock` for the whole update. `x += 1` on an attribute is a non-atomic
-    read-modify-write, so the counters that exist to diagnose concurrency were
-    the ones losing increments under it — and the histogram could drift out of
-    step with the total it summarises, because they were separate writes.
-
-    The cost is one uncontended lock acquisition per borrow, against a ~140 us
-    cursor cycle.
-    """
-
     __slots__ = (
         "_lock",
         "borrow_wait_buckets",

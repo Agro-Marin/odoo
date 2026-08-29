@@ -1,11 +1,3 @@
-"""Tier-1 (DB-free) tests for the docstring/signature reflection helpers.
-
-Every case here is a bug that reached production in ``addons/api_doc``: a
-``:type:`` field written to the wrong attribute, ``**kwargs`` rendered as a
-plain parameter, and a whole class of methods reflecting as ``(...)`` because
-their annotations name types imported under ``if TYPE_CHECKING:``.
-"""
-
 import logging
 import typing
 
@@ -18,7 +10,7 @@ if typing.TYPE_CHECKING:
 
 
 class Recordset:
-    """Stand-in for an annotation a transport wants rewritten."""
+    pass
 
 
 def _params(func, **kwargs):
@@ -32,23 +24,19 @@ def _signature(func, **kwargs):
 class TestTypeField:
     def test_type_field_fills_an_unannotated_parameter(self):
         def f(value):
-            """Do a thing.
-
-            :param value: what to do it to
-            :type value: SomeCustomType
-            """
+            pass
 
         assert _params(f)["value"]["annotation"] == "SomeCustomType"
 
     def test_type_field_exports_no_other_key(self):
         def f(value):
-            """:type value: SomeCustomType"""
+            pass
 
         assert set(_params(f)["value"]) == {"annotation"}
 
     def test_an_annotation_wins_over_the_type_field(self):
         def f(value: int):
-            """:type value: str"""
+            pass
 
         assert _params(f)["value"]["annotation"] == "int"
 
@@ -167,11 +155,7 @@ class TestDefaults:
 class TestInfoFields:
     def test_returns_and_rtype(self):
         def f():
-            """Do it.
-
-            :returns: the thing
-            :rtype: dict
-            """
+            pass
 
         d = docstring.parse_signature(f).as_dict()
         assert d["return"]["annotation"] == "dict"
@@ -179,7 +163,6 @@ class TestInfoFields:
 
     def test_an_annotation_wins_over_rtype(self):
         def f() -> list[int]:
-            """:rtype: dict"""
             return []
 
         assert (
@@ -189,10 +172,7 @@ class TestInfoFields:
 
     def test_raises_is_collected_per_exception(self):
         def f():
-            """
-            :raises AccessError: not allowed
-            :raises ValueError: bad input
-            """
+            pass
 
         raised = docstring.parse_signature(f).as_dict()["raise"]
         assert set(raised) == {"AccessError", "ValueError"}
@@ -200,7 +180,7 @@ class TestInfoFields:
 
     def test_inline_annotation_in_a_param_field(self):
         def f(a):
-            """:param str a: the a"""
+            pass
 
         param = _params(f)["a"]
         assert param["annotation"] == "str"
@@ -208,26 +188,19 @@ class TestInfoFields:
 
     def test_prose_survives_as_the_doc(self):
         def f(a):
-            """Summary line.
-
-            :param a: ignored
-            """
+            pass
 
         assert "Summary line." in docstring.parse_signature(f).as_dict()["doc"]
 
     def test_a_field_for_an_unknown_parameter_is_ignored(self):
         def f(a):
-            """:param nonexistent: nothing"""
+            pass
 
         assert set(_params(f)) == {"a"}
 
     def test_var_fields_are_skipped_without_complaint(self, caplog):
         def f():
-            """
-            :ivar thing: an attribute
-            :vartype thing: str
-            :meta private:
-            """
+            pass
 
         with caplog.at_level(logging.WARNING, logger=docstring.__name__):
             docstring.parse_signature(f)
@@ -235,7 +208,7 @@ class TestInfoFields:
 
     def test_an_unknown_field_name_is_reported(self, caplog):
         def f():
-            """:nonsense value: what"""
+            pass
 
         with caplog.at_level(logging.WARNING, logger=docstring.__name__):
             docstring.parse_signature(f)
@@ -272,8 +245,6 @@ class TestNoDocstring:
 
 
 class TestBorrowedDocstring:
-    """An override that documents nothing is described by what it replaced."""
-
     def test_an_explicit_docstring_is_merged_into_the_signature(self):
         def override(a):
             pass
@@ -286,7 +257,7 @@ class TestBorrowedDocstring:
 
     def test_an_explicit_docstring_wins_over_the_callable_s_own(self):
         def override(a):
-            """Own prose."""
+            pass
 
         d = docstring.parse_signature(override, docstring="Borrowed prose.").as_dict()
         assert "Borrowed prose." in d["doc"]

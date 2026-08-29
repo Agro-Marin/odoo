@@ -1,24 +1,3 @@
-"""safe_eval must not destroy the class of a database error.
-
-`_BUBBLEUP_EXCEPTIONS` named `OperationalError`, so what survived evaluation was
-whatever psycopg happens to derive from it. Measured, raised from inside
-evaluated code: `SerializationFailure`, `DeadlockDetected` and
-`LockNotAvailable` came out intact, while `UniqueViolation`,
-`ForeignKeyViolation`, `ReadOnlySqlTransaction` and `FeatureNotSupported` came
-out as `ValueError`.
-
-Every one of those is a class the framework has a policy for, and every policy
-keys on the class: `retrying()` turns an `IntegrityError` into a
-`ValidationError`, and replays `PG_RETRY_EXCEPTIONS` and a marked stale cached
-plan. Wrapped, none of that fires -- a server action violating a constraint
-reached the user as `ValueError: UniqueViolation(...) while evaluating ...`.
-
-These are the mechanism checks, which run without a database. The end-to-end
-behaviour -- that a constraint violated by a server action now arrives as a
-`ValidationError` -- is pinned in `base/tests/test_db_cursor.py`, because the
-taxonomy lookup needs a real `import odoo.db`.
-"""
-
 import inspect
 import sys
 import unittest

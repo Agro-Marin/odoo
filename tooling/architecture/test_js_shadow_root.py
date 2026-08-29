@@ -62,7 +62,6 @@ def test_the_helper_itself_is_where_the_one_real_call_lives(tree):
     tree("core/utils/dom/ui.js", HELPER_ITSELF)
     findings, _scanned = _find(tree, helper="web/static/src/core/utils/dom/ui.js")
     assert findings == []
-    # ...and it is only exempt under that exact path
     findings, _scanned = _find(tree, helper="somewhere/else.js")
     assert len(findings) == 1
 
@@ -87,8 +86,6 @@ def test_the_word_alone_is_not_a_call(tree):
 
 
 def test_tests_are_not_scanned(tmp_path):
-    # A test that attaches a raw shadow root to prove the traversal ignores it
-    # is asserting this rule, not breaking it.
     path = tmp_path / "web" / "static" / "tests" / "a.test.js"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(RAW, encoding="utf-8")

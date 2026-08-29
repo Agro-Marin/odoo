@@ -15,8 +15,6 @@ from .command import (
 
 
 class Help(Command):
-    """Display the list of available commands"""
-
     template = textwrap.dedent("""\
         usage: {prog_name} [--addons-path=PATH,...] <command> [...]
 
@@ -39,14 +37,8 @@ class Help(Command):
         )
 
     def run(self, args: list[str]) -> None:
-        # Routed through self.parser (not a bare `args[0]` check) so `-h`/
-        # `--help` get argparse's own usage instead of being indistinguishable
-        # from the bare command list, and a stray extra argument is rejected
-        # instead of silently discarded.
         parsed = self.parser.parse_args(args)
         if parsed.command and Command.is_valid_name(parsed.command):
-            # `odoo-bin help <command>` used to print this list, i.e. answer a
-            # question about one command with the index of all of them.
             return self.run_command_help(parsed.command)
 
         load_internal_commands()
@@ -78,7 +70,6 @@ class Help(Command):
         return None
 
     def run_command_help(self, name: str) -> None:
-        """Render ``name``'s own ``--help``, the way the user asked for it."""
         command = find_command(name)
         if command is None:
             sys.exit(

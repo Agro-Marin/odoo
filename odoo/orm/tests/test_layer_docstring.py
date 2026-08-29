@@ -1,35 +1,11 @@
-"""`odoo.orm.__doc__` must not contradict itself.
-
-The docstring opens by claiming it "cannot disagree" with the layer gate. It
-disagreed with ITSELF: `_protocols.py` was listed twice, once under Layer 0 and
-once under "Seams (deliberately not in any layer)", 22 lines apart.
-
-The gate that watches this docstring, `tooling/architecture/test_architecture_doc`,
-could not see it. One of its checks splits on the Layer 0 heading and never
-reads the other sections; the other asks only whether each member name appears
-somewhere in the text, which a name listed twice satisfies twice over.
-
-This is the self-consistency half, and it lives here because it needs nothing
-outside `odoo/orm`. Comparing the docstring against
-`tooling/architecture/_orm_layer_scope.SCOPE` would be the other half; that
-belongs with the gate in `tooling/`, which is outside this package.
-"""
-
 import re
 
 import odoo.orm
 
-#: Any line of the module layout that names a module or subpackage.
 _ENTRY = re.compile(r"^  (\w+\.py|\w+/)\s", re.MULTILINE)
 
 
 def _layout() -> str:
-    """The listing: everything from the first layer heading to the closing note.
-
-    There is no single "Module layout:" heading here -- the listing is the run of
-    `Layer N` / `Cross-cutting` / `Seams` sections -- so the block is bounded by
-    the first heading and the sentence that follows the last one.
-    """
     doc = odoo.orm.__doc__ or ""
     _, sep, tail = doc.partition("Layer 0 — Zero-dependency foundations:")
     assert sep, "the docstring no longer opens its listing with the Layer 0 heading"

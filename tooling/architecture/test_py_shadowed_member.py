@@ -35,8 +35,6 @@ def test_a_second_def_of_the_same_method_is_reported(tmp_path):
 
 
 def test_the_leading_underscore_is_not_an_exemption():
-    # The whole reason this gate exists: ruff's F811 drops any name matching
-    # its dummy-variable-rgx, and every Odoo model method is _-prefixed.
     assert gate.OVERLOAD_DECORATORS.isdisjoint({"_", "__"})
     assert not any(s.startswith("_") for s in gate.SELF_DECLARING_SUFFIXES)
 
@@ -60,9 +58,6 @@ def test_a_redefinition_that_declares_itself_is_not_reported(tmp_path, decorator
 def test_overload_stubs_and_their_implementation_are_one_definition(
     tmp_path, decorator
 ):
-    # The implementation that follows @overload stubs MUST be undecorated --
-    # reporting it was this gate's own first bug, and it fired 13 times across
-    # odoo/orm before the rule learned the difference.
     found = scan_source(
         tmp_path,
         "class A:\n"
@@ -94,8 +89,6 @@ def test_a_third_definition_after_an_overload_implementation_is_reported(tmp_pat
 
 
 def test_a_bare_second_def_after_a_property_is_reported(tmp_path):
-    # @property is deliberately not an exemption: the legitimate redefinition
-    # is @_m.setter, and a plain `def` is the accident.
     found = scan_source(
         tmp_path,
         "class A:\n"
@@ -110,8 +103,6 @@ def test_a_bare_second_def_after_a_property_is_reported(tmp_path):
 
 
 def test_a_module_level_class_redefinition_is_out_of_scope(tmp_path):
-    # test_orm and test_inherit redeclare models on purpose; a fixture that
-    # redefines a class is not a shadowed member.
     found = scan_source(
         tmp_path,
         "class A:\n    pass\n\n\nclass A:\n    pass\n",
@@ -165,6 +156,4 @@ def test_an_ungoverned_scope_is_refused_rather_than_scanned():
 
 
 def test_the_governed_scopes_include_every_sibling_checkout():
-    # naming (ADR §9.4) is gated on odoo/ alone and a regression outside it is
-    # caught by nothing. This one starts governed everywhere.
     assert set(gate.SIBLING_SCOPES) == {"enterprise", "agromarin", "design-themes"}

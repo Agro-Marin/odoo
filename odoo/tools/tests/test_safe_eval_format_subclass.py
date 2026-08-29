@@ -1,17 +1,3 @@
-"""The format guard against a ``str`` *subclass* receiver.
-
-``assert_no_dunder_format_field`` reads the template out of ``co_consts``, so it
-only ever sees a literal written in the expression. Everything that arrives from
-the evaluation context -- an ``html`` field, which reads back as
-``markupsafe.Markup`` -- is covered by ``_guard_format`` alone, and that guard
-used to test ``type(recv) is str``, which no subclass satisfies.
-
-Two halves have to hold at once, and the cheap fix only gets the first:
-rebuilding the receiver as a plain ``_GuardedStr`` blocks the attribute read and
-silently drops Markup's auto-escaping, which trades a disclosure bug for an
-injection one. Both columns are pinned here for that reason.
-"""
-
 import unittest
 from datetime import date
 
@@ -21,8 +7,6 @@ from odoo.tools.safe_eval import safe_eval
 
 
 class Receiver:
-    """Stands in for a record: an ordinary object with a bound method."""
-
     body = Markup("{0.method.__globals__}")
 
     def method(self):
@@ -34,8 +18,6 @@ class TestFormatGuardStrSubclass(unittest.TestCase):
         with self.assertRaises(ValueError) as caught:
             safe_eval(expr, context)
         self.assertIn("attribute access is not allowed", str(caught.exception))
-
-    # --- the guard fires for a subclass receiver -------------------------
 
     def test_markup_attribute_access_is_blocked(self):
         self.assertBlocked(
@@ -60,20 +42,9 @@ class TestFormatGuardStrSubclass(unittest.TestCase):
         )
 
     def test_receiver_reached_through_a_field_read(self):
-        """Nothing is seeded in the context: this is the mail-template shape."""
         self.assertBlocked("r.body.format(r)", {"r": Receiver()})
 
-    # --- nested replacement fields ---------------------------------------
-
     def test_nested_format_spec_is_blocked(self):
-        """``{0:{1.attr}}``.
-
-        A pre-scan of the template with ``Formatter.parse`` does not descend
-        into a format spec, so it reads ``{1.attr}`` as opaque text. Only
-        ``get_field`` -- reached through ``vformat``'s recursion -- sees it.
-        ``date.__format__`` returns a spec holding no ``%`` codes verbatim, so
-        the payload would come straight back to the caller.
-        """
         for receiver in (
             Markup("{0:{1.method.__globals__}}"),
             "{0:{1.method.__globals__}}",
@@ -83,8 +54,6 @@ class TestFormatGuardStrSubclass(unittest.TestCase):
                     "m.format(d, o)",
                     {"m": receiver, "d": date(2026, 1, 1), "o": Receiver()},
                 )
-
-    # --- and the receiver keeps its own semantics -------------------------
 
     def test_markup_still_escapes_and_stays_markup(self):
         result = safe_eval("m.format(x)", {"m": Markup("<b>{0}</b>"), "x": "<i>"})

@@ -52,9 +52,6 @@ if __name__ == "__main__":
 
 
 class TestLazyComparison(unittest.TestCase):
-    """Ported from `odoo/addons/base/tests/test_func.py`, which reached these
-    through the `odoo.tools` facade from a database-backed test case."""
-
     def test_ordering_and_equality_force_the_value(self):
         self.assertTrue(lazy(lambda: 1) <= lazy(lambda: 42))
         self.assertFalse(lazy(lambda: 42) <= lazy(lambda: 1))

@@ -105,7 +105,6 @@ class BrandedFileWriter(PdfWriter):
         super().write_stream(*args, **kwargs)
 
 
-
 def merge_pdf(pdf_data: list[bytes]) -> bytes:
     writer = BrandedFileWriter()
     for document in pdf_data:
@@ -425,13 +424,6 @@ class OdooPdfFileWriter(BrandedFileWriter):
 
     @classmethod
     def _normalize_annotation_flags(cls, pages: Iterable[Any]) -> None:
-        """Give every annotation the /F flags PDF/A clause 6.3.2 requires.
-
-        Print must be set; Hidden, Invisible, NoView and ToggleNoView must be
-        clear. Popup annotations are exempt, and text annotations additionally
-        want NoZoom and NoRotate. An annotation with no /F at all is the common
-        case and is the one that fails validation.
-        """
         clear = (
             cls._PDFA_ANNOT_HIDDEN
             | cls._PDFA_ANNOT_INVISIBLE

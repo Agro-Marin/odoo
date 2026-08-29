@@ -29,9 +29,6 @@ class TestRendersAsNoValue(unittest.TestCase):
                 self.assertFalse(renders_as_no_value(value))
 
     def test_binary_has_no_text_form(self):
-        # `str` answers `b'iVBORw0KGgo...'` -- the whole base64 payload plus the
-        # Python repr around it -- which used to be what a binary field put in
-        # a mail subject.
         for value in (b"iVBORw0KGgo", b"", bytearray(b"x"), memoryview(b"x")):
             with self.subTest(value=value):
                 self.assertTrue(renders_as_no_value(value))
@@ -64,8 +61,6 @@ class TestRenderInlineTemplateNoValue(unittest.TestCase):
 
 
 class TestInlineDefaultEscaping(unittest.TestCase):
-    """`}}` ends a placeholder, so a default holding one needs an escape."""
-
     def test_escaped_terminator_survives(self):
         self.assertEqual(
             parse_inline_template(r"{{x ||| see \}\} here}}"),
@@ -77,13 +72,10 @@ class TestInlineDefaultEscaping(unittest.TestCase):
         self.assertEqual(render(r"{{ x ||| trail\\}}", x=False), "trail\\")
 
     def test_a_lone_backslash_is_left_as_authored(self):
-        # Written before the escape existed, and must keep parsing the same way.
         self.assertEqual(render(r"{{ x ||| C:\temp}}", x=False), r"C:\temp")
         self.assertEqual(render(r"{{ x ||| back\}}", x=False), "back\\")
 
     def test_an_unescaped_terminator_still_truncates(self):
-        # Not a regression: the old grammar did this too, and templates already
-        # stored in that shape must not change meaning.
         self.assertEqual(render("{{ x ||| see }} here}}", x=False), "see  here}}")
 
     def test_the_separator_needs_no_escaping(self):

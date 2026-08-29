@@ -1567,9 +1567,6 @@ class TestOrmModel_Many2one_Reference(models.Model):
     res_model = fields.Char("Resource Model")
     res_id = fields.Many2oneReference("Resource ID", model_field="res_model")
     const = fields.Boolean(default=True)
-    # A non-stored compute reading through the reference: the shape
-    # `ir.attachment.res_name` and `documents.document.res_name` both have, and
-    # the only way the cache invalidation around a deleted target is observable.
     res_name = fields.Char(compute="_compute_res_name")
 
     @api.depends("res_model", "res_id")
@@ -3010,15 +3007,6 @@ class TestOrmCountContainer(models.Model):
 
 
 class TestOrmCountDelegate(models.Model):
-    """`_inherits` a model carrying a Count.
-
-    `_add_inherited_fields` builds the delegated copy as
-    `type(field)(related=..., inherited=True)` with no `count_of`, so a Count
-    that refuses `related` outright takes the whole registry down at load —
-    `account.bank.statement.line` delegates to `account.move`, which is where
-    this was found.
-    """
-
     _name = "test_orm.count.delegate"
     _description = "test_orm.count.delegate"
     _inherits = {"test_orm.count.container": "container_id"}

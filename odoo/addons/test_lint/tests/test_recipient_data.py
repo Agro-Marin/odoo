@@ -1,24 +1,3 @@
-"""Every recipients-data payload carries the whole of `RecipientData`.
-
-This used to `ast.parse` all 9390 core Python files looking for dict literals
-whose keys included `{"is_follower", "ushare"}`, and check a hardcoded list of
-twelve key names against them. Measured over the tree it matched **one** literal
--- the return of `mail.tools.recipients.build_recipient_data` -- and zero in
-`agromarin`, `enterprise` and `design-themes`. It cost 17% of the suite's
-runtime to find it.
-
-The twelve key names it carried were a byte-for-byte copy of the field list of
-`RecipientData`, a *total* `TypedDict` declared immediately above the factory it
-was checking. So the gate was a hand-maintained duplicate of a type annotation,
-and the duplicate is the part that rots: add a field to `RecipientData` and the
-old gate went on asserting the old twelve.
-
-What is left asks the question directly, of the annotation rather than of a
-regex over the tree. `mypy.ini` scopes the type checker to the six framework
-packages, so `odoo/addons/**` is not type-checked and this is not redundant with
-`py_typecheck.yml` -- it is what stands in for it here.
-"""
-
 import ast
 import functools
 import importlib.util
@@ -31,12 +10,6 @@ from odoo.tests.common import BaseCase, no_retry
 
 @functools.cache
 def _recipients_module():
-    """`mail/tools/recipients.py`, loaded on its own.
-
-    By path rather than as `odoo.addons.mail.tools.recipients`, which would run
-    `mail`'s package `__init__` and pull in the whole addon for two names. The
-    file imports nothing but `typing`, so it stands alone.
-    """
     manifest = Manifest.for_addon("mail")
     if manifest is None:
         return None
@@ -80,7 +53,6 @@ class TestRecipientData(BaseCase):
         )
 
     def test_the_typed_dict_is_total(self):
-        """A partial `TypedDict` would make the check above assert nothing."""
         self.assertTrue(
             self.RecipientData.__total__,
             "RecipientData became partial, so its keys are optional and the "

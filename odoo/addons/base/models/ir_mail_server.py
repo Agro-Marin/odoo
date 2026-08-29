@@ -41,10 +41,6 @@ _test_logger = logging.getLogger("odoo.tests")
 
 SMTP_TIMEOUT = 60
 
-# The three questions anyone asks of `smtp_encryption`, asked in one place each:
-# which transport to open, whether to negotiate STARTTLS on it, and whether the
-# peer has to prove who it is. Spelled inline they drifted apart -- the strict
-# set alone was written out twice, in two functions that must agree.
 IMPLICIT_TLS_ENCRYPTIONS = frozenset({"ssl", "ssl_strict"})
 STARTTLS_ENCRYPTIONS = frozenset({"starttls", "starttls_strict"})
 VERIFIED_ENCRYPTIONS = frozenset({"ssl_strict", "starttls_strict"})

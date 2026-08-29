@@ -1,13 +1,3 @@
-"""``Registry._drop_idle`` -- collecting registries by recency, not by count.
-
-``Registry.registries`` is an LRU bounded by a *count*, so the number of
-resident registries follows traffic rather than memory. ``_drop_idle`` bounds it
-by recency instead, which only works if ``last_used`` is actually maintained.
-
-These run without a database: ``_drop_idle`` reads ``last_used`` and ``ready``
-and nothing else, so a namespace stands in for a registry.
-"""
-
 import time
 import typing
 from types import SimpleNamespace
@@ -20,9 +10,6 @@ PREFIX = "test_registry_idle_drop_"
 
 
 def _stub(*, idle_for: float, ready: bool = True) -> Registry:
-    """A stand-in registry. ``_drop_idle`` reads ``last_used`` and ``ready``
-    and nothing else, so a namespace is enough -- and building a real one would
-    need a database this suite deliberately does not have."""
     return typing.cast(
         "Registry",
         SimpleNamespace(last_used=time.monotonic() - idle_for, ready=ready),
@@ -31,7 +18,6 @@ def _stub(*, idle_for: float, ready: bool = True) -> Registry:
 
 @pytest.fixture
 def registries():
-    """Yield a helper that publishes stand-in registries, and clean up after."""
     added = []
 
     def add(name, *, idle_for, ready=True):
@@ -90,9 +76,6 @@ def test_non_positive_timeout_never_collects(registries, timeout):
 
 
 def test_a_loading_registry_is_never_collected(registries):
-    """``new()`` publishes before ``load_modules``, so a build in flight is
-    visible here -- and collecting it would pull the registry out from under
-    the load that is still populating it."""
     loading = registries("loading", idle_for=10_000, ready=False)
     Registry.idle_timeout = 60
 
@@ -106,7 +89,6 @@ def test_a_loading_registry_is_never_collected(registries):
 
 
 def test_exactly_at_the_timeout_is_kept(registries):
-    """The comparison is strict, so the boundary keeps rather than collects."""
     boundary = registries("boundary", idle_for=0)
     Registry.registries[boundary].last_used = time.monotonic() - 60
     Registry.idle_timeout = 600
@@ -117,11 +99,6 @@ def test_exactly_at_the_timeout_is_kept(registries):
 
 
 def test_the_fast_lookup_path_refreshes_last_used():
-    """A *ready* registry only ever returns through ``__new__``'s lock-free
-    fast path. Stamping only the locked branch -- where upstream puts it --
-    leaves ``last_used`` frozen at load time for every healthy registry, and
-    ``_drop_idle`` then collects the busiest database on the server.
-    """
     db_name = PREFIX + "hot"
     registry = _stub(idle_for=10_000)
     Registry.registries[db_name] = registry

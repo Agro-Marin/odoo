@@ -1,12 +1,3 @@
-"""``18.5-00-no-tax-tag-invert.py`` — moving the sign off the tax tag.
-
-The script carried a `test_tag_signs` function asserting the signs it derives
-for eight Belgian and one Italian tag. Nothing called it, and it could only ever
-have run against the real `l10n_be`/`l10n_it` template CSVs, so it was a table of
-expectations dressed as a safety net. What it was sampling is `remove_sign`'s
-rule, which is small enough to state directly and is what these tests pin.
-"""
-
 import importlib.util
 import pathlib
 
@@ -32,7 +23,6 @@ MODULE = _load()
 @pytest.mark.parametrize(
     ("tag", "type_tax_use", "document_type", "expected_sign"),
     [
-        # The two combinations the script inverts, and the two it does not.
         ("+03", "sale", "invoice", -1),
         ("+03", "purchase", "refund", -1),
         ("+03", "sale", "refund", 1),
@@ -51,7 +41,6 @@ def test_the_sign_recorded_flips_on_sale_invoice_and_purchase_refund(
 
 
 def test_a_tag_used_with_two_signs_is_marked_error_not_silently_last_wins():
-    """The conflict the script cannot resolve, and must not paper over."""
     tag_signs = {}
     MODULE.remove_sign("+03", tag_signs, "sale", "invoice")
     MODULE.remove_sign("+03", tag_signs, "sale", "refund")
@@ -65,7 +54,6 @@ def test_a_tag_with_no_sign_is_left_alone_and_records_nothing():
 
 
 def test_a_tax_that_is_neither_sale_nor_purchase_records_no_sign():
-    """`none`-use taxes carry tags but no report direction to invert."""
     tag_signs = {}
     assert MODULE.remove_sign("+03", tag_signs, "none", "invoice") == "03"
     assert tag_signs == {}

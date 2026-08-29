@@ -47,12 +47,6 @@ class OrderedSet[T](MutableSet[T]):
         return f"{type(self).__name__}({list(self)!r})"
 
     def __and__(self, other: Iterable[T]) -> OrderedSet[T]:  # type: ignore[override]
-        """Intersect, in *this* set's order.
-
-        ``MutableSet.__and__`` iterates the argument, so
-        ``OrderedSet([1, 2, 3, 4]) & [4, 3]`` came back ``[4, 3]`` -- the order
-        of whatever was passed in, on a type whose whole purpose is order.
-        """
         if not isinstance(other, Iterable):
             return NotImplemented
         members = other if isinstance(other, (AbstractSet, Mapping)) else set(other)

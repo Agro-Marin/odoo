@@ -373,10 +373,6 @@ class SassEmbeddedCompiler:
                 import_resp.id = req.id
                 if importer is not None:
                     try:
-                        # A distinct name from `canonicalize`'s above: one
-                        # `result` holding a URL in one branch and a
-                        # (contents, syntax) pair in the other reads as one
-                        # value and is not.
                         loaded = importer.load(req.url)
                         if loaded is not None:
                             contents, file_syntax = loaded

@@ -7,7 +7,6 @@ from odoo.addons.base.models.mixin_catalog import no_name_uniq_index
 
 
 class TestCatalogMixin(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

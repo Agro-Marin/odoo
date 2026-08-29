@@ -38,10 +38,6 @@ def extract_rfc2822_addresses(text: str) -> list[str]:
 
 def _normalize_email(email: str) -> str:
     local_part, at, domain = email.rpartition("@")
-    # A non-ASCII local part is left exactly as written: case folding is only
-    # defined for ASCII, and the mailbox owner decides the rest.  Spelling that
-    # as `encode("ascii")` in a try/except allocated a bytes object per call to
-    # learn one bit that `str` already tracks.
     if local_part.isascii():
         local_part = local_part.lower()
 
@@ -116,8 +112,6 @@ def email_normalize(text: str, strict: bool = True) -> str | Literal[False]:
 
 
 def email_normalize_all(text: str) -> list[str]:
-    # No filtering: `email_split` only yields addresses containing "@", and
-    # `_normalize_email` keeps it, so every result is non-empty by construction.
     return [_normalize_email(email) for email in email_split(text)]
 
 
@@ -191,10 +185,6 @@ def formataddr(pair: tuple[str, str], charset: str = "utf-8") -> str:
 
 
 def encapsulate_email(old_email: str, new_email: str) -> str | None:
-    # `getaddresses` returns a list of (name, address) pairs, and a 2-tuple is
-    # always truthy -- an unparseable header comes back as ("", "").  So the
-    # only thing an emptiness check can catch here is the empty list; testing
-    # the pair as well read like a second guard and was never one.
     old_email_split = getaddresses([old_email])
     if not old_email_split:
         return old_email

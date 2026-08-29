@@ -163,13 +163,6 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertEqual(len(g._triggers[f][()]), 1)
 
     def test_add_trigger_after_the_tree_was_built(self) -> None:
-        """The interaction neither existing test covered.
-
-        `add_trigger` mutates the published state instead of replacing it, so it
-        has to drop the memo itself. Before that, the second read handed back the
-        tree cached by the first -- the added target simply never appeared, and
-        the field it should have recomputed silently did not.
-        """
         g = ModelGraph()
         f = _field("price")
         first = _field("total", is_stored_computed=True)

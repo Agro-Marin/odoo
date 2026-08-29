@@ -62,10 +62,6 @@ class RecomputeMixin(_ModelStubs):
         scheduler: RecomputeScheduler,
     ) -> None:
         prof = _OrmProfile(_orm_compute)
-        # Initialised unconditionally, because `prof.report` is a call and its
-        # arguments are evaluated whether or not it emits. The two counters are
-        # a store each; the field-name list is the one that would allocate, so
-        # it stays empty until the debug branch below fills it.
         _fnames_list: typing.Any = ()
         _mark_count = 0
         _invalidate_count = 0

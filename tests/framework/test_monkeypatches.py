@@ -258,8 +258,6 @@ class TestExcelSheetNames(unittest.TestCase):
         self.assertLessEqual(len(second), 31)
 
     def test_truncation_does_not_expose_a_trailing_apostrophe(self):
-        # The cut is what manufactures it: the apostrophe sits at index 30, so
-        # nothing before truncation sees it at an edge.
         self.assertFalse(self._sanitize("A" * 30 + "'" + "BBBB").endswith("'"))
 
     def test_no_cut_position_leaves_a_trailing_apostrophe(self):
@@ -408,8 +406,6 @@ class TestCharsetLabels(unittest.TestCase):
 
 
 class TestXmlParsedAsHtmlWarningScope(unittest.TestCase):
-    """The bs4 warning is suppressed for ofxparse, and for nobody else."""
-
     XML = "<?xml version='1.0'?><OFX><X>1</X></OFX>"
 
     def _warnings_from(self, call):

@@ -67,10 +67,6 @@ class Query:
         self._ids: tuple[int, ...] | None = None
 
     def _invalidate_ids(self) -> None:
-        # An empty result stays empty: nothing this class can add -- a join, a
-        # filter, a limit, an order -- turns zero rows into more than zero. Only
-        # a non-empty cache is dropped. Written as `self._ids and None` this
-        # said none of that, and read as a typo.
         if self._ids:
             self._ids = None
 
@@ -237,10 +233,6 @@ class Query:
             SQL(" GROUP BY %s", self.groupby) if self.groupby else SQL.EMPTY,
             SQL(" HAVING %s", self.having) if self.having else SQL.EMPTY,
             SQL(" ORDER BY %s", self._order) if self._order else SQL.EMPTY,
-            # `is not None`, not truthiness: `_search` deliberately admits a
-            # limit of 0 (`if limit is not None and limit is not False`), and a
-            # truthiness test here dropped it again -- so `search(limit=0)`
-            # asked for no rows and got every row.
             SQL(" LIMIT %s", self.limit) if self.limit is not None else SQL.EMPTY,
             SQL(" OFFSET %s", self.offset) if self.offset else SQL.EMPTY,
         )
@@ -313,13 +305,6 @@ class Query:
         return len(self.get_result_ids())
 
     def count_matching(self, limit: int | None = None) -> int:
-        """Count the rows the query matches, ignoring its own limit/offset.
-
-        Deliberately different from ``len(self)``, which counts what the query
-        would *return*. Subclasses override this to count differently again --
-        see ``mail.tools.access_scan._RescannedCountQuery`` -- so the two are
-        not redundant and must not be collapsed into one another.
-        """
         if self.groupby or self.having or limit:
             parts = [SQL("SELECT FROM %s", self.from_clause)]
             if self._where_clauses:

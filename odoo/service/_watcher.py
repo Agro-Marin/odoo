@@ -75,12 +75,8 @@ def inotify_limit_diagnosis(exc: BaseException) -> str:
 
 
 class FSWatcherBase:
-    #: Trailing-flush delay for backends that have no end-of-pass boundary of
-    #: their own. Short enough to stay inside an edit/reload loop, long enough
-    #: that a multi-file save collapses into one signal.
     _BURST_FLUSH_S = 0.2
 
-    #: False for backends that emit the trailing edge themselves.
     _needs_burst_timer = True
 
     _reload_triggered = False
@@ -93,27 +89,6 @@ class FSWatcherBase:
 
     @staticmethod
     def watch_paths() -> list[str]:
-        """Directories to watch, for BOTH backends.
-
-        This belongs to the base class because the answer must not depend on
-        which optional library happens to be installed.  It used to: the inotify
-        backend narrowed the tree in assets-only mode while the watchdog backend
-        always scheduled the addons roots recursively, so the same
-        ``--dev=assets`` run watched a different set of files on two machines
-        that differed only in whether ``inotify`` was importable.
-
-        With ``reload`` in ``dev_mode`` the whole addons tree is in scope --
-        Python sources can be anywhere in it.  Otherwise only assets can trigger
-        anything, and ``handle_file`` acts on a path exactly when it has an asset
-        suffix and ``/static/`` in it, so each addon's ``static/`` tree is both
-        the necessary and the sufficient scope.
-
-        Watching ``static/`` whole, rather than enumerating ``static/src`` and
-        ``static/tests``, also closes a gap the narrower list had: everything
-        under ``static/lib`` is bundled and was watched by watchdog but not by
-        inotify, so editing a vendored library invalidated the bundles on one
-        backend and did nothing on the other.
-        """
         from odoo.tools import config
 
         roots = list(odoo.addons.__path__)
@@ -131,7 +106,6 @@ class FSWatcherBase:
         return paths
 
     def _signal_asset_change(self, path: str) -> None:
-        """One transaction per database. The expensive half of an invalidation."""
         from odoo import db as odoo_db
         from odoo.orm.runtime.registry import Registry
         from odoo.tools import config
@@ -150,17 +124,6 @@ class FSWatcherBase:
                 )
 
     def handle_asset_file(self, path: str) -> None:
-        """Signal on the leading edge, then coalesce the rest of the burst.
-
-        Without this, a compile that touches N files with D databases open costs
-        N x D transactions -- measured at 60 cursors for 20 files across three
-        databases, against 6 with coalescing. This lived only in the inotify
-        backend, so which of those two a developer paid depended on which
-        optional library was installed.
-
-        The leading edge keeps a single edit as prompt as an uncoalesced signal;
-        everything after it collapses into one trailing flush.
-        """
         with self._burst_lock:
             self._assets_dirty = True
             leading = not self._burst_active
@@ -178,19 +141,12 @@ class FSWatcherBase:
         self._signal_asset_change(ASSET_BURST_PATH)
 
     def _end_burst(self) -> None:
-        """Trailing edge: emit anything pending and re-arm the leading edge."""
         self._cancel_burst_flush()
         self._flush_asset_invalidation()
         with self._burst_lock:
             self._burst_active = False
 
     def _arm_burst_flush(self) -> None:
-        """Schedule the trailing flush for backends with no end-of-pass hook.
-
-        ``FSWatcherInotify`` calls ``_end_burst`` itself once per pass of its
-        event generator, so it needs no timer. ``FSWatcherWatchdog`` is called
-        back per event by the observer and has no such boundary.
-        """
         if not self._needs_burst_timer:
             return
         with self._burst_lock:
@@ -277,55 +233,28 @@ class FSWatcherWatchdog(FSWatcherBase):
 
 
 class _InotifyInternals:
-    """Every reach into ``inotify``'s private surface, named in one place.
-
-    There are four, and one is name-mangled, so a rename in a minor release of
-    the library breaks recovery from ``IN_Q_OVERFLOW`` at a distance and each
-    one fails differently: losing ``__watches_r`` raises out of
-    ``_build_watcher`` (autoreload off, loudly); losing ``_mask`` degrades to a
-    per-directory warning inside ``_watch_directory``; losing ``_i`` escapes
-    that handler entirely and unwinds ``_resync``.
-
-    Collected here so the surface is enumerable rather than scattered, and
-    asserted by ``tests/service/test_contracts.py`` so an upgrade fails a test
-    that names the assumption instead of a server that quietly stops noticing
-    edits. The version is pinned in ``requirements-dev.txt``; a pin keeps the
-    surface still, it does not tell you when someone lifts it.
-    """
-
     def __init__(self, trees: InotifyTrees) -> None:
         self._trees = trees
 
     @property
     def _inotify(self):
-        """``InotifyTrees._i`` -- the single ``Inotify`` behind the tree."""
         return self._trees._i
 
     @property
     def mask(self) -> int:
-        """``InotifyTrees._mask`` -- the event mask the trees were built with."""
         return self._trees._mask
 
     def register_path(self, wd: int, path: str) -> None:
-        """``Inotify.__watches_r`` -- the watch-descriptor to path map.
-
-        Name-mangled, hence the ``_Inotify__`` spelling. The overflow descriptor
-        is synthetic and has no real watch, so the library never adds it.
-        """
         self._inotify._Inotify__watches_r[wd] = path
 
     def add_watch(self, path: str):
         return self._inotify.add_watch(path, self.mask)
 
     def remove_watch_superficially(self, path: str) -> None:
-        """``superficial=True``: drop our bookkeeping without an inotify_rm_watch
-        the kernel would reject for an already-reaped descriptor."""
         self._inotify.remove_watch(path, superficial=True)
 
 
 class FSWatcherInotify(FSWatcherBase):
-    # Emits the trailing edge itself: ``run`` calls ``_end_burst`` once per pass
-    # of the event generator, which is a real quiescence boundary.
     _needs_burst_timer = False
 
     def __init__(self) -> None:

@@ -10,10 +10,6 @@ class TestPartnerAgeRange(TransactionCase):
         super().setUpClass()
         cls.AgeRange = cls.env["res.partner.age.range"]
         cls.Partner = cls.env["res.partner"]
-        # Both _default_min_value and the overlap check read the live scale, so
-        # a database that seeded cohorts of its own decides what these bounds
-        # default to and what they may not collide with. Archiving is enough:
-        # every read of the scale goes through search(), which skips inactive.
         cls.AgeRange.search([]).active = False
 
     def test_01_cohort_bounds_are_validated(self):
@@ -192,14 +188,6 @@ class TestPartnerAgeRange(TransactionCase):
         )
 
     def test_12_an_untouched_span_is_not_swept(self):
-        """Pins the narrowing itself, not a correctness requirement.
-
-        The sweep deliberately skips partners no bound of this write can
-        reclassify. Widening it back to the whole table would repair the
-        corrupted row below and fail here -- which is the trade the narrowing
-        makes, stated so that reversing it is a decision rather than an
-        accident.
-        """
         near = self.AgeRange.create(
             {"min_value": 1750, "max_value": 1760, "name": "near"}
         )

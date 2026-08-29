@@ -50,7 +50,6 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(found[0].dependency, "disabled")
 
     def test_an_uninstallable_module_may_depend_on_an_uninstallable_one(self):
-        """Both are out of the graph; neither is silently skipped."""
         write_module(self.root, "disabled", installable=False)
         write_module(
             self.root, "also_disabled", depends=["disabled"], installable=False
@@ -59,7 +58,6 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(self.measure(), [])
 
     def test_a_dependency_absent_from_scope_is_not_an_offence(self):
-        """A sibling repo's run sees its own tree; absence is not a verdict."""
         write_module(self.root, "user", depends=["lives_in_another_checkout"])
 
         self.assertEqual(self.measure(), [])

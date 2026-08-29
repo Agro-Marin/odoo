@@ -268,9 +268,6 @@ class Form:
         return value
 
     def __setattr__(self, field_name: str, value: Any) -> None:
-        # Mirrors __getattr__: private names are real attributes, public ones
-        # are view fields. Without this, every internal assignment in Form and
-        # O2MForm had to spell object.__setattr__.
         if field_name.startswith("_"):
             object.__setattr__(self, field_name, value)
         else:
@@ -491,12 +488,6 @@ class Form:
         else:
             field_names = []
 
-        # .get: a field can be in self._view["fields"] without being in
-        # ["onchange"], which is built once from the view tree. The daterange
-        # fix-up registers the related start/end field in fields, fields_spec
-        # and modifiers, but _onchange_spec only walks <field> nodes and that
-        # partner field has none -- so assigning it raised KeyError here instead
-        # of simply having no onchange to run, which is what a falsy spec means.
         if field_name and not self._view["onchange"].get(field_name):
             return None
 
@@ -708,9 +699,6 @@ class X2MValue(collections.abc.Sequence):
         return id_ in self._data
 
     def __getitem__(self, index: Any) -> Any:
-        # A dict view is not indexable, so an index needs a list -- but
-        # rebuilding it per access made indexed iteration quadratic (measured
-        # n*4 -> time*154). Cached, and dropped by every mutator below.
         if self._keys is None:
             self._keys = list(self._data)
         return self._keys[index]

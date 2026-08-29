@@ -8,9 +8,6 @@ from odoo.libs.worker_thread import as_worker_thread, working_on_database
 @pytest.fixture(autouse=True)
 def _no_marker():
     thread = as_worker_thread(threading.current_thread())
-    # `previous is not None` rather than a separate `had` flag: the marker is
-    # declared `str`, so absent and None are the same state to every reader --
-    # which is the distinction `working_on_database` itself makes.
     previous = getattr(thread, "dbname", None)
     if previous is not None:
         del thread.dbname

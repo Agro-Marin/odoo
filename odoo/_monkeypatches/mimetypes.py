@@ -2,7 +2,6 @@ import functools
 import mimetypes
 from typing import Any, Final
 
-#: What the web must be served as, whatever the host says.
 WEB_TYPES: Final[tuple[tuple[str, str], ...]] = (
     ("font/woff", ".woff"),
     ("application/vnd.ms-fontobject", ".eot"),
@@ -19,19 +18,6 @@ def add_web_types() -> None:
 
 
 def patch_module() -> None:
-    """Pin six extensions against a host mapping that disagrees.
-
-    CPython 3.14's own table already agrees on all six, so on a well-configured
-    Linux box this changes nothing. It is not there for that box: `init()`
-    reads `knownfiles` -- a distro `/etc/mime.types` -- and on Windows the
-    registry, and whatever it finds *overrides* the defaults. Serving `.js` as
-    `text/plain` is a broken web client.
-
-    `init()` is also what makes a plain `add_type()` insufficient: it rebuilds
-    the database from scratch and silently discards every earlier addition. So
-    the re-application is wrapped around it rather than done once, which is
-    what makes the pin a guarantee instead of a statement about import order.
-    """
     add_web_types()
 
     if getattr(mimetypes.init, "_odoo_repins", False):

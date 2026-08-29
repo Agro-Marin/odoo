@@ -1,14 +1,3 @@
-"""The cache-scan flags must agree with the conversions they describe.
-
-Until 2026-08-23 these were five frozensets of ``field.type`` strings, and this
-file tested them with a ``_FakeField`` carrying a ``type`` attribute and
-nothing else. That checked the *tables* and never the *claim*: it could not see
-that ``properties`` and ``properties_definition`` were both listed as
-truthiness-preserving while neither is, because it never ran a real
-``convert_to_record``. Every assertion below goes through the registered field
-classes.
-"""
-
 import datetime
 import decimal
 import unittest
@@ -81,7 +70,6 @@ def _a_record():
 
 
 def _unbound(cls) -> Field:
-    """A field instance with no setup, for calling the converters directly."""
     field = object.__new__(cls)
     field.translate = False
     field.store = True
@@ -122,10 +110,6 @@ class TestTheFlagsAreDeclared(unittest.TestCase):
                 )
 
     def test_id_declares_its_own_flags_rather_than_riding_a_type_string(self):
-        # Id carries type = "integer" but subclasses Field, not Integer. Under
-        # the old type-string tables it silently inherited Integer's entries;
-        # under class attributes it has to say so itself, or `sorted("id")` and
-        # `read(["id"])` quietly lose their fast path.
         for flag in SCAN_FLAGS:
             with self.subTest(flag=flag):
                 self.assertTrue(
@@ -136,8 +120,6 @@ class TestTheFlagsAreDeclared(unittest.TestCase):
 
 
 class TestTheFlagsMatchTheConversions(unittest.TestCase):
-    """Each flag is a claim about the converters. Run them and check it."""
-
     @classmethod
     def setUpClass(cls):
         cls.record = _a_record()
@@ -229,16 +211,6 @@ class TestTheFlagsMatchTheConversions(unittest.TestCase):
 
 
 class TestNoFlagLeaksThroughAResetType(unittest.TestCase):
-    """A subclass that changes its conversions must not inherit the claim.
-
-    ``Reference`` subclasses ``Selection``, ``Many2oneReference`` subclasses
-    ``Integer`` and ``Html`` subclasses ``BaseString`` -- each keeps the
-    parent's storage and changes what ``convert_to_record`` hands back. Under
-    the old tables the distinct ``type`` string told them apart by accident;
-    a class attribute is inherited, so each has to reset what it no longer
-    honours.
-    """
-
     KNOWN_RESETS = (
         ("reference", "Selection"),
         ("many2one_reference", "Integer"),

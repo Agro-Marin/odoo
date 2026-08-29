@@ -15,15 +15,6 @@ from odoo.addons.base.models.assetsbundle import AssetsBundle
 
 
 class TestFallbackBridgeExternals(TransactionCase):
-    """The per-file bridge must not evaluate libraries the bundle never uses.
-
-    ``_get_esm_nodes_debug`` renders ``debug=assets`` pages *and* every page
-    whose esbuild compile declined -- an unavailable build lock is enough
-    (``odoo.assets.fallback: event=lock_unavailable``).  Its bridge turns each
-    specifier into a static import, so anything listed here is code the page
-    runs, and the esbuild entry is the reference for what that list may hold.
-    """
-
     def test_an_unrelated_bundle_bridges_owl_and_nothing_else(self):
         IrQweb = self.env["ir.qweb"]
         specs = IrQweb._bridge_external_specifiers(
@@ -333,13 +324,6 @@ class TestBridgeRwCursorEscalation(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # _persist_bridges_via_rw_cursor commits on a second cursor
-        # outside this TransactionCase's rollback, so a crash between
-        # that commit and addCleanup(self._cleanup_rows) in some earlier
-        # run can leave stray rows behind (addCleanup isn't crash-safe
-        # either). Sweep before the test too, not just after, so any
-        # given successful run self-heals regardless of when a previous
-        # process died.
         self._cleanup_rows()
 
     def _cleanup_rows(self):

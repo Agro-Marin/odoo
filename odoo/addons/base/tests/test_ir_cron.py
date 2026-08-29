@@ -41,8 +41,6 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 
 def make_job(cron, **overrides):
-    """A `CronJob` as `_acquire_job` would have built it, for tests that drive
-    the bookkeeping without going through the database."""
     fields_ = {
         "id": cron.id,
         "cron_name": cron.cron_name,

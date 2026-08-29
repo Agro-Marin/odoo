@@ -48,9 +48,6 @@ class TestDebugFlags:
 
     @pytest.mark.parametrize("debug", [None, True, False, "", "1"])
     def test_non_string_debug_never_raises(self, debug):
-        """`values.get("debug")` is None when absent, and `point_of_sale`
-        passes `request and request.session.debug`, which is a falsy *request*
-        when there is none.  `"tests" in True` would raise."""
         assert has_esm_test_satellites(debug, test_enable=False) is False
 
     def test_test_enable_forces_satellites(self):
@@ -94,8 +91,6 @@ class TestLinkToNode:
 
     @pytest.mark.parametrize("path", ["", "/a/b.png", "/a/b", "/a/b.woff2"])
     def test_an_unrenderable_path_returns_none(self, path):
-        """An empty path used to fall through to the JS branch by way of an
-        `if path else "js"` default and render a `<script>` with no `src`."""
         assert link_to_node(path) is None
 
 
@@ -172,11 +167,6 @@ class TestHootSpecifiers:
         assert is_hoot_test_specifier(spec)
 
     def test_the_framework_package_itself_is_not_a_test(self):
-        """`@odoo/hoot` is the runner, not something to run: it carries neither
-        `.test` nor `.hoot` nor a `tests/` segment.  Classifying it as hoot
-        would withhold it from `registerNativeModules` and hand it to
-        `loadAndStart`, which is how an import-map parent ends up telling its
-        child `loadAndStart is not a function`."""
         assert not is_hoot_test_specifier("@odoo/hoot")
         assert not is_hoot_test_specifier("@odoo/hoot-dom")
 
@@ -219,10 +209,6 @@ class TestBridgeExternalSpecifiers:
         }
 
     def test_the_whole_external_table_is_not_handed_over(self):
-        """Doing that evaluates the entire HOOT framework, pdfjs, chart.js and
-        fullcalendar on any page rendered through the per-file branch -- which
-        is not only `debug=assets`: a lock held by another worker used to fall
-        into it too."""
         assert "@odoo/hoot" not in bridge_external_specifiers(
             ["@web/core/utils"], self.ALIASES
         )

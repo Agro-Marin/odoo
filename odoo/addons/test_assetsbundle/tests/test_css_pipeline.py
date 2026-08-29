@@ -37,9 +37,6 @@ PLAIN_CSS = "body { margin-left: 1px; }"
 
 
 def _fake_bundle(**overrides):
-    """A stub bundle exposing the subset of AssetsBundle's shape that
-    CssPipeline/StylesheetAsset need, with sane defaults overridden
-    per test."""
     defaults = {
         "name": "test.bundle",
         "stylesheets": [],
@@ -1156,12 +1153,6 @@ class TestVendoredCssMinifyCorpus(BaseCase):
         return re.sub(r"'(?:[^'\\]|\\.)*'", "<S>", css)
 
     def _shipped_css_files(self):
-        # Pinned to base specifically, rather than the whole live
-        # odoo.addons.__path__: base is a hard dependency of every
-        # install and always resolves right next to test_assetsbundle,
-        # so the corpus size/content stays stable regardless of which
-        # extra addons-path entries (enterprise, agromarin-addons, ...)
-        # happen to be mounted on a given run.
         from odoo.modules.module import get_module_path
 
         base_path = get_module_path("base")

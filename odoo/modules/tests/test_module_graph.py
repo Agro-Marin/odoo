@@ -9,9 +9,6 @@ BaseCase = unittest.TestCase
 
 
 class _NoCursor:
-    """A graph these tests never ask to query. Passing None said that to a
-    reader and something untrue to a type checker."""
-
     def execute(self, query, *args, **kwargs):
         raise AssertionError("this test's graph must not reach the database")
 

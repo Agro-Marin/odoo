@@ -55,42 +55,6 @@ _STAGE_PREFIXES: tuple[str, ...] = tuple(f"{stage}-" for stage in MIGRATION_STAG
 
 
 def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
-    """Warn about scripts that will never run because no stage claims them.
-
-    ``risks.md`` R3 records that migration staging is unenforced. That is true of
-    the *semantic* half — nothing can know that a script reading the old schema
-    was filed as ``post-`` — but not of the syntactic half, which is checkable
-    and was not checked: a file named ``pre_01.py`` or ``Pre-01.py`` (the match is
-    case-sensitive) is globbed by ``_scripts_by_version`` and then silently
-    dropped by every stage. On an upgrade of a populated database that is a
-    migration nobody notices did not happen.
-
-    A warning rather than an error, for the same reason ``_is_upgrade_version_dir``
-    warns on a malformed version directory: an addon may legitimately keep a
-    helper module beside its scripts, and refusing to upgrade over one would be a
-    worse failure than the one being reported.
-
-    Measured over **this repository's two addon trees** (``odoo/addons`` and
-    ``addons``) on 2026-08-15: 145 migration scripts, all correctly prefixed,
-    0 skipped. The *property* is what is pinned —
-    ``test_migration_stages.test_none_of_them_is_skipped`` re-derives it from the
-    tree on every run and names any script no stage would claim. The count beside
-    it is a dated measurement, not a pin: it moves whenever any author in either
-    tree adds a script, and a live pin on it made this file a serialization point
-    for all of them.
-
-    The scope is this repo on purpose. The figure here read "223 across this
-    workspace's five addon trees", which CI could never reproduce because it
-    checks out this repo alone, so the number could be neither confirmed nor
-    refuted from inside the build that was supposed to be keeping it honest —
-    and it had already drifted to 235 by the time anyone counted.
-
-    The test globs the working tree, not the index, which is deliberate: whoever
-    adds a script sees the gate go red on the spot rather than in someone else's
-    CI run. In this workspace that also means an *uncommitted* script in another
-    session's tree moves the number locally, so re-measure against a clean
-    checkout of HEAD before believing a count that disagrees with this one.
-    """
     for path in files:
         name = Path(path).name
         if name.startswith(_STAGE_PREFIXES) or name == "__init__.py":
@@ -105,18 +69,6 @@ def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
 
 
 def _convert_version(version: str) -> str:
-    """Give ``version`` its server-series prefix, if it does not already carry one.
-
-    The series check is what ``adapt_version`` in ``modules.module`` does, and
-    the two must agree because this function is handed that one's output as the
-    upgrade target. Without it a version that is *already* prefixed but has
-    fewer than three dots -- ``19.0`` or ``19.0.1``, both of which
-    ``check_version`` accepts and installs -- was prefixed a second time into
-    ``19.0.19.0``. The inflated target then compared greater than every
-    migration script the module owns, so `-u` replayed all of them, on every
-    run, for a module nothing had changed. See
-    ``TestVersionAlreadyCarryingTheSeries``.
-    """
     if version == "0.0.0":
         return version
     serie = release.major_version

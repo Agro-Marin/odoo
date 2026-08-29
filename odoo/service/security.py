@@ -12,8 +12,6 @@ _logger = logging.getLogger(__name__)
 
 
 def compute_session_token(session: Session, env: Environment) -> str | bool:
-    # ``str | bool`` and not ``str | None``: the implementation this delegates
-    # to, ``res.users._compute_session_token``, is declared to return that.
     self = env["res.users"].browse(session.uid)
     return self._compute_session_token(session.sid)
 

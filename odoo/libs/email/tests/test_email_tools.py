@@ -1,15 +1,5 @@
-"""Address parsing and formatting, moved from
-`odoo/addons/base/tests/test_mail.py`.
-
-See the sibling note in `odoo/libs/text/tests/test_html_mail_examples.py`: this
-was a framework test case over pure functions, and every subject here is defined
-in `odoo.libs.email.parsing`.
-"""
-
 import unittest
 
-# From the leaf module, not the area facade: the Tier-1 stubs replace the
-# package `__init__`, so its re-exports do not resolve here.
 from odoo.libs.email.parsing import (
     email_anonymize,
     email_domain_normalize,

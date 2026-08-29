@@ -116,19 +116,6 @@ def test_checkout_tracker_length_matches_tracked_connections():
 
 
 def test_pool_never_mutates_a_counter_directly():
-    """Every PoolStats field is mutated through PoolStats, under its own lock.
-
-    This pin used to read `(2 locked, 13 unlocked)` and count how many of
-    `pool.py`'s raw `self.stats.x += 1` sites happened to sit inside a
-    `with self._lock:` block.  Both numbers were wrong -- the scan matched a
-    lock block that had already CLOSED above the statement -- and the shape it
-    described was the wrong one anyway: the pool's lock guards the pool's
-    `_pools` dict, not the counters, so a counter that happened to be under it
-    was protected by accident.
-
-    PoolStats now owns a lock and exposes one method per counter, so the
-    invariant is simply that `pool.py` contains no raw mutation at all.
-    """
     import pathlib
     import re
 
@@ -146,8 +133,6 @@ def test_every_counter_has_a_recorder_that_takes_the_lock():
     import inspect
 
     counters = {f for f in PoolStats.__slots__ if not f.startswith("_")}
-    # the probe recorder resolves its field through _PROBE_OUTCOMES, so the
-    # mapping is that recorder's declaration of what it covers
     recorded = set(_PROBE_OUTCOMES.values())
     for name, member in inspect.getmembers(PoolStats, inspect.isfunction):
         if not name.startswith("record_"):
@@ -199,20 +184,6 @@ def test_probe_outcomes_are_named_not_spelled():
 
 
 def test_the_process_wide_sql_counter_is_not_lost():
-    """`sql_counter` is a module global that every cursor in the process
-    increments with `+=`, which is a non-atomic read-modify-write.
-
-    Under the GIL this holds today -- measured, 0 lost of 160000 across 8
-    threads -- so nothing is locked for it: a lock on `_record_metrics` is a
-    lock on the hottest path in core, and it would buy nothing measurable. What
-    this test buys is that the free-threading lane can SEE it: `odoo/db/**` is
-    in `freethreading.yml`'s paths and this file is the suite it runs, so if the
-    GIL goes away the answer changes here rather than silently in production
-    query counts.
-
-    `sql_log_count` is per-cursor and a cursor belongs to one thread, so it is
-    only checked for company.
-    """
     from odoo.db import metrics
 
     class _Host(metrics._MetricsMixin):

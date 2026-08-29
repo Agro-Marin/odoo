@@ -92,7 +92,6 @@ class TestNotReported:
         assert gate.measure([tmp_path]) == []
 
     def test_helper_object_extension_is_the_same_shape_as_a_prototype(self, tmp_path):
-        # im_livechat and website extend @mail's mailDataHelpers this way.
         write(
             tmp_path,
             "pos_x",

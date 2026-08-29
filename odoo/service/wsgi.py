@@ -35,11 +35,6 @@ def _plain_style(msg: str, *styles: str) -> str:
     return msg
 
 
-#: ``werkzeug.serving._ansi_style`` is private API.  Resolved once here, with an
-#: identity fallback, rather than reached for on every call: colouring a request
-#: log line is not worth an ``AttributeError`` raised inside the request
-#: handler on every non-200 response, which is what a werkzeug release that
-#: renames it would otherwise cause.
 _ansi_style = getattr(werkzeug.serving, "_ansi_style", _plain_style)
 
 

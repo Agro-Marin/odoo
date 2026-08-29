@@ -297,10 +297,6 @@ def test_every_declared_composition_module_is_on_disk():
 
 
 def test_a_single_line_declaration_does_not_swallow_the_next_one():
-    # Prettier collapses a one-element array onto a single line. A terminator
-    # that assumes a multi-line array reads that as unterminated and runs on to
-    # the NEXT array's close, merging two declarations -- a false pass, not a
-    # crash, so it needs a test of its own.
     source = (
         'export const X_PUBLISHED = ["only"];\n'
         "\n"

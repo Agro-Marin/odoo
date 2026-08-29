@@ -72,9 +72,7 @@ def _select_nextval(cr: Any, seq_name: str) -> int:
 
 
 def _select_nextvals(cr: Any, seq_name: str, count: int) -> list[int]:
-    cr.execute(
-        "SELECT nextval(%s) FROM generate_series(1, %s)", [seq_name, count]
-    )
+    cr.execute("SELECT nextval(%s) FROM generate_series(1, %s)", [seq_name, count])
     return [number for (number,) in cr.fetchall()]
 
 
@@ -405,9 +403,7 @@ class IrSequence(models.Model):
 
     def _next_do_batch(self, count: int) -> list[str]:
         if self.implementation == "standard":
-            numbers = _select_nextvals(
-                self.env.cr, self._pg_sequence_name(), count
-            )
+            numbers = _select_nextvals(self.env.cr, self._pg_sequence_name(), count)
         else:
             numbers = _update_nogap_batch(self, self.number_increment, count)
         return [self.get_next_char(number) for number in numbers]
@@ -585,9 +581,9 @@ class IrSequence(models.Model):
                 if isinstance(sequence_date, datetime)
                 else sequence_date
             )
-            return self.with_context(
-                ir_sequence_date=ir_sequence_date
-            )._next_do_batch(count)
+            return self.with_context(ir_sequence_date=ir_sequence_date)._next_do_batch(
+                count
+            )
         dt = sequence_date or self.env.context.get(
             "ir_sequence_date", fields.Datetime.now()
         )
@@ -749,9 +745,7 @@ class IrSequenceDate_Range(models.Model):
         if count <= 0:
             return []
         if self.sequence_id.implementation == "standard":
-            numbers = _select_nextvals(
-                self.env.cr, self._pg_sequence_name(), count
-            )
+            numbers = _select_nextvals(self.env.cr, self._pg_sequence_name(), count)
         else:
             numbers = _update_nogap_batch(
                 self, self.sequence_id.number_increment, count

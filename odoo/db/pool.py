@@ -135,14 +135,6 @@ class PoolError(Exception):
 
 
 class _InFlightProbe:
-    """Lets concurrent first-borrowers of the same key share one probe.
-
-    The leader (whichever thread registers this first, under the pool's
-    lock) runs the real `_probe_connectable` and stores its outcome here;
-    followers wait on `done` and replay that outcome instead of each
-    issuing their own network round trip.
-    """
-
     __slots__ = ("done", "exc")
 
     def __init__(self) -> None:

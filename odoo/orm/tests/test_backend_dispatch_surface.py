@@ -8,40 +8,7 @@ from odoo.orm.runtime.backend import InMemoryBackend
 
 _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 
-# Every ``env.backend`` dispatch point in the ORM, pinned exact-mode.
-#
-# ADR-0011 introduced the persistence-backend port to replace nine inline
-# ``transaction.storage`` sniffs across six CRUD mixins.  Nothing pinned the
-# resulting surface, and it has since grown to fifteen sites across nine files
-# -- including four in Layer 1, which ADR-0011 does not mention (it scopes the
-# port to "the model mixins (create/write/read/search/unlink)").  Do not restate
-# those figures anywhere else: this dict is the count, and
-# test_the_header_count_matches_the_dict re-derives them from it.
-#
-# WHAT A SITE IS HAS CHANGED, and the notes below should be read with that in
-# mind.  These were `if env.backend is not None: <port call> else: <inline SQL>`
-# -- the null branch WAS the PostgreSQL implementation, unnamed.  Extracting
-# ``PostgresBackend`` (ADR-0011's Amendment) moved that SQL behind the port, so
-# most of these are now an unconditional call and the two paths are two
-# implementors rather than an implementor and a fallthrough.
-#
-# Three are NOT calls and never will be.  ``many2many.read``,
-# ``reference._reference_exists`` and ``textual._languages_in_sync_with`` branch
-# on a declared capability, because the two backends run genuinely different
-# algorithms there rather than two implementations of one -- the sharpest being
-# the m2m read, where the SQL path fuses a JOIN into the comodel's Query and the
-# port's ``read_m2m_pairs`` signature has nowhere to put it.
-#
-# Each entry records whether the two branches are known to be BEHAVIOURALLY
-# EQUIVALENT.  They are not a formality: where a branch is marked lossy, a
-# DB-free test exercising that code path asserts against semantics the SQL path
-# has and the in-memory path does not, so it cannot fail for the right reason.
-#
-# Adding a dispatch site is a real architectural decision (a second persistence
-# implementation gains another divergence point).  This gate makes it a
-# deliberate one.
 DISPATCH_SITES: dict[tuple[str, str], str] = {
-    # -- Layer 2: the model mixins.  This is ADR-0011's stated scope. ----------
     ("models/mixins/create.py", "_create"): (
         "in-memory path skips the COPY fast path (performance only)"
     ),
@@ -76,10 +43,6 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
     ("models/mixins/_query.py", "_search"): "equivalent",
     ("models/mixins/_query.py", "_as_query"): "equivalent",
     ("models/mixins/_query.py", "exists"): "equivalent",
-    # -- Layer 1: NOT in ADR-0011's scope. ------------------------------------
-    # Layer 1 reaching a Layer-3 object through env is invisible to
-    # orm-layer1-below-models-and-runtime (no import is created).  Listed here
-    # so the four are visible rather than merely tolerated.
     ("fields/reference.py", "_reference_exists"): (
         "BACKEND-SNIFF: `env.backend is None` gates a prefetch SELECT, i.e. it "
         "reads as 'am I on PostgreSQL?'.  This is the inline test-backend sniff "
@@ -148,10 +111,6 @@ def test_dispatch_surface_matches_the_pinned_inventory():
 
 
 def test_layer1_dispatch_stays_explicitly_enumerated():
-    # ADR-0011 scopes the port to the model mixins.  Layer 1 (fields/, domain/)
-    # reaching env.backend is a runtime Layer-1 -> Layer-3 dependency that
-    # layer_check cannot see, because it travels through `env` and creates no
-    # import.  Keep the exception list closed.
     layer1 = {site for site in _dispatch_sites() if site[0].startswith(LAYER1_PREFIXES)}
     pinned_layer1 = {
         site for site in DISPATCH_SITES if site[0].startswith(LAYER1_PREFIXES)
@@ -164,9 +123,6 @@ def test_layer1_dispatch_stays_explicitly_enumerated():
 
 
 def test_in_memory_delete_is_declared_lossy():
-    # Pins the sharpest known divergence so a future fix is deliberate rather
-    # than accidental, and so nobody writes a DB-free test that "proves" unlink
-    # cascades work.
     import inspect
 
     source = inspect.getsource(InMemoryBackend.delete)
@@ -186,13 +142,11 @@ def test_in_memory_delete_is_declared_lossy():
 
 
 def test_lossy_sites_are_spelled_out():
-    # A note is only useful if it says which side loses what.
     for site, note in DISPATCH_SITES.items():
         if note.startswith("LOSSY"):
             assert len(note) > 60, f"{site}: LOSSY note must say what is lost"
 
 
-#: Number words this module's header uses, so the counts can be re-derived.
 _NUMBER_WORDS = {
     "four": 4,
     "five": 5,

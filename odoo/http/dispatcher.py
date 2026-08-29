@@ -55,12 +55,6 @@ def _cors_methods(
     dispatcher_methods: collections.abc.Collection[str] | None,
     routing: collections.abc.Mapping[str, Any],
 ) -> collections.abc.Collection[str]:
-    """Which methods to advertise in ``Access-Control-Allow-Methods``.
-
-    Resolved with ``is None`` per step rather than as one ``or`` chain: an EMPTY
-    collection is a declaration -- "expose nothing" -- not an absence, and must
-    not fall through to the next default.
-    """
     if dispatcher_methods is not None:
         return dispatcher_methods
     routed = routing.get("methods")

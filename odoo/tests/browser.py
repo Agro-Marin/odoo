@@ -122,11 +122,6 @@ class ChromeBrowser:
         else:
             self.screencaster = NoScreencast()
 
-        # Record *that* a handler was installed, not just what it was:
-        # signal.SIG_DFL is an IntEnum of value 0, so the old
-        # "if self.sigxcpu_handler:" restore in stop() was dead whenever
-        # nothing had previously installed one -- the usual case -- and the
-        # handler survived every browser test, bound to a dead ChromeBrowser.
         self._sigxcpu_installed = False
         self.sigxcpu_handler = None
         if os.name == "posix":
@@ -140,9 +135,6 @@ class ChromeBrowser:
         self.had_failure = False
         self._responses = {}
         self._frames = {}
-        # _chrome_start belongs inside the guard: it raises whenever Chrome is
-        # missing or fails to come up, and outside the try that left the
-        # SIGXCPU handler installed and the profile directory behind.
         try:
             self.chrome, self.devtools_port = self._chrome_start(
                 user_data_dir=self.user_data_dir,
@@ -165,12 +157,6 @@ class ChromeBrowser:
             "Page.screencastFrame": self.screencaster,
             "ServiceWorker.workerErrorReported": self._handle_service_worker_error,
         }
-        # The retry is for thread-table exhaustion: a large suite can transiently
-        # run the process out of thread handles, and a gc pass plus a short
-        # backoff usually frees some. Five attempts, and the fifth failure is
-        # the caller's problem -- the old `for ... else` made it six and reused
-        # the Thread whose start() had just raised, which only works because
-        # CPython happens to leave _started unset on that path.
         for attempt in range(5):
             receiver = threading.Thread(
                 target=self._receive,
@@ -218,14 +204,6 @@ class ChromeBrowser:
         )
 
     def _settle_exception(self, exc: BaseException) -> None:
-        """Fail ``self._result``, tolerating a concurrent settle.
-
-        Three sites settle this future from the receiver thread while the main
-        thread can cancel it in ``stop()``; ``done()`` is not atomic with the
-        ``set_*`` that follows it. Two of them carried this handler inline and
-        the third did not, so only that one turned the race into a stray
-        traceback logged by ``Future._invoke_callbacks``.
-        """
         try:
             self._result.set_exception(exc)
         except CancelledError:
@@ -238,7 +216,6 @@ class ChromeBrowser:
             )
 
     def _settle_result(self, value: Any) -> None:
-        """Complete ``self._result``, tolerating a concurrent settle."""
         try:
             self._result.set_result(value)
         except CancelledError:
@@ -302,8 +279,6 @@ class ChromeBrowser:
             with contextlib.suppress(AttributeError, OSError):
                 self.ws.close()
 
-        # hasattr: _chrome_start may have raised before assigning it, and stop()
-        # now runs on that path too.
         if hasattr(self, "chrome"):
             self._terminate_chrome()
 
@@ -311,10 +286,6 @@ class ChromeBrowser:
         shutil.rmtree(self.user_data_dir, ignore_errors=True)
 
         if self._sigxcpu_installed:
-            # signal.signal only works on the main thread, and a teardown from
-            # anywhere else must not mask the exception that got us here.
-            # getsignal returns None for a handler not set from Python, which
-            # signal.signal will not take back; SIG_DFL is the honest restore.
             with contextlib.suppress(ValueError, TypeError):
                 signal.signal(signal.SIGXCPU, self.sigxcpu_handler or signal.SIG_DFL)
 
@@ -353,13 +324,6 @@ class ChromeBrowser:
                 cmd,
                 stdout=log_file,
                 stderr=log_file,
-                # No preexec_fn here on purpose. It used to raise RLIMIT_AS to
-                # infinity for the child, but this fork removed in-process
-                # RLIMIT_AS enforcement (see --limit-memory-hard, which now
-                # points at cgroup v2), so the runner already runs unlimited and
-                # the call changed nothing -- while preexec_fn runs Python
-                # between fork and exec and forces CPython off posix_spawn,
-                # which is unsafe in a process this heavily threaded.
                 env={**os.environ, "TMPDIR": self.user_data_dir},
             )
 
@@ -370,10 +334,6 @@ class ChromeBrowser:
             if port_file.is_file() and port_file.stat().st_size > 5:
                 with port_file.open("r", encoding="utf-8") as f:
                     return proc, int(f.readline())
-            # A Chrome that dies at once -- bad flag, missing shared library,
-            # OOM -- used to burn the whole BROWSER_WAIT before saying anything,
-            # and then blame a missing port rather than the exit. _json_command
-            # already checks its process this way.
             if (died := proc.poll()) is not None:
                 break
 
@@ -523,9 +483,6 @@ class ChromeBrowser:
         ws = websocket.create_connection(
             ws_url, enable_multithread=True, suppress_origin=True
         )
-        # The caller only assigns self.ws once this returns, and stop()'s socket
-        # cleanup is gated on hasattr(self, "ws"), so anything that raises
-        # between here and the return leaks a live connection nobody can reach.
         try:
             if ws.getstatus() != 101:
                 raise InfrastructureUnavailable("Cannot connect to chrome dev tools")
@@ -603,15 +560,6 @@ class ChromeBrowser:
     def _websocket_requires_result(
         self, method: str, *, params: dict | None = None, timeout: float | None = None
     ) -> Any:
-        """``_websocket_request`` for the callers that subscript the response.
-
-        ``_websocket_request`` answers ``None`` once ``_receive`` has dropped
-        ``self.ws``, which it does together with settling ``self._result``. The
-        two wait loops subscripted that ``None``, so a socket that died between
-        two polls surfaced as ``TypeError: 'NoneType' object is not
-        subscriptable`` -- naming neither the socket nor the real error, which
-        by then is sitting in ``self._result``.
-        """
         response = self._websocket_request(method, params=params, timeout=timeout)
         if response is not None:
             return response
@@ -752,8 +700,6 @@ which leads to stray network requests and inconsistencies."""
                 if not self._result.done():
                     self._settle_result(True)
                 elif not self._result.cancelled() and self._result.exception() is None:
-                    # cancelled() first: .exception() raises CancelledError on a
-                    # cancelled future, and stop() cancels from the main thread.
                     _logger.error("Tried to make the tour successful twice.")
 
     def _handle_exception(self, exceptionDetails: dict, timestamp: float) -> None:
@@ -1053,11 +999,6 @@ class Screencaster:
 
     def stop(self) -> None:
         if self.stopped:
-            # save() has already run and set this. Its two failure paths -- no
-            # ffmpeg on PATH, ffmpeg exiting non-zero -- deliberately keep
-            # frames_dir and log its path for the developer, and
-            # ChromeBrowser.stop() calls us afterwards, so deleting here threw
-            # away the frames the log had just pointed at.
             return
         self.browser._websocket_send("Page.stopScreencast")
         self.stopped = True
@@ -1088,10 +1029,6 @@ class Screencaster:
                     end_time = next_frame["timestamp"] if next_frame else t
                     duration = end_time - f["timestamp"]
                 concat_file.write(f"file '{f['file_path']}'\nduration {duration}\n")
-            # ffmpeg's concat demuxer wants the last file repeated so the final
-            # frame gets its duration. Read it from frames[-1] rather than
-            # relying on the loop variable outliving the loop, which only held
-            # because of the `if not self.frames` guard above.
             concat_file.write(f"file '{frames[-1]['file_path']}'\n")
 
         try:

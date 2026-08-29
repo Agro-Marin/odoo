@@ -259,12 +259,6 @@ class configmanager:
     def _add_file_only_options(
         self, parser: optparse.OptionParser, FileOnlyOption: type
     ) -> None:
-        """Options settable from the config file only, with no CLI flag.
-
-        Grouped out of ``_build_cli`` the way every other block there is, so
-        that method stays a table of contents rather than growing by one more
-        entry each time an option is added.
-        """
         parser.add_option(FileOnlyOption(dest="admin_passwd", my_default="admin"))
         parser.add_option(
             FileOnlyOption(
@@ -1895,19 +1889,6 @@ class configmanager:
         self._load_file_options(self["config"])
 
     def _load_file_options(self, rcfile: str) -> None:
-        """Read ``rcfile`` into ``self._file_options``.
-
-        The reading and the parsing are guarded separately, and that separation
-        is the point. An absent or unreadable rc file is not an error -- there
-        may not be one -- but an OSError raised while *parsing* a value is a
-        different animal: ``_check_addons_path`` calls ``Path.iterdir()``, which
-        raises PermissionError on a directory it cannot read. With one ``try``
-        over both, that aborted the loop and left the whole file unread, with no
-        warning: one chmod on one addons directory silently discarded
-        ``http_port``, ``db_name`` and everything else, and the server came up on
-        defaults. Measured before this split -- three options in the file, zero
-        loaded, zero warnings.
-        """
         self._file_options.clear()
         p = configparser.RawConfigParser(inline_comment_prefixes=("#", ";"))
         try:

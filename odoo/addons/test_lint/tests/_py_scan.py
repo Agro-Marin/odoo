@@ -1,9 +1,3 @@
-"""How the Python scan runs: corpus, parallelism, caching.
-
-What it looks for is `_rules`. This module owns nothing about any individual
-rule; adding one is an entry in `_rules.CHECKERS` and nothing here.
-"""
-
 import ast
 import functools
 import logging
@@ -12,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from . import _checker_translated_unique, lint_case
-from ._rules import (  # re-exported: the vocabulary of a scan
+from ._rules import (
     ALIASES,
     CHECKERS,
     CROSS_UNIT_RULES,
@@ -50,9 +44,6 @@ __all__ = [
     "walk_with_parents",
 ]
 
-#: Third-party code that happens to sit inside the tree. Linting it reports
-#: findings nobody here may fix, and the fix upstream would be reverted by the
-#: next vendoring.
 _NOT_OURS = ("/_vendor/", "/upgrades/", "/migrations/")
 
 
@@ -84,12 +75,10 @@ def _source_line(lines: list[str], lineno: int, limit: int = 110) -> str:
     return line if len(line) <= limit else line[: limit - 1] + "…"
 
 
-#: (rule, path, lineno, col_offset, message)
 type Row = tuple[str, str, int, int, str]
 
 
 def scan_one(path: str, in_module: bool) -> tuple[list[Row], list]:
-    """Every finding in one file, plus what the cross-unit rules need from it."""
     try:
         raw = Path(path).read_bytes()
         text = raw.decode("utf-8", errors="replace")
@@ -213,7 +202,6 @@ def _run_parallel(entries: list[tuple[str, bool]], jobs: int):
 
 @functools.cache
 def _scan() -> tuple[list[Row], list, int]:
-    """One pass over the corpus. Everything downstream reads this, once."""
     entries = [(source.path, source.in_module) for source in corpus()]
 
     jobs = _job_count(len(entries))
@@ -242,10 +230,6 @@ def findings() -> dict[str, list[Finding]]:
     for rule, path, lineno, col, message in rows:
         by_rule.setdefault(rule, []).append(Finding(path, lineno, rule, message, col))
 
-    # `unique-over-translated-column` cannot be decided from one file: a model's
-    # translated fields may be declared in a class the constraint's file never
-    # imports, so the answer needs every unit at once. The per-file half of the
-    # work rode along with the parse above.
     for violation in _checker_translated_unique.violations(units):
         if is_test_path(violation.path):
             continue
@@ -264,12 +248,6 @@ def findings() -> dict[str, list[Finding]]:
 
 
 def translated_unique_scale() -> tuple[int, int]:
-    """(model classes, uniqueness rules) the scan considered.
-
-    The canary for `unique-over-translated-column`: the rule reports nothing on a
-    clean tree, so without this a scan that reached no models at all would look
-    exactly like a scan that found no defects.
-    """
     _rows, units, _jobs = _scan()
     return (
         sum(len(infos) for _path, infos in units),

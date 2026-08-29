@@ -339,16 +339,7 @@ class Field[T](
             return
 
         if cls.type and cls._register_type:
-            # Not setdefault: a second class claiming a taken type would lose in
-            # silence, and the loser is not merely unused -- it vanishes from the
-            # `ttype` selection that `ir.model.fields` builds from this registry,
-            # and manual fields of that type get built from the winner instead.
-            # Opting out is spelled `_register_type = False` (see `Id`), so an
-            # accidental collision must not be indistinguishable from it.
             taken = cls._by_type__.get(cls.type)
-            # Only an OWN declaration is a claim. A subclass that merely inherits
-            # its parent's `type` (Image from Binary, say) is not competing for
-            # the slot, and the parent must stay the registered class.
             if (
                 taken is not None
                 and "type" in cls.__dict__
@@ -597,9 +588,6 @@ class Field[T](
             field_seq.append(field)
             model_name = field.comodel_name
 
-        # Kept: `_search_related` walked `_related_names` again on every call to
-        # rebuild exactly this, and setup is the only place that can prove each
-        # hop resolves.
         self._related_field_seq = tuple(field_seq)
 
         if self.type != field.type:
@@ -1073,21 +1061,6 @@ class Field[T](
         return record.browse(result)
 
     def _clear_dead_pending(self, records: BaseModel) -> None:
-        """Drop PENDING markers that no compute is going to replace.
-
-        ``create`` seeds PENDING for every stored computed field, meaning "a
-        compute owes this record a value". A compute that leaves a record
-        unassigned -- the idiom for "leave the stored value alone" -- returns
-        without clearing the marker and without scheduling anything, which is
-        the state ``_flush`` refuses outright: *the value can never
-        materialize*. Reading such a field papers over it with a full-width
-        SELECT, and because ``_insert_cache`` is a ``setdefault`` the marker
-        survives that SELECT, so the *next* field read pays for another one.
-
-        The row is in hand here. Take it for every marker nothing else owns:
-        still-scheduled fields keep theirs, because their compute is the
-        authority, and dirty ids keep theirs, because a pending write is.
-        """
         env = records.env
         field_cache = self._get_cache(env)
         if not field_cache:

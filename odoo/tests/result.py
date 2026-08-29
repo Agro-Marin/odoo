@@ -58,9 +58,6 @@ $
 
 
 class OdooTestResult:
-    # staticmethod, not a module global: freezegun rewrites bare module-level
-    # references to the real clock, so a test that freezes time made every
-    # duration this class reports fiction.
     _monotonic = staticmethod(time.monotonic)
 
     _previousTestClass = None
@@ -172,19 +169,9 @@ class OdooTestResult:
             )
             return
 
-        # The environment could not run this, which is not the same as deciding
-        # it should not run. Counted apart so the summary can say so, and an
-        # error under ODOO_REQUIRE_INFRA so a host with no browser cannot report
-        # a clean pass over a suite that never executed.
         self.infrastructure_skipped += 1
         if REQUIRE_INFRA:
             if self._soft_fail:
-                # A non-final auto-retry attempt: record that the attempt failed
-                # without booking a permanent error, exactly as addError and
-                # addFailure do. Counting here made an infra skip on the first
-                # attempt fail the run even when a later attempt succeeded --
-                # and because this branch logs at ERROR the retry loop never
-                # broke early, so the count was incurred once per attempt.
                 self.had_failure = True
             else:
                 self.errors_count += 1
@@ -244,7 +231,6 @@ class OdooTestResult:
             f"of {self.testsRun} tests"
         )
         if self.infrastructure_skipped:
-            # Never silent: a suite that could not run is not a suite that passed.
             summary += (
                 f" ({self.infrastructure_skipped} skipped because the "
                 f"environment could not run them)"
@@ -276,8 +262,6 @@ class OdooTestResult:
         self.skipped += other.skipped
         self.infrastructure_skipped += other.infrastructure_skipped
         for test_id, stat in other.stats.items():
-            # Sum, don't overwrite: collectStats accumulates with += and
-            # setUpClass ids collide when one class runs in both positions.
             self.stats[test_id] += stat
 
     def log(

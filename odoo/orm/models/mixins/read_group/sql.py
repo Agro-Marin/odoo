@@ -113,19 +113,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
     @api.model
     @ormcache("field_name", "self.env.su", "self.env.user._get_group_ids()")
     def _is_field_groupable(self, field_name: str) -> bool:
-        """Whether this user may group by `field_name`.
-
-        Built exactly like `_query._is_field_sortable`, and cached for the same
-        reason: answering it means composing the GROUP BY term, which for a
-        related or delegated field walks the relation and builds a JOIN, and
-        `fields_get` asks for every field it describes.
-
-        It lives here rather than beside its counterpart because composing that
-        term is `_read_group_groupby`'s job, and this unit already depends on
-        `_query` for `_field_to_sql`. Asking the other way round -- which is
-        where this method used to sit -- made `_query` and `read_group/sql`
-        mutually dependent, the one cycle in BaseModel's unit graph.
-        """
         field = self._fields[field_name]
         groupby = field_name if not field.is_temporal else f"{field_name}:month"
         try:

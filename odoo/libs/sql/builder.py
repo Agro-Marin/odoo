@@ -37,11 +37,6 @@ class SQL:
         to_flush: Field | Iterable[Field] | None = None,
         **kwargs: object,
     ) -> None:
-        # Each SQL spelling returns from its own branch rather than rebinding
-        # `code`. `code = args[0]` widened the parameter to `object` -- `args`
-        # is `*args: object` -- so every read of the adopted SQL below had to
-        # be taken on trust, and `code` stayed `str | SQL` for the whole rest
-        # of the method, which is a str by then and could not be seen to be.
         if isinstance(code, SQL):
             self.__adopt(code, args, kwargs, to_flush)
             return
@@ -109,7 +104,6 @@ class SQL:
         kwargs: dict,
         to_flush: Field | Iterable[Field] | None,
     ) -> None:
-        """Take another SQL's code and params, with this call's to_flush."""
         if args or kwargs:
             msg = "SQL() unexpected arguments when code has type SQL"
             raise TypeError(msg)

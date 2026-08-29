@@ -1,29 +1,3 @@
-"""Both native extensions must declare that they need the GIL.
-
-PyO3 0.28 inverted the meaning of saying nothing. Through 0.27 an unannotated
-`#[pymodule]` declared `Py_MOD_GIL_USED` and a free-threaded interpreter
-re-enabled the GIL to import it; from 0.28 an unannotated module declares
-`Py_MOD_GIL_NOT_USED` and the interpreter takes it at its word. Nothing in
-either crate changed when the dependency did, so both silently began telling a
-free-threaded CPython it was safe to run their functions in parallel.
-
-They are not, and this is measured. Built with `gil_used = false` against
-CPython 3.14.7t and run with 8 readers against 6 threads replacing every cache
-value, **`batch_cache_filter` segfaults, four runs out of four**; with the
-declaration as it stands, the same harness completes four of four, because the
-interpreter re-enables the GIL at import and says so. The scoping, the two
-attempted fixes and what the working one costs are in `cache.rs`'s module docs.
-
-That leaves the declaration a load-bearing safety property rather than a
-formality, which is why it is checked here — and why it is checked against the
-built binary.
-
-This reads the declaration out of the built binary rather than trusting the
-source, because the source did not change when the meaning did. Delete it when
-the borrows are converted, a free-threaded lane exercises them, and
-`gil_used = false` is a claim somebody has evidence for.
-"""
-
 import ctypes
 from pathlib import Path
 
@@ -31,7 +5,6 @@ import odoo_lint
 import odoo_rust
 import pytest
 
-#: `Py_mod_gil`, and the two values it takes. From `moduleobject.h`.
 PY_MOD_GIL = 4
 PY_MOD_GIL_USED = 0
 PY_MOD_GIL_NOT_USED = 1
@@ -67,13 +40,6 @@ class _ModuleDef(ctypes.Structure):
 
 
 def _extension_module(package):
-    """The compiled module inside the wheel's package wrapper.
-
-    maturin ships `odoo_rust/__init__.py` doing `from .odoo_rust import *`, so
-    the package itself carries no module definition — asking it for one answers
-    NULL, which is indistinguishable from "declared nothing" if you do not
-    notice.
-    """
     import importlib
 
     return importlib.import_module(f"{package.__name__}.{package.__name__}")
@@ -117,12 +83,6 @@ def test_the_extension_declares_that_it_needs_the_gil(package):
 
 @pytest.mark.parametrize("crate", ["odoo_rust", "odoo_lint"])
 def test_the_source_says_so_too(crate):
-    """The binary is the authority; the source must not disagree with it.
-
-    Checked separately because the two can drift in the direction that matters:
-    a source that says nothing produced a binary that said NOT_USED, and the
-    diff for that regression was empty.
-    """
     lib = (CRATES / crate / "src" / "lib.rs").read_text(encoding="utf-8")
     assert "#[pymodule(gil_used = true)]" in lib, (
         f"crates/{crate}/src/lib.rs does not spell `gil_used = true`. Leaving "

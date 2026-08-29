@@ -1,23 +1,8 @@
-// Resolve what every OWL template calls against what its component provides.
-//
-// Both halves are parsed, not matched. That is the whole point: a regex form of
-// this check reports CSS `url(` inside a `t-att-style` string as a method call,
-// misses the members a class gets from a mixin, and confuses two classes that
-// share a name in different files. Parsing the QWeb expressions with the same
-// parser that reads the JS removes the first outright and makes the other two
-// tractable.
-//
-// stdin: JSON { js: [paths], xml: [paths] }
-// stdout: JSON { templates, classes, findings: [...], skipped: {...} }
-
 import { readFileSync } from "node:fs";
 import * as espree from "espree";
 
 const PARSE = { ecmaVersion: "latest", sourceType: "module", loc: true };
 
-// Ways this tree installs a member bag onto a prototype. `Object.assign` is the
-// common one; `Object.defineProperties` is how `installListRendererMixin` does
-// it, in order to make the members non-enumerable and to refuse a collision.
 const OBJECT_INSTALLERS = new Set(["assign", "defineProperties"]);
 const EXPR_PARSE = { ecmaVersion: "latest", loc: false };
 
@@ -51,7 +36,6 @@ function keyName(node) {
           : null;
 }
 
-/** Members a class body declares itself, plus anything `this.x =` in it. */
 function ownMembers(classNode) {
     const names = new Set();
     for (const el of classNode.body.body) {
@@ -96,18 +80,12 @@ function superName(classNode) {
     if (sup.type === "Identifier") {
         return sup.name;
     }
-    // `class X extends Y.Z` — take the head; good enough to reach a local name.
     if (sup.type === "MemberExpression" && sup.object.type === "Identifier") {
         return sup.object.name;
     }
     return null;
 }
 
-/**
- * A module's JS facts. Classes are keyed by (file, name) so that two classes
- * sharing a name in different files cannot be confused — the failure that made
- * the regex prototype report `Many2One.openRecord` as missing when it exists.
- */
 function readModule(path) {
     let ast;
     try {
@@ -116,9 +94,9 @@ function readModule(path) {
         return { path, parseError: String(error.message || error) };
     }
     const classes = [];
-    const objects = new Map(); // local const name -> member names (mixin literals)
-    const imports = new Map(); // local name -> source specifier
-    const mixinsInto = new Map(); // class local name -> [mixin local names]
+    const objects = new Map();
+    const imports = new Map();
+    const mixinsInto = new Map();
 
     for (const node of ast.body) {
         if (node.type === "ImportDeclaration") {
@@ -153,7 +131,6 @@ function readModule(path) {
         if (node.type !== "CallExpression") {
             return;
         }
-        // `patch(X.prototype, {...})` and `patch(X, {...})`
         if (node.callee.type === "Identifier" && node.callee.name === "patch") {
             const [target, ext] = node.arguments;
             const owner =
@@ -173,9 +150,6 @@ function readModule(path) {
             }
             return;
         }
-        // `Object.assign(X.prototype, mixin)` and any single-call installer whose
-        // arguments are (mixinIdent, ...) applied to a known class — the shape
-        // `installListRendererMixin(listStylingMixin, "…")` uses.
         const args = node.arguments || [];
         if (
             node.callee.type === "MemberExpression" &&
@@ -202,26 +176,11 @@ function readModule(path) {
         }
     });
 
-    // A bespoke installer: any top-level function that Object.assign's a
-    // parameter onto a fixed class prototype. Record the class it installs onto
-    // and treat every call of it as installing its first argument.
-    const installers = new Map(); // fn name -> class name
+    const installers = new Map();
     walk(ast, (node) => {
         if (node.type !== "FunctionDeclaration" || !node.id || !node.params.length) {
             return;
         }
-        // Any parameterised function that installs onto some `X.prototype`
-        // counts, without insisting the parameter reaches the install call
-        // textually. `installListRendererMixin` derives its descriptors two
-        // statements earlier (`getOwnPropertyDescriptors(mixin)`), so a
-        // parameter match found nothing and all four members it installs were
-        // reported missing.
-        //
-        // The looseness is safe in ONE direction and that is the direction this
-        // gate runs in: over-recognising an installer can only ADD names to a
-        // component's membership, and a gate that reports a MISSING name turns
-        // an over-approximation into a false negative, never a false positive.
-        // Every resolution step here is written to err that way on purpose.
         walk(node.body, (inner) => {
             if (
                 inner.type === "CallExpression" &&
@@ -259,23 +218,11 @@ function readModule(path) {
     };
 }
 
-// ---------------------------------------------------------------- QWeb side
-
-// Attributes whose value is an EXPRESSION.
 const EXPR_ATTR =
     /^t-(?:on-[\w.-]+|att-[\w:.-]+|att|if|elif|out|esc|value|foreach|key|props|component|slot-scope|model(?:\.\w+)*)$/;
-// Attributes whose value is a STRING with {{…}} / #{…} holes.
 const INTERP_ATTR = /^t-attf-[\w:.-]+$/;
 const INTERP = /\{\{([\s\S]*?)\}\}|#\{([\s\S]*?)\}/g;
 
-// Attributes are scanned directly, NOT tag by tag. A tag-level regex has to
-// bound itself on `>`, and `t-on-click="() => this.foo()"` contains one inside
-// the value -- so every arrow-function handler, which is the commonest place a
-// template calls a component method, fell outside the match. That is not a
-// tidiness point: it made the first draft of this gate blind to the exact
-// defect it was written for, and it reported a clean tree while doing so. A
-// quoted value cannot contain a bare `"`, so the value delimiter is sound where
-// the tag delimiter is not.
 const ATTR = /([\w:.@-]+)\s*=\s*"([^"]*)"/g;
 
 function decode(text) {
@@ -288,8 +235,6 @@ function decode(text) {
         .replace(/&#39;/g, "'");
 }
 
-/** Names an expression calls: `this.foo(...)` and bare `foo(...)`. */
-/** QWeb accepts Python's boolean operators. espree does not. */
 function toJs(expr) {
     return expr
         .replace(/(^|[\s(,[])not(?=[\s(])/g, "$1!")
@@ -314,10 +259,6 @@ function calledIn(rawExpr, out, unparsable) {
         if (node.type !== "CallExpression") {
             return;
         }
-        // `foo?.()` and `this.foo?.()` are the author saying the name may not be
-        // there. `website.DynamicSnippetOption` does exactly that with
-        // `!!showCoverImage?.()`, and reporting it would be telling a template
-        // off for the guard it was right to write.
         if (node.optional || node.callee.optional) {
             return;
         }
@@ -380,8 +321,6 @@ function analyseTemplate(block) {
     }
     return { called: [...called], bound: [...bound], unparsable };
 }
-
-// ---------------------------------------------------------------- driver
 
 const input = JSON.parse(readFileSync(0, "utf-8"));
 const modules = input.js.map(readModule);

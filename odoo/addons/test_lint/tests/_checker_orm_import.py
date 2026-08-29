@@ -23,20 +23,6 @@ def _is_type_checking_test(test: ast.expr) -> bool:
 
 
 def _type_checking_imports(tree: ast.Module) -> set[int]:
-    """The imports that exist for a type checker and never execute.
-
-    The facade rule is about what an addon *runs*. `coding_guidelines.rst` §2.1
-    and `doc/adr/0008-enforce-facade-boundary.md` allow `odoo.orm` under
-    `if TYPE_CHECKING:` precisely so a module can annotate a `Query` or a
-    `DomainType` without taking a runtime dependency on the ORM, and
-    `tooling/architecture/layer_check.py` -- the same rule enforced over the
-    core -- skips those blocks for that reason. This checker did not, so one
-    rule had two answers, and the guarded form the guidelines recommend was the
-    one it flagged.
-
-    Only the block's `body` is exempt: an `else:` under `if TYPE_CHECKING:`, or
-    an `if not TYPE_CHECKING:`, is the branch that does run.
-    """
     guarded: set[int] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.If) and _is_type_checking_test(node.test):
@@ -48,8 +34,6 @@ def _type_checking_imports(tree: ast.Module) -> set[int]:
 
 
 def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
-    # `id()` is exact here and cheap: `nodes`, when given, is a walk of this
-    # same tree, which stays alive for the call.
     guarded = _type_checking_imports(tree)
     for node in nodes if nodes is not None else ast.walk(tree):
         if id(node) in guarded:

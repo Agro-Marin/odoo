@@ -20,13 +20,6 @@ _esbuild_log = get_asset_logger("esbuild")
 
 EXTERNAL_SPECIFIER_PREFIX = "@odoo/"
 
-# External-lib specifiers that are merely another name for a file a bundle can
-# itself carry.  Registering one in ``odoo.loader.modules`` is legitimate only
-# when the bundle provides the aliased module, never unconditionally: the three
-# below are the HOOT test framework, and a page that registers them has loaded
-# the test framework.  Both renderers consult this table -- the esbuild entry in
-# ``_esbuild_entry_lines`` and the per-file fallback in
-# ``IrQweb._get_esm_nodes_debug`` -- so they cannot drift apart.
 EXTERNAL_LIB_ALIASES = {
     "@odoo/hoot": "@web/../lib/hoot/hoot",
     "@odoo/hoot-dom": "@web/../lib/hoot-dom/hoot-dom",
@@ -329,7 +322,6 @@ class EsbuildCompiler:
         sourcemap_flags = [f"--sourcemap={source_maps}"] if source_maps else []
         sourcemap_path = f"{out_path}.map"
         if self._standalone:
-            # No import map on the receiving side, so nothing may stay external.
             external_specifier_flags = []
             alias_flags += self._standalone_alias_flags(
                 odoo_root,
@@ -436,24 +428,6 @@ class EsbuildCompiler:
     def _standalone_alias_flags(
         self, odoo_root: Path, already_aliased: set[str]
     ) -> list[str]:
-        """Aliases that let a standalone bundle inline the externals it imports.
-
-        A standalone bundle is delivered to a context with **no import map** --
-        the registry says so when it refuses one that participates in page
-        import-map relationships -- so a bare ``@odoo/owl`` left external is a
-        specifier nothing on the receiving page can resolve.  The websocket
-        worker never noticed because it imports none of these; the livechat
-        embed, which a third-party page loads from a single ``<script>``, dies
-        on the first one.
-
-        The whole ``esm.external_libs`` table is aliased rather than a hand-
-        picked subset, because esbuild pulls in only what the bundle actually
-        imports: this inlines owl for the embed and nothing at all for the
-        worker, and it cannot drift from the table the import map is built
-        from.  Specifiers already aliased by ``_LIB_CANDIDATES`` are left
-        alone -- that table deliberately points ``@popperjs/core`` at a
-        different file than the import map does.
-        """
         from odoo.tools.assets.esm_registry import external_libs
         from odoo.tools.misc import file_path
 
@@ -477,9 +451,6 @@ class EsbuildCompiler:
         entry_lines = []
         register_entries = []
         registered_specs: set[str] = set()
-        # A standalone bundle carries owl inlined rather than external, so
-        # importing it here is only worth the bytes when the bundle actually
-        # uses it: the livechat embed does, the websocket worker does not.
         if not self._standalone or self._imports_owl():
             registered_specs.add("@odoo/owl")
             entry_lines.append('import * as __owl from "@odoo/owl";')
@@ -497,17 +468,6 @@ class EsbuildCompiler:
             register_entries.append(f"  {json.dumps(spec)}: __m{i}")
             registered_specs.add(spec)
 
-        # Publish the bundle's modules even when standalone.  A standalone
-        # bundle can still be the parent a runtime-loaded child bridges onto --
-        # the livechat embed is, for its support-tours bundle -- and a bridge
-        # resolves through `odoo.loader.modules`.
-        #
-        # Guarded only when standalone: `_get_standalone_bundle` prepends the
-        # shim that defines `odoo.loader`, but a standalone artifact may also be
-        # loaded somewhere with no globals at all (a worker), and there the
-        # publication is simply not wanted.  A rendered page always carries the
-        # shim, so leave that branch unguarded -- a missing loader there is a
-        # defect and should say so rather than silently skip.
         if self._standalone:
             entry_lines.append("if (globalThis.odoo?.loader?.registerNativeModules) {")
         entry_lines.append("odoo.loader.registerNativeModules({")

@@ -1,30 +1,3 @@
-"""Two controller trees that share a leaf must not double that leaf's routes.
-
-``build_controllers`` iterated the *highest* controllers -- the direct
-``Controller`` subclasses -- and built one synthetic class per top. A leaf
-reachable from two tops therefore had its whole MRO assembled twice, and every
-route on it was yielded twice into the routing map.
-
-Both reachable shapes ship today, and the second is the common one:
-
-* **equal leaf sets** -- ``odoo/addons/rpc``: ``JSONRPC(Controller)`` and
-  ``XMLRPC(Controller)`` both resolve to the single leaf
-  ``RPC(XMLRPC, JSONRPC)``.
-* **overlapping leaf sets** -- ``portal.CustomerPortal`` and
-  ``sale.SaleProductConfiguratorController`` share
-  ``WebsiteSaleRentingProductConfiguratorController`` without their leaf sets
-  being equal. Three such pairs exist across the workspace.
-
-Measured on a 124-module e-commerce database (portal, payment, website_sale,
-website_sale_renting, website_sale_loyalty, website_sale_wishlist,
-sale_subscription): **633 rules against 515**, 62 URLs registered twice against
-the same implementation and 6 against two different ones. Which of the two the
-server actually ran was decided by the order rules were added -- reversing the
-insertion order flips all six from the subclass to the base class -- and the
-order is ``sorted(installed_modules)``, so it came out right only because Odoo
-names an extension after what it extends.
-"""
-
 import collections
 import sys
 from types import ModuleType
@@ -166,9 +139,6 @@ def test_an_override_chain_still_resolves_to_the_child(chain):
 
 
 def test_overlapping_leaf_sets_are_fused_into_one_tree(overlap):
-    # leaves(Left) == [OnlyLeft, Shared] and leaves(Right) == [Shared]:
-    # the sets are unequal, so a same-set test does not catch it, and both
-    # synthetic classes carry Shared's MRO -- which is Left's and Right's.
     assert _urls(["rd_ov", "rd_ov_leaves"]) == {
         "/ov/left": 1,
         "/ov/right": 1,
@@ -187,7 +157,6 @@ def test_the_fused_tree_carries_every_leaf(overlap):
 
 
 def test_fusion_is_transitive():
-    # A-B share a leaf, B-C share a different one: all three are one tree.
     from odoo.http.routing import _group_controller_trees
 
     A = _cls("A")
@@ -226,8 +195,6 @@ def test_a_tree_with_no_leaf_contributes_nothing():
 
 
 def test_leaf_order_survives_fusion():
-    # Order is what decides precedence once reversed into bases: later
-    # definition wins. Fusing must append, never re-sort.
     from odoo.http.routing import _group_controller_trees
 
     A = _cls("A")

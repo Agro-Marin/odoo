@@ -23,13 +23,6 @@ BaseCase = unittest.TestCase
 
 
 class _ManifestCase(BaseCase):
-    """`for_addon` answers None; these tests always know it did not.
-
-    Indexing or attributing that result directly reports "NoneType is not
-    subscriptable" instead of naming the module that went missing, and hides
-    the optional from a checker that would otherwise flag every such use.
-    """
-
     def _found_manifest(self, module_name: str) -> Manifest:
         manifest = Manifest.for_addon(module_name)
         if manifest is None:
@@ -38,9 +31,6 @@ class _ManifestCase(BaseCase):
 
 
 class TestModuleManifest(_ManifestCase):
-    #: created in setUpClass/setUp. Declared because a checker cannot see
-    #: through a method that invents attributes, and every use below then reads
-    #: as an attribute the class does not have.
     _tmp_dir: tempfile.TemporaryDirectory
     addons_path: str
     module_root: str
@@ -124,17 +114,12 @@ class TestModuleManifest(_ManifestCase):
         )
 
     def test_change_manifest(self):
-        # Deliberately a module this test creates, not "base": reading a module
-        # the patched addons path does not contain used to succeed anyway,
-        # served from a cache nothing invalidated, so the patch above was inert
-        # and the assertions ran against the real `base`.
         Path(self.module_root, "__manifest__.py").write_text(
             str({"name": "X", "license": "MIT", "author": "x"}), encoding="utf-8"
         )
         manifest = self._found_manifest(self.module_name)
         orig_auto_install = manifest["auto_install"]
         with self.assertRaisesRegex(TypeError, r"does not support item assignment"):
-            # the point of the test: Manifest is a read-only mapping
             manifest["auto_install"] = not orig_auto_install  # type: ignore[index]
         self.assertIs(Manifest.for_addon(self.module_name), manifest)
 
@@ -223,9 +208,6 @@ class TestManifestCache(_ManifestCase):
     def _write(self, name, content):
         path = Path(self._tmp.name, name, "__manifest__.py")
         path.write_text(str(content), encoding="utf-8")
-        # st_mtime_ns has filesystem-dependent granularity and these writes are
-        # microseconds apart; stamp it so the test measures the invalidation
-        # rule rather than the clock.
         stat = path.stat()
         os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
 
@@ -242,8 +224,6 @@ class TestManifestCache(_ManifestCase):
         self.assertIs(Manifest.for_addon(name), first)
 
     def test_a_manifest_edited_on_disk_is_seen_by_the_next_lookup(self):
-        # ir.module.module.update_list exists to notice exactly this, so no
-        # cache in front of it may answer with the pre-edit content.
         name = self._make("probe_edited", version="1.0")
         self.assertEqual(self._found_manifest(name)["version"], f"{major_version}.1.0")
         self._write(
@@ -369,10 +349,6 @@ class TestModuleIcon(_ManifestCase):
         )
 
     def test_the_manifest_resolves_its_own_icon_without_looking_itself_up(self):
-        # Manifest.icon used to call get_module_icon(self.name), which called
-        # Manifest.for_addon(self.name) to reach the manifest it was already a
-        # method of -- a second parse of the same file per module, and the
-        # dominant cost of modules.db.initialize.
         name = self._make("probe_no_self_lookup")
         manifest = self._found_manifest(name)
         with patch.object(

@@ -33,25 +33,6 @@ _ENGLISH_AUTH_MARKERS: tuple[tuple[str, ...], ...] = (
 
 
 def _translate_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | None:
-    """Classify a connect failure as permanent, so the pool fails fast.
-
-    libpq reports connect-time failures with no SQLSTATE -- psycopg's
-    `sqlstate` and `diag` are both `None` here -- so the message text is the
-    only signal available, and PostgreSQL translates it under `lc_messages`.
-    Two consequences worth knowing before changing this:
-
-    * The missing-database case does not depend on the text at all: the caller
-      falls back to `_database_absent`, which asks `pg_database`.  That is why a
-      localised server still fails fast on an unknown database.
-    * An **authentication** failure has no such fallback.  On a server with the
-      PostgreSQL translation catalogues installed and a non-English
-      `lc_messages`, a wrong password is not recognised here and costs the full
-      `db_borrow_timeout` (measured: 0.02 s against 30.00 s) instead of failing
-      immediately.  `options='-c lc_messages=C'` cannot fix it -- authentication
-      happens before the server processes `options`, verified by pairing a bad
-      password with an invalid GUC and getting the password error.  Deployments
-      that care should set `lc_messages = C` in `postgresql.conf`.
-    """
     msg = str(exc).lower()
     if any(marker in msg for marker in _LOCALE_INDEPENDENT_AUTH_MARKERS):
         return psycopg.errors.InvalidAuthorizationSpecification(str(exc))

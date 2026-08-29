@@ -89,15 +89,6 @@ def _pg_restore_total_timeout() -> float:
 
 @check_db_management_enabled
 def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
-    """Restore a database from a base64-encoded dump string.
-
-    ``data`` is the base64 body of a zip (v8+) or raw pg_dump custom format.
-    Whitespace is tolerated: the accumulator below strips it per-chunk and
-    buffers un-decoded chars so every ``b64decode`` gets a multiple of 4 chars
-    (chunk boundaries landing mid-group on a 76-char wrap used to crash decoding).
-
-    ``copy=True`` forces a new dbuuid so the restore can coexist with the original.
-    """
     _STRIP_WS = str.maketrans("", "", " \t\n\r\v\f")
     CHUNK = 8192
 

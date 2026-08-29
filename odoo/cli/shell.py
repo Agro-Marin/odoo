@@ -60,16 +60,11 @@ class Console(code.InteractiveConsole):
 
 
 class Shell(Command):
-    """Start odoo in an interactive shell"""
-
     supported_shells = ("ipython", "ptpython", "bpython", "python")
     _REPL_MODULES = {"ipython": "IPython", "ptpython": "ptpython", "bpython": "bpython"}
 
     def __init__(self) -> None:
         super().__init__()
-        # Bound here, not only in `init()`: `console()` reads both, so a Shell
-        # driven straight from Python (a test, an embedding) used to raise
-        # AttributeError instead of falling back to the defaults.
         self._shell_file: str = ""
         self._shell_interface: str | None = None
         self.parser.add_argument(
@@ -89,12 +84,6 @@ class Shell(Command):
 
     @classmethod
     def _repl_available(cls, shell: str) -> bool:
-        """True when ``shell``'s implementation module is importable.
-
-        Probing with ``find_spec`` (instead of catching ImportError around the
-        REPL launch) distinguishes "not installed" from "installed but broken":
-        the latter now surfaces as a warning instead of a silent fallback.
-        """
         module = cls._REPL_MODULES.get(shell)
         if module is None:
             return True
@@ -115,12 +104,6 @@ class Shell(Command):
 
     @staticmethod
     def _stdin_is_a_tty() -> bool:
-        """True when stdin is an interactive terminal.
-
-        ``sys.stdin`` is not always a real file: it is None under `pythonw`,
-        and a captured/replaced object raises ``io.UnsupportedOperation`` from
-        ``fileno()``. Neither is a terminal, and neither should be a traceback.
-        """
         try:
             return sys.stdin is not None and os.isatty(sys.stdin.fileno())
         except AttributeError, OSError, ValueError:

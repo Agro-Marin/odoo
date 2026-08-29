@@ -497,13 +497,6 @@ class TestQwebFieldAttributes(common.TransactionCase):
 
 
 class TestQwebFieldTimeRounding(common.TransactionCase):
-    """``time`` and ``float_time`` read the same float-hours domain.
-
-    ``time`` truncated where ``float_time`` rounds, so 22 of the 1440 whole
-    minutes in a day rendered one minute early -- 2.05h as 02:02 against
-    02:03 -- purely from the binary representation of the input.
-    """
-
     def _time(self, value):
         return self.env["ir.qweb.field.time"].value_to_html(value, {"format": "HH:mm"})
 
@@ -524,8 +517,6 @@ class TestQwebFieldTimeRounding(common.TransactionCase):
         self.assertEqual(self._time(8.2), "08:12")
 
     def test_rounding_up_past_midnight_clamps_rather_than_raising(self):
-        # 23:59:31 rounds to 1440 minutes. Raising there would turn a value
-        # that rendered before the rounding fix into a 500 out of a template.
         for value in (23.99, 23.9917, 23.995, 23.999, 23.99999):
             with self.subTest(value):
                 self.assertEqual(self._time(value), "23:59")
@@ -539,14 +530,6 @@ class TestQwebFieldTimeRounding(common.TransactionCase):
 
 
 class TestQwebFieldDurationDirection(common.TransactionCase):
-    """``add_direction`` used to be applied once per section.
-
-    CLDR inflects the unit noun in the relative form (fr "1 heure" ->
-    "dans 1 heure"), so a direction cannot be composed with a section list:
-    doing it per section shipped "in 1h in 30m" in the website_event_track
-    countdown badges.
-    """
-
     def value_to_html(self, value, options=None):
         return self.env["ir.qweb.field.duration"].value_to_html(value, options or {})
 
@@ -584,9 +567,6 @@ class TestQwebFieldDurationDirection(common.TransactionCase):
         self.assertEqual(self.value_to_html(0, {"add_direction": True}), "")
 
     def test_a_digital_value_that_rounds_to_zero_drops_the_sign_too(self):
-        # The textual path already refused to emit a bare sign for a value
-        # that rounds away (test_duration_rounding_to_zero_renders_empty...);
-        # the digital path kept one, rendering "-00:00:00".
         self.assertEqual(
             self.value_to_html(-0.0001, {"unit": "hour", "digital": True}),
             "00:00:00",
@@ -605,14 +585,6 @@ class TestQwebFieldDurationDirection(common.TransactionCase):
 
 
 class TestQwebFieldDurationLocaleFallback(common.TransactionCase):
-    """A locale missing narrow/short relative patterns keeps its language.
-
-    57 (locale, width, unit) triples across 28 CLDR locales have no
-    "future"/"past" entry for the narrow or short width, and every one of
-    them has it for "long". The fallback used to jump straight to en_US and
-    render "in 1 hour" inside an otherwise Hungarian page.
-    """
-
     def test_missing_narrow_relative_pattern_widens_before_changing_language(self):
         from odoo.tools.misc import babel_locale_parse
 
@@ -642,8 +614,6 @@ class TestQwebFieldImageInput(common.TransactionCase):
         )
 
     def test_every_malformed_payload_raises_the_domain_error(self):
-        # Not merely "raises": the old code leaked AttributeError, TypeError
-        # and UnicodeDecodeError from three different depths, past every guard.
         hostile = {
             "an int": 12345,
             "an object": object(),
@@ -658,9 +628,6 @@ class TestQwebFieldImageInput(common.TransactionCase):
                 self.value_to_html(value)
 
     def test_a_payload_that_only_decodes_by_discarding_bytes_is_refused(self):
-        # ``b64decode`` silently discards a stray non-base64 byte, so a lenient
-        # normalisation would validate the image and then build the data URI
-        # from the raw value -- still carrying the byte. Refuse instead.
         smuggled = self.PNG_B64[:10] + b"\xff" + self.PNG_B64[10:]
         self.assertEqual(
             base64.b64decode(smuggled),
@@ -711,13 +678,6 @@ class TestQwebFieldDatetimeOnADate(common.TransactionCase):
 
 
 class TestQwebFieldMonetaryPrecision(common.TransactionCase):
-    """``decimal_places`` used to pad, not round.
-
-    The format string honoured the option while the value was still rounded
-    by the currency, so asking for 4 places on a 2-place currency produced
-    two real digits and two zeroes.
-    """
-
     def value_to_html(self, value, options):
         return str(self.env["ir.qweb.field.monetary"].value_to_html(value, options))
 
@@ -747,8 +707,6 @@ class TestQwebFieldMonetaryPrecision(common.TransactionCase):
 
 
 class TestQwebFieldRecordOptionsHook(common.TransactionCase):
-    """The four converters that enrich options from the field share one hook."""
-
     CONVERTERS = (
         "ir.qweb.field.float",
         "ir.qweb.field.selection",
@@ -802,17 +760,6 @@ class TestQwebFieldAttributesGuard(common.TransactionCase):
 
 
 class TestQwebFieldMonetaryCurrencyFallback(common.TransactionCase):
-    """The currency fallback is an ORDER, and it must skip empty candidates.
-
-    A monetary field's declared currency field is frequently empty --
-    `account.bank.statement.line.amount_currency` declares
-    `foreign_currency_id`, which is blank on every company-currency line.  The
-    lookup has to keep walking; stopping at the declared name turns those
-    renders into `ValueError: Missing display_currency`.  Nine models in
-    `account` alone have a monetary field whose declared currency sorts after
-    another `res.currency` many2one.
-    """
-
     def test_an_empty_candidate_is_skipped_for_a_populated_one(self):
         company = self.env.company
         Monetary = self.registry["ir.qweb.field.monetary"]
@@ -895,14 +842,6 @@ class TestQwebFieldMonetaryCurrencyFallback(common.TransactionCase):
 
 
 class TestFormatAmountNegativeZero(common.TransactionCase):
-    """An amount that rounds away to nothing must not keep its sign bit.
-
-    `"%.2f" % -0.0` is `"-0.00"`. `tools.format_amount` has always emitted
-    that; only the qweb monetary converter's own `float_is_zero` guard kept it
-    off the page, so extracting the shared helper exposed it. The guard now
-    lives in `format_amount_parts`, at the precision actually rendered.
-    """
-
     def test_format_amount_does_not_render_a_negative_zero(self):
         from odoo.tools import format_amount
 
@@ -932,14 +871,6 @@ class TestFormatAmountNegativeZero(common.TransactionCase):
 
 
 class TestQwebFieldHtmlPostProcessing(common.TransactionCase):
-    """The html converter skips elements `_post_processing_att` cannot touch.
-
-    The skip is driven by `ir.qweb._get_post_processing_att_names()`, asked
-    once per document. It is a filter on WHICH ELEMENTS get the call -- never
-    on whether the document is parsed -- so the tidying the parse performs is
-    unaffected.
-    """
-
     def value_to_html(self, value):
         return str(self.env["ir.qweb.field.html"].value_to_html(value, {}))
 
@@ -956,10 +887,6 @@ class TestQwebFieldHtmlPostProcessing(common.TransactionCase):
         self.assertIn("javascript:alert(1)", rendered)
 
     def test_the_set_is_conservative_over_every_plausible_attribute(self):
-        # The contract, brute-forced rather than argued: for EVERY element the
-        # set lets the converter skip, `_post_processing_att` must change
-        # nothing. A false negative here silently stops the scrub, so this is
-        # a security property, not a performance one.
         irQweb = self.env["ir.qweb"]
         names = irQweb._get_post_processing_att_names()
         self.assertIsNotNone(names, "base must narrow; only an override may decline")
@@ -1011,7 +938,6 @@ class TestQwebFieldHtmlPostProcessing(common.TransactionCase):
         self.assertGreater(skipped, 100, "the sweep did not exercise the skip")
 
     def test_no_advertised_name_is_dead_weight(self):
-        # The converse: an over-wide set costs work for nothing.
         irQweb = self.env["ir.qweb"]
         for name in irQweb._get_post_processing_att_names():
             with self.subTest(name):
@@ -1023,8 +949,6 @@ class TestQwebFieldHtmlPostProcessing(common.TransactionCase):
                 )
 
     def test_a_widened_hook_is_honoured_by_the_converter(self):
-        # The trap this guards: an override that widens `_post_processing_att`
-        # without widening the name set would be silently skipped.
         IrQweb = self.registry["ir.qweb"]
         original = IrQweb._post_processing_att
 
@@ -1049,7 +973,6 @@ class TestQwebFieldHtmlPostProcessing(common.TransactionCase):
         self.assertIn('title="scrubbed"', widened_out, "widening was honoured")
 
     def test_the_parse_still_tidies_when_nothing_is_scrubbed(self):
-        # The filter must not become a reason to skip the parse.
         self.assertEqual(self.value_to_html("<p>unclosed"), "<p>unclosed</p>")
         self.assertEqual(
             self.value_to_html("<html><body><p>a</p></body></html>"), "<p>a</p>"

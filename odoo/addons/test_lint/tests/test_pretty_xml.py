@@ -20,12 +20,6 @@ class PrettyXmlLinter(LintCase):
         )
 
     def test_no_data_file_is_unparseable(self):
-        """A file that is not XML was dropped in silence by four gates at once.
-
-        `format_xml_file` printed to stderr and returned None, which the gate
-        read as "not a violation"; `XmlRecordLinter` logged a warning and skipped
-        it; both fixer sweeps skipped it too.
-        """
         sweep = _xml_sweep.formatter_sweep()
         self.assertFalse(
             sweep.unparseable,

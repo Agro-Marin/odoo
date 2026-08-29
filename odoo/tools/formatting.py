@@ -228,11 +228,6 @@ def _format_time_ago(
     lang_code: str | None = None,
     add_direction: bool = True,
 ) -> str:
-    # `get_lang` is the one place that resolves a language. This used to walk
-    # installed languages itself and got it subtly wrong: no `en_US` preference,
-    # no `with_context(lang="en_US")` on the company read, an IndexError with no
-    # language installed, and -- the one that showed -- no check that the
-    # company's language is installed at all before handing it to babel.
     locale = babel_locale_parse(lang_code or get_lang(env).code)
     return babel.dates.format_timedelta(
         -time_delta, add_direction=add_direction, locale=locale
@@ -277,12 +272,6 @@ def format_amount_parts(
     else:
         rounded = float_round(amount, precision_digits=decimal_places)
 
-    # An amount that rounds away to nothing keeps the sign bit, and "%.2f"
-    # renders -0.0 as "-0.00". `format_amount` has always emitted that; the
-    # qweb monetary converter carried its own float_is_zero guard against it,
-    # which is the only reason it never showed. Guard once, here, at the
-    # precision actually being rendered -- at 4 places -0.0040 is a real value
-    # and must keep its sign.
     if float_is_zero(rounded, precision_digits=decimal_places):
         rounded = 0.0
 

@@ -1,41 +1,13 @@
 #!/bin/sh
-# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
 # fmt: off
 ''':'
-# Self-locating sh/python trampoline: re-exec this file with the workspace venv
-# interpreter. The logic is shared — see tooling/_trampoline.sh.
 _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
 # fmt: on
 
-__doc__ = """Fast warm-server HOOT test runner for the Odoo 19 web module.
-
-Replaces the ~8-11 min ``odoo-bin --test-tags /web:WebSuite.test_X`` loop:
-boots ONE persistent threaded dev server (once), keeps it warm across
-invocations, and drives Chrome via Odoo's own ``ChromeBrowser`` CDP driver
-against ``/web/tests``. The ERP boot and the esbuild bundle build are paid once;
-every later run is seconds-to-~1min instead of minutes.
-
-Examples
---------
-  hoot '@web/core/domain'              # run one suite
-  hoot '@web/services' '@web/model'    # several suites
-  hoot '@mail/discuss' '@bus'          # other addons: DB hoot_bus_mail is
-                                       #   created with those modules installed
-  hoot --affected                      # suites touched by your git diff
-  hoot --watch '@web/core/domain'      # re-run on file change
-  hoot --status                        # show all warm servers
-  hoot --stop [--db hoot_mail]         # stop ONE warm server (keep its DB)
-  hoot --clean [--db hoot_mail]        # stop ONE warm server AND drop its DB
-                                       #   and that DB's filestore
-  hoot --stop --all                    # stop EVERY warm server (all sessions),
-                                       #   including untracked orphans
-
-Full test path form works too (HOOT resolves an id against a suite OR a single
-test), e.g.  hoot '@web/core/domain/Basic Properties/empty'.
-"""
+__doc__ = None
 
 
 import argparse
@@ -55,16 +27,6 @@ PRESET_ENV = {
     "desktop": {"size": "1366x768", "touch": False, "tag": ""},
     "mobile": {"size": "375x667", "touch": True, "tag": "-headless"},
 }
-"""``tag`` mirrors what ``tests/test_js.py`` sends per preset.
-
-``MobileWebSuite`` drives every one of its runs with ``tag="-headless"`` while
-``WebSuite`` sends none, because the mobile preset only excludes ``desktop`` --
-a ``headless`` test is DOM-free by definition and re-running it at 375x667
-buys nothing. Omitting it locally made the runner disagree with CI in the
-direction that hides work: a local mobile run is a strict *superset*, so
-tagging a suite ``headless`` produced no visible change here and a real one in
-CI. Override with ``--tag`` (``--tag ''`` clears it).
-"""
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -87,13 +49,6 @@ def _repeated_note(result) -> str:
 
 
 def _report_unrun_preset(suites: list[str], args, result: H.RunResult) -> None:
-    """Say when the other preset owns tests this run did not execute.
-
-    The README already says to run both presets and to "gate on the per-preset
-    test count, not on the exit code alone". A PASS that silently skipped every
-    mobile test in the selection is exactly the reading that advice guards
-    against, and nothing was saying so.
-    """
     if args.preset != "desktop" or result.failed:
         return
     files = H.mobile_tagged_files(suites)
@@ -255,10 +210,6 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
         extra=extra,
         verbose=args.verbose,
     )
-    # Ask whether the server we ran against is still THAT server. Warmth alone
-    # is not the question: a concurrent invocation reboots a died server, and
-    # `server_is_warm` would then answer for its replacement while this run's
-    # failures came from the gap. Identity is the pid.
     after = H.read_state(state["db"]) or {}
     if after.get("pid") != state.get("pid") or not H.server_is_warm(after):
         result.server_died = True
@@ -445,9 +396,6 @@ def main() -> int:
                     f"WARM  pid={st['pid']} port={st['port']} db={st['db']}", C_GREEN
                 )
             )
-        # Orphans hold connection slots and inotify watches while answering to
-        # nobody, so a status that omits them reads as clean while the cluster
-        # fills up. `--stop --all` is what clears them.
         for pid, db in sorted(H.find_untracked_servers().items()):
             print(
                 _color(
@@ -470,11 +418,6 @@ def main() -> int:
 
     suites = _resolve_suites(args)
     if not suites:
-        # `--restart` used to be read only on the way into a run, so a bare
-        # `hoot --restart` returned 0 here having stopped nothing: the next
-        # invocation reused the stale server and silently tested the sources
-        # as they were at ITS boot. Honour the flag whether or not there is
-        # something to run, resolving the database the way `--stop` does.
         if args.restart:
             db = args.db or H.db_for_modules(H.modules_for_suites([]))
             print(H.stop_server(db=db, clean=False))
@@ -489,9 +432,6 @@ def main() -> int:
     try:
         state, booted = H.ensure_server(db, modules, verbose=args.verbose)
     except H.PostgresUnavailable as exc:
-        # Not a hoot failure and not a test failure: the shared cluster is out
-        # of connection slots. Say which, so nobody spends the next hour
-        # bisecting a green branch.
         print(
             _color(
                 f"hoot: cannot reach PostgreSQL — {exc}\n"

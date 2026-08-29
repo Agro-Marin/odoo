@@ -51,16 +51,6 @@ class TestBundleProductsAreMemoized(TransactionCase):
 
 
 class TestSecondaryBundlePageScope(TransactionCase):
-    """A secondary bundle externalises against the page, not against a guess.
-
-    ``web.assets_tests`` is layered onto pages with different inventories --
-    ``web.assets_web`` on the backend, ``web.assets_frontend_lazy`` +
-    ``web.assets_frontend_minimal`` on the frontend -- and every layout renders
-    it last.  Intersecting the declared parents instead treated one artifact as
-    if it had to satisfy all those pages at once, dropped anything only one of
-    them carried, and let esbuild inline a second copy of it.
-    """
-
     BUNDLE = "web.assets_tests"
 
     def _fake_bundles(self, inventory):
@@ -142,9 +132,6 @@ class TestSecondaryBundlePageScope(TransactionCase):
         declared = IrQweb._get_secondary_provider_specs(self.BUNDLE, params, ())
         if not declared:
             self.skipTest("no declared parents resolved (web assets unavailable)")
-        # ``web.assets_frontend_minimal`` carries 11 modules; a layout that
-        # renders the tests bundle straight after it (room booking did until
-        # this was fixed) leaves every other provider too late to externalise.
         with self.assertLogs("odoo.assets.esm", level="WARNING") as logs:
             IrQweb._get_secondary_shared_specs(
                 self.BUNDLE, params, ("web.assets_frontend_minimal",)

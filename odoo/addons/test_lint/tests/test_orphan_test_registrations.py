@@ -30,12 +30,6 @@ def _resolve(specifier, addon, path):
 
 @tagged("post_install", "-at_install")
 class TestOrphanTestRegistrations(lint_case.LintCase):
-    """A module-scope onRpc/defineModels registers through HOOT's `before()`,
-    which attaches to the suite that is current when the call runs. A module the
-    bundle evaluates but nobody imports has no current suite, so the call is
-    accepted and dropped, and the mock it meant to install is simply absent.
-    """
-
     def test_no_registration_module_is_orphaned(self):
         imported = set()
         candidates = {}

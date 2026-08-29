@@ -5,16 +5,6 @@ from odoo.orm.components.storage import DictBackend
 
 
 class _BackendCase(unittest.TestCase):
-    """Shared fixture, and the one read that must not be spelled inline.
-
-    ``get_row`` answers ``None`` for a row that is not there, so indexing its
-    result directly turns "the write never landed" into a ``TypeError`` about
-    ``NoneType`` -- naming neither the table nor the id -- and a type checker
-    cannot see through it either, because the value really is optional.
-    ``_row`` fails with the row it went looking for, and narrows on the way
-    out.
-    """
-
     backend: DictBackend
 
     def setUp(self) -> None:
@@ -202,19 +192,12 @@ class TestDictBackendSealedApi(_BackendCase):
         self.assertEqual(self.backend.get_row("partner", 7), {"id": 7, "name": "New"})
 
     def test_put_rows_copies_the_callers_dict(self) -> None:
-        """A stored row is a copy, not the caller's dict.
-
-        Otherwise mutating that dict after the write changes stored state with
-        no write call -- something no real cursor offers, so a test could pass
-        (or corrupt itself) through a path PostgreSQL does not have.
-        """
         row = {"id": 1, "name": "Alice"}
         self.backend.put_rows("partner", [row])
         row["name"] = "mutated after the write"
         self.assertEqual(self._row("partner", 1)["name"], "Alice")
 
     def test_reads_do_not_hand_out_a_handle_on_the_table(self) -> None:
-        """`get_row`/`get_rows` return reads, not live rows."""
         self.backend.put_rows("partner", [{"id": 1, "name": "Alice"}])
         got = self._row("partner", 1)
         got["name"] = "mutated via read"
@@ -224,23 +207,10 @@ class TestDictBackendSealedApi(_BackendCase):
         self.assertEqual(self._row("partner", 1)["name"], "Alice")
 
     def test_upsert_advances_sequence_past_explicit_id(self) -> None:
-        """The sibling of ``test_put_rows_advances_sequence_past_explicit_id``.
-
-        Both writers can introduce an explicit id, so both must carry the
-        sequence past it. Without this, a later insert re-issues the id and
-        overwrites the upserted row -- measured before the fix: upsert id 100,
-        then 100 inserts, and row 100 became the hundredth insert.
-        """
         self.backend.upsert_rows("partner", [(5, {"name": "Alice"})])
         self.assertEqual(self.backend.next_id("partner"), 6)
 
     def test_upsert_then_insert_does_not_clobber(self) -> None:
-        """Inserts must walk PAST the upserted id, not up to and over it.
-
-        The insert count has to exceed the upserted id: with the sequence left
-        at 0, the first few inserts get ids below it and look innocent, and only
-        the one that reaches it destroys the row.
-        """
         self.backend.upsert_rows("partner", [(3, {"name": "Kept"})])
         for i in range(5):
             new_ids = self.backend.insert_rows("partner", ["name"], [(f"n{i}",)])

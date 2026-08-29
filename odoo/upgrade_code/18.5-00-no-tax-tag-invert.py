@@ -8,11 +8,6 @@ from io import BytesIO, StringIO
 
 from lxml import etree
 
-# Input comes from `file.content`, never from `file.path`: `migrate()` runs
-# every selected script against ONE FileManager and flushes only at the end, so
-# a disk read returns the pre-run bytes, and the rewrite below ndiffs the
-# parsed tree against `file.content`. See README.md.
-
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -105,9 +100,6 @@ def upgrade(file_manager: FileManager) -> None:
         country_tax_signs = tag_signs[country]
         csv_file = csv.DictReader(file.content.splitlines())
         csv_data = list(csv_file)
-        # A header-only file makes `csv_data[0]` an IndexError that escapes
-        # `upgrade()`; `migrate()` flushes at the end, so it takes the whole
-        # run's edits with it.
         if not csv_data:
             continue
         if "repartition_line_ids/document_type" not in csv_data[0]:

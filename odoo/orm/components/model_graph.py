@@ -139,14 +139,6 @@ class ModelGraph:
         return self._state.recompute_order
 
     def add_trigger(self, dep_field: Any, path: tuple, targets: Iterable) -> None:
-        """Add targets to one trigger bucket, in place.
-
-        Unlike `set_triggers`, this mutates the published state rather than
-        replacing it, so it has to do by hand what replacing the state does for
-        free: take the publish lock, and drop the memoised answers that the new
-        trigger invalidates. Without that, a tree already built for `dep_field`
-        is handed back unchanged and the added target is never recomputed.
-        """
         with self._publish_lock:
             state = self._state
             bucket = state.triggers[dep_field][path]

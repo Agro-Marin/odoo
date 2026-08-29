@@ -59,9 +59,6 @@ def float_round(
     )
 
 
-#: ``2 ** -50``, the relative width of the tie-breaking epsilon.  Scaling by a
-#: power of two is exact, where ``2 ** (log2(abs(v)) - 50)`` -- the spelling this
-#: replaced -- rounds twice and lands on a different float for 94.5% of inputs.
 _EPSILON_SCALE = 2.0**-50
 
 
@@ -70,13 +67,6 @@ def _round_r(
     rounding_factor: float,
     rounding_method: RoundingMethod = "HALF-UP",
 ) -> float:
-    """``float_round`` with the precision already validated into a factor.
-
-    The public helpers call each other -- ``float_compare`` reaches
-    ``_float_check_precision`` five times per call through ``float_round`` and
-    ``float_is_zero`` -- so the validated factor is threaded through instead of
-    being re-derived at every hop.
-    """
     if rounding_factor == 0 or value == 0:
         return 0.0
 
@@ -124,19 +114,10 @@ def _round_r(
         raise ValueError(msg)
 
     rounded = float(result / rounding_factor if inverted else result * rounding_factor)
-    # Rounding to zero answers zero, never negative zero.  ``math.copysign``
-    # carries the operand's sign into the result, so the three HALF methods
-    # answered ``-0.0`` for every value that rounds to nothing while ``DOWN``
-    # answered ``0.0`` -- ``math.trunc`` returns a sign-free ``int`` -- and the
-    # two were inconsistent with each other.  A negative zero has no meaning in
-    # a quantity or an amount and compares equal to zero, so nothing downstream
-    # catches it; the JS mirror in ``web/core/utils/format/numbers.js`` makes
-    # the same normalisation.
     return rounded or 0.0
 
 
 def _is_zero_r(value: float, epsilon: float) -> bool:
-    """``float_is_zero`` with the precision already validated into *epsilon*."""
     return (
         value == 0.0  # noqa: RUF069  exact-zero fast path; the epsilon test after `or` is the real check
         or abs(_round_r(value, epsilon)) < epsilon
@@ -239,19 +220,6 @@ _INVERTDICT = {
 
 
 def float_invert(value: float) -> float:
-    """Return ``1 / value``, recovering the *decimal* reciprocal the caller meant.
-
-    Rounding factors are authored as decimals -- ``0.01``, ``5e-3`` -- and the
-    caller wants the decimal inverse, not the binary one.  Those differ: the
-    float nearest 1e-5 has an exact reciprocal of 99999.999999999985, so plain
-    ``1 / 1e-5`` is 99999.99999999999.  Correct to the last bit, and not the
-    100000.0 that every caller means.
-
-    ``Decimal(repr(value))`` recovers the shortest decimal that round-trips to
-    *value*, and inverting that lands on the intended float.  The table in front
-    of it is a fast path for the factors that actually occur, not a correction:
-    it agrees with the Decimal path on every entry.
-    """
     if not value:
         raise ZeroDivisionError("cannot invert 0")
     result = _INVERTDICT.get(value)

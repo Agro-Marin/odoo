@@ -18,12 +18,6 @@ class TestPythonLint(LintCase):
         _py_scan.findings()
 
     def test_every_rule_is_held_at_its_floor(self):
-        """One subTest per rule, floors read from tooling/ratchet/baselines/.
-
-        There used to be twelve one-line methods and a `FLOORS` dict carrying a
-        hundred and ninety lines of comment around twelve integers. The integers
-        are baselines now; the advice is on the `Rule`.
-        """
         for rule in _rules.RULES:
             with self.subTest(rule=rule.name):
                 self.assert_ratchet(
@@ -38,13 +32,6 @@ class TestPythonLint(LintCase):
                 )
 
     def test_no_source_in_the_corpus_is_unreadable(self):
-        """A file the scan cannot parse or tokenise is a hole in every rule.
-
-        It used to be swallowed: `scan_one` caught the error and returned no
-        findings, and `comment_lines` returned an empty map, which disarms every
-        `# noqa` in the file and makes `noqa-rationale` report nothing. Both read
-        exactly like a clean file.
-        """
         broken = _py_scan.findings().get("unreadable-source", [])
         self.assertFalse(
             broken,
@@ -54,7 +41,6 @@ class TestPythonLint(LintCase):
         )
 
     def test_every_rule_reaches_the_scan(self):
-        """The registry is the only definition; nothing may name a rule outside it."""
         self.assertEqual(
             sorted(_py_scan.findings().keys() - _rules.BY_NAME.keys()),
             [],
@@ -123,11 +109,6 @@ class TestPythonLint(LintCase):
         )
 
     def test_the_translated_column_scan_reaches_the_models(self):
-        """`unique-over-translated-column` is silent on a clean tree.
-
-        Without this, a scan that reached no model classes would report exactly
-        what a scan that found no defects reports.
-        """
         models, rules = _py_scan.translated_unique_scale()
         self.assertGreater(models, 1000, "the scan reached almost no models")
         self.assertGreater(rules, 100, "the scan found almost no constraints")

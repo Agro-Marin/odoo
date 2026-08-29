@@ -9,12 +9,6 @@ import polib
 from lxml import etree
 from lxml.builder import E
 
-# Input comes from `file.content`, never from `file.path`: `migrate()` runs
-# every selected script against ONE FileManager and flushes only at the end, so
-# a disk read returns the pre-run bytes. Worse here than stale — the rewrite
-# ndiffs the parsed tree against `file.content`, so the two disagreeing would
-# splice two different documents together. See README.md.
-
 if typing.TYPE_CHECKING:
     from odoo.cli.upgrade_code import FileManager
 
@@ -181,12 +175,6 @@ def upgrade(file_manager: FileManager) -> None:
             )
         elif file.path.suffix == ".csv":
             model = file.path.stem
-            # Both guards come BEFORE the first row is read. They used to come
-            # after, so a header-only CSV raised IndexError and one without an
-            # `id` column raised KeyError -- for files this script does not even
-            # target, since the `model in MODELS` test was the thing being
-            # deferred. `migrate()` flushes only once every script has run, so
-            # either exception discarded the whole run's edits.
             if model not in MODELS:
                 continue
             csv_file = csv.DictReader(file.content.splitlines())
@@ -195,14 +183,6 @@ def upgrade(file_manager: FileManager) -> None:
                 continue
             fnames = sorted(set(csv_data[0].keys()) & set(MODELS[model]))
             if fnames:
-                # Over EVERY row, not just the first. Sampling the first row
-                # meant that a file whose first record happened to be
-                # untranslated was skipped whole -- while the same run still
-                # stripped those `model:` occurrences from the .po and dropped
-                # the entries, so the translations were destroyed rather than
-                # merely left behind. Four files in this tree were affected;
-                # `l10n_dk/data/account.account.tag.csv` starts with tag "1010",
-                # a number nobody translates, and took 541 occurrences with it.
                 langs = sorted(
                     {
                         lang

@@ -107,8 +107,6 @@ class Worker:
         )
 
     def sleep(self) -> None:
-        # No EINTR guard: see PreforkServer.sleep.  Since PEP 475 neither
-        # ``select`` nor ``os.read`` raises EINTR; they retry internally.
         self._selector.select(timeout=self.multi.beat)
         empty_pipe(self.wakeup_fd_r)
 
@@ -294,17 +292,11 @@ class WorkerCron(Worker):
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))
 
-            # No EINTR guard: see PreforkServer.sleep.  ``time.sleep`` is
-            # covered by PEP 475 too -- it resumes for the remaining duration.
             self._pg_selector.select(timeout=interval)
             time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
             empty_pipe(self.wakeup_fd_r)
 
     def max_age(self) -> int:
-        """Seconds this worker may live before it is recycled; 0 disables it.
-
-        Overridden by ``WorkerJob`` so job workers can be tuned separately.
-        """
         return config["limit_time_worker_cron"]
 
     def check_limits(self) -> None:
@@ -441,17 +433,6 @@ class WorkerCron(Worker):
 
 
 class WorkerJob(WorkerCron):
-    """Background job-queue worker.
-
-    Subclasses ``WorkerCron`` for its LISTEN/NOTIFY plumbing, not for its
-    configuration.  It used to inherit both, so ``--limit-time-worker-cron`` and
-    ``--limit-time-real-cron`` silently retuned the job fleet as well and there
-    was no way to say otherwise -- ``--job-workers`` was the only knob jobs
-    owned.  Both limits now have a ``*-job`` counterpart that defaults to
-    following the cron value, so the inherited behaviour is the default rather
-    than the only option.
-    """
-
     listen_channel = JOB_QUEUE_CHANNEL
 
     def __init__(self, multi: PreforkServer) -> None:

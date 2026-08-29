@@ -1135,16 +1135,6 @@ class TestImportFiles(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSelectionIndexPrecedence(TransactionCase):
-    """A raw selection value must never be shadowed by another item's label.
-
-    `_get_selection_index` used to register value and label together, one item
-    at a time, into a `setdefault` map -- so item n's label claimed a token
-    before item n+k's own value could, and importing a field by its own stored
-    value silently wrote a different one. Five fields in a 78-module database
-    were affected; `mail.notification.notification_status` wrote `pending` for
-    `sent`, with no error and no warning.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

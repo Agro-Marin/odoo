@@ -1,4 +1,4 @@
 {
-  "count": 2740,
-  "note": "Rebase onto origin/19.0-marin. The floor 2737 was measured on this branch before the rebase; the composed tree measures 2740. The +3 is not a function that grew: diffing the offender lists, every function over budget here is over budget on origin at the same length or longer, and the list of functions worse here than there is empty. Origin measures 94 offenders / 3325 excess against its own floor of 3325; this tree is 72 / 2740. The floor is moved to describe this tree rather than the pre-rebase one."
+  "count": 2663,
+  "note": "Prose comments and docstrings removed from odoo/, tests/ and tooling/ on request. The gate counts physical lines inside function bodies, so 77 lines of excess over its 80-line threshold left with them; no function was split or shortened structurally. pyfunclen_tooling held at 817."
 }

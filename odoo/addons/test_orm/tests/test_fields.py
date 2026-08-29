@@ -2490,17 +2490,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_52b_x2many_cache_survives_unarchiving(self):
-        """A field context must not narrow the query that fills an x2many cache.
-
-        ``active_test`` is applied when the value leaves the cache, off an
-        ``active`` the ORM keeps fresh -- not when the ids go in. A field
-        spelling ``context={'active_test': True}`` used to push the filter into
-        the SELECT, so a corecord archived when the cache was filled was absent
-        from the cached ids, and nothing invalidates a stored x2many when a
-        corecord's ``active`` flips: unarchiving never put it back for the rest
-        of the transaction. Reads under-reported, and any write computed from
-        them silently did nothing.
-        """
         Model = self.env["test_orm.model_active_field"]
         parent = Model.create({"name": "Parent"})
         child = Model.create({"name": "Child", "parent_id": parent.id})
@@ -2511,7 +2500,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                 self.env.flush_all()
                 self.env.invalidate_all()
 
-                parent[fname]  # fill the cache while the child is archived
+                parent[fname]
                 child.active = True
                 self.env.flush_all()
 
@@ -2523,13 +2512,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                 )
 
     def test_52c_x2many_field_context_still_forces_active_test(self):
-        """Dropping the key from the *query* must not drop the declaration.
-
-        ``active_children_ids`` means "live only, whatever the caller asks
-        for"; ``all_children_ids`` means the opposite; the bare
-        ``children_ids`` follows the caller. That contract is what other
-        modules rely on, and it is applied on the way out of the cache.
-        """
         Model = self.env["test_orm.model_active_field"]
         parent = Model.create({"name": "Parent"})
         live = Model.create({"name": "Live", "parent_id": parent.id})
@@ -4603,18 +4585,6 @@ class TestRequiredMany2oneTransient(TransactionCase):
 @tagged("m2oref")
 class TestMany2oneReference(TransactionExpressionCase):
     def test_deleting_the_target_clears_a_compute_over_the_reference(self):
-        """A compute reading through a reference must not survive the target.
-
-        A `Many2oneReference` names its model in a sibling column, so it has no
-        `comodel_name` and the registry's comodel index -- which is what a
-        scoped `unlink` invalidation walks -- cannot see it. `unlink` used to
-        invalidate the whole cache and covered this by accident; once the
-        invalidation was scoped, a compute reading through a reference went on
-        serving the deleted record's name for the rest of the transaction.
-
-        `ir.attachment.res_name` and `documents.document.res_name` are the two
-        shipped fields with exactly this shape.
-        """
         partner = self.env["res.partner"].create({"name": "gone soon"})
         reference = self.env["test_orm.model_many2one_reference"].create(
             {"res_model": "res.partner", "res_id": partner.id}
@@ -4645,10 +4615,6 @@ class TestMany2oneReference(TransactionExpressionCase):
         )
         reference.res_model = record._name
 
-        # `reference.id`, not `record.id`: the dirty set of a field on
-        # test_orm.model_many2one_reference holds that model's ids. The
-        # assertion named the wrong record and passed only while the two id
-        # sequences happened to line up on a fresh database.
         self.assertIn(
             reference.id,
             self.env._core.get_dirty(reference._fields["res_model"]) or (),

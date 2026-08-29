@@ -18,12 +18,6 @@ _logger = logging.getLogger(__name__)
 
 
 def _exit_nothing_done(verb: str, requested: list[str] | set[str]) -> None:
-    """Exit non-zero when a subcommand matched none of the names it was given.
-
-    A warning and status 0 read as success to every caller that chains on
-    ``&&`` — `module install my_addon && restart` used to redeploy after a
-    typo'd name installed nothing at all.
-    """
     sys.exit(
         f"Nothing to {verb}: none of the requested modules "
         f"({', '.join(sorted(requested))}) could be resolved."
@@ -31,8 +25,6 @@ def _exit_nothing_done(verb: str, requested: list[str] | set[str]) -> None:
 
 
 class Module(DatabaseCommand):
-    """Manage modules, install demo data"""
-
     def __init__(self) -> None:
         super().__init__()
         self.add_config_arguments(self.parser)
@@ -117,12 +109,6 @@ class Module(DatabaseCommand):
     @staticmethod
     @functools.cache
     def _get_zip_path(path: str) -> Path | None:
-        """Resolve ``path`` to a readable zip archive, or None.
-
-        Cached: ``_install`` asks the same question of the same names three
-        times (validation, then the importable/unknown split), and each miss
-        used to re-open and re-parse the archive's central directory.
-        """
         fullpath = Path(path).resolve()
         if (
             fullpath.is_file()
@@ -133,7 +119,6 @@ class Module(DatabaseCommand):
         return None
 
     def _get_module_names(self, module_names: list[str]) -> set[str]:
-        """Return the module names that exist on disk (addon directory or .zip)."""
         initialize_sys_path()
         return {
             module
@@ -184,9 +169,6 @@ class Module(DatabaseCommand):
                 _exit_nothing_done("install", unknown_modules)
             if importable_zipfiles:
                 if "imported" not in env["ir.module.module"]._fields:
-                    # Not a warning-and-carry-on: the caller asked for these
-                    # archives and none of them was imported, so the command
-                    # has done nothing it was asked to do.
                     sys.exit(
                         f"Cannot import {len(importable_zipfiles)} data "
                         "module(s): the `base_import_module` module is not "

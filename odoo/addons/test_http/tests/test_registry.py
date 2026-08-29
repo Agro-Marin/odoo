@@ -41,22 +41,6 @@ def duplicate_db(db_source, db_dest):
 
 
 def drop_db(db):
-    """Drop *db*, terminating stragglers, and leave the registry alone.
-
-    A bare ``DROP DATABASE IF EXISTS`` raises ``ObjectInUse`` while anything
-    still holds a connection, and this runs as an ``addCleanup`` after tests
-    that deliberately open connections to a corrupted duplicate. The failure
-    then lands on the *next* run as ``DuplicateDatabase``, because the leftover
-    was never removed -- which is how ``test_corrupt_ir_module_module_table``
-    came to be red at HEAD, on a clean checkout, permanently after the first
-    failure.
-
-    Not ``service.db._drop_database``, which would be the obvious reuse: it
-    calls ``Registry.forget``, and a *stale* registry pointing at a database
-    that vanished underneath is precisely the state ``test_missing_db``
-    reproduces (``assertIn(db, Registry.registries)`` on the very next line).
-    What is shared with production is the retry around ``ObjectInUse``.
-    """
     with closing(db_connect("postgres").cursor()) as cr:
         cr.connection.autocommit = True
         _retry_terminate_then_ddl(
@@ -80,9 +64,6 @@ class TestHttpRegistry(BaseCase):
                 {"server_wide_modules": ["base", "web", "rpc", "test_http"]}
             ),
         )
-        # The registry lives in odoo.http.constants and is read there, by
-        # is_ensure_db_path(), rather than imported into application.py --
-        # patch the home, not a copy of it.
         cls.classPatch(
             odoo.http.constants,
             "ENSURE_DB_PATHS",

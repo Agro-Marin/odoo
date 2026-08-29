@@ -35,10 +35,6 @@ class DictBackend:
         seq = self._sequences[table]
         for row in rows:
             id_ = row["id"]
-            # Copy, as insert_rows does. Storing the caller's dict would let a
-            # later mutation of it change stored state with no write call --
-            # something no real cursor offers, and the kind of divergence a
-            # test double must not have.
             tbl[id_] = dict(row)
             seq = max(seq, id_)
         self._sequences[table] = seq
@@ -63,10 +59,6 @@ class DictBackend:
             if row is not None:
                 row.update(values)
             else:
-                # Inserting an explicit id must carry the sequence past it, or a
-                # later insert_rows/next_id hands the same id out again and
-                # silently overwrites this row. `put_rows` has always done this;
-                # this branch is the other writer that can introduce an id.
                 tbl[id_] = {"id": id_, **values}
                 self._sequences[table] = max(self._sequences[table], id_)
 
@@ -78,7 +70,6 @@ class DictBackend:
             tbl.pop(id_, None)
 
     def get_row(self, table: str, id_: int) -> dict[str, Any] | None:
-        # Copies out too: a returned row is a read, not a handle on the table.
         row = self._tables.get(table, {}).get(id_)
         return dict(row) if row is not None else None
 

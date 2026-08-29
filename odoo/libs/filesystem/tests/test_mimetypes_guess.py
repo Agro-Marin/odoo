@@ -1,18 +1,6 @@
-"""Moved from `odoo/addons/base/tests/test_mimetypes.py`.
-
-It subclassed the framework test case but touched no database and no registry
--- 14 tests that only ran behind a `createdb` plus a full `base` install.
-`odoo.libs.filesystem` is what they exercise, and this directory is already
-where its other mimetype suites live.
-"""
-
 import base64
 import unittest
 
-# From the leaf module, not the area facade: the Tier-1 stubs
-# (`odoo/_testing_bootstrap.py`) replace the package `__init__`, so its
-# re-exports do not resolve here. Every sibling suite in this directory imports
-# the same way.
 from odoo.libs.filesystem.mimetypes import (
     fix_filename_extension,
     get_extension,

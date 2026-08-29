@@ -31,7 +31,9 @@ class ResetViewArchWizard(models.TransientModel):
         required=True,
     )
     compare_view_id = fields.Many2one("ir.ui.view", string="Compare To View")
-    arch_to_compare = fields.Text("Arch To Compare To", compute="_compute_arch_comparison")
+    arch_to_compare = fields.Text(
+        "Arch To Compare To", compute="_compute_arch_comparison"
+    )
 
     @api.model
     def default_get(self, fields: list[str]) -> dict[str, Any]:

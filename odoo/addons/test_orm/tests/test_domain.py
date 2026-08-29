@@ -401,11 +401,6 @@ class TestDomain(TransactionExpressionCase):
         self.patch(Child._fields["link_sibling_id"], "bypass_search_access", True)
         self.assertTrue(Child._fields["link_sibling_id"].bypass_search_access)
 
-        # Toggling the flag under a superuser env is a no-op:
-        # _optimize_any_with_rights short-circuits on `model.env.su` before it
-        # ever consults the flag. Rerun the same search under a non-superuser
-        # env, with a rule restricting test_orm.any.child, so the flag
-        # actually has something to bypass.
         all_children = parent_1.child_ids | parent_2.child_ids
         self.env["ir.rule"].sudo().create(
             {
@@ -417,11 +412,6 @@ class TestDomain(TransactionExpressionCase):
         user = new_test_user(self.env, login="domain_any_bypass_user")
         Child_restricted = Child.with_user(user)
 
-        # Plain .search() here, not self._search(): the rule also restricts
-        # the outer model.search(Domain.TRUE) that self._search's own
-        # filtered_domain cross-check relies on, which would conflate two
-        # different rule-application paths. The flag under test only
-        # concerns the *inner* any-subquery join, isolated below.
         any_domain = [
             ("id", "in", all_children.ids),
             ("link_sibling_id", "any", [("quantity", ">", 5)]),
@@ -524,13 +514,6 @@ class TestDomain(TransactionExpressionCase):
         )
         self.assertEqual(res_search, parent_2 + parent_3)
 
-        # Toggling the flag under a superuser env is a no-op:
-        # _optimize_any_with_rights short-circuits on `model.env.su` before
-        # it ever consults the flag. Rerun the "any" search under a
-        # non-superuser env, with a rule excluding the one matching child
-        # (quantity=1), so the flag has something to bypass. Parent's own
-        # visibility is unaffected — the rule only targets the comodel being
-        # traversed (test_orm.any.child), not test_orm.any.parent.
         self.env["ir.rule"].sudo().create(
             {
                 "name": "quantity=1 is invisible",
@@ -1556,11 +1539,6 @@ class TestIdComparandValidation(TransactionCase):
         model = self.env["res.partner"]
         with self.assertRaises(ValueError):
             model.search([("id", ">", "abc")])
-        # A tautological `>= 0` can't fail even if the transaction were left
-        # aborted by the raise above (a query on an aborted transaction
-        # raises, it doesn't return a negative count) — assert against the
-        # base module's seeded countries so a broken transaction actually
-        # fails this instead of vacuously passing.
         self.assertGreater(self.env["res.country"].search_count([]), 0)
 
     def test_valid_comparands_still_work(self):
@@ -1596,12 +1574,6 @@ class TestIdComparandValidation(TransactionCase):
 
 
 class TestSearchFilteredDomainParity(TransactionCase):
-    # 300 real DB round-trips per run, deliberately: this is a randomized
-    # parity check between search() and filtered_domain(), and its value is
-    # proportional to how much of the random domain space it covers. No
-    # slow/nightly test-tag lane exists in this repo to move it to (grepped
-    # for one before adding this comment) — cutting ITERATIONS would only
-    # shrink coverage, not runtime category, so it stays as-is here.
     ITERATIONS = 300
     SEED = 20260724
 

@@ -1,11 +1,3 @@
-"""`_OrmProfile.report` derives the phase tail from the marks.
-
-Twenty-six ORM call sites used to spell that tail out by hand -- a format
-string naming each phase and one `prof.ms(a, b)` per phase -- and nothing tied
-the names in the string to the names of the marks. `write()` had already
-drifted: its last phase was marked ``validate1`` and labelled ``inverse=``.
-"""
-
 import logging
 import unittest
 

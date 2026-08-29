@@ -12,17 +12,14 @@ from odoo import tools
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
-    #: A view validator: judges one arch and answers whether it is acceptable.
     type Validator = Callable[..., bool]
 
 _logger = logging.getLogger(__name__)
 
 
-#: view tag -> the predicates that judge an arch with that root tag.
 _validators: collections.defaultdict[str, list[Validator]] = collections.defaultdict(
     list
 )
-#: view type -> its compiled schema, or None when the schema failed to load.
 _relaxng_cache: dict[str, etree.RelaxNG | None] = {}
 
 IGNORED_IN_EXPRESSION = {
@@ -52,15 +49,6 @@ IGNORED_IN_EXPRESSION = {
 
 @functools.cache
 def domain_operators() -> frozenset[str]:
-    """The domain combinator operators, resolved on first use.
-
-    Importing ``odoo.orm.domain`` at module scope pulled the whole ORM into this
-    module's import: the package's ``__init__`` reaches ``.ast``, which does
-    ``from odoo.tools import SQL``. Under ``pytest odoo/tools/tests`` -- the
-    per-path form CI uses for every other Tier-1 suite -- ``odoo.tools`` is a
-    stub, so that chain failed and this module's test file could not even be
-    collected. Deferring the import keeps ``odoo.tools`` a leaf.
-    """
     import odoo.orm.domain as domains
 
     return frozenset(
@@ -269,12 +257,8 @@ def get_dict_asts(expr: str | ast.AST) -> dict[str, ast.AST]:
 
 
 def valid_view(arch: etree._Element, **kwargs: object) -> bool:
-    # `.get`, not `[]`: `_validators` is a defaultdict, so indexing it with a
-    # view's root tag inserted an empty list for every tag ever asked about.
     for pred in _validators.get(arch.tag, ()):
         if not pred(arch, **kwargs):
-            # __doc__ alone logged "Invalid XML: None" for any validator
-            # without a docstring -- which was every validator there is.
             _logger.warning(
                 "Invalid XML for view type %r: %s",
                 arch.tag,
@@ -285,8 +269,6 @@ def valid_view(arch: etree._Element, **kwargs: object) -> bool:
 
 
 def validate(*view_types: str) -> Callable[[Validator], Validator]:
-    """Register a predicate as a validator for each of ``view_types``."""
-
     def decorator(fn: Validator) -> Validator:
         for arch in view_types:
             _validators[arch].append(fn)
@@ -311,7 +293,6 @@ def relaxng(view_type: str) -> etree.RelaxNG | None:
 
 @validate("calendar", "graph", "pivot", "search", "list", "activity")
 def schema_valid(arch, **kwargs):
-    """the view does not match its RelaxNG schema"""
     validator = relaxng(arch.tag)
     if validator and not validator.validate(arch):
         for error in validator.error_log:

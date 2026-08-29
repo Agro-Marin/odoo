@@ -139,40 +139,6 @@ def _accidental_from_disk(area: str) -> set[str]:
 
 
 def test_accidental_submodule_surface_is_bounded():
-    """39 -> 40: `filesystem.samples`, the sample bodies the mimetype rules are read against.
-
-    They were constants in `filesystem/tests/test_mimetypes_guess.py`, and three
-    addon suites imported them from there -- a test module reached across the
-    area boundary, which `libs_facade_check` reports and which no re-export could
-    have legalised while they lived under `tests/`. As an implementation module
-    beside `mimetypes.py`, re-exported by name, addon code imports the area and
-    the suite keeps importing the leaf (the Tier-1 stubs replace the package
-    `__init__`, so it must).
-
-    39 -> 40 is the price named below: publishing `samples` in `__all__` would
-    put the module itself in the area's contract, which
-    `test_declared_submodule_exports_are_pinned` exists to refuse.
-
-    38 -> 39: `numbers.amount_parse`, the separator-guessing amount reader.
-
-    38 was `locale.cardinals_bg`, the Bulgarian numeral implementation, which
-    moved out of `_monkeypatches/num2words.py` where 250 lines of language logic
-    were wrapped around a one-line registration.
-
-    `amount_parse` is the same shape as `numbers.float_utils` beside it: an
-    implementation module whose two functions `numbers/__init__.py` re-exports
-    by name, so the area's contract is unchanged and only the module itself is
-    reachable as `from odoo.libs.numbers import amount_parse`.
-
-    The two alternatives to moving this bound are both worse. Publishing the
-    submodule in `__all__` is what `test_declared_submodule_exports_are_pinned`
-    exists to refuse -- it would make the implementation module part of the
-    area's contract, the opposite of the libs boundary. And a leading underscore
-    would not move the number at all: `_accidental_from_disk` subtracts `__all__`
-    from what is on disk, so `_field_access._fallback` is counted like any other.
-    A legitimate new implementation module therefore costs exactly one unit here,
-    and the bound is meant to be moved with the reason written down.
-    """
     total = sum(len(_accidental_from_disk(a)) for a in _areas())
     assert total <= 40, (
         f"accidental submodule surface grew to {total} (was 40). Each one is a "
@@ -199,7 +165,6 @@ def test_leaf_imports_through_accidental_surface_are_pinned():
 
 
 def _loose_modules() -> list[pathlib.Path]:
-    """The top-level ``.py`` files in libs/ -- everything that is not an area."""
     return sorted(
         p
         for p in _LIBS.glob("*.py")
@@ -208,15 +173,6 @@ def _loose_modules() -> list[pathlib.Path]:
 
 
 def test_every_loose_top_level_module_declares_all():
-    """The area rules above reach packages only.
-
-    ``libs/`` is 18 area packages plus 16 loose modules, and the loose half is
-    governed by nothing: ``libs_facade_check`` scans importers, the checks above
-    iterate ``_areas()``.  Four of them -- logging, set_expression, utils,
-    worker_thread -- carried no ``__all__`` at all while every one of the 18
-    areas did, so "what does this module publish" had two different answers
-    depending on which half of the directory you landed in.
-    """
     missing = [
         p.name
         for p in _loose_modules()

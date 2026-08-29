@@ -36,9 +36,6 @@ _logger = logging.getLogger(__name__)
 
 
 class Opener(requests.Session):
-    # Both classes read the cursor off self.test_case rather than caching it.
-    # They used to hold self.cr as well, bound once at construction: two paths
-    # to the same object, one of which cannot follow a reassignment of cls.cr.
     def __init__(self, http_case: HttpCase) -> None:
         super().__init__()
         self.test_case = http_case
@@ -81,13 +78,6 @@ class HttpCase(TransactionCase):
     @classmethod
     def setUpClass(cls) -> None:
         if cls.http_port() is None:
-            # InfrastructureUnavailable, not a bare SkipTest: no HTTP server is
-            # the environment being unable to run this, not a decision that it
-            # should not run. As a plain skip it was invisible -- under
-            # --no-http, a port-bind failure or a crashed http_spawn every
-            # HttpCase skipped, the summary did not name them, and
-            # ODOO_REQUIRE_INFRA=1 could not turn it into an error, so a host
-            # that ran zero HttpCase assertions still exited 0.
             raise InfrastructureUnavailable(
                 f"{cls.__name__} requires a running HTTP server (--no-http?)"
             )
@@ -113,10 +103,6 @@ class HttpCase(TransactionCase):
     def setUp(self) -> None:
         super().setUp()
 
-        # From the class attribute, not from self: BaseCase.run re-runs
-        # setUp on the same instance for every retry, so deriving this
-        # from itself grows the name (a.test_x.test_x.test_x) and interns
-        # a fresh logger per attempt.
         self._logger = type(self)._logger.getChild(self._testMethodName)
 
         self.xmlrpc_common = xmlrpclib.ServerProxy(
@@ -137,13 +123,6 @@ class HttpCase(TransactionCase):
         self.http_key_sequence = itertools.count()
 
     def _close_opener(self) -> None:
-        """Close whichever Opener is current at cleanup time.
-
-        Not ``addCleanup(self.opener.close)``: that binds the *first* opener,
-        and ``authenticate()`` replaces ``self.opener`` -- so the replacement,
-        a live requests.Session with its connection pool, would never be
-        closed. Every browser_js authenticates.
-        """
         self.opener.close()
 
     @contextmanager
@@ -463,11 +442,6 @@ class HttpCase(TransactionCase):
             atexit.callback(browser.stop)
 
             self.assertTrue(
-                # Pass the caller's budget: _wait_ready's own default is also
-                # 60, so nothing changes for a default browser_js, but a caller
-                # that raised the timeout -- or debug=True, which sets it to 1e6
-                # precisely so a human can step through -- used to still get 60s
-                # for the ready phase.
                 browser._wait_ready(ready, timeout),
                 'The ready "%s" code was always falsy' % ready,
             )

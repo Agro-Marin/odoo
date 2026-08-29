@@ -20,14 +20,6 @@ def asset_file(url, content, last_modified=1.0):
 
 
 def make_bundle(case, name, *file_specs, **kwargs):
-    """Build a real AssetsBundle from synthetic (url, content[, last_modified])
-    file specs, against `case.env`.
-
-    This only covers tests that hand-build their own in-memory files - not
-    tests that need the real qweb/manifest asset-discovery machinery (e.g.
-    `TestXMLAssetsBundle._get_asset`, which resolves files through
-    `ir.qweb._get_asset_content`).
-    """
     from odoo.addons.base.models.assetsbundle import AssetsBundle
 
     return AssetsBundle(
@@ -103,15 +95,6 @@ class FileTouchable(AddonManifestPatched):
         return patch.object(pathlib.Path, "stat", patched_stat)
 
     def _bump_last_attachment_write_date(self, offset_seconds):
-        """Push the most recently created ir.attachment's write_date
-        `offset_seconds` into the future.
-
-        write_date is a magic column the ORM's write() silently ignores,
-        so there is no way to fake it through the ORM the way _touch()
-        fakes a source file's mtime — this goes through raw SQL
-        (PostgreSQL-only, via clock_timestamp()) on purpose, to simulate
-        a stale server clock relative to a bundle's source files.
-        """
         self.env["ir.attachment"].flush_model(["checksum", "write_date"])
         self.cr.execute(
             "UPDATE ir_attachment SET write_date = clock_timestamp() + (%s * interval '1 second') "

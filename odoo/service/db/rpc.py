@@ -24,13 +24,6 @@ _logger = logging.getLogger("odoo.service.db")
 
 @check_db_management_enabled
 def exp_change_admin_password(new_password: str) -> Literal[True]:
-    """Set the master admin password.
-
-    Enforces a minimum length — the master password authorises every destructive
-    DB operation, so it is the highest-value credential.  Default 8 chars;
-    ``ODOO_ADMIN_PASSWORD_MIN_LENGTH`` can raise (never lower) the floor for
-    stricter regimes.  Further complexity checks belong in the HTTP controller.
-    """
     if not isinstance(new_password, str):
         raise TypeError(
             f"new_password must be a str, got {type(new_password).__name__!r}"
@@ -59,11 +52,6 @@ def exp_change_admin_password(new_password: str) -> Literal[True]:
 
 @check_db_management_enabled
 def exp_migrate_databases(databases: list[str]) -> Literal[True]:
-    """Run ``base`` module upgrade against each listed database.
-
-    Used by the HTTP database-manager "Migrate" action to bring several
-    databases forward one Odoo version at a time.
-    """
     for db in databases:
         check_db_exposed(db)
     for db in databases:

@@ -1,32 +1,13 @@
 #!/bin/sh
-# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
 # fmt: off
 ''':'
-# Self-locating sh/python trampoline: re-exec this file with the workspace venv
-# interpreter. The logic is shared — see tooling/_trampoline.sh.
 _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
 # fmt: on
 
-__doc__ = """Print the minimal set of @web/... HOOT suites affected by changed JS files.
-
-With no arguments, uses ``git diff --name-only HEAD`` inside addons/odoo and
-keeps files under an addon ``static/`` tree. Otherwise treats each argument as a
-changed file path.
-
-Uses a conservative import-scan of the fork's ESM specifiers (direct importers
-of the changed module, plus one hop through src files). Feed the output to the
-runner, or just run ``hoot --affected`` which does the same selection.
-
-Examples
---------
-  hoot-affected
-  hoot-affected addons/web/static/src/core/domain.js
-  hoot-affected --downstream   # include suites in OTHER addons that import it
-  hoot --affected      # run them
-"""
+__doc__ = None
 
 
 import sys

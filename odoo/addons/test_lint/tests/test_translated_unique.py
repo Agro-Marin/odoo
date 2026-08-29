@@ -1,10 +1,3 @@
-"""Unit tests for the `unique-over-translated-column` checker.
-
-The whole-tree half of this gate is a `_rules.CHECKERS` entry now: it rode its
-own serial `ast.parse` of all 9390 core Python files, next to the parallel scan
-that had already parsed every one of them.
-"""
-
 import ast
 from textwrap import dedent
 
@@ -137,17 +130,6 @@ class TestTranslatedUniqueChecker(BaseCase):
         )
 
     def test_a_three_way_inherit_cycle_resolves_every_translated_field(self):
-        """A one-hop cycle guard isn't enough for a cycle of length >= 3.
-
-        `walk()` used to cache a model's field set as soon as its own
-        immediate parents were not in `seen`, even mid-cycle -- so the model
-        that happened to close the cycle got cached with only its own fields,
-        missing the others further around the ring. Exercised directly on
-        `resolve_translated` (not `violations()`, which only reports on the
-        rule matching a column, and would stay silent either way): every
-        model in a 3-cycle must resolve to the union of all three, not just
-        a fragment.
-        """
         infos = [
             checker.ClassInfo("a.thing", parents=("b.thing",), translated={"name"}),
             checker.ClassInfo("b.thing", parents=("c.thing",), translated={"label"}),

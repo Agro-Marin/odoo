@@ -20,14 +20,6 @@ def remove_accents(input_str: str) -> str:
 
 
 def is_encodable(value: str, charset: str = "ascii") -> bool:
-    """Can ``value`` survive ``charset`` once its accents are folded away?
-
-    Lived on ``mail.alias`` as ``_is_encodable`` although nothing about it is an
-    alias -- its only callers are in ``account.journal``, deciding whether a company
-    or journal name can go into an email address at all. ``LookupError`` is caught
-    with the encoding errors on purpose: an unknown charset is a caller's bug, but
-    this is a predicate, and a predicate that raises is not one.
-    """
     if not value:
         return False
     try:

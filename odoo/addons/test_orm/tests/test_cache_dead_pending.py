@@ -3,15 +3,6 @@ from odoo.tools.misc import PENDING
 
 
 class TestDeadPendingMarkers(TransactionCase):
-    """`create` seeds PENDING for every stored computed field, meaning "a compute
-    owes this record a value". A compute that leaves a record unassigned -- the
-    idiom for "leave the stored value alone" -- returns without clearing the
-    marker and without scheduling anything, so the value comes from the row
-    instead. `_insert_cache` is a `setdefault`, so without help the marker
-    outlives the SELECT that could have answered it and every further field read
-    pays for another full-width SELECT of the same row.
-    """
-
     def _record(self, mode):
         record = self.env["test_orm.partial.compute"].create({"mode": mode})
         self.env.flush_all()

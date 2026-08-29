@@ -30,8 +30,6 @@ class SubcommandHelpFormatter(argparse.RawTextHelpFormatter):
 
 
 class I18n(DatabaseCommand):
-    """Import, export, setup languages and internationalization files"""
-
     _EPILOG = textwrap.dedent("""\
         Language codes must follow the XPG (POSIX) locale format.
         see: https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
@@ -243,9 +241,6 @@ class I18n(DatabaseCommand):
             )
 
     def _export(self, parsed_args: argparse.Namespace) -> None:
-        # A local list, not `parsed_args.languages`: the "pot" pseudo-language
-        # is removed below, and mutating the parsed namespace makes the method
-        # give a different answer the second time it is called with it.
         requested_languages = list(parsed_args.languages or ["pot"])
         export_pot = "pot" in requested_languages
 
@@ -305,9 +300,6 @@ class I18n(DatabaseCommand):
                 lang_code = languages.code if languages else None
                 self._export_file(env, module_names, lang_code, parsed_args.output)
             else:
-                # Resolved up front, before any file is written: erroring out
-                # mid-loop on a later module would otherwise leave the i18n
-                # files of earlier modules already written on disk.
                 module_paths = {}
                 for module_name in module_names:
                     module_path = get_module_path(module_name)

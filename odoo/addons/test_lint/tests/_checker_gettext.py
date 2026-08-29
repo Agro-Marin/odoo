@@ -40,19 +40,6 @@ ERRORS_REQUIRING_GETTEXT = frozenset(
 
 ERRORS_REFUSING_GETTEXT = frozenset(
     {
-        # Builtins only, and deliberately so. Odoo renders a dialog for
-        # `UserError` and its subclasses; everything here reaches a reader as a
-        # traceback in a log, which is not a place anyone reads their own
-        # language. `_()` around one of these is a category error wearing a
-        # translation problem: it books a developer diagnostic into the module
-        # catalogue, where an exporter ships it and a translator spends time on
-        # a string no user will ever see.
-        #
-        # A name is on this list only when the class cannot reach a UI. Nothing
-        # from `odoo.exceptions` is here, nor `werkzeug`'s -- `BadRequest` and
-        # `Forbidden` render pages a user reads -- and neither is any addon's
-        # own exception class, which may subclass `UserError` out of sight of
-        # this file.
         "ArithmeticError",
         "AssertionError",
         "AttributeError",
@@ -97,12 +84,6 @@ def _get_call_name(node: ast.Call) -> str:
 
 
 def _get_call_name_if_gettext(node: ast.expr) -> str:
-    """`_("…")` / `_lt("…")` / `self.env._("…")`, or "" for anything else.
-
-    Looks through a `%` or `.format()` applied to the result: the translated
-    string is just as booked into the catalogue when the interpolation happens
-    outside the call, and `raise ValueError(_("…") % x)` was reading as clean.
-    """
     match node:
         case ast.Call(func=ast.Attribute(attr="format", value=receiver)):
             return _get_call_name_if_gettext(receiver)

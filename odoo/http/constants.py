@@ -17,18 +17,6 @@ static tree accepts.
 
 
 def allow_header(methods: Iterable[str] | None = None) -> str:
-    """Render the ``Allow`` header for a resource that accepts *methods*.
-
-    ``OPTIONS`` is appended rather than declared by the caller because the
-    framework answers it unconditionally -- :meth:`Dispatcher.pre_dispatch`
-    replies 204 to a bare ``OPTIONS`` on every route, and
-    :func:`rule_routing_kwargs` widens every rule's method allow-list to let it
-    through. An ``Allow`` that omits it advertises less than the server does,
-    which is how the entry point's rejection of ``TRACE`` came to name six
-    verbs against ``pre_dispatch``'s seven.
-    """
-    # `is None`, not `or`: an EMPTY collection means "this resource accepts
-    # nothing", which must not silently widen to the full default set.
     if methods is None:
         methods = DEFAULT_ALLOWED_METHODS
     return ", ".join(dict.fromkeys([*methods, "OPTIONS"]))
@@ -110,12 +98,6 @@ def register_ensure_db_paths(*paths: str, prefixes: Iterable[str] = ()) -> None:
 
 
 def is_ensure_db_path(path: str) -> bool:
-    """Whether *path* insists on a database, exactly or by registered prefix.
-
-    A function rather than two names the caller combines: the prefixes are
-    rebound on every registration, so an importer holding the tuple itself
-    would answer against whatever was registered when it was imported.
-    """
     return path in ENSURE_DB_PATHS or path.startswith(ENSURE_DB_PATH_PREFIXES)
 
 

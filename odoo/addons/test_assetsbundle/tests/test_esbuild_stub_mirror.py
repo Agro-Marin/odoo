@@ -30,17 +30,6 @@ class TestEsbuildCompilerAddonFlagsSeam(BaseCase):
 
 
 def _build_probe_stub_mirror(tmp, files, stubs):
-    """Write {relpath: content} under a fake addon's static/src/, then
-    build an esbuild stub mirror over it via
-    EsbuildCompiler._write_stub_mirror(). Shared by
-    TestSecondaryStubMirror/TestDeepStubMirror/TestBarePackageStubMirror,
-    which otherwise each hand-rolled the same fixture-tree-plus-mirror
-    setup with only the tree shape and stub map differing.
-
-    Returns (stub_root, src_root, {flag: target}); `src_root` is
-    .../addons/probe/static/src -- callers index further into it
-    (e.g. `src_root / "core"`) for whichever subtree they assert on.
-    """
     odoo_root = Path(tmp)
     src_root = odoo_root / "addons" / "probe" / "static" / "src"
     for relpath, content in files.items():
@@ -546,11 +535,6 @@ class TestRunEsbuildFailureReporting(BaseCase):
 
 
 class _EntryMod:
-    """A stand-in for a native module, and it has to satisfy the whole of
-    `NativeModuleLike`: `_esbuild_entry_lines` reads `raw_content` through
-    `_imports_owl()` on the standalone path, so a stub without it raised
-    `AttributeError` there while every non-standalone test passed."""
-
     def __init__(self, module_path, url="", filename=None, raw_content=""):
         self.module_path = module_path
         self.url = url
@@ -565,14 +549,6 @@ class TestEsbuildEntryLines(BaseCase):
         return EsbuildCompiler("test.entry", modules, [], **kw)
 
     def test_a_standalone_bundle_publishes_its_modules_behind_a_guard(self):
-        """It once imported for side effects only, and that is what this
-        asserted.  A standalone bundle can still be the parent a runtime-loaded
-        child bridges onto -- the livechat embed is, for its support-tours
-        bundle -- and a bridge resolves through `odoo.loader.modules`, so the
-        publication is there.  The guard is the part that must not be lost: a
-        standalone artifact may also be loaded where there are no globals at
-        all (a worker), and there the publication is simply not wanted.
-        """
         lines = self._compiler(
             [_EntryMod("@a/one", url="/a/static/src/one.js")], standalone=True
         )._esbuild_entry_lines(self.ROOT)
@@ -587,8 +563,6 @@ class TestEsbuildEntryLines(BaseCase):
         self.assertIn('  "@a/one": __m0', lines)
 
     def test_a_rendered_bundle_publishes_unguarded(self):
-        """A rendered page always carries the loader shim, so a missing loader
-        there is a defect and should say so rather than silently skip."""
         lines = self._compiler(
             [_EntryMod("@a/one", url="/a/static/src/one.js")]
         )._esbuild_entry_lines(self.ROOT)
@@ -597,9 +571,6 @@ class TestEsbuildEntryLines(BaseCase):
         self.assertIn("odoo.loader.registerNativeModules({", lines)
 
     def test_owl_rides_along_only_when_a_standalone_bundle_uses_it(self):
-        """Standalone carries owl inlined rather than external, so importing it
-        is only worth the bytes when the bundle actually uses it: the livechat
-        embed does, the websocket worker does not."""
         without = self._compiler(
             [_EntryMod("@a/one", url="/a/static/src/one.js")], standalone=True
         )._esbuild_entry_lines(self.ROOT)

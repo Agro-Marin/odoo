@@ -46,8 +46,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def _assert_bundle_changed(self, bundle0, bundle1, method):
-        """Assert that rebuilding a bundle after an ir.asset addition
-        changed both its computed file list and its version."""
         self.assertNotEqual(
             bundle0.files,
             bundle1.files,

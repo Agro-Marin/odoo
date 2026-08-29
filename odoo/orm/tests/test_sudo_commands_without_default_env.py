@@ -1,13 +1,3 @@
-"""``_check_sudo_commands`` must not crash when there is no default environment.
-
-``Transaction.default_env`` is only set for an environment built with a truthy
-integer uid, and ``Transaction.flush`` already carries a fallback for the state
-where none was. ``_RelationalMulti._check_sudo_commands`` read
-``transaction.default_env.uid`` with no guard, so an x2many write touching one
-of the models that set ``_allow_sudo_commands = False`` raised
-``AttributeError`` instead of refusing the write.
-"""
-
 import unittest
 
 from odoo import fields, models
@@ -59,9 +49,6 @@ class TestSudoCommandsWithoutDefaultEnv(unittest.TestCase):
     MODELS = (SGuardHost, SGuardLine, OpenHost, OpenLine)
 
     def test_the_state_is_reachable(self):
-        # environment.py only adopts a default env for a *truthy* integer uid,
-        # so a transaction whose environments were all built with uid 0 never
-        # gets one. This is the rule the guard depends on.
         with model_test_env(*self.MODELS) as env:
             transaction = env.transaction
             transaction.default_env = None

@@ -81,28 +81,6 @@ class TestBundlesAssemble(lint_case.LintCase):
         )
 
     def test_every_esm_bundle_compiles(self):
-        """Run the linker, because the checks around it only read the sources.
-
-        The two methods above ask whether the bundle's *file list* resolves and
-        whether its *relative* imports stay inside it. Neither puts the modules
-        together, so anything that fails only once they are linked passes both
-        and fails in the browser.
-
-        NOT a substitute for `named_export_coherence`, which answers the one
-        shape of this that a static scan can answer -- does every
-        `import { x }` find an `x` -- across every sibling checkout, without a
-        database. That gate is the reason this one does not try: it is the
-        broader check of the two for its own question, and it is already run
-        from four lanes. What is left here is the artefact rather than the
-        sources: whether the thing this server will serve actually builds.
-
-        Compiles rather than trusting `_is_esbuild_fail_closed()`, whose
-        default is `--test-enable or dev_mode=assets`. Outside that an esbuild
-        failure opens the circuit breaker and returns an empty result, so a
-        check leaning on the switch reads as a pass wherever the switch is off:
-        measured, a prototype that did reported 22 of 22 green over a tree that
-        does not link.
-        """
         failures = []
         with self.superuser_env() as env:
             qweb = env["ir.qweb"]
@@ -130,39 +108,18 @@ class TestBundlesAssemble(lint_case.LintCase):
         )
         _logger.info("%s esm bundle(s) compile", compiled)
 
-    # `web/static/src/libs/*` are third-party wrappers a bundle must list
-    # explicitly: nothing pulls them in transitively, and a bare specifier that
-    # names a module the bundle does not carry resolves to `undefined` rather
-    # than failing to load, so the fault only surfaces at the first call site.
     LIB_SPECIFIERS = (
         "@web/libs/bootstrap",
         "@web/libs/popper_compat",
     )
 
-    # Bundles that import a lib wrapper without carrying it because they are
-    # only ever loaded onto a document that already carries one. Exempted by
-    # name so the gate stands aside knowingly rather than being blind.
     LIB_INHERITING_BUNDLES = {
-        # Loaded on the same frontend document as `web.assets_frontend`.
         "web.assets_frontend_minimal",
-        # Loaded into the editable iframe, over `web.assets_frontend`.
         "website.assets_inside_builder_iframe",
-        # Declares `web.assets_unit_tests_setup` in `import_map_includes`.
         "web.assets_unit_tests",
     }
 
     def test_every_bundled_module_carries_the_libs_it_imports(self):
-        """A bare specifier for a bundled third-party lib must be in the bundle.
-
-        `9251982dca8` retired Bootstrap's JS from the backend. Three builder
-        modules kept importing `@web/libs/bootstrap` from bundles that do not
-        carry it; the import silently yielded `undefined` and every use threw
-        `TypeError: ... reading 'getInstance'`, breaking snippet removal in the
-        website builder. Neither existing gate saw it: one checks that the
-        target *file* exists, the other checks *relative* imports only -- and
-        tells you to spell the import bare, which is the spelling it stops
-        checking.
-        """
         failures = []
         with self.superuser_env() as env:
             bundles = self.served_bundle_names(env)
@@ -205,7 +162,6 @@ class TestBundlesAssemble(lint_case.LintCase):
 
     @staticmethod
     def _bare_specifiers(module) -> set:
-        """Every non-relative specifier `module` imports."""
         src = module.raw_content or ""
         lexed = lex_module(src)
         if lexed is None:
@@ -215,32 +171,6 @@ class TestBundlesAssemble(lint_case.LintCase):
         return {s for s in specs if s and not s.startswith((".", "/"))}
 
     def test_pregenerated_js_bundles_can_be_built(self):
-        """Every bundle whose JS `_pregenerate_assets_bundles` builds must build.
-
-        The JS set is not the set of bundles anyone serves as JS: any module may
-        widen it by overriding `_get_bundles_to_pregenerate`, and one did --
-        `test_mass_mailing` added `mass_mailing.assets_iframe_style`, a bundle its
-        only caller renders with `t-js="False"` because it carries no servable JS
-        at all. It includes `html_editor.assets_media_dialog`, whose files are
-        native ESM, so building it as a legacy bundle raised
-        ModuleSyntaxInLegacyBundleError out of `_pregenerate_assets_bundles`.
-
-        That call sits in `_run_post_install_tests`, ahead of the post_install
-        suites, so the failure took the whole phase with it -- and the run still
-        printed the at_install tests it had managed, which is why it read as a
-        green result rather than as a suite that never ran.
-
-        This test builds the bundles itself rather than leaning on that call,
-        which is what lets it report the fault instead of being erased by it:
-        `_run_post_install_tests` only pregenerates when the selected suite
-        carries an HttpCase, so a run narrow enough to exclude one never reaches
-        the raise, and a run wide enough to include one never reaches this test.
-
-        Nothing else gated it. The `esm` declaration checks in TestEsmBundles
-        deliberately skip bundles rendered with `t-js="False"`, on the correct
-        reasoning that nothing serves their JS. Pregeneration does not share that
-        reasoning: it builds whatever is in the JS set.
-        """
         failures = []
         with self.superuser_env() as env:
             qweb = env["ir.qweb"]

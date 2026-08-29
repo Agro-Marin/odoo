@@ -13,11 +13,6 @@ from odoo.addons.base.models.assetsbundle import AssetsBundle
 
 class TestEsmConfigValidation(TransactionCase):
     def test_live_registry_builds_and_validates(self):
-        # Smoke-tests validate_esm_config() against the whole live
-        # registry. See TestExternalLibsValidator.test_the_live_tables_
-        # satisfy_all_four below for the equivalent live-table smoke test
-        # of _check_external_libs() -- the two together are "is the real
-        # config internally consistent", kept adjacent on purpose.
         reg = esm_registry()
         self.assertIn("web.assets_web", reg.bundles)
         self.assertIn("point_of_sale._assets_pos", reg.bundles)
@@ -126,14 +121,6 @@ class TestExternalLibsValidator(BaseCase):
         from odoo.tools.assets.esm_registry import external_bare_specifiers
 
         registered = external_libs()
-        # The subset assertion below is satisfied by two empty sets, so it
-        # cannot tell "every bare specifier is declared" from "the registry
-        # read nothing" -- ADR-0044's shape exactly. This guard is what makes
-        # the next line mean something. It arrived here from a duplicate of
-        # this class that `web` used to carry: the duplicate drifted (its
-        # absent-addon test still asserted the behaviour d025c1bb062 inverted)
-        # and was removed in favour of this one, which was a superset in every
-        # assertion but this.
         self.assertTrue(registered, "no module declares an external lib")
         self.assertLessEqual(set(external_bare_specifiers()), set(registered))
 
@@ -159,15 +146,6 @@ class TestExternalLibsValidator(BaseCase):
             )
 
     def test_a_lib_candidate_in_an_absent_addon_is_skipped(self):
-        """The asymmetry with the import map above, pinned.
-
-        _LIB_CANDIDATES is a static table naming addons a given deployment may
-        not carry, and _get_esbuild_addon_flags already skips a candidate whose
-        file is absent, so nothing imports the alias. Dropping the
-        _addon_is_present guard from that loop -- to match the import map, which
-        deliberately has none -- would make every deployment without the addon
-        raise on a lib it never uses.
-        """
         AssetsBundle._check_external_libs(
             {},
             lib_candidates={"@odoo/nope": ("no_such_addon_here", "static", "x.js")},
@@ -198,10 +176,6 @@ class TestExternalLibsValidator(BaseCase):
             )
 
     def test_the_live_tables_satisfy_all_four(self):
-        # Companion to TestEsmConfigValidation.test_live_registry_builds_
-        # and_validates above: that one smoke-tests validate_esm_config()
-        # against the live registry, this one smoke-tests
-        # _check_external_libs() against the live external-libs table.
         AssetsBundle._check_external_libs(external_libs())
 
 

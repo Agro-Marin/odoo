@@ -39,9 +39,6 @@ TIMEDELTA_UNITS = (
 
 TIMEDELTA_SECONDS_BY_UNIT = dict(TIMEDELTA_UNITS)
 
-# The `fields` the contact widget shows when the option is not given.
-# `base.contact` also understands "city" and "country_id"; two shipped
-# templates pass them, so the list a caller may send is wider than this.
 CONTACT_DEFAULT_FIELDS = ("name", "address", "phone", "email")
 
 BARCODE_RENDER_OPTIONS = frozenset(
@@ -81,11 +78,6 @@ class IrQwebField(models.AbstractModel):
             return ""
 
         if isinstance(value, bytes):
-            # A binary field's bytes are base64 ASCII, but `t-out` reaches here
-            # with whatever the expression evaluated to, and a bare `.decode()`
-            # took the whole page down with UnicodeDecodeError on the first
-            # non-UTF-8 byte. Replace rather than raise: this is the fallback
-            # converter, and a mojibake cell beats a 500.
             value = value.decode(errors="replace")
         return escape(value)
 
@@ -163,9 +155,6 @@ class IrQwebFieldFloat(models.AbstractModel):
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         if not math.isfinite(value):
-            # inf/nan reach `int(math.log10(...))` and `float_round` and come
-            # back as OverflowError/ValueError from inside the formatter. No
-            # column produces one, but a computed t-out expression can.
             msg = f"The value passed to the float field is not finite: {value!r}"
             raise ValueError(msg)
         min_precision = options.get("min_precision")
@@ -234,8 +223,6 @@ class IrQwebFieldDatetime(models.AbstractModel):
         if isinstance(value, str):
             value = fields.Datetime.from_string(value)
         elif isinstance(value, date) and not isinstance(value, datetime):
-            # widget="datetime" over a date field: midnight, rather than the
-            # bare AssertionError ``context_timestamp`` raises on a ``date``.
             value = datetime.combine(value, time.min)
 
         record = self
@@ -356,10 +343,6 @@ class IrQwebFieldHtml(models.AbstractModel):
     def _post_process_html_body(
         self, body: etree._Element, options: dict[str, Any]
     ) -> etree._Element:
-        # Mutate the parsed <body> in place, inside the ONE parse this
-        # converter performs. `website` used to re-parse and re-serialise the
-        # finished string to inject its form signature -- two extra round-trips
-        # for every html field carrying a <form>.
         return body
 
     @api.model
@@ -370,22 +353,13 @@ class IrQwebFieldHtml(models.AbstractModel):
         body = etree.fromstring(
             f"<body>{value}</body>", etree.HTMLParser(encoding="utf-8")
         )[0]
-        # Asked once per document, not per element: a bound method call per
-        # element cost more than the elements it skipped.
         att_names = irQweb._get_post_processing_att_names()
         for element in body.iter():
             attrib = element.attrib
-            # Two skips, both output-neutral and both measured. Rewriting the
-            # attributes of every element that has any was the dominant cost of
-            # this loop, and `_post_processing_att` leaves almost all of them
-            # alone.
             if not attrib:
                 continue
             if att_names is not None and att_names.isdisjoint(attrib):
                 continue
-            # `_post_processing_att` mutates the dict it is handed, but that
-            # dict is a copy -- `attrib` itself still holds the original, so it
-            # is the thing to compare against and no second copy is needed.
             processed = irQweb._post_processing_att(element.tag, dict(attrib))
             if len(processed) != len(attrib) or any(
                 attrib.get(name) != value for name, value in processed.items()
@@ -404,14 +378,6 @@ class IrQwebFieldImage(models.AbstractModel):
 
     @api.model
     def _get_src_data_b64(self, value: Any, options: dict[str, Any]) -> str:
-        # A binary field hands over ``bytes``; ``t-out`` with widget="image"
-        # hands over whatever the expression evaluated to. Normalise once and
-        # STRICTLY -- this used to reach ``value.decode('ascii')`` at the very
-        # end and raise AttributeError there, past every guard, for a plain
-        # ``str``. Decoding leniently instead would be worse than the old
-        # crash: ``b64decode`` discards a stray non-base64 byte, so the payload
-        # would validate while the data URI built from the RAW value still
-        # carried it.
         if isinstance(value, (bytes, bytearray, memoryview)):
             source = bytes(value)
         elif isinstance(value, str):
@@ -424,9 +390,6 @@ class IrQwebFieldImage(models.AbstractModel):
             img_b64 = base64.b64decode(source)
             value_b64 = source if isinstance(source, str) else source.decode("ascii")
         except ValueError:
-            # binascii.Error and the "only ASCII characters" ValueError that
-            # b64decode raises for a str both land here; so does the
-            # UnicodeDecodeError from a bytes payload that is not ASCII.
             msg = "Invalid image content"
             raise ValueError(msg) from None
 
@@ -438,12 +401,6 @@ class IrQwebFieldImage(models.AbstractModel):
             try:
                 image = Image.open(BytesIO(img_b64))
                 image.verify()
-                # ``Image.MIME`` is populated per plugin and stays sparse: a
-                # format Pillow can open is not necessarily one it has a MIME
-                # for, and the bare index raised KeyError past both handlers.
-                # Synthesise from the format name as a last resort -- `or
-                # sniffed` alone put a literal "None" in the data URI when the
-                # sniff came back empty too.
                 mimetype = (
                     Image.MIME.get(image.format)
                     or sniffed
@@ -528,9 +485,6 @@ class IrQwebFieldMonetary(models.AbstractModel):
     def _currency_field_names(
         self, record: models.BaseModel, field_name: str
     ) -> list[str]:
-        # An ORDER, not a pick: the caller takes the first that actually HOLDS
-        # a currency. A monetary field's declared currency field can be empty
-        # on a given record, and the fallback scan exists for that case.
         field = record._fields[field_name]
         declared = (
             field.get_currency_field(record) if field.type == "monetary" else None
@@ -540,9 +494,6 @@ class IrQwebFieldMonetary(models.AbstractModel):
             for name, candidate in record._fields.items()
             if candidate.type == "many2one" and candidate.comodel_name == "res.currency"
         ]
-        # The scan used to take candidates[0] -- whichever `_fields` happened to
-        # yield first, which on product.template is `currency_id` only by luck
-        # and is not a guarantee the field dict makes.
         ranked = sorted(
             candidates,
             key=lambda name: (name not in ("currency_id", "company_currency_id"), name),
@@ -590,11 +541,6 @@ class IrQwebFieldTime(models.AbstractModel):
         if value >= 24:
             msg = f"The hour must be between 0 and 23, got {value!r}"
             raise ValueError(msg)
-        # Round rather than truncate -- truncating rendered 22 of the day's
-        # 1440 whole minutes one minute early, because `minutes / 60.0 * 60`
-        # lands just below the integer. Clamp instead of raising on the way
-        # back up: 23:59:31 rounds to 1440 minutes, and a value that used to
-        # render must not start raising out of a template.
         minutes_total = min(round(value * 60), 24 * 60 - 1)
         hours, minutes = divmod(minutes_total, 60)
         t = time(hour=hours, minute=minutes)
@@ -622,12 +568,6 @@ class IrQwebFieldDuration(models.AbstractModel):
         try:
             return babel.dates.format_timedelta(seconds, locale=locale, **kwargs)
         except KeyError:
-            # Only the relative ("add_direction") patterns can be missing, and
-            # only for the narrow/short widths: 57 (locale, width, unit) triples
-            # across 28 CLDR locales lack a "future"/"past" entry, and every one
-            # of them has the long width. Widen before giving up on the
-            # language -- falling straight back to en_US, as this used to,
-            # renders "in 1 hour" inside an otherwise Hungarian page.
             kwargs["format"] = "long"
             try:
                 return babel.dates.format_timedelta(seconds, locale=locale, **kwargs)
@@ -675,12 +615,6 @@ class IrQwebFieldDuration(models.AbstractModel):
         fmt = options.get("format", "long")
 
         if options.get("add_direction"):
-            # A direction cannot be composed with a section list. CLDR inflects
-            # the unit noun in the relative form -- fr "1 heure" -> "dans 1
-            # heure", pl "1 godzina" -> "za 1 godzinę" -- so the directed phrase
-            # is not the plain one plus an affix, and only babel can mint it.
-            # Directing each section instead produced "in 1h in 30m", which the
-            # website_event_track countdown badges shipped.
             return (
                 ""
                 if not seconds
@@ -743,9 +677,6 @@ class IrQwebFieldBarcode(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
         if not value:
             return ""
-        # A barcode is a string of symbols, but the field behind it is often an
-        # integer (an EAN, a serial). ``isascii``/``prepare_barcode`` both want
-        # ``str``; coerce here rather than raising AttributeError on the field.
         value = value if isinstance(value, str) else str(value)
         if not value.isascii():
             return nl2br(value)
@@ -779,10 +710,6 @@ class IrQwebFieldContact(models.AbstractModel):
         template_options = options.get("template_options") or {}
         if not value:
             if options.get("null_text"):
-                # `minimal_qcontext` on both branches: `base.no_contact` used
-                # to render without it while `base.contact` rendered with it,
-                # so the empty case silently carried the whole default qcontext
-                # its own template never reads.
                 return self.env["ir.qweb"]._render(
                     "base.no_contact",
                     {"options": options},

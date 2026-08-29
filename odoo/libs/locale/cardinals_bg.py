@@ -1,28 +1,3 @@
-"""Bulgarian cardinals, which upstream ``num2words`` does not implement.
-
-Kept here rather than in ``_monkeypatches`` because it is not a patch: it is a
-language implementation that happens to have no home but a third-party
-registry. ``_monkeypatches/num2words.py`` is the few lines that register it.
-
-The interface is ``num2words``' own duck type -- ``str_to_number`` for string
-input, ``to_cardinal`` for the conversion, and a ``to_*`` for every other form
-the library can be asked for, raising ``NotImplementedError`` where Bulgarian
-is not implemented. ``res_currency.amount_to_text`` catches exactly that and
-falls back to English, so nothing here may raise anything else.
-
-Two features of the language drive the shape of the code:
-
-* **Gender.** Only 1 and 2 inflect, and the scale word decides which form:
-  *един/два* милиона (masculine), *една/две* хиляди (feminine), *едно/две*
-  standing alone (neuter). Hence :data:`UNITS`, keyed by gender.
-* **The conjunction.** Bulgarian takes exactly one *и*, before the final
-  component of the whole number -- "сто **и** единадесет", "хиляда **и** едно".
-  It belongs to the number rather than to a group, so the least significant
-  non-empty group is told it is final and places it. If that group already
-  needs an internal *и* between its own hundreds and what follows, that one
-  serves: 1101 is "хиляда сто и едно", never "хиляда и сто и едно".
-"""
-
 from __future__ import annotations
 
 from decimal import Decimal
@@ -32,11 +7,6 @@ MASCULINE: Final = 1
 FEMININE: Final = -1
 NEUTER: Final = 0
 
-#: Index 0 of each table is an unused slot, so that the index IS the digit.
-#: It is spelled "" rather than None because every read is already guarded by a
-#: truthiness check on the digit -- `if hundreds:`, `if units:` -- so the slot is
-#: unreachable, and typing it optional made six call sites narrow a value that
-#: cannot arrive while saying nothing about the invariant that keeps it away.
 UNITS: Final[dict[int, tuple[str, ...]]] = {
     NEUTER: (
         "",
@@ -102,7 +72,6 @@ HUNDREDS: Final[tuple[str, ...]] = (
     "деветстотин",
 )
 
-#: 11 is irregular; 12..19 are ``UNITS[MASCULINE][n] + "на" + "десет"``.
 ELEVEN: Final = "единадесет"
 TEEN_INFIX: Final = "на"
 
@@ -111,10 +80,8 @@ MINUS: Final = "минус"
 AND: Final = "и"
 THOUSAND: Final = "хиляда"
 THOUSANDS: Final = "хиляди"
-#: Appended to a scale word for a count above one (dva milion-A).
 SCALE_PLURAL: Final = "а"
 
-#: Scale words by power of ten. The largest entry bounds what can be named.
 SCALES: Final[dict[int, str]] = {
     6: "милион",
     9: "милиард",
@@ -138,12 +105,10 @@ SCALES: Final[dict[int, str]] = {
     63: "вигинтилион",
 }
 
-#: First magnitude with no name, so the first this module refuses.
 BEYOND_NAMING: Final = 10 ** (max(SCALES) + 3)
 
 
 def _teen(unit: int) -> str:
-    """10..19. Only 10 and 11 are irregular; 12..19 are unit + "на" + "десет"."""
     if unit == 0:
         return TENS[1]
     if unit == 1:
@@ -152,10 +117,6 @@ def _teen(unit: int) -> str:
 
 
 def _spell_group(value: int, gender: int, is_final: bool) -> list[str]:
-    """Spell one 3-digit group. ``value`` is 1..999; 0 never reaches here.
-
-    ``is_final`` marks the group that carries the number's single conjunction.
-    """
     hundreds, remainder = divmod(value, 100)
     tens, units = divmod(remainder, 10)
 
@@ -174,14 +135,11 @@ def _spell_group(value: int, gender: int, is_final: bool) -> list[str]:
     if joined_internally:
         words.insert(len(words) - 1, AND)
     if is_final and (not hundreds or not joined_internally):
-        # An internal conjunction already reads as the number's one "и"; a
-        # second, leading one would double it.
         words.insert(0, AND)
     return words
 
 
 def _scale_words(power: int, count: int) -> list[str]:
-    """The scale word for 10**``power``, agreeing with ``count`` groups."""
     if power == 3:
         return [THOUSAND] if count == 1 else [THOUSANDS]
     return [SCALES[power] + SCALE_PLURAL] if count > 1 else [SCALES[power]]
@@ -194,7 +152,6 @@ def _gender_for(power: int) -> int:
 
 
 def _split_groups(value: int) -> list[int]:
-    """``value`` as 3-digit groups, most significant first."""
     groups = []
     while value:
         value, group = divmod(value, 1000)
@@ -203,8 +160,6 @@ def _split_groups(value: int) -> list[int]:
 
 
 class BulgarianNumerals:
-    """A ``num2words`` converter for ``bg``."""
-
     _scales: ClassVar[dict[int, str]] = SCALES
 
     def str_to_number(self, value: str) -> int | float:
@@ -220,9 +175,6 @@ class BulgarianNumerals:
                 raise NotImplementedError(msg)
             value = int(value)
         if abs(value) >= BEYOND_NAMING:
-            # Past вигинтилион there is no name to reach for. Refused as
-            # NotImplementedError rather than escaping as the KeyError a scale
-            # lookup would throw, so amount_to_text can fall back to English.
             msg = f"Bulgarian cardinals stop below 10^{max(SCALES) + 3}"
             raise NotImplementedError(msg)
         return self._spell(value)
@@ -254,12 +206,9 @@ class BulgarianNumerals:
             if not group:
                 continue
             power = (len(groups) - index - 1) * 3
-            # The least significant non-empty group carries the conjunction --
-            # unless it is the only one, which takes none at all.
             is_final = index > 0 and not any(groups[index + 1 :])
 
             if power == 3 and group == 1:
-                # "хиляда", never "една хиляда".
                 words.extend(_scale_words(power, group))
                 continue
             if power >= 6 and group == 1:

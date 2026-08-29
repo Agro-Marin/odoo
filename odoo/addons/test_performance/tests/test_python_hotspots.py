@@ -1,13 +1,3 @@
-"""Wall-clock benchmarks for pure-Python hotspots.
-
-Was named for `odoo_rust` ("pyo3 candidates"), but never imported or compared
-against it: every benchmark here times a pure-Python function
-(`safe_eval`, `groupby`, `OrderedSet`, `frozendict`, `plaintext2html`,
-`html_sanitize`, `clean_context`, `str2bool`, ...) in isolation. Renamed to
-describe what it actually measures; extend it to compare against an
-`odoo_rust` implementation once one of these functions gets one.
-"""
-
 import gc
 import logging
 import unittest
@@ -32,11 +22,6 @@ def _log_result(timer: PerfTimer, name: str):
 
 @tagged("-standard", "python_hotspots_benchmark")
 class TestPythonHotspots(TransactionCase):
-    """Timing only: no test_* method here asserts on a measured value.
-
-    A failure here is an exception, never a performance regression.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -70,12 +55,6 @@ class TestPythonHotspots(TransactionCase):
         codes = [compile_codeobj(e) for e in exprs]
         idx = [0]
 
-        # assert_valid_codeobj reads the module-global
-        # _validated_bytecode_cache at call time, so patching that
-        # attribute to a private dict here scopes every clear() below to
-        # this test instead of wiping the shared production cache that any
-        # other code sharing the process (e.g. concurrent workers) relies
-        # on for its own safe_eval calls.
         self.patch(safe_eval_module, "_validated_bytecode_cache", {})
         local_cache = safe_eval_module._validated_bytecode_cache
 
@@ -381,9 +360,6 @@ class TestPythonHotspots(TransactionCase):
         if not self.all_stats:
             return
 
-        # Same reasoning as TestSQLBenchmark.test_99_generate_summary: the
-        # zero-results guard alone lets a partial selection silently print
-        # an incomplete summary as if it were complete.
         expected = len(unittest.TestLoader().getTestCaseNames(type(self))) - 1
         if len(self.all_stats) < expected:
             _logger.warning(

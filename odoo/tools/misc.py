@@ -198,15 +198,6 @@ def get_diff(
     custom_style: str | None = None,
     dark_color_scheme: bool = False,
 ) -> str:
-    """Render an HTML table diffing two labelled texts.
-
-    ``custom_style`` replaces the default stylesheet appended to the table.
-    It was typed ``str | bool`` with a ``False`` default -- so ``True`` was a
-    representable value that meant nothing and raised ``TypeError: can only
-    concatenate str (not "bool") to str`` on the append below. ``None`` says
-    "no override" without admitting a second, broken way to say it.
-    """
-
     def handle_style(
         html_diff: str, custom_style: str | None, dark_color_scheme: bool
     ) -> str:

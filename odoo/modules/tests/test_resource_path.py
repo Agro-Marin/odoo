@@ -1,13 +1,3 @@
-"""`get_resource_from_path` returned a third element nobody read.
-
-It was `(module, "/".join(parts), str(Path(*parts)))` -- the third a
-POSIX-identical duplicate of the second. All ten call sites in this repo took
-`[0]` or `[0:2]`, none in `enterprise`, `agromarin` or `design-themes` called it
-at all, and the three that unpacked three names discarded the last. Four of the
-five real consumers then rebuilt `module + "/" + relative` with
-`"/".join(path_info[0:2])`, which is now `.addons_path`.
-"""
-
 import tempfile
 import unittest
 from pathlib import Path
@@ -30,12 +20,6 @@ class TestResourceLocation(BaseCase):
         self.root = Path(self._tmp.name)
 
     def _located(self, path: str) -> ResourceLocation:
-        """The location, asserted found.
-
-        `get_resource_from_path` answers None for a path under no addons path,
-        so attributing its result directly names NoneType instead of the path
-        that failed to resolve.
-        """
         found = get_resource_from_path(path)
         if found is None:
             self.fail(f"{path!r} resolved to no addon")
@@ -60,9 +44,6 @@ class TestResourceLocation(BaseCase):
         self.assertEqual(found, ResourceLocation("probe", ""))
 
     def test_the_longest_matching_addons_path_wins(self):
-        # sorted(__path__, key=len, reverse=True): a nested addons path must
-        # win over the one that contains it, or every module under it would be
-        # reported as living in the outer path's first directory component.
         nested = self.root / "nested" / "addons"
         nested.mkdir(parents=True)
         with patch.object(odoo.addons, "__path__", [str(self.root), str(nested)]):

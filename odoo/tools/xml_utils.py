@@ -68,11 +68,6 @@ def _check_xml(
         }
         xsd_attachment = env["ir.attachment"].create(attachment_vals)
     elif url:
-        # `load_xsd_files_from_url` answers False for any network failure or an
-        # empty body. Reaching `.name` on that raised AttributeError, and the
-        # `finally` below turned it into a second one from inside the cleanup --
-        # so a network blip surfaced as `'bool' object has no attribute
-        # 'unlink'` from a test helper, naming nothing.
         xsd_attachment = load_xsd_files_from_url(env, url) or env["ir.attachment"]
 
     if not xsd_attachment:
@@ -276,15 +271,6 @@ def validate_xml_from_attachment(
     *,
     required: bool = True,
 ) -> None:
-    """Validate ``xml_content`` against the stored XSD named ``xsd_name``.
-
-    A missing XSD used to be logged at INFO and swallowed, so "validated" and
-    "never checked" were indistinguishable in a default-verbosity log -- for
-    e-invoicing callers, the difference between a document a tax authority will
-    accept and one it will reject. It now raises. `required=False` restores the
-    old behaviour for a caller that genuinely treats the schema as optional, and
-    warns rather than informs so the skip is visible.
-    """
     prefixed_xsd_name = f"{prefix}.{xsd_name}" if prefix else xsd_name
     try:
         _logger.info("Validating with XSD...")

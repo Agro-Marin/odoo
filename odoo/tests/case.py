@@ -110,13 +110,6 @@ class TestCase(_TestCase):
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        # This runner does not implement expectedFailure. run() below honours
-        # __unittest_skip__ but has no __unittest_expecting_failure__ branch,
-        # and OdooTestResult has neither addExpectedFailure nor
-        # addUnexpectedSuccess -- so the decorator was silently ignored: a
-        # decorated test that failed was reported as a real failure, and one
-        # that passed as an ordinary pass. Refuse it where it is written
-        # instead of diverging from stdlib in the dark.
         offenders = sorted(
             name
             for name, attr in vars(cls).items()
@@ -217,10 +210,6 @@ class TestCase(_TestCase):
             result.stopTest(self)
             return None
 
-        # __init_subclass__ catches a decorated *method* at import time, but
-        # @unittest.expectedFailure on a class is applied after the class is
-        # created, so that check cannot see it. Catch it here rather than run
-        # the test under semantics this runner does not implement.
         if self.__class__.__dict__.get("__unittest_expecting_failure__") or getattr(
             testMethod, "__unittest_expecting_failure__", False
         ):

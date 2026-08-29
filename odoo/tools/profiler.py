@@ -102,17 +102,6 @@ class Collector:
 
     @property
     def profiler(self) -> Profiler:
-        """The profiler this collector belongs to.
-
-        A collector is built before the profiler that owns it -- `Profiler.
-        __init__` constructs the list, then assigns itself to each -- so every
-        method that reaches for `self.profiler` is reaching for something that
-        was None a moment earlier. Declared as `Profiler | None` that made the
-        whole class unanalysable: 48 of this module's type errors were one
-        `Optional` propagating through every use. The window is real but tiny,
-        and landing in it is a construction bug, so say so once here instead of
-        guarding at each of the forty-eight.
-        """
         if self._profiler is None:
             msg = (
                 f"{type(self).__name__} has no profiler yet: a collector is "
@@ -176,9 +165,6 @@ class Collector:
         if not self._processed:
             self.post_process()
             self.processed_entries = self._entries
-            # Hand the list over rather than blanking the attribute: `_entries`
-            # used to become None here, so every later `.append` was an
-            # AttributeError waiting on a caller that collected after reading.
             self._entries = []
             self._processed = True
         return self.processed_entries
@@ -360,9 +346,6 @@ class SyncCollector(Collector):
     name = "traces_sync"
 
     def start(self):
-        # Refuse rather than displace. This used to log the clash and call
-        # settrace anyway, silently unhooking whatever held it -- a debugger,
-        # coverage -- and stop() then set None instead of putting it back.
         if (existing := sys.gettrace()) is not None:
             msg = (
                 f"Cannot start SyncCollector: sys.settrace is already set to "

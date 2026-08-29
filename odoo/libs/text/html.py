@@ -512,19 +512,6 @@ def html_normalize(
     for el in doc.iter(tag=etree.Element):
         tag_quote(el)
 
-    # Load-bearing, and not for the reason it looks like.  `fromstring` above
-    # can hand back a bare `etree._Element` -- it does for about 5% of real
-    # documents, whenever it builds the wrapper itself -- and lxml's Cleaner
-    # calls `doc.rewrite_links()`, which exists only on `HtmlElement`.  Without
-    # this round trip `html_sanitize` raises AttributeError on 1014 of the
-    # 51508 HTML fragments in this repo.  Deleting it as redundant is the
-    # obvious move and it is wrong; the test is `TestHtmlNormalizeRoundTrip`.
-    #
-    # `encoding="unicode"` is what keeps the round trip lossless.  Without it
-    # `tostring` returns ASCII bytes with non-ASCII escaped as charrefs, and
-    # the HTML parser does not entity-decode *comment* content on the way back
-    # -- so `<!-- Résumé -->` came out `<!-- R&#233;sum&#233; -->`, permanently,
-    # in every sanitized body.
     doc = html.fromstring(html.tostring(doc, encoding="unicode", method=output_method))
 
     if filter_callback:
@@ -627,17 +614,10 @@ def html_sanitize(
     return markupsafe.Markup(sanitized)
 
 
-#: A *fragment*, interpolated into the patterns below and into
-#: ``link_tracker``'s own ``skip_regex``.  The only one of these that is not a
-#: pattern, and the reason the set cannot simply all be compiled.
 URL_SKIP_PROTOCOL_REGEX = r"mailto:|tel:|sms:"
 
 _HREF_URL_SOURCE = rf"""(\bhref=['"](?!{URL_SKIP_PROTOCOL_REGEX})([^'"]+)['"])"""
 
-#: Compiled: callers match with these, they never build strings out of them.
-#: They shipped as `str` beside `HTML_TAGS_REGEX` and `HTML_NEWLINES_REGEX`,
-#: which shipped compiled -- so a caller could not tell from the name which it
-#: had, and the `str` ones were recompiled at every call, some inside loops.
 URL_REGEX = re.compile(_HREF_URL_SOURCE)
 TEXT_URL_REGEX = re.compile(r"https?://[\w@:%.+&~#=/-]+(?:\?\S+)?")
 HTML_TAG_URL_REGEX = re.compile(_HREF_URL_SOURCE + r"([^<>]*>([^<>]+)<\/)?")
@@ -699,9 +679,6 @@ def html_keep_url(text: str | Markup) -> Markup:
 
 
 def html_to_inner_content(source: str | markupsafe.Markup | None) -> str:
-    # Not named `html`: this module already binds `html` to lxml.html and
-    # `htmllib` to the stdlib, and a third meaning inside one function is a
-    # trap for whoever next reaches for `html.fromstring` in here.
     if is_html_empty(source):
         return ""
     if not isinstance(source, markupsafe.Markup):
@@ -721,13 +698,6 @@ def create_link(url: str, label: str) -> Markup:
 
 
 def _number_references(tree: etree._Element) -> list[str]:
-    """Turn every ``<a>`` and ``<img>`` into a numbered marker, in tree order.
-
-    Mutates *tree* in place -- each element becomes a ``<span>`` carrying its
-    label plus ``[n]`` -- and returns the urls in the order those numbers were
-    handed out, so the caller can print the footnote list. Links and images
-    share one counter because they share one list.
-    """
     url_index: list[str] = []
     linkrefs = itertools.count(1)
 
@@ -754,12 +724,6 @@ def _number_references(tree: etree._Element) -> list[str]:
 
 
 def _markup_to_structured_text(tree: etree._Element) -> str:
-    """Serialise *tree* and reduce its markup to structured plain text.
-
-    "Structured" is the whole distinction from :func:`html_to_inner_content`:
-    what comes out keeps paragraph gaps and line breaks, so the runs below are
-    *halved*, never collapsed.
-    """
     html_str = etree.tostring(tree, encoding="unicode")
     html_str = html_str.replace("&#13;", "")
 
@@ -776,19 +740,7 @@ def _markup_to_structured_text(tree: etree._Element) -> str:
     html_str = re.sub(r"</p\s*>", "\n", html_str)
     html_str = re.sub(r"<br\s*/?>", "\n", html_str)
     html_str = re.sub(r"<[^>]*>", " ", html_str)
-    # Halving, not collapsing, and the same below for newlines: a run of breaks
-    # is a paragraph gap and a single one is a line break.
-    # `html_to_inner_content` collapses runs to one because it emits a single
-    # line and has no structure to keep -- the two look like the same
-    # normalisation and are not.
     html_str = html_str.replace(" " * 2, " ")
-    # lxml has already decoded every entity in the source; serialising re-escapes
-    # exactly these three, so this list is the whole of what can be here.  A
-    # `&nbsp;` substitution used to follow, and could only ever fire on text the
-    # `&amp;` line above had just manufactured: `&amp;nbsp;` -- a body that says
-    # the literal characters "&nbsp;" -- became U+00A0, and the strip in
-    # `html2plaintext` then deleted it.  No input reaches this point with a real
-    # `&nbsp;` in it.
     html_str = html_str.replace("&gt;", ">")
     html_str = html_str.replace("&lt;", "<")
     html_str = html_str.replace("&amp;", "&")
@@ -879,10 +831,6 @@ def append_content_to_html(
     else:
         content = re.sub(r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", content)
         content = f"\n{content}\n"
-    # Locating the closing tag must not rewrite the document.  Lowercasing every
-    # tag to make a literal `find("</body>")` work mangled `<A HREF=...>` into
-    # `<a HREF=...>` -- and still missed `</body >`, because the literal has no
-    # room for the space the lowercasing left behind.
     closing = _CLOSING_BODY_RE.search(html_body) or _CLOSING_HTML_RE.search(html_body)
     if closing is None:
         return markupsafe.Markup(f"{html_body}{content}")
@@ -896,9 +844,6 @@ def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) 
     replacement = re.sub(
         r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", html_content
     )
-    # Deliberately str, not Markup: the joined result is `str` either way, and
-    # `html_body` is not always trusted -- a plain-str body carrying unescaped
-    # user text would be marked safe by a Markup wrapper it never earned.
     html_content = replacement.strip()
 
     body_match = re.search(r"<body[^>]*>", html_body) or re.search(
@@ -915,15 +860,6 @@ def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) 
     )
 
 
-#: Attributes that carry a URL, and the elements allowed to carry them.
-#:
-#: The path group is `/(?!/)[^"]*`: a `/` not followed by another `/`, because
-#: `//host/x` is protocol-relative and already absolute. Spelling that as
-#: `/[^/][^"]+` -- a slash, then "something that is not a slash" -- instead makes
-#: the closing quote itself match `[^/]` for `href="/"`, and `[^"]+` then runs
-#: forward to the next quote in the document, swallowing the following
-#: `href="`. The link after a root link was left relative, which in a mail
-#: client means a dead link.
 LOCAL_LINK_PATTERNS = (
     re.compile(r"""(<(?:img|v:fill|v:image)(?=\s)[^>]*\ssrc=")(/(?!/)[^"]*)"""),
     re.compile(r"""(<a(?=\s)[^>]*\shref=")(/(?!/)[^"]*)"""),
@@ -942,12 +878,6 @@ LOCAL_LINK_PATTERNS = (
 
 
 def replace_local_links(html_content: str, resolve_base_url: Callable[[], str]) -> str:
-    """Rewrite root-relative URLs in ``html_content`` against a base URL.
-
-    ``resolve_base_url`` is called at most once, and only if the document turns
-    out to hold a rewritable link -- looking the base URL up is the expensive
-    part and most documents have none.
-    """
     if not html_content:
         return html_content
 
@@ -961,7 +891,6 @@ def replace_local_links(html_content: str, resolve_base_url: Callable[[], str]) 
         try:
             return match.group(1) + urljoin(base_url, match.group(2))
         except ValueError:
-            # urljoin refuses dot segments; leave the link as authored.
             return match.group(0)
 
     for pattern in LOCAL_LINK_PATTERNS:

@@ -10,15 +10,6 @@ from odoo.tests import TransactionCase
 
 
 class CacheScanEquivalenceCase(TransactionCase):
-    """Every fast path must answer what the slow path answers.
-
-    ``mapped``, ``filtered``, ``grouped``, ``sorted`` and ``read`` each read the
-    raw field cache when the field's ``cache_*`` flags allow it. The flags are
-    checked against the converters in ``orm/tests/test_cache_scan_allowlists``;
-    what is checked here is the other end -- that the scans built on them agree
-    with going through the descriptor, on real records with real values.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -103,10 +94,6 @@ class CacheScanEquivalenceCase(TransactionCase):
                 self.assertEqual(fast, slow)
 
     def test_sorted_agrees_with_the_comparator_path(self):
-        # Against the ORM's own slow path, not against Python's sorted():
-        # an in-memory sort deliberately reproduces PostgreSQL's null ordering
-        # (ASC NULLS LAST), which Python's sorted() does not, and re-deriving
-        # that rule here would only assert the test against itself.
         for name in self._scannable(can_scan_sorted):
             for order in (name, f"{name} desc"):
                 with self.subTest(order=order):
@@ -132,11 +119,6 @@ class CacheScanEquivalenceCase(TransactionCase):
         self.assertEqual(fast, slow)
 
     def test_a_boolean_is_deliberately_not_sorted_from_the_cache(self):
-        # sort_ids_by_cache groups falsy values with NULL to reproduce
-        # PostgreSQL's null ordering. For every other scannable type the falsy
-        # value is the null; for a Boolean, False is a value, so the cache sort
-        # puts it where NULL belongs. Pinned because the exclusion looks
-        # arbitrary next to the other types and is not.
         field = self.env["test_orm.mixed"]._fields["truth"]
         self.assertFalse(
             can_scan_sorted(field),
@@ -152,12 +134,6 @@ class CacheScanEquivalenceCase(TransactionCase):
 
 
 class PropertiesAreNotTruthinessPreservingCase(TransactionCase):
-    """The converse of the flag: these two really do break it.
-
-    Pinned so nobody restores ``cache_truthiness_matches`` on either class
-    after reading only the type name.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -192,8 +168,6 @@ class PropertiesAreNotTruthinessPreservingCase(TransactionCase):
             field.cache_truthiness_matches,
             "Property.__len__ counts the *definition*, not the cached values",
         )
-        # values orphaned by a definition that was emptied: truthy in the cache,
-        # falsy as a record value
         field._get_cache(self.env)[message.id] = {"ghost": 1}
         self.assertTrue(bool(field._get_cache(self.env)[message.id]))
         self.assertFalse(bool(message.attributes))

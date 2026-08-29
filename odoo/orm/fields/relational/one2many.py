@@ -146,13 +146,6 @@ class One2many(_RelationalMulti):
                 records.env._("Failed to read field %s", self) + "\n" + str(e)
             ) from e
 
-        # Group from the inverse's cache, which `search_fetch` above has just
-        # filled. Iterating `lines` allocates a singleton recordset per line and
-        # `line[inverse]` allocates a second one plus a PrefetchMany2one, to
-        # read a value already sitting in a dict -- two objects and three
-        # descriptor calls per line, on the fetch path of every one2many in the
-        # system. Measured over 2000 lines: 2.02 ms -> 0.79 ms on a bare model,
-        # 7.73 ms -> 1.76 ms on res.partner.
         inv_cache = inverse_field._get_cache(comodel.env)
         group = defaultdict(list)
         missed = []
@@ -165,9 +158,6 @@ class One2many(_RelationalMulti):
                 group[value or False].append(line_id)
 
         if missed:
-            # A non-stored inverse: `search_fetch` cannot fill a field it does
-            # not select, so those lines still have to go through the
-            # descriptor. Three one2many fields in this tree have one.
             get_id = (lambda rec: rec.id) if inverse_field.is_many2one else int
             for line in lines.browse(missed):
                 group[get_id(line[inverse])].append(line.id)
@@ -278,13 +268,6 @@ class One2many(_RelationalMulti):
                         case Command.CLEAR | Command.SET:
                             line_ids = command[2] if command[0] == Command.SET else []
                             if not allow_full_delete:
-                                # No `allow_full_delete = False` here: the flag
-                                # is set once from `not create` and this branch
-                                # has already tested that it is False, so the
-                                # assignment that used to sit below could not
-                                # change anything. Mutation-tested: the
-                                # CLEAR/SET/CREATE/UNLINK sequence produces the
-                                # same lines with and without it.
                                 if line_ids:
                                     if line_ids.__class__ is int:
                                         line_ids = [line_ids]

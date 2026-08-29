@@ -39,8 +39,6 @@ type _SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]
 
 
 class Db(Command):
-    """Create, drop, dump, load databases"""
-
     name = "db"
     description = """
         Command-line version of the database manager.
@@ -48,10 +46,6 @@ class Db(Command):
         Commands are all filestore-aware.
     """
 
-    # No `--addons-path` here: `main()`'s bootstrap parser consumes it out of
-    # argv before any command parser runs, so a declaration on this one could
-    # never fire. It still works — the bootstrap feeds it to the config, and
-    # `_load_cli_options` keeps it across the re-parse below.
     _CONNECTION_FLAGS = (
         ("-c", "--config"),
         ("-D", "--data-dir"),
@@ -78,16 +72,6 @@ class Db(Command):
     def _add_connection_flags(
         cls, p: argparse.ArgumentParser, *, on_subparser: bool = False
     ) -> None:
-        """Register connection/config flags on ``p``.
-
-        Live on BOTH the parent parser and every subparser, so the user can
-        write ``db -c cfg init mydb`` or ``db init mydb -c cfg``.
-
-        :param on_subparser: register with ``default=SUPPRESS``. argparse copies
-            every subparser attribute back onto the parent namespace; a plain
-            ``None`` default would clobber a value passed *before* the subcommand
-            (``db -c cfg drop mydb`` loses ``-c``). SUPPRESS leaves it unset.
-        """
         for flags in cls._CONNECTION_FLAGS:
             help_text = cls._CONNECTION_HELP.get(flags[-1])
             if on_subparser:
@@ -97,11 +81,6 @@ class Db(Command):
 
     @classmethod
     def _connection_dest_flags(cls) -> dict[str, str]:
-        """Map each argparse dest name to its long CLI flag.
-
-        Derived from ``_CONNECTION_FLAGS`` so ``run``'s config-args
-        reconstruction can't drift from the declared flags.
-        """
         dest_flags = {}
         for flags in cls._CONNECTION_FLAGS:
             long_flag = flags[-1]
@@ -109,7 +88,6 @@ class Db(Command):
         return dest_flags
 
     def _exit_missing_subcommand(self, _args: argparse.Namespace) -> NoReturn:
-        """Print full help and exit 2, the argparse code for usage errors."""
         self.parser.print_help(sys.stderr)
         sys.exit(2)
 
@@ -330,11 +308,6 @@ class Db(Command):
         return list_parser
 
     def run(self, cmdargs: list[str]) -> None:
-        # parse_known_args, so this command accepts the server options a
-        # database operation may need (`--log-level`, `--db_maxconn`,
-        # `--unaccent`, …) instead of rejecting everything it does not itself
-        # declare. A typo is still caught: the config parser errors on an
-        # option it does not know.
         args, unknown = self.parser.parse_known_args(cmdargs)
 
         dest_flags = self._connection_dest_flags()
@@ -364,10 +337,6 @@ class Db(Command):
 
     def load(self, args: argparse.Namespace) -> None:
         db_name = args.database or Path(args.dump_file).stem
-        # Before the download, not after: `restore_db` validates the name too,
-        # but only once it has been handed the bytes — so a name PostgreSQL
-        # cannot take (or one derived from a dump file whose stem is not a
-        # legal identifier) used to cost a full fetch first.
         try:
             validate_db_name(db_name)
         except ValueError as e:
@@ -411,23 +380,12 @@ class Db(Command):
             )
 
     def dump(self, args: argparse.Namespace) -> None:
-        # NOT `_check_not_protected`: that rule is about *destructive*
-        # operations, and it also refuses `config["db_template"]`. Dumping is
-        # read-only, and backing up the configured creation template is a
-        # perfectly ordinary thing to want — `test_db_dump_allows_the_template`
-        # pins it. Only the PostgreSQL system databases are refused, because
-        # dumping one of those through Odoo's filestore-aware dumper is
-        # meaningless rather than dangerous.
         if args.database in SYSTEM_DBS:
             sys.exit(f"Refusing to dump system database {args.database}.")
         self._check_source_exists(args.database)
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
         else:
-            # Checked before the dump starts rather than after: a missing
-            # directory used to surface as a raw FileNotFoundError traceback,
-            # and for a `dump` format it would have done so only once pg_dump
-            # had already run.
             destination = Path(args.dump_path)
             if not destination.parent.is_dir():
                 sys.exit(
@@ -479,23 +437,9 @@ class Db(Command):
             print(db_name)
 
     def _check_not_protected(self, db_name: str) -> None:
-        """Abort when ``db_name`` is a system/template database.
-
-        PostgreSQL itself refuses to drop template databases, but with a raw
-        traceback — and it happily drops ``postgres``, taking the maintenance
-        DB every client tool connects to by default. One spelling of the rule,
-        shared with `start`, `server` and `get_single_database`, rather than a
-        private set that has to be kept in step with `is_maintenance_db`.
-        """
         refuse_maintenance_db(db_name)
 
     def _check_target_free(self, target: str, *, force: bool) -> None:
-        """Abort unless ``target`` may be (re)created.
-
-        Pure check, no side effect: with ``force`` an occupied target is
-        accepted but not dropped — the caller drops it only after validating
-        its inputs, so a doomed run never destroys the database first.
-        """
         self._check_not_protected(target)
         if not force and exp_db_exist(target):
             sys.exit(
@@ -504,32 +448,14 @@ class Db(Command):
             )
 
     def _check_source_exists(self, source: str) -> None:
-        """Abort when the source database is missing — before the target
-        is dropped, not after."""
         if not exp_db_exist(source):
             sys.exit(f"Source database {source} does not exist.")
 
     def _check_source_not_target(self, source: str, target: str) -> None:
-        """Abort when ``source`` and ``target`` are the same database.
-
-        Without this, ``--force`` with source == target drops the only
-        copy via ``_check_target_free``'s own ``_drop_if_exists(target)``
-        before the operation on ``source`` ever runs, destroying the
-        database instead of duplicating/renaming it.
-        """
         if source == target:
-            sys.exit(
-                f"Source and target database are both {source!r}: aborting."
-            )
+            sys.exit(f"Source and target database are both {source!r}: aborting.")
 
     def _drop_if_exists(self, target: str) -> None:
-        """Drop ``target`` (with filestore) if present; no-op otherwise.
-
-        Calls ``_drop_database`` directly, NOT ``exp_drop``: this CLI already
-        requires local trusted (shell) access, unlike ``exp_drop``'s RPC entry
-        point, which the exposed-databases allowlist gate exists to protect.
-        Same reasoning applies to ``drop()`` above.
-        """
         self._check_not_protected(target)
         if exp_db_exist(target):
             _drop_database(target)

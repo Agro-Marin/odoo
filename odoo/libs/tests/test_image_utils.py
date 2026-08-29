@@ -88,14 +88,6 @@ def _png(mode: str, size: tuple[int, int] = (4, 4), color=(1, 2, 3)) -> bytes:
 
 
 class TestColorizeAcceptsEveryMode(unittest.TestCase):
-    """The source doubles as its own paste mask, and PIL is picky about masks.
-
-    It accepts one only in "1"/"L"/"LA"/"RGBA".  An RGB source -- the commonest
-    mode there is -- raised `ValueError: bad transparency mask`, and a palette
-    image did too, because a "P" image keeps its transparency in `info` rather
-    than in a band.
-    """
-
     def test_every_mode_survives(self):
         for mode in ("RGB", "RGBA", "L", "P", "1"):
             with self.subTest(mode=mode):
@@ -121,12 +113,6 @@ class TestColorizeAcceptsEveryMode(unittest.TestCase):
 
 
 class TestDecodeFailuresShareOneError(unittest.TestCase):
-    """One message, one exception type, from all three entry points.
-
-    The try/except and its message were written out three times; the third copy
-    also had to catch `binascii.Error`, which only the base64 door can raise.
-    """
-
     def test_binary_to_image(self):
         with self.assertRaises(ImageDecodeError):
             binary_to_image(b"not an image")

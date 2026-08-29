@@ -1,14 +1,3 @@
-"""``request.cookies`` must not freeze an answer taken before sanitisation.
-
-``ir.http._sanitize_cookies`` is a security hook: addons drop from it the
-cookies a visitor has not consented to. It needs a registry, and ``_serve_db``
-only assigns ``request.registry`` part-way through the request -- after
-``_post_init``, after the static branch, at the moment the registry cursor
-opens. A ``cached_property`` therefore stored whatever was true at the *first*
-read, so any reader that ran before that point silently pinned the unsanitised
-cookies for the rest of the request, security hook and all.
-"""
-
 import types
 from typing import Any
 

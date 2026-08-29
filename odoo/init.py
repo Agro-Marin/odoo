@@ -25,11 +25,7 @@ except ImportError as exc:
 
 _CRATES = Path(__file__).resolve().parents[1] / "crates"
 
-# Fails loudly rather than silently misbehaving when the wheel predates the
-# crate. See odoo/libs/native.py for why this exists at all.
 assert_fresh(odoo_rust, _CRATES / "odoo_rust")
-# ...and loudly rather than mysteriously when it is a debug build: the crc is
-# blind to the profile, and `maturin develop` defaults to it.
 assert_optimised(odoo_rust)
 
 

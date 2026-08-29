@@ -98,20 +98,6 @@ class TestTagTag(TransactionCase):
 
 
 class TestTagCode(TransactionCase):
-    """`mixin.tag.code` — the value a machine matches on.
-
-    `name` is `translate=True`, so it is a jsonb document whose value depends on
-    the reader's language; that is right for a label and useless for an import,
-    a filter or a data file. `code` is the plain column those match against.
-
-    Exercised through `tag.tag`, the mixin's own concrete model. These
-    assertions used to live in `sales_team` and run against `crm.tag`: the
-    behaviour under test is the mixin's, so the module that declares it was
-    relying on a downstream addon to prove its contract — one that no CI lane
-    installs. Every consumer (`crm.tag`, `srm.tag`, the next one) inherits what
-    is pinned here.
-    """
-
     def _tag(self, **vals):
         return self.env["tag.tag"].create({"name": "Some Tag", **vals})
 
@@ -122,8 +108,6 @@ class TestTagCode(TransactionCase):
         self.assertEqual(self._tag(name="  très-Chaud!! ").code, "TR_S_CHAUD")
 
     def test_name_create_gets_a_code(self):
-        """The many2many tag widget creates tags with a name and nothing else.
-        A field with no answer of its own would have broken every such widget."""
         tag_id, _label = self.env["tag.tag"].name_create("Widget Made")
         self.assertEqual(self.env["tag.tag"].browse(tag_id).code, "WIDGET_MADE")
 
@@ -131,24 +115,18 @@ class TestTagCode(TransactionCase):
         self.assertEqual(self._tag(name="Anything", code="MY_CODE").code, "MY_CODE")
 
     def test_renaming_does_not_move_the_code(self):
-        """The whole point: other records match on this value, so it must not
-        change under them when someone edits a label."""
         tag = self._tag(name="Original")
         self.assertEqual(tag.code, "ORIGINAL")
         tag.name = "Renamed Entirely"
         self.assertEqual(tag.code, "ORIGINAL")
 
     def test_two_names_slugging_alike_do_not_collide(self):
-        """ "Hot!" and "Hot?" are different names and one code. Resolve it here
-        rather than failing the create on a value the user never typed."""
         first = self._tag(name="Hot!")
         second = self._tag(name="Hot?")
         self.assertEqual(first.code, "HOT")
         self.assertEqual(second.code, "HOT_2")
 
     def test_the_same_name_under_two_parents_does_not_collide(self):
-        """The name rule is scoped to the parent and allows this deliberately;
-        `code` is global, so it has to disambiguate."""
         left = self._tag(name="Region")
         right = self._tag(name="Zone")
         first = self._tag(name="North", parent_id=left.id)
@@ -163,8 +141,6 @@ class TestTagCode(TransactionCase):
             self.env.flush_all()
 
     def test_a_code_survives_a_batch_create(self):
-        """Taken codes are read once per batch, so a data file loading many
-        tags at once must still come out with distinct codes."""
         tags = self.env["tag.tag"].create(
             [{"name": "Bulk!"}, {"name": "Bulk?"}, {"name": "Bulk."}]
         )

@@ -1,18 +1,3 @@
-"""Wall-clock benchmarks for the `base` models.
-
-Moved out of `odoo/addons/base/tests/test_base_benchmark.py`, where it ran on
-every `-i base --test-enable` for 1,792 queries and asserted nothing about the
-numbers it collected. `base` keeps `test_base_perf_regression.py`, which pins
-the same eleven operations with `assertQueryCount` -- measured, that file costs
-263 queries and catches an operation that raises just as this one does, so the
-only thing lost by moving this suite out of the default run is timing data that
-nothing was reading.
-
-Here it is opt-in (`test_performance` is installed only when asked), it shares
-one `_run_benchmark` with `test_sql_benchmark.py` through `BenchmarkCase`
-instead of carrying a second copy, and `all_results` finally has a consumer.
-"""
-
 import gc
 
 from odoo.tests.benchmark import BenchmarkCase
@@ -140,11 +125,4 @@ class TestBaseBenchmark(BenchmarkCase, TransactionCase):
         )
 
     def test_bench_99_summary(self):
-        """Reads what the twelve above accumulated.
-
-        The `base` copy of this suite dropped the summary and kept the
-        accumulator, so `all_results` was written and never read. Named `99` for
-        the same reason its sibling in `test_sql_benchmark.py` is: unittest runs
-        a class's methods in alphabetical order, so this one runs last.
-        """
         self.log_benchmark_summary()

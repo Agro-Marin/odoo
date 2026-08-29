@@ -1,17 +1,3 @@
-"""Minimal, valid bodies for the formats `guess_mimetype` identifies.
-
-Reference data of this area rather than scaffolding of one suite: the sniffing
-rules are only meaningful against real headers, and three addon test suites need
-a payload a `Binary` field will accept. They lived in
-`tests/test_mimetypes_guess.py`, which put every consumer outside `odoo.libs`
-in breach of the area boundary -- `libs_facade_check` reports an addon that
-reaches past an area, and importing a *test* module was the way past it.
-
-Base64 text except where a format is only interesting unencoded
-(`NAMESPACED_SVG`, `XML`, `TXT`), which is why the types are mixed; each is kept
-exactly as the mimetype suite has always asserted against it.
-"""
-
 PNG = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4//8/AAX+Av7czFnnAAAAAElFTkSuQmCC"
 GIF = b"R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs="
 BMP = b"""Qk1+AAAAAAAAAHoAAABsAAAAAQAAAAEAAAABABgAAAAAAAQAAAATCwAAEwsAAAAAAAAAAAAAQkdScwAAAAAAAAAAAA

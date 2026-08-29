@@ -1,31 +1,3 @@
-"""What it means for a fixer's output to say the same thing as its input.
-
-TWO invariants, because the two fixers are allowed different freedoms, and the
-difference is the whole point:
-
-`is_faithful` -- ORDER-PRESERVING. What `_pretty_xml` may not change: it only
-reindents, so element order, comments, namespaces, text, tails and the prologue
-must all survive.
-
-`preserves_content` -- ORDER-INSENSITIVE. What `_sort_xml_records` may not
-change: reordering `<field>` elements is its entire job, so its invariant is that
-the same elements with the same attributes and the same words come out.
-
-These used to be `_pretty_xml._comparable` and `test_fixers._shape`/`_words`, and
-the confusing part was that the second pair was applied to the FORMATTER's output
-rather than the sorter's, where it was strictly weaker than the check
-`format_xml_file` had already run -- with one exception: `_comparable` squeezed
-attribute values, so a rewrite collapsing `name="a   b"` to `name="a b"` passed
-it and only `_shape` caught that. Because `_comparable` ran first and
-short-circuited, that half was unreachable in practice.
-
-So: the attribute-whitespace tightening moves into `is_faithful`, where it now
-runs (measured over all core data files, it declines nothing that was not already
-declined), and the order-insensitive pair is pointed at the fixer that actually
-needs it. `_sort_xml_records` had no check at all and wrote whatever lxml
-serialised, though it is the fixer that MOVES things.
-"""
-
 from io import BytesIO
 
 from lxml import etree
@@ -41,8 +13,6 @@ def preserves_space(element) -> bool:
 
 
 def comparable(source: bytes) -> list:
-    """Everything about `source` that a reformatting may not change."""
-
     def squeeze(value: str | None) -> str:
         return " ".join((value or "").split())
 
@@ -58,10 +28,6 @@ def comparable(source: bytes) -> list:
                 (
                     depth,
                     element.tag,
-                    # Raw, not squeezed. An attribute value's internal whitespace
-                    # is content: XML normalises individual whitespace characters
-                    # to a space on parse, but never collapses a run of them, so
-                    # a formatter that collapses one has changed the document.
                     tuple(sorted(element.attrib.items())),
                     tuple(sorted(element.nsmap.items(), key=lambda kv: kv[0] or "")),
                     text,
@@ -89,7 +55,6 @@ def comparable(source: bytes) -> list:
 
 
 def is_faithful(source: bytes, rewritten: bytes) -> bool:
-    """For a fixer that may not move anything -- the formatter."""
     try:
         return comparable(source) == comparable(rewritten)
     except etree.LxmlError:
@@ -97,11 +62,6 @@ def is_faithful(source: bytes, rewritten: bytes) -> bool:
 
 
 def content(source: bytes) -> tuple[list, list]:
-    """Every element and every word, with document order discarded.
-
-    The invariant for a fixer whose job is to reorder: the same elements carrying
-    the same attributes, and the same text, wherever they ended up.
-    """
     root = etree.fromstring(source, PARSER)
     shape: list = []
 
@@ -122,7 +82,6 @@ def content(source: bytes) -> tuple[list, list]:
 
 
 def preserves_content(source: bytes, rewritten: bytes) -> bool:
-    """For a fixer that may move things -- the record sorter."""
     try:
         return content(source) == content(rewritten)
     except etree.LxmlError:

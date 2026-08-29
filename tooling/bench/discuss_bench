@@ -1,9 +1,6 @@
 #!/bin/sh
-# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
 # fmt: off
 ''':'
-# Self-locating sh/python trampoline: re-exec this file with the workspace venv
-# interpreter. The logic is shared — see tooling/_trampoline.sh.
 _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"

@@ -295,16 +295,6 @@ class TestLruCountSetter:
         assert list(lru) == [9, 0, 1]
 
     def test_setter_holds_no_python_iterator_over_the_map(self):
-        """The eviction loop must not iterate the map in Python.
-
-        This replaces a test that asserted the *workaround*: it injected a
-        ``__iter__`` raising RuntimeError into ``lru._ordering`` and checked the
-        setter swallowed it.  That guard existed because the unlocked read path
-        mutated a second dict while the setter walked it -- ``next(iter(...))``
-        raises under concurrent readers, measured at 25 in 17.2M.  With one map
-        and ``popitem``, there is no Python-level iterator left to interrupt, so
-        the property to pin is its absence.
-        """
         seen = []
 
         class WatchfulMap(OrderedDict):
@@ -455,17 +445,8 @@ class TestGetSaturationType:
 
 
 class TestFreehashOnlyCatchesUnhashability:
-    """A bug inside ``__hash__`` must not become a cache key.
-
-    ``except Exception`` turned any failure into ``id(arg)``: a key that is
-    structurally meaningless, never equal to the same value computed again, and
-    silent.  Only ``TypeError`` -- the unhashable signal -- may fall through to
-    the structural fallbacks.
-    """
-
     def test_unhashable_still_falls_back(self):
         class Unhashable:
-            # the documented way to make a class unhashable
             __hash__ = None  # type: ignore[assignment]
 
         obj = Unhashable()
@@ -485,13 +466,6 @@ class TestFreehashOnlyCatchesUnhashability:
 
 
 class TestOrderedSetIntersectionFollowsItsOwnOrder:
-    """An ordered set's intersection must be ordered by the set, not the argument.
-
-    ``MutableSet.__and__`` builds its result by iterating *other*, so the one
-    type in the package whose entire purpose is remembering insertion order
-    handed that order over to whatever was passed in.
-    """
-
     def test_order_comes_from_self_not_the_argument(self):
         s = OrderedSet([1, 2, 3, 4])
         assert list(s & [4, 3]) == [3, 4]
@@ -517,13 +491,6 @@ class TestOrderedSetIntersectionFollowsItsOwnOrder:
 
 
 class TestContentHashToleranceDoesNotDependOnBlake3:
-    """The falsy-input guard lived on one of the two branches.
-
-    ``data or b""`` was written on the sha1 path only, so whether
-    ``content_hash(None)`` returned the empty digest or raised TypeError
-    depended on whether an optional dependency happened to be installed.
-    """
-
     def test_empty_and_falsy_inputs_agree(self):
         assert content_hash(b"") == content_hash(None)  # type: ignore[arg-type]
 

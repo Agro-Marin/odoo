@@ -22,7 +22,6 @@ class Violation:
 
 
 def looks_like_model_class(node: ast.ClassDef) -> bool:
-    """Shared with `_checker_translated_unique`, which carried a verbatim copy."""
     for base in node.bases:
         match base:
             case ast.Attribute(attr=attr) if attr in _MODEL_BASE_NAMES:

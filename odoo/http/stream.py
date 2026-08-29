@@ -134,15 +134,6 @@ class Stream:
         return request.redirect(self.url, code=301, local=False)
 
     def _send_path(self, send_file_kwargs: dict[str, Any]) -> Any:
-        """Send ``self.path``, handing the delivery to the web server if we can.
-
-        ``X-Accel-Redirect`` (nginx) names a URL, not a filesystem path, so it
-        can only be built for a file that actually lives under the filestore --
-        hence the ``relative_to`` that decides it. ``use_x_sendfile`` is left
-        off until that succeeds, because werkzeug would otherwise emit an
-        ``X-Sendfile`` naming an absolute server path with nothing to translate
-        it, which leaks the layout and serves an empty body.
-        """
         send_file_kwargs["use_x_sendfile"] = False
         x_accel_redirect: str | None = None
         if config["x_sendfile"]:
@@ -168,13 +159,6 @@ class Stream:
         environ: dict[str, Any] | None = None,
         **send_file_kwargs: Any,
     ) -> Any:
-        """Serve this stream, or redirect to it when it is a ``type="url"``.
-
-        *environ* defaults to the current request's, which is what every caller
-        in the tree wants. Naming it is what lets a caller serve a stream
-        without one -- and what lets this method be tested without pushing a
-        fake request onto the local stack first, which its own suite had to do.
-        """
         if self.type not in ("url", "data", "path"):
             e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
             raise ValueError(e)

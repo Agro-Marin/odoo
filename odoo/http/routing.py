@@ -88,15 +88,6 @@ def build_routing_map(
     rules: Iterable[tuple[str, Callable]],
     converters: dict[str, type] | None = None,
 ) -> werkzeug.routing.Map:
-    """Assemble the ``(url, endpoint)`` pairs into a werkzeug routing map.
-
-    Both maps the framework serves from -- ``Application.nodb_routing_map`` and
-    ``ir.http.routing_map`` -- are built here so that the three settings that
-    decide how a URL matches cannot drift apart between them. ``merge_slashes``
-    in particular is a per-*rule* flag that werkzeug defaults to ``True``: a
-    caller assembling a map by hand reads ``strict_slashes=False`` on the
-    ``Map`` and has no reason to suspect the second, opposite-signed knob.
-    """
     routing_map = werkzeug.routing.Map(strict_slashes=False, converters=converters)
     for url, endpoint in rules:
         rule = FasterRule(url, endpoint=endpoint, **rule_routing_kwargs(endpoint))
@@ -247,27 +238,6 @@ def _get_leaf_classes(cls: type, modules: Collection[str]) -> list[type]:
 def _group_controller_trees(
     trees: Iterable[tuple[type, list[type]]],
 ) -> list[tuple[type, list[type]]]:
-    """Fuse the ``(top, leaves)`` trees that share a leaf class into one.
-
-    A leaf carries the routes of every controller on its MRO, so two trees that
-    reach the same leaf both carry that leaf's whole ancestry. Building one
-    synthetic class per tree therefore yields every route on the shared MRO
-    *twice* into the routing map -- werkzeug's ``Map.add`` accepts duplicate
-    rules and matching picks one, so the only visible symptom is a map that is
-    larger than the route set and an OpenAPI document with two operations per
-    path.
-
-    Both shapes ship today. ``JSONRPC(Controller)`` and ``XMLRPC(Controller)``
-    resolve to the same single leaf ``RPC(XMLRPC, JSONRPC)``; and
-    ``portal.CustomerPortal`` overlaps ``sale.SaleProductConfiguratorController``
-    on ``WebsiteSaleRentingProductConfiguratorController`` without their leaf
-    sets being equal, which is why fusing has to be transitive rather than a
-    test for the same set.
-
-    Order is preserved -- first tree seen keeps its position and its top, later
-    leaves append -- so a single-tree group linearises exactly as it did before
-    any of this, and *later definition still wins* once reversed into bases.
-    """
     groups: list[list[type]] = []
     tops: list[type] = []
     owner: dict[type, int] = {}
@@ -326,12 +296,6 @@ def _is_route(ctrl: Controller, method_name: str) -> bool:
 
 
 def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
-    """Fold every ``@route`` fragment on *method_name*'s MRO into one routing.
-
-    Base first, leaf last, so an override's declaration wins. Returns ``None``
-    when the fold produced no route at all -- an endpoint decorated somewhere
-    on the chain but never given a URL -- after saying which class owns it.
-    """
     merged_routing: dict[str, Any] = {"auth": "user", "methods": None, "routes": []}
     ancestors = [
         cls
@@ -434,14 +398,6 @@ def _check_and_complete_route_definition(
 
 
 def fragment_to_query_string(func: Callable) -> Callable:
-    """Make the client re-request the URL with its fragment moved into the query.
-
-    A fragment never reaches the server, so a controller that needs those values
-    answers the first call with a page that rewrites the location and comes back.
-    ``debug`` does not count as a query for that decision, but it is passed on to
-    the wrapped method rather than consumed here.
-    """
-
     @functools.wraps(func)
     def wrapper(self, *a, **kw):
         if not (kw.keys() - {"debug"}):

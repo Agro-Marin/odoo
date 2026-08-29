@@ -15,12 +15,6 @@ WARMUP_ITERATIONS = 5
 
 @tagged("standard", "orm_benchmark")
 class TestORMBenchmark(BenchmarkCase, TransactionCase):
-    """Timing only: no test_* method here asserts on a measured value.
-
-    A failure here is an exception, never a performance regression — see
-    BenchmarkCase's own docstring (odoo/tests/benchmark.py).
-    """
-
     benchmark_log_prefix = "ORM_BENCHMARK"
     benchmark_iterations = DEFAULT_ITERATIONS
     benchmark_warmup = WARMUP_ITERATIONS
@@ -37,9 +31,6 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
     def _create_test_data(cls):
         existing = cls.Model.search([("name", "like", "ORMBench%")])
         if 0 < len(existing) < 100:
-            # A prior non-rolled-back run left a partial batch (e.g.
-            # interrupted mid-create): reconcile it instead of appending a
-            # second full batch on top of these 1-99 stale rows.
             existing.unlink()
             existing = cls.Model.browse()
         if len(existing) < 100:
@@ -482,14 +473,6 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
         )
 
     def test_91_orm_overhead_calculation(self):
-        """Read the ORM-vs-raw-SQL overhead off test_90's own results.
-
-        test_90_orm_vs_raw_read already benchmarks "ORM read() (100
-        records)" and "Raw SQL SELECT (100 records)" and appends both
-        BenchmarkStats to all_results; alphabetical method ordering runs it
-        before this one. Re-measuring both from scratch here duplicated
-        that effort instead of reading the figures test_90 already computed.
-        """
         orm_stat = next(
             s for s in self.all_results if s.name == "ORM read() (100 records)"
         )
@@ -514,14 +497,6 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
         )
 
     def test_99_generate_summary(self):
-        """Extra breakdowns on top of the shared BenchmarkCase summary.
-
-        The slowest-operations listing below used to be reimplemented here;
-        it is exactly what log_benchmark_summary() already provides, so this
-        now calls it and only adds the breakdowns that method doesn't have:
-        ranking by absolute overhead, the zero-query/pure-Python bucket,
-        and the aggregate/JSON export.
-        """
         if not self.all_results:
             _logger.info("[ORM_BENCHMARK] No results to summarize.")
             return
@@ -530,10 +505,6 @@ class TestORMBenchmark(BenchmarkCase, TransactionCase):
         _logger.info("[ORM_BENCHMARK] FINAL SUMMARY")
         _logger.info("=" * 80)
 
-        # Ranked by python_time_us, the absolute overhead: python_ratio is
-        # a fraction (1 - db_ratio), so a zero-query benchmark trivially
-        # scores 1.0 and would dominate this ranking regardless of its
-        # actual magnitude.
         sorted_by_overhead = sorted(
             self.all_results, key=lambda x: x.python_time_us, reverse=True
         )

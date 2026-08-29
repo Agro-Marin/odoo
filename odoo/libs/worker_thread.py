@@ -42,17 +42,6 @@ def current_worker_thread() -> WorkerThread:
 
 @contextmanager
 def working_on_database(db_name: str) -> Iterator[None]:
-    """Mark this thread as working on ``db_name`` for as long as the block runs.
-
-    The marker is what the log formatter prefixes every line with, so a worker
-    that polls several databases in turn has to put back whatever was there --
-    including the absence of an attribute, which is not the same as ``None``.
-    """
-    # Through this module's own typed view, not the bare `Thread`: `dbname` is
-    # an attribute this fork bolts on, and `as_worker_thread` is the whole
-    # reason the file exists. Writing it on `threading.Thread` here made the
-    # accessor something only OTHER modules had to use -- two `attr-defined`
-    # errors, in the module that publishes the fix for them.
     worker = as_worker_thread(threading.current_thread())
     previous = getattr(worker, "dbname", None)
     worker.dbname = db_name

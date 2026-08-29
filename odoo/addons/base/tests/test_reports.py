@@ -1114,6 +1114,4 @@ class TestAggregatePdfReports(odoo.tests.HttpCase):
         self.assertEqual(content_type, "pdf", "Report is not a PDF")
         self.assertTrue(aggregate_report_content, "PDF not generated")
         for record in records:
-            self.assertTrue(
-                report._get_attachments(record), "Attachment not generated"
-            )
+            self.assertTrue(report._get_attachments(record), "Attachment not generated")

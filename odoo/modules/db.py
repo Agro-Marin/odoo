@@ -77,15 +77,6 @@ modules, so the ceiling is close enough to be worth not standing on."""
 
 
 def _insert_modules(cr: SqlReader, rows: list[tuple]) -> dict[str, int]:
-    """Insert every module row and return the ids, keyed by module name.
-
-    One statement per chunk rather than one per module. The per-module
-    `INSERT ... RETURNING id` was there only to learn the id before building the
-    `ir_model_data` and dependency rows, which are themselves already written
-    with `copy_from` -- so a fresh database paid one round trip per module to
-    collect their ids. Batched, `initialize` issues one round trip per chunk
-    instead and writes a byte-identical table.
-    """
     placeholder = "(" + ", ".join(["%s"] * len(_MODULE_COLUMNS)) + ")"
     columns = ", ".join(_MODULE_COLUMNS)
     ids: dict[str, int] = {}

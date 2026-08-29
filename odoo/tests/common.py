@@ -202,22 +202,6 @@ def test_xsd(url=None, path=None, skip=False):
 
 
 def new_test_user(env, login="", groups="base.group_user", context=None, **kwargs):
-    """Create a res.users, filling the fields most odoo operations require.
-
-    ``kwargs`` is propagated to the create. Defaults that are *not* obvious:
-
-    * ``name``     -- "login (groups)", because it is required;
-    * ``password`` -- the login padded to 8 characters;
-    * ``email``    -- the login if it is a valid address, else the generated
-      ``x.x@example.com`` where x is the login's first letter.
-
-    That last one is deliberate (and upstream), not a typo -- but note the
-    hazard it creates: every login sharing a first letter shares an address,
-    so ``new_test_user(env, "bert")`` and ``new_test_user(env, "bob")`` both
-    get ``b.b@example.com``. Anything resolving partners by email
-    (``_partner_find_from_emails``) will see them as one. Pass ``email``
-    explicitly when a test depends on recipients being distinct.
-    """
     if not login:
         raise ValueError("New users require at least a login")
     if not groups:
@@ -248,19 +232,6 @@ def new_test_user(env, login="", groups="base.group_user", context=None, **kwarg
 
 
 def release_stranded_test_cursors(owner: str = "") -> int:
-    """Close out any TestCursor left in the stack, and give its lock back.
-
-    Releasing is not optional. ``TestCursor.__init__`` acquires
-    ``_registry_test_lock`` and ``close()`` is the only release, so a cursor
-    stranded here would hold an acquisition for the life of the process. Since
-    ``release_test_lock()`` releases exactly one, the count would then never
-    reach zero again and *every later HttpCase request* would block for
-    ``test_cursor_lock_timeout`` and fail with "Unable to acquire lock for test
-    cursor after 20s" -- attributed to whichever test ran next rather than to
-    the one that stranded it.
-
-    Returns how many were stranded, so a caller can assert on it.
-    """
     stranded = TestCursor._cursors_stack
     for cursor in stranded:
         _logger.warning(
@@ -268,13 +239,6 @@ def release_stranded_test_cursors(owner: str = "") -> int:
             "releasing its registry lock",
             owner or "the test",
         )
-        # Roll the savepoint back before disowning the cursor. Marking it
-        # closed and handing the lock back left its uncommitted writes live on
-        # the shared class cursor, visible to whatever ran next, with the ORM
-        # caches never invalidated -- close() does this via rollback() and the
-        # stranded path skipped it. Guarded: the underlying cursor may already
-        # be unusable, and losing the lock release here is what this function
-        # exists to prevent.
         try:
             cursor._close_savepoint(rollback=True)
         except Exception:
@@ -387,9 +351,6 @@ class BaseCase(case.TestCase):
 
     test_tags: set[str] | None = None
     freeze_time = None
-    #: Set by the bases that own a class cursor: they start ``freeze_time``
-    #: themselves, at a position chosen so the class cleanups that still need
-    #: real time get it (see ``TransactionCase.setUpClass``).
     _starts_freeze_time_itself = False
 
     test_module: str = ""
@@ -419,8 +380,6 @@ class BaseCase(case.TestCase):
             test_tags = (self.test_tags or set()) | set(
                 self.get_method_additional_tags(test_method)
             )
-            # A method-level @tagged is applied here, over the class's tags, so
-            # "-at_install" can drop the position the class asked for.
             test_tags |= getattr(test_method, "test_tags", set())
             test_tags -= getattr(test_method, "test_tags_exclude", set())
             self.test_tags = test_tags
@@ -481,17 +440,12 @@ class BaseCase(case.TestCase):
     def setUpClass(cls) -> None:
         def check_remaining_processes() -> None:
             current_process = psutil.Process()
-            # recursive: a leaked child's own children are just as leaked, and
-            # reaping only the first generation left them reparented to init.
             children = current_process.children(recursive=True)
             for child in children:
                 _logger.warning("A child process was found, terminating it: %s", child)
                 child.terminate()
             _, alive = psutil.wait_procs(children, timeout=10)
             if alive:
-                # The result used to be discarded, so a child that ignores
-                # SIGTERM was warned about and then leaked while the cleanup
-                # reported success. Same pattern as ChromeBrowser.stop().
                 _logger.warning(
                     "Killing %d child process(es) that survived terminate(): %s",
                     len(alive),
@@ -544,9 +498,6 @@ class BaseCase(case.TestCase):
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
-                # The lambda is load-bearing: _request_handler is a
-                # classmethod, so passing it directly would install an already
-                # bound object as Session.send and shift (s, r) by one.
                 lambda s, r, **kw: cls._request_handler(s, r, **kw),  # noqa: PLW0108  classmethod would bind and shift (s, r)
             )
             patcher.start()
@@ -720,11 +671,6 @@ class BaseCase(case.TestCase):
         actual_queries: list[str],
         compare: Callable[[str, str], None],
     ) -> None:
-        """Shared tail of assertQueries/assertQueriesContain.
-
-        Neither is a subset check: the query *count* must match exactly, and
-        `compare` decides how each pair is matched.
-        """
         if not self.warm:
             return
 
@@ -778,24 +724,6 @@ class BaseCase(case.TestCase):
 
     @contextmanager
     def capturedQueries(self, flush: bool = True) -> Generator[list[str]]:
-        """Collect the statements issued in the block, asserting nothing.
-
-        `assertQueries`/`assertQueriesContain` pin an exact sequence, which is
-        the wrong shape when the question is "how many times did anything hit
-        this table". Without a helper for that, tests hand-rolled their own by
-        assigning over `type(self.env.cr).execute` and restoring it in a
-        `finally` -- a raw type-attribute write that sees only `execute`, misses
-        `executemany`/`copy`/`copy_from`, and leaves the cursor class patched
-        for every other test in the process if the block escapes by a path the
-        `finally` does not cover.
-
-        Yields a list that fills as the block runs::
-
-            with self.capturedQueries() as queries:
-                Partner.create(vals_list)
-            reads = [q for q in queries if 'FROM "res_partner"' in q]
-            self.assertLessEqual(len(reads), 1)
-        """
         yield from self._patchExecute([], flush)
 
     @contextmanager
@@ -868,10 +796,6 @@ class BaseCase(case.TestCase):
     ) -> None:
         if not field_names:
             if not expected_values:
-                # "assert this recordset is empty" is the natural spelling of
-                # this call, and it used to raise IndexError from
-                # expected_values[0] -- a traceback naming neither the records
-                # nor the intent. Passing field_names= explicitly always worked.
                 self.assertFalse(
                     records,
                     f"expected no record, got {len(records)}: {records}",
@@ -890,9 +814,6 @@ class BaseCase(case.TestCase):
             r = {}
             for f in field_names:
                 t = records._fields[f].type
-                # None first: it is the caller's way of writing "falsy", and
-                # float(None)/int(None) would raise TypeError here rather than
-                # letting the comparison below report the real difference.
                 if vs[f] is None:
                     r[f] = False
                 elif t in ("one2many", "many2many"):
@@ -952,19 +873,6 @@ class BaseCase(case.TestCase):
         self.assertCountEqual(a, b, msg=msg)
 
     def assertSweep(self, candidates: Any, msg: str | None = None) -> list:
-        """Materialise a discovered iterable, refusing an empty one.
-
-        A test whose only assertions sit inside ``for x in discover():`` reports
-        success when ``discover()`` returns nothing, so a regression that empties
-        the discovery turns the whole battery green. Measured, not theorised:
-        overriding ``ir.actions.actions._get_model_names_in_tree()`` to return an
-        empty frozenset left three such tests passing, and was caught only by
-        unrelated siblings that reach the same helper through production code.
-
-        Wrap the iterable and iterate the result::
-
-            for name in self.assertSweep(Actions._get_model_names_in_tree()):
-        """
         found = list(candidates)
         self.assertTrue(
             found,
@@ -1079,8 +987,6 @@ class BaseCase(case.TestCase):
     def registry_enter_test_mode(
         self, *, cr: Cursor | None = None, register_cleanup: bool = True
     ) -> None:
-        # Same work as registry_enter_test_mode_cls, differing only in which
-        # cursor is used and whether the undo is a test or a class cleanup.
         type(self)._registry_enter_test_mode(cr=cr or self.cr)
         if register_cleanup:
             self.addCleanup(self.registry_leave_test_mode)
@@ -1143,7 +1049,6 @@ class BaseCase(case.TestCase):
         try:
             method_source = inspect.getsource(test_method)
         except OSError, TypeError:
-            # dynamically built test methods have no retrievable source
             return []
         return [tag for tag, needle in wanted.items() if needle in method_source]
 
@@ -1210,10 +1115,6 @@ class Approx:
 
 class TransactionCase(BaseCase):
     muted_registry_logger = mute_logger(odoo.orm.runtime.registry._logger.name)
-    # freeze_time is started below, deliberately *after* the _gc_filestore
-    # cleanup is registered: that cleanup compares file mtimes against
-    # time.time(), so a frozen clock would skip every file and disable the
-    # filestore GC outright.
     _starts_freeze_time_itself = True
 
     @classmethod
@@ -1468,13 +1369,6 @@ def tagged(*tags: str) -> Callable:
 
     def tags_decorator(obj: Any) -> Any:
         if not isinstance(obj, type):
-            # A test *method*. Its tags cannot be resolved here: "-at_install"
-            # has to remove a tag the class contributes, and the class is not
-            # visible from the function. Keep both halves and let
-            # BaseCase.__init__ apply them over the class's set. Storing only
-            # the difference here is what made method-level @tagged a silent
-            # no-op: TagsSelector reads the *instance* attribute, which never
-            # saw the method's own tags.
             obj.test_tags = getattr(obj, "test_tags", set()) | include
             obj.test_tags_exclude = getattr(obj, "test_tags_exclude", set()) | exclude
             return obj
@@ -1493,19 +1387,6 @@ def tagged(*tags: str) -> Callable:
 
 
 class freeze_time:
-    """Wraps ``freezegun.freeze_time`` so a class decorated with it freezes at
-    the point ``TransactionCase.setUpClass`` chooses, not at import.
-
-    The module-level ``freezegun.freeze_time = freeze_time`` at the bottom of
-    this file replaces ``freezegun.freeze_time`` with this class process-wide,
-    so ``from freezegun import freeze_time`` resolves here in any module
-    imported after ``odoo.tests.common``. **The signature must therefore
-    stay a superset of freezegun's**: it used to accept five of freezegun
-    1.5.5's eight arguments, silently dropping ``ignore``, ``as_arg`` and
-    ``real_asyncio``, so the same call was valid or a ``TypeError`` depending on
-    import order.
-    """
-
     _freeze_time = staticmethod(freezegun.freeze_time)
 
     def __init__(
@@ -1549,9 +1430,6 @@ class freeze_time:
 
 freezegun.freeze_time = freeze_time
 
-# Imported at the bottom, after everything http.py needs from this module is
-# defined. These names stay re-exported from `common` because addons and mock
-# targets have always found them here.
 from .http import (  # noqa: E402  http.py imports from this module; a top import would cycle
     HttpCase,
     JsonRpcException,

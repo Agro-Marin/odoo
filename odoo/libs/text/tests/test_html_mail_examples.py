@@ -1,16 +1,3 @@
-"""HTML sanitising and conversion, moved from
-`odoo/addons/base/tests/test_mail.py`.
-
-That file reached these helpers through the `odoo.tools.mail` facade from a
-framework test case, so 44 tests over pure string functions only ran behind a
-`createdb` plus a full `base` install. Every subject is defined in
-`odoo.libs.text.html`; `TestEmailTools` went to `odoo/libs/email/tests/` for the
-same reason.
-
-`mail_examples.py` moved with them -- it is 647 lines of HTML fixtures that
-nothing else imports.
-"""
-
 import re
 import unittest
 
@@ -539,14 +526,6 @@ class TestHtmlTools(unittest.TestCase):
             self.assertEqual(text, expected, "html_html_to_inner_content is broken")
 
     def test_append_to_html(self):
-        # The mixed-case samples below used to come back lowercased: the old
-        # implementation rewrote every tag in the caller's document so that a
-        # literal find("</body>") would work.  That mangled attribute-bearing
-        # tags (`<A HREF=...>` -> `<a HREF=...>`, name lowered and attribute
-        # not) and still missed `</body >`, because the literal has no room for
-        # the space the lowercasing left behind.  The closing tag is now located
-        # with a case-insensitive search and the document is passed through as
-        # authored -- so these expectations keep the case they were written in.
         test_samples = [
             (
                 '<!DOCTYPE...><HTML encoding="blah">some <b>content</b></HtMl>',

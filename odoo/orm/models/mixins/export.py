@@ -92,14 +92,6 @@ class ExportMixin(_ModelStubs):
         return ((record, to_xid(record.id)) for record in self)
 
     def _export_get_cell_value(self, record, name, cache_properties):
-        """Resolve the export path segment `name` against `record`.
-
-        A dotted segment names a property inside a properties field, whose
-        type and value come from the pre-filled cache rather than from the
-        field itself.
-
-        :return: (field, field_type, value)
-        """
         if "." in name:
             fname, prop_name = name.split(".")
             field = record._fields[fname]
@@ -114,15 +106,6 @@ class ExportMixin(_ModelStubs):
         return field, field_type, value
 
     def _export_get_many2many_cell(self, value, fields2, index_fallback):
-        """Render an import-compatible many2many as one comma-joined cell.
-
-        The column it lands in is the first of `.id`, `id`, `name` and
-        `display_name` the caller asked for, and how the records are spelled
-        follows from which one that was; with none of them asked for, the
-        cell stays where the caller had it.
-
-        :return: (index, text)
-        """
         index = None
         subfield = None
         for candidate in (".id", "id", "name", "display_name"):

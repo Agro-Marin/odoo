@@ -76,11 +76,6 @@ class BenchmarkStats:
     raw_times_us: list[float] = field(default_factory=list, repr=False)
 
     def __getattr__(self, name: str) -> float:
-        """Serve every ``*_ms`` as the matching ``*_us`` divided by 1000.
-
-        Twelve hand-written properties used to do exactly this. Only reached
-        for names the dataclass does not define, so a real field always wins.
-        """
         if name.endswith("_ms"):
             try:
                 return getattr(self, f"{name[:-3]}_us") / 1000
@@ -97,9 +92,6 @@ class BenchmarkStats:
     def to_dict(self) -> dict:
         d = asdict(self)
         d.pop("raw_times_us", None)
-        # PerfTimer.stats() calls the median p50_us and compare_results reads
-        # only that key, so without this alias every BenchmarkStats row compared
-        # as 0 and printed "inf".
         d["p50_us"] = d["median_us"]
         return d
 
@@ -109,13 +101,6 @@ class BenchmarkStats:
         return self._summary(unit)
 
     def _summary(self, unit: str) -> str:
-        """One report at either scale.
-
-        `_summary_us` and `_summary_ms` were the same 25 lines differing only
-        in suffix, divisor and precision -- so they drifted: the us variant
-        printed queries on one line and graded CV on two bands, the ms variant
-        used three. Three bands and the labelled form win; nothing pins either.
-        """
         p = 1 if unit == "us" else 3
         v = {
             field: getattr(self, f"{field}_{unit}")
@@ -178,11 +163,6 @@ def compute_stats(
     db_times_us: list[float],
 ) -> BenchmarkStats:
     if not times_us:
-        # The other two populations are guarded below ("if clean_db_times",
-        # "if query_counts"); this one was not, so an empty sample set reached
-        # statistics.mean([]) and came out as a bare StatisticsError naming
-        # neither the benchmark nor the reason. run_benchmark appends only
-        # while i >= warmup, so iterations=0 lands here every time.
         raise ValueError(
             f"benchmark {name!r} collected no samples: check that iterations > 0"
         )
@@ -294,11 +274,6 @@ class PerfTimer:
         p50 = percentile(clean, 50)
         p95 = percentile(clean, 95)
         p99 = percentile(clean, 99)
-        # Extremes come from the untrimmed samples, the percentiles from the
-        # trimmed ones -- the same split compute_stats uses (and that
-        # test_compute_stats_raw_extremes_joint_trim pins). Reporting a trimmed
-        # max hid the worst observed run, which is the number a perf regression
-        # shows up in first.
         mn = min(us)
         mx = max(us)
         std = statistics.stdev(clean) if n > 1 else 0
@@ -416,20 +391,6 @@ def compare_results(baseline: list[dict], current: list[dict]) -> str:
 
 
 class BenchmarkCase:
-    """Mixin for a benchmark suite: run, accumulate, and report.
-
-    `test_sql_benchmark.py` and `test_base_benchmark.py` each carried a copy of
-    this `_run_benchmark`. The copies drifted -- the second dropped the summary
-    step that consumes `all_results`, leaving the accumulator dead -- so the
-    implementation lives here and the suites declare only their targets.
-
-    **A benchmark is not a regression test.** `run_benchmark` calls the measured
-    function bare, so a suite built on this fails when an operation *raises*,
-    which makes it a smoke test; it cannot fail when an operation gets slower,
-    because nothing asserts on the timings. Pair it with `assertQueryCount`
-    pins if you want a regression caught.
-    """
-
     benchmark_log_prefix = "BENCHMARK"
     benchmark_iterations = 30
     benchmark_warmup = 5
@@ -464,8 +425,6 @@ class BenchmarkCase:
         return stats
 
     def log_benchmark_summary(self, unit: str = "auto") -> None:
-        """Report what was accumulated. Without a caller the accumulation is
-        dead weight, which is what happened to the copy in `base`."""
         prefix = self.benchmark_log_prefix
         if not self.all_results:
             _benchmark_logger.info("[%s] no results to summarise", prefix)

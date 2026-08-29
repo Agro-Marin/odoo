@@ -567,7 +567,6 @@ class TestIrSequenceStepInvariant(common.TransactionCase):
 
 
 class TestIrSequencePatternToRegex(common.TransactionCase):
-
     def test_every_placeholder_round_trips(self):
         sequence = self.env["ir.sequence"]
         for name in _INTERPOLATION_FORMATS:
@@ -645,13 +644,19 @@ class TestIrSequenceNoGapBatchConcurrency(BaseCase):
     def setUp(self):
         super().setUp()
         with environment() as env:
-            self.seq_id = env["ir.sequence"].create({
-                "code": self.SEQ_CODE,
-                "name": "Test no_gap batch",
-                "implementation": "no_gap",
-                "prefix": "N-",
-                "padding": 4,
-            }).id
+            self.seq_id = (
+                env["ir.sequence"]
+                .create(
+                    {
+                        "code": self.SEQ_CODE,
+                        "name": "Test no_gap batch",
+                        "implementation": "no_gap",
+                        "prefix": "N-",
+                        "padding": 4,
+                    }
+                )
+                .id
+            )
         self.addCleanup(drop_sequence, self.SEQ_CODE)
 
     @mute_logger("odoo.db")
@@ -691,13 +696,15 @@ class TestIrSequenceNoGapBatchConcurrency(BaseCase):
 
 class TestIrSequenceNextBatch(common.TransactionCase):
     def _sequence(self, **extra):
-        return self.env["ir.sequence"].create({
-            "code": "test_next_batch",
-            "name": "Test next batch",
-            "prefix": "B-",
-            "padding": 4,
-            **extra,
-        })
+        return self.env["ir.sequence"].create(
+            {
+                "code": "test_next_batch",
+                "name": "Test next batch",
+                "prefix": "B-",
+                "padding": 4,
+                **extra,
+            }
+        )
 
     def _drawn_one_at_a_time(self, values, count):
         sequence = self._sequence(**values)
@@ -767,8 +774,11 @@ class TestIrSequenceNextBatch(common.TransactionCase):
         before = sequence.number_next_actual
         self.assertEqual(sequence._next_batch(0), [])
         self.assertEqual(sequence._next_batch(-3), [])
-        self.assertEqual(sequence.number_next_actual, before,
-                         "asking for nothing must not consume a number")
+        self.assertEqual(
+            sequence.number_next_actual,
+            before,
+            "asking for nothing must not consume a number",
+        )
 
     def test_one_value_is_the_same_as_next(self):
         for implementation in ("standard", "no_gap"):
@@ -791,8 +801,9 @@ class TestIrSequenceNextBatch(common.TransactionCase):
     def test_next_by_code_batch_picks_the_company_sequence_first(self):
         Sequence = self.env["ir.sequence"]
         self._sequence(code="test_by_code_scoped", company_id=False, prefix="SHARED-")
-        self._sequence(code="test_by_code_scoped", company_id=self.env.company.id,
-                       prefix="OWN-")
+        self._sequence(
+            code="test_by_code_scoped", company_id=self.env.company.id, prefix="OWN-"
+        )
         drawn = Sequence.next_by_code_batch("test_by_code_scoped", 2)
         self.assertTrue(all(value.startswith("OWN-") for value in drawn), drawn)
         self.assertTrue(Sequence.next_by_code("test_by_code_scoped").startswith("OWN-"))
@@ -811,6 +822,7 @@ class TestIrSequenceNextBatch(common.TransactionCase):
                 before = self.env.cr.sql_log_count
                 sequence._next_batch(20)
                 self.assertLessEqual(
-                    self.env.cr.sql_log_count - before, 3,
+                    self.env.cr.sql_log_count - before,
+                    3,
                     "twenty values should not cost twenty statements",
                 )

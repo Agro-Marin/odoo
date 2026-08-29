@@ -2822,21 +2822,6 @@ class IrQweb(models.AbstractModel):
         return atts
 
     def _get_post_processing_att_names(self) -> frozenset[str] | None:
-        # The attribute names `_post_processing_att` can act on, or None for
-        # "cannot be narrowed". A caller iterating a parsed document --
-        # `ir.qweb.field.html` -- asks ONCE per document and then skips
-        # elements carrying none of these, which is most of them.
-        #
-        # Answer None rather than an over-wide set: the caller then drops the
-        # per-element test entirely instead of paying for one that never
-        # filters. `website` answers None, and measurably should -- see its
-        # override.
-        #
-        # An override that widens `_post_processing_att` must widen this in the
-        # same commit, or that converter will silently stop calling it. This is
-        # a filter on WHICH ELEMENTS get the call, never on whether the
-        # document is parsed: skipping the parse would also skip the tidying,
-        # and `<p>unclosed` would stop being closed.
         return POST_PROCESSING_ATT_NAMES
 
     def _get_field_converter(self, widget_type: str) -> models.BaseModel:

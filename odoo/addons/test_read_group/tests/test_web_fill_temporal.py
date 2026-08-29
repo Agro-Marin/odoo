@@ -10,8 +10,6 @@ class TestFillTemporal(common.TransactionCase):
 
     @staticmethod
     def _non_empty(expected):
-        """Derive the expected no-fill_temporal result (empty buckets
-        dropped) from the expected fill_temporal=True result."""
         return [group for group in expected if group["__count"]]
 
     def test_date_range_and_flag(self):
@@ -520,10 +518,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_date_range_groupby_week_across_year_boundary(self):
-        # Regression coverage for the week/year boundary around Dec 31 - Jan
-        # 1, a classic off-by-one class for calendar-week bucketing: a week
-        # can straddle two calendar years, and the label's year must follow
-        # the bucket's own start, not the record's date.
         self.Model.create(
             [
                 {"date": "2020-12-30", "value": 4},
@@ -993,12 +987,6 @@ class TestFillTemporal(common.TransactionCase):
         self.Model.create({"datetime": "2016-01-01 03:30:00", "value": 2})
         self.Model.create({"datetime": "2016-12-30 22:30:00", "value": 3})
 
-        # NOTE: the UTC offsets baked into __extra_domain/labels below are
-        # derived from Asia/Hovd's historical DST rules for 2015-2016 as
-        # currently published by tzdata. Mongolia's DST rules have been
-        # revised by tzdata more than once; a future tzdata correction to
-        # this historical period could shift these boundaries with no code
-        # change here.
         expected = [
             {
                 "__extra_domain": [
@@ -1051,8 +1039,6 @@ class TestFillTemporal(common.TransactionCase):
     def test_month_boundary_crosses_dst_offset(self):
         self.Model.create({"datetime": "2017-12-31 21:00:00", "value": 42})
 
-        # See the tzdata-snapshot note in test_quarter_with_timezone above:
-        # this offset is likewise derived from Asia/Hovd's historical rules.
         expected = [
             {
                 "__extra_domain": [

@@ -49,7 +49,6 @@ def declared_adr(path: Path) -> str | None:
 
 
 def _status_line(path: Path) -> str:
-    """The whole Status line, so a supersession can name its successor."""
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("- **Status:**"):
             return line.removeprefix("- **Status:**").strip()
@@ -89,11 +88,6 @@ def test_every_cited_record_exists_and_is_accepted():
         )
         status = _status_line(matches[0])
         kind = status.split()[0] if status else ""
-        # A superseded record names its replacement; say so, because "follow the
-        # record" is a two-minute job when you are told where it went and a hunt
-        # through doc/adr when you are not. py_addon_imports cited ADR-0031 for
-        # a fortnight after ADR-0072 superseded it, and the message it got back
-        # named neither the successor nor the fact that there was one.
         successor = re.search(r"Superseded by (ADR-\d{4})", status)
         follow = (
             f" It was superseded by {successor.group(1)}; if that record still "

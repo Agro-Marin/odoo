@@ -1,32 +1,3 @@
-"""The graph's contract, re-derived on random graphs rather than sampled.
-
-`test_module_graph.py` pins hand-written examples. What it cannot state is the
-property those examples are examples *of*: whatever the manifests say, whatever
-the database says, and in whatever order `extend` is fed, a module must be
-iterated after every module it depends on, and nothing unloadable may survive.
-That contract is what `load_module_graph` walks, and the ordering behind it is
-subtle enough to deserve more than samples -- `test_` modules deliberately take
-their deepest dependency's `depth` instead of one more than it, so their place
-is decided by a space-prefixed `order_name` and not by depth at all.
-
-The generator drives the real `_update_from_database` and the real
-`_imported_modules` through a fake cursor, in both graph modes, over manifests
-that may be uninstallable, dependency sets that may contain cycles or a
-self-reference, and three-way incremental `extend` calls.
-
-The harness was mutation-checked against four injected faults before being
-committed, because a property test that cannot fail asserts nothing. Over 8000
-seeds: making `_update_from_database` keep DB-uninstallable modules fails 1049
-seeds, making load mode keep not-installed modules fails 1008, stopping
-`_remove` from cascading to dependents fails 2893, and dropping `depth` from the
-sort key fails 174. Each is caught by the invariant it breaks.
-
-That third mutant also shows what defends `ModuleNode.order_name`, `depth` and
-`phase`, whose `max()` calls have no empty-sequence guard: it is the removal
-cascade, not the manifest loader. With the cascade disabled the fuzz reaches
-`ValueError: max() iterable argument is empty` at `module_graph.py`'s `depth`.
-"""
-
 import logging
 import random
 import unittest
@@ -55,16 +26,12 @@ DB_STATES = (
 
 
 class _FakeCursor:
-    """Answers `column_exists`, the imported-modules query and the state query."""
-
     def __init__(self, rows):
         self.rows = rows
         self._out = []
         self.rowcount = 0
 
     def execute(self, query, params=None):
-        # `column_exists` passes an `SQL` object, whose `in` support is
-        # deprecated; read its `code` the way a real cursor does.
         text = query.code if hasattr(query, "code") else query
         if "information_schema" in text or "pg_attribute" in text:
             self._out = [("imported",)]
@@ -95,7 +62,7 @@ def _random_graph(seed):
     declared: dict[str, list[str]] = {"base": []}
     for i in range(1, size):
         count = rng.randint(1, min(3, len(names)))
-        declared[names[i]] = rng.sample(names, count)  # may self-reference or cycle
+        declared[names[i]] = rng.sample(names, count)
     installable = {name: rng.random() > 0.12 for name in names}
     installable["base"] = True
     rows = {
@@ -122,7 +89,6 @@ def _random_graph(seed):
 
 
 def _effective_depends(name, declared):
-    """What `_load_manifest` will make of a declared `depends` list."""
     depends = [dep for dep in declared[name] if dep != name]
     if name == "base":
         return []
@@ -192,8 +158,6 @@ class TestGraphProperties(BaseCase):
             self._check(seed)
 
     def test_the_generator_actually_produces_the_shapes_it_claims(self):
-        # A property run over degenerate inputs proves nothing; assert the
-        # corpus contains what the invariants are meant to be tested against.
         saw = {"cycle": 0, "self_dep": 0, "uninstallable": 0, "test_module": 0}
         modes = set()
         for seed in range(SEEDS):

@@ -20,9 +20,6 @@ REFERENCE_VERIFIED_CACHE_KEY = "reference.verified_pairs"
 
 class Reference(Selection):
     type = "reference"
-    # Selection declares all four; a Reference caches "model,id" and hands back
-    # a recordset, so only the truthiness survives -- and only because an empty
-    # reference is cached as NULL rather than as a string naming id 0.
     cache_is_record_value = False
     cache_is_orderable = False
     cache_is_read_value = False
@@ -173,8 +170,6 @@ class Many2oneReference(Integer):
     """Reset: Integer declares it, and this stores an id, not a number. The
     sites asking `is_integer` mean arithmetic -- `_increment_fields_skiplock`
     above all, which would happily increment a foreign key."""
-    # Integer declares all four; this caches an id and hands back an id, but
-    # read() and the sorter treat it as a pointer, not as a number.
     cache_is_record_value = False
     cache_is_orderable = False
     cache_is_read_value = False

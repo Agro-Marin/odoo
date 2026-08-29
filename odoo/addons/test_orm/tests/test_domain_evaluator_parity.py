@@ -643,15 +643,6 @@ class TestDomainIdComparand(TransactionCase):
 
 
 class _DomainGeneratorMixin:
-    """Shared random-domain generator/evaluator for the two classes below.
-
-    Deliberately not a TransactionCase subclass: TestDomainPartition used to
-    subclass TestDomainEvaluatorParityGenerated for these helpers alone,
-    which also meant inheriting (and silently re-running, under a different
-    seed) that class's own test method. Both classes now inherit this mixin
-    side-by-side with TransactionCase instead of one inheriting the other.
-    """
-
     SEED = 20260726
     DOMAINS = 400
 
@@ -723,16 +714,11 @@ class _DomainGeneratorMixin:
                 self._domain(rng, specs, depth + 1) for _ in range(rng.randint(2, 3))
             ]
             return Domain.AND(parts) if roll < 0.4 else Domain.OR(parts)
-        # NOT only ever negates a single sub-domain, so generate exactly one
-        # instead of the 2-3 the AND/OR branches need.
         return ~self._domain(rng, specs, depth + 1)
 
     def _evaluate(self, model, records, domain):
         try:
             if model is not None:
-                # Only the SQL path can leave the cursor mid-statement on
-                # failure; the pure in-memory branch never touches the DB, so
-                # it doesn't need a savepoint to roll back to.
                 with self.env.cr.savepoint(flush=False):
                     scoped = Domain("id", "in", records.ids) & domain
                     return None, set(model.search(scoped).ids)

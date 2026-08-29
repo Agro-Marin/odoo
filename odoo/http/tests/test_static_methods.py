@@ -1,13 +1,3 @@
-"""What a ``/<module>/static/<path>`` URL answers, per verb.
-
-The static branch runs in ``Application.__call__`` ahead of the router, so no
-route can narrow it and nothing downstream ever sees the request. Until this
-was pinned it served the file body for **every** verb: ``POST``, ``PUT``,
-``PATCH`` and ``DELETE`` all came back ``200 OK`` with the asset in the body,
-which tells a client its write succeeded, and ``OPTIONS`` answered a CORS
-preflight with 1150 bytes of favicon.
-"""
-
 import types
 
 import pytest
@@ -73,14 +63,6 @@ def test_allow_header_is_parseable_back_into_valid_methods():
 
 
 def test_allow_header_treats_empty_as_a_declaration_not_an_absence():
-    """An empty collection means "this resource accepts nothing".
-
-    Under `methods or DEFAULT_ALLOWED_METHODS` it silently became the full
-    default set, so a route declared `@route(..., methods=[])` answered OPTIONS
-    with `Allow: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS` while the
-    werkzeug rule accepted only OPTIONS. Nothing rejects that declaration, so
-    the header has to tell the truth about it.
-    """
     assert allow_header(()) == "OPTIONS"
     assert allow_header([]) == "OPTIONS"
     assert allow_header(None) == ", ".join([*DEFAULT_ALLOWED_METHODS, "OPTIONS"])

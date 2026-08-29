@@ -28,19 +28,6 @@ _KEYWORDS = {
     "#fff": "#ffffff",
 }
 
-#: Per module, the declarations a light bundle under `data-color-scheme="dark"`
-#: resolves differently from what the dark bundle serves.
-#:
-#: MEASURED AT `asset_lint.yml`'s INSTALL SET, which is the only place this gate
-#: runs -- `test_lint.yml` installs `test_lint` alone, where 24 of these name a
-#: module that is not there and `_require_the_floors_can_be_exercised` skips.
-#: Re-taken when that set was widened to cover all 28: the previous numbers
-#: summed to 306 against a tree that reads 227, so the gate carried 79 units of
-#: headroom it could never fail on. `web` alone was 136 against 91.
-#:
-#: A module at 0 is installed and contributes nothing; it stays listed so the
-#: guard can tell "absent" from "clean", and so the first declaration to appear
-#: there fails.
 SINGLE_BUNDLE_GAP_FLOOR = {
     "account": 4,
     "account_edi_ubl_cii": 1,
@@ -388,16 +375,6 @@ class TestSchemeDuplication(lint_case.LintCase):
         )
 
     def _require_the_floors_can_be_exercised(self, env):
-        """A floor over a module nobody installed describes an absence.
-
-        These floors are per module -- 28 of them -- and a bundle only carries
-        what installed modules contribute. Under `test_lint.yml`, whose INSTALL is
-        `test_lint` alone, 3 of the 28 are reachable and `web` reads 91 against a
-        floor of 136: 45 under, and it cannot fail, because this ratchet only
-        fires on growth. That is not a pass, and it should not report as one.
-        `asset_lint.yml` is the lane that installs the eleven modules these
-        numbers were taken against; anywhere narrower, skip.
-        """
         installed = set(
             env["ir.module.module"].search([("state", "=", "installed")]).mapped("name")
         )

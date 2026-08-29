@@ -59,19 +59,10 @@ _UPLOAD_TIMEOUT = (10, None)
 
 
 def _should_skip(filepath: Path) -> bool:
-    """Return True if ``filepath`` should be excluded from the deploy zip.
-
-    Directory-name exclusion is not this function's job: `zip_module`'s
-    walk already prunes `EXCLUDED_DIR_NAMES` from `dirnames` before
-    descending, so by the time a file reaches here its parent dirs have
-    already passed that check.
-    """
     return filepath.suffix in EXCLUDED_SUFFIXES or filepath.name in EXCLUDED_FILE_NAMES
 
 
 class Deploy(Command):
-    """Deploy a module on an Odoo instance"""
-
     def __init__(self) -> None:
         super().__init__()
         self.session = requests.Session()
@@ -179,10 +170,6 @@ class Deploy(Command):
         return res.text
 
     def zip_module(self, path: str | Path) -> str:
-        """Create a zip archive of the module at ``path``.
-
-        Returns the path to the temporary zip file.
-        """
         module_dir = Path(path).resolve()
         if not module_dir.is_dir():
             raise FileNotFoundError(f"Could not find module directory {module_dir!r}")

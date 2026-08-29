@@ -12,9 +12,6 @@ SLEEP_INTERVAL = 60
 CRON_NOTIFY_JITTER_MAX_S = 0.1
 
 
-#: Exponent ceiling for :func:`capped_backoff`.  ``2 ** 30`` already dwarfs any
-#: ``ceiling`` this package passes; the bound exists only to keep an unbounded
-#: ``attempts`` from building a bignum on its way to being clamped away.
 _MAX_BACKOFF_EXPONENT = 30
 
 
@@ -22,35 +19,20 @@ def capped_backoff(attempts: int, ceiling: int = SLEEP_INTERVAL) -> int:
     return min(2 ** min(attempts, _MAX_BACKOFF_EXPONENT), ceiling)
 
 
-#: ``--limit-time-*-job`` sentinel meaning "whatever the cron setting resolved
-#: to".  Job workers had no lifetime configuration of their own at all: tuning
-#: cron silently retuned jobs, in both server flavours.  The default keeps that
-#: behaviour, and the knob now exists for when it is wrong.
 INHERIT_FROM_CRON = -1
 
 
 def job_max_age() -> int:
-    """Seconds a job worker/thread may live. 0 disables recycling."""
     limit = config["limit_time_worker_job"]
     return config["limit_time_worker_cron"] if limit < 0 else limit
 
 
 def job_time_real() -> int:
-    """Wall-clock ceiling for one job. 0 disables it, <0 defers to cron."""
     limit = config["limit_time_real_job"]
     return config["limit_time_real_cron"] if limit < 0 else limit
 
 
 def cron_real_time_budget() -> float:
-    """Resolved wall-clock budget for a cron pass; 0 means no limit.
-
-    The one answer to "how long may cron work run".  ``--limit-time-real-cron``
-    is a sentinel chain -- negative defers to ``--limit-time-real`` -- and every
-    caller that resolved it inline got a different subset of it right: a
-    deadline computed straight from ``-1`` lands in the past because ``-1`` is
-    truthy, and a watchdog that tests ``if limit and limit > 0`` reads the
-    documented "0 means no limit" as "fall back to the http limit" instead.
-    """
     limit = config["limit_time_real_cron"]
     if limit < 0:
         limit = config["limit_time_real"]
@@ -58,13 +40,6 @@ def cron_real_time_budget() -> float:
 
 
 def job_real_time_budget() -> float:
-    """Resolved wall-clock budget for a job pass; 0 means no limit.
-
-    ``job_time_real`` still answers ``-1`` when neither ``--limit-time-real-job``
-    nor ``--limit-time-real-cron`` is set, because its job is to walk one step of
-    the sentinel chain.  A caller that wants a *number* has to walk the last step
-    too.  This is the counterpart of ``cron_real_time_budget``.
-    """
     limit = job_time_real()
     if limit < 0:
         limit = config["limit_time_real"]

@@ -24,7 +24,6 @@ unsafe_eval = eval  # noqa: S307  ormcache key expressions built from code, not 
 
 _logger = logging.getLogger(__name__)
 
-#: Reserved parameter-name prefix; see `ormcache.determine_key`.
 _RESERVED = "__ormcache_"
 _METHOD_NAME = f"{_RESERVED}method"
 _logger_lock = threading.RLock()
@@ -181,9 +180,6 @@ class ormcache:
 
                 tx_first = False
                 try:
-                    # hash(key), not the key itself: the set must not pin the
-                    # cached objects alive for the transaction. A per-element
-                    # hash tuple did the same job while colliding more.
                     tx_key = hash(key)
                     tx_first = tx_key not in tx_lookups
                     if tx_first:
@@ -241,11 +237,6 @@ class ormcache:
         args, arg_globals = _render_signature(self.method)
         parameters = signature(self.method).parameters
         first_param = next(iter(parameters), "self")
-        # The key expression names the decorated function, and each defaulted
-        # parameter, through a global. A parameter sharing one of those names
-        # would shadow it, and the cache would silently key on the argument
-        # instead. The whole `_ormcache_` prefix is reserved so that one check
-        # covers the method name and every generated default alike.
         if colliding := sorted(p for p in parameters if p.startswith(_RESERVED)):
             msg = (
                 f"@ormcache cannot decorate {self.method.__qualname__}: its "

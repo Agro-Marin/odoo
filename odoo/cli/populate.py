@@ -20,15 +20,6 @@ _logger = logging.getLogger(__name__)
 def _parse_model_factors(
     factors: str, models: str, error: Callable[[str], None]
 ) -> dict[str, int]:
-    """Map each model name to its factor.
-
-    The last factor propagates to the remaining models; surplus factors are
-    reported (they usually mean a typo in --models) but tolerated.
-
-    :param factors: comma-separated ints, e.g. ``"3"`` or ``"3,5"``
-    :param models: comma-separated model names
-    :param error: argparse-style error callback (NoReturn in practice)
-    """
     try:
         opt_factors = [int(f) for f in factors.split(",")]
     except ValueError:
@@ -54,8 +45,6 @@ def _parse_model_factors(
 
 
 class Populate(DatabaseCommand):
-    """Populate database via duplication of existing data for testing/demo purposes"""
-
     def __init__(self) -> None:
         super().__init__()
         parser = self.parser
@@ -106,7 +95,6 @@ class Populate(DatabaseCommand):
         modelname_factors: dict[str, int],
         separator_code: int,
     ) -> None:
-        """Populate models with synthetic data."""
         model_factors = {
             model: factor
             for model_name, factor in modelname_factors.items()

@@ -519,11 +519,6 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _policy_fallback_value(self, field: ConvertibleField) -> Any:
-        """Return what an unresolvable value becomes, or None to report it.
-
-        `None` is the "no fallback" answer and never a value. SKIP is falsy on
-        purpose, so callers must test this with `is None` and never with `or`.
-        """
         match self._get_policy(field):
             case ImportPolicy.SKIP_RECORD:
                 return SKIP
@@ -720,20 +715,6 @@ class IrFieldsConverter(models.AbstractModel):
     def _build_selection_index(
         self, field: fields.Field
     ) -> tuple[dict[str, Any], dict[str, str]]:
-        """Map every token a reader may type to its value, and each value to
-        the label to show back.
-
-        Both come out of the same pass, and for a stored selection out of the
-        same query: the `name` jsonb the translation lookup already reads
-        carries every installed language, so the reader's label costs nothing
-        beyond picking a key out of a row that was fetched anyway.
-
-        Precedence in the index is strict and the whole point of the three
-        passes: a raw VALUE outranks any label. Registering value and label
-        together, one item at a time, let one item's label claim a token that
-        was another item's own value -- so importing `sent` into
-        `mail.notification.notification_status` stored `pending`.
-        """
         selection, current_lang_labels = self._get_selection_and_labels(field)
         index: dict[str, Any] = {}
         labels = dict(selection)

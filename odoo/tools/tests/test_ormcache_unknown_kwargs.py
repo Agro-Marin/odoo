@@ -1,16 +1,3 @@
-"""``@ormcache`` must refuse a keyword it does not understand.
-
-``cache=`` was validated against ``REGISTRY_CACHES`` and rejected loudly, while
-``**kwargs`` swallowed everything else -- so ``cache='nope'`` raised and
-``cach='stable'`` silently produced a decorator on the ``default`` bucket. The
-buckets are not interchangeable: each exists because its invalidation cadence
-differs, so a misspelling is a cache invalidated on the wrong signal, not a
-cosmetic slip.
-
-An AST sweep of all four repositories found no such typo in the tree, which is
-exactly why this is worth pinning: nothing else would notice the first one.
-"""
-
 import unittest
 
 from odoo.tools.cache import ormcache, ormcache_context
@@ -42,9 +29,6 @@ class TestOrmcacheUnknownKwargs(unittest.TestCase):
             ormcache_context("self.id", keys=("lang",), cach="stable")
 
 
-# Defined at module level on purpose: an identifier starting with two
-# underscores is mangled inside a class body, which would rename the parameter
-# these tests are about before the decorator ever sees it.
 def _shadows_the_method(self, __ormcache_method, value):
     return value
 
@@ -54,12 +38,6 @@ def _shadows_a_default(self, __ormcache_default_0, value=1):
 
 
 class TestOrmcacheKeyShadowing(unittest.TestCase):
-    """The key expression names the decorated function -- and each defaulted
-    parameter -- through a global. A parameter of the same name would shadow it,
-    and the cache would key on the *argument* instead, so two different methods
-    called with the same value would share an entry.
-    """
-
     def test_a_parameter_cannot_shadow_the_method(self):
         with self.assertRaises(ValueError) as caught:
             ormcache("value")(_shadows_the_method)

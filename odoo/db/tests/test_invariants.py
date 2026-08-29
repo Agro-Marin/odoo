@@ -95,18 +95,6 @@ class TestBudgetAccounting(unittest.TestCase):
 
 
 class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
-    """A stale cached plan aborts the transaction, so it cannot be retried in
-    place.  Measured: `transaction_status` is INERROR after the failure, and
-    both a bare retry and a `discard_cached_plans()` + retry raise
-    `InFailedSqlTransaction`.  Recovering inside `Cursor.execute` would need a
-    savepoint per statement — two extra round trips on every query in core — so
-    the retry belongs where the rollback already happens: `retrying()`.
-
-    The cursor's job is only to *name* the condition, because it is the one
-    place that can: it saw the failure on a connection holding auto-prepared
-    statements.
-    """
-
     def test_the_cursor_marks_it_on_the_execute_path(self):
         self.assertIn(
             "_note_stale_cached_plan",
@@ -139,28 +127,9 @@ class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
 
         self.assertTrue(err.PG_STALE_PLAN_EXCEPTIONS)
         self.assertTrue(callable(err.is_stale_cached_plan))
-        # that `retrying()` actually names both is pinned in the integration
-        # suite -- odoo/db/tests runs under sys.modules stubs and must not
-        # import odoo.service.
 
 
 class TestAFailedBorrowNeverKeepsItsPermit(unittest.TestCase):
-    """Every step after the permit is taken must be inside the release guard.
-
-    The bookkeeping that follows a successful getconn — the checkout tracker,
-    the leak warning, the borrow-wait histogram — used to sit AFTER the
-    try/except that releases the permit.  Anything raising there burned a
-    permit and leaked the connection, permanently: after `maxconn` such
-    failures every later borrow times out with "connection budget reached" and
-    only a process restart recovers it.
-
-    It is not hypothetical bookkeeping: `_warn_about_leaks` reads
-    `tools.config["db_leak_detection"]` on EVERY borrow, and `odoo.db` is
-    documented as importable without `odoo.init` (standalone scripts, tools),
-    where that key may not be registered.  Injected as a KeyError, four
-    borrows against `maxconn=4` killed the pool.
-    """
-
     def _borrow_body(self):
         return textwrap.dedent(inspect.getsource(pool.ConnectionPool.borrow))
 
@@ -379,16 +348,6 @@ class TestCursorSatisfiesItsMixinContracts(unittest.TestCase):
 
 
 class TestSchemaChangeDrainsAtCommit(unittest.TestCase):
-    """A committed schema change must heal this process's other connections.
-
-    ``discard_cached_plans`` only heals the connection that ran the DDL; a
-    sibling pooled connection keeps a plan built against the old schema and
-    raises ``FeatureNotSupported: cached plan must not change result type``.
-    The behaviour itself is pinned in the integration suite
-    (``TestDdlDrainsSiblingConnections``); these are the structural rules that
-    keep the seam where it belongs.
-    """
-
     def test_ddl_arms_the_flag_rather_than_draining_inline(self):
         src = inspect.getsource(cursor.Cursor._invalidate_caches_after_ddl)
         self.assertIn("_schema_changed", src)
@@ -428,16 +387,6 @@ class TestSchemaChangeDrainsAtCommit(unittest.TestCase):
 
 
 class TestOneConnectionOptionsAssembler(unittest.TestCase):
-    """One assembler, and the maintenance exemption is stated rather than implied.
-
-    The exemption is deliberate, not drift: `db_session_gucs` is tuned for
-    application queries, and `statement_timeout` — the commonest thing to put
-    there — kills `CREATE DATABASE … TEMPLATE`. Measured in
-    `TestMaintenanceConnectionOptions`. What the duplication cost was the
-    ability to see that, so the assembler is shared and the opt-out is a
-    keyword at the call site.
-    """
-
     def test_both_borrow_paths_use_it(self):
         for path in ("_get_or_create_pool", "_borrow_direct"):
             with self.subTest(path=path):

@@ -199,7 +199,6 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
             model = model.with_context(**kwargs.pop("context"))
         method = getattr(model, method_name)
         if not getattr(method, "_api_model", False):
-            # A record method takes its recordset from the first argument.
             record_ids, *args = args
             model = model.browse(record_ids)
             method = getattr(model, method_name)
@@ -726,8 +725,6 @@ def convert_file(
         elif ext == ".xml":
             convert_xml_import(env, module, fp, idref, mode, noupdate)
         elif ext == ".js":
-            # Listed in a manifest's `data` by some modules; the asset pipeline
-            # loads it, not the data importer. Nothing to do here.
             pass
         else:
             msg = "Can't load unknown file type %s."

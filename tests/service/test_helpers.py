@@ -132,10 +132,6 @@ def test_the_prefork_watchdog_agrees_with_the_resolver(real, cron, expected):
 
 
 def test_nothing_outside_the_resolver_reads_the_raw_cron_knob():
-    """Three call sites resolved ``--limit-time-real-cron`` inline and each got
-    a different subset of its sentinel chain right: a deadline computed from
-    ``-1`` lands in the past, and ``if limit and limit > 0`` reads the
-    documented "0 means no limit" as "fall back to the http limit"."""
     import pathlib
 
     import odoo

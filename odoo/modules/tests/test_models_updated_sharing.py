@@ -1,26 +1,3 @@
-"""`models_updated` must be shared by every package loaded in a run.
-
-`_PackageLoader` receives the run-wide `models_updated` set from
-`load_module_graph` and records into it the models an installed/upgraded package
-touched. The next packages -- loaded, not updated -- intersect their own models
-against that set to queue them in `models_to_check`, which is what
-`_ModuleLoader.reinit_models_to_check` re-inits at the end of the run, once the
-registry is complete.
-
-`self.models_updated |= model_names` did not feed that set. `models_updated` is
-a plain `set` and `model_names` an `OrderedSet`, which is a `MutableSet` and not
-a `set` subclass: `set.__ior__` returns NotImplemented for it, Python falls back
-to `OrderedSet.__ror__`, and the *new* object lands on the one loader's slot
-while the shared set stays empty. Every later package then intersected against
-an empty set, `models_to_check` never filled, and the final re-init was skipped.
-
-Models with `_auto = False` paid for it. `-u hr` rebuilt the `hr.employee.public`
-view from the registry as it stood at hr's position in the graph, dropping the
-columns later modules contribute (`firstname`, `lastname`, `lastname2`,
-`today_location_name`); the fields stayed in the registry, so every read of them
-raised `UndefinedColumn` until the view was rebuilt by hand.
-"""
-
 import unittest
 from typing import Any, cast
 

@@ -2143,9 +2143,6 @@ class TestSessionContextRegistry(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestEncryptionPolicyIsOneDecision(TransactionCase):
-    """The strict/lax rule is enforced by two different libraries. They have to
-    agree, and nothing used to make them."""
-
     EXPECTED = {
         "none": (False, False, False),
         "starttls": (False, True, False),
@@ -2189,9 +2186,6 @@ class TestEncryptionPolicyIsOneDecision(TransactionCase):
         )
 
     def test_both_context_builders_agree_on_every_mode(self):
-        """`_ssl_context_for_encryption` (stdlib) and `_client_ssl_context`
-        (PyOpenSSL, used whenever a client certificate is in play) implement the
-        same policy in two libraries."""
         for encryption, (_i, _s, verified) in self.EXPECTED.items():
             with self.subTest(encryption=encryption):
                 stdlib = self.IrMailServer._ssl_context_for_encryption(encryption)
@@ -2223,10 +2217,6 @@ class TestEncryptionPolicyIsOneDecision(TransactionCase):
                 )
 
     def test_the_certificate_path_is_deliberately_san_only(self):
-        """`match_hostname` over `get_subj_alt_name` has no CN fallback, where the
-        stdlib `check_hostname` still allows one when a certificate carries no SAN.
-        That asymmetry is intended -- CN as an identity is deprecated -- and is
-        recorded here so a future reader does not read it as an oversight."""
         source = inspect.getsource(_check_hostname_callback)
         self.assertIn("get_subj_alt_name", source)
         self.assertNotIn("commonName", source)

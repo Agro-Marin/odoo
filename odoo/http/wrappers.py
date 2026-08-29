@@ -266,14 +266,6 @@ class _Response(werkzeug.wrappers.Response):
 
 
 def no_content(status: int = 204, headers: Any = None) -> Response:
-    """A response whose status forbids a body, without a ``Content-Type``.
-
-    :class:`_Response` stamps ``default_mimetype`` on everything werkzeug
-    builds for it, the 204s :meth:`Dispatcher.pre_dispatch` answers ``OPTIONS``
-    with included. A 204 carries no content by definition (RFC 9110 15.3.5), so
-    a media type describing that absent content is noise at best, and something
-    a strict intermediary may object to at worst.
-    """
     response = Response(status=status, headers=headers)
     del response.headers["Content-Type"]
     return response

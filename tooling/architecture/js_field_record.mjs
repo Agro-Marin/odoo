@@ -80,28 +80,9 @@ function destructuredMembers(ast, isRecord) {
     return names;
 }
 
-/**
- * The record a callback is *handed* rather than one reachable from `this.props`.
- *
- * Three shapes, and only three, so that a `.map((record) => …)` over an RPC
- * result is not mistaken for one:
- *
- *   - a registry descriptor's `isEmpty(record, …)` / `isValid(record, …)`,
- *   - `useRecordObserver((record, props) => …)`.
- *
- * Without these the contract was open in a way its own report showed and its
- * gate did not: the *count* of such reads is pinned, so a new one fails, but
- * swapping one existing read for a different member kept the count and passed
- * silently. `dateRangeField.isValid` reached `record.activeFields` -- a member
- * `FIELD_RECORD_SURFACE` does not declare -- entirely undetected.
- */
 const HANDED_RECORD_PROPERTIES = new Set(["isEmpty", "isValid"]);
 const HANDED_RECORD_CALLS = new Set(["useRecordObserver"]);
 
-/**
- * @param {any} ast
- * @returns {Set<string>}
- */
 function handedRecordAliases(ast) {
     const names = new Set();
     const firstParamName = (fn) => {
@@ -159,19 +140,6 @@ function recordAliases(ast) {
     return aliases;
 }
 
-/**
- * Own members of every class declared in the file, keyed by class name.
- *
- * The gate's argument opens with the size of what `standardFieldProps` hands
- * out, and that figure was prose: it said 83 against a `RelationalRecord` that
- * declares 81, in the module docstring and again in `doc/architecture/gates.md`.
- * Reported here so the MEASURED block can carry it, because this is the only
- * pass in the gate that owns a real JS parser -- counting members by regex is
- * the mistake WHY AN AST PASS was written about.
- *
- * Own members only: no base class is followed, which is what "before anything
- * inherited" means. A computed key names no member at parse time and is skipped.
- */
 function classMembers(ast) {
     const byClass = {};
     walk(ast, (node) => {

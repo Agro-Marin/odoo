@@ -19,16 +19,11 @@ _logger = logging.getLogger("odoo")
 
 
 def check_root_user() -> None:
-    """Warn if the process's user is 'root' (on POSIX system)."""
     if os.name == "posix" and os.getuid() == 0:
         sys.stderr.write("Running as user 'root' is a security risk.\n")
 
 
 def check_postgres_user() -> None:
-    """Exit if the configured database user is 'postgres'.
-
-    This function assumes the configuration has been initialized.
-    """
     if (config["db_user"] or os.environ.get("PGUSER")) == "postgres":
         sys.stderr.write(
             "Using the database user 'postgres' is a security risk, aborting.\n"
@@ -37,10 +32,6 @@ def check_postgres_user() -> None:
 
 
 def report_configuration() -> None:
-    """Log the server version and some configuration values.
-
-    This function assumes the configuration has been initialized.
-    """
     import odoo.addons
 
     _logger.info("Odoo version %s", odoo.release.version)
@@ -79,10 +70,6 @@ def rm_pid_file(main_pid: int) -> None:
 
 
 def setup_pid_file() -> None:
-    """Create a file with the process id written in it.
-
-    This function assumes the configuration has been initialized.
-    """
     if not odoo.evented and config["pidfile"]:
         pid = os.getpid()
         Path(config["pidfile"]).write_text(str(pid), encoding="utf-8")
@@ -96,9 +83,6 @@ def main(args: list[str]) -> None:
     report_configuration()
 
     for db_name in config["db_name"]:
-        # The hint matters here because `start` routes through this loop: it no
-        # longer vets the name itself, so this is the only place that can tell
-        # the user what to do about it.
         refuse_maintenance_db(
             db_name,
             error_handler=lambda msg: sys.exit(
@@ -130,8 +114,6 @@ def main(args: list[str]) -> None:
 
 
 class Server(Command):
-    """Start the odoo server (default command)"""
-
     def run(self, args: list[str]) -> None:
         config.parser.prog = self.prog
         main(args)

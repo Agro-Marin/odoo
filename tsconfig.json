@@ -36,11 +36,7 @@
             "@test_mail/*": ["addons/test_mail/static/src/*"],
 
             // >>> derived: addon aliases -- do not hand-edit.
-            // Every addon shipping `static/src/` publishes `@X/*`. Rewrite with
-            //     python tooling/typecheck/tsconfig_paths.py --update
-            // The generator only adds addons it can see and never deletes an entry
-            // belonging to a checkout that is absent, so running it in CI (odoo
-            // alone) does not drop the enterprise/agromarin/design-themes aliases.
+            // Rewrite with: python tooling/typecheck/tsconfig_paths.py --update
             "@account/*": ["addons/account/static/src/*"],
             "@account_accountant/*": ["../enterprise/account_accountant/static/src/*"],
             "@account_accountant_batch_payment/*": ["../enterprise/account_accountant_batch_payment/static/src/*"],

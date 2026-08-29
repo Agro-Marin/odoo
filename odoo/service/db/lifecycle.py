@@ -186,12 +186,6 @@ def exp_create_database(
     country_code: str | None = None,
     phone: str | None = None,
 ) -> Literal[True]:
-    """Create and initialize a new database.
-
-    Rolls back the empty database on init failure (module install error, missing
-    language, etc.) so the name can be reused, rather than leaving a valid PG
-    database with no Odoo schema for the operator to drop by hand.
-    """
     validate_db_name(db_name)
     _assert_filestore_dest_free(
         odoo.tools.config.filestore(db_name), f"Cannot create {db_name!r}"
@@ -214,14 +208,6 @@ def exp_duplicate_database(
     db_name: str,
     neutralize_database: bool = False,
 ) -> Literal[True]:
-    """Duplicate ``db_original_name`` to ``db_name`` (public/RPC-facing).
-
-    Refuses ``db_original_name`` outside ``list_dbs(True)``, else the master
-    password alone would let an RPC caller copy any database owned by this PG
-    role.  ``db_name`` (the new target) is create-like and not checked.
-
-    :raises odoo.exceptions.AccessDenied: if ``db_original_name`` is not exposed
-    """
     check_db_exposed(db_original_name)
     return _duplicate_database(db_original_name, db_name, neutralize_database)
 
@@ -380,39 +366,12 @@ def _drop_database(db_name: str) -> bool:
 
 @check_db_management_enabled
 def exp_drop(db_name: str) -> bool:
-    """Drop a database (public/RPC-facing, subject to ``list_db`` gate).
-
-    Refuses any ``db_name`` outside ``list_dbs(True)`` through the same
-    ``check_db_exposed`` its siblings use, else the master password alone would
-    let an RPC caller drop any DB owned by this PG role.  The gate lives here,
-    not in ``_drop_database``, which rollback callers must bypass.
-
-    Refusal RAISES rather than returning ``False``, which is what disambiguates
-    the return value: ``False`` now means one thing, "no such database".  It
-    used to mean that OR "exists but is not exposed", and the web caller
-    collapsed both into ``Database %r was not found`` — telling an operator a
-    database they can see does not exist, while ``exp_dump`` answered Access
-    Denied for the same name.  Returning ``False`` bought no secrecy either:
-    ``drop`` requires the master password, and any caller holding it can
-    enumerate outright via ``list``.
-
-    :raises odoo.exceptions.AccessDenied: if ``db_name`` is not exposed
-    :return: ``True`` if the database was dropped, ``False`` if it did not exist
-    """
     check_db_exposed(db_name)
     return _drop_database(db_name)
 
 
 @check_db_management_enabled
 def exp_rename(old_name: str, new_name: str) -> Literal[True]:
-    """Rename ``old_name`` to ``new_name`` (public/RPC-facing).
-
-    Refuses ``old_name`` outside ``list_dbs(True)``, else the master password
-    alone would let an RPC caller rename any DB owned by this PG role.
-    ``new_name`` (the target) is create-like and not checked.
-
-    :raises odoo.exceptions.AccessDenied: if ``old_name`` is not exposed
-    """
     check_db_exposed(old_name)
     return _rename_database(old_name, new_name)
 

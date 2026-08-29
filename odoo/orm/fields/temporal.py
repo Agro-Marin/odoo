@@ -32,15 +32,6 @@ def _get_sql_timezones_set(env) -> frozenset[str]:
 
 
 def _sql_timezone_name(env, tz_name: str) -> str | None:
-    """The name PostgreSQL accepts for ``tz_name``, or None if it has none.
-
-    Refusing a name outright and grouping in UTC is a wrong answer, not a safe
-    one: an 'Asia/Calcutta' user reading a month group-by silently gets buckets
-    cut 5h30 away from their own midnight. 99 of the 113 names this PostgreSQL
-    refuses are only legacy spellings of names it does know, so the alias is
-    resolved first and UTC is left for the 14 that genuinely have no server-side
-    equivalent.
-    """
     sql_names = _get_sql_timezones_set(env)
     if tz_name in sql_names:
         return tz_name

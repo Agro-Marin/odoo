@@ -53,10 +53,6 @@ DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
 
 
 def _parse_field_spec(spec: str) -> tuple[str, str]:
-    """Parse a ``table.column`` field specification into a 2-tuple.
-
-    :raises ValueError: if *spec* is not of the form ``table.column``
-    """
     parts = spec.strip().split(".")
     if len(parts) != 2 or not all(parts):
         msg = f"Invalid field specification {spec!r}: expected 'table.column'"
@@ -65,13 +61,6 @@ def _parse_field_spec(spec: str) -> tuple[str, str]:
 
 
 def _select_fields(opt: argparse.Namespace) -> list[tuple[str, str]]:
-    """Resolve the requested ``(table, column)`` pairs from CLI options.
-
-    Pure selection; schema validation and ``--allfields`` expansion need a
-    cursor and stay in ``run``. ``--allfields`` ignores manual selections.
-
-    :raises ValueError: on a malformed ``table.column`` spec
-    """
     fields = [] if opt.no_default_fields else list(DEFAULT_FIELDS)
     if opt.fields:
         if opt.allfields:
@@ -94,17 +83,11 @@ def _select_fields(opt: argparse.Namespace) -> list[tuple[str, str]]:
 
 @functools.cache
 def _read_field_file(path: str) -> tuple[tuple[str, str], ...]:
-    """Parse a ``--file`` selection, once per path per run.
-
-    :raises ValueError: on a malformed ``table.column`` line
-    """
     with pathlib.Path(path).open(encoding="utf-8") as f:
         return tuple(_parse_field_spec(line) for line in f if line.strip())
 
 
 def _ensure_cr(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorator: raise if the wrapped Obfuscate method has no open cursor."""
-
     @functools.wraps(func)
     def check_cr(self: Any, *args: Any, **kwargs: Any) -> Any:
         if not self.cr:
@@ -116,8 +99,6 @@ def _ensure_cr(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 class Obfuscate(DatabaseCommand):
-    """Obfuscate data in a given odoo database"""
-
     def __init__(self) -> None:
         super().__init__()
         self.cr: Cursor | None = None
@@ -129,14 +110,6 @@ class Obfuscate(DatabaseCommand):
     @_ensure_cr
     def _ensure_pgcrypto(self) -> None:
         self.cr.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-        # A plain `starts_with(value, 'odoo_cyph_')` treats any plaintext that
-        # happens to already carry the marker literal as "already obfuscated"
-        # and silently leaves it untouched (and, symmetrically, un-decryptable
-        # by uncypher_string). This session-local function replaces the
-        # prefix sniff with a structural check: it only reports a value as
-        # marked when the bytes after the prefix actually decrypt under the
-        # password in use, so a same-looking plaintext value obfuscates like
-        # any other.
         self.cr.execute(
             """
             CREATE OR REPLACE FUNCTION pg_temp.odoo_cyph_marked(value text, pwd text)
@@ -164,7 +137,6 @@ class Obfuscate(DatabaseCommand):
 
     @_ensure_cr
     def set_pwd(self, pwd: str) -> None:
-        """Set password to cypher/uncypher datas"""
         self.cr.execute(
             "INSERT INTO ir_config_parameter (key, value) VALUES ('odoo_cyph_pwd', 'odoo_cyph_'||encode(pgp_sym_encrypt(%s, %s), 'base64')) ON CONFLICT(key) DO NOTHING",
             [pwd, pwd],
@@ -172,7 +144,6 @@ class Obfuscate(DatabaseCommand):
 
     @_ensure_cr
     def check_pwd(self, pwd: str) -> bool:
-        """If password is set, check if it's valid"""
         uncypher_pwd = self.uncypher_string(SQL.identifier("value"), pwd)
 
         try:
@@ -191,7 +162,6 @@ class Obfuscate(DatabaseCommand):
 
     @_ensure_cr
     def clear_pwd(self) -> None:
-        """Unset password to cypher/uncypher datas"""
         self.cr.execute("DELETE FROM ir_config_parameter WHERE key='odoo_cyph_pwd'")
 
     def cypher_string(self, sql_field: SQL, password: str) -> SQL:
@@ -210,7 +180,6 @@ class Obfuscate(DatabaseCommand):
 
     @staticmethod
     def _kind_of(udt_name: str) -> str | None:
-        """Map a PostgreSQL ``udt_name`` to the obfuscation kind."""
         if udt_name in ("text", "varchar"):
             return "string"
         if udt_name == "jsonb":
@@ -225,7 +194,6 @@ class Obfuscate(DatabaseCommand):
     )
 
     def _index_rows(self, rows: list[tuple]) -> None:
-        """Index catalog rows into the kind and column-width caches."""
         self._field_kinds = {}
         self._field_widths = {}
         for table, column, udt, max_length in rows:
@@ -235,12 +203,6 @@ class Obfuscate(DatabaseCommand):
                     self._field_widths[table, column] = max_length
 
     def _prefetch_field_kinds(self, tables: set[str] | list[str]) -> None:
-        """Cache the obfuscation kind of every text/varchar/jsonb column of
-        ``tables`` in one catalog query, so ``check_field`` becomes a dict
-        lookup instead of an ``information_schema`` probe per field. The
-        cache holds only string/json columns, so a miss reads the same as the
-        per-field query's "absent or unsupported".
-        """
         self._field_kinds = {}
         self._field_widths = {}
         if not tables:
@@ -252,8 +214,6 @@ class Obfuscate(DatabaseCommand):
         self._index_rows(self.cr.fetchall())
 
     def check_field(self, table: str, field: str) -> str | None:
-        """Return the processing kind for ``table.column``: ``'string'``,
-        ``'json'``, or None when the column is absent or unsupported."""
         if self._field_kinds is not None:
             return self._field_kinds.get((table, field))
         qry = "SELECT udt_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s AND table_schema = current_schema"
@@ -265,27 +225,6 @@ class Obfuscate(DatabaseCommand):
     def find_unfittable_fields(
         self, fields: list[tuple[str, str]], pwd: str
     ) -> list[tuple[tuple[str, str], int, int]]:
-        """Return ``(field, declared_width, projected_length)`` for every
-        length-limited column whose widest value would not survive encryption.
-
-        Ciphertext length depends only on the **byte** length of the input and
-        on nothing else — measured in PostgreSQL 18.4: 226 characters for any
-        100-ASCII-character value, the same for a longer password, 364 for 100
-        multi-byte characters, and a floor of **99 characters for the empty
-        string**. `varchar(n)` counts characters and the base64 output is all
-        ASCII, so the projection compares directly against ``n``.
-
-        The probe is per column and only for columns that declare a width, so
-        it is one aggregate over a minority of columns. It applies the same
-        ``WHERE`` as the ``UPDATE`` — rows already carrying the marker are not
-        rewritten — which makes the answer exact rather than conservative.
-
-        Without it, `res_country.code` (``varchar(2)`` on any database) raised
-        ``value too long for type character varying(2)`` mid-``UPDATE``, and
-        with ``--pertablecommit`` the tables already processed stayed
-        obfuscated and the password marker stayed committed, with nothing
-        recording where the run stopped.
-        """
         unfittable = []
         for field in fields:
             width = (self._field_widths or {}).get(field)
@@ -313,13 +252,6 @@ class Obfuscate(DatabaseCommand):
         return unfittable
 
     def get_all_fields(self) -> list[tuple[str, str]]:
-        """Every string/json column outside the ``ir_*`` framework tables.
-
-        ``_resolve_targets`` filters ``ir_*`` again for the selections that do
-        not come through here; the two are not redundant, they cover different
-        inputs — this one keeps the catalog scan small, that one reports what
-        the user asked for and cannot have.
-        """
         self.cr.execute(
             f"{self._CATALOG_COLUMNS}"
             " AND NOT starts_with(table_name, 'ir_')"
@@ -364,15 +296,6 @@ class Obfuscate(DatabaseCommand):
                 new_field_value = sql_field
                 for key in self._json_keys(table, field):
                     cypher_query = cyph_fct(SQL("%s->>%s", sql_field, key), pwd)
-                    # `jsonb_typeof(...) = 'string'`, not merely NOT NULL. The
-                    # transform reads a value with `->>` (text) and writes it
-                    # back with `to_jsonb(text)` (a JSON string), so it is
-                    # faithful for a string and LOSSY for anything else: a
-                    # nested object came back from the round trip as the string
-                    # `'{"deep": "secret"}'`, an integer as `"42"`. Odoo's
-                    # translated columns are `{lang: text}` and never hit it,
-                    # which is why it survived; `--fields` on any other jsonb
-                    # column does.
                     new_field_value = SQL(
                         "CASE WHEN jsonb_typeof(%s->%s) = 'string' "
                         "THEN jsonb_set(%s, array[%s], to_jsonb(%s)::jsonb, FALSE) "
@@ -399,17 +322,6 @@ class Obfuscate(DatabaseCommand):
                 self.commit()
 
     def _json_keys(self, table: str, field: str) -> list[str]:
-        """Return the object keys present in ``table.field``.
-
-        Guarded by ``jsonb_typeof(...) = 'object'``: ``jsonb_object_keys``
-        raises ``cannot call jsonb_object_keys on an array`` (or on a scalar)
-        for a single offending row, which aborted the whole run — mid-way
-        through it under ``--pertablecommit``.
-
-        Non-object rows are counted rather than ignored, because this command
-        exists to make data unreadable and a row it silently declines to
-        process is a row that stays readable.
-        """
         sql_field = SQL.identifier(field)
         sql_table = SQL.identifier(table)
         self.cr.execute(
@@ -441,11 +353,6 @@ class Obfuscate(DatabaseCommand):
         return [row[0] for row in self.cr.fetchall()]
 
     def _vacuum_tables(self, tables: dict[str, set[str]]) -> None:
-        """Run ``VACUUM FULL`` per table on a dedicated autocommit connection.
-
-        PostgreSQL refuses ``VACUUM`` inside a transaction block, so the pooled
-        cursor can't be reused.
-        """
         _logger.info("Vacuuming obfuscated tables")
         _, conn_info = connection_info_for(self.dbname)
         with psycopg.connect(**conn_info, autocommit=True) as vac_conn:
@@ -454,11 +361,6 @@ class Obfuscate(DatabaseCommand):
                 vac_conn.execute(SQL("VACUUM FULL %s", SQL.identifier(table)).code)
 
     def confirm_not_secure(self) -> bool:
-        """Prompt for double-confirmation of the destructive run.
-
-        Exits non-zero on cancel, so a pipeline (`obfuscate … && rsync …`)
-        won't go on to ship unencrypted data.
-        """
         _logger.info(
             "The obfuscate method is not considered as safe to transfer anonymous datas to a third party."
         )
@@ -477,10 +379,6 @@ class Obfuscate(DatabaseCommand):
         return True
 
     def _resolve_password(self, opt: argparse.Namespace) -> str:
-        """Resolve the cypher password from ``--pwd``, ``--pwd-file``, or an
-        interactive prompt, in that order. The prompt is preferred: ``--pwd``
-        exposes the password via process args and shell history.
-        """
         if opt.pwd:
             return opt.pwd
         if opt.pwd_file:
@@ -507,13 +405,6 @@ class Obfuscate(DatabaseCommand):
         return pwd
 
     def add_arguments(self) -> None:
-        """Declare the command's options on ``self.parser``.
-
-        In ``__init__`` rather than in ``run`` so the parser is complete on a
-        constructed command: a test (or a completion/doc generator) can read
-        the option set without executing an obfuscation run, and calling
-        ``run`` twice on one instance no longer raises ``ArgumentError``.
-        """
         parser = self.parser
         self.add_config_arguments(parser)
         pwd_group = parser.add_mutually_exclusive_group()
@@ -620,21 +511,11 @@ class Obfuscate(DatabaseCommand):
             self.cr = None
             self._field_kinds = None
             self._field_widths = None
-            # `_read_field_file` is memoized "once per path per run", but
-            # `functools.cache` keeps it for the process's lifetime: a second
-            # `Obfuscate().run()` with a changed `--file` would otherwise see
-            # the first run's stale content.
             _read_field_file.cache_clear()
 
     def _resolve_targets(
         self, opt: argparse.Namespace, pwd: str
     ) -> dict[str, set[str]]:
-        """Resolve the CLI selection into ``{table: {column, ...}}``.
-
-        Everything that can disqualify a column happens here, before a single
-        row is written: absent from the schema, an ``ir_*`` table, or (when
-        obfuscating) too narrow to hold ciphertext.
-        """
         try:
             fields = _select_fields(opt)
         except ValueError as e:
@@ -647,11 +528,6 @@ class Obfuscate(DatabaseCommand):
             self._prefetch_field_kinds({t for t, _ in fields})
             absent = [f for f in fields if not self.check_field(f[0], f[1])]
             if absent:
-                # A default-list field missing because its module is not
-                # installed is the normal case on any small database — 17 of
-                # the 28 on a base-only one — and was reported at ERROR, which
-                # trained the reader to skip the line that also reports the
-                # typo they made in --fields.
                 self._report_absent(
                     [f for f in absent if f in requested], level=logging.ERROR
                 )
@@ -684,13 +560,6 @@ class Obfuscate(DatabaseCommand):
 
     @staticmethod
     def _explicitly_requested(opt: argparse.Namespace) -> set[tuple[str, str]]:
-        """The ``(table, column)`` pairs the user named, as opposed to the
-        ones that came from :data:`DEFAULT_FIELDS`.
-
-        Reuses ``_read_field_file``'s cache so ``--file`` is read once per run
-        rather than once here and once in ``_select_fields`` — and, more to the
-        point, so the two cannot disagree if the file changes underneath.
-        """
         requested: set[tuple[str, str]] = set()
         if opt.fields:
             requested |= {_parse_field_spec(f) for f in opt.fields.split(",")}
@@ -715,17 +584,6 @@ class Obfuscate(DatabaseCommand):
         pwd: str,
         requested: set[tuple[str, str]],
     ) -> list[tuple[str, str]]:
-        """Drop the columns whose ciphertext would not fit, and refuse to run
-        at all if the user named one of them.
-
-        The two are not the same request. A field from :data:`DEFAULT_FIELDS`
-        that happens to be narrow in this schema is a convenience list meeting
-        a local fact, and skipping it with a warning is the useful answer. A
-        field the user spelled out in ``--fields``/``--file`` is an
-        instruction, and quietly not obfuscating a column somebody asked to
-        obfuscate is how unprotected data gets shipped believing otherwise —
-        so that one stops the run before anything is written.
-        """
         unfittable = self.find_unfittable_fields(fields, pwd)
         if not unfittable:
             return fields

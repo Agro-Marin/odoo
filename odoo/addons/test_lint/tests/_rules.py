@@ -1,15 +1,3 @@
-"""What the Python scan looks for: one definition per rule.
-
-A rule used to be spelled in six places -- `_py_scan.RULES`, `_py_scan._CHECKERS`,
-`_suppression.RULE_ALIASES`, `test_python_lint.FLOORS`, `test_python_lint._ADVICE`
-and `ruff.toml`'s `lint.external` -- and three tests existed for no purpose other
-than keeping the copies agreeing with each other. It is spelled once here. The
-floor is the seventh copy and it does not live in Python at all any more; see
-`lint_case.LintCase.assert_ratchet`.
-
-This module is the vocabulary; `_py_scan` is the engine that applies it.
-"""
-
 import ast
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
@@ -66,9 +54,6 @@ def is_test_path(path: str) -> bool:
     return any(part == "tests" or part.startswith("test_") for part in path.split("/"))
 
 
-#: Statements that own a block. A finding anchored on one of their header lines
-#: must NOT be waivable from anywhere inside the block: a directive halfway down
-#: a function body would otherwise silence a finding reported against the `def`.
 _COMPOUND = (
     ast.FunctionDef,
     ast.AsyncFunctionDef,
@@ -85,10 +70,6 @@ _COMPOUND = (
 
 
 def statement_spans(nodes: list[ast.AST]) -> dict[int, int]:
-    """`{first line: last line}` for the statement starting on each line.
-
-    What a developer means by "this line" when a call is wrapped over several.
-    """
     spans: dict[int, int] = {}
     for node in nodes:
         start = getattr(node, "lineno", None)
@@ -101,20 +82,6 @@ def statement_spans(nodes: list[ast.AST]) -> dict[int, int]:
 
 
 def directive_lines(spans: dict[int, int], lineno: int) -> set[int]:
-    """Every line a directive waiving a finding at `lineno` may be written on.
-
-    Three placements, all of which a developer means and only the first of which
-    used to work:
-
-        self.env.cr.execute(f"S {t}")            # noqa -- on the finding itself
-        self.env.cr.execute(                     # noqa -- opening the statement
-            f"S {t}"
-        )                                        # noqa -- closing it
-
-    The second is not hypothetical: `geoengine/models/geo_domain.py:221` waives
-    `sql-injection` on the opening line of a wrapped `SQL(...)`, the finding is
-    reported against the nested call on 222, and the waiver did nothing at all.
-    """
     lines = {lineno}
     for start, end in spans.items():
         if start <= lineno <= end:
@@ -137,15 +104,6 @@ def walk_with_parents(tree: ast.AST) -> list[ast.AST]:
 
 @dataclass(frozen=True, slots=True)
 class Rule:
-    """A reportable finding kind.
-
-    `gate` names the ratchet baseline that holds its floor. A rule with no
-    baseline file has a floor of zero, which is the right default: a rule nobody
-    has had to grant debt to is a rule at zero, and promoting it costs an
-    explicit `ratchet.py <gate> --count N --update --note '…'` that shows up in
-    review.
-    """
-
     name: str
     code: str
     advice: str
@@ -262,12 +220,6 @@ ALIASES: dict[str, frozenset[str]] = {
     rule.name: frozenset(alias.lower() for alias in rule.aliases) for rule in RULES
 }
 
-#: Rules that no directive may silence. `noqa-rationale` is the rule that asks a
-#: waiver for its reason, so a bare waiver must not answer it; `unreadable-source`
-#: reports a file whose directives could not be read in the first place.
-#:
-#: The marker is spelled without its hash on purpose -- ruff parses one inside a
-#: comment as a directive and warns on every run (21f15d70388 fixed the same trap).
 UNSUPPRESSABLE = frozenset({"noqa-rationale", "unreadable-source"})
 
 
@@ -329,12 +281,6 @@ def _in_an_addon(unit: Unit) -> bool:
 
 @dataclass(frozen=True, slots=True)
 class Checker:
-    """One pass over a `Unit`, emitting violations for one or more rules.
-
-    `rules` is every rule the pass can emit. When it is a single rule the
-    violations need not carry a `rule` attribute; the engine tags them.
-    """
-
     run: Callable[[Unit], Iterable]
     applies_to: Callable[[Unit], bool]
     rules: frozenset[str]
@@ -369,10 +315,6 @@ CHECKERS: tuple[Checker, ...] = (
     Checker(_tax_company, _anywhere, frozenset({"tax-company-singular"})),
 )
 
-#: Rules produced by something other than a `Checker` over a single `Unit`:
-#: `unique-over-translated-column` needs every unit at once (a model's translated
-#: fields may be declared in another file), and `unreadable-source` is emitted by
-#: the engine when a unit cannot be built at all.
 CROSS_UNIT_RULES = frozenset({"unique-over-translated-column", "unreadable-source"})
 
 EMITTED = frozenset(rule for checker in CHECKERS for rule in checker.rules)

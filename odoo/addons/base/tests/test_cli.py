@@ -1703,9 +1703,7 @@ class TestCommand(BaseCase):
         from odoo.cli.i18n import I18n
 
         cmd = I18n()
-        parsed = cmd.parser.parse_args(
-            ["export", "base", "-l", "pot", "-l", "es_MX"]
-        )
+        parsed = cmd.parser.parse_args(["export", "base", "-l", "pot", "-l", "es_MX"])
         before = list(parsed.languages)
         with mock.patch("odoo.cli.i18n.odoo_env", side_effect=RuntimeError("stop")):
             with self.assertRaises((RuntimeError, SystemExit)):

@@ -64,10 +64,16 @@ _esbuild_circuit = EsbuildCircuit()
 
 class _BuildDeclined(Exception):
     pass
+
+
 class _EsmFallbackError(_BuildDeclined):
     pass
+
+
 class _StandaloneBundleDeclined(_BuildDeclined):
     pass
+
+
 class EsbuildBundleError(RuntimeError):
     pass
 

@@ -12,10 +12,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         )
 
     def _create_related_fixtures(self):
-        """Shared bar/foo/base fixture used by test_related and the two
-        test_groupby_chain_fnames_* tests: two bars (bar_a, bar_false),
-        four foos (one per bar plus two with name=False), five base
-        records referencing them. Returns (bars, foos)."""
         RelatedBar = self.env["test_read_group.related_bar"]
         RelatedFoo = self.env["test_read_group.related_foo"]
         RelatedBase = self.env["test_read_group.related_base"]
@@ -1434,11 +1430,6 @@ class TestPrivateReadGroup(common.TransactionCase):
                 RelatedBase._read_group([], ["foo_id_bar_id_name"], ["__count"]),
                 [("bar_a", 3), (False, 2)],
             )
-            # foo_id_bar_name (related_sudo=False) and foo_id_bar_name_sudo
-            # (default related_sudo=True) exist specifically to test the
-            # sudo bypass on a related field chain; assert their data too,
-            # not just their SQL shape, so a regression in that bypass is
-            # actually caught here.
             self.assertEqual(
                 RelatedBase._read_group([], ["foo_id_bar_name"], ["__count"]),
                 [("bar_a", 3), (False, 2)],

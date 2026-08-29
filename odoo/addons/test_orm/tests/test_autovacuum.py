@@ -15,10 +15,6 @@ class TestAutovacuum(common.TransactionCase):
         self.assertFalse(instance.exists())
 
     def test_gc_proper_respects_the_limit_and_reports_remaining(self):
-        # _gc_proper demonstrates the (done, remaining) batching/re-queue
-        # protocol consumed by ir.autovacuum._run_vacuum_cleaner: called
-        # directly (not via the cron, which would also run _gc_simple and
-        # delete everything unconditionally, masking the limit behavior).
         Model = self.env["test_orm.autovacuumed"]
         expired = Model.create(
             [{"expire_at": datetime.now() - timedelta(days=15)} for _ in range(8)]

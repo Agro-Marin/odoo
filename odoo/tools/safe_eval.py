@@ -317,7 +317,6 @@ _field_name_split = string._string.formatter_field_name_split
 
 
 def _reject_attribute_fields(field_name: str) -> None:
-    """Refuse ``{0.attr}``. Indexing -- ``{0[key]}`` -- stays allowed."""
     _first, rest = _field_name_split(field_name)
     for is_attr, key in rest:
         if is_attr:
@@ -327,28 +326,12 @@ def _reject_attribute_fields(field_name: str) -> None:
 
 
 class _StrictFormatter(string.Formatter):
-    """``str.format`` semantics, minus attribute access.
-
-    The rejection lives in ``get_field`` rather than in a scan of the template
-    because ``vformat`` recurses into a *nested* replacement field -- the one in
-    ``{0:{1.attr}}`` is only ever seen by ``get_field``. A pre-scan of the
-    template with ``Formatter.parse`` does not descend into a format spec, so it
-    reads that payload as an opaque string and lets it through.
-    """
-
     def get_field(self, field_name, args, kwargs):
         _reject_attribute_fields(field_name)
         return super().get_field(field_name, args, kwargs)
 
 
 class _StrictEscapeFormatter(EscapeFormatter):
-    """:class:`_StrictFormatter` for a receiver that escapes its own output.
-
-    ``Markup.format`` runs markupsafe's ``EscapeFormatter``; formatting a
-    ``Markup`` through the plain formatter would silently drop the escaping,
-    turning a guard against attribute reads into an injection.
-    """
-
     def get_field(self, field_name, args, kwargs):
         _reject_attribute_fields(field_name)
         return super().get_field(field_name, args, kwargs)
@@ -368,15 +351,6 @@ class _GuardedStr(str):
 
 
 class _GuardedFormat:
-    """Guards ``.format`` on a receiver while preserving what it *is*.
-
-    The receiver cannot simply be rebuilt as a :class:`_GuardedStr`: every
-    ``str`` subclass in an evaluation context would lose its behaviour, and
-    ``markupsafe.Markup`` -- what every ``html`` field reads back as -- would
-    lose its auto-escaping. So the guard wraps rather than converts, and hands
-    the value to the formatter its own type would have used.
-    """
-
     __slots__ = ("_recv",)
 
     def __init__(self, recv: str) -> None:
@@ -398,11 +372,6 @@ class _GuardedFormat:
 
 
 def _guard_format(recv: typing.Any) -> typing.Any:
-    # isinstance, not `type(recv) is str`: a str *subclass* is the case that
-    # matters. `assert_no_dunder_format_field` only reads the template out of
-    # co_consts, so it covers a literal written in the expression and nothing
-    # else; a Markup reached through an ordinary field read arrives here, and
-    # under an exact-type test went through unguarded.
     if isinstance(recv, str):
         return _GuardedFormat(recv)
     if isinstance(recv, type) and issubclass(recv, str):
@@ -475,16 +444,10 @@ def compile_codeobj(
     mode: typing.Literal["eval", "exec"] = "eval",
     guard_format: bool = False,
 ) -> CodeType:
-    # Not an assert: `-O` strips those, and this is a sandbox entry point whose
-    # whole job is refusing input. A mode the compiler does not know would
-    # otherwise reach `compile()` unchecked.
     if mode not in ("eval", "exec"):
         msg = f"compile_codeobj() mode must be 'eval' or 'exec', not {mode!r}"
         raise ValueError(msg)
     try:
-        # `compile()` takes bytes, but everything below reads `expr` as text --
-        # `"format" in expr` raised TypeError on the bytes the signature
-        # advertised, so the bytes branch had never worked. Decode once, here.
         if isinstance(expr, (bytes, bytearray)):
             expr = expr.decode()
         if mode == "eval":
@@ -565,30 +528,6 @@ _BUBBLEUP_EXCEPTIONS = (
 
 
 def _is_classified_db_error(exc: BaseException) -> bool:
-    """True for a database error the framework already has a policy for.
-
-    Wrapping one in ``ValueError`` below destroys the class every one of those
-    policies keys on, and the list above only covered the subset that happens to
-    be an ``OperationalError``. Measured, raised from inside evaluated code:
-    ``SerializationFailure``, ``DeadlockDetected`` and ``LockNotAvailable``
-    survived, while ``UniqueViolation``, ``ForeignKeyViolation``,
-    ``ReadOnlySqlTransaction`` and ``FeatureNotSupported`` did not -- so a
-    constraint violated by a server action reached the user as
-    ``ValueError: UniqueViolation(...) while evaluating ...`` instead of the
-    ``ValidationError`` ``retrying()`` translates it into, and a stale cached
-    plan could not be retried at all.
-
-    The taxonomy is read out of ``sys.modules`` rather than imported, and that
-    is deliberate rather than lazy. ``odoo.db``'s package ``__init__`` imports
-    ``odoo.tools``, so importing ``odoo.db.errors`` from here is a cycle --
-    measured, ``ImportError: cannot import name 'SQL' from 'odoo.tools'`` from a
-    partially initialised module. Raising THAT from inside an exception handler
-    would replace the database error being reported with an import error, which
-    is a worse failure than the one this function exists to prevent. A lookup
-    cannot fail, costs nothing, and a running server always has the module
-    loaded (``odoo.db`` is imported during startup). Anywhere it genuinely is
-    not, this returns False and the wrapper behaves exactly as it did before.
-    """
     errors = sys.modules.get("odoo.db.errors")
     if errors is None:
         return False
@@ -610,17 +549,10 @@ def safe_eval(
     mode: typing.Literal["eval", "exec"] = "eval",
     filename: str | None = None,
 ) -> typing.Any:
-    # `isinstance`, and the annotation admits it: the parameter is typed
-    # `str | bytes`, so under an exact-type test mypy reads this as unreachable
-    # and the check reads as dead -- while the callers it defends against are
-    # the unannotated ones passing whatever they hold.
     if isinstance(expr, CodeType):
         msg = "safe_eval does not allow direct evaluation of code objects."
         raise TypeError(msg)
 
-    # Not an assert, for the same reason as `mode` above. `type() is dict`
-    # rather than isinstance stays deliberate: a dict *subclass* can override
-    # __getitem__, and this mapping becomes the evaluated code's globals.
     if context is not None and type(context) is not dict:
         msg = f"safe_eval() context must be a dict, not {type(context).__name__}"
         raise TypeError(msg)
@@ -681,20 +613,6 @@ _CONTAINERS = (*_MAPPINGS, list, tuple, set, frozenset, collections.deque)
 
 
 def _check_module(value: object, seen: set[int] | None = None) -> None:
-    """Refuse a module reachable from ``value`` through plain data.
-
-    "Plain data" is the whole contract, and it is narrower than it looks: only
-    the carriers in ``_CONTAINERS`` are walked. Two omissions are deliberate.
-
-    Arbitrary iterables are not walked, because walking consumes them -- an
-    iterator handed in would arrive empty at the template that asked for it.
-
-    Object attributes are not walked, because evaluation contexts carry
-    recordsets, and reaching through their attributes would trigger database
-    reads via ``__getattr__``/prefetch. So a module held as an attribute of an
-    arbitrary object does still reach the context; none of the wrapped modules
-    this package exposes holds one.
-    """
     if isinstance(value, _UNSEARCHABLE):
         return
     if isinstance(value, types.ModuleType):

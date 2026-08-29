@@ -2,23 +2,12 @@ from odoo.tests import TransactionCase
 
 
 class One2manyReadGroupingCase(TransactionCase):
-    """``One2many.read`` groups lines from the inverse's cache.
-
-    It used to iterate the line recordset and read ``line[inverse]`` through
-    the descriptor, allocating two objects per line to fetch a value already in
-    a dict. Grouping from the cache is the same answer for a stored inverse and
-    needs a per-line fallback for the two shapes that are not stored, so all
-    three are exercised here.
-    """
-
     def _assert_matches_the_descriptor(self, records, fname):
         field = records._fields[fname]
         inverse = records.env[field.comodel_name]._fields[field.inverse_name]
         self.env.invalidate_all()
         from_cache = {r.id: r[fname].ids for r in records}
         self.env.invalidate_all()
-        # force every line through the descriptor by emptying the inverse cache
-        # right before the grouping runs
         one_by_one = {}
         for record in records:
             lines = record.env[field.comodel_name].search(

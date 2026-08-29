@@ -51,21 +51,6 @@ class FunctionStatus(enum.IntEnum):
 
 
 def has_unaccent(cr: BaseCursor) -> FunctionStatus:
-    """Report whether `unaccent(text)` exists, and whether an index may call it.
-
-    Lives here, beside `table_exists`, because it is catalog introspection and
-    nothing else. It used to sit in `modules/db.py`, next to the code that
-    seeds `ir_module_module` from manifests, which it has nothing to do with --
-    and every consumer paid for the address: `modules/db.py` imports
-    `modules/registry.py`, which re-exports `Registry` from `odoo.orm.runtime`,
-    so `from odoo.modules.db import FunctionStatus` pulled 236 modules and 58ms
-    to reach a three-member enum. That cycle is also why each of the five
-    consumers in `odoo/orm/` had written its import function-local or under
-    TYPE_CHECKING; from here they are ordinary top-level imports.
-
-    Not on the registry that consumes it, because `_create_empty_database`
-    probes a raw cursor on a database that has no registry yet.
-    """
     cr.execute("""
         SELECT p.provolatile
         FROM pg_proc p

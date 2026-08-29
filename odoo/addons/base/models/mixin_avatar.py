@@ -28,7 +28,6 @@ class MixinAvatar(models.AbstractModel):
     avatar_256 = fields.Image("Avatar 256", compute="_compute_avatar_256")
     avatar_128 = fields.Image("Avatar 128", compute="_compute_avatar_128")
 
-
     @api.depends(lambda self: [self._avatar_name_field, "image_1920"])
     def _compute_avatar_1920(self) -> None:
         self._update_avatar("avatar_1920", "image_1920")
@@ -48,7 +47,6 @@ class MixinAvatar(models.AbstractModel):
     @api.depends(lambda self: [self._avatar_name_field, "image_128"])
     def _compute_avatar_128(self) -> None:
         self._update_avatar("avatar_128", "image_128")
-
 
     def _update_avatar(self, avatar_field: _FieldName, image_field: _FieldName) -> None:
         for record in self:

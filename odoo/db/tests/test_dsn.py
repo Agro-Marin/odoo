@@ -130,18 +130,6 @@ if __name__ == "__main__":
 
 
 class TestConnectErrorTranslationIsLocaleAware(unittest.TestCase):
-    """libpq gives connect failures no SQLSTATE (`sqlstate` and `diag` are both
-    None), so the message is the only signal -- and PostgreSQL translates it.
-    This workspace's server runs `lc_messages = es_ES.UTF-8`.
-
-    What can be made locale-proof is made locale-proof: `pg_hba.conf` is a
-    filename and survives every catalogue.  What cannot is stated, and measured:
-    an unrecognised auth failure costs the full `db_borrow_timeout` (30.00 s)
-    instead of 0.02 s.  The missing-database case does not depend on the text at
-    all, because `_probe_connectable` falls back to `_database_absent`, which
-    asks `pg_database`.
-    """
-
     PG_HBA_IN_FOUR_LANGUAGES = (
         ('FATAL:  no pg_hba.conf entry for host "1.2.3.4"'),
         (

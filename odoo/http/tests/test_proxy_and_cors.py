@@ -1,13 +1,3 @@
-"""Two things the HTTP layer told the outside world, and got wrong.
-
-* how many reverse proxies it trusts — pinned at one, with no way to say
-  otherwise, so behind two the client address read back is the inner proxy's
-  and every rule keyed on it sees one address for the whole internet;
-* which response headers a cross-origin caller may read — nothing emitted
-  ``Access-Control-Expose-Headers``, so a ``cors=`` route's own headers were
-  invisible to the JavaScript that asked for them.
-"""
-
 import types
 from typing import Any
 
@@ -48,28 +38,18 @@ def _noop(status, headers):
     ],
 )
 def test_the_trusted_hop_count_decides_the_client_address(hops, expected):
-    # X-Forwarded-For: <client>, <outer proxy>, <inner proxy>
     environ = _environ("198.51.100.4, 203.0.113.7, 10.9.9.9")
     _get_proxy_fix(hops)(environ, _noop)
     assert environ["REMOTE_ADDR"] == expected
 
 
 def test_asking_for_more_hops_than_the_header_holds_keeps_the_direct_peer():
-    # werkzeug returns None rather than the first entry when the chain is
-    # shorter than the trusted count, so an over-count degrades to the socket
-    # address instead of believing a stranger.
     environ = _environ("203.0.113.7, 10.9.9.9")
     _get_proxy_fix(9)(environ, _noop)
     assert environ["REMOTE_ADDR"] == "10.0.0.1"
 
 
 def test_over_counting_the_chain_is_still_forgeable_and_that_is_the_hazard():
-    # One real proxy, but the server is told to trust three. A client that
-    # sends two entries of its own makes the header
-    #   <forged>, <forged>, <its real address appended by the proxy>
-    # and the third-from-last is whatever it wanted. This is why the option's
-    # help says to count the proxies that actually rewrite the header, and why
-    # the default stays 1.
     environ = _environ("192.0.2.1, 192.0.2.2")
     environ["HTTP_X_FORWARDED_FOR"] += ", 10.9.9.9"
     _get_proxy_fix(3)(environ, _noop)
@@ -205,23 +185,14 @@ def test_the_abstract_dispatcher_still_declares_no_expose_headers():
 
 
 def test_cors_methods_resolves_each_step_with_is_none():
-    """`Access-Control-Allow-Methods` must not widen an empty declaration.
-
-    The old `dispatcher_methods or routing["methods"] or CORS_DEFAULT` chain read
-    an EMPTY collection as "not set" and fell through, so a dispatcher or route
-    that exposes no methods over CORS advertised GET, POST instead.
-    """
     from odoo.http.constants import CORS_DEFAULT_ALLOWED_METHODS
     from odoo.http.dispatcher import _cors_methods
 
-    # nothing declared anywhere -> the CORS default
     assert tuple(_cors_methods(None, {})) == tuple(CORS_DEFAULT_ALLOWED_METHODS)
     assert tuple(_cors_methods(None, {"methods": None})) == tuple(
         CORS_DEFAULT_ALLOWED_METHODS
     )
-    # an empty declaration is honoured at either level, not widened
     assert tuple(_cors_methods((), {"methods": ("PUT",)})) == ()
     assert tuple(_cors_methods(None, {"methods": ()})) == ()
-    # a real declaration still wins, dispatcher over route
     assert tuple(_cors_methods(("POST",), {"methods": ("PUT",)})) == ("POST",)
     assert tuple(_cors_methods(None, {"methods": ("PUT",)})) == ("PUT",)

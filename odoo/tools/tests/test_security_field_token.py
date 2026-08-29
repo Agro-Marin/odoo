@@ -13,15 +13,6 @@ class _FakeConfigParam:
 
 
 class _FakeEnv:
-    """`hmac` sudoes itself, so the fake env must answer `env(su=True)`.
-
-    `database.secret` is a server-side secret and never scoped to the reader,
-    but `get_param` runs `check_access` and the ACL grants
-    `ir.config_parameter` to `group_system` alone -- so before `hmac` sudoed
-    internally, every caller had to remember `su=True` and a portal user got an
-    AccessError that no admin-run test could reproduce.
-    """
-
     def __init__(self, su=False):
         self.su = su
 

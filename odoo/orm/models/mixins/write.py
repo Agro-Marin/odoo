@@ -357,16 +357,6 @@ class WriteMixin(_ModelStubs):
     def _update_rows_uniform_sql(
         self, fnames: tuple[str, ...], ids: list[int], values: tuple
     ) -> None:
-        """One statement for every id sharing one value tuple.
-
-        The whole group in one statement instead of ``ceil(n / 100)`` of them,
-        each carrying the value once rather than once per row, and with a query
-        string that does not vary with the row count.
-        """
-        # `values[index]`, not `values[fnames.index(fname)]`: the loop that
-        # calls this already knows the position, and searching for it made the
-        # assignment build O(len(fnames)^2) -- with a wrong answer waiting for
-        # the day two columns share a name.
         _columns, assignments = self._update_assignments_sql(
             fnames,
             lambda index, _fname, _column, cast: SQL("%s::%s", values[index], cast),

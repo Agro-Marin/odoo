@@ -17,12 +17,6 @@ _T_CALL_ASSETS_RE = re.compile(r"""t-call-assets=\\?["']([\w.]+)\\?["']""")
 
 
 def line_of(text: str, offset: int) -> int:
-    """The 1-based line holding `offset`.
-
-    Four gates spelled `text[: m.start()].count("\n") + 1` inline. It is O(n) per
-    match, which is fine on one file and is not the reason this is here -- four
-    copies of one expression is.
-    """
     return text.count("\n", 0, offset) + 1
 
 
@@ -71,14 +65,6 @@ def module_file_paths(modules: tuple[str, ...] | None = None) -> tuple[str, ...]
 
 
 def iter_module_files(*globs: str, modules=None):
-    """Every file under an addon whose full path matches all of `globs`.
-
-    The globs are `fnmatch`, NOT pathlib: `*` crosses `/`, so `"*.xml"` reaches
-    every depth and a leading `**/` buys nothing. Spelling one the pathlib way
-    silently narrows the scan -- `"**/static/**/*.xml"` requires a directory
-    between `static` and the file, and so missed every XML sitting directly in
-    `<module>/static/`. Match on a path fragment instead: `"*/static/*"`.
-    """
     for path in module_file_paths(None if modules is None else tuple(modules)):
         if all(fnmatch.fnmatch(path, glob) for glob in globs):
             yield path
@@ -116,12 +102,6 @@ def core_module_roots() -> list[str]:
 
 @functools.cache
 def _ratchet():
-    """`tooling/ratchet/ratchet.py`, loaded off the checkout beside us.
-
-    Imported by path rather than by name: `tooling/` is not a package on
-    `sys.path` under `odoo-bin`, and putting it there for one import would put
-    every other tooling module there too.
-    """
     import importlib.util
     import sys
 
@@ -131,9 +111,6 @@ def _ratchet():
     if spec is None or spec.loader is None:  # pragma: no cover - unreachable in-tree
         raise RuntimeError(f"cannot load the ratchet from {path}")
     module = importlib.util.module_from_spec(spec)
-    # Registered before execution: `ratchet.py` carries `from __future__ import
-    # annotations` and a dataclass whose field annotations name the class itself,
-    # and `dataclasses` resolves those through `sys.modules[cls.__module__]`.
     sys.modules[name] = module
     try:
         spec.loader.exec_module(module)
@@ -144,13 +121,6 @@ def _ratchet():
 
 
 def baseline_floor(gate: str) -> int:
-    """The committed floor for `gate`, or 0 when no baseline names it.
-
-    Absence means zero on purpose. A gate nobody has had to grant debt to is a
-    gate at zero, and promoting one costs an explicit
-    `ratchet.py <gate> --count N --update --note '…'`, which shows up in review.
-    `ratchet.py --list` is then the whole of this module's debt, in one place.
-    """
     baseline = _ratchet().Baseline.load(gate)
     return baseline.count if baseline else 0
 
@@ -163,14 +133,6 @@ class LintCase(BaseCase):
     def assert_ratchet(
         self, findings, gate: str, what: str, fix: str, *, exact: bool = True
     ) -> None:
-        """Hold `findings` at the floor committed for `gate`.
-
-        `gate` is a ratchet baseline name, never a number. A floor written into
-        Python is a number that drifts silently against a tree nobody
-        re-measures, and this module spent twenty-four of its last forty commits
-        proving it: they changed nothing here but an integer and the comment
-        above it.
-        """
         if not isinstance(gate, str):
             raise TypeError(
                 f"assert_ratchet takes a ratchet gate name, not {gate!r}. A floor "
@@ -203,11 +165,6 @@ class LintCase(BaseCase):
     @staticmethod
     @contextlib.contextmanager
     def superuser_env():
-        """A short-lived superuser environment on its own cursor.
-
-        Six modules spelled this out by hand. `LintCase` is a `BaseCase`, so
-        there is no `self.env` to borrow and each gate opens its own.
-        """
         with Registry(get_db_name()).cursor() as cr:
             yield api.Environment(cr, SUPERUSER_ID, {})
 
@@ -221,9 +178,6 @@ def _served_bundle_names(installed: frozenset[str], env) -> tuple[str, ...]:
     return cached
 
 
-#: Keyed on the installed set, which is what the answer depends on. Five gates
-#: call this and it re-walks every manifest and re-runs a raw SELECT over
-#: `ir_ui_view` each time.
 _SERVED_BUNDLES: dict[frozenset[str], tuple[str, ...]] = {}
 
 
@@ -262,13 +216,6 @@ def iter_registry_methods(registry=None):
         for method_name, _ in inspect.getmembers(model_cls, inspect.isroutine):
             if method_name.startswith("__"):
                 continue
-            # The class that DEFINES the method, most-derived first. Walking
-            # from the base end and stopping at the first class `getattr`
-            # answers on finds the most basic class that *has* the name, which
-            # for an overridden method is the one it overrides: the override is
-            # then keyed under its base and, once that pair is seen, never
-            # looked at again. `vars()` asks who declares it rather than who
-            # answers for it.
             for parent_class in model_cls.mro()[1:-1]:
                 if method_name not in vars(parent_class):
                     continue

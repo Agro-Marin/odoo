@@ -2278,12 +2278,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.env.invalidate_all()
 
-        # Reassigning the parent discussion must not raise despite the rule
-        # above scoping this non-superuser user to discussion_1 only (the
-        # write itself is checked against the record's pre-write, still
-        # rule-matching state), and `attributes` must recompute against the
-        # new parent's own definition (discussion_2's "state" selection,
-        # not discussion_1's "discussion_color_code"/"moderator_partner_id").
         message.discussion = self.discussion_2
         self.env.flush_all()
         self.assertEqual(message.attributes, {"state": "draft"})
@@ -2744,11 +2738,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.message_2.attributes = {"mypartner": self.partner_2.id}
         self.message_3.attributes = {"mypartner": False}
 
-        # Not self._search() for this whole method: SQL and filtered_domain
-        # disagree on many2one-property `in`/`not in` depending on registry
-        # state left by earlier tests (reproduced with PropertiesCase run
-        # before this class) — a real parity gap in odoo/orm/, out of this
-        # audit's scope (test_orm/ only). Tracked as Odoo task 26309.
         Message = self.env["test_orm.message"]
         messages = Message.search(
             [
@@ -2817,11 +2806,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             self.env["test_orm.message"], [("attributes.mytags", "not in", "b")]
         )
         self.assertEqual(messages, self.message_3)
-        # Not self._search(): SQL matches record 6 by `ilike` against the
-        # raw JSON encoding of the tags property, but filtered_domain's
-        # Python-side evaluation of the same condition does not — a real
-        # SQL/Python parity gap in odoo/orm/, out of this audit's scope
-        # (test_orm/ only). Tracked as Odoo task 26309.
         messages = self.env["test_orm.message"].search(
             [("attributes.mytags", "ilike", '["aa"]')]
         )
@@ -3474,9 +3458,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
         self._check_domains_count(result)
 
-        # Week boundaries always land on a day boundary, but a datetime
-        # property's extra_domain still spells them with a "00:00:00" time
-        # component that a plain "%Y-%m-%d" format can't parse.
         boundary_format = "%Y-%m-%d %H:%M:%S" if date_type == "datetime" else "%Y-%m-%d"
         for line in result[1:]:
             self.assertEqual(line["__extra_domain"][1][1], ">=")
@@ -4170,13 +4151,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.subtest_properties_field_web_read_group_date_like("datetime")
 
     def test_unfold_read_specification_on_web_read_group(self):
-        # Groups by a plain many2one (`author`), not a properties field —
-        # this predates the properties-groupby tests around it and checks
-        # `read_specification` unfolding on `test_orm.message` specifically,
-        # not `auto_unfold` itself (already covered generically in
-        # odoo/addons/test_read_group/tests/test_web_read_group.py). Kept
-        # here rather than moved: test_orm scope for this audit round
-        # doesn't extend to editing test_read_group.
         self.messages.discussion = self.discussion_1
         self.discussion_1.write({"participants": [Command.link(self.test_user.id)]})
         self.message_2.author = self.test_user
@@ -4458,18 +4432,6 @@ class PropertiesRecordsetWriteCase(TestPropertiesMixin):
 
 
 class PropertiesCallerIsolationCase(TestPropertiesMixin):
-    """Writing a Properties value must copy it, whatever mapping type it is.
-
-    `Properties.convert_to_cache` accepts anything `isinstance(value, dict)`
-    accepts, `_recordsets_to_ids` hands a value with no recordsets straight
-    back, and `fast_clone` is the only thing between the caller's object and
-    the field cache. While that clone dispatched on `PyDict_CheckExact`, a
-    `dict` SUBCLASS fell through every container branch to the
-    share-by-reference tail and the cache ended up holding the caller's own
-    live object — so mutating your own dict after the write silently rewrote
-    the record.
-    """
-
     def _write_and_mutate(self, payload, mutate):
         self.discussion_1.attributes_definition = [
             {"name": "note", "string": "Note", "type": "char"},
@@ -4513,14 +4475,6 @@ class PropertiesCallerIsolationCase(TestPropertiesMixin):
 
 
 class PropertiesDefinitionRoundTripCase(TestPropertiesMixin):
-    """What ``write()`` accepts, a read must give back.
-
-    ``convert_to_record`` drops any definition entry whose ``name`` or ``type``
-    is falsy, so a definition the validator lets through with an empty ``type``
-    was stored and then read back as ``[]`` -- a silent, total loss of the
-    field's value. The validator now applies that same truthiness test.
-    """
-
     def _definition_entry(self, **overrides):
         entry = {"name": "prop_a", "type": "char", "string": "A"}
         entry.update(overrides)

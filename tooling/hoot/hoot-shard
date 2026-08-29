@@ -1,44 +1,13 @@
 #!/bin/sh
-# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
 # fmt: off
 ''':'
-# Self-locating sh/python trampoline: re-exec this file with the workspace venv
-# interpreter. The logic is shared — see tooling/_trampoline.sh.
 _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
 # fmt: on
 
-__doc__ = """Parallel shard wrapper around the warm-server ``hoot`` runner.
-
-HOOT runs a suite's tests *serially inside one browser page*, so a single
-``hoot`` invocation's wall-clock is just the sum of its tests. This wrapper
-partitions the requested suites into N balanced shards and runs N ``hoot``
-invocations **concurrently**, each against its own warm database (the runner
-auto-picks a free port and auto-creates/installs ``web`` per DB, and its
-lifecycle is explicitly per-DB so concurrent warm servers never collide). On a
-many-core box this turns a ~10 min full-web run into a ~2-3 min one.
-
-Balancing uses a per-suite runtime table (``data/hoot_shard_weights.json``
-beside this script, seeded from observed timings) and longest-processing-time (LPT)
-bin-packing, so the slowest suites are spread across shards instead of piling
-onto one.
-
-Examples
---------
-  hoot-shard                          # full web suite, auto shard count, desktop
-  hoot-shard -j 4                     # force 4 shards
-  hoot-shard --preset mobile          # full web suite on mobile
-  hoot-shard '@web/views/fields' '@web/webclient' '@web/core'   # only these
-  hoot-shard --plan                   # print the partition and exit (no run)
-  hoot-shard --calibrate              # time each suite solo, refresh weights
-  hoot-shard --stop                   # stop every shard's warm server
-
-Shard 0 reuses the canonical ``hoot_web`` DB (so an already-warm server is
-reused); shards 1..N-1 use ``hoot_web_s1`` .. ``hoot_web_s{N-1}`` (created +
-``web``-installed once, in parallel, on first use).
-"""
+__doc__ = None
 
 import argparse
 import contextlib
@@ -181,10 +150,6 @@ def hoot_cmd(extra: list[str]) -> list[str]:
     return [sys.executable, str(HOOT), *extra]
 
 
-# VOID is not a result: `hoot` prints it when the warm server it ran against
-# was gone by the end of the run, which makes every test still to configure
-# its MockServer fail on a fetch. Parsed so a shard can say so instead of
-# reporting someone's dead server as that shard's failures.
 RE_SUMMARY = re.compile(r"^(PASS|FAIL|WARN|VOID)\s+(.*?)\s+\((.+)\)\s*$")
 RE_FAILED = re.compile(r"(\d+)\s+failed")
 RE_PASSED = re.compile(r"(\d+)\s+passed")

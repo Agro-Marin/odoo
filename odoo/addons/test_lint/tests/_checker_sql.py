@@ -3,17 +3,8 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-#: Receivers whose `.execute()` is a database call. Spelled as a shape rather
-#: than as a list of seven exact strings: the list missed `request.env.cr` (9
-#: call sites), `model.env.cr` (7), a bare `cursor` (5) and every
-#: `with ... as cron_cr:`, which is an ordinary controller and cron idiom. It
-#: costs nothing today -- widening the rule adds 0 findings, and treating EVERY
-#: receiver as a cursor adds only 4 -- so this closes a latent hole, not an open
-#: one.
 _CURSOR_SUFFIXES = (".cr", "._cr", "_cr")
 _CURSOR_NAMES = frozenset({"cr", "_cr", "cursor"})
-#: `tools.SQL(...)` / `odoo.tools.SQL(...)` are not cursors but build the same
-#: strings, and are checked by the same rule.
 _SQL_BUILDERS = frozenset({"odoo.tools", "tools"})
 
 
@@ -65,12 +56,6 @@ class Violation:
 class SqlInjectionChecker:
     filepath: str
 
-    # Keyed by (enclosing class name, method/function name), not by bare name:
-    # two unrelated classes in the same file are free to name a method the
-    # same thing (`_query`, `_domain`, ...), and a bare-name key merged them,
-    # so a safe call in one class could be flagged -- or a risky one waved
-    # through -- because of an unrelated same-named method elsewhere in the
-    # file. `None` as the class component means a module-level function.
     _function_defs: dict[tuple[str | None, str], list[ast.FunctionDef]] = field(
         default_factory=lambda: defaultdict(list),
         init=False,
@@ -107,18 +92,6 @@ class SqlInjectionChecker:
             yield Violation(node.lineno, node.col_offset)
 
     def _visit_functiondef(self, node: ast.FunctionDef) -> Iterator[Violation]:
-        """One violation for a helper that builds a query, however often it is used.
-
-        This used to yield once per RECORDED CALL SITE, all of them anchored at
-        the same `def` line and column, so one helper called ten times counted as
-        ten offences against the floor -- and `_callsites` records some calls
-        twice, which inflated it further. `sale_oyb_wizard.py:736` was ten of
-        agromarin's twenty-two. The fix is one fix; the count now says one, and
-        the message names every distinct call site instead of one per row.
-
-        Two findings that really are on the same LINE stay two: they differ by
-        column, which is what `Finding.col_offset` carries.
-        """
         key = (self._enclosing_class_name(node), node.name)
         self._function_defs[key].append(node)
 
@@ -557,12 +530,6 @@ class SqlInjectionChecker:
 
     @staticmethod
     def _enclosing_class_name(node: ast.AST) -> str | None:
-        """The name of the nearest enclosing class, or `None` at module level.
-
-        Used to key `_function_defs`/`_callsites` by class as well as by name,
-        so a method in one class does not get merged with an unrelated
-        same-named method in another class in the same file.
-        """
         current = getattr(node, "_parent", None)
         while current is not None:
             if isinstance(current, ast.ClassDef):

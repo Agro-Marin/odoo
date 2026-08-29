@@ -1,10 +1,3 @@
-"""Parse a human-typed or machine-extracted decimal amount.
-
-The separators are guessed from the string's own structure, never from a locale, so the
-same reading applies to a value an accountant typed and to one captured out of a bank
-statement label.
-"""
-
 import math
 import re
 
@@ -37,11 +30,11 @@ def _split(amount_str: str) -> tuple[str, str] | None:
 
     match (commas, dots):
         case (0, 0):
-            tsep, dsep = ",", "."  # '1334'
+            tsep, dsep = ",", "."
         case (c, 0) if c > 1:
-            tsep, dsep = ",", "."  # '1,334,567'
+            tsep, dsep = ",", "."
         case (0, d) if d > 1:
-            tsep, dsep = ".", ","  # '1.334.567'
+            tsep, dsep = ".", ","
         case (c, 1) if c > 1:
             tsep, dsep = ",", "."
         case (1, d) if d > 1:
@@ -53,13 +46,13 @@ def _split(amount_str: str) -> tuple[str, str] | None:
         case (0, 1) if _is_solitary_group(
             amount_str[:last_dot], dot_distance, has_grouping
         ):
-            tsep, dsep = ".", ","  # best possible assumption
+            tsep, dsep = ".", ","
         case (0, 1):
             tsep, dsep = ",", "."
         case (1, 0) if _is_solitary_group(
             amount_str[:last_comma], comma_distance, has_grouping
         ):
-            tsep, dsep = ",", "."  # best possible assumption
+            tsep, dsep = ",", "."
         case (1, 0):
             tsep, dsep = ".", ","
         case _:
@@ -77,27 +70,12 @@ def _split(amount_str: str) -> tuple[str, str] | None:
 
 
 def split_amount_str(amount_str: str) -> tuple[str, str]:
-    """Split a localized amount string into its integer and decimal parts.
-
-    :param amount_str: the amount string to parse
-    :return: tuple of (int_part, dec_part) as strings, ('0', '0') when the string is
-             empty or its separators are ambiguous
-    """
     if not amount_str:
         return ("0", "0")
     return _split(amount_str) or ("0", "0")
 
 
 def parse_amount(amount_str: str | None) -> float | None:
-    """Read a decimal amount out of a string, tolerating either separator convention.
-
-    Unlike ``float()`` this accepts the groupings and the comma decimal separator most of
-    the world writes, and rejects the non-finite literals ``float()`` silently accepts
-    (``inf``, ``nan``, and any magnitude that overflows to infinity).
-
-    :param amount_str: the amount string to parse
-    :return: the amount, or None when the string is not a finite decimal number
-    """
     if not amount_str:
         return None
     sign, body = _SIGN_RE.match(amount_str).groups()  # type: ignore[union-attr]

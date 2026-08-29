@@ -119,15 +119,6 @@ def resolve_translated(infos: list[ClassInfo]) -> dict[str, set[str]]:
         own.setdefault(info.model, set()).update(info.translated)
         parents.setdefault(info.model, set()).update(info.parents)
 
-    # A recursive walk that caches a model's result as soon as its *immediate*
-    # parents are not on the active call stack isn't enough: in a cycle of
-    # length >= 3, the middle node finishes and gets cached before the cycle
-    # closes, with an incomplete field set that's never corrected. A
-    # fixed-point closure sidesteps the problem instead of chasing it: start
-    # every model at its own fields and keep merging each parent's current
-    # fields in until nothing changes. A real cycle (illegal for a real Odoo
-    # `_inherit` graph, but possible in this checker's own input) converges
-    # every member to the same union rather than caching a stale fragment.
     resolved: dict[str, set[str]] = {
         model: set(fields_) for model, fields_ in own.items()
     }

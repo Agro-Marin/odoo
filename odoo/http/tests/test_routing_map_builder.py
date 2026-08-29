@@ -1,14 +1,3 @@
-"""The two maps the framework serves from are assembled by one function.
-
-``Application.nodb_routing_map`` and ``ir.http.routing_map`` used to each spell
-the same four steps: a ``Map(strict_slashes=False)``, a :class:`FasterRule` per
-pair, ``rule_routing_kwargs`` for the rule's own keywords, and
-``rule.merge_slashes = False``. The last one is the trap -- it is a *per-rule*
-flag that werkzeug defaults to ``True``, opposite in sign to the ``Map``
-keyword right above it, so a third caller reads ``strict_slashes=False`` and
-has no reason to look for it.
-"""
-
 import werkzeug.routing
 
 from odoo.http import build_routing_map
@@ -16,8 +5,6 @@ from odoo.http.routing import FasterRule
 
 
 class _Endpoint:
-    """A callable carrying ``.routing`` — the shape ``build_routing_map`` reads."""
-
     def __init__(self, url, **routing):
         self.url = url
         self.routing = {"routes": [url], "type": "http", **routing}

@@ -1,16 +1,3 @@
-"""One pass of a fixer over every core data file, shared by the gates that ask.
-
-`PrettyXmlLinter.test_xml_formatting` dry-ran the formatter over all 3939 data
-files and `TestFixersOverTheRepository.test_the_formatter_preserves_every_data_file`
-ran it for real over byte-identical copies. Measured side by side the two produce
-the *identical* 3641-file set -- 8.2s CPU each, and one of them was re-deriving
-what the other already knew.
-
-They read this instead. The pass runs on copies in a scratch directory, so it
-answers the dry-run question and the round-trip question at once without
-touching the tree.
-"""
-
 import functools
 import tempfile
 from dataclasses import dataclass, field
@@ -24,16 +11,9 @@ from .lint_case import core_data_files
 
 @dataclass(frozen=True, slots=True)
 class Sweep:
-    #: Files the fixer would rewrite -- the gate's debt.
     changed: list[str] = field(default_factory=list)
-    #: Files it refused, because the rewrite would not say the same thing. Safe,
-    #: but the gate can never report on them, so the set is pinned.
     declined: list[str] = field(default_factory=list)
-    #: Files that change *again* on a second pass, so the gate could never go
-    #: green on them however often you ran the fixer.
     unsettled: list[str] = field(default_factory=list)
-    #: Files that are not XML at all. They used to be dropped in silence by every
-    #: XML gate at once.
     unparseable: list[str] = field(default_factory=list)
     checked: int = 0
 

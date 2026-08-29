@@ -2200,14 +2200,6 @@ NEW_TAX_COLUMNS = ("fiscal_position_ids", "original_tax_ids")
 
 
 def tax_fieldnames(fieldnames: list[str], is_primary_tax: bool) -> list[str]:
-    """Header for a rewritten `account.tax-*.csv`.
-
-    Only the columns the file does not already carry. Appending them
-    unconditionally made a second run emit a header with
-    `fiscal_position_ids` and `original_tax_ids` twice, and `csv.DictReader`
-    keeps the last of each — so every earlier value was dropped. Nothing stops
-    a second run: the CLI keeps no record of what it has applied.
-    """
     existing = [fn for fn in fieldnames if fn]
     if not is_primary_tax:
         return existing
@@ -2217,12 +2209,6 @@ def tax_fieldnames(fieldnames: list[str], is_primary_tax: bool) -> list[str]:
 def tax_row_values(
     tax_row: dict[str, str], new_fp: str, new_alts: str
 ) -> dict[str, str]:
-    """A rewritten tax row, where a computed blank never overwrites a stored value.
-
-    On a second run the fiscal-position CSV has already lost the
-    `tax_ids/tax_src_id` columns this derivation reads, so both arguments come
-    back empty — and writing them would erase what the FIRST run derived.
-    """
     return {
         **tax_row,
         "fiscal_position_ids": new_fp or tax_row.get("fiscal_position_ids", ""),
@@ -2265,17 +2251,10 @@ def upgrade(file_manager: FileManager) -> None:
     for i, file in enumerate(fiscal_position_data_files, start=1):
         file_manager.print_progress(i, nb_fiscal_position_files, file.path)
 
-        # `addon.name`, not `parts[-4]`: the positional index is only right
-        # for the exact `<module>/data/template/<file>.csv` layout, while
-        # `FileAccessor.addon` is whatever the addons path resolved the
-        # module to. Both agree on all 264 files in this tree today.
         module_name = file.addon.name
         csv_file = csv.DictReader(file.content.splitlines())
         csv_data = list(csv_file)
         field_names = csv_file.fieldnames
-        # `fieldnames` is None for an empty file, and `x in None` is a TypeError
-        # that escapes `upgrade()` -- and since `migrate()` flushes only once
-        # every script has run, that discards the whole run's edits.
         if not field_names:
             continue
         if SRC_FIELD not in field_names or DEST_FIELD not in field_names:
@@ -2386,7 +2365,7 @@ def upgrade(file_manager: FileManager) -> None:
     for i, file in enumerate(tax_data_files, start=1):
         file_manager.print_progress(i, nb_tax_files, file.path)
 
-        module_name = file.addon.name  # see the loop above
+        module_name = file.addon.name
         coa_name = file.path.parts[-1].split("tax-")[1].replace(".csv", "")
         csv_file = csv.DictReader(file.content.splitlines())
         csv_data = list(csv_file)
@@ -2398,7 +2377,7 @@ def upgrade(file_manager: FileManager) -> None:
                 fpfile,
                 module_name,
             )
-        if not csv_file.fieldnames:  # empty file: see the loop above
+        if not csv_file.fieldnames:
             continue
         is_primary_tax = "name" in csv_file.fieldnames
         buffer = StringIO()

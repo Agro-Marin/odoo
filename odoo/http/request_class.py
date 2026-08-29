@@ -70,35 +70,11 @@ def _monodb_dblist_cached(_ttl_bucket: int, host: str) -> tuple[str, ...]:
 
 
 def _monodb_dblist(host: str) -> list[str]:
-    """The databases *host* may pick from when nothing else names one.
-
-    Reached by every request that carries neither a session database nor an
-    ``X-Odoo-Database`` header -- which is every anonymous website hit and
-    every request before login, the highest-volume path there is.
-
-    The *filtering* is cached, not only the catalogue it reads. ``db_filter``
-    walks the whole catalogue per call (``is_maintenance_db``, the dbfilter
-    regex, the ``db_name`` allow-list), so caching the catalogue alone left an
-    O(databases) scan on that path: 40us per request against 53 databases on
-    the machine this was measured on, and it grows with the server.
-    """
     try:
         return list(
             _monodb_dblist_cached(int(time.time() // DB_MONODB_CACHE_TTL), host)
         )
     except psycopg.Error:
-        # An empty list here is indistinguishable, to every caller, from "this
-        # instance serves no database": the monodb rule needs exactly one
-        # survivor, so a session-less request answers 404 and says nothing
-        # about why. `list_dbs` logs only failures of its SELECT -- the
-        # `db_connect` and `.cursor()` above it are outside that try -- so a
-        # cluster refusing connections lands here and nowhere else. It cost a
-        # `web` test run an unreproducible 404 on a route that was fine.
-        #
-        # Logged, not raised: falling back to "no database" is the right
-        # behaviour for a transient blip, and the 5 s TTL means the next
-        # request retries. lru_cache does not memoise exceptions, so this
-        # reflects live connectivity rather than one stale failure.
         _logger.warning(
             "Could not list databases to resolve a session-less request; "
             "answering as though this instance serves none.",
@@ -231,17 +207,6 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
     @property
     def cookies(self):
-        """The request cookies, with ``ir.http._sanitize_cookies`` applied.
-
-        Memoised against *whether the sanitiser ran*, not once and for all.
-        ``_sanitize_cookies`` is a security hook -- addons drop from it the
-        cookies a visitor has not consented to -- and it needs a registry,
-        which ``_serve_db`` only acquires part-way through the request. A plain
-        ``cached_property`` therefore froze the **unsanitised** answer for the
-        whole request if anything read it before then. Nothing does today; this
-        makes that structural rather than a coincidence, at the cost of one
-        extra rebuild on the first read after the registry lands.
-        """
         registry = self.registry
         sanitized = registry is not None
         memo = self._cookies_memo

@@ -200,13 +200,6 @@ class Environment(Mapping[str, "BaseModel"]):
     def __len__(self):
         return len(self.registry)
 
-    # Identity, and load-bearing. `Mapping` supplies an `__eq__` that compares
-    # `dict(self) == dict(other)`, and `dict(env)` instantiates every model in
-    # the registry -- so without these three, `env1 == env2` would build two
-    # full recordset sets to answer a question about object identity.
-    # `__hash__` has to come with them: defining `__eq__` would otherwise set it
-    # to None and make an Environment unhashable, which `_EnvironmentSet`
-    # depends on.
     def __eq__(self, other):
         return self is other
 
@@ -331,14 +324,6 @@ class Environment(Mapping[str, "BaseModel"]):
     def lang(self) -> str | None:
         lang = self.context.get("lang")
         if lang and lang != "en_US" and not self["res.lang"]._get_data(code=lang):
-            # NOT self._(): that helper starts with `lang = self.lang or
-            # "en_US"`, and this property is mid-computation, so
-            # cached_property has nothing stored yet and re-enters here. The
-            # invalid code fails the same check, calls the same helper, and the
-            # recursion only ends when something further down raises something
-            # else -- KeyError '_en_US' out of LangDataDict, which names neither
-            # the cause nor the language. A message whose precondition is a
-            # working language cannot be translated by resolving that language.
             raise UserError(f"Invalid language code: {lang}")
         return lang or None
 

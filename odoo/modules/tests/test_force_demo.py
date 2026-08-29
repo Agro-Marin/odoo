@@ -1,20 +1,3 @@
-"""`force_demo` must record which modules actually took demo data.
-
-`ir_module_module.demo` gates `ModuleNode.demo_installable` and the upgrade
-branch of `load_module_graph`, so it has to mean "demo mode was applied to this
-module". `force_demo` used to set the whole column true before loading anything
-and then discard every `load_demo` return value, which recorded a module whose
-demo XML had just raised as carrying demo data. Reproduced through the real
-`odoo-bin module force-demo`: a probe addon whose demo referenced a nonexistent
-field logged "demo data failed to install" and came out `demo = t`, while the
-ordinary install path recorded `f` for the same module.
-
-`load_demo` returns True for a module with *no* demo data at all, and
-must: `demo_installable` is `all(p.demo for p in self.depends)`, so a
-demo-less dependency has to count as satisfied or nothing downstream of it
-could ever take demo.
-"""
-
 import unittest
 from typing import TYPE_CHECKING, cast
 
@@ -74,9 +57,6 @@ def _run(installed, failing):
         patch.object(loading, "load_demo", fake_load_demo),
     ):
         graph_cls.return_value.__iter__ = lambda self: iter(packages)
-        # _Env is a stand-in for the Environment force_demo reads cr and
-        # model access off; cast says that rather than leaving the double
-        # looking like an accident
         loading.force_demo(cast("Environment", _Env(cr)))
     return cr
 
@@ -95,10 +75,6 @@ class TestForceDemoRecordsWhatLoaded(BaseCase):
         self.assertIn("mod_broken", scope)
 
     def test_the_update_is_scoped_to_the_modules_that_were_considered(self):
-        # The blanket `UPDATE ir_module_module SET demo=True` touched every row
-        # in the table -- 654 of 671 on a fresh database, including every
-        # uninstalled and uninstallable module, none of which is ever a
-        # candidate for demo data.
         cr = _run(["mod_a", "mod_b"], failing=set())
         query, params = self._update(cr)
         self.assertIn("WHERE name = ANY", query)

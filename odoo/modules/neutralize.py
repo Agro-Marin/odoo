@@ -23,13 +23,6 @@ def get_installed_modules(cursor: SqlReader) -> list[str]:
 
 
 def iter_neutralization_queries(modules: Iterable[str]) -> Iterator[tuple[str, str]]:
-    """Yield ``(module, sql)`` for every module shipping a non-empty neutralize.sql.
-
-    The module name travels with its SQL so a failure can name the file it came
-    from. Each query is a whole `.sql` file executed as one statement batch, so
-    the driver error alone -- a bare syntax error or a missing relation -- says
-    nothing about which of the installed modules produced it.
-    """
     for module in modules:
         if Manifest.for_addon(module, display_warning=False) is None:
             _logger.warning(

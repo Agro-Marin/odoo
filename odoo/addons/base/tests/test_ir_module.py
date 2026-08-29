@@ -241,8 +241,6 @@ class IrModuleUnsavedRecordCase(TransactionCase):
 
 
 class IrModuleAutoInstallCase(TransactionCase):
-    """The runtime auto-install rule must agree with the SQL one in modules/db.py."""
-
     def _make(self, name, **kw):
         return self.env["ir.module.module"].create(
             {"name": name, "state": "uninstalled", **kw}
@@ -286,9 +284,6 @@ class IrModuleAutoInstallCase(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_module")
     def test_direct_install_refuses_an_uninstallable_dependency(self):
-        """The auto-install predicate guards candidates the system chooses. A
-        user selecting the module themselves reaches `_state_update` directly,
-        and it stranded them the same way."""
         self._make("airm_direct_bad", state="uninstallable")
         victim = self._make("airm_direct_victim")
         self._depend(victim, "airm_direct_bad")
@@ -355,11 +350,6 @@ class IrModuleAutoInstallCase(TransactionCase):
 
 
 class IrModuleConcurrencyGuardCase(TransactionCase):
-    """Odoo cursors are REPEATABLE READ. By the time the guard runs, the request
-    transaction has already read, so its snapshot predates whatever the module
-    operation it is waiting for committed. Reading the pending state on that
-    snapshot -- before OR after taking the lock -- cannot see it."""
-
     PROBE = "airm_committed_elsewhere"
 
     def _side_execute(self, sql, params):
@@ -401,9 +391,6 @@ class IrModuleConcurrencyGuardCase(TransactionCase):
         )
 
     def test_guard_does_not_deadlock_against_the_lock_it_runs_under(self):
-        """The guard runs while this transaction holds EXCLUSIVE on the table.
-        A plain SELECT takes ACCESS SHARE, which does not conflict -- a locking
-        read here would hang every module operation instead."""
         self.env.cr.execute("SET LOCAL lock_timeout = '5s'")
         self.env.cr.execute("LOCK ir_module_module IN EXCLUSIVE MODE")
         self.assertIsInstance(
@@ -463,8 +450,6 @@ class IrModuleLinkModelCase(TransactionCase):
         self.assertFalse(Dependency.search([("linked_id", "in", [2147483000])]))
 
     def test_linked_id_search_by_name_agrees_with_search_by_id(self):
-        """Non-id values are handed back to the ORM (NotImplemented) rather than
-        coerced; it resolves them by name, and must land on the same rows."""
         Dependency = self.env["ir.module.module.dependency"]
         base = self.env["ir.module.module"].search([("name", "=", "base")])
         by_id = Dependency.search([("linked_id", "in", base.ids)])
@@ -488,8 +473,6 @@ class IrModuleLinkModelCase(TransactionCase):
 
 class IrModuleUpdateListCountCase(TransactionCase):
     def test_a_module_that_was_never_installed_is_not_counted(self):
-        """db_version is the *installed* version. A module that was never
-        installed has nothing to update, whatever its manifest says."""
         Module = self.env["ir.module.module"]
         never_installed = Module.search(
             [("state", "=", "uninstalled"), ("name", "!=", "base")], limit=1
@@ -561,10 +544,6 @@ class IrModuleHasIapCase(TransactionCase):
 
 
 class IrModuleTranslationDiagnosticCase(TransactionCase):
-    """TranslationImporter.imported_langs accumulates for the whole run, but the
-    'no translation' diagnostic is about one module. Reading the shared set made
-    the message depend on where the module sat in the list."""
-
     def _missing_lines(self, order, translated):
         Module = self.env["ir.module.module"]
 
@@ -614,7 +593,6 @@ class IrModuleTranslationDiagnosticCase(TransactionCase):
 
 class IrModuleSearchPanelCase(TransactionCase):
     def _naive_counts(self, records, excluded_ids, kwargs):
-        """What the per-record search_count loop used to produce."""
         Module = self.env["ir.module.module"]
         out = {}
         for record in records:
@@ -667,9 +645,6 @@ class IrModuleSearchPanelCase(TransactionCase):
         return self.env.cr.sql_log_count - start, result["values"]
 
     def test_counting_cost_does_not_grow_with_the_number_of_categories(self):
-        """An absolute query count here would only measure the rest of the
-        method. What matters is the marginal cost of one more category, which
-        the per-record search_count loop paid one query for."""
         Module = self.env["ir.module.module"]
         Category = self.env["ir.module.category"]
 
@@ -708,10 +683,6 @@ class IrModuleSearchPanelCase(TransactionCase):
 
 
 class IrModuleCategoryCacheCase(TransactionCase):
-    """`_get_view_group_hierarchy` is the only groups-cached reader of this model
-    and it reads `name` and `privilege_ids`. Clearing on every write threw the
-    whole group hierarchy away for a `sequence` bump."""
-
     def _cleared_by(self, vals):
         category = self.env["ir.module.category"].create({"name": "irmod cache"})
         self.env["res.groups"]._get_view_group_hierarchy()

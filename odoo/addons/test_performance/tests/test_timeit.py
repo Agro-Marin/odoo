@@ -61,10 +61,6 @@ class TestPerformanceTimeit(TransactionCase):
 
     @classmethod
     def get_test_children(cls, *, max_size=10**6):
-        # Inclusive bound (a set whose size == max_size is kept, not
-        # dropped) and every oversized set is truncated in place, not just
-        # the first one found -- both while keeping get_parents()'s order,
-        # which relative_size (in launch_perf_set) is zipped against.
         result = []
         for parent in cls.get_parents():
             recs = parent.child_ids
@@ -224,11 +220,6 @@ class TestPerformanceTimeit(TransactionCase):
         ctx = {"dom": large_domain}
         self.launch_perf_set("records._search(dom(records))", ctx=ctx, number=3)
 
-        # get_test_children(max_size=...) truncates the largest set to
-        # max_size, so its actual length no longer matches the default
-        # relative_size (assumed powers of ten): derive relative_size from
-        # each set's own length instead, or the per-unit timings below are
-        # computed against the wrong denominator.
         search_records = self.get_test_children(max_size=9500)
         self.launch_perf_set(
             "records.search(dom(records))",

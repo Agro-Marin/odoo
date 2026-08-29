@@ -120,17 +120,6 @@ class TestTheMigrationIsComplete(unittest.TestCase):
 
 
 class TestTheDomainStubKeepsUp(unittest.TestCase):
-    """``domain/tests/test_optimize_unit.py`` restates this map, and must.
-
-    That suite is DB-free and cannot import ``odoo.orm.fields``:
-    ``fields/base.py`` imports ``odoo.orm.domain``, the package it is testing,
-    so asking the real classes there is a cycle. The copy is therefore
-    necessary -- but it silently fell behind the day a fifth predicate landed,
-    and the optimizer reached ``field.is_many2many`` on a stub that had never
-    heard of it. Read with ``ast`` rather than imported, for the same reason
-    the copy exists.
-    """
-
     STUB = (
         Path(__file__).resolve().parents[1]
         / "domain"
@@ -158,7 +147,7 @@ class TestTheDomainStubKeepsUp(unittest.TestCase):
                 table[key.value] = _string_operands(value.args[0])
             return table
         self.fail(f"no _PREDICATES_BY_TYPE assignment found in {self.STUB}")
-        raise AssertionError("unreachable")  # self.fail always raises
+        raise AssertionError("unreachable")
 
     def test_the_stub_lists_every_predicate_with_the_same_types(self):
         self.assertEqual(
@@ -196,11 +185,6 @@ class TestNoFlagLeaksThroughAResetType(unittest.TestCase):
                     continue
                 if type_name in want_types:
                     continue
-                # The parent claims it and the child's type is not covered, so
-                # the child has to say so. Checked on the child rather than on
-                # the parent: a parent declaring a predicate its subclasses do
-                # not share is fine -- what is not fine is the subclass staying
-                # silent about it.
                 with self.subTest(cls=cls.__name__, predicate=predicate):
                     self.assertFalse(
                         getattr(cls, predicate, False),

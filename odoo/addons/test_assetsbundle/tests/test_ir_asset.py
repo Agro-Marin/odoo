@@ -691,9 +691,6 @@ class TestAssetsManifest(AddonManifestPatched):
         )
 
     def _prefixed_css_content(self):
-        """Build test_assetsbundle.irasset2 with autoprefix on and return
-        its compiled CSS. Shared by the test_20_* CSS-compatibility-prefix
-        tests below -- each asserts on one feature group."""
         self.env["ir.asset"].create(
             {
                 "name": "1",
@@ -1004,11 +1001,6 @@ class TestAssetsManifest(AddonManifestPatched):
         "odoo.addons.base.models.ir_asset_paths",
     )
     def test_31(self):
-        # Escapes test_assetsbundle/ via ".." and re-enters through a
-        # sibling route, landing on a fixture this addon owns
-        # (tests/security_dummy.js) rather than reaching into an
-        # unrelated subsystem's fixtures -- still exercises the same
-        # escape-and-reenter path the guard under test must refuse.
         path_to_dummy = "../test_assetsbundle/tests/security_dummy.js"
         me = pathlib.Path(__file__).parent.absolute()
         file_path = me.joinpath("..", path_to_dummy)
@@ -1034,8 +1026,6 @@ class TestAssetsManifest(AddonManifestPatched):
         "odoo.addons.base.models.ir_asset_paths",
     )
     def test_32_a_relative_path_in_addon(self):
-        # See test_31's comment: escapes and re-enters test_assetsbundle/
-        # via "..", landing on an addon-owned fixture.
         path_to_dummy = "../test_assetsbundle/tests/security_dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
         file_path = me.joinpath("..", path_to_dummy)
@@ -1069,9 +1059,6 @@ class TestAssetsManifest(AddonManifestPatched):
         "odoo.addons.base.models.ir_asset_paths",
     )
     def test_32_b_relative_path_outside_addon(self):
-        # Same addon-owned fixture as test_31/test_32_a, but declared
-        # bare (no /test_assetsbundle/ prefix) -- this is what makes it
-        # "outside_addon" rather than "in_addon".
         path_to_dummy = "../test_assetsbundle/tests/security_dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
         file_path = me.joinpath("..", path_to_dummy)

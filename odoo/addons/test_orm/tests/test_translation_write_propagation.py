@@ -103,17 +103,6 @@ class TestTranslationWritePropagation(odoo.tests.TransactionCase):
         self.assertEqual(self.stored(record), {"en_US": "Steel Knife"})
 
     def _deactivate_source_language(self):
-        """Take `en_US` out of the installed set, whatever else is installed.
-
-        The echo the caller is about to test is decided by
-        `res.lang._get_data(code="en_US")`, which answers for *active*
-        languages, so the record really does have to be deactivated. Modules
-        may hold a language and refuse that: `website` raises when one is still
-        listed on a site, and `test_import_export` depends on `website` for
-        `MockRequest`, which is enough to make this test fail in any run wide
-        enough to install it. Release the holders first rather than assume the
-        narrow install set.
-        """
         english = self.env.ref("base.lang_en")
         replacement = self.env["res.lang"].search(
             [("code", "!=", "en_US"), ("active", "=", True)], limit=1

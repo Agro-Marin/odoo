@@ -48,10 +48,6 @@ class TestXMLAssetsBundle(FileTouchable):
                 self.bundle.xml()
 
     def test_02b_multiple_broken_xml_second_file(self):
-        # multiple_broken_xml fails fast on the first bad file
-        # (test_02, above), so second_invalid_xml.xml's own error is
-        # otherwise never exercised. Build a bundle from that file
-        # alone to assert on it too.
         path = file_path(
             "test_assetsbundle/static/invalid_src/xml/second_invalid_xml.xml"
         )

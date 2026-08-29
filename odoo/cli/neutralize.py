@@ -10,8 +10,6 @@ _logger = logging.getLogger(__name__)
 
 
 class Neutralize(DatabaseCommand):
-    """Neutralize a production database for testing: no emails sent, etc."""
-
     def __init__(self) -> None:
         super().__init__()
         self.add_config_arguments(self.parser)

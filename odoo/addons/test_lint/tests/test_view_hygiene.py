@@ -14,23 +14,8 @@ _logger = logging.getLogger(__name__)
 
 _PARSER = etree.XMLParser(remove_comments=True, strip_cdata=False)
 
-# `optional` is read by list_optional_fields.js, which decides a column's initial
-# visibility with `col.optional === "show"` -- so every value that is not "show"
-# hides the column, and a typo such as optional="hidden" works by accident. The
-# renderer therefore cannot tell a mistake from an intention; this gate can.
-# "conditional" is account's extension, honoured by
-# product_label_section_and_note_field_o2m.js.
 OPTIONAL_VALUES = frozenset({"show", "hide", "conditional"})
 
-# A kanban <templates> block is compiled one `t-name` at a time:
-# compileViewTemplates() calls App.registerTemplate() per name, so each becomes an
-# independent OWL template with its own scope. A `t-set` in one therefore does NOT
-# reach another -- and OWL resolves the missing name to undefined rather than
-# raising, so the markup that reads it silently never renders.
-#
-# Only the entry points are compiled that way. Every other `t-name` in the block is
-# reached through `t-call`, which DOES inherit the caller's scope, so a variable
-# set by the caller is legitimately visible there.
 KANBAN_ENTRY_TEMPLATES = frozenset({"card", "menu"})
 
 _BARE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -38,13 +23,6 @@ _BARE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 @tagged("post_install", "-at_install")
 class ViewHygieneLinter(LintCase):
-    """Static view-arch checks whose failure mode is silence.
-
-    Each rule here is one that the runtime does not complain about: a column
-    quietly hidden, markup quietly never rendered, an attribute quietly never
-    read. A linter is the only thing that can see them.
-    """
-
     @staticmethod
     def scanned_files():
         return core_data_files()
@@ -60,7 +38,7 @@ class ViewHygieneLinter(LintCase):
             try:
                 tree = etree.parse(str(path), _PARSER)
             except etree.XMLSyntaxError:
-                continue  # test fixtures are deliberately malformed; not our business
+                continue
             cls.checked += 1
             cls.optional_violations.extend(cls._optional(path, tree))
             cls.kanban_scope_violations.extend(cls._kanban_scope(path, tree))
@@ -128,7 +106,7 @@ class ViewHygieneLinter(LintCase):
                 }
                 for name, tpl in named.items():
                     if name not in KANBAN_ENTRY_TEMPLATES:
-                        continue  # only reachable via t-call, which inherits scope
+                        continue
                     elsewhere = set().union(
                         *(names for key, names in assigned.items() if key != name)
                     )
@@ -153,24 +131,6 @@ class ViewHygieneLinter(LintCase):
 
 @tagged("post_install", "-at_install")
 class OrphanLabelLinter(LintCase):
-    """No `<label for="X">` may render empty because X was compiled away.
-
-    ViewCompiler.compileNode drops a node whose `invisible` is the *literal* "1"
-    or "True" before compileField runs, so `encounteredFields[X]` is never set and
-    compileLabel falls through to its raw-element branch. createLabelFromField --
-    the only place a label inherits its field's string and modifiers -- never runs,
-    and the server-side postprocess only narrows model groups. The result is a
-    literal `<label></label>` and a `for` pointing at nothing.
-
-    A label that carries its own `string` (or text) is a different, deliberate
-    idiom: a heading beside a field kept invisible purely to feed sibling
-    expressions. Only the ones with no content of their own are defects, because
-    only they lose everything they had to say.
-
-    This reads combined archs, so it needs the registry: the label and the field
-    it names usually live in different modules.
-    """
-
     LITERAL_INVISIBLE = frozenset({"1", "True"})
 
     def test_no_label_renders_empty(self):
@@ -183,8 +143,6 @@ class OrphanLabelLinter(LintCase):
                 try:
                     arch = view._get_combined_arch()
                 except Exception:
-                    # A view that will not combine is another gate's finding, not
-                    # this one's; say so rather than swallowing it.
                     _logger.info(
                         "skipping %s: its arch does not combine",
                         view.xml_id or view.id,
@@ -213,7 +171,7 @@ class OrphanLabelLinter(LintCase):
             if el.get("invisible") in cls.LITERAL_INVISIBLE:
                 dropped.add(name)
             else:
-                dropped.discard(name)  # a visible occurrence survives compilation
+                dropped.discard(name)
         for el in arch.iter("button"):
             if el.get("name"):
                 present.add(el.get("name"))
@@ -222,42 +180,13 @@ class OrphanLabelLinter(LintCase):
             if not target or (target in present and target not in dropped):
                 continue
             if el.get("string") is not None or (el.text or "").strip():
-                continue  # carries its own text; only the `for` is inert
+                continue
             why = "absent" if target not in present else 'invisible="1"'
             yield f"{view.xml_id or view.id}: <label for={target!r}> ({why})"
 
 
 @tagged("post_install", "-at_install")
 class ActWindowViewOrderLinter(LintCase):
-    """An explicit `view_mode` must name the view the action actually opens on.
-
-    `_compute_views` emits the pinned views first -- `view_ids` sorted by
-    sequence, then `view_id` -- and only then the `view_mode` modes it has not
-    already covered. So `view_mode` is not the order; it degrades into a set the
-    moment an action pins anything, and the file can say `list,form` while the
-    action opens on a form. Nothing warns, and 22 declarations in this tree had
-    drifted that way.
-
-    Two consequences make it worth a gate rather than a comment. The order is
-    load-bearing in a way the syntax hides: *removing* a pinned row can change
-    which view opens, because with a `form` row in `view_ids` a `view_id` of type
-    `list` can no longer hold `list` first -- that is how
-    `base.action_res_users_view1`, which reads as redundant, turns out to be the
-    only thing keeping the Users menu off the form view. And an action that pins
-    nothing is not lying: it never claimed an order, so `view_mode`'s default is
-    not contradicted and there is nothing here to report.
-
-    Resolved from the tree rather than the registry on purpose: at test_lint's
-    scope only test_lint is installed, so a registry check would see almost
-    nothing. Validated against a 25-module registry -- every mismatch the
-    registry reported within this scope is reported here, plus eleven more in
-    modules that install did not include.
-    """
-
-    # A pin is written either as separate ir.actions.act_window.view records or
-    # inline as view_ids="[(5,0,0),(0,0,{'view_mode': ...})]". Both spellings are
-    # in use (91 actions and 64 actions respectively), and a checker that knew
-    # only the first missed a third of them.
     _MODE_IN_EVAL = re.compile(r"['\"]view_mode['\"]\s*:\s*['\"](\w+)['\"]")
 
     def test_view_mode_names_the_view_that_opens(self):
@@ -283,7 +212,7 @@ class ActWindowViewOrderLinter(LintCase):
         for xmlid, modes in declared.items():
             pinned = inline.get(xmlid) or [m for _, m in sorted(pins.get(xmlid, []))]
             if not pinned:
-                continue  # claims nothing beyond the mode list itself
+                continue
             effective = list(pinned)
             missing = [m for m in modes if m not in set(pinned)]
             pinned_type = view_type.get(view_id_ref.get(xmlid))

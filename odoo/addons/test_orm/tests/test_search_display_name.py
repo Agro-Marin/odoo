@@ -38,10 +38,6 @@ class TestSearchDisplayNameStored(TransactionCase):
         self.assertFalse(self._search("ilike", "zzz"))
 
     def test_null_comparand_selects_the_records_without_a_value(self):
-        # records[3] has a real falsy display_name — without it, "= False"
-        # could only ever return empty and this assertion would pass
-        # vacuously regardless of whether the null comparand is handled
-        # correctly.
         self.assertEqual(self._search("=", False), self.records[3])
         self.assertEqual(
             self._search("!=", False),

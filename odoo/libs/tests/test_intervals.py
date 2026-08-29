@@ -170,13 +170,6 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(invert_intervals([(0, 10)], 0, 10), [])
 
     def test_invert_merges_gaps_a_zero_length_interval_splits(self):
-        """A degenerate input must not split one gap into two touching ones.
-
-        `(4, 4)` moves nothing, so the accumulator emits `(0, 4)` and then
-        `(4, 10)`.  They are adjacent, and the result has to be `(0, 10)`.
-        This is the case the `Intervals` round trip used to cover; it is why
-        the replacement merges rather than just filtering empties.
-        """
         self.assertEqual(invert_intervals([(4, 4)], 0, 10), [(0, 10)])
         self.assertEqual(invert_intervals([(2, 2), (5, 5)], 0, 10), [(0, 10)])
 
@@ -192,20 +185,6 @@ class TestHelpers(unittest.TestCase):
 
 
 class _IntervalAlgebra:
-    """The exhaustive union/intersection/difference tables, ported from
-    `odoo/addons/base/tests/test_intervals.py`.
-
-    They lived in a `TransactionCase` whose only use of the database was
-    `self.env["base"]` as an inert payload -- a `createdb` plus a full `base`
-    install to obtain an empty recordset that the algebra never inspects. A
-    payload only has to supply `.union`, so a `frozenset` does the same job here
-    in the DB-free tier.
-
-    `keep_distinct` used to be a second class holding a second copy of these
-    tables. `test_intersection` and `test_difference` were byte-identical
-    between the two -- 26 rows where 13 and a parameter do.
-    """
-
     keep_distinct = False
 
     def ints(self, pairs):
@@ -316,12 +295,6 @@ class TestIntervalAlgebraKeepDistinct(_IntervalAlgebra, unittest.TestCase):
 
 
 class TestHelperMatrices(unittest.TestCase):
-    """The datetime tables from `base/tests/test_intervals.py::TestUtils`.
-
-    `TestHelpers` above covers the same two helpers qualitatively; these are the
-    exhaustive cases, and they never needed a database either.
-    """
-
     def test_intervals_intersections(self):
         test_data = [
             (

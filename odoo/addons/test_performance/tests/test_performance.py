@@ -761,10 +761,6 @@ class TestIncrementFieldsSkipLock(TransactionCase):
 
         self.record.invalidate_recordset()
 
-        # No concurrent transaction holds the row lock here, so the update
-        # must have gone through: assert the expected outcome directly
-        # instead of branching on `did_update`, which would let this test
-        # pass even if `_increment_fields_skiplock` regressed to a no-op.
         self.assertTrue(
             did_update,
             "increment_fields_skiplock should have updated the field: "
@@ -805,9 +801,6 @@ class TestIncrementFieldsSkipLock(TransactionCase):
 
         self.record.invalidate_recordset()
 
-        # Same reasoning as test_increment_fields_skiplock_one_field: no
-        # concurrent transaction holds the row lock, so the update must have
-        # gone through — assert the expected outcome, not `did_update` itself.
         self.assertTrue(
             did_update,
             "increment_fields_skiplock should have updated the fields: "

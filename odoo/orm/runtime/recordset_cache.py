@@ -22,32 +22,6 @@ class CacheInvalidError(AssertionError):
 
 
 class Cache:
-    """``env.cache`` — the **recordset-level** cache API.
-
-    The ORM has two cache surfaces at different levels, and both are supported:
-
-    * ``env._core`` (``OrmCore``) is **id-level**: ``get_value(field, record_id)``
-      takes a raw id and the caller must know the storage layout.
-    * ``env.cache`` — this class — is **recordset-level**: every method takes a
-      recordset and resolves the field cache through its ``env``
-      (``field._get_cache(model.env)``), so a caller never has to know that a
-      context-dependent field is stored ``{cache_key: {id: value}}`` rather than
-      ``{id: value}``, or that a term-translated one is reached through a
-      ``LangProxyDict``.
-
-    That difference is why ADR-0010 dropped its own step 4 (retire this class) on
-    reassessment: a mechanical rewrite of the call sites onto ``_core`` would
-    have got both layouts wrong. Shrinking this surface is a business-logic
-    effort — eliminating addon cache-poking as an anti-pattern — not a handle
-    swap.
-
-    Until 2026-08-08 this module was named ``cache_compat.py``, and that name
-    cost three separate corrections: this docstring, a dedicated test asserting
-    the class "is not legacy", and a paragraph in ``doc/architecture/module.md``
-    — each written because a reader had taken "compat" at face value. The name
-    is now what the class is, so none of them has to say what it is not.
-    """
-
     __slots__ = ("transaction",)
 
     def __init__(self, transaction: Transaction):
@@ -79,13 +53,6 @@ class Cache:
         return repr(data)
 
     def _field_cache(self, model: BaseModel, field: Field) -> dict[IdType, typing.Any]:
-        """The dict this field's values live in, for ``model``'s environment.
-
-        Was two methods, ``_get_field_cache`` and ``_set_field_cache``, with
-        the first implemented as ``return self._set_field_cache(...)``: one
-        behaviour, two names, two return annotations, and nine call sites
-        below choosing between them by no rule anyone could state.
-        """
         return field._get_cache(model.env)
 
     def contains(self, record: BaseModel, field: Field) -> bool:

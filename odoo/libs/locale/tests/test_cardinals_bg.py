@@ -51,14 +51,6 @@ HUNDREDS = {
 
 
 def compose(value):
-    """The grammar, written independently of the implementation.
-
-    Hundreds, then a teen or tens-and-units, joined by one ``и`` before the
-    last component. This is the oracle: a value table of a dozen numbers cannot
-    cover 999 morpheme joins, and the bug this was written for -- every number
-    ending in 11 rendering as "eleven and one" -- is exactly the kind a value
-    table misses.
-    """
     hundreds, remainder = divmod(value, 100)
     tens, units = divmod(remainder, 10)
     parts = []
@@ -92,7 +84,6 @@ class TestAgainstTheGrammar:
 
     @pytest.mark.parametrize("value", [11, 111, 211, 911, 1011, 11011])
     def test_a_trailing_eleven_does_not_repeat_its_unit(self, bg, value):
-        """`d == 1 and e == 1` forgot to clear the unit, so 11 was "eleven and one"."""
         assert bg.to_cardinal(value).endswith("единадесет")
 
 
@@ -117,14 +108,13 @@ class TestScaleAndGender:
         assert bg.to_cardinal(value) == expected
 
     def test_only_one_and_per_number(self, bg):
-        """1101 is "хиляда сто и едно", not "хиляда и сто и едно"."""
         assert bg.to_cardinal(1101).split().count("и") == 1
-        assert bg.to_cardinal(111111).split().count("и") == 2  # one per group
+        assert bg.to_cardinal(111111).split().count("и") == 2
 
     def test_gender_follows_the_scale_word(self, bg):
-        assert "една хиляди" in bg.to_cardinal(21000)  # feminine before хиляди
-        assert bg.to_cardinal(1000000).startswith("един ")  # masculine before милион
-        assert bg.to_cardinal(1) == "едно"  # neuter alone
+        assert "една хиляди" in bg.to_cardinal(21000)
+        assert bg.to_cardinal(1000000).startswith("един ")
+        assert bg.to_cardinal(1) == "едно"
 
 
 class TestStructuralInvariants:
@@ -143,8 +133,6 @@ class TestStructuralInvariants:
 
 
 class TestTheContractResCurrencyRelies_On:
-    """`res_currency.amount_to_text` catches NotImplementedError and only that."""
-
     def test_integral_floats_convert(self, bg):
         assert bg.to_cardinal(7.0) == "седем"
 
@@ -166,7 +154,6 @@ class TestTheContractResCurrencyRelies_On:
             call(bg)
 
     def test_beyond_the_named_magnitudes_refuses_cleanly(self, bg):
-        """A bare KeyError from the scale lookup would escape amount_to_text."""
         assert bg.to_cardinal(BEYOND_NAMING - 1).startswith("деветстотин")
         with pytest.raises(NotImplementedError):
             bg.to_cardinal(BEYOND_NAMING)

@@ -42,14 +42,6 @@ class ServerActionCase(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestNameIsNeverNull(ServerActionCase):
-    """`name` is required and computed, and stored computes run after the INSERT.
-
-    Both an omitted and a falsy name reached Postgres as NULL and died with a raw
-    `NotNullViolation`. `precompute=True` cannot fix it -- the ORM disables it
-    because `_compute_names` depends on `crud_model_id`, itself a non-precomputed
-    stored compute -- so `create` derives the name instead.
-    """
-
     def test_an_omitted_name_is_derived_from_the_type(self):
         action = self.Action.create(
             {"model_id": self.partner_model.id, "state": "code", "code": "pass"}
@@ -72,7 +64,6 @@ class TestNameIsNeverNull(ServerActionCase):
                 self.assertEqual(action.name, "Execute Code")
 
     def test_a_typed_name_survives_a_type_change(self):
-        """Even when it happens to equal the label the type would have produced."""
         action = self._action(name="Execute Code", state="code", code="pass")
         self.env.flush_all()
         action.write({"state": "object_create", "value": "x"})
@@ -95,13 +86,6 @@ class TestNameIsNeverNull(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestObjectCopyDuplicatesTheRecordItNames(ServerActionCase):
-    """The id came from `resource_ref` and the model from `crud_model_id`.
-
-    Nothing kept the two in step -- not a `Form`, not `load()`, not a plain
-    `write` -- so an action set to duplicate a country duplicated whichever
-    record of the action's own model happened to share that id.
-    """
-
     def test_it_copies_the_referenced_record_not_its_own_model(self):
         shared = sorted(
             set(self.env["res.partner"].search([]).ids)
@@ -141,13 +125,6 @@ class TestObjectCopyDuplicatesTheRecordItNames(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestUpdatePathIsHonouredOnEveryPath(ServerActionCase):
-    """The on-change branch used only the path's LEAF field name.
-
-    `record_cached` is the ROOT record, so `parent_id.ref` wrote `ref` on the
-    record being edited -- silent corruption when the leaf name also exists on
-    the root, a bare `KeyError` when it does not.
-    """
-
     def test_the_normal_path_writes_the_record_the_path_names(self):
         parent = self.env["res.partner"].create({"name": "PARENT"})
         child = self.env["res.partner"].create(
@@ -197,11 +174,6 @@ class TestUpdatePathIsHonouredOnEveryPath(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestConfigurationSurvivesAStateChange(ServerActionCase):
-    """`_compute_crud_relations` assigned `update_path` -- a field it does not
-    compute, and one of its own dependencies. Switching the type and switching
-    back left `value` in place and the path gone, and the path is invisible
-    unless the state is `object_write`, so the loss was never on screen."""
-
     def test_update_path_round_trips_through_another_state(self):
         action = self._action(
             state="object_write", update_path="ref", evaluation_type="value", value="V"
@@ -233,12 +205,6 @@ class TestConfigurationSurvivesAStateChange(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestBatchingIsDeliveredNotJustPromised(ServerActionCase):
-    """`_is_batchable()` said a `multi` took the whole batch while
-    `_resolve_runner` classified it non-batch: there is no
-    `_run_action_multi_multi`, so `_run` looped per record and threw the batch
-    away one level down. Registering the batch runner unconditionally is worse
-    -- a `code` child then runs once for the whole batch instead of once each."""
-
     def _multi_over(self, children):
         return self._action(
             name="P", state="multi", child_ids=[Command.set(children.ids)]
@@ -292,11 +258,6 @@ class TestBatchingIsDeliveredNotJustPromised(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestObjectWriteCostsNothingPerExtraRecord(ServerActionCase):
-    """`_run`'s per-record loop browsed singletons, which have nothing to
-    prefetch with: two queries per target record, while the ORM's flush was
-    already batching the UPDATE itself. N=2 against N=20 so cache warmth cannot
-    make the assertion vacuous."""
-
     def _cost(self, action, n):
         records = self._partners(n, f"cost{n}_")
         self.env.flush_all()
@@ -318,7 +279,6 @@ class TestObjectWriteCostsNothingPerExtraRecord(ServerActionCase):
         )
 
     def test_a_sequence_still_gets_one_number_per_record(self):
-        """Batching must not collapse a per-record value into a shared one."""
         sequence = self.env["ir.sequence"].create(
             {"name": "Seq", "prefix": "S-", "padding": 3}
         )
@@ -367,14 +327,11 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
         self.assertIsNone(_get_webhook_blocked_reason("https://1.1.1.1/hook"))
 
     def test_multicast_and_reserved_are_still_blocked(self):
-        """`not is_global` does not cover these; the trimmed chain must."""
         for host in ("224.0.0.1", "[ff02::1]", "[64:ff9b::1.2.3.4]"):
             with self.subTest(host=host):
                 self.assertIsNotNone(_get_webhook_blocked_reason(f"http://{host}/h"))
 
     def test_the_request_does_not_follow_redirects(self):
-        """A permitted host answering 307 would otherwise hand the record to
-        whatever the guard exists to keep it away from."""
         action = self._webhook()
         with patch.object(requests, "post") as post:
             action.with_context(**self._ctx(self._partners(1))).run()
@@ -383,7 +340,6 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
 
     @mute_logger(_MODULE)
     def test_the_guard_runs_again_at_delivery(self):
-        """The check happens when the action runs, the POST after the commit."""
         action = self._webhook()
         with (
             patch.object(requests, "post") as post,
@@ -403,10 +359,6 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestWebhookPayloadHasOneShape(ServerActionCase):
-    """The send and the sample built the same dict in two places with two
-    serialisers, and the bare `id` beside the documented `_id` appeared only
-    when a field happened to be selected."""
-
     def _sample_record(self):
         return (
             self.env["res.partner"].with_context(active_test=False).search([], limit=1)
@@ -456,11 +408,6 @@ class TestWebhookPayloadHasOneShape(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestNeedingARecordIsAskedOfTheAction(ServerActionCase):
-    """`object_create` and `object_copy` are in the state set and still do not
-    always mind: they reach for the target record only to hang the new one off
-    `link_field_id`. Asked of the state alone, a scheduled Create Record was
-    skipped with a warning for a record it never wanted."""
-
     def _create_action(self, **vals):
         return self._action(state="object_create", value="spawned", **vals)
 
@@ -505,9 +452,6 @@ class TestNeedingARecordIsAskedOfTheAction(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestOneRecordResolution(ServerActionCase):
-    """`_get_target_records` trusted `active_ids` with no `active_model` while
-    `_get_eval_context` refused them. One of the two had to be wrong."""
-
     def test_ids_without_a_model_name_no_records(self):
         partners = self._partners(2, "amb")
         action = self._action(state="code", code="pass")
@@ -530,16 +474,6 @@ class TestOneRecordResolution(ServerActionCase):
 
 @tagged("post_install", "-at_install")
 class TestTheFormOffersExactlyOneValueInput(ServerActionCase):
-    """`_compute_value_field_to_show` did not account for `evaluation_type`, so
-    it answered `resource_ref` for a relational field even under Compute -- where
-    the user needs the expression editor. The view compensated by ANDing an
-    `evaluation_type` clause onto five separate `invisible` expressions. Folding
-    it into the compute removed four of them, and nothing else checks that the
-    two halves still agree: the arch is evaluated here the way the client does,
-    ancestors included, and the invariant is that an Update Record action offers
-    exactly one place to type its value.
-    """
-
     VALUE_FIELDS = (
         "value",
         "html_value",
@@ -613,9 +547,6 @@ class TestTheFormOffersExactlyOneValueInput(ServerActionCase):
         self.assertTrue(selection_field, "precondition: res.partner.type exists")
 
     def test_an_expression_gets_the_editor_even_on_a_relational_field(self):
-        """The case that forced the view to re-ask: `value_field_to_show` used
-        to answer `resource_ref` here, which is a record picker, not a place to
-        type `env.user.partner_id.id`."""
         action = self._action(
             state="object_write",
             update_path="parent_id",
@@ -636,8 +567,6 @@ class TestTheFormOffersExactlyOneValueInput(ServerActionCase):
 @tagged("post_install", "-at_install")
 class TestTheOverridesStayInTheirChain(ServerActionCase):
     def test_the_readable_fields_override_is_reached(self):
-        """It was named `_get_readable_fields` while the caller had moved on to
-        `_get_fields_readable`, so the action dict silently lost two keys."""
         action = self._action(state="code", code="pass")
         self.assertLessEqual(
             {"group_ids", "model_name"}, set(action._get_action_dict())

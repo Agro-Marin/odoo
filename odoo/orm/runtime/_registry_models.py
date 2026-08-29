@@ -39,20 +39,6 @@ class _RegistryModelsMixin(_RegistryStubs):
 
     @functools.cached_property
     def models_by_table(self) -> dict[str, type[BaseModel]]:
-        """Map each table to the ROOT model that owns it.
-
-        A table is not owned by exactly one model: `ir.actions.actions` and
-        `ir.actions.act_window_close` both declare `_table = "ir_actions"`, and
-        `ir_actions_actions.py` keeps its own table -> tuple-of-names index precisely
-        because the relation is one-to-many.
-
-        This index answers with one model, because its consumer wants one -- it
-        names a model when turning a constraint violation into a message. So the
-        tie-break has to be stated rather than inherited from dict insertion
-        order: the winner is the model the others inherit FROM. That is the
-        answer a reader of the message wants, and it no longer depends on which
-        module happened to load first.
-        """
         by_table: dict[str, type[BaseModel]] = {}
         for model_cls in self.models.values():
             table = getattr(model_cls, "_table", None)
@@ -64,7 +50,6 @@ class _RegistryModelsMixin(_RegistryStubs):
         return by_table
 
     def _ancestors(self, model_cls: type[BaseModel]) -> set[str]:
-        """Names `model_cls` inherits from, transitively."""
         seen: set[str] = set()
         queue = deque(getattr(model_cls, "_inherit", ()) or ())
         while queue:

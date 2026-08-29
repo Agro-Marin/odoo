@@ -42,19 +42,6 @@ def _noop_start_response(status: str, headers: list[tuple[str, str]]) -> None:
 
 @functools.lru_cache(maxsize=4)
 def _get_proxy_fix(hops: int) -> ProxyFix_:
-    """The ``ProxyFix`` for a chain of *hops* trusted reverse proxies.
-
-    ``werkzeug``'s ``ProxyFix`` believes the last *N* entries of each
-    ``X-Forwarded-*`` header and ignores the rest, so N must equal the number of
-    proxies that actually rewrite them. This was pinned at 1 with no way to say
-    otherwise, which is wrong in both directions behind two proxies: the client
-    address read back is the *inner* proxy's, and every rule that keys on it --
-    rate limits, geoip, audit trails -- sees one address for the whole internet.
-
-    Cached rather than rebuilt because ``ProxyFix`` is stateless and the value
-    cannot change within a run; the cache is only large enough to absorb tests
-    that vary it.
-    """
     return ProxyFix_(
         lambda environ, start_response: [],
         x_for=hops,

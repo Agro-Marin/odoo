@@ -1061,15 +1061,6 @@ class PropertiesDefinition(Field):
                     % ", ".join(invalid_keys),
                 )
 
-            # Truthiness, not presence, and *before* the name is read. This is
-            # the exact test convert_to_record applies when it decides which
-            # definitions to hand back (`all(definition.get(key) for key in
-            # REQUIRED_KEYS)`), so a definition this method accepts is one that
-            # method returns. Checking presence let ``{"name": "a", "type": ""}``
-            # through: it was stored, and every later read returned ``[]``,
-            # because "" is present but falsy. The name half was already checked
-            # for truthiness below and the type half was not, which is why an
-            # empty name was refused and an empty type was not.
             missing_keys = [
                 key for key in self.REQUIRED_KEYS if not property_definition.get(key)
             ]

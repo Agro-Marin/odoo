@@ -6,8 +6,6 @@ from . import DatabaseCommand
 
 
 class Cloc(DatabaseCommand):
-    """Count lines of code per modules"""
-
     description = """
         Odoo cloc is a tool to count the number of relevant lines written
         in Python, Javascript or XML. This can be used as rough metric for
@@ -27,9 +25,6 @@ class Cloc(DatabaseCommand):
 
     def __init__(self) -> None:
         super().__init__()
-        # `-c`/`-d`/`-D` come from DatabaseCommand rather than three private
-        # copies with their own help strings; `-d` here is what every other
-        # command spells `-d`, so a config file's `db_name` reaches cloc too.
         self.add_config_arguments(self.parser)
         self.parser.add_argument(
             "--path", "-p", action="append", help="File or directory path"
@@ -40,12 +35,6 @@ class Cloc(DatabaseCommand):
         opt, unknown = self.parse_args(args)
         counter = cloc.Cloc()
 
-        # A `--path` run needs no database and must not adopt the one a config
-        # file happens to name, so it only reads the config when `-d` opts in.
-        # With no `--path` the config IS consulted: `cloc -c prod.conf` counts
-        # the database that file names, like every other command. The guard
-        # this replaces ran before the config was parsed, so a `db_name` in the
-        # file could only ever produce a usage error.
         if opt.db_name or not opt.path:
             db_name = self.bootstrap_config(opt, allow_none=True, extra_args=unknown)
             if db_name is None:

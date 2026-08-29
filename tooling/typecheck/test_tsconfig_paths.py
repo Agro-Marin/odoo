@@ -13,8 +13,6 @@ from _repo_root import find_odoo_root
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_tsconfig_paths")
 TSCONFIG = ROOT / "tsconfig.json"
 
-# The gate's own list, not a copy of it: a test that restates the thing it is
-# testing agrees with itself and with nothing else.
 CHECKOUTS = tsconfig_paths.CHECKOUTS
 SKIP = ("/static/lib/", "/node_modules/")
 IMPORT_ALIAS = re.compile(r"""from\s*["']@([A-Za-z_0-9]+)/""")
@@ -150,23 +148,6 @@ def test_no_mapped_alias_is_dead():
 
 
 def test_no_path_key_is_declared_twice():
-    # EVERY OTHER TEST HERE IS BLIND TO THIS, BY CONSTRUCTION. `_load_paths`
-    # goes through `json.loads`, which keeps the last of a repeated key and
-    # discards the rest -- the same lossy step TypeScript performs. So a
-    # duplicate cannot fail any assertion that reads the parsed object, and 59
-    # of them accumulated unnoticed: the generated block between the `>>>
-    # derived` markers re-declared 56 aliases that were already hand-written
-    # above it, plus 3 more written across several lines. tsconfig_paths.py
-    # could not catch it either -- its docstring says entries outside the
-    # markers are "never seen", so it has no way to know it is duplicating them.
-    #
-    # The cost was not a wrong path: every duplicate carried an identical
-    # value, so resolution never changed. It was 24 esbuild warnings on every
-    # bundle build, which is what a real `✘ [ERROR]` was buried under when
-    # `web.assets_web` failed to compile -- a syntax fault that read, three
-    # layers downstream, as a tour that would not start.
-    #
-    # Reads the raw text on purpose. Do not "simplify" this to _load_paths().
     text = re.sub(r"//.*", "", TSCONFIG.read_text(encoding="utf8"))
     keys = re.findall(r'^\s*"(@[^"]+)"\s*:', text, re.MULTILINE)
     repeated = {key: n for key, n in Counter(keys).items() if n > 1}

@@ -1,88 +1,5 @@
 #!/usr/bin/env python3
 
-"""
-Rewrite the entire source code using the scripts found at
-/odoo/upgrade_code
-
-Each script is named {version}-{name}.py and exposes an upgrade function
-that takes a single argument, the file_manager, and returns nothing.
-
-The file_manager acts as a list of files, files have 3 attributes:
-* path: the pathlib.Path where the file is on the file system;
-* addon: the odoo addon in which the file is;
-* content: the re-writtable content of the file (lazy).
-
-There are additional utilities on the file_manager, such as:
-* print_progress(current, total)
-
-Example::
-
-    def upgrade(file_manager):
-        files = [f for f in file_manager if f.path.suffix == ".py"]
-        for fileno, file in enumerate(files, start=1):
-            file.content = file.content.replace(..., ...)
-            file_manager.print_progress(fileno, len(files))
-
-The command line offers a way to select and run those scripts.
-
-All scripts are best-effort: they do the heavy lifting of migrating the
-source code, but they are not silver bullets.
-
-**Read this before running any of them.** "Best-effort" undersells the risk:
-these scripts rewrite source **in place**, in whatever checkout you point them
-at, and until 2026-08 not one of them had a single test. Two of the three that
-have since been audited were found to corrupt the tree they were run on:
-
-* ``18.1-00-sql-constraint.py`` caught only ``SyntaxError`` from
-  ``ast.literal_eval``, which raises **ValueError** for a non-literal node — and
-  the commonest real ``_sql_constraints`` entry carries a translated message,
-  ``_('...')``, which is a Call. The escaping ValueError aborted the whole run
-  partway through the file list, leaving everything already processed rewritten.
-  It also emitted ``_{name} = models.Constraint(...)`` unconditionally, so a
-  constraint named ``name`` silently redefined the model's ``_name`` and
-  destroyed its identity (19 ``BaseModel`` attributes were reachable that way).
-* ``18.5-00-deprecated-properties.py`` was a bare regex, so it rewrote inside
-  string literals and comments, turned ``self.env._cr`` into
-  ``self.env.env.cr``, and turned ``self._cr = cr`` in a non-recordset
-  ``__init__`` into ``self.env.cr = cr``. Run against this repository it would
-  have broken ``db/savepoint.py``, ``tools/translate.py`` and
-  ``web/controllers/json_helpers.py``.
-
-Both are fixed and now have tests. So do the rest, as of 2026-08-23: every
-script in the directory is held to a shared floor by
-``odoo/tools/tests/test_upgrade_code_scripts.py`` — discoverable by name,
-exposes ``upgrade``, survives an empty selection, leaves parseable Python and
-XML, is **idempotent**, and actually rewrites something in the corpus.
-
-Idempotence is what found the next two, in a 2,390-line script nobody had
-audited: ``18.3-00-l10n-fiscal-position-taxes.py`` appended its two new CSV
-columns unconditionally, so a second run emitted a duplicated header — and
-``csv.DictReader`` keeps the last of each, dropping every earlier value — and
-a second run then erased the values the first run had derived. Nothing stops a
-second run: this command keeps no record of what it has applied.
-
-Three scripts also read their input back from ``file.path`` instead of
-``file.content``. ``migrate()`` builds ONE ``FileManager``, runs every selected
-script against it and flushes only at the end, so a disk read returns the
-pre-run bytes; in two of the three the parsed tree is then ``ndiff``-ed against
-``file.content``, which would splice two different documents together rather
-than merely lose an edit.
-
-Four of the five scripts audited so far were defective. They are text
-substitutions standing in for code transformations, and the floor above is
-a floor, not a proof.
-
-So, in order:
-
-1. ``--dry-run`` first, and read the file list.
-2. ``--glob`` to scope the run; do not rewrite a whole checkout in one pass.
-3. Diff and read every change before committing. One limitation is inherent:
-   whether ``x`` in ``x._context`` is a recordset cannot be decided statically,
-   so a rewrite on a non-recordset is possible by construction, not by defect.
-4. Work on a clean tree so ``git diff`` is the review, and ``git checkout`` the
-   undo.
-"""
-
 import argparse
 import functools
 import importlib.util
@@ -97,10 +14,6 @@ AVAILABLE_EXT = (".py", ".js", ".css", ".scss", ".xml", ".csv", ".po", ".pot")
 
 
 def _load_module_from_file(name: str, path: str | Path) -> ModuleType:
-    """Load a Python module from a file path using importlib.
-
-    Replaces the deprecated ``SourceFileLoader.load_module()`` (removed in 3.15).
-    """
     spec = importlib.util.spec_from_file_location(name, str(path))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -122,12 +35,6 @@ except ImportError:
     parse_version = _parse_version_module.parse_version
 
     class Command:
-        """Simplified ``cli.command.Command`` for standalone execution.
-
-        Caches the parser so a subclass can register args incrementally in
-        ``__init__``; without it each ``self.parser`` access dropped them.
-        """
-
         def __init__(self) -> None:
             self._parser: argparse.ArgumentParser | None = None
 
@@ -201,7 +108,6 @@ class FileManager:
         total: int | None = None,
         file_name: str | Path = "",
     ) -> None:
-        """Render a one-line progress indicator on interactive stderr."""
         if not self._show_progress:
             return
         total = total or len(self) or 1
@@ -212,8 +118,6 @@ class FileManager:
         )
 
     def clear_progress(self) -> None:
-        """Erase the progress line, so the last `\\r`-terminated render isn't
-        left under the subsequent stdout output (or the shell prompt)."""
         if self._show_progress:
             print("\033[K", end="", file=sys.stderr, flush=True)
 
@@ -278,8 +182,6 @@ def migrate(
 
 
 class UpgradeCode(Command):
-    """Rewrite the entire source code using the scripts found at /odoo/upgrade_code"""
-
     name = "upgrade_code"
 
     def __init__(self) -> None:
@@ -322,11 +224,6 @@ class UpgradeCode(Command):
             metavar="PATH,...",
             help="specify additional addons paths (separated by commas)",
         )
-        # Under `odoo-bin` this argument never fires: `main()`'s bootstrap
-        # parser consumes `--addons-path` out of argv wherever it appears and
-        # feeds it to the config, which is what the `default` above then reads.
-        # It is declared for the standalone entry point at the bottom of this
-        # file, which runs with no odoo package and therefore no config.
 
     def run(self, cmdargs: list[str]) -> None:
         options = self.parser.parse_args(cmdargs)

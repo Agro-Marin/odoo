@@ -217,17 +217,6 @@ class TestHootOwnership(TransactionCase):
         )
 
     def test_an_import_map_parent_owns_none_of_its_helpers(self):
-        """`RUNNER_BUNDLE` is a parent of an import-map pair, and a parent owns
-        no tests: its job is to PROVIDE, the child's is to run.  Hoot
-        specifiers are withheld from `registerNativeModules` and handed to
-        `loadAndStart` instead, so classifying a parent's helpers as hoot does
-        two wrong things at once -- it starts a runner from the setup bundle,
-        and it withholds exactly the modules the child has to bridge onto,
-        leaving the child with `loadAndStart is not a function`.
-
-        This asserted the opposite until the guard that fixed that hang landed
-        in `_get_hoot_specifiers`, and then kept asserting it.
-        """
         helper = "@web/../tests/_framework/mock_server/mock_server"
         self.assertIn(self.RUNNER_BUNDLE, esm_registry().import_map_includes)
         self.assertEqual(
@@ -236,9 +225,6 @@ class TestHootOwnership(TransactionCase):
         )
 
     def test_the_child_of_that_pair_owns_its_unnamed_helpers(self):
-        """The other half of the same rule: the bundle that runs the tests
-        classifies everything under a `tests/` tree, helpers included, because
-        that is what it hands to `loadAndStart`."""
         helper = "@web/../tests/_framework/mock_server/mock_server"
         child = esm_registry().import_map_includes[self.RUNNER_BUNDLE][0]
         self.assertIn(child, esm_registry().import_map_included_bundles)

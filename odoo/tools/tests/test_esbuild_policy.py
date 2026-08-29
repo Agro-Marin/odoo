@@ -31,9 +31,6 @@ class TestTransitions:
         assert circuit.state(KEY, now=160.0) == (True, "")
 
     def test_half_open_keeps_its_entry(self, circuit):
-        """The failure count is what escalates the *next* cooldown, so an
-        expired entry must survive being read.  It also must not be rewritten
-        on every read, which is a dict write per render for no effect."""
         circuit.record_failure(
             KEY, "boom", now=100.0, cooldown_s=60.0, extended_cooldown_s=600.0
         )
@@ -100,12 +97,6 @@ class TestEscalation:
 
 class TestConcurrency:
     def test_simultaneous_failures_are_all_counted(self):
-        """Read-modify-write used to straddle a database round trip: the model
-        read the count under a lock, released it to read `ir.config_parameter`,
-        and re-acquired to write.  Two workers failing together both observed
-        "first failure", so the extended cooldown was never reached.  Passing
-        both candidate cooldowns in keeps the whole decision in one critical
-        section."""
         circuit = EsbuildCircuit()
         start = threading.Barrier(16)
 
@@ -168,7 +159,6 @@ class TestBoundedGrowth:
                 cooldown_s=1.0,
                 extended_cooldown_s=1.0,
             )
-        # now=100 leaves all three expired; a fresh failure must survive.
         circuit.record_failure(
             ("db", "fresh"),
             "boom",
@@ -180,8 +170,6 @@ class TestBoundedGrowth:
         assert len(circuit) <= 3
 
     def test_the_entry_just_recorded_is_never_the_one_evicted(self):
-        """Evicting it would make the breaker forget the very failure it was
-        asked to record."""
         circuit = EsbuildCircuit(max_entries=2)
         for i in range(2):
             circuit.record_failure(
@@ -191,8 +179,6 @@ class TestBoundedGrowth:
                 cooldown_s=1e6,
                 extended_cooldown_s=1e6,
             )
-        # The newcomer's expiry is the shortest, so an ordering-only eviction
-        # would pick it.
         circuit.record_failure(
             ("db", "newcomer"), "boom", now=0.0, cooldown_s=1.0, extended_cooldown_s=1.0
         )
@@ -221,8 +207,6 @@ class TestReadingSurface:
         assert OTHER not in circuit
 
     def test_snapshot_and_restore_round_trip(self, circuit):
-        """A `TransactionCase` touching a process-wide breaker has to put it
-        back; the old tests did it by copying a dict."""
         circuit.record_failure(
             KEY, "boom", now=0.0, cooldown_s=60.0, extended_cooldown_s=600.0
         )

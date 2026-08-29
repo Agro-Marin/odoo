@@ -1,11 +1,3 @@
-"""Print every backticked span in the given docs that is meant to be a path.
-
-"Meant to be a path" is deliberately narrow: a span ending in one of the
-extensions these documents actually cite. Backticks here also carry rule names,
-flags and dotted attribute references, and asserting those resolve on disk would
-fail on `exact=False`.
-"""
-
 import re
 import sys
 from pathlib import Path

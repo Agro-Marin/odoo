@@ -206,18 +206,6 @@ class Manifest(Mapping[str, typing.Any]):
 
     @property
     def declared(self) -> types.MappingProxyType:
-        """The manifest exactly as its file writes it.
-
-        Distinct from this object's `Mapping` interface, which answers with
-        defaults filled in and `_COMPUTED_KEYS` added. Which keys an author
-        actually wrote, and in what order, is a different question from what the
-        module ends up configured with -- and it is the only one that can decide
-        whether a key is unknown, out of canonical order, or a restatement of the
-        default.
-
-        `test_lint`'s manifest gate asked it by reaching for
-        `_Manifest__manifest_content` through the name mangling, in three places.
-        """
         return types.MappingProxyType(self.__manifest_content)
 
     @property
@@ -367,9 +355,6 @@ class Manifest(Mapping[str, typing.Any]):
     @staticmethod
     def _from_path(path: str, env: typing.Any = None) -> Manifest | None:
         if env is not None:
-            # `env` widens file_open's search to the transaction's temporary
-            # paths, so the result is not a property of `path` alone and must
-            # not be cached under it.
             return Manifest._parse_from_path(path, env)
         signature = _manifest_stat(path)
         cached = Manifest._parse_cache.get(path)
@@ -450,15 +435,12 @@ def module_content_checksum(module: str) -> str | None:
 
 
 class ResourceLocation(typing.NamedTuple):
-    """Where an absolute path sits in the addons tree."""
-
     module: str
     relative_path: str
     """Slash-separated, relative to the module directory."""
 
     @property
     def addons_path(self) -> str:
-        """``module/relative/path``, the form data files and views record."""
         return f"{self.module}/{self.relative_path}"
 
 

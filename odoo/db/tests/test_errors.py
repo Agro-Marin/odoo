@@ -32,18 +32,6 @@ class TestRetryTaxonomyCoherence(unittest.TestCase):
 
 
 class TestStaleCachedPlanMarker(unittest.TestCase):
-    """`cached plan must not change result type` is recoverable but PostgreSQL
-    gives it SQLSTATE 0A000 — the same broad code as genuinely permanent
-    "cannot alter type of a column used by a view".  It cannot be told apart by
-    SQLSTATE, and the message text is localised (this workspace's server runs
-    `lc_messages = es_ES.UTF-8`), so neither discriminator is safe.
-
-    The cursor marks the exception instead, at the one place that knows: it saw
-    the failure on a connection that had auto-prepared statements, which is the
-    necessary condition for a plan-cache error.  Over-inclusion is bounded — a
-    permanent 0A000 costs at most the retry loop's attempts.
-    """
-
     def test_an_unmarked_exception_is_not_stale(self):
         self.assertFalse(is_stale_cached_plan(psycopg.errors.FeatureNotSupported("x")))
         self.assertFalse(is_stale_cached_plan(ValueError("x")))
@@ -101,15 +89,6 @@ class TestStaleCachedPlanMarker(unittest.TestCase):
 
 
 class TestReachedTheServer(unittest.TestCase):
-    """A statement that raised still cost a round trip, and used to be counted
-    as zero queries -- including by `assertQueryCount`, so any test exercising a
-    constraint violation under-reported its real cost.
-
-    Client-side rejections are the exception and must stay uncounted: psycopg
-    raises before anything goes on the wire.  SQLSTATE is the discriminator --
-    the server supplies one, psycopg's own errors do not.
-    """
-
     def test_server_errors_carry_a_sqlstate(self):
         for cls in (
             psycopg.errors.SyntaxError,

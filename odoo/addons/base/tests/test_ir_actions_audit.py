@@ -35,9 +35,6 @@ _ABOLISHED_ACTION_METHODS = (
 
 
 def raises_without_rolling_back(case, exception, func):
-    # BaseCase.assertRaises wraps the block in cr.savepoint(), so the raised
-    # exception rolls back everything the failing call did. A test that means to
-    # observe what survived a partially-applied failure must not use it.
     try:
         func()
     except exception as exc:
@@ -524,9 +521,6 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
                 "action_id": self.action.id,
             }
         )
-        # The set-null phase runs after the cascade phase, so a cascade that
-        # refuses never reaches it. Only a failure raised after the set-null can
-        # put it at risk; the m2m sweep is the first such step.
         Actions = type(self.env["ir.actions.actions"])
         with patch.object(
             Actions,

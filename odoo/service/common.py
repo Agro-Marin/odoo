@@ -23,14 +23,6 @@ _EXPECTED_CONNECT_FAILURES: tuple[type[BaseException], ...] = (
 
 
 def _rpc_version_1() -> dict[str, Any]:
-    """Build the version payload from ``odoo.release`` on every call.
-
-    Built once at import instead, it froze whatever ``odoo.release`` happened to
-    hold at that moment -- and addons patch ``odoo.release`` afterwards, so the
-    payload silently disagreed with the module it claims to report.  That is why
-    `enterprise/web_enterprise/version.py` had to re-apply its own edit to the
-    dict by hand; building it here makes import order stop mattering.
-    """
     return {
         "server_version": odoo.release.version,
         "server_version_info": odoo.release.version_info,
@@ -40,16 +32,10 @@ def _rpc_version_1() -> dict[str, Any]:
 
 
 if TYPE_CHECKING:
-    # Declared for static tooling only: the binding below is produced by the
-    # module-level ``__getattr__``, which a type checker cannot see.
     RPC_VERSION_1: dict[str, Any]
 
 
 def __getattr__(name: str) -> Any:
-    # ``RPC_VERSION_1`` was a module-level dict and is public API, so the name
-    # survives -- as a fresh, correct snapshot rather than a mutable global
-    # whose contents depend on who imported what first.  Mutating the returned
-    # dict no longer changes what `exp_version` answers, which is the point.
     if name == "RPC_VERSION_1":
         return _rpc_version_1()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -1,19 +1,3 @@
-"""What `_load_file_options` swallows, and what it must not.
-
-Reading the rc file and parsing its values were guarded by one `try`, and
-`except OSError: pass` sat over both. That is right for the read -- there may be
-no rc file, or it may not be readable, and neither is an error -- and wrong for
-the parse: `_check_addons_path` calls `Path.iterdir()`, which raises
-PermissionError on a directory it cannot read.
-
-The consequence was not a lost option but a lost *file*. The exception broke the
-loop, so every option after the offending one went unread, `_file_options` stayed
-empty, and nothing was logged. Measured before the split: a three-option file
-behind one unreadable addons directory loaded zero options and emitted zero
-warnings, and a server started that way came up on the default port with no
-database.
-"""
-
 import tempfile
 import unittest
 from pathlib import Path
@@ -37,8 +21,6 @@ class _ConfigFileCase(unittest.TestCase):
 
 
 class TestUnreadableInputIsTolerated(_ConfigFileCase):
-    """A file that cannot be read is not a configuration error."""
-
     def test_absent_file(self):
         self.assertEqual(self.load(self.tmp / "nope.conf"), {})
 
@@ -68,11 +50,6 @@ class TestParseFailuresAreLoud(_ConfigFileCase):
         self.assertIn("http_port", str(caught.exception))
 
     def test_an_unreadable_addons_dir_raises_instead_of_emptying_the_file(self):
-        """The regression this suite exists for.
-
-        `addons_path` is listed first and the two options after it are plainly
-        valid. Before the split, all three were silently dropped.
-        """
         locked = self.tmp / "locked"
         locked.mkdir()
         (locked / "child").mkdir()

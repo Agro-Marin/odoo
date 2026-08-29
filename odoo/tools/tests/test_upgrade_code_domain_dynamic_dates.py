@@ -1,12 +1,3 @@
-"""``18.5-00-domain-dynamic-dates.py`` — the rewrite of computed date domains.
-
-The script carried six of these cases in an ``if __name__ == "__main__"`` block
-that CI never ran, which is a self-test only in the sense that someone could
-have run it. They are here, executed, with the failure modes the block never
-covered: a domain the transformer must refuse, and the XML rewrite that turns
-the transformed domain back into a file.
-"""
-
 import importlib.util
 import pathlib
 
@@ -87,8 +78,6 @@ def test_a_computed_date_becomes_a_dynamic_literal(domain, expected):
 
 
 def test_a_compound_domain_is_transformed_whole():
-    """The sixth case from the `__main__` block, which asserted only that the
-    domain changed. Pinning the output instead makes it a test."""
     domain = (
         "['|', ('start_date', 'in', "
         "[context_today().strftime('%Y-%m-01'), "
@@ -105,8 +94,6 @@ def test_a_compound_domain_is_transformed_whole():
 
 
 def test_a_domain_with_nothing_to_change_raises_NoChange():
-    """The signal `upgrade()` uses to leave a file alone. A transformer that
-    returned the domain unchanged instead would mark every file dirty."""
     with pytest.raises(MODULE.NoChange):
         MODULE.UpgradeDomainTransformer().transform("[('name', '=', 'x')]")
 
@@ -135,7 +122,6 @@ def test_the_xml_rewrite_replaces_the_domain_in_place():
 
 
 def test_a_file_outside_data_report_views_is_not_touched():
-    """The script's own scope. `models/` XML is not view data."""
     xml = (
         "<odoo><field name=\"domain\">[('dt', '&gt;', context_today())]</field></odoo>"
     )

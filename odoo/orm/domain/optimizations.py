@@ -43,13 +43,6 @@ _logger = logging.getLogger("odoo.domains")
 
 
 def _check_operators(caller: str, operators: Collection[str]) -> None:
-    """Refuse to register an optimization under an operator that does not exist.
-
-    Shared by every registrar that takes operators, so the three of them cannot
-    drift apart again: an optimization filed under a name nothing will ever look
-    up is dead on arrival, and silence about it costs a lost optimization that
-    no test can see -- domains keep returning correct results either way.
-    """
     if not operators:
         raise ValueError(f"{caller}() requires at least one operator")
     if unknown := set(operators) - ACCEPTED_CONDITION_OPERATORS:

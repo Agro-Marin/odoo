@@ -216,7 +216,6 @@ def test_consumer_candidates_are_paths_that_exist(tmp_path):
 
 
 def _init_core(tmp_path: Path, barrel_body: str) -> Path:
-    """A minimal core addons root exporting `barrel_body` from @web/model/barrel."""
     addons = tmp_path / "core_addons"
     src = addons / "web" / "static" / "src" / "model"
     src.mkdir(parents=True)
@@ -256,13 +255,6 @@ _CHANGED = {"@web/model/barrel": "addons/web/static/src/model/barrel.js"}
 
 
 def test_find_dangling_names_flags_a_rename_the_consumer_missed(tmp_path):
-    """The case the whole-module half is blind to by construction.
-
-    The file still exists, so nothing is removed and `find_dangling` sees
-    nothing; the NAME moved, and the consumer still imports the old one. This
-    is the shape that killed web.assets_web when `resequence` became
-    `resequenceRecords` and enterprise/web_map was not renamed with it.
-    """
     core = _init_core(tmp_path, "export function resequenceRecords() {}\n")
     repo = _init_name_consumer(
         tmp_path, 'import { resequence } from "@web/model/barrel";'
@@ -271,17 +263,10 @@ def test_find_dangling_names_flags_a_rename_the_consumer_missed(tmp_path):
     assert [(d.name, d.consumer) for d in dangling] == [
         ("resequence", "web_map/static/src/map_model.js")
     ]
-    # Nothing was REMOVED -- the file is still there, so the whole-module half
-    # is handed an empty set and has nothing to say. That is the blind spot.
     assert crc.find_dangling({}, [repo]) == []
 
 
 def test_find_dangling_names_reads_the_imported_side_of_an_alias(tmp_path):
-    """`import { a as b }` asks the module for `a`, not `b`.
-
-    Reading the local name would have made the motivating incident invisible:
-    it aliased the removed `resequence` TO the name that still exists.
-    """
     core = _init_core(tmp_path, "export function resequenceRecords() {}\n")
     repo = _init_name_consumer(
         tmp_path,
@@ -300,7 +285,6 @@ def test_find_dangling_names_clean_when_the_consumer_was_renamed_too(tmp_path):
 
 
 def test_find_dangling_names_follows_a_re_export(tmp_path):
-    """The barrel names the export; the definition lives one file deeper."""
     core = _init_core(
         tmp_path, 'export { resequenceRecords } from "./resequence.js";\n'
     )

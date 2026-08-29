@@ -31,34 +31,10 @@ def _log_result(stats: dict):
     _logger.info("[ORM_PERF] %s", stats.get("summary", stats.get("name", "?")))
 
 
-# Populated by PerfTestCase.setUpClass, keyed by class name, so
-# TestFullPipeline's aggregate report can read every suite's results
-# without hardcoding each sibling class by name.
 _RESULTS_REGISTRY: dict[str, list[dict]] = {}
 
 
 class PerfTestCase(TransactionCase):
-    """Shared base factoring out what all the suites below duplicated.
-
-    setUp's gc.collect(), the _log helper, and test_99_summary (sort
-    self.results by p50_us, log) used to be repeated near-verbatim in
-    every one of the TestCase classes in this file. summary_title/
-    summary_sort/summary_limit capture the handful of ways their
-    test_99_summary actually differed; a subclass with a genuinely
-    different report (TestAccelClone's two-bucket grouping,
-    TestFullPipeline's aggregate section) overrides test_99_summary
-    normally instead of forcing a flag through this one.
-
-    odoo.tests.loader.get_module_test_cases only collects test_* methods
-    from a class's own __dict__ unless allow_inherited_tests_method is
-    set, precisely to let a shared base contribute a test method without
-    every subclass needing to redeclare it.
-
-    Timing only: no test_* method in any subclass here asserts on a
-    measured value. A failure is an exception, never a performance
-    regression.
-    """
-
     allow_inherited_tests_method = True
 
     summary_title = "SUMMARY"
@@ -580,12 +556,6 @@ class TestCacheInternals(PerfTestCase):
     def test_07_invalidate_all(self):
         records = self.Model.search([], limit=100)
 
-        # Repopulating the cache once before the loop and then invalidating
-        # it ITERATIONS times meant only the first call ever invalidated a
-        # populated cache -- the rest measured clearing an already-empty
-        # one. _bench doesn't separate an untimed setup phase from the
-        # timed call, so this repopulates (untimed) right before each
-        # timed invalidate_all() instead.
         timer = PerfTimer()
         for _ in range(WARMUP):
             records.mapped("name")
@@ -600,7 +570,6 @@ class TestCacheInternals(PerfTestCase):
     def test_08_invalidate_recordset(self):
         records = self.Model.search([], limit=100)
 
-        # Same reasoning as test_07_invalidate_all.
         timer = PerfTimer()
         for _ in range(WARMUP):
             records.mapped("name")
@@ -641,9 +610,6 @@ class TestUnlink(PerfTestCase):
         cls.Model = cls.env["test_performance.base"]
 
     def test_01_unlink_single(self):
-        # create() used to sit inside the timed closure alongside
-        # unlink(), so "unlink(single)" measured create+unlink together.
-        # Pre-create the record (untimed) and time only the unlink() call.
         timer = PerfTimer()
         for _ in range(5):
             self.Model.create({"name": "unlinkme"}).unlink()
@@ -655,7 +621,6 @@ class TestUnlink(PerfTestCase):
         self._log(timer.stats("unlink(single)", warmup=0))
 
     def test_02_unlink_batch(self):
-        # Same reasoning as test_01_unlink_single.
         timer = PerfTimer()
         for _ in range(3):
             self.Model.create([{"name": f"unlinkme_{i}"} for i in range(10)]).unlink()
@@ -1030,9 +995,6 @@ class TestFullPipeline(PerfTestCase):
         timer = _bench(bench, n=50, warmup=5)
         self._log(timer.stats("search_fetch(3_fields)", warmup=0))
 
-    #: The orm_perf suites this aggregate report covers -- deliberately
-    #: not the accel_baseline ones (TestAccelClone and friends), which
-    #: answer a different question and were never part of this report.
     _AGGREGATE_CLASSES = (
         "TestFieldConversion",
         "TestFieldGet",
@@ -1048,13 +1010,6 @@ class TestFullPipeline(PerfTestCase):
     def test_99_summary(self):
         super().test_99_summary()
 
-        # _RESULTS_REGISTRY is populated by PerfTestCase.setUpClass for
-        # every suite that ran, so this reads it by name instead of
-        # getattr(SiblingClass, "results", []) on each class object --
-        # the same run-order/selection dependency remains (a class that
-        # never ran has nothing to read), but this no longer needs to
-        # import/name each sibling class object directly, or risk an
-        # AttributeError reaching into one that was never set up.
         all_results = []
         for cls_name in self._AGGREGATE_CLASSES:
             all_results.extend(_RESULTS_REGISTRY.get(cls_name, []))

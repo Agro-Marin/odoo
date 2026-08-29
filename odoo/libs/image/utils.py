@@ -4,10 +4,6 @@ import io
 from random import randrange
 from typing import Any, Literal, Self
 
-# `Image.preinit()` below registers only PIL's built-in shortlist (BMP, GIF,
-# JPEG, PPM, PNG) and `_initialized = 2` then tells PIL not to scan for the
-# rest.  Anything else this module must open has to be imported by hand to get
-# itself registered -- which is the entire reason IcoImagePlugin is here.
 from PIL import (
     IcoImagePlugin,  # noqa: F401  registers the ICO plugin; see the note above
     Image,
@@ -108,19 +104,9 @@ class ImageProcess:
             self.original_format = (self.image.format or "").upper()
 
             if self.original_format != "GIF":
-                # exif_transpose returns a fresh single-frame image, which
-                # would drop every frame after the first. GIF carries no EXIF
-                # orientation tag, so there is nothing to correct anyway.
                 self.image = image_fix_orientation(self.image)
 
     def _extract_gif_frames(self) -> None:
-        """Detach the frames from the read-only GIF stream, once.
-
-        A ``GifImageFile`` seeks within its source, so operations on it do not
-        stick and ``self.image.size`` never changes. Copying the frames out
-        makes ``self.image`` an ordinary image that resizes and crops normally,
-        with the rest of the animation carried in ``animated_frames``.
-        """
         if self.original_format == "GIF" and not self.animated_frames:
             frames = [frame.copy() for frame in ImageSequence.Iterator(self.image)]
             if frames:
@@ -256,16 +242,9 @@ class ImageProcess:
         if self.image:
             original = self.image
             if original.mode == "P":
-                # A palette image carries its transparency in `info`, not in a
-                # band, so it has no usable mask until it is expanded.
                 original = original.convert("RGBA")
             self.image = Image.new("RGB", original.size)
             self.image.paste(color, box=(0, 0) + original.size)
-            # The original doubles as the paste mask so that transparent pixels
-            # keep the fill.  PIL accepts a mask only in "1"/"L"/"LA"/"RGBA";
-            # an RGB source -- the commonest mode there is -- used to raise
-            # "ValueError: bad transparency mask" here.  With nothing to see
-            # through, the fill is simply covered.
             mask = original if original.mode in ("1", "L", "LA", "RGBA") else None
             self.image.paste(original, mask=mask)
             self.operations_count += 1
@@ -401,8 +380,6 @@ def binary_to_image(source: bytes) -> PILImage:
 
 
 def base64_to_image(base64_source: str | bytes) -> PILImage:
-    # The decode stays inside the try: b64decode raises binascii.Error on
-    # malformed input, and that is the same failure to the caller.
     try:
         return binary_to_image(base64.b64decode(base64_source))
     except binascii.Error:
@@ -442,7 +419,6 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
 
 
 def _decoded_image_size(base64_source: bytes | str) -> tuple[int, int] | None:
-    """Width and height of a base64 image, without decoding a webp."""
     source = base64.b64decode(base64_source)
     if source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
         return get_webp_size(source)

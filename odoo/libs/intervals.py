@@ -155,11 +155,6 @@ def invert_intervals[T: SupportsOrdering](
     if prev_stop < last_stop:
         items.append((prev_stop, last_stop))
 
-    # A zero-length input interval leaves `prev_stop` where it was, so the next
-    # gap starts exactly where the previous one ended and the two must be
-    # merged.  Building an `Intervals` to get that -- a sort, boundary tuples
-    # and a throwaway `set()` payload per item -- hid the reason behind
-    # machinery; the merge is the reason.
     merged: list[tuple[T, T]] = []
     for start, stop in items:
         if not start < stop:

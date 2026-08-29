@@ -120,10 +120,6 @@ def test_serialize_exception_masks_infra_errors_for_clients_only():
 
 
 def test_ensure_db_prefixes_are_kept_startswith_ready():
-    # ``str.startswith`` takes a tuple and nothing else. Holding a set here
-    # meant the one reader -- ``_recover_from_registry_error``, on the path a
-    # request takes when its database has just gone away -- built a throwaway
-    # tuple per request.
     from odoo.http import constants
 
     before_paths = set(constants.ENSURE_DB_PATHS)

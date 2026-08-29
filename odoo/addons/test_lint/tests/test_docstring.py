@@ -199,12 +199,6 @@ class TestDocstring(LintCase):
         logger.info(
             "visited %s method definitions, %s of them documented", visited, checked
         )
-        # The canary asks whether the SCAN ran, so it counts methods visited and
-        # not methods carrying a docstring. `coding_guidelines.rst` deliberately
-        # drains docstrings from this fork, so a threshold on `checked` falls on
-        # its own as that work lands -- it stood at 53 against a floor of 100 --
-        # and reads as "keep 100 docstrings", which is the opposite of the rule.
-        # `visited` moves only when iter_registry_methods() itself breaks.
         self.assertGreater(visited, 1000, "the scan reached almost no methods")
         self.assert_ratchet(
             offenders,
@@ -279,7 +273,7 @@ class TestDocstring(LintCase):
     def test_the_gate_records_such_a_docstring_as_one_offender(self):
         class _Fake:
             def method(self):
-                """:returns set: the ids"""
+                pass
 
         offenders = []
         try:

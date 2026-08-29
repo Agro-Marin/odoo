@@ -210,11 +210,6 @@ def test_standalone(args: argparse.Namespace) -> None:
         odoo.tests.loader.get_test_modules(module_name)
 
     requested = [tag.strip() for tag in args.standalone.split(",") if tag.strip()]
-    # standalone_tests is a defaultdict(list), so an unknown tag used to yield
-    # [] and insert the key: a typo ran zero scripts, logged "0 standalone
-    # scripts executed" and exited 0. Same reasoning as the runner's
-    # "--test-tags matched no test at all" guard -- a selector that matches
-    # nothing is a mistake, not a pass.
     if unknown := [tag for tag in requested if tag not in standalone_tests]:
         _logger.error(
             "unknown standalone tag(s): %s; registered: %s",
@@ -223,9 +218,7 @@ def test_standalone(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    funcs = list(
-        unique(func for tag in requested for func in standalone_tests[tag])
-    )
+    funcs = list(unique(func for tag in requested for func in standalone_tests[tag]))
 
     start_time = time.monotonic()
     failures = 0
@@ -238,15 +231,10 @@ def test_standalone(args: argparse.Namespace) -> None:
             len(funcs),
         )
         try:
-            # The try must wrap the cursor, not sit inside it: BaseCursor.__exit__
-            # commits whenever no exception is propagating, so swallowing the
-            # failure in here committed the partial work of a script that failed.
             with Registry(args.database).cursor() as cr:
                 env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
                 func(env)
         except SkipTest as exc:
-            # A script states its own preconditions by raising SkipTest; counting
-            # that as a failure made every unmet precondition exit(1).
             skipped += 1
             _logger.info("Standalone script %s skipped: %s", func.__name__, exc)
         except Exception:
@@ -265,12 +253,6 @@ def test_standalone(args: argparse.Namespace) -> None:
 
 
 class _SelectsCommand(argparse.Action):
-    """A back-compat flag that also selects the subcommand it stands in for.
-
-    Defined below the test_* functions so `command` can name one directly.
-    parse_args() resolves these classes only when it runs, from __main__.
-    """
-
     command: Any = None
 
     def __call__(
@@ -293,11 +275,6 @@ class StandaloneAction(_SelectsCommand):
 
 
 if __name__ == "__main__":
-    # Only running this file as a script needs the repo root importable. At
-    # import time it also fired for every process that merely imports this
-    # module -- odoo/addons/base/tests/test_install.py does, and that file is
-    # registered in the package __init__, so every run discovering base's tests
-    # silently grew a sys.path entry.
     sys.path.append(str(Path(__file__, "../../../").resolve()))
 
     args = parse_args()
@@ -332,9 +309,6 @@ if __name__ == "__main__":
         if os.environ.get("ODOO_PROFILE_PRELOAD_SQL"):
             collectors.append("sql")
         prof = profiler.Profiler(db=args.database, collectors=collectors)
-    # Hoisted out of test_standalone: cycle and uninstall install and drop
-    # modules against the same database, so a faketime mismatch is just as wrong
-    # for them. One check ahead of the dispatch covers all three subcommands.
     _check_faketime_mode(args.database)
 
     try:

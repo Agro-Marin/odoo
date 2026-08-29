@@ -78,8 +78,6 @@ class TagsSelector:
         test_method = test._testMethodName
         test_module_path = addon_relative_path(test.__module__)
 
-        # Reset for every test we are asked about, selected or not: a test the
-        # selector rejects must not keep the params of a previous selector.
         test._test_params = []
 
         def _is_matching(test_filter: tuple) -> bool:
@@ -88,11 +86,6 @@ class TagsSelector:
                 return False
             if file_path and not file_path.endswith(test_module_path):
                 return False
-            # Checked on its own, not as the "else" of file_path: the grammar
-            # lets one spec carry both segments ("/web/tests/test_x.py/base"
-            # parses as file_path + module), and hanging this off the elif meant
-            # the module constraint was silently dropped whenever a file path
-            # was also given.
             if module and module != test_module:
                 return False
             if klass and klass != test_class:

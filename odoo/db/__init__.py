@@ -50,14 +50,6 @@ _Pool_readonly: ConnectionPool | None = None
 _budgets: dict[tuple, ConnectionBudget] = {}
 _pool_lock = threading.Lock()
 
-# A `db_connect(..., allow_uri=True)` target (e.g. `log_db`) can resolve to a
-# wholly different physical server than the primary/replica configured by
-# `db_host`/`db_replica_host`. Such a target gets its own pool and budget,
-# keyed by the endpoint it actually resolves to, instead of silently sharing
-# the primary's `ConnectionBudget`/`ConnectionPool` (see `_resolved_endpoint`
-# and `db_connect`). A URI that happens to resolve to the same host/port as
-# the primary or replica is unaffected: it still shares that endpoint's
-# existing budget, which is correct -- it is the same physical server.
 _uri_pools: dict[tuple, ConnectionPool] = {}
 _uri_budgets: dict[tuple, ConnectionBudget] = {}
 
@@ -72,7 +64,6 @@ def _endpoint_of(readonly: bool) -> tuple:
 
 
 def _resolved_endpoint(info: dict) -> tuple:
-    """The (host, port) `info` actually connects to, decomposing a URI dsn."""
     expanded = _expand_conninfo(info) if info.get("dsn") else info
     return (expanded.get("host"), _normalize_port(expanded.get("port")))
 

@@ -330,14 +330,6 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
 
 
 class TestResetOptCopyUndoesAModelDependentRewrite(unittest.TestCase):
-    """A domain optimized for one model must not carry its rewrite to another.
-
-    ``_optimize_in_required`` strips ``False`` from an ``in`` set because the
-    field is NOT NULL *on that model*. ``_reset_opt_copy`` reset the
-    optimization level and copied every other slot, so the strip survived into
-    the copy and the next model inherited an answer that was never true for it.
-    """
-
     def _model(self, field, *, not_null):
         model = _StubModel()
         model._fields[field.name] = field

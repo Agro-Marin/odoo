@@ -71,33 +71,6 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
     @functools.cached_property
     def fields_reading_through_a_reference(self) -> tuple[Field, ...]:
-        """Non-stored fields computed by dereferencing a record chosen at runtime.
-
-        The sibling index above answers "which fields point AT this model",
-        which is what lets `_invalidate_after_delete` sweep a targeted set
-        instead of the whole cache. It can only answer that for a relation
-        whose comodel is fixed at setup. A `many2one_reference` names its model
-        in a *sibling column*, so it belongs to no comodel bucket and appears
-        in no such sweep -- yet a field computed from one caches a value read
-        out of whichever model that column happened to name.
-
-        Deleting that record leaves the cached value behind: nothing the
-        compute declares as a dependency changed, so it never reruns, and the
-        field goes on reporting a record that is gone. These fields are
-        therefore invalidated on every delete, whatever was deleted -- the
-        column that would say whether it matters is exactly the one the
-        registry cannot index. The set is small (single digits across core)
-        because it takes a non-stored compute reading through a reference;
-        stored ones are excluded, their value being re-read from the row.
-
-        Both dynamic field types count. `Many2oneReference` is the one with
-        occupants today (`ir.attachment.res_name` and friends); `Reference`
-        names its model inside its own `"model,id"` value and so is missing
-        from `fields_by_comodel` for the same reason, but currently has no
-        non-stored compute reading through it -- it is admitted here because
-        the hole is structural rather than because anything sits in it, and
-        an empty type costs nothing to scan.
-        """
         result: list[Field] = []
         for model_cls in self.models.values():
             fields = model_cls._fields

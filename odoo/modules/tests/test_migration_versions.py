@@ -118,15 +118,6 @@ class TestUpgradeScriptDiscovery(BaseCase):
 
 
 class TestVersionAlreadyCarryingTheSeries(BaseCase):
-    """A manifest version that already names the series must not gain a second one.
-
-    `check_version` accepts `19.0` and `19.0.1` and installs the module, so both
-    reach `migrate_module` as the upgrade target. Prefixing them again inflated
-    the target past every script the module owns; a no-op `-u` then ran all of
-    them, and ran them again on the next `-u`. Reproduced end to end before the
-    fix with three probe addons differing only in version string.
-    """
-
     def test_the_bare_series_is_left_intact(self):
         self.assertEqual(_convert_version(major_version), major_version)
 

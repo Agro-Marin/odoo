@@ -41,15 +41,6 @@ class SchemaMixin(_ModelStubs):
         self.invalidate_model(["parent_path"])
 
     def _check_removed_columns(self) -> None:
-        """Drop NOT NULL from columns no field declares any more.
-
-        Requires a COMPLETE registry, so `run_post_update_model_checks()` is the
-        only caller. Mid-load the registry holds just the modules processed so
-        far, and a column whose field a later module declares is
-        indistinguishable there from one whose field was deleted: deciding then
-        stripped NOT NULL from 30 live columns of res_company, res_partner and
-        res_users on a single `-u base`.
-        """
         if self._abstract:
             return
         cr = self.env.cr
