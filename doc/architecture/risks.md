@@ -122,7 +122,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope CI
 reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **231** scripts in `migrations/` and **5** in `upgrades/`, all correctly
+disk: **233** scripts in `migrations/` and **5** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
@@ -143,7 +143,7 @@ addon tests in 2026-08 while every gate and both tiers stayed green.
 
 **Cost.** A green boundary job reads as "the framework works" when it means "the
 structure holds". The integration lane is the only one that runs addon tests,
-and it runs eight suites.
+and it runs ten suites.
 
 **What would close it.** Broadening the integration lane is the only lever;
 adding structural gates cannot reach this class of defect by construction.

@@ -916,11 +916,11 @@ Two readings of the gate itself:
 * **Its dedication test is per definition, not per name.** A ``default=`` may
   point at any callable, so the gate reaches one only when the method is
   *dedicated* to the field; counted against raw occurrences, a hook copy-pasted
-  into eighteen classes would exempt itself. **1** hook is exempt today,
+  into eighteen classes would exempt itself. **0** hook is exempt today,
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
-  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **167**
-  names, at **242** definitions, wear one while no field declaration and no
+  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **170**
+  names, at **245** definitions, wear one while no field declaration and no
   binding decorator names them. A candidate population, not a violation count.
 
 2.4.2 Decorator-bound families the gate cannot reach
@@ -932,7 +932,7 @@ the decorator and no field declaration mentions the method -- so four families a
 measured by nothing.
 
 **``@api.onchange``** ``[review]``: a hook bound to one field is
-``_onchange_<field>``. **270** of **382** single-field onchange hooks are spelled
+``_onchange_<field>``. **271** of **382** single-field onchange hooks are spelled
 for their field. Four of the rest carry the **pre-9.0 public spelling**
 (``on_change_login``, ``onchange_parent_id``), reachable over RPC by accident.
 
@@ -955,19 +955,19 @@ free-standing form.
   ``_except_`` is a guard and returns, anything else under ``_unlink_`` deletes.
   An ORM-invoked hook is private.
 
-**``@api.constrains``** ``[review]`` is the fourth and largest, at **618** hooks.
-The Validation row governs the spelling and **547** already carry ``_check_``. The
+**``@api.constrains``** ``[review]`` is the fourth and largest, at **619** hooks.
+The Validation row governs the spelling and **548** already carry ``_check_``. The
 rest are names the ratchet counts (``_validate_``, ``_ensure_``, ``_verify_``) and
 the localisation namespace with the verb behind it
 (``_l10n_se_check_payment_reference``). That leaves **47** spelled with a first
 token carrying no rule anywhere: ``_constrains_``, ``_constraint_``,
 ``_limit_available_currency_ids``, and twice the misspelling ``_contrains_``.
 
-**The field-hook rule must not be extended to it** ``[review]``. **301** bind
-exactly one field and only **129** are ``_check_<field>`` -- that gap is the rule
+**The field-hook rule must not be extended to it** ``[review]``. **300** bind
+exactly one field and only **128** are ``_check_<field>`` -- that gap is the rule
 working. A ``compute=`` names a subject; a ``@api.constrains`` argument names a
 **trigger**, and a constraint is named for the **condition it enforces**
-(``_check_at_least_one_administrator``). **51** multi-field constraints are named
+(``_check_at_least_one_administrator``). **53** multi-field constraints are named
 for exactly one of their triggers and every one is right. Ask what **raises**.
 
 **A hook may hold two bindings, and then one prefix has to lose** ``[review]``.
@@ -983,7 +983,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 104 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,709 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,815 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
@@ -1217,7 +1217,7 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,487 definitions it is 22.1 % of every method
+**``_get_`` is not a default.** At 5,503 definitions it is 22.2 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
 computing. The split that matters is against ``_prepare_``: 686 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
@@ -1275,12 +1275,12 @@ more than half its floor, and is owed its own record.
 
 **The assemble verbs are abolished on paper and enforced for one shape**
 ``[review]``: ``naming_vocabulary.py`` reports one only when the name also ends in
-a payload suffix. **14** model methods open with one of those four verbs and the
+a payload suffix. **22** model methods open with one of those four verbs and the
 ratchet flags **4**. The gap hides two things -- the suffix list is short, and
 *object construction takes ``_prepare_`` too*, a factory having a consumer like
 anything else.
 
-Backlog: **34** of this repository's **725** ``_prepare_*`` definitions call
+Backlog: **33** of this repository's **725** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1297,7 +1297,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,047 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,054 definitions) is
 canonical and matches ``@api.constrains``. ``_validate_`` (29) plus ``_verify_``,
 ``_ensure_`` and ``_control_`` (49 together) are the same operation under four
 names. A method that *answers* rather than enforces is ``_is_*`` / ``_has_*`` /
@@ -1469,7 +1469,7 @@ half that is least true. Name the scope in the imperative --
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (145 definitions) and ``_update_*`` (266) are
+and is wired to nothing. ``_set_*`` (145 definitions) and ``_update_*`` (269) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
@@ -1488,7 +1488,7 @@ the duplicate report this section exists to produce.
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
 for it this section had never named: **60** definitions spell it ``_sync_*`` and
-**13** spell it ``_synchronize_*``, against ``_update_*``'s **266**. It is not
+**13** spell it ``_synchronize_*``, against ``_update_*``'s **269**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.
@@ -1499,7 +1499,7 @@ moved one whose path had changed, and **deleted** a reservation whose path was
 cleared; it is ``_sync_path_reservations``. **Where a test and the method it
 covers disagree about what the operation is, prefer the test's word.**
 
-**``_post_`` is overloaded** ``[review]``. 136 definitions carry three unrelated
+**``_post_`` is overloaded** ``[review]``. 137 definitions carry three unrelated
 meanings -- ``account.move._post`` (accounting), ``message_post`` (mail) and HTTP
 handlers. Do not add a fourth: new code names the domain operation. The existing
 three are load-bearing.
@@ -1517,9 +1517,9 @@ may not borrow that vocabulary, whether or not it is indented under a class.
 **It governs the module's own helpers too, and no gate sees them** ``[review]``.
 ``naming_vocabulary.py`` implements the scope as a *class-membership* test, so two
 populations in the same files are counted by nothing: a function declared at
-**module level** -- **311** of them under ``models/`` and ``wizard/`` -- and a
+**module level** -- **314** of them under ``models/`` and ``wizard/`` -- and a
 method on a **plain class** declared in the same file, of which there are **381**
-across **145** classes. Counted over the addon trees only, since a directory test
+across **146** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
 
 **A file can be sixteen names wrong and green** -- three sweeps left the ratchet
@@ -2169,7 +2169,7 @@ so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
 tail -- the tree spells that tail ``_uniq`` **80** times against ``_unique``'s
-**51**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
+**52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**
 ``[review]``. ``_reflect_constraints`` registers each constraint as module data

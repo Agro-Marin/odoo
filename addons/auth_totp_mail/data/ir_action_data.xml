@@ -20,7 +20,7 @@
         <field name="state">code</field>
         <field name="code">
 user = env.user
-action = user.action_open_my_account_settings()
+action = user.action_view_my_account_settings()
         </field>
         <field name="group_ids" eval="[(4, ref('base.group_user'))]"/>
     </record>

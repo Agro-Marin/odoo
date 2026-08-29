@@ -1,4 +1,4 @@
 {
-  "count": 361,
-  "note": "PROVISIONAL -- rebase resolution pending measurement."
+  "count": 359,
+  "note": "Rebase onto origin/19.0-marin. 364 at the merge-base; origin banked 362 for event's\ntwo batched loops and this branch banked 363 for sale_purchase's. Both deltas are\nreal and disjoint, so the arithmetic said 361 -- the merged tree measures 359.\n\nMeasured with the CI command, `tooling/lint/py_lint.py odoo addons --count`, reading\nthe n-plus-one-query row on the rebased tree. Banked from the measurement rather\nthan from the two deltas, because an exact floor fails downward as well as up and\nthe two-unit gap between 361 and 359 would have failed every PR until someone\nre-measured."
 }
