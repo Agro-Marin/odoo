@@ -219,8 +219,8 @@ class SaleOrder(models.Model):
             if not order_location:
                 continue
 
-            # Retrieve all the data : name, street, city, state, zip, country.
             order._check_pickup_location_data(order_location)
+            # Retrieve all the data : name, street, city, state, zip, country.
             name = order_location.get("name") or order.partner_shipping_id.name
             street = order_location["street"]
             city = order_location["city"]
