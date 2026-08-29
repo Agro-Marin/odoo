@@ -6,7 +6,7 @@ from typing import Literal
 from odoo.db.schema import column_exists
 from odoo.tools import OrderedSet, reset_cached_properties
 
-from ._protocols import SqlReader
+from ._protocols import GraphSqlReader
 from .module import Manifest
 
 if typing.TYPE_CHECKING:
@@ -87,10 +87,12 @@ class ModuleNode:
 
 
 class ModuleGraph:
-    def __init__(self, cr: SqlReader, mode: Literal["load", "update"] = "load") -> None:
+    def __init__(
+        self, cr: GraphSqlReader, mode: Literal["load", "update"] = "load"
+    ) -> None:
         self.mode: Literal["load", "update"] = mode
         self._modules: dict[str, ModuleNode] = {}
-        self._cr: SqlReader = cr
+        self._cr: GraphSqlReader = cr
 
     def __contains__(self, name: str) -> bool:
         return name in self._modules

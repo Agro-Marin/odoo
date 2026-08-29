@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 def format_list(
-    env: odoo.api.Environment,
+    env: odoo.api.Environment | None,
     lst: Iterable,
     style: Literal[
         "standard",
@@ -25,7 +25,9 @@ def format_list(
     ] = "standard",
     lang_code: str | None = None,
 ) -> str:
-    locale = babel_locale_parse(lang_code or get_lang(env).code)
+    locale = babel_locale_parse(
+        lang_code or (get_lang(env).code if env is not None else "en_US")
+    )
     if style not in locale.list_patterns:
         style = "standard"
     try:

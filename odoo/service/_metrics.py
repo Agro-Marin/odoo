@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import os
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from odoo.modules.registry import Registry
+
+if TYPE_CHECKING:
+    from ._prefork import PreforkServer
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -79,15 +82,16 @@ def service_metrics() -> dict[str, Any]:
     }.get(type(server).__name__, type(server).__name__)
 
     if hasattr(server, "workers"):
-        if os.getpid() == server.pid:
+        prefork = cast("PreforkServer", server)
+        if os.getpid() == prefork.pid:
             out["workers"] = {
-                "http": len(server.workers_http),
-                "cron": len(server.workers_cron),
-                "job": len(server.workers_job),
+                "http": len(prefork.workers_http),
+                "cron": len(prefork.workers_cron),
+                "job": len(prefork.workers_job),
             }
-            out["worker_population"] = server.population
-            out["worker_generation"] = server.generation
-            out["long_polling_alive"] = server.long_polling_pid is not None
+            out["worker_population"] = prefork.population
+            out["worker_generation"] = prefork.generation
+            out["long_polling_alive"] = prefork.long_polling_pid is not None
     else:
         by_type: dict[str, int] = {}
         for thread in threading.enumerate():
@@ -134,83 +138,84 @@ def _add_borrow_wait_histogram(exp: _Exposition, mode: str, stats: dict) -> None
     exp.sample(f"{_BORROW_WAIT}_count", buckets.get("le_+Inf", 0), labels=label)
 
 
-def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
-    counters = {
-        "borrows": ("odoo_pool_borrows_total", "Connections borrowed from the pool."),
-        "borrows_direct": (
-            "odoo_pool_borrows_direct_total",
-            "Borrows served outside the pooled path.",
-        ),
-        "borrows_failed": (
-            "odoo_pool_borrows_failed_total",
-            "Borrows that raised instead of yielding a connection.",
-        ),
-        "pools_created": ("odoo_pool_created_total", "Per-DSN pools created."),
-        "pools_reaped": (
-            "odoo_pool_reaped_total",
-            "Per-DSN pools closed by the idle reaper.",
-        ),
-        "pools_evicted_stale": (
-            "odoo_pool_evicted_stale_total",
-            "Per-DSN pools evicted because their credentials changed.",
-        ),
-        "connections_discarded": (
-            "odoo_pool_connections_discarded_total",
-            "Connections dropped rather than returned to the pool.",
-        ),
-        "probe_run": (
-            "odoo_pool_probe_run_total",
-            "Pre-flight connectability probes run.",
-        ),
-        "probe_permanent": (
-            "odoo_pool_probe_permanent_total",
-            "Probes that concluded the failure was permanent.",
-        ),
-        "probe_transient": (
-            "odoo_pool_probe_transient_total",
-            "Probes that concluded the failure was transient.",
-        ),
-        "probe_skipped_proven": (
-            "odoo_pool_probe_skipped_total",
-            "Probes skipped because the DSN was already proven.",
-        ),
-        "budget_exhausted": (
-            "odoo_pool_budget_exhausted_total",
-            "Times the shared connection budget was exhausted.",
-        ),
-        "leaks_reported": (
-            "odoo_pool_leaks_reported_total",
-            "Times a connection was found held past db_leak_detection.",
-        ),
-    }
-    gauges = {
-        "pools": ("odoo_pool_pools", "Per-DSN pools currently open."),
-        "direct_out": (
-            "odoo_pool_direct_out",
-            "Direct (unpooled) connections outstanding.",
-        ),
-        "budget_maxconn": (
-            "odoo_pool_budget_maxconn",
-            "Shared connection budget ceiling.",
-        ),
-        "budget_available": ("odoo_pool_budget_available", "Unclaimed budget slots."),
-        "budget_in_use": ("odoo_pool_budget_in_use", "Budget slots currently held."),
-        "checked_out": (
-            "odoo_pool_checked_out",
-            "Connections currently checked out by a borrower.",
-        ),
-        "checked_out_oldest_seconds": (
-            "odoo_pool_checked_out_oldest_seconds",
-            "Age of the longest-held checkout; a rising floor is a leak.",
-        ),
-    }
+_POOL_COUNTERS: dict[str, tuple[str, str]] = {
+    "borrows": ("odoo_pool_borrows_total", "Connections borrowed from the pool."),
+    "borrows_direct": (
+        "odoo_pool_borrows_direct_total",
+        "Borrows served outside the pooled path.",
+    ),
+    "borrows_failed": (
+        "odoo_pool_borrows_failed_total",
+        "Borrows that raised instead of yielding a connection.",
+    ),
+    "pools_created": ("odoo_pool_created_total", "Per-DSN pools created."),
+    "pools_reaped": (
+        "odoo_pool_reaped_total",
+        "Per-DSN pools closed by the idle reaper.",
+    ),
+    "pools_evicted_stale": (
+        "odoo_pool_evicted_stale_total",
+        "Per-DSN pools evicted because their credentials changed.",
+    ),
+    "connections_discarded": (
+        "odoo_pool_connections_discarded_total",
+        "Connections dropped rather than returned to the pool.",
+    ),
+    "probe_run": (
+        "odoo_pool_probe_run_total",
+        "Pre-flight connectability probes run.",
+    ),
+    "probe_permanent": (
+        "odoo_pool_probe_permanent_total",
+        "Probes that concluded the failure was permanent.",
+    ),
+    "probe_transient": (
+        "odoo_pool_probe_transient_total",
+        "Probes that concluded the failure was transient.",
+    ),
+    "probe_skipped_proven": (
+        "odoo_pool_probe_skipped_total",
+        "Probes skipped because the DSN was already proven.",
+    ),
+    "budget_exhausted": (
+        "odoo_pool_budget_exhausted_total",
+        "Times the shared connection budget was exhausted.",
+    ),
+    "leaks_reported": (
+        "odoo_pool_leaks_reported_total",
+        "Times a connection was found held past db_leak_detection.",
+    ),
+}
+_POOL_GAUGES: dict[str, tuple[str, str]] = {
+    "pools": ("odoo_pool_pools", "Per-DSN pools currently open."),
+    "direct_out": (
+        "odoo_pool_direct_out",
+        "Direct (unpooled) connections outstanding.",
+    ),
+    "budget_maxconn": (
+        "odoo_pool_budget_maxconn",
+        "Shared connection budget ceiling.",
+    ),
+    "budget_available": ("odoo_pool_budget_available", "Unclaimed budget slots."),
+    "budget_in_use": ("odoo_pool_budget_in_use", "Budget slots currently held."),
+    "checked_out": (
+        "odoo_pool_checked_out",
+        "Connections currently checked out by a borrower.",
+    ),
+    "checked_out_oldest_seconds": (
+        "odoo_pool_checked_out_oldest_seconds",
+        "Age of the longest-held checkout; a rising floor is a leak.",
+    ),
+}
 
+
+def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
     stats = health.get("pool") or {}
     label = {"pool": mode}
-    for key, (name, help_text) in counters.items():
+    for key, (name, help_text) in _POOL_COUNTERS.items():
         if key in stats:
             exp.add(name, stats[key], kind="counter", help=help_text, labels=label)
-    for key, (name, help_text) in gauges.items():
+    for key, (name, help_text) in _POOL_GAUGES.items():
         if key in stats:
             exp.add(name, stats[key], help=help_text, labels=label)
 

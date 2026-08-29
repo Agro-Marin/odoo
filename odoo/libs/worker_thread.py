@@ -16,7 +16,7 @@ __all__ = [
 
 
 class WorkerThread(Protocol):
-    dbname: str
+    dbname: str | None
     uid: int | None
     url: str
     query_count: int

@@ -1,4 +1,8 @@
 from http import HTTPStatus
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from odoo.tools.translate import LazyGettext
 
 __all__ = [
     "AccessDenied",
@@ -18,7 +22,7 @@ __all__ = [
 class UserError(Exception):
     http_status: int = HTTPStatus.UNPROCESSABLE_ENTITY
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str | LazyGettext) -> None:
         super().__init__(message)
 
 

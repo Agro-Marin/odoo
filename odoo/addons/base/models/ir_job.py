@@ -921,7 +921,9 @@ class IrJob(models.Model):
         )
 
     @staticmethod
-    def _run_claimed(cr, job: dict[str, Any]) -> None:
+    def _get_claimed_target(
+        cr, job: dict[str, Any]
+    ) -> tuple[api.Environment, models.BaseModel]:
         env = api.Environment(cr, job["user_id"], dict(job["context"] or {}))
         if not env.user.active and env.uid != SUPERUSER_ID:
             raise TerminalJobError(
@@ -955,6 +957,11 @@ class IrJob(models.Model):
                     method=job["method_name"],
                 )
             )
+        return env, records
+
+    @staticmethod
+    def _run_claimed(cr, job: dict[str, Any]) -> None:
+        env, records = IrJob._get_claimed_target(cr, job)
         _logger.info(
             "Job %s: %s%s.%s() starting (retry %s/%s)",
             job["id"],

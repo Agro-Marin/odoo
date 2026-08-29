@@ -210,7 +210,7 @@ class Many2oneReference(Integer):
                 invf._update_cache(corecord, ids1)
 
     def _record_ids_per_res_model(self, records: BaseModel) -> dict[str, OrderedSet]:
-        model_ids = defaultdict(OrderedSet)
+        model_ids: defaultdict[str, OrderedSet] = defaultdict(OrderedSet)
         for record in records:
             model = record[self.model_field]
             if not model and record._fields[self.model_field].compute:

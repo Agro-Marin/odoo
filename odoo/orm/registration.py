@@ -33,10 +33,7 @@ def is_model_class(cls: type) -> bool:
     return getattr(cls, "pool", None) is not None
 
 
-def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[BaseModel]:
-    if not is_model_definition(model_def):
-        raise TypeError(f"{model_def!r} is not a model definition class")
-
+def _warn_removed_model_attributes(model_def: type[BaseModel]) -> None:
     if hasattr(model_def, "_constraints"):
         _logger.warning(
             "Model attribute '_constraints' is no longer supported, "
@@ -47,6 +44,13 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
             "Model attribute '_sql_constraints' is no longer supported, "
             "please define models.Constraint on the model."
         )
+
+
+def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[BaseModel]:
+    if not is_model_definition(model_def):
+        raise TypeError(f"{model_def!r} is not a model definition class")
+
+    _warn_removed_model_attributes(model_def)
 
     name = model_def._name
     parent_names = list(model_def._inherit)
@@ -166,8 +170,8 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
     model_cls._description = model_cls._name
     model_cls._table = model_cls._name.replace(".", "_")
     model_cls._log_access = model_cls._auto
-    inherits = {}
-    depends = {}
+    inherits: dict[str, str] = {}
+    depends: dict[str, list[str]] = {}
 
     for base in reversed(model_cls._base_classes__):
         if is_model_definition(base):
@@ -477,7 +481,7 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def _add_manual_models(env: Environment):
-    removed_fields = OrderedSet()
+    removed_fields: OrderedSet = OrderedSet()
     for name, model_cls in list(env.registry.items()):
         if model_cls._custom:
             removed_fields.update(model_cls._fields.values())
@@ -545,7 +549,12 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
     )
     if not (is_class_field or is_manual_name(name)):
         raise ValidationError(
-            f"The field `{name}` is not defined in the `{model_cls._name}` Python class and does not start with 'x_'"
+            _(
+                "The field `%(field)s` is not defined in the `%(model)s` Python "
+                "class and does not start with 'x_'",
+                field=name,
+                model=model_cls._name,
+            )
         )
 
     if not isinstance(field, fields.Field):

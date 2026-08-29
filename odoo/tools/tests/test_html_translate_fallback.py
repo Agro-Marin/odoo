@@ -26,7 +26,7 @@ def test_wellformed_html_is_still_translated():
 
 def test_empty_value_short_circuits():
     for empty in ("", None, False):
-        assert html_translate(_identity, empty) == empty
+        assert html_translate(_identity, empty) == empty  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(

@@ -14,6 +14,7 @@ def render(template, **variables):
 
 class TestRendersAsNoValue(unittest.TestCase):
     def test_orm_unset_markers_are_no_value(self):
+        value: object
         for value in (None, False, "", [], {}, ()):
             with self.subTest(value=value):
                 self.assertTrue(renders_as_no_value(value))

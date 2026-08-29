@@ -18,15 +18,15 @@ class TestOrmcacheUnknownKwargs(unittest.TestCase):
     def test_a_misspelt_cache_keyword_raises(self):
         for typo in ("cach", "chache", "caches"):
             with self.subTest(typo=typo), self.assertRaises(TypeError):
-                ormcache("self.id", **{typo: "stable"})
+                ormcache("self.id", **{typo: "stable"})  # type: ignore[arg-type]
 
     def test_an_invented_keyword_raises(self):
         with self.assertRaises(TypeError):
-            ormcache("self.id", lru_size=99)
+            ormcache("self.id", lru_size=99)  # type: ignore[call-arg]
 
     def test_ormcache_context_does_not_reopen_the_hole(self):
         with self.assertRaises(TypeError):
-            ormcache_context("self.id", keys=("lang",), cach="stable")
+            ormcache_context("self.id", keys=("lang",), cach="stable")  # type: ignore[call-arg]
 
 
 def _shadows_the_method(self, __ormcache_method, value):
@@ -51,7 +51,7 @@ class TestOrmcacheKeyShadowing(unittest.TestCase):
         def compute(self, value, flag=True):
             return value
 
-        key = ormcache("value")(compute).__cache__.key
+        key = ormcache("value")(compute).__cache__.key  # type: ignore[attr-defined]
         self.assertTrue(callable(key))
 
 

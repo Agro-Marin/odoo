@@ -26,11 +26,13 @@ def check_session(
         return False
     expected = compute_session_token(session, env)
     actual = session.session_token
-    if not expected or not isinstance(actual, str) or not consteq(expected, actual):
+    if not isinstance(expected, str) or not expected:
+        return False
+    if not isinstance(actual, str) or not consteq(expected, actual):
         return False
     if request:
         try:
-            env["res.device.log"]._update_device(request)
+            env["res.device.log"]._update_device(request)  # type: ignore[attr-defined]
         except Exception:
             _logger.warning(
                 "Device-log update failed for a valid session; keeping the "

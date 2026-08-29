@@ -4,7 +4,7 @@ import logging
 import typing
 import zipfile
 from io import BytesIO
-from typing import IO, Literal
+from typing import IO, Any, Literal
 
 import requests
 from lxml import etree
@@ -58,7 +58,7 @@ def _check_xml(
     path: str | None,
     xmls: XmlSource | list[XmlSource],
 ) -> None:
-    xsd_attachment = env["ir.attachment"]
+    xsd_attachment: Any = env["ir.attachment"]
     if path:
         with file_open(path, filter_ext=(".xsd",)) as file:
             content = file.read()
@@ -152,6 +152,67 @@ def cleanup_xml_node(
     return xml_node
 
 
+def _upsert_xsd_attachment(env: Environment, name: str, content: bytes) -> Any:
+    fetched_attachment = env["ir.attachment"].search([("name", "=", name)], limit=1)
+    if fetched_attachment:
+        _logger.info("Updating the content of ir.attachment with name: %s", name)
+        fetched_attachment.raw = content
+        return fetched_attachment
+
+    _logger.info("Saving XSD file as ir.attachment, with name: %s", name)
+    return env["ir.attachment"].create({"name": name, "raw": content, "public": True})
+
+
+def _fetch_xsd_content(url: str, request_max_timeout: int) -> bytes | None:
+    try:
+        _logger.info("Fetching file/archive from given URL: %s", url)
+        response = requests.get(url, timeout=request_max_timeout)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as error:
+        _logger.warning("Request error: %s with the given URL: %s", error, url)
+        return None
+
+    if not response.content:
+        _logger.warning("The HTTP response from %s is empty (no content)", url)
+        return None
+    return response.content
+
+
+def _load_xsd_archive(
+    env: Environment,
+    archive: zipfile.ZipFile,
+    xsd_name_prefix: str,
+    xsd_names_filter: list[str] | None,
+    modify_xsd_content: Callable[[bytes], bytes] | None,
+) -> BaseModel:
+    saved_attachments: Any = env["ir.attachment"]
+    for file_path in archive.namelist():
+        if not file_path.endswith(".xsd"):
+            continue
+
+        file_name = file_path.rsplit("/", 1)[-1]
+        if xsd_names_filter and file_name not in xsd_names_filter:
+            _logger.info("Skipping file with name %s in ZIP archive", file_name)
+            continue
+
+        try:
+            content = archive.read(file_path)
+        except KeyError:
+            _logger.warning(
+                "Failed to retrieve XSD file with name %s from ZIP archive", file_name
+            )
+            continue
+        if modify_xsd_content:
+            content = modify_xsd_content(content)
+
+        prefixed_xsd_name = (
+            f"{xsd_name_prefix}.{file_name}" if xsd_name_prefix else file_name
+        )
+        saved_attachments |= _upsert_xsd_attachment(env, prefixed_xsd_name, content)
+
+    return saved_attachments
+
+
 def load_xsd_files_from_url(
     env: Environment,
     url: str,
@@ -161,106 +222,29 @@ def load_xsd_files_from_url(
     xsd_names_filter: list[str] | None = None,
     modify_xsd_content: Callable[[bytes], bytes] | None = None,
 ) -> BaseModel | Literal[False]:
-    try:
-        _logger.info("Fetching file/archive from given URL: %s", url)
-        response = requests.get(url, timeout=request_max_timeout)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as error:
-        _logger.warning("Request error: %s with the given URL: %s", error, url)
-        return False
-
-    content = response.content
-    if not content:
-        _logger.warning("The HTTP response from %s is empty (no content)", url)
+    content = _fetch_xsd_content(url, request_max_timeout)
+    if content is None:
         return False
 
     archive = None
     with contextlib.suppress(zipfile.BadZipFile):
         archive = zipfile.ZipFile(BytesIO(content))
 
-    if archive is None:
-        if modify_xsd_content:
-            content = modify_xsd_content(content)
-        if not file_name:
-            file_name = f"{url.rsplit('/', maxsplit=1)[-1]}"
-            _logger.info("XSD name not provided, defaulting to %s", file_name)
-
-        prefixed_xsd_name = (
-            f"{xsd_name_prefix}.{file_name}" if xsd_name_prefix else file_name
+    if archive is not None:
+        return _load_xsd_archive(
+            env, archive, xsd_name_prefix, xsd_names_filter, modify_xsd_content
         )
-        fetched_attachment = env["ir.attachment"].search(
-            [("name", "=", prefixed_xsd_name)], limit=1
-        )
-        if fetched_attachment:
-            _logger.info(
-                "Updating the content of ir.attachment with name: %s",
-                prefixed_xsd_name,
-            )
-            fetched_attachment.raw = content
-            return fetched_attachment
-        else:
-            _logger.info(
-                "Saving XSD file as ir.attachment, with name: %s",
-                prefixed_xsd_name,
-            )
-            return env["ir.attachment"].create(
-                {
-                    "name": prefixed_xsd_name,
-                    "raw": content,
-                    "public": True,
-                }
-            )
 
-    saved_attachments = env["ir.attachment"]
-    for file_path in archive.namelist():
-        if not file_path.endswith(".xsd"):
-            continue
+    if modify_xsd_content:
+        content = modify_xsd_content(content)
+    if not file_name:
+        file_name = f"{url.rsplit('/', maxsplit=1)[-1]}"
+        _logger.info("XSD name not provided, defaulting to %s", file_name)
 
-        file_name = file_path.rsplit("/", 1)[-1]
-
-        if xsd_names_filter and file_name not in xsd_names_filter:
-            _logger.info("Skipping file with name %s in ZIP archive", file_name)
-            continue
-
-        try:
-            content = archive.read(file_path)
-        except KeyError:
-            _logger.warning(
-                "Failed to retrieve XSD file with name %s from ZIP archive",
-                file_name,
-            )
-            continue
-        if modify_xsd_content:
-            content = modify_xsd_content(content)
-
-        prefixed_xsd_name = (
-            f"{xsd_name_prefix}.{file_name}" if xsd_name_prefix else file_name
-        )
-        fetched_attachment = env["ir.attachment"].search(
-            [("name", "=", prefixed_xsd_name)], limit=1
-        )
-        if fetched_attachment:
-            _logger.info(
-                "Updating the content of ir.attachment with name: %s",
-                prefixed_xsd_name,
-            )
-            fetched_attachment.raw = content
-            saved_attachments |= fetched_attachment
-
-        else:
-            _logger.info(
-                "Saving XSD file as ir.attachment, with name: %s",
-                prefixed_xsd_name,
-            )
-            saved_attachments |= env["ir.attachment"].create(
-                {
-                    "name": prefixed_xsd_name,
-                    "raw": content,
-                    "public": True,
-                }
-            )
-
-    return saved_attachments
+    prefixed_xsd_name = (
+        f"{xsd_name_prefix}.{file_name}" if xsd_name_prefix else file_name
+    )
+    return _upsert_xsd_attachment(env, prefixed_xsd_name, content)
 
 
 def validate_xml_from_attachment(

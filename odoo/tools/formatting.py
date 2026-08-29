@@ -1,6 +1,7 @@
 import datetime
 import re
 import typing
+from typing import Any
 
 import babel.dates
 
@@ -80,7 +81,8 @@ def formatLang(
 
     if rounding_unit == "decimals":
         if dp:
-            digits = env["decimal.precision"].get_precision(dp)
+            decimal_precision: Any = env["decimal.precision"]
+            digits = decimal_precision.get_precision(dp)
         elif currency_obj:
             digits = currency_obj.decimal_places
     else:
@@ -116,16 +118,20 @@ def format_date(
         return ""
     from odoo.fields import Datetime
 
+    res_lang: Any = env["res.lang"]
     if isinstance(value, str):
         if len(value) < DATE_LENGTH:
             return ""
-        if len(value) > DATE_LENGTH:
-            value = Datetime.from_string(value)
-            value = Datetime.context_timestamp(env["res.lang"], value)
-        else:
-            value = Datetime.from_string(value)
+        parsed = Datetime.from_string(value)
+        if parsed is None:
+            return ""
+        value = (
+            Datetime.context_timestamp(res_lang, parsed)
+            if len(value) > DATE_LENGTH
+            else parsed
+        )
     elif isinstance(value, datetime.datetime) and not value.tzinfo:
-        value = Datetime.context_timestamp(env["res.lang"], value)
+        value = Datetime.context_timestamp(res_lang, value)
 
     lang = get_lang(env, lang_code)
     locale = babel_locale_parse(lang.code)
@@ -161,10 +167,12 @@ def format_datetime(
         from odoo.fields import Datetime
 
         timestamp = Datetime.from_string(value)
+        if timestamp is None:
+            return ""
     else:
         timestamp = value
 
-    tz_name = tz or env.user.tz or "UTC"
+    tz_name = tz or env.user.tz or "UTC"  # type: ignore[attr-defined]
     utc_datetime = timestamp.replace(tzinfo=utc)
     try:
         context_tz = get_timezone(tz_name)
@@ -199,17 +207,19 @@ def format_time(
         if isinstance(value, str):
             from odoo.fields import Datetime
 
-            value = Datetime.from_string(value)
+            value = Datetime.from_string(value)  # type: ignore[assignment]
         if not isinstance(value, datetime.datetime):
             raise TypeError(
                 f"format_time() expects a datetime, got {type(value).__name__}"
             )
-        tz_name = tz or env.user.tz or "UTC"
+        tz_name = tz or env.user.tz or "UTC"  # type: ignore[attr-defined]
         utc_datetime = value.replace(tzinfo=utc)
         try:
             context_tz = get_timezone(tz_name)
             localized_dt = utc_datetime.astimezone(context_tz)
-            fixed_offset = datetime.timezone(localized_dt.utcoffset())
+            offset = localized_dt.utcoffset()
+            assert offset is not None
+            fixed_offset = datetime.timezone(offset)
             localized_time = localized_dt.replace(tzinfo=fixed_offset).timetz()
         except Exception:
             localized_time = utc_datetime.timetz()

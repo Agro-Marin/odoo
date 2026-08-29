@@ -10,14 +10,14 @@ class TestNewIdVsInt:
         assert n >= 5
         assert not n < 5
         assert not n <= 5
-        assert 5 < n  # noqa: SIM300
-        assert 5 <= n  # noqa: SIM300
+        assert 5 < n  # noqa: SIM300  the int leads on purpose: this is the reflected comparison
+        assert 5 <= n  # noqa: SIM300  the int leads on purpose: this is the reflected comparison
         assert n < 6
         assert n <= 6
         assert not n > 6
         assert not n >= 6
-        assert 6 > n  # noqa: SIM300
-        assert 6 >= n  # noqa: SIM300
+        assert 6 > n  # noqa: SIM300  the int leads on purpose: this is the reflected comparison
+        assert 6 >= n  # noqa: SIM300  the int leads on purpose: this is the reflected comparison
 
     def test_originless_newid_is_plus_infinity_vs_int(self):
         n = NewId()
@@ -106,7 +106,7 @@ class TestEqualityHashAndOrigin:
 
     def test_equality_against_non_newid_is_false(self):
         assert NewId(origin=5) != 5
-        assert NewId() != False  # noqa: E712
+        assert NewId() != False  # noqa: E712  __eq__ against the literal is what is under test, not truthiness
 
     def test_hash_follows_origin_then_ref(self):
         assert hash(NewId(origin=5)) == hash(NewId(origin=5)) == hash(5)

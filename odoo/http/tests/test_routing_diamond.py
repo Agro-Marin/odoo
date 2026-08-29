@@ -1,6 +1,7 @@
 import collections
 import sys
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -135,7 +136,8 @@ def test_a_plain_override_chain_is_unaffected(chain):
 def test_an_override_chain_still_resolves_to_the_child(chain):
     endpoints = dict(_generate_routing_rules(["rd_chain"], False))
     endpoint = endpoints["/chain/parent"]
-    assert endpoint.func.__self__.parent().get_data() == b"child"
+    controller: Any = endpoint.func.__self__
+    assert controller.parent().get_data() == b"child"
 
 
 def test_overlapping_leaf_sets_are_fused_into_one_tree(overlap):

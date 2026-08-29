@@ -6,7 +6,7 @@ import sys
 from collections.abc import Callable, Generator
 from inspect import cleandoc
 from pathlib import Path
-from typing import NoReturn
+from typing import Literal, NoReturn, overload
 
 import odoo.cli
 import odoo.init  # noqa: F401  imported for the bootstrap side effect (gc, monkeypatches)
@@ -19,16 +19,8 @@ _logger = logging.getLogger(__name__)
 COMMAND_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*\Z")
 PROG_NAME = Path(sys.argv[0]).name
 DEFAULT_COMMAND = "server"
-"""Command dispatched when argv names none; also rendered by ``help``."""
 MAINTENANCE_DB_MESSAGE = "Refusing to operate on system or template database {db_name}."
-"""One wording for the one rule :func:`refuse_maintenance_db` enforces.
-
-A neutral verb on purpose: the same sentence has to read correctly for serving,
-creating, dropping and renaming, which the two it replaces ("use", "touch") each
-did for only half of those.
-"""
 commands: dict[str, type[Command]] = {}
-"""All loaded commands"""
 
 
 def build_config_args(
@@ -206,6 +198,24 @@ class DatabaseCommand(Command, register=False):
     def parse_args(self, args: list[str]) -> tuple[argparse.Namespace, list[str]]:
         return self.parser.parse_known_args(args)
 
+    @overload
+    def bootstrap_config(
+        self,
+        parsed_args: argparse.Namespace,
+        *,
+        allow_none: Literal[False] = False,
+        extra_args: list[str] | None = None,
+    ) -> str: ...
+
+    @overload
+    def bootstrap_config(
+        self,
+        parsed_args: argparse.Namespace,
+        *,
+        allow_none: Literal[True],
+        extra_args: list[str] | None = None,
+    ) -> str | None: ...
+
     def bootstrap_config(
         self,
         parsed_args: argparse.Namespace,
@@ -274,7 +284,7 @@ def load_addons_commands(command: str | None = None) -> None:
 
     for fq_name, fullpath in mapping.items():
         try:
-            load_script(fullpath, fq_name)
+            load_script(str(fullpath), fq_name)
         except ImportError as e:
             _logger.debug("Could not load CLI command %s: %s", fq_name, e)
         except Exception as e:

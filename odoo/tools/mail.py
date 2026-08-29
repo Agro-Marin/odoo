@@ -1,6 +1,7 @@
 import random
 import socket
 import time
+from email.message import Message as EmailMessage
 
 from odoo.libs.email import (
     email_addr_escapes_re,
@@ -86,5 +87,7 @@ def generate_tracking_message_id(res_id: int | str) -> str:
     )
 
 
-def decode_message_header(message: object, header: str, separator: str = " ") -> str:
+def decode_message_header(
+    message: EmailMessage, header: str, separator: str = " "
+) -> str:
     return separator.join(h for h in message.get_all(header, []) if h)

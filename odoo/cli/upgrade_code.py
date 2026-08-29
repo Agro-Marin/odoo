@@ -15,6 +15,10 @@ AVAILABLE_EXT = (".py", ".js", ".css", ".scss", ".xml", ".csv", ".po", ".pot")
 
 def _load_module_from_file(name: str, path: str | Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location(name, str(path))
+    if spec is None or spec.loader is None:
+        raise ImportError(
+            f"cannot load {name!r} from {path}", name=name, path=str(path)
+        )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -34,7 +38,8 @@ except ImportError:
     )
     parse_version = _parse_version_module.parse_version
 
-    class Command:
+    class Command:  # type: ignore[no-redef]
+
         def __init__(self) -> None:
             self._parser: argparse.ArgumentParser | None = None
 
@@ -48,14 +53,13 @@ except ImportError:
                 )
             return self._parser
 
-    config = None
-    initialize_sys_path = None
+    config = None  # type: ignore[assignment]
+    initialize_sys_path = None  # type: ignore[assignment]
 
 
 class FileAccessor:
     addon: Path
     path: Path
-    content: str
 
     def __init__(self, path: Path, addon_path: Path) -> None:
         self.path = path
@@ -123,7 +127,7 @@ class FileManager:
 
 
 def get_upgrade_code_scripts(
-    from_version: tuple[int, ...], to_version: tuple[int, ...]
+    from_version: tuple[str, ...], to_version: tuple[str, ...]
 ) -> list[tuple[str, ModuleType]]:
     modules: list[tuple[str, ModuleType]] = []
     for script_path in sorted(UPGRADE.glob("*.py")):
@@ -137,8 +141,8 @@ def get_upgrade_code_scripts(
 def migrate(
     addons_path: list[str],
     glob: str,
-    from_version: tuple[int, ...] | None = None,
-    to_version: tuple[int, ...] | None = None,
+    from_version: tuple[str, ...] | None = None,
+    to_version: tuple[str, ...] | None = None,
     script: str | None = None,
     dry_run: bool = False,
 ) -> bool:
@@ -162,6 +166,10 @@ def migrate(
         module = _load_module_from_file(script_path.name, script_path)
         modules = [(script_path.name, module)]
     else:
+        if from_version is None or to_version is None:
+            raise ValueError(
+                "migrate() needs both from_version and to_version when script is unset"
+            )
         modules = get_upgrade_code_scripts(from_version, to_version)
 
     file_manager = FileManager(addons_path, glob)
@@ -232,9 +240,9 @@ class UpgradeCode(Command):
                 f"--to {options.to_version} is older than --from {options.from_version}"
             )
         requested = [p for p in options.addons_path if p]
-        if not requested and initialize_sys_path:
+        if not requested and initialize_sys_path is not None:
             requested = [p for p in config["addons_path"] if p]
-        if initialize_sys_path:
+        if initialize_sys_path is not None:
             config["addons_path"] = requested
             initialize_sys_path()
         options.addons_path = requested

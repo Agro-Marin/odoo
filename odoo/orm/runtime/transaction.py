@@ -34,7 +34,7 @@ class _EnvironmentSet(WeakSet):
 
     def __init__(self) -> None:
         super().__init__()
-        self.data = OrderedSet()
+        self.data: OrderedSet = OrderedSet()
         self._index: WeakValueDictionary[tuple, Environment] = WeakValueDictionary()
 
     @staticmethod

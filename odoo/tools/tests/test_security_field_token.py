@@ -1,9 +1,13 @@
 import unittest
+from typing import TYPE_CHECKING, cast
 
 from odoo.tools.security import (
     limited_field_access_token,
     verify_limited_field_access_token,
 )
+
+if TYPE_CHECKING:
+    from odoo.models import BaseModel
 
 
 class _FakeConfigParam:
@@ -42,7 +46,7 @@ class _FakeRecord:
 
 class TestVerifyLimitedFieldAccessToken(unittest.TestCase):
     def setUp(self):
-        self.record = _FakeRecord()
+        self.record = cast("BaseModel", _FakeRecord())
 
     def _verify(self, token):
         return verify_limited_field_access_token(
@@ -67,6 +71,7 @@ class TestVerifyLimitedFieldAccessToken(unittest.TestCase):
         self.assertIs(self._verify("deadbeefo" + "f" * 32), False)
 
     def test_non_string_token_returns_false(self):
+        token: object
         for token in (None, 123, [], {}, b"deadbeefo1f4"):
             with self.subTest(token=token):
                 self.assertIs(self._verify(token), False)

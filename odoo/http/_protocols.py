@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from types import MethodType
+
     import werkzeug.datastructures
     import werkzeug.routing
 
@@ -32,9 +34,37 @@ if TYPE_CHECKING:
 
         def _get_session_and_dbname(self) -> tuple[Session, str | None]: ...
 
+        def _inject_future_response(self, response: Response) -> Response: ...
+
         def _reset_for_replay(self, cr: Any = None) -> None: ...
 
+        def _save_session(self, env: odoo.api.Environment | None = None) -> None: ...
+
         def get_http_params(self) -> dict[str, Any]: ...
+
+        def get_json_data(self) -> Any: ...
+
+        def make_json_response(
+            self,
+            data: Any,
+            headers: list[tuple[str, str]] | None = None,
+            cookies: Mapping[str, str] | None = None,
+            status: int = 200,
+        ) -> Response: ...
+
+        def redirect(
+            self, location: str, code: int = 303, local: bool = True
+        ) -> Response: ...
+
+        def redirect_query(
+            self,
+            location: str,
+            query: dict[str, str] | None = None,
+            code: int = 303,
+            local: bool = True,
+        ) -> Response: ...
+
+        def validate_csrf(self, csrf: str | None) -> bool: ...
 
 else:
     RequestState = object
@@ -42,6 +72,25 @@ else:
 
 class HasHttpStatus(Protocol):
     http_status: int
+
+
+class HasRouting(Protocol):
+    routing: Mapping[str, Any]
+
+
+class Endpoint(HasRouting, Protocol):
+    func: MethodType
+    _param_specs: dict[str, Any] | None
+    typed_list_params: frozenset[str] | None
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+class RoutedMethod(Protocol):
+    original_routing: Mapping[str, Any]
+    original_endpoint: Callable
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
 @runtime_checkable

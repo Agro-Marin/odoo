@@ -229,7 +229,7 @@ class Float(Field[float]):
 
     @override
     def convert_to_export(self, value, record: ModelLike) -> typing.Any:
-        if value or value == 0.0:  # noqa: RUF069
+        if value or value == 0.0:  # noqa: RUF069  0.0 exactly, to tell a real zero from an empty value
             return value
         return ""
 
@@ -411,7 +411,7 @@ class Monetary(Field[float]):
 
     @override
     def convert_to_export(self, value, record: ModelLike) -> typing.Any:
-        if value or value == 0.0:  # noqa: RUF069
+        if value or value == 0.0:  # noqa: RUF069  0.0 exactly, to tell a real zero from an empty value
             return value
         return ""
 

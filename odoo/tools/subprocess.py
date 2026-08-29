@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 import traceback
+from typing import Any
 
 from odoo.libs.filesystem import which
 
@@ -49,7 +50,7 @@ def exec_pg_environ() -> dict[str, str]:
 
 
 def stripped_sys_argv(*strip_args: str) -> list[str]:
-    strip_args = sorted(
+    stripped = sorted(
         set(strip_args)
         | {
             "-s",
@@ -61,14 +62,18 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
             "--i18n-overwrite",
         }
     )
-    unknown = [s for s in strip_args if not config.parser.has_option(s)]
+    unknown = [s for s in stripped if not config.parser.has_option(s)]
     if unknown:
         msg = f"Unknown option(s) to strip: {', '.join(unknown)}"
         raise ValueError(msg)
-    takes_value = {s: config.parser.get_option(s).takes_value() for s in strip_args}
+    takes_value = {
+        s: opt.takes_value()
+        for s in stripped
+        if (opt := config.parser.get_option(s)) is not None
+    }
 
-    longs = tuple(a for a in strip_args if a.startswith("--"))
-    shorts = tuple(a for a in strip_args if not a.startswith("--"))
+    longs = tuple(a for a in stripped if a.startswith("--"))
+    shorts = tuple(a for a in stripped if not a.startswith("--"))
     longs_eq = tuple(l + "=" for l in longs if takes_value[l])
 
     args = sys.argv[:]
@@ -78,13 +83,13 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
             args[i].startswith(shorts)
             or args[i].startswith(longs_eq)
             or (args[i] in longs)
-            or (i >= 1 and (args[i - 1] in strip_args) and takes_value[args[i - 1]])
+            or (i >= 1 and (args[i - 1] in stripped) and takes_value[args[i - 1]])
         )
 
     return [x for i, x in enumerate(args) if not strip(args, i)]
 
 
-real_time = time.time.__call__
+real_time = time.time
 
 
 def dumpstacks(
@@ -101,7 +106,7 @@ def dumpstacks(
             if line:
                 yield f"  {line.strip()}"
 
-    threads_info = {
+    threads_info: dict[int | None, dict[str, Any]] = {
         th.ident: {
             "repr": repr(th),
             "uid": getattr(th, "uid", "n/a"),
@@ -116,12 +121,13 @@ def dumpstacks(
     for threadId, stack in sys._current_frames().items():
         if not thread_idents or threadId in thread_idents:
             thread_info = threads_info.get(threadId, {})
-            query_time = thread_info.get("query_time")
+            elapsed = thread_info.get("query_time")
             perf_t0 = thread_info.get("perf_t0")
             remaining_time = None
-            if query_time is not None and perf_t0:
-                remaining_time = f"{real_time() - perf_t0 - query_time:.3f}"
-                query_time = f"{query_time:.3f}"
+            query_time = None
+            if elapsed is not None and perf_t0:
+                remaining_time = f"{real_time() - perf_t0 - elapsed:.3f}"
+                query_time = f"{elapsed:.3f}"
             repr_ = thread_info.get("repr", threadId)
             dbname = thread_info.get("dbname", "n/a")
             uid = thread_info.get("uid", "n/a")

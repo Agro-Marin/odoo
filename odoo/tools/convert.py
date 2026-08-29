@@ -13,6 +13,7 @@ import pprint
 import re
 import subprocess
 import warnings
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Literal
@@ -30,6 +31,7 @@ from odoo.libs.text import str2bool
 
 if TYPE_CHECKING:
     from odoo.api import Environment
+    from odoo.models import BaseModel
 
 from .config import config
 from .files import file_open, file_path
@@ -37,6 +39,9 @@ from .misc import SKIPPED_ELEMENT_TYPES
 from .safe_eval import _UNSAFE_ATTRIBUTES, pytz, safe_eval, time
 
 _logger = logging.getLogger(__name__)
+
+_ABORT_RECORD = object()
+_SKIP_FIELD = object()
 
 type ConvertMode = Literal["init", "update"]
 type IdRef = dict[str, int | Literal[False]]
@@ -75,137 +80,162 @@ def _fix_multiple_roots(node: etree._Element) -> None:
         node.append(data_node)
 
 
+def _substitute_xml_ids(self: Any, s: str) -> str:
+    def repl(m: re.Match) -> str:
+        if m.group(0) == "%%":
+            return "%"
+        rec_id = m.group(1)
+        xid = self.make_xml_id(rec_id)
+        if (record_id := self.idref.get(xid)) is None:
+            record_id = self.idref[xid] = self.id_get(xid)
+        return str(record_id)
+
+    return re.sub(r"%%|%\((.*?)\)[ds]", repl, s)
+
+
+def _eval_xml_search(
+    self: Any,
+    node: etree._Element,
+    env: Environment,
+    f_model: str | None,
+    f_search: str,
+) -> Any:
+    f_use = node.get("use", "id")
+    f_name = node.get("name")
+    assert f_model, 'Define an attribute model="..." in your .XML file!'
+    context = _get_eval_context(self, env, f_model)
+    q = safe_eval(f_search, context)
+    records = env[f_model].search(q)
+    ids = records.ids
+    if f_use != "id":
+        ids = [x[f_use] for x in records.read([f_use])]
+    _fields = env[f_model]._fields
+    if (f_name in _fields) and _fields[f_name].type == "many2many":
+        return ids
+    if not ids:
+        return False
+    f_val = ids[0]
+    return f_val[0] if isinstance(f_val, tuple) else f_val
+
+
+def _eval_xml_markup(self: Any, node: etree._Element, t: str) -> str:
+    if t == "xml":
+        _fix_multiple_roots(node)
+        return '<?xml version="1.0"?>\n' + _substitute_xml_ids(
+            self, "".join(etree.tostring(n, encoding="unicode") for n in node)
+        )
+    return _substitute_xml_ids(
+        self,
+        "".join(etree.tostring(n, method="html", encoding="unicode") for n in node),
+    )
+
+
+def _eval_xml_literal(self: Any, node: etree._Element, env: Environment, t: str) -> Any:
+    if node.get("file"):
+        if t == "base64":
+            with file_open(node.get("file"), "rb", env=env) as f:
+                return base64.b64encode(f.read())
+
+        with file_open(node.get("file"), env=env) as f:
+            data = f.read()
+    else:
+        data = node.text or ""
+
+    match t:
+        case "file":
+            path = data.strip()
+            try:
+                file_path(str(Path(self.module, path)))
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"No such file or directory: {path!r} in {self.module}"
+                ) from None
+            return "%s,%s" % (self.module, path)
+        case "char":
+            return data
+        case "int":
+            d = data.strip()
+            return None if d == "None" else int(d)
+        case "float":
+            return float(data.strip())
+        case "list":
+            return [_eval_xml(self, n, env) for n in node.iterchildren("value")]
+        case "tuple":
+            return tuple(_eval_xml(self, n, env) for n in node.iterchildren("value"))
+        case "base64":
+            msg = "base64 type is only compatible with file data"
+            raise ValueError(msg)
+        case t:
+            raise ValueError(f"Unknown type {t!r}")
+
+
+def _eval_xml_field(self: Any, node: etree._Element, env: Environment) -> Any:
+    t = node.get("type", "char")
+    f_model = node.get("model")
+    if f_search := node.get("search"):
+        return _eval_xml_search(self, node, env, f_model, f_search)
+
+    if a_eval := node.get("eval"):
+        context = _get_eval_context(self, env, f_model)
+        try:
+            return safe_eval(a_eval, context)
+        except Exception:
+            logging.getLogger("odoo.tools.convert.init").error(
+                "Could not eval(%s) for %s in %s",
+                a_eval,
+                node.get("name"),
+                env.context,
+            )
+            raise
+
+    if t in ("xml", "html"):
+        return _eval_xml_markup(self, node, t)
+    return _eval_xml_literal(self, node, env, t)
+
+
+def _eval_xml_function_args(
+    self: Any, node: etree._Element, env: Environment, model_str: str | None
+) -> tuple[list, dict]:
+    args: list = []
+    kwargs: dict = {}
+    if a_eval := node.get("eval"):
+        context = _get_eval_context(self, env, model_str)
+        args = list(safe_eval(a_eval, context))
+    for child in node:
+        if child.tag == "value" and child.get("name"):
+            kwargs[child.get("name")] = _eval_xml(self, child, env)
+        else:
+            args.append(_eval_xml(self, child, env))
+    return args, kwargs
+
+
+def _eval_xml_function(self: Any, node: etree._Element, env: Environment) -> Any:
+    method_name = node.get("name") or ""
+    if "__" in method_name or method_name in _UNSAFE_ATTRIBUTES:
+        raise NameError(f"Access to forbidden name {method_name!r}")
+
+    from odoo.models import BaseModel
+
+    model_str = node.get("model")
+    model = env[model_str]
+    args, kwargs = _eval_xml_function_args(self, node, env, model_str)
+
+    if "context" in kwargs:
+        model = model.with_context(**kwargs.pop("context"))
+    method = getattr(model, method_name)
+    if not getattr(method, "_api_model", False):
+        record_ids, *args = args
+        model = model.browse(record_ids)
+        method = getattr(model, method_name)
+    result = method(*args, **kwargs)
+    return result.ids if isinstance(result, BaseModel) else result
+
+
 def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
     if node.tag in ("field", "value"):
-        t = node.get("type", "char")
-        f_model = node.get("model")
-        if f_search := node.get("search"):
-            f_use = node.get("use", "id")
-            f_name = node.get("name")
-            context = _get_eval_context(self, env, f_model)
-            q = safe_eval(f_search, context)
-            records = env[f_model].search(q)
-            ids = records.ids
-            if f_use != "id":
-                ids = [x[f_use] for x in records.read([f_use])]
-            _fields = env[f_model]._fields
-            if (f_name in _fields) and _fields[f_name].type == "many2many":
-                return ids
-            f_val = False
-            if ids:
-                f_val = ids[0]
-                if isinstance(f_val, tuple):
-                    f_val = f_val[0]
-            return f_val
-        if a_eval := node.get("eval"):
-            context = _get_eval_context(self, env, f_model)
-            try:
-                return safe_eval(a_eval, context)
-            except Exception:
-                logging.getLogger("odoo.tools.convert.init").error(
-                    "Could not eval(%s) for %s in %s",
-                    a_eval,
-                    node.get("name"),
-                    env.context,
-                )
-                raise
-
-        def _process(s: str) -> str:
-            def repl(m: re.Match) -> str:
-                if m.group(0) == "%%":
-                    return "%"
-                rec_id = m.group(1)
-                xid = self.make_xml_id(rec_id)
-                if (record_id := self.idref.get(xid)) is None:
-                    record_id = self.idref[xid] = self.id_get(xid)
-                return str(record_id)
-
-            return re.sub(r"%%|%\((.*?)\)[ds]", repl, s)
-
-        if t == "xml":
-            _fix_multiple_roots(node)
-            return '<?xml version="1.0"?>\n' + _process(
-                "".join(etree.tostring(n, encoding="unicode") for n in node)
-            )
-        if t == "html":
-            return _process(
-                "".join(
-                    etree.tostring(n, method="html", encoding="unicode") for n in node
-                )
-            )
-
-        if node.get("file"):
-            if t == "base64":
-                with file_open(node.get("file"), "rb", env=env) as f:
-                    return base64.b64encode(f.read())
-
-            with file_open(node.get("file"), env=env) as f:
-                data = f.read()
-        else:
-            data = node.text or ""
-
-        match t:
-            case "file":
-                path = data.strip()
-                try:
-                    file_path(str(Path(self.module, path)))
-                except FileNotFoundError:
-                    raise FileNotFoundError(
-                        f"No such file or directory: {path!r} in {self.module}"
-                    ) from None
-                return "%s,%s" % (self.module, path)
-            case "char":
-                return data
-            case "int":
-                d = data.strip()
-                if d == "None":
-                    return None
-                return int(d)
-            case "float":
-                return float(data.strip())
-            case "list":
-                return [_eval_xml(self, n, env) for n in node.iterchildren("value")]
-            case "tuple":
-                return tuple(
-                    _eval_xml(self, n, env) for n in node.iterchildren("value")
-                )
-            case "base64":
-                msg = "base64 type is only compatible with file data"
-                raise ValueError(msg)
-            case t:
-                raise ValueError(f"Unknown type {t!r}")
-
-    elif node.tag == "function":
-        method_name = node.get("name") or ""
-        if "__" in method_name or method_name in _UNSAFE_ATTRIBUTES:
-            raise NameError(f"Access to forbidden name {method_name!r}")
-
-        from odoo.models import BaseModel
-
-        model_str = node.get("model")
-        model = env[model_str]
-        args = []
-        kwargs = {}
-
-        if a_eval := node.get("eval"):
-            context = _get_eval_context(self, env, model_str)
-            args = list(safe_eval(a_eval, context))
-        for child in node:
-            if child.tag == "value" and child.get("name"):
-                kwargs[child.get("name")] = _eval_xml(self, child, env)
-            else:
-                args.append(_eval_xml(self, child, env))
-        if "context" in kwargs:
-            model = model.with_context(**kwargs.pop("context"))
-        method = getattr(model, method_name)
-        if not getattr(method, "_api_model", False):
-            record_ids, *args = args
-            model = model.browse(record_ids)
-            method = getattr(model, method_name)
-        result = method(*args, **kwargs)
-        if isinstance(result, BaseModel):
-            result = result.ids
-        return result
+        return _eval_xml_field(self, node, env)
+    if node.tag == "function":
+        return _eval_xml_function(self, node, env)
     return None
 
 
@@ -292,7 +322,7 @@ form: module.record_id""" % (xml_id,)
         rec_id = rec.attrib["id"]
         self._test_xml_id(rec_id)
 
-        values = {
+        values: dict[str, Any] = {
             "parent_id": False,
             "active": nodeattr2bool(rec, "active", default=True),
         }
@@ -315,7 +345,7 @@ form: module.record_id""" % (xml_id,)
 
             if "." not in a_action:
                 a_action = "%s.%s" % (self.module, a_action)
-            act = self.env.ref(a_action).sudo()
+            act: Any = self.env.ref(a_action).sudo()
             values["action"] = "%s,%d" % (act.type, act.id)
 
             if (
@@ -349,8 +379,139 @@ form: module.record_id""" % (xml_id,)
             "noupdate": self.noupdate,
         }
         menu = self.env["ir.ui.menu"]._load_records([data], self.mode == "update")
+        menu_id = menu.id
         for child in rec.iterchildren("menuitem"):
-            self._tag_menuitem(child, parent=menu.id)
+            self._tag_menuitem(
+                child, parent=menu_id if isinstance(menu_id, int) else None
+            )
+
+    def _noupdate_skips_record(
+        self, rec: etree._Element, env: Environment, xid: str
+    ) -> bool:
+        if record := env["ir.model.data"]._load_xmlid(xid):
+            for child in rec.xpath(".//record[@id]"):
+                sub_xid = child.get("id")
+                self._test_xml_id(sub_xid)
+                sub_xid = self.make_xml_id(sub_xid)
+                if sub_record := env["ir.model.data"]._load_xmlid(sub_xid):
+                    self.idref[sub_xid] = sub_record.id
+
+            self.idref[xid] = record.id
+            return True
+        return not nodeattr2bool(rec, "forcecreate", True)
+
+    def _eval_field_search(
+        self,
+        env: Environment,
+        model: BaseModel,
+        rec_model: str,
+        field: etree._Element,
+        f_name: str,
+        f_model: str | None,
+        f_search: str,
+    ) -> Any:
+        from odoo.fields import Command
+
+        context = _get_eval_context(self, env, f_model)
+        q = safe_eval(f_search, context)
+        assert f_model, 'Define an attribute model="..." in your .XML file!'
+        s = env[f_model].search(q)
+        f_use = field.get("use", "") or "id"
+        _fields = env[rec_model]._fields
+        if (f_name in _fields) and _fields[f_name].type == "many2many":
+            return [Command.set([x[f_use] for x in s])]
+        return s[0][f_use] if len(s) else False
+
+    def _eval_field_ref(
+        self,
+        rec: etree._Element,
+        model: BaseModel,
+        f_name: str,
+        f_ref: str,
+        xid: str,
+    ) -> Any:
+        if f_name in model._fields and model._fields[f_name].type == "reference":
+            val = self.model_id_get(f_ref)
+            return val[0] + "," + str(val[1])
+
+        f_val = self.id_get(
+            f_ref, raise_if_not_found=nodeattr2bool(rec, "forcecreate", True)
+        )
+        if not f_val:
+            _logger.warning(
+                "Skipping creation of %r because %s=%r could not be resolved",
+                xid,
+                f_name,
+                f_ref,
+            )
+            return _ABORT_RECORD
+        return f_val
+
+    def _eval_field_value(
+        self,
+        env: Environment,
+        model: BaseModel,
+        field: etree._Element,
+        f_name: str,
+        sub_records: list[tuple[etree._Element, str]],
+    ) -> Any:
+        f_val = _eval_xml(self, field, env)
+        if f_name not in model._fields:
+            return f_val
+
+        match model._fields[f_name].type:
+            case "many2one":
+                return int(f_val) if f_val else False
+            case "integer":
+                return int(f_val)
+            case "float" | "monetary":
+                return float(f_val)
+            case "boolean" if isinstance(f_val, str):
+                return str2bool(f_val, default=True)
+            case "one2many":
+                o2m_field: Any = model._fields[f_name]
+                sub_records.extend(
+                    (child, o2m_field.inverse_name)
+                    for child in field.iterchildren("record")
+                )
+                return _SKIP_FIELD if isinstance(f_val, str) else f_val
+            case "html" if field.get("type") == "xml":
+                _logger.warning('HTML field %r is declared as `type="xml"`', f_name)
+        return f_val
+
+    def _eval_record_fields(
+        self,
+        rec: etree._Element,
+        env: Environment,
+        model: BaseModel,
+        rec_model: str,
+        xid: str,
+        sub_records: list[tuple[etree._Element, str]],
+    ) -> dict[str, Any] | None:
+        res: dict[str, Any] = {}
+        for field in rec.iterchildren("field"):
+            f_name = field.get("name")
+            if "@" in f_name:
+                continue
+            f_model = field.get("model")
+            if not f_model and f_name in model._fields:
+                f_model = model._fields[f_name].comodel_name
+
+            if f_search := field.get("search"):
+                f_val = self._eval_field_search(
+                    env, model, rec_model, field, f_name, f_model, f_search
+                )
+            elif f_ref := field.get("ref"):
+                f_val = self._eval_field_ref(rec, model, f_name, f_ref, xid)
+            else:
+                f_val = self._eval_field_value(env, model, field, f_name, sub_records)
+
+            if f_val is _ABORT_RECORD:
+                return None
+            if f_val is _SKIP_FIELD:
+                continue
+            res[f_name] = f_val
+        return res
 
     def _tag_record(
         self, rec: etree._Element, extra_vals: dict[str, Any] | None = None
@@ -375,18 +536,7 @@ form: module.record_id""" % (xml_id,)
         if self.noupdate and self.mode != "init":
             if not rec_id:
                 return None
-
-            if record := env["ir.model.data"]._load_xmlid(xid):
-                for child in rec.xpath(".//record[@id]"):
-                    sub_xid = child.get("id")
-                    self._test_xml_id(sub_xid)
-                    sub_xid = self.make_xml_id(sub_xid)
-                    if sub_record := env["ir.model.data"]._load_xmlid(sub_xid):
-                        self.idref[sub_xid] = sub_record.id
-
-                self.idref[xid] = record.id
-                return None
-            elif not nodeattr2bool(rec, "forcecreate", True):
+            if self._noupdate_skips_record(rec, env, xid):
                 return None
 
         foreign_record_to_create = False
@@ -399,76 +549,11 @@ form: module.record_id""" % (xml_id,)
                     return None
                 raise ValueError("Cannot update missing record %r" % xid)
 
-        from odoo.fields import Command
-
-        res: dict[str, Any] = {}
         sub_records: list[tuple[etree._Element, str]] = []
-        for field in rec.iterchildren("field"):
-            f_name = field.get("name")
-            if "@" in f_name:
-                continue
-            f_model = field.get("model")
-            if not f_model and f_name in model._fields:
-                f_model = model._fields[f_name].comodel_name
-            f_use = field.get("use", "") or "id"
-            f_val = False
+        res = self._eval_record_fields(rec, env, model, rec_model, xid, sub_records)
+        if res is None:
+            return None
 
-            if f_search := field.get("search"):
-                context = _get_eval_context(self, env, f_model)
-                q = safe_eval(f_search, context)
-                assert f_model, 'Define an attribute model="..." in your .XML file!'
-                s = env[f_model].search(q)
-                _fields = env[rec_model]._fields
-                if (f_name in _fields) and _fields[f_name].type == "many2many":
-                    f_val = [Command.set([x[f_use] for x in s])]
-                elif len(s):
-                    f_val = s[0][f_use]
-            elif f_ref := field.get("ref"):
-                if (
-                    f_name in model._fields
-                    and model._fields[f_name].type == "reference"
-                ):
-                    val = self.model_id_get(f_ref)
-                    f_val = val[0] + "," + str(val[1])
-                else:
-                    f_val = self.id_get(
-                        f_ref,
-                        raise_if_not_found=nodeattr2bool(rec, "forcecreate", True),
-                    )
-                    if not f_val:
-                        _logger.warning(
-                            "Skipping creation of %r because %s=%r could not be resolved",
-                            xid,
-                            f_name,
-                            f_ref,
-                        )
-                        return None
-            else:
-                f_val = _eval_xml(self, field, env)
-                if f_name in model._fields:
-                    field_type = model._fields[f_name].type
-                    if field_type == "many2one":
-                        f_val = int(f_val) if f_val else False
-                    elif field_type == "integer":
-                        f_val = int(f_val)
-                    elif field_type in ("float", "monetary"):
-                        f_val = float(f_val)
-                    elif field_type == "boolean" and isinstance(f_val, str):
-                        f_val = str2bool(f_val, default=True)
-                    elif field_type == "one2many":
-                        sub_records.extend(
-                            (child, model._fields[f_name].inverse_name)
-                            for child in field.iterchildren("record")
-                        )
-                        if isinstance(f_val, str):
-                            continue
-                    elif field_type == "html":
-                        if field.get("type") == "xml":
-                            _logger.warning(
-                                'HTML field %r is declared as `type="xml"`',
-                                f_name,
-                            )
-            res[f_name] = f_val
         if extra_vals:
             res.update(extra_vals)
         if "sequence" not in res and "sequence" in model._fields:
@@ -680,7 +765,7 @@ form: module.record_id""" % (xml_id,)
         self._noupdate = [noupdate]
         self._sequences: list[int | None] = []
         self.xml_filename = xml_filename
-        self._tags = {
+        self._tags: dict[str, Callable[[etree._Element], Any]] = {
             "record": self._tag_record,
             "delete": self._tag_delete,
             "function": self._tag_function,
@@ -784,12 +869,8 @@ def convert_csv_import(
     if any(msg["type"] == "error" for msg in result["messages"]):
         warning_msg = "\n".join(msg["message"] for msg in result["messages"])
         raise ValueError(
-            env._(
-                "Module loading %(module)s failed: file %(file)s could not be processed:\n%(message)s",
-                module=module,
-                file=fname,
-                message=warning_msg,
-            )
+            f"Module loading {module} failed: "
+            f"file {fname} could not be processed:\n{warning_msg}"
         )
 
 

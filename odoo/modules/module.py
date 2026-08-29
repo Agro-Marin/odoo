@@ -2,6 +2,7 @@ import ast
 import copy
 import functools
 import importlib
+import importlib.abc
 import importlib.machinery
 import importlib.metadata
 import logging
@@ -20,20 +21,23 @@ from odoo.libs.hashing import ALGO_TAG, cache_hasher, update_from_file
 
 import odoo.addons
 
-try:
+if typing.TYPE_CHECKING:
     from packaging.requirements import InvalidRequirement, Requirement
-except ImportError:
+else:
+    try:
+        from packaging.requirements import InvalidRequirement, Requirement
+    except ImportError:
 
-    class InvalidRequirement(Exception): ...
+        class InvalidRequirement(Exception): ...
 
-    class Requirement:
-        def __init__(self, pydep):
-            if not re.fullmatch(r"[\w\-]+", pydep):
-                msg = f"Package `packaging` is required to parse `{pydep}` external dependency and is not installed"
-                raise ImportError(msg)
-            self.marker = None
-            self.specifier = None
-            self.name = pydep
+        class Requirement:
+            def __init__(self, pydep):
+                if not re.fullmatch(r"[\w\-]+", pydep):
+                    msg = f"Package `packaging` is required to parse `{pydep}` external dependency and is not installed"
+                    raise ImportError(msg)
+                self.marker = None
+                self.specifier = None
+                self.name = pydep
 
 
 __all__ = [
@@ -119,12 +123,12 @@ def _manifest_stat(path: str) -> _ManifestStat:
 
 
 if typing.TYPE_CHECKING:
-    from odoo.tests.common import TestCase
+    from odoo.tests.case import TestCase
 
 current_test: TestCase | bool = False
 
 
-class UpgradeHook:
+class UpgradeHook(importlib.abc.MetaPathFinder, importlib.abc.Loader):
     def find_spec(
         self,
         fullname: str,
@@ -135,8 +139,10 @@ class UpgradeHook:
             return importlib.util.spec_from_loader(fullname, self)
         return None
 
-    def create_module(self, spec: importlib.machinery.ModuleSpec) -> None:
-        return
+    def create_module(
+        self, spec: importlib.machinery.ModuleSpec
+    ) -> types.ModuleType | None:
+        return None
 
     def exec_module(self, module: types.ModuleType) -> None:
         canonical_name = module.__name__.replace(
@@ -148,6 +154,15 @@ class UpgradeHook:
             canonical = importlib.import_module(canonical_name)
 
         sys.modules[module.__name__] = canonical
+
+
+class _SysPathState:
+    addons_path: tuple[str, ...] | None = None
+    hooks_installed: bool = False
+
+
+def _freeze_namespace_path(namespace_path: Collection[str]) -> None:
+    typing.cast("typing.Any", namespace_path)._path_finder = lambda *a: None
 
 
 def initialize_sys_path() -> None:
@@ -169,21 +184,21 @@ def initialize_sys_path() -> None:
     spec = importlib.machinery.ModuleSpec(
         "odoo.addons.base.maintenance", None, is_package=True
     )
-    maintenance_pkg = importlib.util.module_from_spec(spec)
+    maintenance_pkg: typing.Any = importlib.util.module_from_spec(spec)
     maintenance_pkg.migrations = odoo.upgrade
     sys.modules["odoo.addons.base.maintenance"] = maintenance_pkg
     sys.modules["odoo.addons.base.maintenance.migrations"] = odoo.upgrade
 
     current_addons_path = tuple(odoo.addons.__path__)
-    if getattr(initialize_sys_path, "_last_addons_path", None) != current_addons_path:
+    if _SysPathState.addons_path != current_addons_path:
         Manifest.clear_caches()
-        initialize_sys_path._last_addons_path = current_addons_path
+        _SysPathState.addons_path = current_addons_path
 
-    if not getattr(initialize_sys_path, "called", False):
-        odoo.addons.__path__._path_finder = lambda *a: None
-        odoo.upgrade.__path__._path_finder = lambda *a: None
+    if not _SysPathState.hooks_installed:
+        _freeze_namespace_path(odoo.addons.__path__)
+        _freeze_namespace_path(odoo.upgrade.__path__)
         sys.meta_path.insert(0, UpgradeHook())
-        initialize_sys_path.called = True
+        _SysPathState.hooks_installed = True
 
 
 @typing.final
@@ -294,35 +309,8 @@ class Manifest(Mapping[str, typing.Any]):
         return f"Manifest({self.name})"
 
     _parse_cache: dict[str, tuple[_ManifestStat, Manifest | None]] = {}
-    """Parsed manifests, keyed by module directory and validated against disk.
-
-    One cache serves every entry point, and every read revalidates: the stored
-    ``(st_mtime_ns, st_size)`` of the module's ``__manifest__.py`` is compared
-    with the file's current one, so an edited, deleted or newly-appeared
-    manifest is picked up on the next lookup. A ``None`` signature records "this
-    directory has no manifest", which is what makes scanning an addons path
-    cheap -- most entries in one are not modules.
-
-    The freshness matters as much as the speed. ``ir.module.module.update_list``
-    exists to notice manifests that changed on disk, and the cache it consults
-    must not be able to hide one from it; the previous name-keyed cache was
-    never invalidated except by an addons-path change, so a version bump edited
-    into a manifest was invisible to ``Manifest.for_addon`` for the life of the
-    process. What the revalidation deliberately does *not* re-resolve is which
-    addons path wins for a given module name -- that is settled by iteration
-    order in ``_get_manifest_from_addons``, which re-runs on every call.
-    """
 
     _resolution_cache: dict[str, str] = {}
-    """Which addons path won a module name, so a repeat lookup skips the losers.
-
-    Only the *directory* is remembered; the manifest behind it is still served
-    through ``_from_path``, which revalidates it against disk. So an edit is
-    picked up, and a manifest that has vanished falls through to a fresh scan.
-    Without this, resolving a name costs one failed ``stat`` per addons path
-    ahead of the winner -- 34us for a module in the last of six paths against
-    2us here, on a lookup the module graph performs per module per pass.
-    """
 
     @staticmethod
     def _get_manifest_from_addons(module: str) -> Manifest | None:
@@ -437,7 +425,6 @@ def module_content_checksum(module: str) -> str | None:
 class ResourceLocation(typing.NamedTuple):
     module: str
     relative_path: str
-    """Slash-separated, relative to the module directory."""
 
     @property
     def addons_path(self) -> str:
@@ -474,6 +461,52 @@ def get_module_icon(module: str) -> str:
     manifest = Manifest.for_addon(module, display_warning=False)
     declared = manifest.raw_value("icon") if manifest else None
     return _resolve_module_icon(module, declared)
+
+
+def _normalise_auto_install(module: str, manifest: dict, depends: Collection) -> None:
+    auto_install = manifest["auto_install"]
+    if isinstance(auto_install, str):
+        raise TypeError(
+            f"module {module}: 'auto_install' must be a bool or a list/tuple/set"
+            f" of dependency names; got string {auto_install!r} (did you forget"
+            f" the brackets, e.g. ['{auto_install}']?)"
+        )
+    if isinstance(auto_install, (list, tuple, set, frozenset)):
+        manifest["auto_install"] = auto_install_set = set(auto_install)
+        non_dependencies = auto_install_set.difference(depends)
+        assert not non_dependencies, (
+            f"module {module}: auto_install triggers must be dependencies,"
+            f" found non-dependencies [{', '.join(non_dependencies)}]"
+        )
+    elif auto_install is True:
+        manifest["auto_install"] = set(depends)
+    elif auto_install is not False:
+        raise TypeError(
+            f"module {module}: 'auto_install' must be a bool or a"
+            f" list/tuple/set of dependency names; got"
+            f" {type(auto_install).__name__}: {auto_install!r}"
+        )
+
+
+def _normalise_version(module: str, manifest: dict) -> None:
+    try:
+        manifest["version"] = adapt_version(str(manifest["version"]))
+    except ValueError:
+        if manifest["installable"]:
+            _logger.warning(
+                "The module %s has an invalid version %r, setting installable=False",
+                module,
+                manifest["version"],
+            )
+            manifest["installable"] = False
+    if manifest["installable"] and not check_version(
+        str(manifest["version"]), should_raise=False
+    ):
+        _logger.warning(
+            "The module %s has an incompatible version, setting installable=False",
+            module,
+        )
+        manifest["installable"] = False
 
 
 def _load_manifest(module: str, manifest_content: dict) -> dict:
@@ -518,47 +551,8 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
         )
     assert isinstance(depends, Collection)
 
-    auto_install = manifest["auto_install"]
-    if isinstance(auto_install, str):
-        raise TypeError(
-            f"module {module}: 'auto_install' must be a bool or a list/tuple/set"
-            f" of dependency names; got string {auto_install!r} (did you forget"
-            f" the brackets, e.g. ['{auto_install}']?)"
-        )
-    if isinstance(auto_install, (list, tuple, set, frozenset)):
-        manifest["auto_install"] = auto_install_set = set(auto_install)
-        non_dependencies = auto_install_set.difference(depends)
-        assert not non_dependencies, (
-            f"module {module}: auto_install triggers must be dependencies,"
-            f" found non-dependencies [{', '.join(non_dependencies)}]"
-        )
-    elif auto_install is True:
-        manifest["auto_install"] = set(depends)
-    elif auto_install is not False:
-        raise TypeError(
-            f"module {module}: 'auto_install' must be a bool or a"
-            f" list/tuple/set of dependency names; got"
-            f" {type(auto_install).__name__}: {auto_install!r}"
-        )
-
-    try:
-        manifest["version"] = adapt_version(str(manifest["version"]))
-    except ValueError:
-        if manifest["installable"]:
-            _logger.warning(
-                "The module %s has an invalid version %r, setting installable=False",
-                module,
-                manifest["version"],
-            )
-            manifest["installable"] = False
-    if manifest["installable"] and not check_version(
-        str(manifest["version"]), should_raise=False
-    ):
-        _logger.warning(
-            "The module %s has an incompatible version, setting installable=False",
-            module,
-        )
-        manifest["installable"] = False
+    _normalise_auto_install(module, manifest, depends)
+    _normalise_version(module, manifest)
 
     return manifest
 

@@ -35,6 +35,19 @@ class _FieldStubs:
         def column_type(self) -> tuple[str, str] | None:
             pass
 
+        readonly: bool
+        search: typing.Any
+        falsy_value_label: str | None
+        description_attrs: tuple[tuple[str, str], ...]
+
+        @property
+        def is_column(self) -> bool:
+            pass
+
+        @property
+        def base_field(self) -> typing.Self:
+            pass
+
         bypass_search_access: bool
         check_company: bool
         context: ContextType

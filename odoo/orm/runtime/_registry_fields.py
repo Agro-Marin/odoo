@@ -52,7 +52,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
     @functools.cached_property
     def field_inverses(self) -> Collector[Field, Field]:
-        result = Collector()
+        result: Collector[Field, Field] = Collector()
         for model_cls in self.models.values():
             for field in model_cls._fields.values():
                 if field.relational:

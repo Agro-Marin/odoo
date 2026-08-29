@@ -1,3 +1,4 @@
+import contextlib
 import functools
 import itertools
 import logging
@@ -28,28 +29,10 @@ if typing.TYPE_CHECKING:
 class LoadMixin(_ModelStubs):
     __slots__ = ()
 
-    @api.model
-    def load(self, fields: list[str], data: list[list[str]]) -> dict:
+    def _load_creatable_models(self, fields: list[list[str]]) -> set[str]:
         from ...fields.relational import One2many
 
-        mode = self.env.context.get("mode", "init")
-        current_module = self.env.context.get("module", "__import__")
-        noupdate = self.env.context.get("noupdate", False)
-        self = self.with_context(_import_current_module=current_module)
-
-        cr = self.env.cr
-
-        fields = [fix_import_export_id_paths(f) for f in fields]
-
-        ids = []
-        messages = []
-
-        batch = []
-        batch_xml_ids = set()
         creatable_models = {self._name}
-        if invalid := self._invalid_load_paths(fields):
-            return {"ids": False, "messages": invalid, "nextrow": 0}
-
         for field_path in fields:
             if field_path[0] in (None, "id", ".id"):
                 continue
@@ -62,6 +45,112 @@ class LoadMixin(_ModelStubs):
                     comodel = o2m_field.comodel_name
                     creatable_models.add(comodel)
                     model_fields = self.env[comodel]._fields
+        return creatable_models
+
+    def _load_data_list(
+        self, data_list: list[dict], update: bool, messages: list, ids: list
+    ) -> None:
+        global_error_message = None
+        try:
+            with self.env.cr.savepoint():
+                ids.extend(self._load_records(data_list, update).ids)
+            return
+        except psycopg.InternalError as e:
+            if not any(message["type"] == "error" for message in messages):
+                messages.append(
+                    dict(
+                        data_list[0]["info"],
+                        type="error",
+                        message=_("Unknown database error: '%s'", e),
+                    )
+                )
+            return
+        except UserError as e:
+            global_error_message = dict(
+                data_list[0]["info"], type="error", message=str(e)
+            )
+        except Exception:
+            _logger.debug("Batch load failed, retrying record by record", exc_info=True)
+
+        errors = self._load_data_list_one_by_one(data_list, update, messages, ids)
+        if errors and global_error_message and global_error_message not in messages:
+            messages.insert(0, global_error_message)
+
+    def _load_data_list_one_by_one(
+        self, data_list: list[dict], update: bool, messages: list, ids: list
+    ) -> int:
+        cr = self.env.cr
+        errors = 0
+        for position, rec_data in enumerate(data_list, 1):
+            try:
+                with cr.savepoint():
+                    rec = self._load_records([rec_data], update)
+                    cr.flush()
+                ids.append(rec.id)
+            except Exception as exc:
+                message = self._load_record_failure(rec_data, exc)
+                messages.append(message)
+                if message["type"] == "error":
+                    errors += 1
+            if errors >= 10 and (errors >= position / 10):
+                messages.append(
+                    {
+                        "type": "warning",
+                        "message": _(
+                            "Found more than 10 errors and more than one error per 10 records, interrupted to avoid showing too many errors."
+                        ),
+                    }
+                )
+                break
+        return errors
+
+    def _load_record_failure(self, rec_data: dict, exc: BaseException) -> dict:
+        info = rec_data["info"]
+        if isinstance(exc, psycopg.Warning):
+            return dict(info, type="warning", message=str(exc))
+        if isinstance(exc, psycopg.Error):
+            pg_error_info = {"message": self._sql_error_to_message(exc)}
+            if exc.diag.table_name == self._table:
+                e_fields = sql.constraint_columns(
+                    self.env.cr, exc.diag, check_registry=True
+                )
+                if len(e_fields) == 1:
+                    pg_error_info["field"] = e_fields[0]
+            return dict(info, type="error", **pg_error_info)
+        if isinstance(exc, UserError):
+            return dict(info, type="error", message=str(exc))
+        _logger.debug("Error while loading record", exc_info=exc)
+        return dict(
+            info,
+            type="error",
+            message=_(
+                "Unknown error during import: %(error_type)s: %(error_message)s",
+                error_type=exc.__class__,
+                error_message=exc,
+            ),
+            moreinfo=_("Resolve other errors first"),
+        )
+
+    @api.model
+    def load(self, fields: list[str], data: list[list[str]]) -> dict:
+        mode = self.env.context.get("mode", "init")
+        current_module = self.env.context.get("module", "__import__")
+        noupdate = self.env.context.get("noupdate", False)
+        self = self.with_context(_import_current_module=current_module)
+
+        cr = self.env.cr
+
+        fields = [fix_import_export_id_paths(f) for f in fields]
+
+        ids: list[int] | typing.Literal[False] = []
+        messages: list[dict] = []
+
+        batch: list[tuple] = []
+        batch_xml_ids: set[str] = set()
+        if invalid := self._invalid_load_paths(fields):
+            return {"ids": False, "messages": invalid, "nextrow": 0}
+
+        creatable_models = self._load_creatable_models(fields)
 
         def flush(*, xml_id=None, model=None):
             if not batch:
@@ -83,93 +172,7 @@ class LoadMixin(_ModelStubs):
             ]
             batch.clear()
             batch_xml_ids.clear()
-
-            global_error_message = None
-            try:
-                with cr.savepoint():
-                    recs = self._load_records(data_list, mode == "update")
-                    ids.extend(recs.ids)
-                return
-            except psycopg.InternalError as e:
-                if not any(message["type"] == "error" for message in messages):
-                    info = data_list[0]["info"]
-                    messages.append(
-                        dict(
-                            info,
-                            type="error",
-                            message=_("Unknown database error: '%s'", e),
-                        )
-                    )
-                return
-            except UserError as e:
-                global_error_message = dict(
-                    data_list[0]["info"], type="error", message=str(e)
-                )
-            except Exception:
-                _logger.debug(
-                    "Batch load failed, retrying record by record", exc_info=True
-                )
-
-            errors = 0
-            for i, rec_data in enumerate(data_list, 1):
-                try:
-                    with cr.savepoint():
-                        rec = self._load_records([rec_data], mode == "update")
-                        cr.flush()
-                    ids.append(rec.id)
-                except psycopg.Warning as e:
-                    messages.append(
-                        dict(rec_data["info"], type="warning", message=str(e))
-                    )
-                except psycopg.Error as e:
-                    info = rec_data["info"]
-                    pg_error_info = {"message": self._sql_error_to_message(e)}
-                    if e.diag.table_name == self._table:
-                        e_fields = sql.constraint_columns(
-                            self.env.cr, e.diag, check_registry=True
-                        )
-                        if len(e_fields) == 1:
-                            pg_error_info["field"] = e_fields[0]
-                    messages.append(dict(info, type="error", **pg_error_info))
-                    errors += 1
-                except UserError as e:
-                    info = rec_data["info"]
-                    messages.append(dict(info, type="error", message=str(e)))
-                    errors += 1
-                except Exception as e:
-                    _logger.debug("Error while loading record", exc_info=True)
-                    info = rec_data["info"]
-                    message = _(
-                        "Unknown error during import: %(error_type)s: %(error_message)s",
-                        error_type=e.__class__,
-                        error_message=e,
-                    )
-                    moreinfo = _("Resolve other errors first")
-                    messages.append(
-                        dict(
-                            info,
-                            type="error",
-                            message=message,
-                            moreinfo=moreinfo,
-                        )
-                    )
-                    errors += 1
-                if errors >= 10 and (errors >= i / 10):
-                    messages.append(
-                        {
-                            "type": "warning",
-                            "message": _(
-                                "Found more than 10 errors and more than one error per 10 records, interrupted to avoid showing too many errors."
-                            ),
-                        }
-                    )
-                    break
-            if (
-                errors > 0
-                and global_error_message
-                and global_error_message not in messages
-            ):
-                messages.insert(0, global_error_message)
+            self._load_data_list(data_list, mode == "update", messages, ids)
 
         flush_recordset = self.with_context(import_flush=flush, import_cache=LRU(1024))
 
@@ -177,23 +180,15 @@ class LoadMixin(_ModelStubs):
         if limit is None:
             limit = float("inf")
 
-        info = {"rows": {"to": -1}}
         savepoint = cr.savepoint()
         try:
             extracted = flush_recordset._extract_records(
                 fields, data, log=messages.append, limit=limit
             )
             converted = flush_recordset._convert_records(extracted, log=messages.append)
-            for id, xid, record, info in converted:
-                if record is None:
-                    continue
-                if xid:
-                    xid = xid if "." in xid else f"{current_module}.{xid}"
-                    batch_xml_ids.add(xid)
-                elif id:
-                    record["id"] = id
-                batch.append((xid, record, info))
-
+            info = self._collect_load_batch(
+                converted, current_module, batch, batch_xml_ids
+            )
             flush()
             if any(message["type"] == "error" for message in messages):
                 savepoint.rollback()
@@ -249,39 +244,51 @@ class LoadMixin(_ModelStubs):
                 model = self.env[field.comodel_name]
         return messages
 
-    def _extract_records(
-        self,
-        field_paths: list[list[str | None]],
-        data: list[list[str]],
-        log: Callable = lambda a: None,
-        limit: float = float("inf"),
-    ) -> Generator[tuple[dict, dict]]:
+    @staticmethod
+    def _collect_load_batch(
+        converted, current_module: str, batch: list, batch_xml_ids: set
+    ) -> dict:
+        info = {"rows": {"to": -1}}
+        for dbid, xid, record, info in converted:
+            if record is None:
+                continue
+            if xid:
+                xid = xid if "." in xid else f"{current_module}.{xid}"
+                batch_xml_ids.add(xid)
+            elif dbid:
+                record["id"] = dbid
+            batch.append((xid, record, info))
+        return info
+
+    def _o2m_only_row_predicate(
+        self, field_paths: list[list[str | None]]
+    ) -> Callable[[list[str]], bool]:
         fields = self._fields
 
+        def is_o2m(fnames) -> bool:
+            fname0 = fnames[0]
+            return (
+                fname0 is not None and fname0 in fields and fields[fname0].is_one2many
+            )
+
         get_o2m_values = itemgetter_tuple(
-            [
-                index
-                for index, fnames in enumerate(field_paths)
-                if (fname0 := fnames[0]) is not None
-                and fname0 in fields
-                and fields[fname0].is_one2many
-            ]
+            [index for index, fnames in enumerate(field_paths) if is_o2m(fnames)]
         )
-        get_nono2m_values = itemgetter_tuple(
-            [
-                index
-                for index, fnames in enumerate(field_paths)
-                if (fname0 := fnames[0]) is None
-                or fname0 not in fields
-                or not fields[fname0].is_one2many
-            ]
+        get_other_values = itemgetter_tuple(
+            [index for index, fnames in enumerate(field_paths) if not is_o2m(fnames)]
         )
 
-        def only_o2m_values(row):
-            return any(get_o2m_values(row)) and not any(get_nono2m_values(row))
+        def only_o2m_values(row) -> bool:
+            return any(get_o2m_values(row)) and not any(get_other_values(row))
 
-        property_definitions = {}
-        property_columns = defaultdict(list)
+        return only_o2m_values
+
+    def _extract_property_definitions(
+        self, field_paths: list[list[str | None]]
+    ) -> tuple[dict, dict[str, list[str]]]:
+        fields = self._fields
+        property_definitions: dict = {}
+        property_columns: dict[str, list[str]] = defaultdict(list)
         for fname, *__ in field_paths:
             if not fname:
                 continue
@@ -299,6 +306,65 @@ class LoadMixin(_ModelStubs):
 
             property_definitions[fname] = definition
             property_columns[f_prop_name].append(fname)
+        return property_definitions, property_columns
+
+    def _extract_relational_values(
+        self,
+        relfield: str,
+        field_paths: list[list[str | None]],
+        record_span: list[list[str]],
+        property_definitions: dict,
+        log: Callable,
+    ) -> list[dict]:
+        if relfield not in property_definitions:
+            comodel = self.env[self._fields[relfield].comodel_name]
+        else:
+            comodel = self.env[property_definitions[relfield]["comodel"]]
+
+        indices, subfields = zip(
+            *(
+                (position, fnames[1:] or [None])
+                for position, fnames in enumerate(field_paths)
+                if fnames[0] == relfield
+            ),
+            strict=False,
+        )
+        relfield_data = [
+            it for it in map(itemgetter_tuple(indices), record_span) if any(it)
+        ]
+        return [
+            subrecord
+            for subrecord, _subinfo in comodel._extract_records(
+                subfields, relfield_data, log=log
+            )
+        ]
+
+    @staticmethod
+    def _collapse_property_columns(
+        record: dict, property_columns: dict[str, list[str]], property_definitions: dict
+    ) -> None:
+        for properties_fname, property_indexes_names in property_columns.items():
+            record[properties_fname] = [
+                dict(
+                    **property_definitions[property_name],
+                    value=record.pop(property_name),
+                )
+                for property_name in property_indexes_names
+            ]
+
+    def _extract_records(
+        self,
+        field_paths: list[list[str | None]],
+        data: list[list[str]],
+        log: Callable = lambda a: None,
+        limit: float = float("inf"),
+    ) -> Generator[tuple[dict, dict]]:
+        fields = self._fields
+        only_o2m_values = self._o2m_only_row_predicate(field_paths)
+
+        property_definitions, property_columns = self._extract_property_definitions(
+            field_paths
+        )
 
         relational_fnames = {fname for fname in fields if fields[fname].relational} | {
             fname
@@ -329,41 +395,13 @@ class LoadMixin(_ModelStubs):
                 if relfield is None or not is_relational(relfield):
                     continue
 
-                if relfield not in property_definitions:
-                    comodel = self.env[fields[relfield].comodel_name]
-                else:
-                    comodel = self.env[property_definitions[relfield]["comodel"]]
-
-                indices, subfields = zip(
-                    *(
-                        (index, fnames[1:] or [None])
-                        for index, fnames in enumerate(field_paths)
-                        if fnames[0] == relfield
-                    ),
-                    strict=False,
+                record[relfield] = self._extract_relational_values(
+                    relfield, field_paths, record_span, property_definitions, log
                 )
 
-                relfield_data = [
-                    it for it in map(itemgetter_tuple(indices), record_span) if any(it)
-                ]
-                record[relfield] = [
-                    subrecord
-                    for subrecord, _subinfo in comodel._extract_records(
-                        subfields, relfield_data, log=log
-                    )
-                ]
-
-            for (
-                properties_fname,
-                property_indexes_names,
-            ) in property_columns.items():
-                properties = []
-                for property_name in property_indexes_names:
-                    value = record.pop(property_name)
-                    properties.append(
-                        dict(**property_definitions[property_name], value=value)
-                    )
-                record[properties_fname] = properties
+            self._collapse_property_columns(
+                record, property_columns, property_definitions
+            )
 
             yield (
                 record,
@@ -408,7 +446,19 @@ class LoadMixin(_ModelStubs):
                 record.update(info)
             log(record)
 
-        for stream_index, (record, extras) in enumerate(records):
+        stream = list(records)
+        wanted_ids = set()
+        for record, _extras in stream:
+            if record.get(".id"):
+                with contextlib.suppress(ValueError):
+                    wanted_ids.add(int(record[".id"]))
+        known_ids = (
+            set(self.search([("id", "in", sorted(wanted_ids))])._ids)
+            if wanted_ids
+            else frozenset()
+        )
+
+        for stream_index, (record, extras) in enumerate(stream):
             xid = record.get("id", False)
             dbid = False
             if record.get(".id"):
@@ -416,7 +466,7 @@ class LoadMixin(_ModelStubs):
                     dbid = int(record[".id"])
                 except ValueError:
                     dbid = record[".id"]
-                if not self.search([("id", "=", dbid)]):
+                if dbid not in known_ids:
                     log(
                         dict(
                             extras,
@@ -488,9 +538,15 @@ class LoadMixin(_ModelStubs):
             d_id, _d_module, _d_name, d_model, d_res_id, d_noupdate, r_id = row
             if self._name != d_model:
                 raise ValidationError(
-                    f"For external id {xml_id} "
-                    f"when trying to create/update a record of model {self._name} "
-                    f"found record of different model {d_model} ({d_id})"
+                    _(
+                        "For external id %(xml_id)s when trying to create/update a "
+                        "record of model %(model)s found record of different model "
+                        "%(found_model)s (%(found_id)s)",
+                        xml_id=xml_id,
+                        model=self._name,
+                        found_model=d_model,
+                        found_id=d_id,
+                    )
                 )
             record = self.browse(d_res_id)
             if r_id:

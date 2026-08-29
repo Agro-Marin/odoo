@@ -63,6 +63,91 @@ class Selection(Field[str | typing.Literal[False]]):
             attrs["group_expand"] = self._default_group_expand
         return attrs
 
+    def _apply_selection_arg(self, field, values):
+        if self.related:
+            _logger.warning(
+                "%s: selection attribute will be ignored as the field is related",
+                self,
+            )
+        selection = field._args__["selection"]
+        if isinstance(selection, (list, tuple)):
+            if values is not None and list(values) != [kv[0] for kv in selection]:
+                _logger.warning(
+                    "%s: selection=%r overrides existing selection; use selection_add instead",
+                    self,
+                    selection,
+                )
+            values = dict(selection)
+            self.ondelete = {}
+        elif callable(selection) or isinstance(selection, str):
+            self.ondelete = None
+            self.selection = selection
+            values = None
+        else:
+            raise ValueError(
+                f"{self!r}: selection={selection!r} should be a list, a callable or a method name"
+            )
+        return values
+
+    def _apply_selection_add(self, field, values):
+        if self.related:
+            _logger.warning(
+                "%s: selection_add attribute will be ignored as the field is related",
+                self,
+            )
+        selection_add = field._args__["selection_add"]
+        if not isinstance(selection_add, list):
+            raise TypeError(f"{self}: selection_add={selection_add!r} must be a list")
+        if values is None:
+            raise TypeError(
+                f"{self}: selection_add={selection_add!r} on non-list selection {self.selection!r}"
+            )
+
+        values_add = {kv[0]: (kv[1] if len(kv) > 1 else None) for kv in selection_add}
+        ondelete = dict(field._args__.get("ondelete") or {})
+        new_values = [key for key in values_add if key not in values]
+        for key in new_values:
+            ondelete.setdefault(key, "set null")
+        if self.required and new_values and "set null" in ondelete.values():
+            raise ValueError(
+                f"{self!r}: required selection fields must define an ondelete policy that "
+                "implements the proper cleanup of the corresponding records upon "
+                "module uninstallation. Please use one or more of the following "
+                "policies: 'set default' (if the field has a default defined), 'cascade', "
+                "or a single-argument callable where the argument is the recordset "
+                "containing the specified option."
+            )
+
+        for key, val in ondelete.items():
+            if callable(val) or val in ("set null", "cascade"):
+                continue
+            if val == "set default":
+                if self.default is None:
+                    raise ValueError(
+                        f"{self!r}: ondelete policy of type 'set default' is invalid for this field "
+                        "as it does not define a default! Either define one in the base "
+                        "field, or change the chosen ondelete policy"
+                    )
+            elif val.startswith("set "):
+                if val[4:] not in values:
+                    raise ValueError(
+                        f"{self}: ondelete policy of type 'set %' must be either 'set null', "
+                        "'set default', or 'set value' where value is a valid selection value."
+                    )
+            else:
+                raise ValueError(
+                    f"{self!r}: ondelete policy {val!r} for selection value {key!r} is not a valid ondelete"
+                    " policy, please choose one of 'set null', 'set default', "
+                    "'set [value]', 'cascade' or a callable"
+                )
+
+        values = {
+            key: values_add.get(key) or values[key]
+            for key in merge_sequences(values, values_add)
+        }
+        self.ondelete.update(ondelete)
+        return values
+
     def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
         super()._setup_attrs__(model_class, name)
         if not self._base_fields__:
@@ -72,93 +157,10 @@ class Selection(Field[str | typing.Literal[False]]):
 
         for field in self._base_fields__:
             if "selection" in field._args__:
-                if self.related:
-                    _logger.warning(
-                        "%s: selection attribute will be ignored as the field is related",
-                        self,
-                    )
-                selection = field._args__["selection"]
-                if isinstance(selection, (list, tuple)):
-                    if values is not None and list(values) != [
-                        kv[0] for kv in selection
-                    ]:
-                        _logger.warning(
-                            "%s: selection=%r overrides existing selection; use selection_add instead",
-                            self,
-                            selection,
-                        )
-                    values = dict(selection)
-                    self.ondelete = {}
-                elif callable(selection) or isinstance(selection, str):
-                    self.ondelete = None
-                    self.selection = selection
-                    values = None
-                else:
-                    raise ValueError(
-                        f"{self!r}: selection={selection!r} should be a list, a callable or a method name"
-                    )
+                values = self._apply_selection_arg(field, values)
 
             if "selection_add" in field._args__:
-                if self.related:
-                    _logger.warning(
-                        "%s: selection_add attribute will be ignored as the field is related",
-                        self,
-                    )
-                selection_add = field._args__["selection_add"]
-                if not isinstance(selection_add, list):
-                    raise TypeError(
-                        f"{self}: selection_add={selection_add!r} must be a list"
-                    )
-                if values is None:
-                    raise TypeError(
-                        f"{self}: selection_add={selection_add!r} on non-list selection {self.selection!r}"
-                    )
-
-                values_add = {
-                    kv[0]: (kv[1] if len(kv) > 1 else None) for kv in selection_add
-                }
-                ondelete = dict(field._args__.get("ondelete") or {})
-                new_values = [key for key in values_add if key not in values]
-                for key in new_values:
-                    ondelete.setdefault(key, "set null")
-                if self.required and new_values and "set null" in ondelete.values():
-                    raise ValueError(
-                        f"{self!r}: required selection fields must define an ondelete policy that "
-                        "implements the proper cleanup of the corresponding records upon "
-                        "module uninstallation. Please use one or more of the following "
-                        "policies: 'set default' (if the field has a default defined), 'cascade', "
-                        "or a single-argument callable where the argument is the recordset "
-                        "containing the specified option."
-                    )
-
-                for key, val in ondelete.items():
-                    if callable(val) or val in ("set null", "cascade"):
-                        continue
-                    if val == "set default":
-                        if self.default is None:
-                            raise ValueError(
-                                f"{self!r}: ondelete policy of type 'set default' is invalid for this field "
-                                "as it does not define a default! Either define one in the base "
-                                "field, or change the chosen ondelete policy"
-                            )
-                    elif val.startswith("set "):
-                        if val[4:] not in values:
-                            raise ValueError(
-                                f"{self}: ondelete policy of type 'set %' must be either 'set null', "
-                                "'set default', or 'set value' where value is a valid selection value."
-                            )
-                    else:
-                        raise ValueError(
-                            f"{self!r}: ondelete policy {val!r} for selection value {key!r} is not a valid ondelete"
-                            " policy, please choose one of 'set null', 'set default', "
-                            "'set [value]', 'cascade' or a callable"
-                        )
-
-                values = {
-                    key: values_add.get(key) or values[key]
-                    for key in merge_sequences(values, values_add)
-                }
-                self.ondelete.update(ondelete)
+                values = self._apply_selection_add(field, values)
 
         if values is not None:
             self.selection = list(values.items())
@@ -171,7 +173,7 @@ class Selection(Field[str | typing.Literal[False]]):
     def _selection_modules(self, model: BaseModel) -> dict[str, set[str]]:
         if not isinstance(self.selection, list):
             return {}
-        value_modules = defaultdict(set)
+        value_modules: defaultdict[str, set[str]] = defaultdict(set)
         for field in reversed(
             resolve_mro(model, self.name, type(self).__instancecheck__)
         ):

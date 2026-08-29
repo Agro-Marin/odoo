@@ -4,6 +4,14 @@ from typing import TYPE_CHECKING
 
 from babel.messages.jslexer import Token, line_re, tokenize, unquote_string
 
+from ._frames import (
+    Frame,
+    close_keyword_frame,
+    handle_line_comment,
+    open_call_frame,
+    open_keyword_name,
+)
+
 type _SimpleKeyword = tuple[int | tuple[int, int] | tuple[int, str], ...] | None
 type _Keyword = dict[int | None, _SimpleKeyword] | _SimpleKeyword
 type _ExtractionResult = tuple[int, str, str | tuple[str, ...], list[str]]
@@ -66,6 +74,101 @@ def parse_template_string(
         yield (lineno, keyword, expression_contents, [])
 
 
+def _multiline_translator_comments(
+    value: str, comment_tags: Collection[str], lineno: int
+) -> list[tuple[int, str]]:
+    for comment_tag in comment_tags:
+        if not value.startswith(comment_tag):
+            continue
+        lines = value.splitlines()
+        if not lines:
+            return []
+        lines[0] = lines[0].strip()
+        lines[1:] = dedent("\n".join(lines[1:])).splitlines()
+        return [(lineno + offset, line) for offset, line in enumerate(lines)]
+    return []
+
+
+def _collect_keyword_message(
+    token: Token,
+    last_token: Token,
+    function_stack: list[Frame],
+    message_buffer: list[str],
+) -> None:
+    if token.type in ("string", "template_string"):
+        if last_token.type == "name":
+            message_buffer.clear()
+            return
+        string_value = unquote_string(token.value)
+        if not function_stack[-1]["message_lineno"]:
+            function_stack[-1]["message_lineno"] = token.lineno
+        if string_value is not None:
+            message_buffer.append(string_value)
+    elif token.type == "operator" and token.value == ",":
+        if message_buffer:
+            function_stack[-1]["messages"].append("".join(message_buffer))
+            message_buffer.clear()
+        else:
+            function_stack[-1]["messages"].append(None)
+
+
+def _js_tokens(
+    fileobj: _FileObj,
+    keywords: Mapping[str, _Keyword],
+    options: _JSOptions,
+    lineno_offset: int,
+) -> Generator[Token]:
+    encoding = options.get("encoding", "utf-8")
+    for token in tokenize(
+        fileobj.read().decode(encoding),
+        jsx=options.get("jsx", True),
+        dotted=any("." in kw for kw in keywords),
+        template_string=options.get("template_string", True),
+    ):
+        yield Token(token.type, token.value, token.lineno + lineno_offset)
+
+
+def _js_comment_token(
+    token: Token,
+    comment_tags: Collection[str],
+    in_translator_comments: bool,
+    translator_comments: list[tuple[int, str]],
+) -> tuple[bool, list[tuple[int, str]], bool]:
+    if token.type == "multilinecomment":
+        return (
+            in_translator_comments,
+            _multiline_translator_comments(
+                token.value[2:-2].strip(), comment_tags, token.lineno
+            ),
+            False,
+        )
+    in_translator_comments, skip = handle_line_comment(
+        token.value[2:].strip(),
+        token.lineno,
+        comment_tags,
+        in_translator_comments,
+        translator_comments,
+    )
+    return in_translator_comments, translator_comments, skip
+
+
+def _is_bare_template_string(
+    token: Token,
+    last_token: Token | None,
+    keywords: Mapping[str, _Keyword],
+    options: _JSOptions,
+) -> bool:
+    return bool(
+        options.get("parse_template_string", True)
+        and (
+            not last_token
+            or last_token.type != "name"
+            or last_token.value not in keywords
+        )
+        and token.type == "template_string"
+    )
+
+
 def extract_javascript(
     fileobj: _FileObj,
     keywords: Mapping[str, _Keyword],
@@ -73,23 +176,13 @@ def extract_javascript(
     options: _JSOptions,
     lineno_offset: int = 0,
 ) -> Generator[_ExtractionResult]:
-    encoding = options.get("encoding", "utf-8")
-    dotted = any("." in kw for kw in keywords)
-
     last_token = None
-    function_stack = []
-    in_def = False
-    in_translator_comments = False
-    translator_comments = []
-    message_buffer = []
+    function_stack: list[Frame] = []
+    in_def = in_translator_comments = False
+    translator_comments: list[tuple[int, str]] = []
+    message_buffer: list[str] = []
 
-    for token in tokenize(
-        fileobj.read().decode(encoding),
-        jsx=options.get("jsx", True),
-        dotted=dotted,
-        template_string=options.get("template_string", True),
-    ):
-        token: Token = Token(token.type, token.value, token.lineno + lineno_offset)
+    for token in _js_tokens(fileobj, keywords, options, lineno_offset):
         if token.type == "name" and token.value in ("class", "function"):
             in_def = True
             continue
@@ -101,147 +194,54 @@ def extract_javascript(
         elif (
             last_token and last_token.type == "name" and token.type == "template_string"
         ):
-            string_value = unquote_string(token.value)
-            cur_translator_comments = translator_comments
-            if (
-                function_stack
-                and function_stack[-1]["function_lineno"] == last_token.lineno
-            ):
-                cur_translator_comments = function_stack[-1]["translator_comments"]
-
-            function_stack.append(
-                {
-                    "function_lineno": last_token.lineno,
-                    "function_name": last_token.value,
-                    "message_lineno": token.lineno,
-                    "messages": [string_value],
-                    "translator_comments": cur_translator_comments,
-                }
+            translator_comments = open_call_frame(
+                function_stack,
+                translator_comments,
+                message_buffer,
+                last_token,
+                function_lineno=last_token.lineno,
+                message_lineno=token.lineno,
+                messages=[unquote_string(token.value)],
             )
-            translator_comments = []
-            message_buffer.clear()
-
             last_token = token
             token = Token("operator", ")", token.lineno)
 
-        if (
-            options.get("parse_template_string", True)
-            and (
-                not last_token
-                or last_token.type != "name"
-                or last_token.value not in keywords
-            )
-            and token.type == "template_string"
-        ):
-            keyword = ""
-            if function_stack and function_stack[-1]["function_name"] in keywords:
-                keyword = function_stack[-1]["function_name"]
+        if _is_bare_template_string(token, last_token, keywords, options):
             yield from parse_template_string(
                 token.value,
                 keywords,
                 comment_tags,
                 options,
                 token.lineno,
-                keyword,
+                open_keyword_name(function_stack, keywords),
             )
 
         elif token.type == "operator" and token.value == "(":
             if last_token and last_token.type == "name":
-                cur_translator_comments = translator_comments
-                if (
-                    function_stack
-                    and function_stack[-1]["function_lineno"] == last_token.lineno
-                ):
-                    cur_translator_comments = function_stack[-1]["translator_comments"]
-
-                function_stack.append(
-                    {
-                        "function_lineno": token.lineno,
-                        "function_name": last_token.value,
-                        "message_lineno": None,
-                        "messages": [],
-                        "translator_comments": cur_translator_comments,
-                    }
+                translator_comments = open_call_frame(
+                    function_stack,
+                    translator_comments,
+                    message_buffer,
+                    last_token,
+                    function_lineno=token.lineno,
+                    message_lineno=None,
+                    messages=[],
                 )
-                translator_comments = []
-                message_buffer.clear()
 
-        elif token.type == "linecomment":
-            value = token.value[2:].strip()
-            if (
-                in_translator_comments
-                and translator_comments[-1][0] == token.lineno - 1
-            ):
-                translator_comments.append((token.lineno, value))
+        elif token.type in ("linecomment", "multilinecomment"):
+            in_translator_comments, translator_comments, skip = _js_comment_token(
+                token, comment_tags, in_translator_comments, translator_comments
+            )
+            if skip:
                 continue
-
-            for comment_tag in comment_tags:
-                if value.startswith(comment_tag):
-                    in_translator_comments = True
-                    translator_comments.append((token.lineno, value))
-                    break
-
-        elif token.type == "multilinecomment":
-            translator_comments = []
-            value = token.value[2:-2].strip()
-            for comment_tag in comment_tags:
-                if value.startswith(comment_tag):
-                    lines = value.splitlines()
-                    if lines:
-                        lines[0] = lines[0].strip()
-                        lines[1:] = dedent("\n".join(lines[1:])).splitlines()
-                        for offset, line in enumerate(lines):
-                            translator_comments.append((token.lineno + offset, line))
-                    break
 
         elif function_stack and function_stack[-1]["function_name"] in keywords:
             if token.type == "operator" and token.value == ")":
-                messages = function_stack[-1]["messages"]
-                lineno = (
-                    function_stack[-1]["message_lineno"]
-                    or function_stack[-1]["function_lineno"]
+                yield close_keyword_frame(function_stack, message_buffer)
+            else:
+                _collect_keyword_message(
+                    token, last_token, function_stack, message_buffer
                 )
-                cur_translator_comments = function_stack[-1]["translator_comments"]
-
-                if message_buffer:
-                    messages.append("".join(message_buffer))
-                    message_buffer.clear()
-                else:
-                    messages.append(None)
-
-                messages = tuple(messages) if len(messages) > 1 else messages[0]
-                if (
-                    cur_translator_comments
-                    and cur_translator_comments[-1][0] < lineno - 1
-                ):
-                    cur_translator_comments = []
-
-                yield (
-                    lineno,
-                    function_stack[-1]["function_name"],
-                    messages,
-                    [comment[1] for comment in cur_translator_comments],
-                )
-
-                function_stack.pop()
-
-            elif token.type in ("string", "template_string"):
-                if last_token.type == "name":
-                    message_buffer.clear()
-                else:
-                    string_value = unquote_string(token.value)
-                    if not function_stack[-1]["message_lineno"]:
-                        function_stack[-1]["message_lineno"] = token.lineno
-                    if string_value is not None:
-                        message_buffer.append(string_value)
-
-            elif token.type == "operator" and token.value == ",":
-                if message_buffer:
-                    function_stack[-1]["messages"].append("".join(message_buffer))
-                    message_buffer.clear()
-                else:
-                    function_stack[-1]["messages"].append(None)
-
         elif function_stack and token.type == "operator" and token.value == ")":
             function_stack.pop()
 

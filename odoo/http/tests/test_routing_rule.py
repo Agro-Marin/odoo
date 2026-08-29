@@ -1,5 +1,6 @@
 import sys
 import threading
+from typing import Any
 
 import werkzeug.routing
 
@@ -55,7 +56,8 @@ def test_concurrent_first_build_is_thread_safe():
             rule = FasterRule("/x/<int:i>/<name>", endpoint="e")
             adapter = _map(rule).bind("h")
             barrier = threading.Barrier(n_threads)
-            results, errors = [], []
+            results: list[Any] = []
+            errors: list[Any] = []
 
             def build(adapter=adapter, barrier=barrier, results=results, errors=errors):
                 barrier.wait()

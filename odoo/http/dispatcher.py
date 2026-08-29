@@ -2,9 +2,8 @@ import collections.abc
 import logging
 import typing
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import werkzeug.exceptions
 import werkzeug.wrappers
@@ -21,6 +20,7 @@ from werkzeug.exceptions import (
 from odoo.exceptions import UserError
 
 from ._params import coerce_params
+from ._protocols import Endpoint, RequestState
 from .constants import (
     CORS_DEFAULT_ALLOWED_METHODS,
     CORS_MAX_AGE,
@@ -32,17 +32,12 @@ from .exceptions import SessionExpiredException
 from .helpers import serialize_exception
 from .wrappers import Response, no_content
 
-if TYPE_CHECKING:
-    from .request_class import Request
-else:
-    Request = Any
-
 _logger = logging.getLogger(__name__)
 
 _dispatchers: dict[str, type[Dispatcher]] = {}
 
 
-def infer_dispatcher_for_unmatched(request: Request) -> type[Dispatcher]:
+def infer_dispatcher_for_unmatched(request: RequestState) -> type[Dispatcher]:
     mimetype = request.httprequest.mimetype
     for routing_type in ("json2", "jsonrpc"):
         dispatcher = _dispatchers.get(routing_type)
@@ -87,12 +82,12 @@ class Dispatcher(ABC):
             )
         _dispatchers[routing_type] = cls
 
-    def __init__(self, request: Request) -> None:
+    def __init__(self, request: RequestState) -> None:
         self.request = request
 
     @classmethod
     @abstractmethod
-    def is_compatible_with(cls, request: Request) -> bool:
+    def is_compatible_with(cls, request: RequestState) -> bool:
         pass
 
     def pre_dispatch(self, rule: Any, args: dict[str, Any]) -> None:
@@ -162,7 +157,7 @@ class Dispatcher(ABC):
             self.request.httprequest.max_content_length = max_content_length
 
     @abstractmethod
-    def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
+    def dispatch(self, endpoint: Endpoint, args: dict[str, Any]) -> Any:
         pass
 
     def post_dispatch(self, response: Response) -> None:
@@ -172,12 +167,14 @@ class Dispatcher(ABC):
         self.request._inject_future_response(response)
         root.set_csp(response)
 
-    def _call_endpoint(self, endpoint: Callable) -> Any:
+    def _call_endpoint(self, endpoint: Endpoint) -> Any:
         specs = getattr(endpoint, "_param_specs", None)
         if specs:
             self.request.params = coerce_params(self.request.params, specs)
         if self.request.db:
-            return self.request.registry["ir.http"]._dispatch(endpoint)
+            registry = self.request.registry
+            assert registry is not None, "a database-bound request has a registry"
+            return registry["ir.http"]._dispatch(endpoint)
         return endpoint(**self.request.params)
 
     @abstractmethod
@@ -195,10 +192,10 @@ class HttpDispatcher(Dispatcher):
     )
 
     @classmethod
-    def is_compatible_with(cls, request: Request) -> bool:
+    def is_compatible_with(cls, request: RequestState) -> bool:
         return True
 
-    def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
+    def dispatch(self, endpoint: Endpoint, args: dict[str, Any]) -> Any:
         self.request.params = self.request.get_http_params() | args
 
         list_params = getattr(endpoint, "typed_list_params", None)
@@ -267,16 +264,16 @@ class JsonRPCDispatcher(Dispatcher):
     cors_allowed_methods = ("POST",)
     serializes_errors_in_dev_mode = True
 
-    def __init__(self, request: Request) -> None:
+    def __init__(self, request: RequestState) -> None:
         super().__init__(request)
         self.jsonrequest: dict[str, Any] = {}
         self.request_id: Any = None
 
     @classmethod
-    def is_compatible_with(cls, request: Request) -> bool:
+    def is_compatible_with(cls, request: RequestState) -> bool:
         return request.httprequest.mimetype in cls.mimetypes
 
-    def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
+    def dispatch(self, endpoint: Endpoint, args: dict[str, Any]) -> Any:
         try:
             self.jsonrequest = self.request.get_json_data()
         except ValueError:
@@ -316,7 +313,7 @@ class JsonRPCDispatcher(Dispatcher):
             "id": None,
             "error": {"code": 400, "message": message, "data": {}},
         }
-        werkzeug.exceptions.abort(self.request.make_json_response(body, status=400))
+        raise HTTPException(response=self.request.make_json_response(body, status=400))
 
     def _response(
         self, result: Any = None, error: dict[str, Any] | None = None
@@ -337,18 +334,18 @@ class Json2Dispatcher(Dispatcher):
     routing_type = "json2"
     mimetypes = ("application/json",)
 
-    def __init__(self, request: Request) -> None:
+    def __init__(self, request: RequestState) -> None:
         super().__init__(request)
         self.jsonrequest: dict[str, Any] | None = None
 
     @classmethod
-    def is_compatible_with(cls, request: Request) -> bool:
+    def is_compatible_with(cls, request: RequestState) -> bool:
         return (
             request.httprequest.mimetype in cls.mimetypes
             or not request.httprequest.content_length
         )
 
-    def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
+    def dispatch(self, endpoint: Endpoint, args: dict[str, Any]) -> Any:
         httprequest = self.request.httprequest
         if (
             httprequest.method not in SAFE_HTTP_METHODS

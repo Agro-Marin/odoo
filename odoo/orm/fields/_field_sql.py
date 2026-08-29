@@ -33,6 +33,25 @@ PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[typing.Any, typing.Any], bool]] 
 IN_TO_ANY_THRESHOLD = 100
 
 
+def _like_regex_parts(value: str, exact: bool):
+    yield "^" if exact else ".*"
+    escaped = False
+    for char in value:
+        if escaped:
+            escaped = False
+            yield re.escape(char)
+        elif char == "\\":
+            escaped = True
+        elif char == "%":
+            yield ".*"
+        elif char == "_":
+            yield "."
+        else:
+            yield re.escape(char)
+    if exact:
+        yield "$"
+
+
 class _FieldSqlMixin(_FieldStubs):
     def to_sql(self, model: ModelLike, alias: str) -> SQL:
         if not self.store or not self.column_type:
@@ -97,6 +116,111 @@ class _FieldSqlMixin(_FieldStubs):
             )
         return sql_expr
 
+    def _comparand_converter(self, field_expr: str, model: BaseModel):
+        if field_expr == self.name:
+            return lambda v: self._comparand_to_column(v, model)
+        return lambda v: v
+
+    def _condition_in_to_sql(
+        self, sql_field: SQL, operator: str, value, _value_to_column, can_be_null: bool
+    ) -> SQL:
+        assert isinstance(value, COLLECTION_TYPES), (
+            f"condition_to_sql() 'in' operator expects a collection, not a {value!r}"
+        )
+        converted: list[typing.Any] = []
+        null_in_condition = False
+        for v in value:
+            if v is False or v is None:
+                null_in_condition = True
+                continue
+            try:
+                converted.append(_value_to_column(v))
+            except ValueError, TypeError:
+                continue
+        params = tuple(converted)
+        if not params and not null_in_condition:
+            return SQL("FALSE") if operator == "in" else SQL("TRUE")
+        if (null_value := self.falsy_value) is not None:
+            null_value = _value_to_column(null_value)
+            if null_value in params:
+                null_in_condition = True
+            elif null_in_condition:
+                params = (*params, null_value)
+
+        sql = None
+        if params:
+            if len(params) > IN_TO_ANY_THRESHOLD:
+                anyall = "= ANY(%s)" if operator == "in" else "!= ALL(%s)"
+                sql = SQL(f"%s {anyall}", sql_field, list(params))
+            else:
+                sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], params)
+
+        if (operator == "in") == null_in_condition:
+            if not can_be_null:
+                return sql or SQL("FALSE")
+            sql_null = SQL("%s IS NULL", sql_field)
+            return SQL("(%s OR %s)", sql, sql_null) if sql else sql_null
+
+        elif operator == "not in" and null_in_condition and not sql:
+            return SQL("%s IS NOT NULL", sql_field) if can_be_null else SQL("TRUE")
+
+        assert sql, f"Missing sql query for {operator} {value!r}"
+        return sql
+
+    def _condition_like_to_sql(
+        self, sql_field: SQL, operator: str, value, model: BaseModel, can_be_null: bool
+    ) -> SQL:
+        sql_left = sql_field if self.is_text else SQL("%s::text", sql_field)
+
+        need_wildcard = "=" not in operator
+        if need_wildcard:
+            sql_value = SQL("%s", f"%{value}%")
+        else:
+            sql_value = SQL("%s", str(value))
+        if operator.endswith("ilike"):
+            sql_left = model.env.registry.unaccent(sql_left)
+            sql_value = model.env.registry.unaccent(sql_value)
+
+        sql = SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], sql_value)
+        if operator in Domain.NEGATIVE_OPERATORS and can_be_null:
+            sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
+        return sql
+
+    def _condition_inequality_to_sql(
+        self,
+        sql_field: SQL,
+        operator: str,
+        value,
+        model: BaseModel,
+        _value_to_column,
+        can_be_null: bool,
+    ) -> SQL:
+        accept_null_value = False
+        if (null_value := self.falsy_value) is not None:
+            value = self._inequality_comparand(value, model)
+            accept_null_value = can_be_null and PYTHON_INEQUALITY_OPERATOR[operator](
+                null_value, value
+            )
+        sql_value = SQL("%s", _value_to_column(value))
+
+        sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], sql_value)
+        if accept_null_value:
+            sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
+        return sql
+
+    @staticmethod
+    def _condition_any_to_sql(sql_field: SQL, operator: str, value) -> SQL:
+        if isinstance(value, Query):
+            subselect = value.subselect()
+        elif isinstance(value, SQL):
+            subselect = SQL("(%s)", value)
+        else:
+            raise TypeError(
+                f"condition_to_sql() operator 'any!' accepts SQL or Query, got {value}"
+            )
+        sql_operator = SQL_OPERATORS["in" if operator == "any!" else "not in"]
+        return SQL("%s%s%s", sql_field, sql_operator, subselect)
+
     def _condition_to_sql(
         self,
         field_expr: str,
@@ -107,16 +231,7 @@ class _FieldSqlMixin(_FieldStubs):
         query: Query,
     ) -> SQL:
         sql_field = model._field_to_sql(alias, field_expr, query)
-
-        if field_expr == self.name:
-
-            def _value_to_column(v: typing.Any) -> typing.Any:
-                return self._comparand_to_column(v, model)
-
-        else:
-
-            def _value_to_column(v: typing.Any) -> typing.Any:
-                return v
+        _value_to_column = self._comparand_converter(field_expr, model)
 
         if operator in SQL_OPERATORS and isinstance(value, SQL):
             warnings.warn(
@@ -129,91 +244,22 @@ class _FieldSqlMixin(_FieldStubs):
         can_be_null = self not in model.env.registry.not_null_fields
 
         if operator in ("in", "not in"):
-            assert isinstance(value, COLLECTION_TYPES), (
-                f"condition_to_sql() 'in' operator expects a collection, not a {value!r}"
+            return self._condition_in_to_sql(
+                sql_field, operator, value, _value_to_column, can_be_null
             )
-            converted: list[typing.Any] = []
-            null_in_condition = False
-            for v in value:
-                if v is False or v is None:
-                    null_in_condition = True
-                    continue
-                try:
-                    converted.append(_value_to_column(v))
-                except ValueError, TypeError:
-                    continue
-            params = tuple(converted)
-            if not params and not null_in_condition:
-                return SQL("FALSE") if operator == "in" else SQL("TRUE")
-            if (null_value := self.falsy_value) is not None:
-                null_value = _value_to_column(null_value)
-                if null_value in params:
-                    null_in_condition = True
-                elif null_in_condition:
-                    params = (*params, null_value)
-
-            sql = None
-            if params:
-                if len(params) > IN_TO_ANY_THRESHOLD:
-                    anyall = "= ANY(%s)" if operator == "in" else "!= ALL(%s)"
-                    sql = SQL(f"%s {anyall}", sql_field, list(params))
-                else:
-                    sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], params)
-
-            if (operator == "in") == null_in_condition:
-                if not can_be_null:
-                    return sql or SQL("FALSE")
-                sql_null = SQL("%s IS NULL", sql_field)
-                return SQL("(%s OR %s)", sql, sql_null) if sql else sql_null
-
-            elif operator == "not in" and null_in_condition and not sql:
-                return SQL("%s IS NOT NULL", sql_field) if can_be_null else SQL("TRUE")
-
-            assert sql, f"Missing sql query for {operator} {value!r}"
-            return sql
 
         if operator.endswith("like"):
-            sql_left = sql_field if self.is_text else SQL("%s::text", sql_field)
-
-            need_wildcard = "=" not in operator
-            if need_wildcard:
-                sql_value = SQL("%s", f"%{value}%")
-            else:
-                sql_value = SQL("%s", str(value))
-            if operator.endswith("ilike"):
-                sql_left = model.env.registry.unaccent(sql_left)
-                sql_value = model.env.registry.unaccent(sql_value)
-
-            sql = SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], sql_value)
-            if operator in Domain.NEGATIVE_OPERATORS and can_be_null:
-                sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
-            return sql
+            return self._condition_like_to_sql(
+                sql_field, operator, value, model, can_be_null
+            )
 
         if operator in (">", "<", ">=", "<="):
-            accept_null_value = False
-            if (null_value := self.falsy_value) is not None:
-                value = self._inequality_comparand(value, model)
-                accept_null_value = can_be_null and PYTHON_INEQUALITY_OPERATOR[
-                    operator
-                ](null_value, value)
-            sql_value = SQL("%s", _value_to_column(value))
-
-            sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], sql_value)
-            if accept_null_value:
-                sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
-            return sql
+            return self._condition_inequality_to_sql(
+                sql_field, operator, value, model, _value_to_column, can_be_null
+            )
 
         if operator in ("any!", "not any!"):
-            if isinstance(value, Query):
-                subselect = value.subselect()
-            elif isinstance(value, SQL):
-                subselect = SQL("(%s)", value)
-            else:
-                raise TypeError(
-                    f"condition_to_sql() operator 'any!' accepts SQL or Query, got {value}"
-                )
-            sql_operator = SQL_OPERATORS["in" if operator == "any!" else "not in"]
-            return SQL("%s%s%s", sql_field, sql_operator, subselect)
+            return self._condition_any_to_sql(sql_field, operator, value)
 
         raise NotImplementedError(
             f"Invalid operator {operator!r} for SQL in domain term {(field_expr, operator, value)!r}"
@@ -278,6 +324,57 @@ class _FieldSqlMixin(_FieldStubs):
 
         return render
 
+    def _filter_in(self, getter, value) -> Callable:
+        assert isinstance(value, COLLECTION_TYPES) and value, (
+            f"filter_function() 'in' operator expects a collection, not a {type(value)}"
+        )
+        if not isinstance(value, AbstractSet):
+            value = set(value)
+        if False in value or self.falsy_value in value:
+            if len(value) == 1:
+                return lambda rec: not getter(rec)
+            return lambda rec: (val := getter(rec)) in value or not val
+        return lambda rec: getter(rec) in value
+
+    def _filter_like(
+        self, records: M, field_expr: str, getter, operator: str, value
+    ) -> Callable:
+        if operator.endswith("ilike"):
+            unaccent_python = records.env.registry.unaccent_python
+
+            def unaccent(x):
+                return unaccent_python(x).lower()
+
+        else:
+
+            def unaccent(x):
+                return x
+
+        pattern = value if isinstance(value, str) else self._pattern_text(value)
+        like_regex = re.compile(
+            "".join(_like_regex_parts(unaccent(pattern), "=" in operator)),
+            flags=re.DOTALL,
+        )
+        render = self._pattern_getter(records, field_expr, getter)
+        return lambda rec: like_regex.match(unaccent(render(rec)))
+
+    def _filter_inequality(self, records: M, getter, pyop, value) -> Callable:
+        can_be_null = False
+        if (null_value := self.falsy_value) is not None:
+            value = self._inequality_comparand(value, records)
+            can_be_null = pyop(null_value, value)
+
+        def check_inequality(rec):
+            rec_value = getter(rec)
+            try:
+                if rec_value is False or rec_value is None:
+                    return can_be_null
+                return pyop(rec_value, value)
+            except ValueError, TypeError:
+                return False
+
+        return check_inequality
+
     def filter_function(
         self, records: M, field_expr: str, operator: str, value: typing.Any
     ) -> Callable[[M], bool]:
@@ -287,70 +384,12 @@ class _FieldSqlMixin(_FieldStubs):
         getter = self.expression_getter(field_expr)
 
         if operator == "in":
-            assert isinstance(value, COLLECTION_TYPES) and value, (
-                f"filter_function() 'in' operator expects a collection, not a {type(value)}"
-            )
-            if not isinstance(value, AbstractSet):
-                value = set(value)
-            if False in value or self.falsy_value in value:
-                if len(value) == 1:
-                    return lambda rec: not getter(rec)
-                return lambda rec: (val := getter(rec)) in value or not val
-            return lambda rec: getter(rec) in value
+            return self._filter_in(getter, value)
 
         if operator.endswith("like"):
-            if operator.endswith("ilike"):
-                unaccent_python = records.env.registry.unaccent_python
-
-                def unaccent(x):
-                    return unaccent_python(x).lower()
-
-            else:
-
-                def unaccent(x):
-                    return x
-
-            def build_like_regex(value: str, exact: bool):
-                yield "^" if exact else ".*"
-                escaped = False
-                for char in value:
-                    if escaped:
-                        escaped = False
-                        yield re.escape(char)
-                    elif char == "\\":
-                        escaped = True
-                    elif char == "%":
-                        yield ".*"
-                    elif char == "_":
-                        yield "."
-                    else:
-                        yield re.escape(char)
-                if exact:
-                    yield "$"
-
-            pattern = value if isinstance(value, str) else self._pattern_text(value)
-            like_regex = re.compile(
-                "".join(build_like_regex(unaccent(pattern), "=" in operator)),
-                flags=re.DOTALL,
-            )
-            render = self._pattern_getter(records, field_expr, getter)
-            return lambda rec: like_regex.match(unaccent(render(rec)))
+            return self._filter_like(records, field_expr, getter, operator, value)
 
         if pyop := PYTHON_INEQUALITY_OPERATOR.get(operator):
-            can_be_null = False
-            if (null_value := self.falsy_value) is not None:
-                value = self._inequality_comparand(value, records)
-                can_be_null = pyop(null_value, value)
-
-            def check_inequality(rec):
-                rec_value = getter(rec)
-                try:
-                    if rec_value is False or rec_value is None:
-                        return can_be_null
-                    return pyop(rec_value, value)
-                except ValueError, TypeError:
-                    return False
-
-            return check_inequality
+            return self._filter_inequality(records, getter, pyop, value)
 
         raise NotImplementedError(f"Invalid simple operator {operator!r}")

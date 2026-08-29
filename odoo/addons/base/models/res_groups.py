@@ -489,11 +489,9 @@ class ResGroups(models.Model):
 
     @api.depends("all_user_ids")
     def _compute_all_users_count(self) -> None:
-        Users = self.env["res.users"]
+        self.all_implied_by_ids.fetch(["user_ids"])
         for group in self:
-            group.all_users_count = Users.search_count(  # noqa: E8507  see 4a6768ae1f6
-                [("group_ids", "in", group.all_implied_by_ids.ids)]
-            )
+            group.all_users_count = len(group.all_implied_by_ids.user_ids)
 
     def action_show_all_users(self) -> dict[str, Any]:
         self.ensure_one()

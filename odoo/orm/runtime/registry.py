@@ -132,6 +132,27 @@ class Registry(
     loaded: bool
 
     @classmethod
+    def _new_finalize(cls, db_name: str, update_module: bool, t0: float) -> Registry:
+        registry = cls.registries[db_name]
+
+        registry._init = False
+        registry.ready = True
+        registry.registry_invalidated = bool(update_module)
+
+        registry._ensure_field_triggers()
+
+        if update_module:
+            from odoo.db import drain_all
+
+            drain_all()
+        registry.signal_changes()
+
+        _logger.info("Registry loaded in %.3fs", time.time() - t0)
+        registry.last_used = time.monotonic()
+        cls._drop_idle()
+        return registry
+
+    @classmethod
     @locked
     def new(
         cls,
@@ -205,24 +226,7 @@ class Registry(
 
         del registry._reinit_modules
 
-        registry = cls.registries[db_name]
-
-        registry._init = False
-        registry.ready = True
-        registry.registry_invalidated = bool(update_module)
-
-        registry._ensure_field_triggers()
-
-        if update_module:
-            from odoo.db import drain_all
-
-            drain_all()
-        registry.signal_changes()
-
-        _logger.info("Registry loaded in %.3fs", time.time() - t0)
-        registry.last_used = time.monotonic()
-        cls._drop_idle()
-        return registry
+        return cls._new_finalize(db_name, update_module, t0)
 
     def init(self, db_name: str) -> None:
         self._init = True
@@ -245,6 +249,8 @@ class Registry(
         self._init_modules: set[str] = set()
         self.updated_modules: list[str] = []
         self.loaded_xmlids: set[str] = set()
+        self._xmlid_recorder: set[str] | None = None
+        self._load_language_done: bool = False
 
         self.db_name = db_name
         self._db: Connection = db.db_connect(db_name, readonly=False)
@@ -328,6 +334,74 @@ class Registry(
 
         return model_names
 
+    def _setup_reset_all_models(self) -> None:
+        self.many2many_relations.clear()
+        self.field_setup_dependents.clear()
+
+        for model_cls in self.models.values():
+            model_cls._setup_done__ = False
+
+        self.model_graph.reset_field_metadata()
+
+    def _setup_reset_named_models(
+        self, model_names: Iterable[str], models_field_depends_done: set
+    ) -> None:
+        model_names_to_setup = self.descendants(model_names, "_inherit", "_inherits")
+        for fields in self.many2many_relations.values():
+            for pair in list(fields):
+                if pair[0] in model_names_to_setup:
+                    fields.discard(pair)
+
+        for model_name in model_names_to_setup:
+            self[model_name]._setup_done__ = False
+
+        todo: list = []
+        for model_cls in self.models.values():
+            if model_cls._custom:
+                model_cls._setup_done__ = False
+            if model_cls._setup_done__:
+                models_field_depends_done.add(model_cls)
+            else:
+                todo.extend(model_cls._fields.values())
+
+        done = set()
+        for field in todo:
+            if field in done:
+                continue
+
+            model_cls = self[field.model_name]
+            if model_cls._setup_done__ and field._base_fields__:
+                name = field.name
+                base_fields = field._base_fields__
+
+                field.__dict__.clear()
+                field.__init__(_base_fields__=base_fields)
+                field._toplevel = True
+                field.__set_name__(model_cls, name)
+                field._setup_done = False
+
+                models_field_depends_done.discard(model_cls)
+
+            elif model_cls._setup_done__ and field.related and field.manual:
+                model_cls._setup_done__ = False
+                models_field_depends_done.discard(model_cls)
+
+            self.field_depends.pop(field, None)
+            self.field_depends_context.pop(field, None)
+
+            done.add(field)
+            todo.extend(self.field_setup_dependents.pop(field, ()))  # noqa: B909  todo is a worklist: appending newly discovered dependents here is how they get processed later in this same loop
+
+    def _setup_refresh_field_depends(self, env, models_field_depends_done: set) -> None:
+        for model_cls in self.models.values():
+            if model_cls in models_field_depends_done:
+                continue
+            model = model_cls(env, (), ())
+            for field in model._fields.values():
+                depends, depends_context = field.get_depends(model)
+                self.field_depends[field] = tuple(depends)
+                self.field_depends_context[field] = tuple(depends_context)
+
     @locked
     def _setup_models__(
         self,
@@ -364,78 +438,18 @@ class Registry(
             self.model_graph.clear_caches()
             self.registry_invalidated = True
 
-            models_field_depends_done = set()
+            models_field_depends_done: set[type] = set()
 
             if model_names is None:
-                self.many2many_relations.clear()
-                self.field_setup_dependents.clear()
-
-                for model_cls in self.models.values():
-                    model_cls._setup_done__ = False
-
-                self.model_graph.reset_field_metadata()
-
+                self._setup_reset_all_models()
             else:
-                model_names_to_setup = self.descendants(
-                    model_names, "_inherit", "_inherits"
-                )
-                for fields in self.many2many_relations.values():
-                    for pair in list(fields):
-                        if pair[0] in model_names_to_setup:
-                            fields.discard(pair)
-
-                for model_name in model_names_to_setup:
-                    self[model_name]._setup_done__ = False
-
-                todo = []
-                for model_cls in self.models.values():
-                    if model_cls._custom:
-                        model_cls._setup_done__ = False
-                    if model_cls._setup_done__:
-                        models_field_depends_done.add(model_cls)
-                    else:
-                        todo.extend(model_cls._fields.values())
-
-                done = set()
-                for field in todo:
-                    if field in done:
-                        continue
-
-                    model_cls = self[field.model_name]
-                    if model_cls._setup_done__ and field._base_fields__:
-                        name = field.name
-                        base_fields = field._base_fields__
-
-                        field.__dict__.clear()
-                        field.__init__(_base_fields__=base_fields)
-                        field._toplevel = True
-                        field.__set_name__(model_cls, name)
-                        field._setup_done = False
-
-                        models_field_depends_done.discard(model_cls)
-
-                    elif model_cls._setup_done__ and field.related and field.manual:
-                        model_cls._setup_done__ = False
-                        models_field_depends_done.discard(model_cls)
-
-                    self.field_depends.pop(field, None)
-                    self.field_depends_context.pop(field, None)
-
-                    done.add(field)
-                    todo.extend(self.field_setup_dependents.pop(field, ()))  # noqa: B909  todo is a worklist: appending newly discovered dependents here is how they get processed later in this same loop
+                self._setup_reset_named_models(model_names, models_field_depends_done)
 
             self.many2one_company_dependents.clear()
 
             registration.setup_model_classes(env)
 
-            for model_cls in self.models.values():
-                if model_cls in models_field_depends_done:
-                    continue
-                model = model_cls(env, (), ())
-                for field in model._fields.values():
-                    depends, depends_context = field.get_depends(model)
-                    self.field_depends[field] = tuple(depends)
-                    self.field_depends_context[field] = tuple(depends_context)
+            self._setup_refresh_field_depends(env, models_field_depends_done)
 
             reset_cached_properties(self)
 
@@ -738,7 +752,7 @@ class Registry(
 
     def _sample_replica_lag(self, cr: BaseCursor) -> None:
         try:
-            cr.execute(LAG_SQL)
+            cr.execute(LAG_SQL)  # noqa: E8501  LAG_SQL is a module constant
             measured = cr.fetchone()[0]
         except Exception:
             _logger.debug("Could not measure replica lag", exc_info=True)

@@ -55,6 +55,39 @@ class RecomputeMixin(_ModelStubs):
     def _modified_before(self, fnames: Collection[str]) -> None:
         return self.modified(fnames, before=True)
 
+    def _modified_traverse(self, todo: list, scheduler, debug: bool) -> tuple[int, int]:
+        _mark_count = 0
+        _invalidate_count = 0
+        env = self.env
+        for field, records, entry_create in itertools.chain.from_iterable(todo):
+            cached_ids = None
+            if field.recursive and not field.is_stored_computed:
+                cached_ids = field._get_all_cache_ids(env).keys()
+
+            recursive_ids = scheduler.process_entry(
+                field,
+                OrderedSet(records._ids),
+                cached_ids=cached_ids,
+            )
+
+            if scheduler.to_invalidate:
+                for inv_field, inv_ids in scheduler.to_invalidate:
+                    inv_field._invalidate_cache(env, inv_ids)
+                scheduler.to_invalidate.clear()
+
+            if recursive_ids:
+                todo.append(
+                    records.browse(recursive_ids)._modified([field], entry_create)
+                )
+
+            if debug:
+                n = len(recursive_ids) if recursive_ids else len(records)
+                if field.is_stored_computed:
+                    _mark_count += n
+                else:
+                    _invalidate_count += n
+        return _mark_count, _invalidate_count
+
     def _modified_trigger_loop(
         self,
         fnames: Collection[str],
@@ -90,34 +123,9 @@ class RecomputeMixin(_ModelStubs):
         todo = [self._modified(fields, create)]
         prof.mark("tree")
 
-        env = self.env
-        for field, records, entry_create in itertools.chain.from_iterable(todo):
-            cached_ids = None
-            if field.recursive and not field.is_stored_computed:
-                cached_ids = field._get_all_cache_ids(env).keys()
-
-            recursive_ids = scheduler.process_entry(
-                field,
-                OrderedSet(records._ids),
-                cached_ids=cached_ids,
-            )
-
-            if scheduler.to_invalidate:
-                for inv_field, inv_ids in scheduler.to_invalidate:
-                    inv_field._invalidate_cache(env, inv_ids)
-                scheduler.to_invalidate.clear()
-
-            if recursive_ids:
-                todo.append(
-                    records.browse(recursive_ids)._modified([field], entry_create)
-                )
-
-            if prof.debug:
-                n = len(recursive_ids) if recursive_ids else len(records)
-                if field.is_stored_computed:
-                    _mark_count += n
-                else:
-                    _invalidate_count += n
+        _mark_count, _invalidate_count = self._modified_traverse(
+            todo, scheduler, prof.debug
+        )
 
         prof.stop("traverse")
         prof.report(
@@ -167,7 +175,7 @@ class RecomputeMixin(_ModelStubs):
             for invf in model.pool.field_inverses[field]:
                 if not (invf.is_x2many and invf.domain):
                     if invf.is_many2one_reference:
-                        rec_ids = OrderedSet()
+                        rec_ids: OrderedSet[int] = OrderedSet()
                         for rec in self:
                             try:
                                 if rec[invf.model_field] == field.model_name:

@@ -79,7 +79,7 @@ class Worker:
         self.wakeup_fd_r, self.wakeup_fd_w = self.eintr_pipe
         self.watchdog_timeout = multi.timeout
         self.ppid = os.getpid()
-        self.pid = None
+        self.pid: int | None = None
         self.alive = True
         self.request_max = multi.limit_request
         self.request_count = 0
@@ -146,7 +146,7 @@ class Worker:
         if self.multi.socket:
             flags = fcntl.fcntl(self.multi.socket, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
             fcntl.fcntl(self.multi.socket, fcntl.F_SETFD, flags)
-            self.multi.socket.setblocking(0)
+            self.multi.socket.setblocking(False)
 
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGXCPU, self.signal_time_expired_handler)
@@ -230,7 +230,7 @@ class WorkerHTTP(Worker):
         self.sock_timeout = http_socket_timeout()
 
     def process_request(self, client: socket.socket, addr: tuple[str, int]) -> None:
-        client.setblocking(1)
+        client.setblocking(True)
         client.settimeout(self.sock_timeout)
         client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         flags = fcntl.fcntl(client, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
@@ -244,6 +244,8 @@ class WorkerHTTP(Worker):
         self.request_count += 1
 
     def process_work(self) -> None:
+        if self.multi.socket is None:
+            return
         try:
             client, addr = self.multi.socket.accept()
             self.process_request(client, addr)
@@ -253,7 +255,8 @@ class WorkerHTTP(Worker):
 
     def start(self) -> None:
         Worker.start(self)
-        self._selector.register(self.multi.socket, selectors.EVENT_READ)
+        if self.multi.socket is not None:
+            self._selector.register(self.multi.socket, selectors.EVENT_READ)
         self.server = BaseWSGIServerNoBind(self.multi.app)
 
 
@@ -267,6 +270,7 @@ class WorkerCron(Worker):
         self.db_queue: deque[str] = deque()
         self.db_count: int = 0
         self._reconnect_attempts: int = 0
+        self._pg_selector: selectors.BaseSelector | None = None
 
     def _sleep_with_watchdog(self, total_seconds: float) -> None:
         tick = max(self.multi.beat / 2, 0.5)
@@ -287,12 +291,13 @@ class WorkerCron(Worker):
             if self._reconnect_attempts > 0:
                 return
 
-            interval = SLEEP_INTERVAL + self.pid % 10
+            interval = SLEEP_INTERVAL + os.getpid() % 10
 
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))
 
-            self._pg_selector.select(timeout=interval)
+            if self._pg_selector is not None:
+                self._pg_selector.select(timeout=interval)
             time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
             empty_pipe(self.wakeup_fd_r)
 
@@ -336,7 +341,7 @@ class WorkerCron(Worker):
             with contextlib.suppress(Exception):
                 cursor.close()
             raise
-        if hasattr(self, "_pg_selector"):
+        if self._pg_selector is not None:
             self._pg_selector.close()
         self.dbcursor = cursor
         self._pg_selector = selector
@@ -423,7 +428,7 @@ class WorkerCron(Worker):
 
     def stop(self) -> None:
         super().stop()
-        if hasattr(self, "_pg_selector"):
+        if self._pg_selector is not None:
             self._pg_selector.close()
         if hasattr(self, "dbcursor"):
             with contextlib.suppress(Exception):

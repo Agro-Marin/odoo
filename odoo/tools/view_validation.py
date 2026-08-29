@@ -71,98 +71,88 @@ def _filter_contextual_names(contextual_values: set[str]) -> set[str]:
     return value_names
 
 
+_NESTED_DOMAIN_NODES = (ast.List, ast.IfExp, ast.BoolOp, ast.BinOp)
+
+
+def _extract_domain_operand(
+    node: ast.AST, contextual_values: set[str], field_names: set[str]
+) -> None:
+    if isinstance(node, _NESTED_DOMAIN_NODES):
+        _extract_from_domain(node, contextual_values, field_names)
+    else:
+        contextual_values.update(_get_expression_contextual_values(node))
+
+
+def _extract_domain_leaf(
+    ast_item: ast.AST, contextual_values: set[str], field_names: set[str]
+) -> None:
+    if isinstance(ast_item, ast.Constant):
+        if ast_item.value not in domain_operators() and ast_item.value not in (
+            True,
+            False,
+        ):
+            raise ValueError
+        return
+    if not isinstance(ast_item, (ast.List, ast.Tuple)):
+        raise ValueError
+
+    left, _operator, right = ast_item.elts
+    contextual_values.update(_get_expression_contextual_values(right))
+    if isinstance(left, ast.Constant) and isinstance(left.value, str):
+        field_names.add(left.value)
+    elif isinstance(left, ast.Constant) and left.value in (1, 0):
+        pass
+    elif isinstance(right, ast.Constant) and right.value == 1:
+        contextual_values.update(_get_expression_contextual_values(left))
+    else:
+        raise ValueError
+
+
+def _extract_from_domain(
+    ast_domain: ast.AST, contextual_values: set[str], field_names: set[str]
+) -> None:
+    if isinstance(ast_domain, ast.IfExp):
+        _extract_from_domain(ast_domain.body, contextual_values, field_names)
+        _extract_from_domain(ast_domain.orelse, contextual_values, field_names)
+        return
+    if isinstance(ast_domain, ast.BoolOp):
+        for value in ast_domain.values:
+            _extract_domain_operand(value, contextual_values, field_names)
+        return
+    if isinstance(ast_domain, ast.BinOp):
+        _extract_domain_operand(ast_domain.left, contextual_values, field_names)
+        _extract_domain_operand(ast_domain.right, contextual_values, field_names)
+        return
+    if not isinstance(ast_domain, (ast.List, ast.Tuple)):
+        raise ValueError
+    for ast_item in ast_domain.elts:
+        _extract_domain_leaf(ast_item, contextual_values, field_names)
+
+
+def _extract_domain_list(domain: list, field_names: set[str]) -> None:
+    for leaf in domain:
+        if leaf in domain_operators() or leaf in (True, False):
+            continue
+        left, _operator, _right = leaf
+        if isinstance(left, str):
+            field_names.add(left)
+        elif left not in (1, 0):
+            raise ValueError
+
+
 def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
-    contextual_values = set()
-    field_names = set()
+    contextual_values: set[str] = set()
+    field_names: set[str] = set()
 
     try:
         if isinstance(domain, list):
-            for leaf in domain:
-                if leaf in domain_operators() or leaf in (True, False):
-                    continue
-                left, _operator, _right = leaf
-                if isinstance(left, str):
-                    field_names.add(left)
-                elif left not in (1, 0):
-                    raise ValueError
-
+            _extract_domain_list(domain, field_names)
         elif isinstance(domain, str):
-
-            def extract_from_domain(ast_domain):
-                if isinstance(ast_domain, ast.IfExp):
-                    extract_from_domain(ast_domain.body)
-                    extract_from_domain(ast_domain.orelse)
-                    return
-                if isinstance(ast_domain, ast.BoolOp):
-                    for value in ast_domain.values:
-                        if isinstance(
-                            value, (ast.List, ast.IfExp, ast.BoolOp, ast.BinOp)
-                        ):
-                            extract_from_domain(value)
-                        else:
-                            contextual_values.update(
-                                _get_expression_contextual_values(value)
-                            )
-                    return
-                if isinstance(ast_domain, ast.BinOp):
-                    if isinstance(
-                        ast_domain.left,
-                        (ast.List, ast.IfExp, ast.BoolOp, ast.BinOp),
-                    ):
-                        extract_from_domain(ast_domain.left)
-                    else:
-                        contextual_values.update(
-                            _get_expression_contextual_values(ast_domain.left)
-                        )
-
-                    if isinstance(
-                        ast_domain.right,
-                        (ast.List, ast.IfExp, ast.BoolOp, ast.BinOp),
-                    ):
-                        extract_from_domain(ast_domain.right)
-                    else:
-                        contextual_values.update(
-                            _get_expression_contextual_values(ast_domain.right)
-                        )
-                    return
-                if not isinstance(ast_domain, (ast.List, ast.Tuple)):
-                    raise ValueError
-                for ast_item in ast_domain.elts:
-                    if isinstance(ast_item, ast.Constant):
-                        if (
-                            ast_item.value not in domain_operators()
-                            and ast_item.value not in (True, False)
-                        ):
-                            raise ValueError
-                    elif isinstance(ast_item, (ast.List, ast.Tuple)):
-                        left, _operator, right = ast_item.elts
-                        contextual_values.update(
-                            _get_expression_contextual_values(right)
-                        )
-                        if isinstance(left, ast.Constant) and isinstance(
-                            left.value, str
-                        ):
-                            field_names.add(left.value)
-                        elif isinstance(left, ast.Constant) and left.value in (
-                            1,
-                            0,
-                        ):
-                            pass
-                        elif isinstance(right, ast.Constant) and right.value == 1:
-                            contextual_values.update(
-                                _get_expression_contextual_values(left)
-                            )
-                        else:
-                            raise ValueError
-                    else:
-                        raise ValueError
-
-            expr = domain.strip()
-            item_ast = ast.parse(f"({expr})", mode="eval").body
+            item_ast = ast.parse(f"({domain.strip()})", mode="eval").body
             if isinstance(item_ast, ast.Name):
                 contextual_values.update(_get_expression_contextual_values(item_ast))
             else:
-                extract_from_domain(item_ast)
+                _extract_from_domain(item_ast, contextual_values, field_names)
 
     except ValueError, TypeError, AttributeError:
         msg = "Wrong domain formatting."
@@ -171,65 +161,49 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
     return field_names, _filter_contextual_names(contextual_values)
 
 
-def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
+def _contextual_values_of(*nodes: ast.AST | None) -> set[str]:
+    values: set[str] = set()
+    for node in nodes:
+        if node is not None:
+            values |= _get_expression_contextual_values(node)
+    return values
 
+
+_CONTEXTUAL_CHILDREN: dict[type, Callable[[typing.Any], tuple]] = {
+    ast.List: lambda n: tuple(n.elts),
+    ast.Tuple: lambda n: tuple(n.elts),
+    ast.Index: lambda n: (n.value,),
+    ast.Subscript: lambda n: (n.value, n.slice),
+    ast.Compare: lambda n: (n.left, *n.comparators),
+    ast.BinOp: lambda n: (n.left, n.right),
+    ast.BoolOp: lambda n: tuple(n.values),
+    ast.UnaryOp: lambda n: (n.operand,),
+    ast.Call: lambda n: (n.func, *n.args),
+    ast.IfExp: lambda n: (n.test, n.body, n.orelse),
+    ast.Dict: lambda n: (*n.keys, *n.values),
+}
+
+
+def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
     if isinstance(item_ast, ast.Constant):
         return set()
-    if isinstance(item_ast, (ast.List, ast.Tuple)):
-        values = set()
-        for item in item_ast.elts:
-            values |= _get_expression_contextual_values(item)
-        return values
     if isinstance(item_ast, ast.Name):
         return {item_ast.id}
     if isinstance(item_ast, ast.Attribute):
         values = _get_expression_contextual_values(item_ast.value)
         if len(values) == 1:
-            path = sorted(values).pop()
-            return {f"{path}.{item_ast.attr}"}
-        return values
-    if isinstance(item_ast, ast.Index):
-        return _get_expression_contextual_values(item_ast.value)
-    if isinstance(item_ast, ast.Subscript):
-        values = _get_expression_contextual_values(item_ast.value)
-        values |= _get_expression_contextual_values(item_ast.slice)
-        return values
-    if isinstance(item_ast, ast.Compare):
-        values = _get_expression_contextual_values(item_ast.left)
-        for sub_ast in item_ast.comparators:
-            values |= _get_expression_contextual_values(sub_ast)
-        return values
-    if isinstance(item_ast, ast.BinOp):
-        values = _get_expression_contextual_values(item_ast.left)
-        values |= _get_expression_contextual_values(item_ast.right)
-        return values
-    if isinstance(item_ast, ast.BoolOp):
-        values = set()
-        for ast_value in item_ast.values:
-            values |= _get_expression_contextual_values(ast_value)
-        return values
-    if isinstance(item_ast, ast.UnaryOp):
-        return _get_expression_contextual_values(item_ast.operand)
-    if isinstance(item_ast, ast.Call):
-        values = _get_expression_contextual_values(item_ast.func)
-        for ast_arg in item_ast.args:
-            values |= _get_expression_contextual_values(ast_arg)
-        return values
-    if isinstance(item_ast, ast.IfExp):
-        values = _get_expression_contextual_values(item_ast.test)
-        values |= _get_expression_contextual_values(item_ast.body)
-        values |= _get_expression_contextual_values(item_ast.orelse)
-        return values
-    if isinstance(item_ast, ast.Dict):
-        values = set()
-        for item in item_ast.keys:
-            if item is not None:
-                values |= _get_expression_contextual_values(item)
-        for item in item_ast.values:
-            values |= _get_expression_contextual_values(item)
+            return {f"{sorted(values).pop()}.{item_ast.attr}"}
         return values
 
-    raise ValueError(f"Unsupported expression: {type(item_ast).__name__}.")
+    children = _CONTEXTUAL_CHILDREN.get(type(item_ast))
+    if children is None:
+        for node_type, getter in _CONTEXTUAL_CHILDREN.items():
+            if isinstance(item_ast, node_type):
+                children = getter
+                break
+    if children is None:
+        raise ValueError(f"Unsupported expression: {type(item_ast).__name__}.")
+    return _contextual_values_of(*children(item_ast))
 
 
 def get_expression_field_names(expression: str) -> set[str]:
@@ -253,7 +227,11 @@ def get_dict_asts(expr: str | ast.AST) -> dict[str, ast.AST]:
     ):
         msg = "Non-string literal dict key"
         raise ValueError(msg)
-    return {key.value: val for key, val in zip(expr.keys, expr.values, strict=False)}
+    return {
+        key.value: val
+        for key, val in zip(expr.keys, expr.values, strict=False)
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+    }
 
 
 def valid_view(arch: etree._Element, **kwargs: object) -> bool:

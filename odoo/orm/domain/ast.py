@@ -41,6 +41,29 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger("odoo.domains")
 
 
+def _parse_prefix_domain(arg, internal: bool) -> Domain:
+    stack: list[Domain] = []
+    try:
+        for item in reversed(arg):
+            if isinstance(item, (tuple, list)) and len(item) == 3:
+                stack.append(_leaf_to_domain(item, internal))
+            elif item == DomainAnd.OPERATOR:
+                stack.append(stack.pop() & stack.pop())
+            elif item == DomainOr.OPERATOR:
+                stack.append(stack.pop() | stack.pop())
+            elif item == DomainNot.OPERATOR:
+                stack.append(~stack.pop())
+            elif isinstance(item, Domain):
+                stack.append(item)
+            else:
+                raise ValueError(f"Domain() invalid item in domain: {item!r}")
+        if len(stack) == 1:
+            return stack[0]
+        return Domain.AND(reversed(stack))
+    except IndexError:
+        raise ValueError(f"Domain() malformed domain {arg!r}") from None
+
+
 class OptimizationLevel(enum.IntEnum):
     NONE = 0
     BASIC = enum.auto()
@@ -239,27 +262,7 @@ class Domain:
                 return _leaf_to_domain(item, internal)
             if isinstance(item, Domain):
                 return item
-        stack: list[Domain] = []
-        try:
-            for item in reversed(arg):
-                if isinstance(item, (tuple, list)) and len(item) == 3:
-                    stack.append(_leaf_to_domain(item, internal))
-                elif item == DomainAnd.OPERATOR:
-                    stack.append(stack.pop() & stack.pop())
-                elif item == DomainOr.OPERATOR:
-                    stack.append(stack.pop() | stack.pop())
-                elif item == DomainNot.OPERATOR:
-                    stack.append(~stack.pop())
-                elif isinstance(item, Domain):
-                    stack.append(item)
-                else:
-                    raise ValueError(f"Domain() invalid item in domain: {item!r}")
-            if len(stack) == 1:
-                result = stack[0]
-            else:
-                result = Domain.AND(reversed(stack))
-        except IndexError:
-            raise ValueError(f"Domain() malformed domain {arg!r}") from None
+        result = _parse_prefix_domain(arg, internal)
         _check_domain_nesting(result, MAX_DOMAIN_NESTING)
         return result
 

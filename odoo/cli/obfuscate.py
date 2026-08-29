@@ -5,7 +5,6 @@ import logging
 import pathlib
 import sys
 from collections import defaultdict
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import psycopg
@@ -87,27 +86,33 @@ def _read_field_file(path: str) -> tuple[tuple[str, str], ...]:
         return tuple(_parse_field_spec(line) for line in f if line.strip())
 
 
-def _ensure_cr(func: Callable[..., Any]) -> Callable[..., Any]:
-    @functools.wraps(func)
-    def check_cr(self: Any, *args: Any, **kwargs: Any) -> Any:
-        if not self.cr:
-            msg = "No database connection"
-            raise RuntimeError(msg)
-        return func(self, *args, **kwargs)
-
-    return check_cr
-
-
 class Obfuscate(DatabaseCommand):
     def __init__(self) -> None:
         super().__init__()
-        self.cr: Cursor | None = None
+        self._cr: Cursor | None = None
         self.dbname: str = ""
         self._field_kinds: dict[tuple[str, str], str] | None = None
         self._field_widths: dict[tuple[str, str], int] | None = None
         self.add_arguments()
 
-    @_ensure_cr
+    @property
+    def cr(self) -> Cursor:
+        if self._cr is None:
+            msg = "No database connection"
+            raise RuntimeError(msg)
+        return self._cr
+
+    @cr.setter
+    def cr(self, cr: Cursor | None) -> None:
+        self._cr = cr
+
+    def _fetch_row(self) -> tuple[Any, ...]:
+        row = self.cr.fetchone()
+        if row is None:
+            msg = "query returned no row where one was guaranteed"
+            raise RuntimeError(msg)
+        return row
+
     def _ensure_pgcrypto(self) -> None:
         self.cr.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
         self.cr.execute(
@@ -127,22 +132,18 @@ class Obfuscate(DatabaseCommand):
             """
         )
 
-    @_ensure_cr
     def commit(self) -> None:
         self.cr.commit()
 
-    @_ensure_cr
     def rollback(self) -> None:
         self.cr.rollback()
 
-    @_ensure_cr
     def set_pwd(self, pwd: str) -> None:
         self.cr.execute(
             "INSERT INTO ir_config_parameter (key, value) VALUES ('odoo_cyph_pwd', 'odoo_cyph_'||encode(pgp_sym_encrypt(%s, %s), 'base64')) ON CONFLICT(key) DO NOTHING",
             [pwd, pwd],
         )
 
-    @_ensure_cr
     def check_pwd(self, pwd: str) -> bool:
         uncypher_pwd = self.uncypher_string(SQL.identifier("value"), pwd)
 
@@ -153,14 +154,13 @@ class Obfuscate(DatabaseCommand):
             )
             self.cr.execute(query)
             if self.cr.rowcount == 0 or (
-                self.cr.rowcount == 1 and self.cr.fetchone()[0] == pwd
+                self.cr.rowcount == 1 and self._fetch_row()[0] == pwd
             ):
                 return True
         except psycopg.errors.ExternalRoutineInvocationException as e:
             _logger.info("Password check failed: %s", e)
         return False
 
-    @_ensure_cr
     def clear_pwd(self) -> None:
         self.cr.execute("DELETE FROM ir_config_parameter WHERE key='odoo_cyph_pwd'")
 
@@ -219,7 +219,7 @@ class Obfuscate(DatabaseCommand):
         qry = "SELECT udt_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s AND table_schema = current_schema"
         self.cr.execute(qry, [table, field])
         if self.cr.rowcount == 1:
-            return self._kind_of(self.cr.fetchone()[0])
+            return self._kind_of(self._fetch_row()[0])
         return None
 
     def find_unfittable_fields(
@@ -333,7 +333,7 @@ class Obfuscate(DatabaseCommand):
                 sql_field,
             )
         )
-        if skipped := self.cr.fetchone()[0]:
+        if skipped := self._fetch_row()[0]:
             _logger.warning(
                 "%s.%s: %d row(s) hold a jsonb value that is not an object "
                 "(an array or a scalar); they are left as they are.",

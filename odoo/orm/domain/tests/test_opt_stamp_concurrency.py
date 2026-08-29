@@ -1,7 +1,7 @@
 import threading
 import unittest
 
-from odoo.orm.domain import optimizations  # noqa: F401
+from odoo.orm.domain import optimizations  # noqa: F401  registers the optimizations
 from odoo.orm.domain.ast import (
     Domain,
     DomainNary,

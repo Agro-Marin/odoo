@@ -1,6 +1,7 @@
 import re
 import typing
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from dateutil.relativedelta import relativedelta
 
@@ -98,6 +99,7 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
     if started_as_date:
         dt = Date.context_today(env["base"], dt)
     else:
+        assert isinstance(dt, datetime)
         dt = Datetime.context_timestamp(env["base"], dt)
 
     for term in terms:
@@ -107,8 +109,9 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
 
         dayname = term[1:]
         if dayname in WEEKDAY_NUMBER or dayname == "week_start":
+            res_lang: Any = env["res.lang"]
             week_start = (
-                int(env["res.lang"]._get_data(code=env.user.lang).week_start) - 1
+                int(res_lang._get_data(code=env.user.lang).week_start) - 1  # type: ignore[attr-defined]
             )
             weekday = week_start if dayname == "week_start" else WEEKDAY_NUMBER[dayname]
             weekday_offset = ((weekday - week_start) % 7) - (

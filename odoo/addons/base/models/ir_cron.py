@@ -62,15 +62,29 @@ NOTIFY_CRON_CHANGES = str2bool(os.getenv("ODOO_NOTIFY_CRON_CHANGES", ""), defaul
 
 
 def notify_channel(channel: str, db_name: str) -> None:
-    with db.db_connect("postgres").cursor() as cr:
-        cr.execute(
-            SQL(
-                "SELECT %s(%s, %s)",
-                SQL.identifier(ODOO_NOTIFY_FUNCTION),
-                channel,
-                db_name,
+    # Swallowed on purpose: two of the three call sites run from cr.postcommit,
+    # so raising reports failure for a write that has already committed. The
+    # hint is not the wake mechanism -- order_notified_first processes every
+    # database regardless and merely puts the notified ones first.
+    try:
+        with db.db_connect("postgres").cursor() as cr:
+            cr.execute(
+                SQL(
+                    "SELECT %s(%s, %s)",
+                    SQL.identifier(ODOO_NOTIFY_FUNCTION),
+                    channel,
+                    db_name,
+                )
             )
+    except psycopg.Error:
+        _logger.warning(
+            "Could not notify %s workers (%s); the next cron pass picks the "
+            "work up regardless",
+            channel,
+            db_name,
+            exc_info=True,
         )
+        return
     _logger.debug("%s workers notified (%s)", channel, db_name)
 
 

@@ -54,7 +54,7 @@ _uri_pools: dict[tuple, ConnectionPool] = {}
 _uri_budgets: dict[tuple, ConnectionBudget] = {}
 
 
-def _normalize_port(port: object) -> int | None:
+def _normalize_port(port: str | int | None) -> int | None:
     return int(port) if port else None
 
 

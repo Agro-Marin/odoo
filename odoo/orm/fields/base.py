@@ -382,30 +382,8 @@ class Field[T](
                 if not self.related:
                     self.__dict__.pop("_base_fields__", None)
 
-    def _get_attrs(
-        self, model_class: type[BaseModel], name: str
-    ) -> dict[str, typing.Any]:
-        attrs = {}
-        modules: list[str] = []
-        for field in self._args__.get("_base_fields__", ()):
-            if not isinstance(self, type(field)):
-                attrs.clear()
-                modules.clear()
-                continue
-            attrs.update(field._args__)
-            if field._module:
-                modules.append(field._module)
-        attrs.update(self._args__)
-        if self._module:
-            modules.append(self._module)
-
-        attrs["model_name"] = model_class._name
-        attrs["name"] = name
-        attrs["_module"] = modules[-1] if modules else None
-        attrs["_modules"] = tuple(unique(modules) if len(modules) > 1 else modules)
-
-        if name == STATE_FIELD:
-            attrs["copy"] = attrs.get("copy", False)
+    @staticmethod
+    def _normalize_computed_attrs(attrs: dict) -> None:
         if attrs.get("compute"):
             attrs["store"] = store = attrs.get("store", False)
             attrs["compute_sudo"] = attrs.get("compute_sudo", store)
@@ -419,6 +397,8 @@ class Field[T](
             )
             attrs["copy"] = attrs.get("copy", False)
             attrs["readonly"] = attrs.get("readonly", True)
+
+    def _warn_precompute_attrs(self, attrs: dict) -> None:
         if attrs.get("precompute"):
             if not attrs.get("compute") and not attrs.get("related"):
                 warnings.warn(
@@ -432,6 +412,8 @@ class Field[T](
                     stacklevel=1,
                 )
                 attrs["precompute"] = False
+
+    def _normalize_company_dependent_attrs(self, attrs: dict) -> None:
         if attrs.get("company_dependent"):
             if attrs.get("required"):
                 warnings.warn(
@@ -452,6 +434,8 @@ class Field[T](
             attrs["index"] = attrs.get("index", "btree_not_null")
             attrs["prefetch"] = attrs.get("prefetch", "company_dependent")
             attrs["_depends_context"] = ("company",)
+
+    def _normalize_depends_attrs(self, attrs: dict) -> None:
         if "depends" in attrs:
             depends = tuple(attrs.pop("depends"))
             for dep in depends:
@@ -463,6 +447,35 @@ class Field[T](
             if attrs.get("company_dependent") and "company" not in depends_context:
                 depends_context = ("company", *depends_context)
             attrs["_depends_context"] = depends_context
+
+    def _get_attrs(
+        self, model_class: type[BaseModel], name: str
+    ) -> dict[str, typing.Any]:
+        attrs: dict[str, typing.Any] = {}
+        modules: list[str] = []
+        for field in self._args__.get("_base_fields__", ()):
+            if not isinstance(self, type(field)):
+                attrs.clear()
+                modules.clear()
+                continue
+            attrs.update(field._args__)
+            if field._module:
+                modules.append(field._module)
+        attrs.update(self._args__)
+        if self._module:
+            modules.append(self._module)
+
+        attrs["model_name"] = model_class._name
+        attrs["name"] = name
+        attrs["_module"] = modules[-1] if modules else None
+        attrs["_modules"] = tuple(unique(modules) if len(modules) > 1 else modules)
+
+        if name == STATE_FIELD:
+            attrs["copy"] = attrs.get("copy", False)
+        self._normalize_computed_attrs(attrs)
+        self._warn_precompute_attrs(attrs)
+        self._normalize_company_dependent_attrs(attrs)
+        self._normalize_depends_attrs(attrs)
 
         if "group_operator" in attrs:
             warnings.warn(
@@ -561,7 +574,7 @@ class Field[T](
         else:
             funcs = [self.compute]
 
-        depends = []
+        depends: list[str] = []
         depends_context = list(self._depends_context or ())
         for func in funcs:
             deps = getattr(func, "_depends", ())
@@ -1178,6 +1191,120 @@ class Field[T](
                 return self.convert_to_record(value, record)
         return self._get_cache_miss(record, env, record_id, field_cache)
 
+    def _cache_miss_stored(self, record: BaseModel, env: Environment, record_id):
+        recs = self._to_prefetch(record)
+        _batch_then_single(
+            lambda: recs._fetch_field(self),
+            lambda: record._fetch_field(self),
+            recs,
+            catching=(AccessError,),
+        )
+        field_cache = self._get_cache(env)
+        value = field_cache.get(record_id, SENTINEL)
+        if value is SENTINEL:
+            raise MissingError(
+                "\n".join(
+                    [
+                        env._("Record does not exist or has been deleted."),
+                        env._(
+                            "(Record: %(record)s, User: %(user)s)",
+                            record=record,
+                            user=env.uid,
+                        ),
+                    ]
+                )
+            ) from None
+        return value
+
+    def _cache_miss_origin(self, record: BaseModel, env: Environment, record_id):
+        recs = self._to_prefetch(record)
+        origin_prefetch = recs._origin._prefetch_ids
+        spawn = type(recs)._spawn
+        recs_env = recs.env
+
+        def _batch() -> None:
+            for rec in recs:
+                rec_id = rec._ids[0]
+                if origin_id := (rec_id or getattr(rec_id, "origin", None)):
+                    rec_origin = spawn(recs_env, (origin_id,), origin_prefetch)
+                    self._update_cache(
+                        rec,
+                        self.convert_to_cache(
+                            rec_origin[self.name], rec, validate=False
+                        ),
+                    )
+
+        def _single() -> None:
+            self._update_cache(
+                record,
+                self.convert_to_cache(
+                    record._origin[self.name], record, validate=False
+                ),
+            )
+
+        _batch_then_single(
+            _batch, _single, recs, catching=(AccessError, KeyError, MissingError)
+        )
+        return self._get_cache(env)[record_id]
+
+    def _cache_miss_compute(self, record: BaseModel, env: Environment, record_id):
+        if env.is_protected(self, record):
+            value = self.convert_to_cache(False, record, validate=False)
+            self._update_cache(record, value)
+        else:
+            recs = record if self.recursive else self._to_prefetch(record)
+            if _batch_then_single(
+                lambda: self.compute_value(recs),
+                lambda: self.compute_value(record),
+                recs,
+                catching=(AccessError, MissingError),
+                reraise_when_single=False,
+            ):
+                recs = record
+
+            missing_recs_ids = tuple(self._cache_missing_ids(recs))
+            if missing_recs_ids:
+                missing_recs = record.browse(missing_recs_ids)
+                if self.readonly and not self.store:
+                    raise ValueError(
+                        f"Compute method failed to assign {missing_recs}.{self.name}"
+                    )
+                false_value = self.convert_to_cache(False, record, validate=False)
+                self._update_cache(missing_recs, false_value)
+
+            field_cache = self._get_cache(env)
+            value = field_cache[record_id]
+        return value
+
+    def _cache_miss_delegating(self, record: BaseModel, env: Environment):
+
+        def is_inherited_field(name):
+            field = record._fields[name]
+            return field.inherited and field.related.split(".")[0] == self.name
+
+        parent = record.env[self.comodel_name].new(
+            {
+                name: value
+                for name, value in record._cache.items()
+                if is_inherited_field(name)
+            }
+        )
+        value = self.convert_to_cache(parent, record, validate=False)
+        self._update_cache(record, value)
+        if inv_recs := parent._new_records:
+            for invf in env.registry.field_inverses[self]:
+                invf._update_inverse(inv_recs, record)
+        return value
+
+    def _cache_miss_default(self, record: BaseModel, env: Environment, record_id):
+        value = self.convert_to_cache(False, record, validate=False)
+        self._update_cache(record, value)
+        defaults = record.default_get([self.name])
+        if self.name in defaults:
+            value = self.convert_to_cache(defaults[self.name], record)
+            self._update_cache(record, value)
+        return self._get_cache(env)[record_id]
+
     def _get_cache_miss(
         self,
         record: BaseModel,
@@ -1186,117 +1313,15 @@ class Field[T](
         field_cache: MutableMapping[IdType, typing.Any],
     ) -> T:
         if self.store and record_id:
-            recs = self._to_prefetch(record)
-            _batch_then_single(
-                lambda: recs._fetch_field(self),
-                lambda: record._fetch_field(self),
-                recs,
-                catching=(AccessError,),
-            )
-            field_cache = self._get_cache(env)
-            value = field_cache.get(record_id, SENTINEL)
-            if value is SENTINEL:
-                raise MissingError(
-                    "\n".join(
-                        [
-                            env._("Record does not exist or has been deleted."),
-                            env._(
-                                "(Record: %(record)s, User: %(user)s)",
-                                record=record,
-                                user=env.uid,
-                            ),
-                        ]
-                    )
-                ) from None
-
+            value = self._cache_miss_stored(record, env, record_id)
         elif self.store and record._has_origin and not (self.compute and self.readonly):
-            recs = self._to_prefetch(record)
-            origin_prefetch = recs._origin._prefetch_ids
-            spawn = type(recs)._spawn
-            recs_env = recs.env
-
-            def _batch() -> None:
-                for rec in recs:
-                    rec_id = rec._ids[0]
-                    if origin_id := (rec_id or getattr(rec_id, "origin", None)):
-                        rec_origin = spawn(recs_env, (origin_id,), origin_prefetch)
-                        self._update_cache(
-                            rec,
-                            self.convert_to_cache(
-                                rec_origin[self.name], rec, validate=False
-                            ),
-                        )
-
-            def _single() -> None:
-                self._update_cache(
-                    record,
-                    self.convert_to_cache(
-                        record._origin[self.name], record, validate=False
-                    ),
-                )
-
-            _batch_then_single(
-                _batch, _single, recs, catching=(AccessError, KeyError, MissingError)
-            )
-            field_cache = self._get_cache(env)
-            value = field_cache[record_id]
-
+            value = self._cache_miss_origin(record, env, record_id)
         elif self.compute:
-            if env.is_protected(self, record):
-                value = self.convert_to_cache(False, record, validate=False)
-                self._update_cache(record, value)
-            else:
-                recs = record if self.recursive else self._to_prefetch(record)
-                if _batch_then_single(
-                    lambda: self.compute_value(recs),
-                    lambda: self.compute_value(record),
-                    recs,
-                    catching=(AccessError, MissingError),
-                    reraise_when_single=False,
-                ):
-                    recs = record
-
-                missing_recs_ids = tuple(self._cache_missing_ids(recs))
-                if missing_recs_ids:
-                    missing_recs = record.browse(missing_recs_ids)
-                    if self.readonly and not self.store:
-                        raise ValueError(
-                            f"Compute method failed to assign {missing_recs}.{self.name}"
-                        )
-                    false_value = self.convert_to_cache(False, record, validate=False)
-                    self._update_cache(missing_recs, false_value)
-
-                field_cache = self._get_cache(env)
-                value = field_cache[record_id]
-
+            value = self._cache_miss_compute(record, env, record_id)
         elif self.is_delegating and not record_id:
-
-            def is_inherited_field(name):
-                field = record._fields[name]
-                return field.inherited and field.related.split(".")[0] == self.name
-
-            parent = record.env[self.comodel_name].new(
-                {
-                    name: value
-                    for name, value in record._cache.items()
-                    if is_inherited_field(name)
-                }
-            )
-            value = self.convert_to_cache(parent, record, validate=False)
-            self._update_cache(record, value)
-            if inv_recs := parent._new_records:
-                for invf in env.registry.field_inverses[self]:
-                    invf._update_inverse(inv_recs, record)
-
+            value = self._cache_miss_delegating(record, env)
         else:
-            value = self.convert_to_cache(False, record, validate=False)
-            self._update_cache(record, value)
-            defaults = record.default_get([self.name])
-            if self.name in defaults:
-                value = self.convert_to_cache(defaults[self.name], record)
-                self._update_cache(record, value)
-            field_cache = self._get_cache(env)
-            value = field_cache[record_id]
+            value = self._cache_miss_default(record, env, record_id)
 
         return self.convert_to_record(value, record)
 

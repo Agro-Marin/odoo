@@ -37,13 +37,13 @@ class _RequestResponseMixin(RequestState):
         cookies: Mapping[str, str] | None = None,
         status: int = 200,
     ) -> Response:
-        data = _fast_dumps_bytes(data, default=orjson_default)
+        payload = _fast_dumps_bytes(data, default=orjson_default)
 
-        headers = werkzeug.datastructures.Headers(headers)
-        if "Content-Type" not in headers:
-            headers["Content-Type"] = "application/json; charset=utf-8"
+        json_headers = werkzeug.datastructures.Headers(headers)
+        if "Content-Type" not in json_headers:
+            json_headers["Content-Type"] = "application/json; charset=utf-8"
 
-        return self.make_response(data, headers, cookies, status)
+        return self.make_response(payload, json_headers, cookies, status)
 
     def not_found(self, description: str | None = None) -> NotFound:
         return NotFound(description)
@@ -65,11 +65,14 @@ class _RequestResponseMixin(RequestState):
         local: bool = True,
     ) -> Response:
         if query:
-            if isinstance(query, werkzeug.datastructures.MultiDict):
-                query = list(query.items(multi=True))
+            pairs: Any = (
+                list(query.items(multi=True))
+                if isinstance(query, werkzeug.datastructures.MultiDict)
+                else query
+            )
             pre, hash_, fragment = location.partition("#")
             separator = "&" if "?" in pre else "?"
-            pre += separator + urlencode(query)
+            pre += separator + urlencode(pairs)
             location = pre + hash_ + fragment
         return self.redirect(location, code=code, local=local)
 

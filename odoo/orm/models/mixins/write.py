@@ -32,6 +32,14 @@ _UNIFORM_UPDATE_TYPES = (
 )
 
 
+class _WriteFieldPlan(typing.NamedTuple):
+    field_values: list
+    determine_inverses: dict
+    fnames_modifying_relations: list
+    protected: set
+    x2m_inverse_fnames: list
+
+
 class WriteMixin(_ModelStubs):
     __slots__ = ()
 
@@ -69,6 +77,79 @@ class WriteMixin(_ModelStubs):
         )
         return bool(cr.rowcount)
 
+    def _write_check_field_access(self, vals: ValuesType) -> None:
+        self.check_access("write")
+        for field_name in vals:
+            try:
+                self._check_field_access(self._fields[field_name], "write")
+            except KeyError as e:
+                raise ValueError(
+                    f"Invalid field {field_name!r} in {self._name!r}"
+                ) from e
+
+    def _write_classify_fields(self, vals: ValuesType) -> _WriteFieldPlan:
+        plan = _WriteFieldPlan([], defaultdict(list), [], set(), [])
+        for fname, value in vals.items():
+            field = self._fields.get(fname)
+            if not field:
+                raise ValueError(f"Invalid field {fname!r} on model {self._name!r}")
+            plan.field_values.append((field, value))
+            if field.inverse:
+                if field.is_x2many:
+                    plan.x2m_inverse_fnames.append(fname)
+                plan.determine_inverses[field.inverse].append(field)
+            if self.pool.is_modifying_relations(field):
+                plan.fnames_modifying_relations.append(fname)
+            if field.inverse or (field.compute and not field.readonly):
+                if field.store or not field.is_x2many:
+                    plan.protected.update(self.pool.field_computed.get(field, [field]))
+        return plan
+
+    def _write_settle_protected(self, plan: _WriteFieldPlan, vals: ValuesType) -> None:
+        if plan.x2m_inverse_fnames:
+            self._recompute_recordset(plan.x2m_inverse_fnames)
+            self.fetch(plan.x2m_inverse_fnames)
+            for fname in plan.x2m_inverse_fnames:
+                field = self._fields[fname]
+                if not field.store:
+                    field.__get__(self)
+
+        if plan.protected:
+            to_compute = [
+                field.name
+                for field in plan.protected
+                if field.compute and field.name not in vals
+            ]
+            if to_compute:
+                self._recompute_recordset(to_compute)
+
+    def _write_determine_inverses(
+        self, determine_inverses: dict, real_recs: Self, vals: ValuesType
+    ) -> None:
+        for fields in determine_inverses.values():
+            for field in fields:
+                if (
+                    not field.store
+                    and (not field.inherited or not field.is_x2many)
+                    and any(field._cache_missing_ids(real_recs))
+                ):
+                    field.mark_dirty(real_recs, vals[field.name])
+
+            try:
+                fields[0].determine_inverse(real_recs)
+            except AccessError as e:
+                if fields[0].inherited:
+                    description = self.env["ir.model"]._get(self._name).name
+                    raise AccessError(
+                        _(
+                            "%(previous_message)s\n\nImplicitly accessed through '%(document_kind)s' (%(document_model)s).",
+                            previous_message=e.args[0],
+                            document_kind=description,
+                            document_model=self._name,
+                        )
+                    ) from e
+                raise
+
     def write(self, vals: ValuesType) -> typing.Literal[True]:
         if not self:
             return True
@@ -78,14 +159,7 @@ class WriteMixin(_ModelStubs):
         if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
             tracker.record("write", self._name, len(self), frozenset(vals))
 
-        self.check_access("write")
-        for field_name in vals:
-            try:
-                self._check_field_access(self._fields[field_name], "write")
-            except KeyError as e:
-                raise ValueError(
-                    f"Invalid field {field_name!r} in {self._name!r}"
-                ) from e
+        self._write_check_field_access(vals)
         prof.mark("acl")
         env = self.env
 
@@ -95,47 +169,16 @@ class WriteMixin(_ModelStubs):
             vals.setdefault("write_uid", self.env.uid)
             vals.setdefault("write_date", self.env.cr.now())
 
-        field_values = []
-        determine_inverses = defaultdict(list)
-        fnames_modifying_relations = []
-        protected = set()
-        x2m_inverse_fnames = []
-        for fname, value in vals.items():
-            field = self._fields.get(fname)
-            if not field:
-                raise ValueError(f"Invalid field {fname!r} on model {self._name!r}")
-            field_values.append((field, value))
-            if field.inverse:
-                if field.is_x2many:
-                    x2m_inverse_fnames.append(fname)
-                determine_inverses[field.inverse].append(field)
-            if self.pool.is_modifying_relations(field):
-                fnames_modifying_relations.append(fname)
-            if field.inverse or (field.compute and not field.readonly):
-                if field.store or not field.is_x2many:
-                    protected.update(self.pool.field_computed.get(field, [field]))
-
-        if x2m_inverse_fnames:
-            self._recompute_recordset(x2m_inverse_fnames)
-            self.fetch(x2m_inverse_fnames)
-            for fname in x2m_inverse_fnames:
-                field = self._fields[fname]
-                if not field.store:
-                    field.__get__(self)
-
-        if protected:
-            to_compute = [
-                field.name
-                for field in protected
-                if field.compute and field.name not in vals
-            ]
-            if to_compute:
-                self._recompute_recordset(to_compute)
+        plan = self._write_classify_fields(vals)
+        field_values = plan.field_values
+        determine_inverses = plan.determine_inverses
+        protected = plan.protected
+        self._write_settle_protected(plan, vals)
         prof.mark("classify")
 
         with env.protecting(protected, self):
-            if fnames_modifying_relations:
-                self._modified_before(fnames_modifying_relations)
+            if plan.fnames_modifying_relations:
+                self._modified_before(plan.fnames_modifying_relations)
             prof.mark("before")
 
             _ids = self._ids
@@ -160,29 +203,7 @@ class WriteMixin(_ModelStubs):
             real_recs._validate_fields(vals, inverse_fields)
             prof.mark("validate")
 
-            for fields in determine_inverses.values():
-                for field in fields:
-                    if (
-                        not field.store
-                        and (not field.inherited or not field.is_x2many)
-                        and any(field._cache_missing_ids(real_recs))
-                    ):
-                        field.mark_dirty(real_recs, vals[field.name])
-
-                try:
-                    fields[0].determine_inverse(real_recs)
-                except AccessError as e:
-                    if fields[0].inherited:
-                        description = self.env["ir.model"]._get(self._name).name
-                        raise AccessError(
-                            _(
-                                "%(previous_message)s\n\nImplicitly accessed through '%(document_kind)s' (%(document_model)s).",
-                                previous_message=e.args[0],
-                                document_kind=description,
-                                document_model=self._name,
-                            )
-                        ) from e
-                    raise
+            self._write_determine_inverses(determine_inverses, real_recs, vals)
 
             real_recs._validate_fields(inverse_fields)
 
@@ -302,7 +323,7 @@ class WriteMixin(_ModelStubs):
                     f"_execute_update: {field} is not a stored column field"
                 )
             column = SQL.identifier(fname)
-            cast = SQL(column_type[1])
+            cast = SQL(column_type[1])  # noqa: E8501  from the field declaration
             expr = value_sql(index, fname, column, cast)
             if field.translate is True:
                 expr = SQL(

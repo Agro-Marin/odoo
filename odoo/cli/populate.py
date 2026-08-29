@@ -3,6 +3,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from odoo.logutils import RUNBOT
 from odoo.tools.populate import populate_models
 
 from . import DatabaseCommand, odoo_env
@@ -106,7 +107,7 @@ class Populate(DatabaseCommand):
                 "Ignoring unknown, transient or abstract models: %s",
                 ", ".join(sorted(skipped)),
             )
-        _logger.log(logging.RUNBOT, "Populating models %s", list(model_factors))
+        _logger.log(RUNBOT, "Populating models %s", list(model_factors))
         t0 = time.time()
         populate_models(model_factors, separator_code)
         env.flush_all()

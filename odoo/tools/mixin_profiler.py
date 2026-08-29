@@ -84,7 +84,7 @@ def profile_methods(model_name, method_names, registry=None):
     if registry is None:
         from odoo.modules.registry import Registry
 
-        registry = Registry.registries.get(current_worker_thread().dbname)
+        registry = Registry.registries.get(current_worker_thread().dbname or "")
 
     if registry is None:
         _logger.warning("No registry found, cannot profile methods")
@@ -150,7 +150,7 @@ def unprofile_methods(model_name, method_names, registry=None):
     if registry is None:
         from odoo.modules.registry import Registry
 
-        registry = Registry.registries.get(current_worker_thread().dbname)
+        registry = Registry.registries.get(current_worker_thread().dbname or "")
 
     if registry is None:
         return
@@ -184,63 +184,67 @@ def clear_profile_data():
     data.methods.clear()
 
 
-def get_profile_report(sort_by="total_time", top_n=20):
-    data = _get_data()
+_PROFILE_SORT_KEYS = {
+    "total_time": lambda m: -m["total_time"],
+    "self_time": lambda m: -m["self_time"],
+    "calls": lambda m: -m["calls"],
+    "queries": lambda m: -m["total_queries"],
+    "avg_time": lambda m: -m["avg_time"],
+}
 
-    if not data.methods:
-        return "No profiling data collected."
 
-    lines: list[str] = []
-    lines.extend(("\n" + "=" * 100, "MIXIN METHOD PROFILING REPORT", "=" * 100))
-
+def _profile_method_rows(methods_stats: dict, sort_by: str) -> list[dict]:
     methods = []
-    for key, stats in data.methods.items():
+    for key, stats in methods_stats.items():
         if stats["calls"] == 0:
             continue
-        avg_time = stats["total_time"] / stats["calls"] * 1000
-        avg_queries = stats["total_queries"] / stats["calls"]
-        python_time = stats["total_time"] - stats["total_query_time"]
-        python_pct = (
-            (python_time / stats["total_time"] * 100) if stats["total_time"] > 0 else 0
-        )
-
         methods.append(
             {
                 "key": key,
                 "calls": stats["calls"],
                 "total_time": stats["total_time"] * 1000,
                 "self_time": stats["self_time"] * 1000,
-                "avg_time": avg_time,
+                "avg_time": stats["total_time"] / stats["calls"] * 1000,
                 "total_queries": stats["total_queries"],
-                "avg_queries": avg_queries,
-                "python_pct": python_pct,
+                "avg_queries": stats["total_queries"] / stats["calls"],
+                "python_pct": (
+                    (stats["total_time"] - stats["total_query_time"])
+                    / stats["total_time"]
+                    * 100
+                )
+                if stats["total_time"] > 0
+                else 0,
                 "samples": stats["samples"],
             }
         )
+    methods.sort(key=_PROFILE_SORT_KEYS.get(sort_by, _PROFILE_SORT_KEYS["total_time"]))
+    return methods
 
-    sort_keys = {
-        "total_time": lambda m: -m["total_time"],
-        "self_time": lambda m: -m["self_time"],
-        "calls": lambda m: -m["calls"],
-        "queries": lambda m: -m["total_queries"],
-        "avg_time": lambda m: -m["avg_time"],
-    }
-    methods.sort(key=sort_keys.get(sort_by, sort_keys["total_time"]))
 
-    lines.extend(
-        (
-            f"\n{'Method':<50} {'Calls':>8} {'Total(ms)':>10} {'Avg(ms)':>10} {'Queries':>8} {'Python%':>8}",
-            "-" * 100,
-        )
-    )
+def _profile_table(methods: list[dict], top_n: int) -> list[str]:
+    return [
+        f"\n{'Method':<50} {'Calls':>8} {'Total(ms)':>10} {'Avg(ms)':>10} {'Queries':>8} {'Python%':>8}",
+        "-" * 100,
+        *(
+            f"{m['key']:<50} {m['calls']:>8} {m['total_time']:>10.2f} "
+            f"{m['avg_time']:>10.3f} {m['total_queries']:>8} {m['python_pct']:>7.1f}%"
+            for m in methods[:top_n]
+        ),
+    ]
 
-    lines.extend(
-        f"{m['key']:<50} {m['calls']:>8} {m['total_time']:>10.2f} "
-        f"{m['avg_time']:>10.3f} {m['total_queries']:>8} {m['python_pct']:>7.1f}%"
-        for m in methods[:top_n]
-    )
 
-    lines.extend(("\n" + "=" * 100, "OPTIMIZATION OPPORTUNITIES", "=" * 100))
+def _annotate_coefficient_of_variation(methods: list[dict]) -> None:
+    for m in methods:
+        if len(m["samples"]) < 10:
+            continue
+        times = [s["time"] for s in m["samples"]]
+        avg = sum(times) / len(times)
+        std_dev = (sum((t - avg) ** 2 for t in times) / len(times)) ** 0.5
+        m["cv"] = (std_dev / avg * 100) if avg > 0 else 0
+
+
+def _profile_opportunities(methods: list[dict]) -> list[str]:
+    lines: list[str] = []
 
     high_python = [m for m in methods if m["python_pct"] > 70 and m["total_time"] > 10]
     if high_python:
@@ -260,15 +264,7 @@ def get_profile_report(sort_by="total_time", top_n=20):
             for m in sorted(high_queries, key=lambda x: -x["avg_queries"])[:5]
         )
 
-    for m in methods:
-        if len(m["samples"]) >= 10:
-            times = [s["time"] for s in m["samples"]]
-            avg = sum(times) / len(times)
-            variance = sum((t - avg) ** 2 for t in times) / len(times)
-            std_dev = variance**0.5
-            cv = (std_dev / avg * 100) if avg > 0 else 0
-            m["cv"] = cv
-
+    _annotate_coefficient_of_variation(methods)
     high_variance = [m for m in methods if m.get("cv", 0) > 50]
     if high_variance:
         lines.append(
@@ -292,7 +288,26 @@ def get_profile_report(sort_by="total_time", top_n=20):
                     f"    → 20% speedup would save {potential_savings:.1f}ms total",
                 )
             )
+    return lines
 
+
+def get_profile_report(sort_by="total_time", top_n=20):
+    data = _get_data()
+
+    if not data.methods:
+        return "No profiling data collected."
+
+    methods = _profile_method_rows(data.methods, sort_by)
+    lines: list[str] = [
+        "\n" + "=" * 100,
+        "MIXIN METHOD PROFILING REPORT",
+        "=" * 100,
+        *_profile_table(methods, top_n),
+        "\n" + "=" * 100,
+        "OPTIMIZATION OPPORTUNITIES",
+        "=" * 100,
+        *_profile_opportunities(methods),
+    ]
     return "\n".join(lines)
 
 

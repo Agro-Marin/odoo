@@ -51,7 +51,7 @@ def versioned_envelope(method):
         except ModuleNotFoundError:
             return result
         if request:
-            request._response_version = _canonical_digest(result)
+            request._response_version = _canonical_digest(result)  # type: ignore[attr-defined]
         return result
 
     return wrapper

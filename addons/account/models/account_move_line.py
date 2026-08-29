@@ -2590,7 +2590,7 @@ class AccountMoveLine(models.Model):
         )
 
         query_line = self._search(domain, limit=1)
-        query_line.add_where("account_account.id = account_move_line.account_id")
+        query_line.add_where(SQL("account_account.id = account_move_line.account_id"))
 
         account_codes = self.env.execute_query(
             SQL(

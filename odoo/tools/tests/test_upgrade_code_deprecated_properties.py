@@ -1,19 +1,13 @@
-import importlib.util
 import pathlib
 import unittest
 
-_SCRIPT = (
-    pathlib.Path(__file__).resolve().parents[2]
-    / "upgrade_code"
-    / "18.5-00-deprecated-properties.py"
-)
+from odoo.tools.tests._upgrade_script import load_upgrade_script
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("deprecated_properties", _SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_upgrade_script(
+        "deprecated_properties", "18.5-00-deprecated-properties.py"
+    )
 
 
 class _File:

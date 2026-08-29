@@ -313,7 +313,7 @@ def assert_no_dunder_format_field(code_obj: CodeType, expr: str) -> None:
 _FORMAT_METHOD_NAMES = frozenset(("format", "format_map"))
 
 
-_field_name_split = string._string.formatter_field_name_split
+_field_name_split = string._string.formatter_field_name_split  # type: ignore[attr-defined]
 
 
 def _reject_attribute_fields(field_name: str) -> None:
@@ -357,7 +357,7 @@ class _GuardedFormat:
         self._recv = recv
 
     def _formatter(self) -> tuple[string.Formatter, Callable[[str], typing.Any]]:
-        recv = self._recv
+        recv: typing.Any = self._recv
         if hasattr(recv, "__html__"):
             return _StrictEscapeFormatter(recv.escape), type(recv)
         return _STRICT_FORMATTER, str
@@ -395,7 +395,7 @@ class _FormatGuardTransform(ast.NodeTransformer):
 
 
 def assert_valid_codeobj(
-    allowed_codes: set[int], code_obj: CodeType, expr: str
+    allowed_codes: frozenset[int] | set[int], code_obj: CodeType, expr: str | bytes
 ) -> None:
     nested_code = [c for c in code_obj.co_consts if isinstance(c, CodeType)]
     cacheable = not nested_code
@@ -413,8 +413,9 @@ def assert_valid_codeobj(
         if cache_key in _validated_bytecode_cache:
             return
 
-    assert_no_dunder_name(code_obj, expr)
-    assert_no_dunder_format_field(code_obj, expr)
+    expr_text = expr.decode() if isinstance(expr, bytes) else expr
+    assert_no_dunder_name(code_obj, expr_text)
+    assert_no_dunder_format_field(code_obj, expr_text)
 
     code_codes = {i.opcode for i in dis.get_instructions(code_obj)}
     if not allowed_codes >= code_codes:
@@ -434,7 +435,8 @@ def assert_valid_codeobj(
                 oldest = None
             if oldest is not None:
                 _validated_bytecode_cache.pop(oldest, None)
-        _validated_bytecode_cache[cache_key] = True
+        if cache_key is not None:
+            _validated_bytecode_cache[cache_key] = True
 
 
 def compile_codeobj(
@@ -456,7 +458,7 @@ def compile_codeobj(
             tree = ast.parse(expr, filename or "", mode)
             _FormatGuardTransform().visit(tree)
             ast.fix_missing_locations(tree)
-            code_obj = compile(tree, filename or "", mode)
+            code_obj = compile(tree, filename or "", mode)  # type: ignore[call-overload]
         else:
             code_obj = compile(expr, filename or "", mode)
     except SyntaxError, TypeError, ValueError:
@@ -563,7 +565,9 @@ def safe_eval(
     builtins[_GUARD_FORMAT_NAME] = _guard_format
     globals_dict = dict(context or {}, __builtins__=builtins)
 
-    c = compile_codeobj(expr, filename=filename, mode=mode, guard_format=True)
+    c = compile_codeobj(
+        expr, filename=filename or "<unknown>", mode=mode, guard_format=True
+    )
     assert_valid_codeobj(_SAFE_OPCODES, c, expr)
     try:
         return unsafe_eval(c, globals_dict, None)
@@ -582,7 +586,9 @@ def safe_eval(
             context.update(globals_dict)
 
 
-def test_python_expr(expr: str, mode: str = "eval") -> str | typing.Literal[False]:
+def test_python_expr(
+    expr: str, mode: typing.Literal["eval", "exec"] = "eval"
+) -> str | typing.Literal[False]:
     try:
         c = compile_codeobj(expr, mode=mode)
         assert_valid_codeobj(_SAFE_OPCODES, c, expr)
@@ -722,6 +728,6 @@ dateutil = wrap_module(
 json = wrap_module(__import__("json"), ["loads", "dumps"])
 time = wrap_module(__import__("time"), ["time", "strptime", "strftime"])
 
-pytz = wrap_module(_tz_module, ["utc", "timezone"])
+pytz: typing.Any = wrap_module(_tz_module, ["utc", "timezone"])
 pytz.UTC = pytz.utc
-dateutil.tz.gettz = pytz.timezone
+dateutil.tz.gettz = pytz.timezone  # type: ignore[attr-defined]

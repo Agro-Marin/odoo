@@ -305,7 +305,9 @@ class BaseString(Field[str | typing.Literal[False]]):
     ) -> dict[str, dict[str, str]]:
 
         from_lang_terms = self.get_trans_terms(from_lang_value)
-        dictionary = defaultdict(lambda: defaultdict(dict))
+        dictionary: defaultdict[str, defaultdict[str, dict]] = defaultdict(
+            lambda: defaultdict(dict)
+        )
         if not from_lang_terms:
             return dictionary
         dictionary.update(

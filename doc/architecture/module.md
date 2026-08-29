@@ -99,7 +99,7 @@ genuine cycle. Moving `errors`/`dsn`/`utils` to `[foundation]` and `helpers` to
 | Tier pair | Downward | Back-edges | Convention |
 |---|---:|---:|---|
 | `db/` `[connectivity]` → `[resilience]` | had 6 connectivity → resilience edges | 1 | counting imported *symbols*, as `layer_check` does |
-| `http/` `[serving]` → `[features]` | 22 serving → features | 1 | counting import *statements*; by symbol it is 43 against 2 |
+| `http/` `[serving]` → `[features]` | 24 serving → features | 1 | counting import *statements*; by symbol it is 52 against 2 |
 
 **These are the pre-fix figures**, re-derived by
 `TestEdgeCountConventions`, which holds the *old* bracket assignment
@@ -112,7 +112,7 @@ plausible wrong answer on its own:
 
 - **Statements against symbols.** `layer_check` counts symbols; `from .reaper
   import IdlePoolReaper, note_activity` is one statement and two. Pick the other
-  convention and the two rows read 5 and 44.
+  convention and the two rows read 5 and 52.
 - **`from . import x`.** A relative import with no module names its targets in
   `node.names`, not in `node.module`. Skip that form and `db/`'s back-edge
   disappears, leaving the tier looking cleaner than it was.
@@ -425,7 +425,7 @@ the real mixins (`_FakeRequest`, `_FractionOnly`, `_MetricsCursor`).
 
 For `Field` the units are the mixin composition only. Concrete field types are
 *subclasses* and override base methods freely — `BaseString` overrides 4 of
-`Field`'s 10 cache methods — but that is the override surface, a different graph.
+`Field`'s 15 cache methods — but that is the override surface, a different graph.
 
 ### The layering is true of imports and false of the runtime graph
 

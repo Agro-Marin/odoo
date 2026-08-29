@@ -149,8 +149,8 @@ post_dispatch out of band.
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |
 | `geoip.py` | features | `GeoIP` lookup exposed on the request (`_GeoIPNull` when unavailable) |
 | `constants.py` | features | Package-wide constants, `allow_header`, and the session/ensure-db path registries with their `is_ensure_db_path` predicate |
-| `exceptions.py` | features | `RegistryError`, `SessionExpiredException` |
-| `_protocols.py` | features | `HttpExtension` — the `Protocol` the serving objects satisfy (all `if TYPE_CHECKING:`) |
+| `exceptions.py` | features | `RegistryError`, `SessionExpiredException`, and `get_error_response`/`set_error_response` — the only sanctioned way to read and write the `error_response` an exception carries |
+| `_protocols.py` | features | `HttpExtension` — the `Protocol` `ir.http` satisfies, pinned by `TestIrHttpImplementsProtocol`; `Endpoint`/`HasRouting`/`RoutedMethod` for the attributes `@route` stuffs onto a handler; `HasHttpStatus`. `RequestState` alone is `if TYPE_CHECKING:` — it is `object` at runtime |
 
 ## Related
 

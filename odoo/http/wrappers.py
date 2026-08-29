@@ -1,4 +1,3 @@
-import functools
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Self
@@ -54,7 +53,10 @@ def make_request_wrap_methods(attr: str) -> tuple[Any, Any]:
 
 
 if TYPE_CHECKING:
-    _HTTPRequestProxied = werkzeug.wrappers.Request
+
+    class _HTTPRequestProxied(werkzeug.wrappers.Request):
+        pass
+
 else:
     _HTTPRequestProxied = object
 
@@ -222,8 +224,10 @@ class _Response(werkzeug.wrappers.Response):
                 "Response.render() needs a template; guard the call with "
                 "is_qweb() or set one before rendering."
             )
+        env = request.env
+        assert env is not None, "rendering a QWeb response needs a bound environment"
         self.qcontext["request"] = request
-        return request.env["ir.ui.view"]._render_template(self.template, self.qcontext)
+        return env["ir.ui.view"]._render_template(self.template, self.qcontext)
 
     def flatten(self) -> None:
         if self.template:
@@ -426,9 +430,8 @@ def get_response(
 
 
 def abort(status: int | Response, *args: Any, **kwargs: Any) -> None:
-    if isinstance(status, Response):
-        status = status._wrapped__
-    werkzeug.exceptions._odoo_original_abort(status, *args, **kwargs)
+    target: Any = status._wrapped__ if isinstance(status, Response) else status
+    werkzeug.exceptions._odoo_original_abort(target, *args, **kwargs)
 
 
 HTTPException.get_response = get_response
@@ -448,7 +451,6 @@ class FutureResponse:
         if len(kept) != len(staged):
             self.headers.setlist("Set-Cookie", kept)
 
-    @functools.wraps(werkzeug.Response.set_cookie)
     def set_cookie(
         self,
         key: str,

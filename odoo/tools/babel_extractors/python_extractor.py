@@ -1,9 +1,22 @@
 import ast
 import tokenize
 from tokenize import COMMENT, NAME, OP, STRING, generate_tokens
-from typing import IO, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, NamedTuple
 
 from babel.util import parse_encoding, parse_future_flags
+
+from ._frames import (
+    Frame,
+    close_keyword_frame,
+    handle_line_comment,
+    open_call_frame,
+)
+
+
+class _NameToken(NamedTuple):
+    lineno: int
+    value: str
+
 
 type _SimpleKeyword = tuple[int | tuple[int, int] | tuple[int, str], ...] | None
 type _Keyword = dict[int | None, _SimpleKeyword] | _SimpleKeyword
@@ -34,11 +47,73 @@ def _parse_python_string(value: str, encoding: str, future_flags: int) -> str | 
     if isinstance(code, ast.Expression):
         body = code.body
         if isinstance(body, ast.Constant):
-            return body.value
+            return body.value if isinstance(body.value, str) else None
         if isinstance(body, ast.JoinedStr):
-            if all(isinstance(node, ast.Constant) for node in body.values):
-                return "".join(node.value for node in body.values)
+            parts = [
+                n.value
+                for n in body.values
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            ]
+            if len(parts) == len(body.values):
+                return "".join(parts)
     return None
+
+
+def _collect_keyword_message(
+    token: int,
+    value: str,
+    lineno: int,
+    function_stack: list[Frame],
+    message_buffer: list[str],
+    current_fstring_start: str | None,
+    encoding: str,
+    future_flags: int,
+) -> str | None:
+    if token == STRING:
+        string_value = _parse_python_string(value, encoding, future_flags)
+        if not function_stack[-1]["message_lineno"]:
+            function_stack[-1]["message_lineno"] = lineno
+        if string_value is not None:
+            message_buffer.append(string_value)
+    elif token == FSTRING_START:
+        return value
+    elif token == FSTRING_MIDDLE:
+        if current_fstring_start is not None:
+            return current_fstring_start + value
+    elif token == FSTRING_END:
+        if current_fstring_start is not None:
+            string_value = _parse_python_string(
+                current_fstring_start + value, encoding, future_flags
+            )
+            if string_value is not None:
+                message_buffer.append(string_value)
+    elif token == OP and value == ",":
+        if message_buffer:
+            function_stack[-1]["messages"].append("".join(message_buffer))
+            message_buffer.clear()
+        else:
+            function_stack[-1]["messages"].append(None)
+    return current_fstring_start
+
+
+def _after_token(
+    token: int,
+    value: str,
+    lineno: int,
+    function_stack: list[Frame],
+    last_name: str | None,
+    current_fstring_start: str | None,
+) -> tuple[str | None, str | None]:
+    if token == NAME:
+        last_name = value
+        if function_stack and not function_stack[-1]["message_lineno"]:
+            function_stack[-1]["message_lineno"] = lineno
+    if current_fstring_start is not None and token not in {
+        FSTRING_START,
+        FSTRING_MIDDLE,
+    }:
+        current_fstring_start = None
+    return last_name, current_fstring_start
 
 
 def extract_python(
@@ -55,13 +130,11 @@ def extract_python(
 
     tokens = generate_tokens(next_line)
 
-    function_stack = []
-    last_name = None
-    in_def = False
-    in_translator_comments = False
-    translator_comments = []
-    message_buffer = []
-    current_fstring_start = None
+    function_stack: list[Frame] = []
+    last_name = current_fstring_start = None
+    in_def = in_translator_comments = False
+    translator_comments: list[tuple[int, str]] = []
+    message_buffer: list[str] = []
 
     for token, value, (lineno, _), _, _ in tokens:
         if token == NAME and value in ("def", "class"):
@@ -73,91 +146,45 @@ def extract_python(
             continue
 
         if token == OP and value == "(" and last_name:
-            cur_translator_comments = translator_comments
-            if function_stack and function_stack[-1]["function_lineno"] == lineno:
-                cur_translator_comments = function_stack[-1]["translator_comments"]
-
-            function_stack.append(
-                {
-                    "function_lineno": lineno,
-                    "function_name": last_name,
-                    "message_lineno": None,
-                    "messages": [],
-                    "translator_comments": cur_translator_comments,
-                }
+            translator_comments = open_call_frame(
+                function_stack,
+                translator_comments,
+                message_buffer,
+                _NameToken(lineno, last_name),
+                function_lineno=lineno,
+                message_lineno=None,
+                messages=[],
             )
             last_name = None
-            translator_comments = []
-            message_buffer.clear()
 
         elif token == COMMENT:
-            value = value[1:].strip()
-            if in_translator_comments and translator_comments[-1][0] == lineno - 1:
-                translator_comments.append((lineno, value))
+            in_translator_comments, skip = handle_line_comment(
+                value[1:].strip(),
+                lineno,
+                comment_tags,
+                in_translator_comments,
+                translator_comments,
+            )
+            if skip:
                 continue
-
-            for comment_tag in comment_tags:
-                if value.startswith(comment_tag):
-                    in_translator_comments = True
-                    translator_comments.append((lineno, value))
-                    break
 
         elif function_stack and function_stack[-1]["function_name"] in keywords:
             if token == OP and value == ")":
-                messages = function_stack[-1]["messages"]
-                lineno = (
-                    function_stack[-1]["message_lineno"]
-                    or function_stack[-1]["function_lineno"]
-                )
-                cur_translator_comments = function_stack[-1]["translator_comments"]
+                result = close_keyword_frame(function_stack, message_buffer)
+                lineno = result[0]
+                yield result
 
-                if message_buffer:
-                    messages.append("".join(message_buffer))
-                    message_buffer.clear()
-                else:
-                    messages.append(None)
-
-                messages = tuple(messages) if len(messages) > 1 else messages[0]
-                if (
-                    cur_translator_comments
-                    and cur_translator_comments[-1][0] < lineno - 1
-                ):
-                    cur_translator_comments = []
-
-                yield (
+            else:
+                current_fstring_start = _collect_keyword_message(
+                    token,
+                    value,
                     lineno,
-                    function_stack[-1]["function_name"],
-                    messages,
-                    [comment[1] for comment in cur_translator_comments],
+                    function_stack,
+                    message_buffer,
+                    current_fstring_start,
+                    encoding,
+                    future_flags,
                 )
-
-                function_stack.pop()
-
-            elif token == STRING:
-                string_value = _parse_python_string(value, encoding, future_flags)
-                if not function_stack[-1]["message_lineno"]:
-                    function_stack[-1]["message_lineno"] = lineno
-                if string_value is not None:
-                    message_buffer.append(string_value)
-
-            elif token == FSTRING_START:
-                current_fstring_start = value
-            elif token == FSTRING_MIDDLE:
-                if current_fstring_start is not None:
-                    current_fstring_start += value
-            elif token == FSTRING_END:
-                if current_fstring_start is not None:
-                    fstring = current_fstring_start + value
-                    string_value = _parse_python_string(fstring, encoding, future_flags)
-                    if string_value is not None:
-                        message_buffer.append(string_value)
-
-            elif token == OP and value == ",":
-                if message_buffer:
-                    function_stack[-1]["messages"].append("".join(message_buffer))
-                    message_buffer.clear()
-                else:
-                    function_stack[-1]["messages"].append(None)
 
         elif function_stack and token == OP and value == ")":
             function_stack.pop()
@@ -165,13 +192,6 @@ def extract_python(
         if in_translator_comments and translator_comments[-1][0] < lineno:
             in_translator_comments = False
 
-        if token == NAME:
-            last_name = value
-            if function_stack and not function_stack[-1]["message_lineno"]:
-                function_stack[-1]["message_lineno"] = lineno
-
-        if current_fstring_start is not None and token not in {
-            FSTRING_START,
-            FSTRING_MIDDLE,
-        }:
-            current_fstring_start = None
+        last_name, current_fstring_start = _after_token(
+            token, value, lineno, function_stack, last_name, current_fstring_start
+        )

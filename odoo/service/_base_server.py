@@ -5,7 +5,7 @@ import os
 import signal
 from typing import TYPE_CHECKING, Any
 
-from odoo.tools import config
+from odoo.tools.config import config
 
 if TYPE_CHECKING:
     from collections.abc import Callable

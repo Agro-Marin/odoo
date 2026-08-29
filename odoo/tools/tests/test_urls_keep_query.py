@@ -5,8 +5,8 @@ from unittest import mock
 
 if "odoo.http" not in sys.modules:
     _http_stub = types.ModuleType("odoo.http")
-    _http_stub.request = None
-    _http_stub.__odoo_test_stub__ = True
+    _http_stub.request = None  # type: ignore[attr-defined]
+    _http_stub.__odoo_test_stub__ = True  # type: ignore[attr-defined]
     sys.modules["odoo.http"] = _http_stub
 
 from odoo.tools import urls

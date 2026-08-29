@@ -25,6 +25,8 @@ ALL_ADDONS = "addons"
 
 TOOLING = "tooling"
 
+TESTS = "tests"
+
 
 def addon_src(addon: str = DEFAULT_ADDON) -> Path:
     if addon == DEFAULT_ADDON:
@@ -33,6 +35,8 @@ def addon_src(addon: str = DEFAULT_ADDON) -> Path:
         return ROOT / "addons"
     if addon == TOOLING:
         return ROOT / "tooling"
+    if addon == TESTS:
+        return SCOPE / "tests"
     return ROOT / "addons" / addon
 
 
@@ -51,7 +55,8 @@ class LongFunction:
 
 
 def iter_source_files(src: Path | None = None) -> list[Path]:
-    return _sources.iter_python_files(SCOPE if src is None else src)
+    root = SCOPE if src is None else src
+    return _sources.iter_python_files(root, include_tests=root == SCOPE / "tests")
 
 
 def measure(
@@ -106,8 +111,9 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             f"what to measure: {DEFAULT_ADDON} (default) is the odoo/ package, "
             f"{ALL_ADDONS} is the whole bundled-addons tree as one number, "
-            f"{TOOLING} is the gates themselves, and anything else is that one "
-            f"module under addons/"
+            f"{TOOLING} is the gates themselves, {TESTS} is the test framework "
+            f"under odoo/tests/, and anything else is that one module under "
+            f"addons/"
         ),
     )
     args = parser.parse_args(argv)
@@ -125,9 +131,12 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(f) for f in found], indent=2))
         return 0
 
-    where = {DEFAULT_ADDON: "odoo/", ALL_ADDONS: "addons/", TOOLING: "tooling/"}.get(
-        args.addon, f"addons/{args.addon}/"
-    )
+    where = {
+        DEFAULT_ADDON: "odoo/",
+        ALL_ADDONS: "addons/",
+        TOOLING: "tooling/",
+        TESTS: "odoo/tests/",
+    }.get(args.addon, f"addons/{args.addon}/")
     print(f"Python function-length budget (> {MAX_LINES} lines, {where})")
     print("=" * 72)
     shown = found if args.top == 0 else found[: args.top]

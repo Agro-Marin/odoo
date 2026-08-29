@@ -90,15 +90,125 @@ class ReadMixin(_ModelStubs):
 
         return result
 
+    def _read_format_scalar(
+        self, name: str, results: list[dict], use_display_name: bool
+    ) -> None:
+        env = self.env
+        ids = self._ids
+        field = self._fields[name]
+        field.ensure_computed(self)
+        field_cache = field._get_cache(env)
+        none_val: typing.Any = field.convert_to_record(None, self[:1])
+        if type(field_cache) is dict:
+            miss_indices = _batch_cache_fill_rust(
+                field_cache, ids, results, name, PENDING, none_val
+            )
+            for idx in miss_indices:
+                vals = results[idx]
+                if not vals:
+                    continue
+                try:
+                    record = self._read_format_miss_record(ids[idx])
+                    vals[name] = field.convert_to_read(
+                        record[name], record, use_display_name
+                    )
+                except MissingError:
+                    vals.clear()
+            return
+        for id_, vals in zip(ids, results, strict=True):
+            if not vals:
+                continue
+            cache_value = field_cache.get(id_, SENTINEL)
+            if cache_value is SENTINEL or cache_value is PENDING:
+                try:
+                    record = self._read_format_miss_record(id_)
+                    vals[name] = field.convert_to_read(
+                        record[name], record, use_display_name
+                    )
+                except MissingError:
+                    vals.clear()
+            elif cache_value is None:
+                vals[name] = none_val
+            else:
+                vals[name] = cache_value
+
+    def _read_format_multi(
+        self, name: str, field, data: list, use_display_name: bool
+    ) -> None:
+        if field.store:
+            field.ensure_computed(self)
+        values_list = []
+        records = []
+        valid_data = []
+        for record, vals in data:
+            if not vals:
+                continue
+            try:
+                values_list.append(record[name])
+                records.append(record.id)
+                valid_data.append((record, vals))
+            except MissingError:
+                vals.clear()
+
+        multi_results = field.convert_to_read_multi(
+            values_list,
+            self.browse(records),
+            use_display_name or field.is_properties,
+        )
+        for (_, vals), convert_result in zip(valid_data, multi_results, strict=True):
+            vals[name] = convert_result
+
+    def _read_format_stored(
+        self, name: str, field, data: list, use_display_name: bool
+    ) -> None:
+        env = self.env
+        field.ensure_computed(self)
+        _read_cache = field.read_cache
+        convert_to_record = field.convert_to_record
+        convert_to_read = field.convert_to_read
+        for record, vals in data:
+            if not vals:
+                continue
+            hit, cache_value = _read_cache(record._ids[0], env)
+            if not hit:
+                try:
+                    vals[name] = convert_to_read(record[name], record, use_display_name)
+                except MissingError:
+                    vals.clear()
+                continue
+            try:
+                vals[name] = convert_to_read(
+                    convert_to_record(cache_value, record),
+                    record,
+                    use_display_name,
+                )
+            except MissingError:
+                vals.clear()
+            except KeyError:
+                try:
+                    vals[name] = convert_to_read(record[name], record, use_display_name)
+                except MissingError:
+                    vals.clear()
+
+    @staticmethod
+    def _read_format_unstored(
+        name: str, field, data: list, use_display_name: bool
+    ) -> None:
+        convert = field.convert_to_read
+        for record, vals in data:
+            if not vals:
+                continue
+            try:
+                vals[name] = convert(record[name], record, use_display_name)
+            except MissingError:
+                vals.clear()
+
     def _read_format(
         self, fnames: Sequence[str], load: str = "_classic_read"
     ) -> list[ValuesType]:
         use_display_name = load == "_classic_read"
-        env = self.env
         ids = self._ids
         _fields = self._fields
-        _SENTINEL = SENTINEL
-        _PENDING = PENDING
 
         scalar_fnames = []
         record_fnames = []
@@ -112,42 +222,7 @@ class ReadMixin(_ModelStubs):
 
         results = [{"id": id_} for id_ in ids]
         for name in scalar_fnames:
-            field = _fields[name]
-            field.ensure_computed(self)
-            field_cache = field._get_cache(env)
-            none_val: typing.Any = field.convert_to_record(None, self[:1])
-            if type(field_cache) is dict:
-                miss_indices = _batch_cache_fill_rust(
-                    field_cache, ids, results, name, _PENDING, none_val
-                )
-                for idx in miss_indices:
-                    vals = results[idx]
-                    if not vals:
-                        continue
-                    try:
-                        record = self._read_format_miss_record(ids[idx])
-                        vals[name] = field.convert_to_read(
-                            record[name], record, use_display_name
-                        )
-                    except MissingError:
-                        vals.clear()
-            else:
-                for id_, vals in zip(ids, results, strict=True):
-                    if not vals:
-                        continue
-                    cache_value = field_cache.get(id_, _SENTINEL)
-                    if cache_value is _SENTINEL or cache_value is _PENDING:
-                        try:
-                            record = self._read_format_miss_record(id_)
-                            vals[name] = field.convert_to_read(
-                                record[name], record, use_display_name
-                            )
-                        except MissingError:
-                            vals.clear()
-                    elif cache_value is None:
-                        vals[name] = none_val
-                    else:
-                        vals[name] = cache_value
+            self._read_format_scalar(name, results, use_display_name)
 
         if not record_fnames:
             return [vals for vals in results if vals]
@@ -157,73 +232,11 @@ class ReadMixin(_ModelStubs):
         for name in record_fnames:
             field = _fields[name]
             if field.is_properties or field.is_many2one:
-                if field.store:
-                    field.ensure_computed(self)
-                values_list = []
-                records = []
-                valid_data = []
-                for record, vals in data:
-                    if not vals:
-                        continue
-                    try:
-                        values_list.append(record[name])
-                        records.append(record.id)
-                        valid_data.append((record, vals))
-                    except MissingError:
-                        vals.clear()
-
-                multi_results = field.convert_to_read_multi(
-                    values_list,
-                    self.browse(records),
-                    use_display_name or field.is_properties,
-                )
-                for (_, vals), convert_result in zip(
-                    valid_data, multi_results, strict=True
-                ):
-                    vals[name] = convert_result
-                continue
-
-            if field.store:
-                field.ensure_computed(self)
-                _read_cache = field.read_cache
-                convert_to_record = field.convert_to_record
-                convert_to_read = field.convert_to_read
-                for record, vals in data:
-                    if not vals:
-                        continue
-                    hit, cache_value = _read_cache(record._ids[0], env)
-                    if not hit:
-                        try:
-                            vals[name] = convert_to_read(
-                                record[name], record, use_display_name
-                            )
-                        except MissingError:
-                            vals.clear()
-                        continue
-                    try:
-                        vals[name] = convert_to_read(
-                            convert_to_record(cache_value, record),
-                            record,
-                            use_display_name,
-                        )
-                    except MissingError:
-                        vals.clear()
-                    except KeyError:
-                        try:
-                            vals[name] = convert_to_read(
-                                record[name], record, use_display_name
-                            )
-                        except MissingError:
-                            vals.clear()
+                self._read_format_multi(name, field, data, use_display_name)
+            elif field.store:
+                self._read_format_stored(name, field, data, use_display_name)
             else:
-                convert = field.convert_to_read
-                for record, vals in data:
-                    if not vals:
-                        continue
-                    try:
-                        vals[name] = convert(record[name], record, use_display_name)
-                    except MissingError:
-                        vals.clear()
+                self._read_format_unstored(name, field, data, use_display_name)
 
         return [vals for record, vals in data if vals]
 

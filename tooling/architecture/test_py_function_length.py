@@ -172,6 +172,27 @@ class TestAllAddonsScope(unittest.TestCase):
         )
 
 
+class TestTestsScope(unittest.TestCase):
+    def test_the_reserved_name_is_the_framework_not_a_module_under_addons(self):
+        src = pfl.addon_src(pfl.TESTS)
+        self.assertEqual(src, pfl.SCOPE / "tests")
+        self.assertNotEqual(src, pfl.ROOT / "addons" / pfl.TESTS)
+
+    def test_it_is_the_one_scope_that_keeps_its_test_paths(self):
+        files = pfl.iter_source_files(pfl.addon_src(pfl.TESTS))
+        self.assertTrue(files, "the gate scanned nothing under odoo/tests")
+        self.assertTrue(all(f.is_relative_to(pfl.SCOPE / "tests") for f in files))
+
+    def test_the_core_scan_still_excludes_it(self):
+        core = set(pfl.iter_source_files())
+        framework = set(pfl.iter_source_files(pfl.addon_src(pfl.TESTS)))
+        self.assertTrue(framework)
+        self.assertFalse(
+            core & framework,
+            "odoo/tests entered the core scan; its floor now double-counts",
+        )
+
+
 class TestTheRatchetHintIsCopyPastable(unittest.TestCase):
     def _hint(self, argv: list[str]) -> str:
         import contextlib

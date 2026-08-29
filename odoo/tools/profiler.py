@@ -19,13 +19,13 @@ from odoo.tools import SQL
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from types import FrameType
+    from types import EllipsisType, FrameType
 
 _logger = logging.getLogger(__name__)
 
 real_datetime_now = datetime.now
-real_time = time.time.__call__
-real_cpu_time = time.thread_time.__call__
+real_time = time.time
+real_cpu_time = time.thread_time
 
 
 def _format_frame(frame: FrameType) -> tuple[str, int, str, str]:
@@ -38,12 +38,13 @@ def _format_stack(stack: list[tuple[str, int, str, str]]) -> list[list[Any]]:
 
 
 def get_current_frame(thread: threading.Thread | None = None) -> FrameType:
-    if thread:
-        frame = sys._current_frames()[thread.ident]
+    if thread and thread.ident is not None:
+        frame: FrameType | None = sys._current_frames()[thread.ident]
     else:
         frame = sys._getframe()
-    while frame.f_code.co_filename == __file__:
+    while frame is not None and frame.f_code.co_filename == __file__:
         frame = frame.f_back
+    assert frame is not None
     return frame
 
 
@@ -56,12 +57,12 @@ def _get_stack_trace(
         stack.append(_format_frame(frame))
         frame = frame.f_back
     if frame is None and limit_frame:
-        _logger.runbot("Limit frame was not found")
+        _logger.runbot("Limit frame was not found")  # type: ignore[attr-defined]
     return list(reversed(stack))
 
 
 def stack_size() -> int:
-    frame = get_current_frame()
+    frame: FrameType | None = get_current_frame()
     size = 0
     while frame:
         size += 1
@@ -408,7 +409,7 @@ class QwebTracker:
     ) -> None:
         execution_context = None
         if self.execution_context_enabled:
-            directive_info = {}
+            directive_info: dict[str, str | None] = {}
             if ("t-" + directive) in attrib:
                 directive_info["t-" + directive] = repr(attrib["t-" + directive])
             if directive == "set":
@@ -529,8 +530,8 @@ class QwebCollector(Collector):
         self.profiler.init_thread.qweb_hooks.remove(self.hook)
 
     def post_process(self):
-        last_event_query = None
-        last_event_time = None
+        last_event_query = 0
+        last_event_time = 0.0
         stack: list[dict[str, Any]] = []
         results: list[dict[str, Any]] = []
         archs: dict[int, Any] = {}
@@ -575,7 +576,7 @@ class ExecutionContext:
         self.previous_context: tuple | None = None
 
     def __enter__(self) -> Self:
-        current_thread = threading.current_thread()
+        current_thread: Any = threading.current_thread()
         self.previous_context = getattr(current_thread, "exec_context", ())
         current_thread.exec_context = self.previous_context + (
             (stack_size(), self.context),
@@ -590,7 +591,7 @@ class Profiler:
     def __init__(
         self,
         collectors: list[str | Collector] | None = None,
-        db: str | None = ...,
+        db: str | EllipsisType | None = ...,
         profile_session: str | None = None,
         description: str | None = None,
         disable_gc: bool = False,
@@ -603,9 +604,9 @@ class Profiler:
         self.cpu_duration: float = 0
         self.profile_session: str = profile_session or make_session()
         self.description: str | None = description
-        self.init_frame: FrameType | list | None = None
-        self.init_stack_trace: list[tuple[str, int, str, str]] | list | None = None
-        self.init_thread: threading.Thread | None = None
+        self.init_frame: FrameType | None = None
+        self.init_stack_trace: list[tuple[str, int, str, str]] | None = None
+        self.init_thread: Any = None
         self.disable_gc: bool = disable_gc
         self.filecache: dict[str, list[str] | None] = {}
         self.params: dict[str, Any] = params or {}
@@ -644,14 +645,17 @@ class Profiler:
             self.init_frame = get_current_frame(self.init_thread)
             self.init_stack_trace = _get_stack_trace(self.init_frame)
         except KeyError:
-            self.init_frame = self.init_stack_trace = self.collectors = []
-            self.db = self.params = None
+            self.init_frame = None
+            self.init_stack_trace = None
+            self.collectors = []
+            self.db = None
+            self.params = {}
             message = "Cannot start profiler, thread not found. Is the thread part of a thread pool?"
             if not self.description:
                 self.description = message
             _logger.warning(message)
 
-        if self.description is None:
+        if self.description is None and self.init_frame is not None:
             frame = self.init_frame
             code = frame.f_code
             self.description = (
@@ -706,7 +710,7 @@ class Profiler:
                         "session": self.profile_session,
                         "create_date": real_datetime_now(),
                         "init_stack_trace": json.dumps(
-                            _format_stack(self.init_stack_trace)
+                            _format_stack(self.init_stack_trace or [])
                         ),
                         "duration": self.duration,
                         "cpu_duration": self.cpu_duration,
@@ -732,7 +736,9 @@ class Profiler:
                         tuple(values.values()),
                     )
                     cr.execute(query)
-                    self.profile_id = cr.fetchone()[0]
+                    row = cr.fetchone()
+                    assert row is not None
+                    self.profile_id = row[0]
                     _logger.info(
                         "ir_profile %s (%s) created",
                         self.profile_id,
@@ -753,9 +759,9 @@ class Profiler:
     def _get_cm_proxy(self) -> Nested:
         return Nested(self)
 
-    def _add_file_lines(
-        self, stack: list[tuple[str, int, str, str]] | list | None
-    ) -> None:
+    def _add_file_lines(self, stack: list[tuple[str, int, str, str]] | None) -> None:
+        if stack is None:
+            return
         for index, frame in enumerate(stack):
             filename, lineno, name, line = frame
             if line != "":
@@ -785,7 +791,7 @@ class Profiler:
         return path.format(
             time=real_datetime_now().strftime("%Y%m%d-%H%M%S"),
             len=self.entry_count(),
-            desc=re.sub(r"[^0-9a-zA-Z-]+", "_", self.description),
+            desc=re.sub(r"[^0-9a-zA-Z-]+", "_", self.description or ""),
         )
 
     def json(self) -> str:
@@ -794,7 +800,7 @@ class Profiler:
                 "name": self.description,
                 "session": self.profile_session,
                 "create_date": real_datetime_now().strftime("%Y%m%d-%H%M%S"),
-                "init_stack_trace": _format_stack(self.init_stack_trace),
+                "init_stack_trace": _format_stack(self.init_stack_trace or []),
                 "duration": self.duration,
                 "collectors": {
                     collector.name: collector.entries for collector in self.collectors

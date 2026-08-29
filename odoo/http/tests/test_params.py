@@ -145,7 +145,7 @@ def test_string_annotations_are_resolved():
 
 def test_unresolvable_string_annotation_passes_through():
 
-    def ep(self, n: "int", ghost: "NotARealName" = None): ...  # noqa: UP037, F821  an unresolvable annotation is the case
+    def ep(self, n: "int", ghost: "NotARealName" = None): ...  # type: ignore[name-defined]  # noqa: UP037, F821  an unresolvable annotation is the case
 
     specs = _spec(ep)
     assert set(specs) == {"n"}

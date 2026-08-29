@@ -101,6 +101,40 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
 
         return ((value if value is not None else empty_value) for value in raw_values)
 
+    def _read_group_temporal_range(
+        self, value, field, interval, granularity: str, locale: str, fmt: str
+    ) -> tuple[str, str, str]:
+        range_start = value
+        range_end = value + interval
+        if field.is_datetime:
+            assert isinstance(range_start, datetime.datetime)
+            assert isinstance(range_end, datetime.datetime)
+            tzinfo = None
+            if self.env.context.get("tz") in all_timezones():
+                tzinfo = get_timezone(self.env.context["tz"])
+                range_start = range_start.replace(tzinfo=tzinfo).astimezone(utc)
+                range_end = range_end.replace(tzinfo=tzinfo).astimezone(utc)
+
+            label = babel.dates.format_datetime(
+                range_start,
+                format=READ_GROUP_DISPLAY_FORMAT[granularity],
+                tzinfo=tzinfo,
+                locale=locale,
+            )
+        else:
+            label = babel.dates.format_date(
+                value,
+                format=READ_GROUP_DISPLAY_FORMAT[granularity],
+                locale=locale,
+            )
+        if granularity == "week":
+            year, week = date_utils.weeknumber(
+                babel.Locale.parse(locale),
+                value,
+            )
+            label = f"W{week} {year:04}"
+        return label, range_start.strftime(fmt), range_end.strftime(fmt)
+
     def _read_group_format_result(
         self, rows_dict: list[dict], lazy_groupby: list[str]
     ) -> None:
@@ -139,42 +173,11 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
 
                 if field.is_temporal:
                     if value and isinstance(value, datetime.date):
-                        range_start = value
-                        range_end = value + interval
-                        if field.is_datetime:
-                            assert isinstance(range_start, datetime.datetime)
-                            assert isinstance(range_end, datetime.datetime)
-                            tzinfo = None
-                            if self.env.context.get("tz") in all_timezones():
-                                tzinfo = get_timezone(self.env.context["tz"])
-                                range_start = range_start.replace(
-                                    tzinfo=tzinfo
-                                ).astimezone(utc)
-                                range_end = range_end.replace(tzinfo=tzinfo).astimezone(
-                                    utc
-                                )
-
-                            label = babel.dates.format_datetime(
-                                range_start,
-                                format=READ_GROUP_DISPLAY_FORMAT[granularity],
-                                tzinfo=tzinfo,
-                                locale=locale,
+                        label, range_start_str, range_end_str = (
+                            self._read_group_temporal_range(
+                                value, field, interval, granularity, locale, fmt
                             )
-                        else:
-                            label = babel.dates.format_date(
-                                value,
-                                format=READ_GROUP_DISPLAY_FORMAT[granularity],
-                                locale=locale,
-                            )
-                        if granularity == "week":
-                            year, week = date_utils.weeknumber(
-                                babel.Locale.parse(locale),
-                                value,
-                            )
-                            label = f"W{week} {year:04}"
-
-                        range_start_str = range_start.strftime(fmt)
-                        range_end_str = range_end.strftime(fmt)
+                        )
                         row[group] = label
                         row.setdefault("__range", {})[group] = {
                             "from": range_start_str,
@@ -199,6 +202,117 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
         for row in rows_dict:
             row["__domain"] = list(row["__domain"])
 
+    def _format_properties_selection(
+        self, rows_dict: list[dict], fullname: str, definition: dict
+    ) -> None:
+        options = definition.get("selection") or []
+        options = tuple(option[0] for option in options)
+        for row in rows_dict:
+            if not row[fullname]:
+                additional_domain = Domain(fullname, "=", False) | Domain(
+                    fullname, "not in", options
+                )
+            else:
+                additional_domain = Domain(fullname, "=", row[fullname])
+
+            row["__domain"] &= additional_domain
+
+    def _format_properties_many2one(
+        self, rows_dict: list[dict], fullname: str, definition: dict
+    ) -> None:
+        comodel = self.env[definition.get("comodel")]
+        prefetch_ids = all_groups = tuple(
+            row[fullname] for row in rows_dict if row[fullname]
+        )
+        for row in rows_dict:
+            if not row[fullname]:
+                additional_domain = Domain(fullname, "=", False) | Domain(
+                    fullname, "not in", all_groups
+                )
+            else:
+                additional_domain = Domain(fullname, "=", row[fullname])
+                record = comodel.browse(row[fullname]).with_prefetch(prefetch_ids)
+                row[fullname] = (row[fullname], record.display_name)
+
+            row["__domain"] &= additional_domain
+
+    def _format_properties_many2many(
+        self, rows_dict: list[dict], fullname: str, definition: dict
+    ) -> None:
+        comodel = self.env[definition.get("comodel")]
+        prefetch_ids = all_groups = tuple(
+            row[fullname] for row in rows_dict if row[fullname]
+        )
+        for row in rows_dict:
+            if not row[fullname]:
+                if all_groups:
+                    additional_domain = Domain(fullname, "=", False) | Domain.AND(
+                        [(fullname, "not in", group)] for group in all_groups
+                    )
+                else:
+                    additional_domain = Domain.TRUE
+            else:
+                additional_domain = Domain(fullname, "in", row[fullname])
+                record = comodel.browse(row[fullname]).with_prefetch(prefetch_ids)
+                row[fullname] = (row[fullname], record.display_name)
+
+            row["__domain"] &= additional_domain
+
+    def _format_properties_tags(
+        self, rows_dict: list[dict], fullname: str, definition: dict
+    ) -> None:
+        tags = definition.get("tags") or []
+        tags = {tag[0]: tag for tag in tags}
+        for row in rows_dict:
+            if not row[fullname]:
+                if tags:
+                    additional_domain = Domain(fullname, "=", False) | Domain.AND(
+                        [(fullname, "not in", tag)] for tag in tags
+                    )
+                else:
+                    additional_domain = Domain.TRUE
+            else:
+                additional_domain = Domain(fullname, "in", row[fullname])
+                row[fullname] = tags.get(row[fullname])
+
+            row["__domain"] &= additional_domain
+
+    def _format_properties_temporal(
+        self,
+        rows_dict: list[dict],
+        fullname: str,
+        group: str,
+        property_type: str,
+        func: str,
+    ) -> None:
+        for row in rows_dict:
+            if not row[group]:
+                row[group] = False
+                row["__domain"] &= Domain(fullname, "=", False)
+                row.setdefault("__range", {})[group] = False
+                continue
+
+            db_format = "%Y-%m-%d" if property_type == "date" else "%Y-%m-%d %H:%M:%S"
+
+            if func == "week":
+                start = row[group].strftime(db_format)
+                end = (row[group] + datetime.timedelta(days=7)).strftime(db_format)
+            else:
+                start = (date_utils.start_of(row[group], func)).strftime(db_format)
+                end = (
+                    date_utils.end_of(row[group], func) + datetime.timedelta(minutes=1)
+                ).strftime(db_format)
+
+            row["__domain"] &= Domain(fullname, ">=", start) & Domain(
+                fullname, "<", end
+            )
+            row.setdefault("__range", {})[group] = {"from": start, "to": end}
+            row[group] = babel.dates.format_date(
+                row[group],
+                format=READ_GROUP_DISPLAY_FORMAT[func],
+                locale=get_lang(self.env).code,
+            )
+
     def _read_group_format_result_properties(self, rows_dict, group):
         if "." not in group:
             msg = "You must choose the property you want to group by."
@@ -209,103 +323,17 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
         property_type = definition.get("type")
 
         if property_type == "selection":
-            options = definition.get("selection") or []
-            options = tuple(option[0] for option in options)
-            for row in rows_dict:
-                if not row[fullname]:
-                    additional_domain = Domain(fullname, "=", False) | Domain(
-                        fullname, "not in", options
-                    )
-                else:
-                    additional_domain = Domain(fullname, "=", row[fullname])
-
-                row["__domain"] &= additional_domain
-
+            self._format_properties_selection(rows_dict, fullname, definition)
         elif property_type == "many2one":
-            comodel = self.env[definition.get("comodel")]
-            prefetch_ids = all_groups = tuple(
-                row[fullname] for row in rows_dict if row[fullname]
-            )
-            for row in rows_dict:
-                if not row[fullname]:
-                    additional_domain = Domain(fullname, "=", False) | Domain(
-                        fullname, "not in", all_groups
-                    )
-                else:
-                    additional_domain = Domain(fullname, "=", row[fullname])
-                    record = comodel.browse(row[fullname]).with_prefetch(prefetch_ids)
-                    row[fullname] = (row[fullname], record.display_name)
-
-                row["__domain"] &= additional_domain
-
+            self._format_properties_many2one(rows_dict, fullname, definition)
         elif property_type == "many2many":
-            comodel = self.env[definition.get("comodel")]
-            prefetch_ids = all_groups = tuple(
-                row[fullname] for row in rows_dict if row[fullname]
-            )
-            for row in rows_dict:
-                if not row[fullname]:
-                    if all_groups:
-                        additional_domain = Domain(fullname, "=", False) | Domain.AND(
-                            [(fullname, "not in", group)] for group in all_groups
-                        )
-                    else:
-                        additional_domain = Domain.TRUE
-                else:
-                    additional_domain = Domain(fullname, "in", row[fullname])
-                    record = comodel.browse(row[fullname]).with_prefetch(prefetch_ids)
-                    row[fullname] = (row[fullname], record.display_name)
-
-                row["__domain"] &= additional_domain
-
+            self._format_properties_many2many(rows_dict, fullname, definition)
         elif property_type == "tags":
-            tags = definition.get("tags") or []
-            tags = {tag[0]: tag for tag in tags}
-            for row in rows_dict:
-                if not row[fullname]:
-                    if tags:
-                        additional_domain = Domain(fullname, "=", False) | Domain.AND(
-                            [(fullname, "not in", tag)] for tag in tags
-                        )
-                    else:
-                        additional_domain = Domain.TRUE
-                else:
-                    additional_domain = Domain(fullname, "in", row[fullname])
-                    row[fullname] = tags.get(row[fullname])
-
-                row["__domain"] &= additional_domain
-
+            self._format_properties_tags(rows_dict, fullname, definition)
         elif property_type in ("date", "datetime"):
-            for row in rows_dict:
-                if not row[group]:
-                    row[group] = False
-                    row["__domain"] &= Domain(fullname, "=", False)
-                    row.setdefault("__range", {})[group] = False
-                    continue
-
-                db_format = (
-                    "%Y-%m-%d" if property_type == "date" else "%Y-%m-%d %H:%M:%S"
-                )
-
-                if func == "week":
-                    start = row[group].strftime(db_format)
-                    end = (row[group] + datetime.timedelta(days=7)).strftime(db_format)
-                else:
-                    start = (date_utils.start_of(row[group], func)).strftime(db_format)
-                    end = (
-                        date_utils.end_of(row[group], func)
-                        + datetime.timedelta(minutes=1)
-                    ).strftime(db_format)
-
-                row["__domain"] &= Domain(fullname, ">=", start) & Domain(
-                    fullname, "<", end
-                )
-                row.setdefault("__range", {})[group] = {"from": start, "to": end}
-                row[group] = babel.dates.format_date(
-                    row[group],
-                    format=READ_GROUP_DISPLAY_FORMAT[func],
-                    locale=get_lang(self.env).code,
-                )
+            self._format_properties_temporal(
+                rows_dict, fullname, group, property_type, func
+            )
         else:
             for row in rows_dict:
                 row["__domain"] &= Domain(fullname, "=", row[fullname])

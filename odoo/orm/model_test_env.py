@@ -5,7 +5,7 @@ from collections.abc import Iterable, Mapping
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from operator import attrgetter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 from odoo.db import BaseCursor, FunctionStatus
 from odoo.libs.collections import Collector
@@ -86,6 +86,13 @@ class _TestResCompany(Model):
     active = Boolean(default=True)
 
 
+_FALLBACK_MODELS = (
+    ("ir.default", _TestIrDefault),
+    ("res.users", _TestResUsers),
+    ("res.company", _TestResCompany),
+)
+
+
 class InMemoryCursor(BaseCursor):
     def __init__(
         self,
@@ -117,6 +124,17 @@ class InMemoryCursor(BaseCursor):
             "custom cr.execute) needs PostgreSQL. Register its result via "
             "model_test_env(..., fixtures={str(query): rows}) or use a DB-backed "
             "TransactionCase."
+        )
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
+    def connection(self) -> NoReturn:
+        raise NotImplementedError(
+            "InMemoryCursor has no PostgreSQL connection; use a DB-backed "
+            "TransactionCase for code that reaches through cr.connection."
         )
 
     @property
@@ -313,7 +331,34 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                 queue.extend(func(model))
         return result
 
-    def _build(self, model_defs: list[type[BaseModel]]) -> None:
+    def _collect_field_depends(self, env) -> None:
+        for model_cls in self.models.values():
+            model = model_cls(env, (), ())
+            for field in model._fields.values():
+                try:
+                    depends, depends_context = field.get_depends(model)
+                    self.field_depends[field] = tuple(depends)
+                    self.field_depends_context[field] = tuple(depends_context)
+                except KeyError as exc:
+                    self.field_depends[field] = ()
+                    self.field_depends_context[field] = ()
+                    self.degraded_fields[field] = f"get_depends: missing {exc}"
+
+        if self.degraded_fields:
+            _logger.warning(
+                "model_test_env: %d field(s) degraded (missing comodel in the "
+                "model set); their triggers/deps are inert. Inspect via "
+                "registry.degraded_fields. Degraded: %s",
+                len(self.degraded_fields),
+                ", ".join(
+                    sorted(f"{f.model_name}.{f.name}" for f in self.degraded_fields)
+                ),
+            )
+
+    @staticmethod
+    def _collect_model_defs(
+        model_defs: list[type[BaseModel]],
+    ) -> list[type[BaseModel]]:
         from .models.metaclass import MetaModel
 
         modules = {"base"}
@@ -336,27 +381,16 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                 seen_ids.add(id(cls))
                 all_defs.append(cls)
 
-        has_base = any(getattr(cls, "_name", None) == "base" for cls in all_defs)
-        if not has_base:
+        if not any(getattr(cls, "_name", None) == "base" for cls in all_defs):
             all_defs.insert(0, _TestBase)
+        return all_defs
 
-        has_ir_default = any(
-            getattr(cls, "_name", None) == "ir.default" for cls in all_defs
-        )
-        if not has_ir_default:
-            all_defs.append(_TestIrDefault)
+    def _build(self, model_defs: list[type[BaseModel]]) -> None:
+        all_defs = self._collect_model_defs(model_defs)
 
-        has_res_users = any(
-            getattr(cls, "_name", None) == "res.users" for cls in all_defs
-        )
-        if not has_res_users:
-            all_defs.append(_TestResUsers)
-
-        has_res_company = any(
-            getattr(cls, "_name", None) == "res.company" for cls in all_defs
-        )
-        if not has_res_company:
-            all_defs.append(_TestResCompany)
+        for model_name, fallback in _FALLBACK_MODELS:
+            if not any(getattr(cls, "_name", None) == model_name for cls in all_defs):
+                all_defs.append(fallback)
 
         all_defs.sort(
             key=lambda c: 0 if getattr(c, "_name", "") == "base" else 1,
@@ -381,28 +415,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         for model_cls in model_classes:
             self._setup_fields_lenient(model_cls, env)
 
-        for model_cls in self.models.values():
-            model = model_cls(env, (), ())
-            for field in model._fields.values():
-                try:
-                    depends, depends_context = field.get_depends(model)
-                    self.field_depends[field] = tuple(depends)
-                    self.field_depends_context[field] = tuple(depends_context)
-                except KeyError as exc:
-                    self.field_depends[field] = ()
-                    self.field_depends_context[field] = ()
-                    self.degraded_fields[field] = f"get_depends: missing {exc}"
-
-        if self.degraded_fields:
-            _logger.warning(
-                "model_test_env: %d field(s) degraded (missing comodel in the "
-                "model set); their triggers/deps are inert. Inspect via "
-                "registry.degraded_fields. Degraded: %s",
-                len(self.degraded_fields),
-                ", ".join(
-                    sorted(f"{f.model_name}.{f.name}" for f in self.degraded_fields)
-                ),
-            )
+        self._collect_field_depends(env)
 
         for model_cls in self.models.values():
             if model_cls._auto and not model_cls._abstract:

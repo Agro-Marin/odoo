@@ -26,7 +26,8 @@ IMPORT_EXTENSIONS = [".po", ".csv"]
 
 class SubcommandHelpFormatter(argparse.RawTextHelpFormatter):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs, max_help_position=80)
+        kwargs.setdefault("max_help_position", 80)
+        super().__init__(*args, **kwargs)
 
 
 class I18n(DatabaseCommand):
@@ -335,6 +336,7 @@ class I18n(DatabaseCommand):
                 _logger.warning("No translatable terms were found in %s.", module_names)
             return
 
+        path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         export_format = path.suffix.removeprefix(".")
         if export_format == "pot":

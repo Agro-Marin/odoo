@@ -13,6 +13,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterable
     from types import MappingProxyType
 
+    from ..._typing import BaseModel
     from ...fields.base import Field
     from ...runtime import Registry
     from ..table_objects import TableObject
@@ -43,6 +44,16 @@ class _ModelMetadataMixin(_ModelStubs):
     _table_objects: dict[str, TableObject] = frozendict()
     _table_inheritance_root: str = ""
     _inherit_children: OrderedSet[str]
+    _inherit_module: dict[str, str | None]
+
+    _base_classes__: tuple[type[BaseModel], ...]
+    _model_classes__: tuple[type, ...]
+    _setup_done__: bool
+    # No value, either of them: registration sets each, reads it back through
+    # model_cls.__dict__.get(...) and then deletes it. A value here lands in
+    # BaseModel.__dict__, where the delete cannot reach it.
+    _setup_in_progress__: bool
+    _init_attrs_in_progress__: bool
 
     _rec_name: str | None = None
     _rec_names_search: list[str] | None = None

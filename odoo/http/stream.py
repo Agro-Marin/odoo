@@ -127,6 +127,9 @@ class Stream:
         raise ValueError(msg)
 
     def _get_url_redirect(self) -> Any:
+        if self.url is None:
+            msg = "There is nothing to stream, missing 'url' attribute."
+            raise ValueError(msg)
         if self.max_age is not None:
             res = request.redirect(self.url, code=302, local=False)
             res.headers["Cache-Control"] = f"max-age={self.max_age}"
@@ -134,6 +137,9 @@ class Stream:
         return request.redirect(self.url, code=301, local=False)
 
     def _send_path(self, send_file_kwargs: dict[str, Any]) -> Any:
+        if self.path is None:
+            msg = "There is nothing to stream, missing 'path' attribute."
+            raise ValueError(msg)
         send_file_kwargs["use_x_sendfile"] = False
         x_accel_redirect: str | None = None
         if config["x_sendfile"]:
@@ -188,6 +194,9 @@ class Stream:
         }
 
         if self.type == "data":
+            if self.data is None:
+                msg = "There is nothing to stream, missing 'data' attribute."
+                raise ValueError(msg)
             res = _send_file(BytesIO(self.data), **send_file_kwargs)
         else:
             res = self._send_path(send_file_kwargs)

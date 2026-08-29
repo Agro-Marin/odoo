@@ -2,6 +2,7 @@ import functools
 import logging
 import posixpath
 import re
+import typing
 from collections import deque
 from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
@@ -280,9 +281,13 @@ def _resolve_export_specifier(
     return resolved.removesuffix(".js")
 
 
+class _SourceMap(typing.Protocol):
+    def get(self, key: str, /) -> str | None: ...
+
+
 def _extract_esm_exports(
     src: str,
-    source_map: dict[str, str] | None = None,
+    source_map: _SourceMap | None = None,
     importing_specifier: str | None = None,
     importing_url: str | None = None,
     _visited: set[str] | None = None,
@@ -393,8 +398,8 @@ class _BridgeExportResolver:
 
     def __init__(
         self,
-        ext_libs: dict[str, str],
-        lib_candidates: dict[str, tuple[str, ...]],
+        ext_libs: Mapping[str, str],
+        lib_candidates: Mapping[str, tuple[str, ...]],
         bundle_name: str,
     ) -> None:
         self._ext_libs = ext_libs

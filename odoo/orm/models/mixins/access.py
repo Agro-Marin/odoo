@@ -159,7 +159,7 @@ class AccessMixin(_ModelStubs):
 
     def check_access(self, operation: str) -> None:
         if not self.env.su and (result := self._check_access(operation)):
-            raise result[1]()  # noqa: RSE102
+            raise result[1]()  # noqa: RSE102  result[1] builds the exception, it is not the class
 
     def has_access(self, operation: str) -> bool:
         return self.env.su or not self._check_access(operation)

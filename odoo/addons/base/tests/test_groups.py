@@ -1570,12 +1570,26 @@ class TestAllUserIdsBatchCost(common.TransactionCase):
         self.env.flush_all()
         return groups
 
-    def _queries_for(self, groups):
+    def _queries_for(self, groups, field="all_user_ids"):
         self.env.flush_all()
         self.env.invalidate_all()
         before = self.cr.sql_log_count
-        groups.mapped("all_user_ids")
+        groups.mapped(field)
         return self.cr.sql_log_count - before
+
+    def test_reading_all_users_count_does_not_scale_with_group_count(self):
+        small = self._make_groups(2, "count small")
+        large = self._make_groups(20, "count large")
+
+        small_cost = self._queries_for(small, "all_users_count")
+        large_cost = self._queries_for(large, "all_users_count")
+
+        self.assertLessEqual(
+            large_cost,
+            small_cost + 2,
+            "reading `all_users_count` for 18 further groups must not cost "
+            f"a query each (2 groups: {small_cost}, 20 groups: {large_cost})",
+        )
 
     def test_reading_all_user_ids_does_not_scale_with_group_count(self):
         small = self._make_groups(2, "batch small")

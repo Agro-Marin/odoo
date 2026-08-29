@@ -1,11 +1,12 @@
 import ast
-import importlib.util
 import pathlib
 import re
 from itertools import starmap
 
 import pytest
 from lxml import etree
+
+from odoo.tools.tests._upgrade_script import load_upgrade_script
 
 UPGRADE_DIR = pathlib.Path(__file__).resolve().parents[2] / "upgrade_code"
 SCRIPTS = sorted(UPGRADE_DIR.glob("*.py"))
@@ -233,10 +234,7 @@ class FakeFileManager:
 
 
 def load_script(path: pathlib.Path):
-    spec = importlib.util.spec_from_file_location(f"upgrade_{path.stem}", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_upgrade_script(f"upgrade_{path.stem}", path.name)
 
 
 def test_the_script_directory_is_not_empty():

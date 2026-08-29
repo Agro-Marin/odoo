@@ -18,6 +18,16 @@ else:
 
 _schema = logging.getLogger("odoo.schema")
 
+
+class RowCountReader(typing.Protocol):
+    @property
+    def rowcount(self) -> int: ...
+
+    def execute(
+        self, query: typing.Any, /, *args: typing.Any, **kwargs: typing.Any
+    ) -> typing.Any: ...
+
+
 _CONFDELTYPES = {
     "RESTRICT": "r",
     "NO ACTION": "a",
@@ -193,7 +203,7 @@ def table_columns(cr: BaseCursor, tablename: str) -> dict[str, dict]:
     return {row["column_name"]: row for row in cr.dictfetchall()}
 
 
-def column_exists(cr: BaseCursor, tablename: str, columnname: str) -> bool:
+def column_exists(cr: RowCountReader, tablename: str, columnname: str) -> bool:
     cr.execute(
         SQL(
             """

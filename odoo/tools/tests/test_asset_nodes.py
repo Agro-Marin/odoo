@@ -65,26 +65,36 @@ class TestLinkToNode:
         )
 
     def test_lazy_js_moves_the_url_out_of_src(self):
-        _tag, attrs = link_to_node("/a/b.js", lazy_load=True)
+        node = link_to_node("/a/b.js", lazy_load=True)
+        assert node is not None
+        _tag, attrs = node
         assert attrs["data-src"] == "/a/b.js"
         assert "src" not in attrs
 
     def test_defer_is_js_only(self):
-        _tag, attrs = link_to_node("/a/b.js", defer_load=True)
+        node = link_to_node("/a/b.js", defer_load=True)
+        assert node is not None
+        _tag, attrs = node
         assert attrs["defer"] == "defer"
-        _tag, attrs = link_to_node("/a/b.css", defer_load=True)
+        node = link_to_node("/a/b.css", defer_load=True)
+        assert node is not None
+        _tag, attrs = node
         assert "defer" not in attrs
 
     @pytest.mark.parametrize("ext", ["css", "scss", "sass"])
     def test_stylesheets_carry_media(self, ext):
-        tag, attrs = link_to_node(f"/a/b.{ext}", media="print")
+        node = link_to_node(f"/a/b.{ext}", media="print")
+        assert node is not None
+        tag, attrs = node
         assert tag == "link"
         assert attrs["rel"] == "stylesheet"
         assert attrs["href"] == f"/a/b.{ext}"
         assert attrs["media"] == "print"
 
     def test_xml_is_a_prefetched_script(self):
-        tag, attrs = link_to_node("/a/b.xml")
+        node = link_to_node("/a/b.xml")
+        assert node is not None
+        tag, attrs = node
         assert tag == "script"
         assert attrs["data-src"] == "/a/b.xml"
         assert attrs["rel"] == "prefetch"

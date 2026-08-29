@@ -56,6 +56,8 @@ class RecordsetProtocol(Protocol):
 
     def with_user(self, user: Any) -> Any: ...
 
+    def write(self, vals: Any) -> Any: ...
+
 
 class IrModelDataProtocol(RecordsetProtocol, Protocol):
     def _load_xmlid(self, xml_id: str) -> Any: ...
@@ -142,6 +144,10 @@ class IrDefaultProtocol(RecordsetProtocol, Protocol):
 
 
 class IrAttachmentProtocol(RecordsetProtocol, Protocol):
+    def _gc_file_store_unsafe(
+        self, checklist: dict[str, Any] | None = None, grace: float | None = None
+    ) -> int: ...
+
     def _get_content_checksum(self, bin_data: bytes) -> str: ...
 
     def _get_filestore(self) -> str: ...
@@ -159,16 +165,39 @@ class IrUiViewProtocol(RecordsetProtocol, Protocol):
     def _check_module_views(self, module: str) -> None: ...
 
 
+class IrCronProtocol(RecordsetProtocol, Protocol):
+    def _trigger(self, at: Any = None, *, coalesce: int = 0) -> Any: ...
+
+
+class IrModelInheritProtocol(RecordsetProtocol, Protocol):
+    def _reflect_inherits(self, model_names: list[str]) -> None: ...
+
+
 class IrModuleModuleProtocol(RecordsetProtocol, Protocol):
+    def _check(self) -> None: ...
+
     def _extract_resource_attachment_translations(
         self, module: Any, lang: Any
     ) -> Any: ...
+
+    def _get_domain_modules_to_load(self) -> list[tuple[str, str, str]]: ...
 
     def _import_zipfile(
         self, module_file: Any, force: bool = False, with_demo: bool = False
     ) -> Any: ...
 
+    def _update_translations(
+        self, filter_lang: Any = None, overwrite: bool = False
+    ) -> None: ...
+
+    def get_values_from_terp(self, terp: Any) -> dict[str, Any]: ...
+
     def update_list(self) -> Any: ...
+
+
+class ResCountryProtocol(RecordsetProtocol, Protocol):
+    code: Any
+    currency_id: Any
 
 
 class ResLangProtocol(RecordsetProtocol, Protocol):
@@ -206,15 +235,18 @@ class ResUsersProtocol(RecordsetProtocol, Protocol):
 
 FRAMEWORK_MODEL_PROTOCOLS: dict[str, type] = {
     "ir.attachment": IrAttachmentProtocol,
+    "ir.cron": IrCronProtocol,
     "ir.default": IrDefaultProtocol,
     "ir.model": IrModelProtocol,
     "ir.model.access": IrModelAccessProtocol,
     "ir.model.constraint": IrModelConstraintProtocol,
     "ir.model.data": IrModelDataProtocol,
     "ir.model.fields": IrModelFieldsProtocol,
+    "ir.model.inherit": IrModelInheritProtocol,
     "ir.module.module": IrModuleModuleProtocol,
     "ir.rule": IrRuleProtocol,
     "ir.ui.view": IrUiViewProtocol,
+    "res.country": ResCountryProtocol,
     "res.lang": ResLangProtocol,
     "res.users": ResUsersProtocol,
 }

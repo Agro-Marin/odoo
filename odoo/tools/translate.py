@@ -12,7 +12,7 @@ import re
 import tarfile
 import typing
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -32,6 +32,7 @@ import odoo
 import odoo.release
 from odoo.exceptions import UserError
 from odoo.libs.collections import OrderedSet, ReadonlyDict
+from odoo.libs.sql import SQL
 
 import odoo.addons
 from .config import config
@@ -124,7 +125,7 @@ TRANSLATED_ATTRS = {
 
 TRANSLATED_ATTRS.update({f"t-attf-{attr}" for attr in TRANSLATED_ATTRS})
 
-FIELD_TRANSLATE = {
+FIELD_TRANSLATE: dict[str | None, bool | TranslationDialect] = {
     None: False,
     "standard": True,
 }
@@ -191,50 +192,66 @@ def translate_format_string_expression(
     return None
 
 
-def translate_xml_node(
-    node: etree._Element,
-    callback: Callable[[str], str | None],
-    serialize: Callable[[etree._Element], str],
-) -> etree._Element:
-    def nonspace(text):
-        return bool(text) and not space_pattern.fullmatch(text)
+class _XmlNodeTranslator:
+    def __init__(
+        self,
+        callback: Callable[[str], str | None],
+        serialize: Callable[[etree._Element], str],
+    ) -> None:
+        self.callback = callback
+        self.serialize = serialize
 
-    def is_force_inline(node):
+    @staticmethod
+    def _nonspace(text: str | None) -> bool:
+        return bool(text) and not space_pattern.fullmatch(text or "")
+
+    @staticmethod
+    def _is_force_inline(node: etree._Element) -> bool:
         return "o_translate_inline" in node.attrib.get("class", "").split()
 
-    def translatable(node, force_inline=False):
-        force_inline = force_inline or is_force_inline(node)
+    def _translatable(self, node: etree._Element, force_inline: bool = False) -> bool:
+        force_inline = force_inline or self._is_force_inline(node)
         return (
             (force_inline or node.tag in TRANSLATED_ELEMENTS)
             and not any(
                 key.startswith("t-") or key == "groups" or key.endswith(".translate")
                 for key in node.attrib
             )
-            and all(translatable(child, force_inline) for child in node)
+            and all(self._translatable(child, force_inline) for child in node)
         )
 
-    def hastext(node, pos=0, force_inline=False):
-        force_inline = force_inline or is_force_inline(node)
+    def _has_translatable_attrib(
+        self, node: etree._Element, child: etree._Element
+    ) -> bool:
+        return any(
+            val
+            and (
+                is_translatable_attrib(key, node)
+                or (key == "value" and is_translatable_attrib_value(child))
+                or (key == "text" and is_translatable_attrib_text(child))
+            )
+            for key, val in child.attrib.items()
+        )
+
+    def _hastext(
+        self, node: etree._Element, pos: int = 0, force_inline: bool = False
+    ) -> bool:
+        force_inline = force_inline or self._is_force_inline(node)
         while True:
-            if nonspace(node[pos - 1].tail if pos else node.text):
+            if self._nonspace(node[pos - 1].tail if pos else node.text):
                 return True
-            if pos >= len(node) or not translatable(node[pos], force_inline):
+            if pos >= len(node) or not self._translatable(node[pos], force_inline):
                 return False
             child = node[pos]
-            if any(
-                val
-                and (
-                    is_translatable_attrib(key, node)
-                    or (key == "value" and is_translatable_attrib_value(child))
-                    or (key == "text" and is_translatable_attrib_text(child))
-                )
-                for key, val in child.attrib.items()
-            ) or hastext(child, 0, force_inline):
+            if self._has_translatable_attrib(node, child) or self._hastext(
+                child, 0, force_inline
+            ):
                 return True
             pos += 1
 
-    def process(node):
-        if (
+    @staticmethod
+    def _is_skipped(node: etree._Element) -> bool:
+        return bool(
             isinstance(node, SKIPPED_ELEMENT_TYPES)
             or node.tag in SKIPPED_ELEMENTS
             or node.get("t-translation", "").strip() == "off"
@@ -244,60 +261,75 @@ def translate_xml_node(
                 and not is_translatable_attrib(node.get("name"), node)
             )
             or (node.getparent() is None and avoid_pattern.match(node.text or ""))
+        )
+
+    def _translate_run(self, node: etree._Element, pos: int) -> int:
+        div = etree.Element("div")
+        div.text = (node[pos - 1].tail if pos else node.text) or ""
+        while pos < len(node) and self._translatable(
+            node[pos], self._is_force_inline(node)
         ):
+            div.append(node[pos])
+
+        content = self.serialize(div)[5:-6]
+        original = content.strip()
+        translated = self.callback(original)
+        if translated:
+            result = content.replace(original, translated)
+            result_elem = parse_html(f"<div>{result}</div>")
+            result_elem.tag = "span"
+            if self._translatable(result_elem) and self._hastext(result_elem):
+                div = result_elem
+                if pos:
+                    node[pos - 1].tail = div.text
+                else:
+                    node.text = div.text
+
+        while len(div) > 0:
+            node.insert(pos, div[0])
+            pos += 1
+        return pos
+
+    def _translate_attribs(self, node: etree._Element) -> None:
+        for key, val in node.attrib.items():
+            if not self._nonspace(val):
+                continue
+            if not (
+                is_translatable_attrib(key, node)
+                or (key == "value" and is_translatable_attrib_value(node))
+                or (key == "text" and is_translatable_attrib_text(node))
+            ):
+                continue
+            if key.startswith("t-"):
+                value = translate_format_string_expression(val.strip(), self.callback)
+            else:
+                value = self.callback(val.strip())
+            node.set(key, value or val)
+
+    def process(self, node: etree._Element) -> None:
+        if self._is_skipped(node):
             return
 
         pos = 0
         while True:
-            if hastext(node, pos):
-                div = etree.Element("div")
-                div.text = (node[pos - 1].tail if pos else node.text) or ""
-                while pos < len(node) and translatable(
-                    node[pos], is_force_inline(node)
-                ):
-                    div.append(node[pos])
-
-                content = serialize(div)[5:-6]
-                original = content.strip()
-                translated = callback(original)
-                if translated:
-                    result = content.replace(original, translated)
-                    result_elem = parse_html(f"<div>{result}</div>")
-                    result_elem.tag = "span"
-                    if translatable(result_elem) and hastext(result_elem):
-                        div = result_elem
-                        if pos:
-                            node[pos - 1].tail = div.text
-                        else:
-                            node.text = div.text
-
-                while len(div) > 0:
-                    node.insert(pos, div[0])
-                    pos += 1
+            if self._hastext(node, pos):
+                pos = self._translate_run(node, pos)
 
             if pos >= len(node):
                 break
 
-            process(node[pos])
+            self.process(node[pos])
             pos += 1
 
-        for key, val in node.attrib.items():
-            if nonspace(val):
-                if (
-                    is_translatable_attrib(key, node)
-                    or (key == "value" and is_translatable_attrib_value(node))
-                    or (key == "text" and is_translatable_attrib_text(node))
-                ):
-                    if key.startswith("t-"):
-                        value = translate_format_string_expression(
-                            val.strip(), callback
-                        )
-                    else:
-                        value = callback(val.strip())
-                    node.set(key, value or val)
+        self._translate_attribs(node)
 
-    process(node)
 
+def translate_xml_node(
+    node: etree._Element,
+    callback: Callable[[str], str | None],
+    serialize: Callable[[etree._Element], str],
+) -> etree._Element:
+    _XmlNodeTranslator(callback, serialize).process(node)
     return node
 
 
@@ -470,8 +502,7 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
         )
     if not args:
         return translation
-    args_is_dict = isinstance(args, dict)
-    vals = args.values() if args_is_dict else args
+    vals = args.values() if isinstance(args, dict) else args
     has_markup = has_lazy = has_iterable = False
     for v in vals:
         if isinstance(v, Markup):
@@ -487,7 +518,7 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
     if has_markup:
         translation = escape(translation)
     if has_lazy:
-        if args_is_dict:
+        if isinstance(args, dict):
             args = {
                 k: v._translate(lang) if isinstance(v, LazyGettext) else v
                 for k, v in args.items()
@@ -510,7 +541,7 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
                 return format_list(env=None, lst=v, lang_code=lang)
             return v
 
-        if args_is_dict:
+        if isinstance(args, dict):
             args = {k: process_translation_arg(v) for k, v in args.items()}
         else:
             args = tuple(process_translation_arg(v) for v in args)
@@ -554,7 +585,7 @@ def get_translated_module(
         return path_info.module if path_info else "base"
 
 
-def _probe(obj: object, name: str) -> object:
+def _probe(obj: object, name: str) -> Any:
     if obj is None:
         return None
     try:
@@ -668,7 +699,7 @@ def _get_translation_source(
     if not (module and lang):
         frame = inspect.currentframe()
         for _index in range(stack_level + 1):
-            frame = frame.f_back
+            frame = frame.f_back if frame else None
         lang = lang or _get_lang(frame, default_lang)
     if lang and lang != "en_US":
         return get_translated_module(module or frame), lang
@@ -772,23 +803,25 @@ def parse_xmlid(xmlid: str, default_module: str) -> tuple[str, str]:
 
 
 def translation_file_reader(
-    source: IO[bytes] | IO[str], fileformat: str = "po", module: str | None = None
-) -> object:
+    source: str | IO[bytes], fileformat: str = "po", module: str | None = None
+) -> Iterable[dict]:
+    if fileformat == "po":
+        return PoFileReader(source)
+    if isinstance(source, str):
+        raise ValueError(f"{fileformat} translations must be read from a stream")
     if fileformat == "csv":
         if module is not None:
             return CSVDataFileReader(source, module)
         return CSVFileReader(source)
-    if fileformat == "po":
-        return PoFileReader(source)
     if fileformat == "xml":
         assert module
         return XMLDataFileReader(source, module)
     _logger.info("Bad file format: %s", fileformat)
-    raise ValueError(_("Bad file format: %s", fileformat))
+    raise ValueError(f"Bad file format: {fileformat}")
 
 
 class CSVFileReader:
-    def __init__(self, source: IO[bytes] | IO[str]) -> None:
+    def __init__(self, source: IO[bytes]) -> None:
         _reader = codecs.getreader("utf-8")
         self.source = csv.DictReader(_reader(source), quotechar='"', delimiter=",")
         self.prev_code_src = ""
@@ -812,7 +845,7 @@ class CSVFileReader:
 
 
 class CSVDataFileReader:
-    def __init__(self, source: IO[bytes] | IO[str], module: str) -> None:
+    def __init__(self, source: IO[bytes], module: str) -> None:
         _reader = codecs.getreader("utf-8")
         self.module = module
         self.model = Path(source.name).stem.split("-")[0]
@@ -844,7 +877,7 @@ class CSVDataFileReader:
 
 
 class XMLDataFileReader:
-    def __init__(self, source: IO[bytes] | IO[str], module: str) -> None:
+    def __init__(self, source: IO[bytes], module: str) -> None:
         try:
             tree = etree.parse(source)
         except etree.LxmlSyntaxError:
@@ -875,7 +908,7 @@ class XMLDataFileReader:
 
 
 class PoFileReader:
-    def __init__(self, source: str | object) -> None:
+    def __init__(self, source: str | IO[bytes]) -> None:
         def get_pot_path(source_name):
             if isinstance(source_name, str) and source_name.endswith(".po"):
                 path = Path(source_name)
@@ -957,9 +990,13 @@ class PoFileReader:
                 _logger.error("malformed po file: unknown occurrence: %s", occurrence)
 
 
+class _RowWriter(typing.Protocol):
+    def write_rows(self, rows: Iterable) -> None: ...
+
+
 def TranslationFileWriter(
-    target: IO[bytes] | IO[str], fileformat: str = "po", lang: str | None = None
-) -> object:
+    target: IO[bytes], fileformat: str = "po", lang: str | None = None
+) -> _RowWriter:
     if fileformat == "csv":
         return CSVFileWriter(target)
 
@@ -970,8 +1007,8 @@ def TranslationFileWriter(
         return TarFileWriter(target, lang=lang)
 
     raise ValueError(
-        _("Unrecognized extension: must be one of .csv, .po, or .tgz (received .%s).")
-        % fileformat
+        f"Unrecognized extension: must be one of .csv, .po, or .tgz "
+        f"(received .{fileformat})."
     )
 
 
@@ -983,7 +1020,7 @@ class _UnixDialect(csv.excel):
 
 
 class CSVFileWriter:
-    def __init__(self, target: IO[bytes] | IO[str]) -> None:
+    def __init__(self, target: IO[bytes]) -> None:
         self.writer = csv.writer(_writer(target), dialect=_UnixDialect)
         self.writer.writerow(
             ("module", "type", "name", "res_id", "src", "value", "comments")
@@ -996,7 +1033,7 @@ class CSVFileWriter:
 
 
 class PoFileWriter:
-    def __init__(self, target: IO[bytes] | IO[str], lang: str | None) -> None:
+    def __init__(self, target: IO[bytes], lang: str | None) -> None:
         self.buffer = target
         self.lang = lang
         self.po = polib.POFile()
@@ -1066,7 +1103,7 @@ class PoFileWriter:
         entry.comment = "module%s: %s" % (plural, ", ".join(modules))
         if comments:
             entry.comment += "\n" + "\n".join(comments)
-        occurrences: OrderedSet[str] = OrderedSet()
+        occurrences: OrderedSet[tuple[str, str | None]] = OrderedSet()
         for type_, *ref in tnrs:
             if type_ == "code":
                 fpath, lineno = ref
@@ -1082,7 +1119,7 @@ class PoFileWriter:
 
 
 class TarFileWriter:
-    def __init__(self, target: IO[bytes] | IO[str], lang: str | None) -> None:
+    def __init__(self, target: IO[bytes], lang: str | None) -> None:
         self.tar = tarfile.open(fileobj=target, mode="w|gz")  # noqa: SIM115  instance-owned, closed in write_rows
         self.lang = lang
 
@@ -1110,7 +1147,11 @@ class TarFileWriter:
 
 
 def trans_export(
-    lang: str, modules: list[str], buffer: IO[bytes], format: str, env: Environment
+    lang: str | None,
+    modules: list[str],
+    buffer: IO[bytes],
+    format: str,
+    env: Environment,
 ) -> bool:
     reader = TranslationModuleReader(env.cr, modules=modules, lang=lang)
     if not reader:
@@ -1203,7 +1244,7 @@ def extract_formula_terms(formula: str) -> Iterator[str]:
 def extract_spreadsheet_terms(
     fileobj: IO[bytes], keywords: list, comment_tags: list, options: dict
 ) -> Iterator[tuple]:
-    terms: set[tuple] = set()
+    terms: set[str] = set()
     data = json.load(fileobj)
     for sheet in data.get("sheets", []):
         for cell in sheet["cells"].values():
@@ -1302,8 +1343,9 @@ class TranslationReader:
 
         env = records.env
         for record in records.with_context(check_translations=True):
-            module = imd_per_id[record.id].module
-            xml_name = "%s.%s" % (module, imd_per_id[record.id].name)
+            imd = imd_per_id[record.id]
+            module = imd.module
+            xml_name = "%s.%s" % (module, imd.name)
             for field_name, field in record._fields.items():
                 if (
                     not (field.translate and field.store)
@@ -1337,11 +1379,11 @@ class TranslationReader:
                         name,
                         xml_name,
                         term_en,
-                        record_id=record.id,
+                        record_id=imd.res_id,
                         value=term_lang if term_lang != term_en else "",
                     )
 
-    def _get_translatable_records(self, imd_records: object) -> object:
+    def _get_translatable_records(self, imd_records: Collection[ImdInfo]) -> Any:
         model = next(iter(imd_records)).model
         if model not in self.env:
             _logger.error("Unable to find object %r", model)
@@ -1351,7 +1393,7 @@ class TranslationReader:
             return self.env[model].browse()
 
         res_ids = [r.res_id for r in imd_records]
-        records = self.env[model].browse(res_ids).exists()
+        records: Any = self.env[model].browse(res_ids).exists()
         if len(records) < len(res_ids):
             missing_ids = set(res_ids) - set(records.ids)
             missing_records = [
@@ -1366,10 +1408,12 @@ class TranslationReader:
                 return records
 
         if model == "ir.model.fields.selection":
-            fields = defaultdict(lambda: self.env["ir.model.fields.selection"])
+            fields: dict[Any, Any] = defaultdict(
+                lambda: self.env["ir.model.fields.selection"]
+            )
             for selection in records:
                 fields[selection.field_id] |= selection
-            for field, selection in fields.items():
+            for field, selection in list(fields.items()):
                 field_name = field.name
                 field_model = self.env.get(field.model)
                 if (
@@ -1395,7 +1439,7 @@ class TranslationReader:
 class TranslationRecordReader(TranslationReader):
     def __init__(
         self,
-        cr: object,
+        cr: BaseCursor,
         model_name: str,
         ids: list[int],
         field_names: list[str] | None = None,
@@ -1408,7 +1452,7 @@ class TranslationRecordReader(TranslationReader):
         self._export_translatable_records(self._records, self._field_names)
 
     def _export_translatable_records(
-        self, records: object, field_names: list[str]
+        self, records: Any, field_names: list[str]
     ) -> None:
         if not records:
             return
@@ -1461,7 +1505,7 @@ class TranslationRecordReader(TranslationReader):
 
 class TranslationModuleReader(TranslationReader):
     def __init__(
-        self, cr: object, modules: list[str] | None = None, lang: str | None = None
+        self, cr: BaseCursor, modules: list[str] | None = None, lang: str | None = None
     ) -> None:
         super().__init__(cr, lang)
         self._modules = modules or ["all"]
@@ -1480,7 +1524,7 @@ class TranslationModuleReader(TranslationReader):
         modules = (
             self._installed_modules if "all" in self._modules else list(self._modules)
         )
-        xml_defined: set[str] = set()
+        xml_defined: set[tuple] = set()
         for module in modules:
             for filepath in get_datafile_translation_path(module):
                 fileformat = Path(filepath).suffix[1:].lower()
@@ -1523,17 +1567,19 @@ class TranslationModuleReader(TranslationReader):
 
     def _verified_module_filepaths(
         self, fname: str, path: str, root: str
-    ) -> tuple[str | None, str | None, str | None, str | None]:
+    ) -> tuple[str, str, str, str] | None:
         fabsolutepath = str(Path(root, fname))
         frelativepath = fabsolutepath.removeprefix(path)
         display_path = f"addons{frelativepath}"
         module = self._get_module_from_path(fabsolutepath)
         if (
-            "all" in self._modules or module in self._modules
-        ) and module in self._installed_modules:
+            module
+            and ("all" in self._modules or module in self._modules)
+            and module in self._installed_modules
+        ):
             display_path = display_path.replace(os.sep, "/")
             return module, fabsolutepath, frelativepath, display_path
-        return None, None, None, None
+        return None
 
     def _babel_extract_terms(
         self,
@@ -1547,11 +1593,10 @@ class TranslationModuleReader(TranslationReader):
     ) -> None:
         if extract_keywords is None:
             extract_keywords = {"_": None}
-        module, fabsolutepath, _, display_path = self._verified_module_filepaths(
-            fname, path, root
-        )
-        if not module:
+        verified = self._verified_module_filepaths(fname, path, root)
+        if verified is None:
             return
+        module, fabsolutepath, _, display_path = verified
         extra_comments = extra_comments or []
         src_file = file_open(fabsolutepath, "rb")
         options = {}
@@ -1559,9 +1604,11 @@ class TranslationModuleReader(TranslationReader):
             options["encoding"] = "UTF-8"
             translations = code_translations.get_python_translations(module, self._lang)
         else:
-            translations = code_translations.get_web_translations(module, self._lang)
+            web_translations = code_translations.get_web_translations(
+                module, self._lang
+            )
             translations = {
-                tran["id"]: tran["string"] for tran in translations["messages"]
+                tran["id"]: tran["string"] for tran in web_translations["messages"]
             }
         try:
             for extracted in extract.extract(
@@ -1683,7 +1730,7 @@ class TranslationImporter:
 
     def load(
         self,
-        fileobj: object,
+        fileobj: IO[bytes],
         fileformat: str,
         lang: str,
         xmlids: set[str] | None = None,
@@ -1711,7 +1758,9 @@ class TranslationImporter:
             )
             _logger.exception("couldn't read translation file %s", filename)
 
-    def _load(self, reader: object, lang: str, xmlids: set[str] | None = None) -> None:
+    def _load(
+        self, reader: Iterable[dict], lang: str, xmlids: set[str] | None = None
+    ) -> None:
         if xmlids and not isinstance(xmlids, set):
             xmlids = set(xmlids)
         valid_langs = get_base_langs(lang)
@@ -1732,7 +1781,7 @@ class TranslationImporter:
                 continue
             model_name = row.get("imd_model")
             module_name = row["module"]
-            if model_name not in self.env:
+            if not model_name or model_name not in self.env:
                 continue
             field_name = row["name"].split(",")[1]
             field = self.env[model_name]._fields.get(field_name)
@@ -1752,51 +1801,136 @@ class TranslationImporter:
                 ][lang] = row["value"]
                 self.imported_langs.add(lang)
 
-    def save(self, overwrite: bool = False, force_overwrite: bool = False) -> None:
-        if not self.model_translations and not self.model_terms_translations:
-            return
+    def _fetch_terms_rows(
+        self,
+        model_table: str,
+        field_name: str,
+        sub_xmlids: tuple[str, ...],
+        field_dictionary: dict,
+    ) -> dict[int, list]:
+        self.cr.execute(
+            SQL(
+                """
+                SELECT m.id, imd.module || '.' || imd.name, %(field)s, imd.noupdate
+                FROM %(table)s m, "ir_model_data" imd
+                WHERE m.id = imd.res_id AND (%(match)s)
+                """,
+                field=SQL.identifier("m", field_name),
+                table=SQL.identifier(model_table),
+                match=SQL(" OR ").join(
+                    SQL(
+                        "(imd.module = %s AND imd.name = %s)",
+                        *xmlid.split(".", maxsplit=1),
+                    )
+                    for xmlid in sub_xmlids
+                ),
+            )
+        )
 
-        cr = self.cr
+        rows_by_id: dict[int, list] = {}
+        for id_, xmlid, values, noupdate in self.cr.fetchall():
+            if not values:
+                continue
+            entry = rows_by_id.get(id_)
+            if entry is None:
+                entry = rows_by_id[id_] = [values, noupdate, {}]
+            merged = entry[2]
+            for src, translations in field_dictionary[xmlid].items():
+                merged.setdefault(src, {}).update(translations)
+        return rows_by_id
+
+    @staticmethod
+    def _merge_translation_dictionary(
+        field,
+        values: dict,
+        record_dictionary: dict,
+        noupdate: bool,
+        overwrite: bool,
+        force_overwrite: bool,
+    ) -> tuple[dict, set[str]]:
+        _value_en = values.get("_en_US", values["en_US"])
+        langs = {
+            lang for translations in record_dictionary.values() for lang in translations
+        }
+        translation_dictionary = field.get_translation_dictionary(
+            _value_en,
+            {k: values.get(f"_{k}", v) for k, v in values.items() if k in langs},
+        )
+
+        if force_overwrite or (not noupdate and overwrite):
+            for term_en, translations in record_dictionary.items():
+                translation_dictionary[term_en].update(translations)
+        else:
+            for term_en, translations in record_dictionary.items():
+                translations.update(
+                    {
+                        k: v
+                        for k, v in translation_dictionary[term_en].items()
+                        if v != term_en
+                    }
+                )
+                translation_dictionary[term_en] = translations
+        return translation_dictionary, langs
+
+    @staticmethod
+    def _changed_translation_values(
+        field,
+        value_en: str,
+        values: dict,
+        langs: set[str],
+        translation_dictionary: dict,
+    ) -> dict:
+        changed_values = {}
+        for lang in langs:
+            new_val = field.translate(
+                lambda term, td=translation_dictionary, lang=lang: td.get(term, {}).get(
+                    lang
+                ),
+                value_en,
+            )
+            if values.get(lang) != new_val:
+                changed_values[lang] = new_val
+            if f"_{lang}" in values:
+                changed_values[f"_{lang}"] = None
+        return changed_values
+
+    def _write_terms_batch(
+        self, model_table: str, field_name: str, rows: list[tuple[int, Json]]
+    ) -> None:
+        column = SQL.identifier(field_name)
+        self.env.cr.execute(
+            SQL(
+                """
+                UPDATE %(table)s AS m
+                SET %(column)s = jsonb_strip_nulls(m.%(column)s || t.value)
+                FROM (VALUES %(rows)s) AS t(id, value)
+                WHERE m.id = t.id
+                """,
+                table=SQL.identifier(model_table),
+                column=column,
+                rows=SQL(", ").join(
+                    SQL("(%s, %s::jsonb)", id_, value) for id_, value in rows
+                ),
+            )
+        )
+
+    def _save_model_terms_translations(
+        self, overwrite: bool, force_overwrite: bool
+    ) -> None:
         env = self.env
-        env.flush_all()
-
-        for (
-            model_name,
-            model_dictionary,
-        ) in self.model_terms_translations.items():
+        for model_name, model_dictionary in self.model_terms_translations.items():
             Model = env[model_name]
             model_table = Model._table
             fields = Model._fields
             for field_name, field_dictionary in model_dictionary.items():
                 field = fields.get(field_name)
                 for sub_xmlids in batched(
-                    field_dictionary.keys(), cr.BATCH_SIZE, strict=False
+                    field_dictionary.keys(), self.cr.BATCH_SIZE, strict=False
                 ):
-                    params = []
-                    for xmlid in sub_xmlids:
-                        params.extend(xmlid.split(".", maxsplit=1))
-                    cr.execute(
-                        f"""
-                        SELECT m.id, imd.module || '.' || imd.name, m."{field_name}", imd.noupdate
-                        FROM "{model_table}" m, "ir_model_data" imd
-                        WHERE m.id = imd.res_id
-                        AND ({" OR ".join(["(imd.module = %s AND imd.name = %s)"] * (len(params) // 2))})
-                    """,
-                        params,
+                    rows_by_id = self._fetch_terms_rows(
+                        model_table, field_name, sub_xmlids, field_dictionary
                     )
-
-                    rows_by_id: dict[int, tuple] = {}
-                    for id_, xmlid, values, noupdate in cr.fetchall():
-                        if not values:
-                            continue
-                        entry = rows_by_id.get(id_)
-                        if entry is None:
-                            entry = rows_by_id[id_] = [values, noupdate, {}]
-                        merged = entry[2]
-                        for src, translations in field_dictionary[xmlid].items():
-                            merged.setdefault(src, {}).update(translations)
-
-                    params = []
+                    rows: list[tuple[int, Json]] = []
                     for id_, (
                         values,
                         noupdate,
@@ -1805,105 +1939,84 @@ class TranslationImporter:
                         _value_en = values.get("_en_US", values["en_US"])
                         if not _value_en:
                             continue
-
-                        langs = {
-                            lang
-                            for translations in record_dictionary.values()
-                            for lang in translations
-                        }
-                        translation_dictionary = field.get_translation_dictionary(
-                            _value_en,
-                            {
-                                k: values.get(f"_{k}", v)
-                                for k, v in values.items()
-                                if k in langs
-                            },
-                        )
-
-                        if force_overwrite or (not noupdate and overwrite):
-                            for (
-                                term_en,
-                                translations,
-                            ) in record_dictionary.items():
-                                translation_dictionary[term_en].update(translations)
-                        else:
-                            for (
-                                term_en,
-                                translations,
-                            ) in record_dictionary.items():
-                                translations.update(
-                                    {
-                                        k: v
-                                        for k, v in translation_dictionary[
-                                            term_en
-                                        ].items()
-                                        if v != term_en
-                                    }
-                                )
-                                translation_dictionary[term_en] = translations
-
-                        changed_values = {}
-                        for lang in langs:
-                            new_val = field.translate(
-                                lambda term, td=translation_dictionary, lang=lang: (
-                                    td.get(term, {}).get(lang)
-                                ),
-                                _value_en,
+                        translation_dictionary, langs = (
+                            self._merge_translation_dictionary(
+                                field,
+                                values,
+                                record_dictionary,
+                                noupdate,
+                                overwrite,
+                                force_overwrite,
                             )
-                            if values.get(lang, None) != new_val:
-                                changed_values[lang] = new_val
-                            if f"_{lang}" in values:
-                                changed_values[f"_{lang}"] = None
-                        if changed_values:
-                            params.extend((id_, Json(changed_values)))
-                    if params:
-                        env.cr.execute(
-                            f"""
-                            UPDATE "{model_table}" AS m
-                            SET "{field_name}" = jsonb_strip_nulls("{field_name}" || t.value)
-                            FROM (
-                                VALUES {", ".join(["(%s, %s::jsonb)"] * (len(params) // 2))}
-                            ) AS t(id, value)
-                            WHERE m.id = t.id
-                        """,
-                            params,
                         )
+                        changed_values = self._changed_translation_values(
+                            field, _value_en, values, langs, translation_dictionary
+                        )
+                        if changed_values:
+                            rows.append((id_, Json(changed_values)))
+                    if rows:
+                        self._write_terms_batch(model_table, field_name, rows)
 
         self.model_terms_translations.clear()
 
+    def _save_model_translations(self, overwrite: bool, force_overwrite: bool) -> None:
+        env = self.env
         for model_name, model_dictionary in self.model_translations.items():
-            Model = env[model_name]
-            model_table = Model._table
+            model_table = env[model_name]._table
             for field_name, field_dictionary in model_dictionary.items():
+                column = SQL.identifier(field_name)
+                if force_overwrite:
+                    value_query = SQL("m.%(column)s || t.value", column=column)
+                else:
+                    value_query = SQL(
+                        """CASE WHEN %(overwrite)s IS TRUE AND imd.noupdate IS NOT TRUE
+                        THEN m.%(column)s || t.value
+                        ELSE t.value || m.%(column)s END""",
+                        overwrite=overwrite,
+                        column=column,
+                    )
                 for sub_field_dictionary in batched(
-                    field_dictionary.items(), cr.BATCH_SIZE, strict=False
+                    field_dictionary.items(), self.cr.BATCH_SIZE, strict=False
                 ):
-                    params = []
-                    for xmlid, translations in sub_field_dictionary:
-                        params.extend(
-                            [*xmlid.split(".", maxsplit=1), Json(translations)]
-                        )
-                    if not force_overwrite:
-                        value_query = f"""CASE WHEN {overwrite} IS TRUE AND imd.noupdate IS NOT TRUE
-                        THEN m."{field_name}" || t.value
-                        ELSE t.value || m."{field_name}"END"""
-                    else:
-                        value_query = f'm."{field_name}" || t.value'
                     env.cr.execute(
-                        f"""
-                        UPDATE "{model_table}" AS m
-                        SET "{field_name}" = {value_query}
-                        FROM (
-                            VALUES {", ".join(["(%s, %s, %s::jsonb)"] * (len(params) // 3))}
-                        ) AS t(imd_module, imd_name, value)
-                        JOIN "ir_model_data" AS imd
-                        ON imd."model" = '{model_name}' AND imd.name = t.imd_name AND imd.module = t.imd_module
-                        WHERE imd."res_id" = m."id"
-                    """,
-                        params,
+                        SQL(
+                            """
+                            UPDATE %(table)s AS m
+                            SET %(column)s = %(value)s
+                            FROM (VALUES %(rows)s)
+                                AS t(imd_module, imd_name, value)
+                            JOIN "ir_model_data" AS imd
+                            ON imd."model" = %(model)s
+                            AND imd.name = t.imd_name
+                            AND imd.module = t.imd_module
+                            WHERE imd."res_id" = m."id"
+                            """,
+                            table=SQL.identifier(model_table),
+                            column=column,
+                            value=value_query,
+                            rows=SQL(", ").join(
+                                SQL(
+                                    "(%s, %s, %s::jsonb)",
+                                    *xmlid.split(".", maxsplit=1),
+                                    Json(translations),
+                                )
+                                for xmlid, translations in sub_field_dictionary
+                            ),
+                            model=model_name,
+                        )
                     )
 
         self.model_translations.clear()
+
+    def save(self, overwrite: bool = False, force_overwrite: bool = False) -> None:
+        if not self.model_translations and not self.model_terms_translations:
+            return
+
+        env = self.env
+        env.flush_all()
+
+        self._save_model_terms_translations(overwrite, force_overwrite)
+        self._save_model_translations(overwrite, force_overwrite)
 
         env.invalidate_all()
         env.registry.clear_cache()
@@ -1911,12 +2024,12 @@ class TranslationImporter:
             _logger.info("translations are loaded successfully")
 
 
-def get_locales(lang: str | None = None) -> Iterator[str]:
+def get_locales(lang: str | None = None) -> Iterator[str | None]:
     if lang is None:
         lang = locale.getlocale()[0]
 
-    def process(enc):
-        ln = locale._build_localename((lang, enc))
+    def process(enc: str) -> Iterator[str]:
+        ln = locale._build_localename((lang, enc))  # type: ignore[attr-defined]
         yield ln
         nln = locale.normalize(ln)
         if nln != ln:
@@ -1930,13 +2043,13 @@ def get_locales(lang: str | None = None) -> Iterator[str]:
         for x in process(prefenc):
             yield x
 
-        prefenc = {
+        aliased = {
             "latin1": "latin9",
             "iso-8859-1": "iso8859-15",
             "cp1252": "1252",
         }.get(prefenc.lower())
-        if prefenc:
-            for x in process(prefenc):
+        if aliased:
+            for x in process(aliased):
                 yield x
 
     yield lang
@@ -1961,7 +2074,9 @@ def load_language(cr: BaseCursor, lang: str) -> None:
         .search([("code", "=", lang)])
         .ids
     )
-    installer = env["base.language.install"].create({"lang_ids": [(6, 0, lang_ids)]})
+    installer: Any = env["base.language.install"].create(
+        {"lang_ids": [(6, 0, lang_ids)]}
+    )
     installer.lang_install()
 
 
@@ -1991,7 +2106,7 @@ def get_po_paths(module_name: str, lang: str) -> Iterator[str]:
 def get_datafile_translation_path(module_name: str) -> Iterator[str]:
     from odoo.modules import Manifest
 
-    manifest = Manifest.for_addon(module_name, display_warning=False) or {}
+    manifest: Any = Manifest.for_addon(module_name, display_warning=False) or {}
     for data_type in ("data", "demo"):
         for path in manifest.get(data_type, ()):
             if path.endswith((".xml", ".csv")):
@@ -2000,12 +2115,12 @@ def get_datafile_translation_path(module_name: str) -> Iterator[str]:
 
 class CodeTranslations:
     def __init__(self) -> None:
-        self.python_translations: dict[tuple[str, str], dict] = {}
-        self.web_translations: dict[tuple[str, str], dict] = {}
+        self.python_translations: dict[tuple[str, str], Mapping] = {}
+        self.web_translations: dict[tuple[str, str], Mapping] = {}
 
     @staticmethod
     def _read_code_translations_file(
-        fileobj: object, filter_func: object
+        fileobj: IO[bytes], filter_func: Callable[[dict], bool]
     ) -> dict[str, str]:
         translations = {}
         fileobj.seek(0)
@@ -2017,7 +2132,7 @@ class CodeTranslations:
 
     @staticmethod
     def _get_code_translations(
-        module_name: str, lang: str, filter_func: object
+        module_name: str, lang: str, filter_func: Callable[[dict], bool]
     ) -> dict[str, str]:
         po_paths = get_po_paths(module_name, lang)
         translations = {}
@@ -2070,12 +2185,12 @@ class CodeTranslations:
             for key in [k for k in cache if k[0] == module_name]:
                 del cache[key]
 
-    def get_python_translations(self, module_name: str, lang: str) -> dict[str, str]:
+    def get_python_translations(self, module_name: str, lang: str) -> Mapping[str, str]:
         if (module_name, lang) not in self.python_translations:
             self._load_python_translations(module_name, lang)
         return self.python_translations[(module_name, lang)]
 
-    def get_web_translations(self, module_name: str, lang: str) -> dict:
+    def get_web_translations(self, module_name: str, lang: str) -> Mapping:
         if (module_name, lang) not in self.web_translations:
             self._load_web_translations(module_name, lang)
         return self.web_translations[(module_name, lang)]

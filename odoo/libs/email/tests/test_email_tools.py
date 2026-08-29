@@ -1,4 +1,5 @@
 import unittest
+from typing import Any, ClassVar, Literal
 
 from odoo.libs.email.parsing import (
     email_anonymize,
@@ -16,6 +17,8 @@ from odoo.libs.email.parsing import (
 
 
 class TestEmailTools(unittest.TestCase):
+    sources: ClassVar[list[str]]
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -40,7 +43,7 @@ class TestEmailTools(unittest.TestCase):
         ]
 
     def test_email_domain_normalize(self):
-        cases = [
+        cases: list[tuple[Any, str | Literal[False], str]] = [
             ("Test.Com", "test.com", "Should have normalized domain"),
             (
                 "email@test.com",
@@ -65,7 +68,7 @@ class TestEmailTools(unittest.TestCase):
             '"Déboulonneur" <déboulonneur@examplé.com>',
             '"Déboulonneur" <DéBoulonneur@Examplé.com>',
         ]
-        expected_list = [
+        expected_list: list[str | Literal[False]] = [
             "deboulonneur@example.com",
             "deboulonneur@example.com",
             "deboulonneur@example.comdéboulonneur",

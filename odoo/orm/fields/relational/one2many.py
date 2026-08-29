@@ -204,6 +204,91 @@ class One2many(_RelationalMulti):
                         )
                         self._update_cache(recs[-1], lines._ids)
 
+    def _orphan_lines(self, comodel, model, recs, lines, inverse):
+        domain = (
+            self.get_comodel_domain(model)
+            & Domain(inverse, "in", recs.ids)
+            & Domain("id", "not in", lines.ids)
+        )
+        return comodel.with_context(active_test=False).search(  # noqa: E8507  see above
+            domain
+        )
+
+    def _write_real_stored(
+        self, records_commands_list, model, comodel, create: bool
+    ) -> None:
+        inverse = self.inverse_name
+        to_create: list[dict] = []
+        to_delete: list = []
+        to_link: defaultdict[typing.Any, OrderedSet] = defaultdict(OrderedSet)
+        allow_full_delete = not create
+
+        def unlink(lines):
+            if getattr(comodel._fields[inverse], "ondelete", False) == "cascade":
+                to_delete.extend(lines._ids)
+            else:
+                lines[inverse] = False
+
+        def flush():
+            if to_link:
+                before = {record: record[self.name] for record in to_link}
+            if to_delete:
+                comodel.browse(to_delete).unlink()
+                to_delete.clear()
+            if to_create:
+                comodel.create(to_create)
+                to_create.clear()
+            if to_link:
+                for record, line_ids in to_link.items():
+                    lines = comodel.browse(line_ids) - before[record]
+                    lines.mapped(inverse)
+                    lines[inverse] = record
+                to_link.clear()
+
+        for recs, commands in records_commands_list:
+            for command in commands or ():
+                match command[0]:
+                    case Command.CREATE:
+                        to_create.extend(
+                            dict(command[2], **{inverse: record.id}) for record in recs
+                        )
+                    case Command.UPDATE:
+                        prefetch_ids = recs[self.name]._prefetch_ids
+                        comodel.browse(command[1]).with_prefetch(prefetch_ids).write(
+                            command[2]
+                        )
+                    case Command.DELETE:
+                        to_delete.append(command[1])
+                    case Command.UNLINK:
+                        unlink(comodel.browse(command[1]))
+                    case Command.LINK:
+                        to_link[recs[-1]].add(command[1])
+                    case Command.CLEAR | Command.SET:
+                        line_ids = command[2] if command[0] == Command.SET else []
+                        if not allow_full_delete:
+                            if line_ids:
+                                if line_ids.__class__ is int:
+                                    line_ids = [line_ids]
+                                to_link[recs[-1]].update(line_ids)
+                            continue
+                        flush()
+                        lines = comodel.browse(line_ids)
+                        unlink(self._orphan_lines(comodel, model, recs, lines, inverse))
+                        lines[inverse] = recs[-1]
+
+        flush()
+
+    def _write_real_unstored(self, records_commands_list, comodel) -> None:
+        ids = OrderedSet(rid for recs, cs in records_commands_list for rid in recs._ids)
+        records = records_commands_list[0][0].browse(ids)
+        self._write_nonstored_commands(
+            records,
+            records_commands_list,
+            comodel,
+            comodel.browse,
+            lambda lines, vals: lines.write(vals),
+        )
+
     @override
     def write_real(
         self,
@@ -218,87 +303,9 @@ class One2many(_RelationalMulti):
         comodel = self._check_sudo_commands(comodel)
 
         if self.store:
-            inverse = self.inverse_name
-            to_create = []
-            to_delete = []
-            to_link = defaultdict(OrderedSet)
-            allow_full_delete = not create
-
-            def unlink(lines):
-                if getattr(comodel._fields[inverse], "ondelete", False) == "cascade":
-                    to_delete.extend(lines._ids)
-                else:
-                    lines[inverse] = False
-
-            def flush():
-                if to_link:
-                    before = {record: record[self.name] for record in to_link}
-                if to_delete:
-                    comodel.browse(to_delete).unlink()
-                    to_delete.clear()
-                if to_create:
-                    comodel.create(to_create)
-                    to_create.clear()
-                if to_link:
-                    for record, line_ids in to_link.items():
-                        lines = comodel.browse(line_ids) - before[record]
-                        lines.mapped(inverse)
-                        lines[inverse] = record
-                    to_link.clear()
-
-            for recs, commands in records_commands_list:
-                for command in commands or ():
-                    match command[0]:
-                        case Command.CREATE:
-                            to_create.extend(
-                                dict(command[2], **{inverse: record.id})
-                                for record in recs
-                            )
-                        case Command.UPDATE:
-                            prefetch_ids = recs[self.name]._prefetch_ids
-                            comodel.browse(command[1]).with_prefetch(
-                                prefetch_ids
-                            ).write(command[2])
-                        case Command.DELETE:
-                            to_delete.append(command[1])
-                        case Command.UNLINK:
-                            unlink(comodel.browse(command[1]))
-                        case Command.LINK:
-                            to_link[recs[-1]].add(command[1])
-                        case Command.CLEAR | Command.SET:
-                            line_ids = command[2] if command[0] == Command.SET else []
-                            if not allow_full_delete:
-                                if line_ids:
-                                    if line_ids.__class__ is int:
-                                        line_ids = [line_ids]
-                                    to_link[recs[-1]].update(line_ids)
-                                continue
-                            flush()
-                            lines = comodel.browse(line_ids)
-                            domain = (
-                                self.get_comodel_domain(model)
-                                & Domain(inverse, "in", recs.ids)
-                                & Domain("id", "not in", lines.ids)
-                            )
-                            unlink(
-                                comodel.with_context(active_test=False).search(domain)
-                            )
-                            lines[inverse] = recs[-1]
-
-            flush()
-
+            self._write_real_stored(records_commands_list, model, comodel, create)
         else:
-            ids = OrderedSet(
-                rid for recs, cs in records_commands_list for rid in recs._ids
-            )
-            records = records_commands_list[0][0].browse(ids)
-            self._write_nonstored_commands(
-                records,
-                records_commands_list,
-                comodel,
-                comodel.browse,
-                lambda lines, vals: lines.write(vals),
-            )
+            self._write_real_unstored(records_commands_list, comodel)
 
     @override
     def write_new(

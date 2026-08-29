@@ -365,7 +365,9 @@ class Session(collections.abc.MutableMapping):
         debug = self.debug
         self.clear()
         self.update(get_default_session(), db=db, debug=debug)
-        self.context["lang"] = request.default_lang() if request else DEFAULT_LANG
+        context = self.context
+        assert context is not None
+        context["lang"] = request.default_lang() if request else DEFAULT_LANG
         self.should_rotate = True
 
         if request and request.env is not None:

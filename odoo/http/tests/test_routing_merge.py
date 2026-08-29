@@ -1,9 +1,11 @@
 import contextlib
 import logging
+from typing import Any, cast
 
 import pytest
 
 from odoo.http._params import coerce_params
+from odoo.http._protocols import HasRouting
 from odoo.http.controller import Controller
 from odoo.http.routing import route
 
@@ -138,8 +140,9 @@ def test_merge_never_mutates_declared_fragments():
 def test_options_added_to_methods_allow_list():
     from odoo.http.routing import rule_routing_kwargs
 
-    def endpoint(self): ...
+    def _endpoint(self): ...
 
+    endpoint = cast("HasRouting", _endpoint)
     endpoint.routing = {"methods": ["GET"], "cors": "*"}
     kwargs = rule_routing_kwargs(endpoint)
     assert "OPTIONS" in kwargs["methods"]
@@ -213,7 +216,7 @@ def test_typed_is_inherited_by_an_override_that_does_not_restate_it():
 
 
 def test_an_override_can_still_opt_out_of_typed():
-    seen = {}
+    seen: dict[str, tuple[Any, str]] = {}
 
     class Parent(Controller):
         __module__ = "odoo.addons.merge_untyped"

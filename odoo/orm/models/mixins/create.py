@@ -152,24 +152,9 @@ class CreateMixin(_ModelStubs):
 
         return defaults
 
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        if not isinstance(vals_list, (list, tuple)):
-            raise TypeError(
-                f"create() expects a list of dicts, got {type(vals_list).__name__}"
-            )
-        if not vals_list:
-            return self.browse()
-
-        prof = _OrmProfile(_orm_crud)
-
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            fnames = frozenset(fname for vals in vals_list for fname in vals)
-            tracker.record("create", self._name, len(vals_list), fnames)
-
-        self = self.browse()
-        self.check_access("create")
-
+    def _create_check_field_access(
+        self, vals_list: list[ValuesType]
+    ) -> OrderedSet[str]:
         field_names = OrderedSet(fname for vals in vals_list for fname in vals)
         field_names.update(
             field_name
@@ -183,22 +168,26 @@ class CreateMixin(_ModelStubs):
             if field is None:
                 raise ValueError(f"Invalid field {field_name!r} in {self._name!r}")
             self._check_field_access(field, "write")
-        prof.mark("acl")
+        return field_names
 
-        new_vals_list = self._prepare_create_values(vals_list)
-
+    def _create_partition_values(
+        self, new_vals_list: list[ValuesType]
+    ) -> tuple[list[dict], dict]:
         data_list = []
-        determine_inverses = defaultdict(OrderedSet)
+        determine_inverses: defaultdict[typing.Any, OrderedSet] = defaultdict(
+            OrderedSet
+        )
         bypass_access_ids: defaultdict[Field, OrderedSet] = defaultdict(OrderedSet)
 
         for vals in new_vals_list:
             precomputed = vals.pop("__precomputed__", ())
 
-            data = {}
+            data: dict[str, typing.Any] = {}
             data["stored"] = stored = {}
             data["inversed"] = inversed = {}
             data["cached_only"] = cached_only = {}
-            data["inherited"] = inherited = defaultdict(dict)
+            inherited: defaultdict[str, dict] = defaultdict(dict)
+            data["inherited"] = inherited
             data["protected"] = protected = set()
             for key, val in vals.items():
                 field = self._fields.get(key)
@@ -226,8 +215,9 @@ class CreateMixin(_ModelStubs):
 
         for field, co_ids in bypass_access_ids.items():
             self.env[field.comodel_name].browse(co_ids).check_access("read")
-        prof.mark("prep")
+        return data_list, determine_inverses
 
+    def _create_parent_records(self, data_list: list[dict]) -> None:
         for model_name, parent_name in self._inherits.items():
             parent_data_list = []
             for data in data_list:
@@ -244,11 +234,7 @@ class CreateMixin(_ModelStubs):
                 for parent, data in zip(parents, parent_data_list, strict=True):
                     data["stored"][parent_name] = parent.id
 
-        prof.mark("parent")
-
-        records = self._create(data_list)
-        prof.mark("sql")
-
+    def _create_apply_inverses(self, data_list: list[dict], determine_inverses) -> None:
         protected_fields = [(data["protected"], data["record"]) for data in data_list]
         with self.env.protecting(protected_fields):
             for data in data_list:
@@ -278,6 +264,39 @@ class CreateMixin(_ModelStubs):
                     if field.is_x2many and not field.store
                 ]
                 inv_records.invalidate_recordset(fnames=inv_relational_fnames)
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        if not isinstance(vals_list, (list, tuple)):
+            raise TypeError(
+                f"create() expects a list of dicts, got {type(vals_list).__name__}"
+            )
+        if not vals_list:
+            return self.browse()
+
+        prof = _OrmProfile(_orm_crud)
+
+        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
+            fnames = frozenset(fname for vals in vals_list for fname in vals)
+            tracker.record("create", self._name, len(vals_list), fnames)
+
+        self = self.browse()
+        self.check_access("create")
+
+        field_names = self._create_check_field_access(vals_list)
+        prof.mark("acl")
+
+        new_vals_list = self._prepare_create_values(vals_list)
+        data_list, determine_inverses = self._create_partition_values(new_vals_list)
+        prof.mark("prep")
+
+        self._create_parent_records(data_list)
+        prof.mark("parent")
+
+        records = self._create(data_list)
+        prof.mark("sql")
+
+        self._create_apply_inverses(data_list, determine_inverses)
         prof.mark("trigger")
 
         for data in data_list:

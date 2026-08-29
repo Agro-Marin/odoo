@@ -8,10 +8,10 @@ import subprocess
 import threading
 from pathlib import Path
 from subprocess import PIPE, Popen
-from typing import Self
+from typing import IO, Self
 
 import odoo
-from odoo.libs._vendor.embedded_sass_pb2 import (
+from odoo.libs._vendor.embedded_sass_pb2 import (  # type: ignore[attr-defined]
     COMPRESSED,
     CSS,
     EXPANDED,
@@ -25,6 +25,7 @@ _logger = logging.getLogger(__name__)
 
 _RX_DEPRECATION = re.compile(r"DEPRECATION WARNING \[([a-z-]+)\]")
 _RX_OMITTED = re.compile(r"(\d+) repetitive deprecation warnings omitted")
+_SYNTAX_ENUM = {"scss": SCSS, "indented": INDENTED, "css": CSS}
 
 _COMPILE_TIMEOUT_S = 120.0
 
@@ -59,7 +60,7 @@ def _encode_varint(value: int) -> bytes:
     return bytes(parts)
 
 
-def _read_varint(stream: object) -> int | None:
+def _read_varint(stream: IO[bytes]) -> int | None:
     result = 0
     shift = 0
     while True:
@@ -154,28 +155,38 @@ class SassEmbeddedCompiler:
             proc = self._process
             self._process = None
             for pipe in (proc.stdin, proc.stdout):
-                with contextlib.suppress(OSError):
-                    pipe.close()
+                if pipe is not None:
+                    with contextlib.suppress(OSError):
+                        pipe.close()
             proc.wait()
             raise SassProtocolError(
                 f"sass --embedded exited immediately with code {proc.returncode}"
             )
         self._started = True
 
+    def _pipes(self) -> tuple[IO[bytes], IO[bytes]]:
+        proc = self._process
+        if proc is None or proc.stdin is None or proc.stdout is None:
+            msg = "sass --embedded is not running"
+            raise SassProtocolError(msg)
+        return proc.stdin, proc.stdout
+
     def _send_packet(self, compilation_id: int, message_bytes: bytes) -> None:
+        stdin, _stdout = self._pipes()
         cid_bytes = _encode_varint(compilation_id)
         payload = cid_bytes + message_bytes
         length_bytes = _encode_varint(len(payload))
-        self._process.stdin.write(length_bytes + payload)
-        self._process.stdin.flush()
+        stdin.write(length_bytes + payload)
+        stdin.flush()
 
     def _recv_packet(self) -> tuple[int, bytes]:
-        length = _read_varint(self._process.stdout)
+        _stdin, stdout = self._pipes()
+        length = _read_varint(stdout)
         if length is None:
             msg = "Unexpected EOF from sass --embedded"
             raise SassProtocolError(msg)
 
-        payload = self._process.stdout.read(length)
+        payload = stdout.read(length)
         if len(payload) != length:
             raise SassProtocolError(
                 f"Short read: expected {length} bytes, got {len(payload)}"
@@ -200,8 +211,9 @@ class SassEmbeddedCompiler:
             self._process = None
             self._started = False
             for pipe in (proc.stdin, proc.stdout):
-                with contextlib.suppress(OSError):
-                    pipe.close()
+                if pipe is not None:
+                    with contextlib.suppress(OSError):
+                        pipe.close()
             try:
                 proc.wait(timeout=5)
             except Exception:
@@ -256,6 +268,108 @@ class SassEmbeddedCompiler:
             finally:
                 watchdog.cancel()
 
+    def _build_compile_request(
+        self,
+        compilation_id: int,
+        source: str,
+        syntax: str,
+        style: str,
+        source_map: bool,
+        importers: list[SassImporter],
+        load_paths: list[str],
+        quiet_deps: bool,
+        url: str,
+    ) -> tuple[InboundMessage, dict[int, SassImporter]]:
+        request = InboundMessage()
+        compile_req = request.compile_request
+        compile_req.id = compilation_id
+
+        string_input = compile_req.string
+        string_input.source = source
+        string_input.syntax = _SYNTAX_ENUM.get(syntax, SCSS)
+        if url:
+            string_input.url = url
+
+        compile_req.style = COMPRESSED if style == "compressed" else EXPANDED
+        compile_req.source_map = source_map
+        compile_req.quiet_deps = quiet_deps
+
+        importer_id_map = {}
+        for i, imp in enumerate(importers):
+            importer_msg = compile_req.importers.add()
+            importer_msg.importer_id = i + 1
+            importer_id_map[i + 1] = imp
+
+        for path in load_paths:
+            compile_req.importers.add().path = path
+
+        return request, importer_id_map
+
+    @staticmethod
+    def _compile_response_css(
+        resp, url: str, deprecations: collections.Counter[str]
+    ) -> str:
+        result_type = resp.WhichOneof("result")
+        if result_type == "failure":
+            raise SassCompileError(resp.failure.formatted or resp.failure.message)
+        if result_type != "success":
+            msg = "CompileResponse has no result"
+            raise SassProtocolError(msg)
+        if deprecations:
+            _logger.info(
+                "Sass compiled %s with %s deprecation warning(s): %s",
+                url or "<string>",
+                sum(deprecations.values()),
+                ", ".join(
+                    f"{name}={count}" for name, count in deprecations.most_common()
+                ),
+            )
+        return resp.success.css
+
+    @staticmethod
+    def _record_log_event(event, deprecations: collections.Counter[str]) -> None:
+        if event.type == 2:
+            _logger.debug("Sass debug: %s", event.message)
+            return
+        text = event.formatted or event.message
+        _logger.debug("Sass warning: %s", text)
+        if category := _RX_DEPRECATION.search(text):
+            deprecations[category.group(1)] += 1
+        elif omitted := _RX_OMITTED.search(text):
+            deprecations["(repeats omitted by sass)"] += int(omitted.group(1))
+
+    @staticmethod
+    def _canonicalize_response(req, importer: SassImporter | None) -> InboundMessage:
+        response = InboundMessage()
+        canon_resp = response.canonicalize_response
+        canon_resp.id = req.id
+        if importer is not None:
+            try:
+                canonical_url = importer.canonicalize(req.url, req.from_import)
+                if canonical_url is not None:
+                    canon_resp.url = canonical_url
+            except Exception as e:
+                canon_resp.error = str(e)
+        return response
+
+    @staticmethod
+    def _import_response(req, importer: SassImporter | None) -> InboundMessage:
+        response = InboundMessage()
+        import_resp = response.import_response
+        import_resp.id = req.id
+        if importer is not None:
+            try:
+                loaded = importer.load(req.url)
+                if loaded is not None:
+                    contents, file_syntax = loaded
+                    success = import_resp.success
+                    success.contents = contents
+                    success.syntax = _SYNTAX_ENUM.get(file_syntax, SCSS)
+                    success.source_map_url = req.url
+            except Exception as e:
+                import_resp.error = str(e)
+        return response
+
     def _do_compile(
         self,
         compilation_id: int,
@@ -268,43 +382,24 @@ class SassEmbeddedCompiler:
         quiet_deps: bool,
         url: str,
     ) -> str:
-        syntax_enum = {"scss": SCSS, "indented": INDENTED, "css": CSS}.get(syntax, SCSS)
-        style_enum = COMPRESSED if style == "compressed" else EXPANDED
         deprecations: collections.Counter[str] = collections.Counter()
-
-        request = InboundMessage()
-        compile_req = request.compile_request
-        compile_req.id = compilation_id
-
-        string_input = compile_req.string
-        string_input.source = source
-        string_input.syntax = syntax_enum
-        if url:
-            string_input.url = url
-
-        compile_req.style = style_enum
-        compile_req.source_map = source_map
-        compile_req.quiet_deps = quiet_deps
-
-        importer_id_map = {}
-        for i, imp in enumerate(importers):
-            importer_msg = compile_req.importers.add()
-            importer_id = i + 1
-            importer_msg.importer_id = importer_id
-            importer_id_map[importer_id] = imp
-
-        for path in load_paths:
-            importer_msg = compile_req.importers.add()
-            importer_msg.path = path
-
-        msg_bytes = request.SerializeToString()
-        self._send_packet(compilation_id, msg_bytes)
+        request, importer_id_map = self._build_compile_request(
+            compilation_id,
+            source,
+            syntax,
+            style,
+            source_map,
+            importers,
+            load_paths,
+            quiet_deps,
+            url,
+        )
+        self._send_packet(compilation_id, request.SerializeToString())
 
         while True:
             recv_cid, recv_bytes = self._recv_packet()
             outbound = OutboundMessage()
             outbound.ParseFromString(recv_bytes)
-
             msg_type = outbound.WhichOneof("message")
 
             if recv_cid != compilation_id and msg_type != "error":
@@ -313,97 +408,43 @@ class SassEmbeddedCompiler:
                     f"{compilation_id}, received {recv_cid} ({msg_type})"
                 )
 
-            if msg_type == "compile_response":
-                resp = outbound.compile_response
-                result_type = resp.WhichOneof("result")
-                if result_type == "success":
-                    if deprecations:
-                        _logger.info(
-                            "Sass compiled %s with %s deprecation warning(s): %s",
-                            url or "<string>",
-                            sum(deprecations.values()),
-                            ", ".join(
-                                f"{name}={count}"
-                                for name, count in deprecations.most_common()
-                            ),
-                        )
-                    return resp.success.css
-                elif result_type == "failure":
-                    raise SassCompileError(
-                        resp.failure.formatted or resp.failure.message
+            match msg_type:
+                case "compile_response":
+                    return self._compile_response_css(
+                        outbound.compile_response, url, deprecations
                     )
-                else:
-                    msg = "CompileResponse has no result"
-                    raise SassProtocolError(msg)
-
-            elif msg_type == "log_event":
-                event = outbound.log_event
-                if event.type == 2:
-                    _logger.debug("Sass debug: %s", event.message)
-                else:
-                    text = event.formatted or event.message
-                    _logger.debug("Sass warning: %s", text)
-                    if category := _RX_DEPRECATION.search(text):
-                        deprecations[category.group(1)] += 1
-                    elif omitted := _RX_OMITTED.search(text):
-                        deprecations["(repeats omitted by sass)"] += int(
-                            omitted.group(1)
-                        )
-
-            elif msg_type == "canonicalize_request":
-                req = outbound.canonicalize_request
-                importer = importer_id_map.get(req.importer_id)
-                response = InboundMessage()
-                canon_resp = response.canonicalize_response
-                canon_resp.id = req.id
-                if importer is not None:
-                    try:
-                        canonical_url = importer.canonicalize(req.url, req.from_import)
-                        if canonical_url is not None:
-                            canon_resp.url = canonical_url
-                    except Exception as e:
-                        canon_resp.error = str(e)
-                self._send_packet(recv_cid, response.SerializeToString())
-
-            elif msg_type == "import_request":
-                req = outbound.import_request
-                importer = importer_id_map.get(req.importer_id)
-                response = InboundMessage()
-                import_resp = response.import_response
-                import_resp.id = req.id
-                if importer is not None:
-                    try:
-                        loaded = importer.load(req.url)
-                        if loaded is not None:
-                            contents, file_syntax = loaded
-                            success = import_resp.success
-                            success.contents = contents
-                            syntax_val = {
-                                "scss": SCSS,
-                                "indented": INDENTED,
-                                "css": CSS,
-                            }.get(file_syntax, SCSS)
-                            success.syntax = syntax_val
-                            success.source_map_url = req.url
-                    except Exception as e:
-                        import_resp.error = str(e)
-                self._send_packet(recv_cid, response.SerializeToString())
-
-            elif msg_type == "error":
-                proto_err = outbound.error
-                raise SassProtocolError(
-                    f"Protocol error ({proto_err.type}): {proto_err.message}"
-                )
-
-            else:
-                _logger.debug("Ignoring unhandled message type: %s", msg_type)
+                case "log_event":
+                    self._record_log_event(outbound.log_event, deprecations)
+                case "canonicalize_request":
+                    req = outbound.canonicalize_request
+                    self._send_packet(
+                        recv_cid,
+                        self._canonicalize_response(
+                            req, importer_id_map.get(req.importer_id)
+                        ).SerializeToString(),
+                    )
+                case "import_request":
+                    req = outbound.import_request
+                    self._send_packet(
+                        recv_cid,
+                        self._import_response(
+                            req, importer_id_map.get(req.importer_id)
+                        ).SerializeToString(),
+                    )
+                case "error":
+                    proto_err = outbound.error
+                    raise SassProtocolError(
+                        f"Protocol error ({proto_err.type}): {proto_err.message}"
+                    )
+                case _:
+                    _logger.debug("Ignoring unhandled message type: %s", msg_type)
 
 
 def _resolve_sass_path(base: str) -> list[str]:
     base_path = Path(base)
     dirname = base_path.parent
     basename = base_path.name
-    candidates = []
+    candidates: list[str] = []
 
     if base_path.suffix in (".scss", ".sass", ".css"):
         candidates.extend((base, str(dirname / f"_{basename}")))

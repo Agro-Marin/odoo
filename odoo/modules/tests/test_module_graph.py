@@ -9,6 +9,8 @@ BaseCase = unittest.TestCase
 
 
 class _NoCursor:
+    rowcount = 0
+
     def execute(self, query, *args, **kwargs):
         raise AssertionError("this test's graph must not reach the database")
 
@@ -227,6 +229,7 @@ class TestCycleDetection(BaseCase):
                 ("a", 1, "uninstallable", False, "1.0"),
                 ("b", 2, "uninstallable", False, "1.0"),
             ]
+            rowcount = 0
 
             def execute(self, query, params):
                 pass

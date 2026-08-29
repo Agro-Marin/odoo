@@ -62,7 +62,7 @@ class TestLegitimateConstructs(unittest.TestCase):
     def test_constructs_evaluate(self):
         for name, (code, expected) in LEGITIMATE.items():
             with self.subTest(construct=name):
-                context = {}
+                context: dict = {}
                 safe_eval(code, context, mode="exec")
                 self.assertEqual(context.get("result"), expected)
 
@@ -96,7 +96,7 @@ class TestSandboxEscapesNeedingContext(unittest.TestCase):
         ]
         for expr, ns in escapes:
             with self.subTest(escape=expr), self.assertRaises(Exception):
-                safe_eval(expr, ns)
+                safe_eval(expr, ns)  # type: ignore[arg-type]
 
     def test_str_format_legitimate_uses_allowed(self):
         self.assertEqual(

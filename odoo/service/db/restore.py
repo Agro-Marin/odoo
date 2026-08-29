@@ -111,6 +111,102 @@ def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
     return True
 
 
+def _extract_zip_dump(
+    dump_file: str | os.PathLike | IO[bytes], dump_dir: str
+) -> str | None:
+    with zipfile.ZipFile(dump_file, "r") as z:
+        dump_dir_resolved = Path(dump_dir).resolve()
+        for member in z.namelist():
+            target = (dump_dir_resolved / member).resolve()
+            if not target.is_relative_to(dump_dir_resolved):
+                raise RuntimeError(
+                    f"Refusing to restore: archive member {member!r} "
+                    f"escapes the extraction directory"
+                )
+
+        if "dump.sql" not in z.namelist():
+            raise RuntimeError(
+                "Refusing to restore: the archive contains no "
+                "'dump.sql' member, so it is not an Odoo database "
+                "backup."
+            )
+
+        filestore = [m for m in z.namelist() if m.startswith("filestore/")]
+        _extract_members_bounded(
+            z,
+            ["dump.sql"] + filestore,
+            dump_dir,
+            _unpack_budget(dump_file),
+        )
+
+    return str(Path(dump_dir, "filestore")) if filestore else None
+
+
+def _restore_command(
+    dump_file: str | os.PathLike | IO[bytes], dump_dir: str
+) -> tuple[str, list[str], str | None]:
+    if zipfile.is_zipfile(dump_file):
+        filestore_path = _extract_zip_dump(dump_file, dump_dir)
+        dump_sql_path = str(Path(dump_dir, "dump.sql"))
+        _assert_dump_sql_safe(dump_sql_path)
+        pg_args = ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", dump_sql_path]
+        return "psql", pg_args, filestore_path
+
+    if not isinstance(dump_file, (str, os.PathLike)):
+        raise TypeError(
+            "a raw (non-zip) restore needs a file path, not an open file object"
+        )
+    return (
+        "pg_restore",
+        ["--no-owner", "--exit-on-error", os.fspath(dump_file)],
+        None,
+    )
+
+
+def _run_pg_restore(db: str, pg_cmd: str, pg_args: list[str]) -> None:
+    timeout = _pg_restore_total_timeout()
+    try:
+        r = subprocess.run(
+            [find_pg_tool(pg_cmd), "--dbname=" + db, *pg_args],
+            env=exec_pg_environ(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"Restore of {db!r} exceeded {timeout:.0f}s wall-clock "
+            f"timeout and was terminated.  Set "
+            f"ODOO_PG_RESTORE_TOTAL_TIMEOUT for slower restores."
+        ) from e
+    if r.returncode != 0:
+        _logger.error("RESTORE DB %r failed:\n%s", db, r.stderr)
+        raise RuntimeError(f"Couldn't restore database {db!r}:\n{r.stderr.strip()}")
+
+
+def _finalize_restored_db(
+    db: str, copy: bool, neutralize_database: bool, filestore_path: str | None
+) -> None:
+    registry = odoo.modules.registry.Registry.new(db, run_tests=False)
+    with registry.cursor() as cr:
+        env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
+        if copy:
+            env["ir.config_parameter"].init(force=True)  # type: ignore[call-arg]
+        if neutralize_database:
+            odoo.modules.neutralize.neutralize_database(cr)
+
+        if filestore_path:
+            filestore_dest = env["ir.attachment"]._get_filestore()
+            if Path(filestore_dest).exists():
+                raise RuntimeError(
+                    f"Filestore {filestore_dest!r} appeared between "
+                    f"pre-flight and move (race)."
+                )
+            shutil.move(filestore_path, filestore_dest)
+
+
 @check_db_management_enabled
 def restore_db(
     db: str,
@@ -133,99 +229,11 @@ def restore_db(
         db, template="template0", force_unaccent=True, setup_if_exists=False
     )
 
-    filestore_path = None
     try:
         with tempfile.TemporaryDirectory() as dump_dir:
-            if zipfile.is_zipfile(dump_file):
-                with zipfile.ZipFile(dump_file, "r") as z:
-                    dump_dir_resolved = Path(dump_dir).resolve()
-                    for member in z.namelist():
-                        target = (dump_dir_resolved / member).resolve()
-                        if not target.is_relative_to(dump_dir_resolved):
-                            raise RuntimeError(
-                                f"Refusing to restore: archive member {member!r} "
-                                f"escapes the extraction directory"
-                            )
-
-                    if "dump.sql" not in z.namelist():
-                        raise RuntimeError(
-                            "Refusing to restore: the archive contains no "
-                            "'dump.sql' member, so it is not an Odoo database "
-                            "backup."
-                        )
-
-                    filestore = [m for m in z.namelist() if m.startswith("filestore/")]
-                    _extract_members_bounded(
-                        z,
-                        ["dump.sql"] + filestore,
-                        dump_dir,
-                        _unpack_budget(dump_file),
-                    )
-
-                    if filestore:
-                        filestore_path = str(Path(dump_dir, "filestore"))
-
-                dump_sql_path = str(Path(dump_dir, "dump.sql"))
-                _assert_dump_sql_safe(dump_sql_path)
-
-                pg_cmd = "psql"
-                pg_args = [
-                    "-X",
-                    "-q",
-                    "-v",
-                    "ON_ERROR_STOP=1",
-                    "-f",
-                    dump_sql_path,
-                ]
-
-            else:
-                if not isinstance(dump_file, (str, os.PathLike)):
-                    raise TypeError(
-                        "a raw (non-zip) restore needs a file path, not an open "
-                        "file object"
-                    )
-                pg_cmd = "pg_restore"
-                pg_args = ["--no-owner", "--exit-on-error", os.fspath(dump_file)]
-
-            _timeout = _pg_restore_total_timeout()
-            try:
-                r = subprocess.run(
-                    [find_pg_tool(pg_cmd), "--dbname=" + db, *pg_args],
-                    env=exec_pg_environ(),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    check=False,
-                    timeout=_timeout,
-                )
-            except subprocess.TimeoutExpired as e:
-                raise RuntimeError(
-                    f"Restore of {db!r} exceeded {_timeout:.0f}s wall-clock "
-                    f"timeout and was terminated.  Set "
-                    f"ODOO_PG_RESTORE_TOTAL_TIMEOUT for slower restores."
-                ) from e
-            if r.returncode != 0:
-                _logger.error("RESTORE DB %r failed:\n%s", db, r.stderr)
-                raise RuntimeError(
-                    f"Couldn't restore database {db!r}:\n{r.stderr.strip()}"
-                )
-
-            registry = odoo.modules.registry.Registry.new(db, run_tests=False)
-            with registry.cursor() as cr:
-                env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
-                if copy:
-                    env["ir.config_parameter"].init(force=True)
-                if neutralize_database:
-                    odoo.modules.neutralize.neutralize_database(cr)
-
-                if filestore_path:
-                    filestore_dest = env["ir.attachment"]._get_filestore()
-                    if Path(filestore_dest).exists():
-                        raise RuntimeError(
-                            f"Filestore {filestore_dest!r} appeared between "
-                            f"pre-flight and move (race)."
-                        )
-                    shutil.move(filestore_path, filestore_dest)
+            pg_cmd, pg_args, filestore_path = _restore_command(dump_file, dump_dir)
+            _run_pg_restore(db, pg_cmd, pg_args)
+            _finalize_restored_db(db, copy, neutralize_database, filestore_path)
 
         _logger.info("RESTORE DB: %s", db)
     except Exception:

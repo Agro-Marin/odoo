@@ -1,7 +1,11 @@
 import unittest
+from typing import TYPE_CHECKING, cast
 
 from odoo.libs.sql import SQL
 from odoo.tools.query import Query
+
+if TYPE_CHECKING:
+    from odoo.api import Environment
 
 
 class RecordingEnv:
@@ -16,7 +20,7 @@ class RecordingEnv:
 
 class TestQueryLimit(unittest.TestCase):
     def make(self, **attrs):
-        query = Query(RecordingEnv(), "res_partner")
+        query = Query(cast("Environment", RecordingEnv()), "res_partner")
         for name, value in attrs.items():
             setattr(query, name, value)
         return query
@@ -48,14 +52,14 @@ class TestQueryLimit(unittest.TestCase):
 
 class TestQueryIdInvalidation(unittest.TestCase):
     def test_an_empty_result_survives_narrowing(self):
-        query = Query(RecordingEnv(), "res_partner")
+        query = Query(cast("Environment", RecordingEnv()), "res_partner")
         query.set_result_ids([])
         self.assertTrue(query.is_empty())
         query.add_where(SQL("1=1"))
         self.assertTrue(query.is_empty())
 
     def test_a_non_empty_result_is_dropped(self):
-        query = Query(RecordingEnv(), "res_partner")
+        query = Query(cast("Environment", RecordingEnv()), "res_partner")
         query._ids = (1, 2)
         query.add_where(SQL("1=1"))
         self.assertIsNone(query._ids)

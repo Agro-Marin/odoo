@@ -53,7 +53,7 @@ DATE_LENGTH = len(date.today().strftime(DATE_FORMAT))
 DATETIME_LENGTH = len(datetime.now().strftime(DATETIME_FORMAT))
 
 
-class BaseDate[T](Field[T | typing.Literal[False]]):
+class BaseDate[T: date](Field[T | typing.Literal[False]]):
     is_temporal = True
 
     start_of = staticmethod(date_utils.start_of)
@@ -133,7 +133,9 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
                 f"Error when processing the granularity {property_name} is not supported. Only {', '.join(READ_GROUP_NUMBER_GRANULARITY.keys())} are supported"
             )
         granularity = READ_GROUP_NUMBER_GRANULARITY[property_name]
-        return SQL("date_part('%s', %%s)" % granularity, sql_expr)
+        return SQL(  # noqa: E8501  granularity is a value of a module constant
+            "date_part('%s', %%s)" % granularity, sql_expr
+        )
 
     @override
     def convert_to_column(

@@ -53,7 +53,12 @@ KNOWN_PATCHES: dict[tuple[str, str], str] = {
         "both correct placement and statically visible."
     ),
     ("tools/pdf/__init__.py", "DictionaryObject.get"): (
-        "LAUNDERED the same way. DEBT."
+        "Makes pypdf's DictionaryObject.get resolve IndirectObjects the way "
+        "__getitem__ does, so `.get(k)` and `[k]` stop disagreeing. NO LONGER "
+        "hidden: the module binds pypdf's names by import rather than by tuple "
+        "assignment, so this scan attributes it and the entry is checked in "
+        "both directions. DEBT: _monkeypatches/pypdf.py is the placement the "
+        "rule asks for."
     ),
 }
 
@@ -119,7 +124,7 @@ def find_patches() -> list[tuple[str, str, int]]:
             for target in targets:
                 if not isinstance(target, ast.Attribute):
                     continue
-                base = target
+                base: ast.expr = target
                 while isinstance(base, ast.Attribute):
                     base = base.value
                 if isinstance(base, ast.Name) and base.id in foreign:

@@ -887,7 +887,7 @@ class IrActionsServer(models.Model):
         for model_name in set(webhooks.model_id.mapped("model")):
             samples[model_name] = (
                 self.env[model_name].with_context(active_test=False).search([], limit=1)
-            )
+            )  # noqa: E8507  loop variable is the model -- a different table each time
         for model_name, actions in webhooks.grouped("model_name").items():
             sample = samples.get(model_name, self.env["ir.model"].browse())
             if sample:

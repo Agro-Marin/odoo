@@ -2,7 +2,7 @@ import html as htmllib
 import itertools
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, overload
 from urllib.parse import urlparse
 
 import markupsafe
@@ -523,6 +523,36 @@ def html_normalize(
         src = src[5:-6]
 
     return src.replace("\xa0", "&nbsp;")
+
+
+@overload
+def html_sanitize(
+    src: None,
+    silent: bool = True,
+    sanitize_tags: bool = True,
+    sanitize_attributes: bool = False,
+    sanitize_style: bool = False,
+    sanitize_form: bool = True,
+    sanitize_conditional_comments: bool = True,
+    strip_style: bool = False,
+    strip_classes: bool = False,
+    output_method: str = "html",
+) -> None: ...
+
+
+@overload
+def html_sanitize(
+    src: str | markupsafe.Markup,
+    silent: bool = True,
+    sanitize_tags: bool = True,
+    sanitize_attributes: bool = False,
+    sanitize_style: bool = False,
+    sanitize_form: bool = True,
+    sanitize_conditional_comments: bool = True,
+    strip_style: bool = False,
+    strip_classes: bool = False,
+    output_method: str = "html",
+) -> markupsafe.Markup: ...
 
 
 def html_sanitize(

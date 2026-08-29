@@ -1,4 +1,5 @@
 import logging
+import typing
 from collections import defaultdict
 from contextlib import contextmanager, suppress
 from datetime import datetime
@@ -26,6 +27,7 @@ def get_field_variation_date(
     model: Model, field: Field, factor: int, series_alias: str
 ) -> SQL:
     total_days = min((MAX_DATETIME - MIN_DATETIME).days, factor)
+    assert field._column_type is not None
     cast_type = SQL(field._column_type[1])
 
     def redistribute(value):
@@ -260,7 +262,7 @@ def populate_model(
     model: Model,
     populated: dict[Any, int],
     factors: dict[Any, int],
-    separator_code: str,
+    separator_code: int,
 ) -> None:
     def update_sequence(model_):
         model_.env.execute_query(
@@ -342,15 +344,15 @@ class Many2manyModelWrapper:
     def __init__(self, env: Environment, field: Field) -> None:
         self._name = field.relation
         self._table = field.relation
-        self._inherits = {}
+        self._inherits: dict[str, str] = {}
         self.env = env
         self._rec_name = None
-        self._rec_names_search = []
+        self._rec_names_search: list[str] = []
         column1 = field.column1 or field.base_field.column1
         column2 = field.column2 or field.base_field.column2
         self._fields = {
             column1: Many2oneFieldWrapper(self, column1, field.model_name),
-            column2: Many2oneFieldWrapper(self, column2, field.comodel_name),
+            column2: Many2oneFieldWrapper(self, column2, field.comodel_name or ""),
         }
 
     def __repr__(self) -> str:
@@ -368,7 +370,7 @@ def infer_many2many_model(
 ) -> Model | Many2manyModelWrapper:
     for model_name, model_class in env.registry.items():
         if model_class._table == field.relation:
-            return env[model_name]
+            return typing.cast("Model", env[model_name])
     return Many2manyModelWrapper(env, field)
 
 

@@ -47,6 +47,9 @@ from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
 
 _logger = logging.getLogger("odoo.service.server")
 
+_RECYCLE_MAX_AGE = "max_age"
+_RECYCLE_CONN_LOST = "connection_lost"
+
 LIMIT_MONITOR_INTERVAL_S = 5.0
 
 
@@ -56,9 +59,9 @@ class ThreadedServer(CommonServer):
         self.main_thread_id = threading.current_thread().ident
         self.quit_signals_received = 0
 
-        self.httpd = None
-        self.limits_reached_threads = set()
-        self.limit_reached_time = None
+        self.httpd: ThreadedWSGIServerReloadable | None = None
+        self.limits_reached_threads: set[threading.Thread] = set()
+        self.limit_reached_time: float | None = None
         self._stop_after_init = False
         self._process_handle = psutil.Process(os.getpid())
 
@@ -139,6 +142,66 @@ class ThreadedServer(CommonServer):
             label="job",
         )
 
+    def _run_due_jobs(
+        self,
+        db_names: list[str],
+        process_jobs: Any,
+        cron_logger: logging.Logger,
+    ) -> None:
+        for db_name in db_names:
+            thread = current_worker_thread()
+            thread.start_time = time.monotonic()
+            try:
+                process_jobs(db_name)
+            except Exception:
+                cron_logger.warning(
+                    "Uncaught error for database %s", db_name, exc_info=True
+                )
+            finally:
+                thread.start_time = None
+
+    def _poll_cron_channel(
+        self,
+        cr: Any,
+        number: int,
+        channel: str,
+        process_jobs: Any,
+        cron_logger: logging.Logger,
+        max_age: int,
+    ) -> str:
+        pg_conn = cr.connection
+        arm_cron_listen(cr, cron_logger, channel=channel, disable_idle_timeout=True)
+        cr.commit()
+        check_all_time = float("-inf")
+        all_db_names: OrderedSet[str] = OrderedSet()
+        alive_time = time.monotonic()
+        first_pass = True
+        with selectors.DefaultSelector() as _sel:
+            _sel.register(pg_conn, selectors.EVENT_READ)
+            while max_age <= 0 or (time.monotonic() - alive_time) <= max_age:
+                _sel.select(timeout=0 if first_pass else SLEEP_INTERVAL + number)
+                first_pass = False
+                time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
+                try:
+                    notified = drain_cron_notifies(pg_conn, channel=channel)
+                except Exception:
+                    if pg_conn.closed:
+                        return _RECYCLE_CONN_LOST
+                    raise
+
+                if time.monotonic() - SLEEP_INTERVAL > check_all_time:
+                    check_all_time = time.monotonic()
+                    all_db_names = OrderedSet(cron_database_list())
+                    db_names = order_notified_first(notified, all_db_names)
+                else:
+                    db_names = list(notified.intersection(all_db_names))
+                    if not db_names:
+                        continue
+
+                cron_logger.debug("polling for jobs (notified: %s)", notified)
+                self._run_due_jobs(db_names, process_jobs, cron_logger)
+        return _RECYCLE_MAX_AGE
+
     def _listen_thread(
         self,
         number: int,
@@ -152,63 +215,16 @@ class ThreadedServer(CommonServer):
         cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
 
-        RECYCLE_MAX_AGE = "max_age"
-        RECYCLE_CONN_LOST = "connection_lost"
-
-        def _run_cron(cr):
-            pg_conn = cr.connection
-            arm_cron_listen(cr, cron_logger, channel=channel, disable_idle_timeout=True)
-            cr.commit()
-            check_all_time = float("-inf")
-            all_db_names = []
-            alive_time = time.monotonic()
-            first_pass = True
-            with selectors.DefaultSelector() as _sel:
-                _sel.register(pg_conn, selectors.EVENT_READ)
-                while max_age <= 0 or (time.monotonic() - alive_time) <= max_age:
-                    _sel.select(timeout=0 if first_pass else SLEEP_INTERVAL + number)
-                    first_pass = False
-                    time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
-                    try:
-                        notified = drain_cron_notifies(pg_conn, channel=channel)
-                    except Exception:
-                        if pg_conn.closed:
-                            return RECYCLE_CONN_LOST
-                        raise
-
-                    if time.monotonic() - SLEEP_INTERVAL > check_all_time:
-                        check_all_time = time.monotonic()
-                        all_db_names = OrderedSet(cron_database_list())
-                        db_names = order_notified_first(notified, all_db_names)
-                    else:
-                        db_names = notified.intersection(all_db_names)
-                        if not db_names:
-                            continue
-
-                    cron_logger.debug("polling for jobs (notified: %s)", notified)
-                    for db_name in db_names:
-                        thread = current_worker_thread()
-                        thread.start_time = time.monotonic()
-                        try:
-                            process_jobs(db_name)
-                        except Exception:
-                            cron_logger.warning(
-                                "Uncaught error for database %s",
-                                db_name,
-                                exc_info=True,
-                            )
-                        finally:
-                            thread.start_time = None
-            return RECYCLE_MAX_AGE
-
         reconnect_attempts = 0
         while True:
             try:
                 conn = db.db_connect("postgres")
                 with contextlib.closing(conn.cursor()) as cr:
-                    reason = _run_cron(cr)
+                    reason = self._poll_cron_channel(
+                        cr, number, channel, process_jobs, cron_logger, max_age
+                    )
                 reconnect_attempts = 0
-                if reason == RECYCLE_CONN_LOST:
+                if reason == _RECYCLE_CONN_LOST:
                     cron_logger.warning("Postgres connection lost, reconnecting...")
                 else:
                     cron_logger.info(
@@ -385,9 +401,11 @@ class ThreadedServer(CommonServer):
                             "Dumping stacktrace of limit exceeding threads before reloading"
                         )
                         dumpstacks(
-                            thread_idents=[
-                                thread.ident for thread in self.limits_reached_threads
-                            ]
+                            thread_idents={
+                                thread.ident
+                                for thread in self.limits_reached_threads
+                                if thread.ident is not None
+                            }
                         )
                         self.reload()
                     else:
@@ -415,7 +433,7 @@ class EventServer(CommonServer):
     def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.port = config["gevent_port"]
-        self.httpd = None
+        self.httpd: werkzeug.serving.BaseWSGIServer | None = None
         self.ppid = os.getppid()
         self._process_handle = psutil.Process(self.pid)
 

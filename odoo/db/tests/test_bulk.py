@@ -1,10 +1,16 @@
 import unittest
+from decimal import Decimal
 from typing import Any
 
+from psycopg.types.json import Jsonb
+
 from odoo.db.bulk import (
+    _JSON_OIDS,
     _NUMERIC_OID,
     _TEXT_OID,
     _BulkAccessMixin,
+    _coerced_rows,
+    _copy_statement,
     _table_identifier,
 )
 
@@ -134,6 +140,99 @@ class TestBinaryPaysOff(unittest.TestCase):
                 return False
 
         self.assertFalse(_NoDumper()._binary_pays_off([_TEXT_OID] * 20))  # type: ignore[misc]
+
+
+class TestCopyStatement(unittest.TestCase):
+    def _rendered(self, *args, **kwargs):
+        return _copy_statement(*args, **kwargs).as_string(None)
+
+    def test_plain_copy_has_no_options_clause(self):
+        self.assertEqual(
+            self._rendered("t", ["a", "b"], False, None),
+            'COPY "t" ("a", "b") FROM STDIN',
+        )
+
+    def test_binary_adds_format_binary(self):
+        self.assertEqual(
+            self._rendered("t", ["a"], True, None),
+            'COPY "t" ("a") FROM STDIN (FORMAT BINARY)',
+        )
+
+    def test_on_error_adds_its_clause_when_the_format_is_text(self):
+        self.assertEqual(
+            self._rendered("t", ["a"], False, "ignore"),
+            'COPY "t" ("a") FROM STDIN (ON_ERROR ignore)',
+        )
+
+    def test_on_error_is_dropped_when_the_effective_format_is_binary(self):
+        self.assertEqual(
+            self._rendered("t", ["a"], True, "ignore"),
+            'COPY "t" ("a") FROM STDIN (FORMAT BINARY)',
+        )
+
+    def test_the_table_is_quoted_through_table_identifier(self):
+        self.assertEqual(
+            self._rendered('ev"il.t', ["a"], False, None),
+            'COPY "ev""il"."t" ("a") FROM STDIN',
+        )
+
+    def test_column_names_are_quoted(self):
+        self.assertEqual(
+            self._rendered("t", ['ev"il'], False, None),
+            'COPY "t" ("ev""il") FROM STDIN',
+        )
+
+
+class TestCoercedRows(unittest.TestCase):
+    def _json_oid(self):
+        return next(iter(_JSON_OIDS))
+
+    def test_a_row_with_no_numeric_or_json_column_passes_through_unchanged(self):
+        rows = [("a", 1), ("b", 2)]
+        out = list(_coerced_rows(rows, [_TEXT_OID, _TEXT_OID]))
+        self.assertEqual(out, rows)
+        self.assertIs(out[0], rows[0])
+
+    def test_a_float_in_a_numeric_column_becomes_an_exact_decimal(self):
+        (row,) = _coerced_rows([("a", 2.675)], [_TEXT_OID, _NUMERIC_OID])
+        self.assertEqual(row[1], Decimal("2.675"))
+        self.assertEqual(str(row[1]), "2.675")
+
+    def test_a_non_float_in_a_numeric_column_is_left_alone(self):
+        (row,) = _coerced_rows(
+            [(Decimal("1.5"), 7, None)], [_NUMERIC_OID, _NUMERIC_OID, _NUMERIC_OID]
+        )
+        self.assertEqual(row, [Decimal("1.5"), 7, None])
+
+    def test_a_str_in_a_json_column_is_wrapped_so_binary_parses_it(self):
+        (row,) = _coerced_rows([('{"a": 1}',)], [self._json_oid()])
+        self.assertIsInstance(row[0], Jsonb)
+        self.assertEqual(row[0].obj, '{"a": 1}')
+
+    def test_an_already_wrapped_json_value_is_left_alone(self):
+        wrapped = Jsonb({"a": 1})
+        (row,) = _coerced_rows([(wrapped,)], [self._json_oid()])
+        self.assertIs(row[0], wrapped)
+
+    def test_a_none_in_a_json_column_is_left_alone(self):
+        (row,) = _coerced_rows([(None,)], [self._json_oid()])
+        self.assertIsNone(row[0])
+
+    def test_both_coercions_apply_in_one_row(self):
+        (row,) = _coerced_rows(
+            [("t", 0.1, "[]")], [_TEXT_OID, _NUMERIC_OID, self._json_oid()]
+        )
+        self.assertEqual(row[0], "t")
+        self.assertEqual(row[1], Decimal("0.1"))
+        self.assertIsInstance(row[2], Jsonb)
+
+    def test_the_column_type_list_is_consulted_by_position(self):
+        (row,) = _coerced_rows([(1.5, 1.5)], [_TEXT_OID, _NUMERIC_OID])
+        self.assertIsInstance(row[0], float)
+        self.assertEqual(row[1], Decimal("1.5"))
+
+    def test_an_empty_row_source_yields_nothing(self):
+        self.assertEqual(list(_coerced_rows([], [_NUMERIC_OID])), [])
 
 
 if __name__ == "__main__":

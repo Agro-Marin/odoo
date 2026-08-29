@@ -33,6 +33,34 @@ class EsbuildResult(NamedTuple):
     sourcemap: str | None
 
 
+def _esbuild_argv(
+    esbuild: str,
+    *,
+    target: str,
+    out_path: str,
+    metafile_path: str,
+    external_specifier_flags: list[str],
+    external_flags: list[str],
+    sourcemap_flags: list[str],
+    alias_flags: list[str],
+) -> list[str]:
+    return [
+        esbuild,
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--keep-names",
+        *external_specifier_flags,
+        *external_flags,
+        f"--target={target}",
+        "--resolve-extensions=.js,.mjs,.json",
+        f"--outfile={out_path}",
+        f"--metafile={metafile_path}",
+        *sourcemap_flags,
+        *alias_flags,
+    ]
+
+
 @functools.cache
 def _find_esbuild() -> str | None:
     odoo_root = Path(odoo.__path__[0]).parent
@@ -187,7 +215,7 @@ class EsbuildCompiler:
 
     @classmethod
     def _get_esbuild_addon_flags(cls, odoo_root: Path) -> tuple[list[str], list[str]]:
-        from odoo.addons import __path__ as _addon_paths
+        from odoo.addons import __path__ as _addon_paths  # type: ignore[attr-defined]
 
         cache_key = tuple(_addon_paths)
         cached = cls._esbuild_addon_scan_cache
@@ -249,6 +277,53 @@ class EsbuildCompiler:
         }
     )
 
+    def _esbuild_skip_reason(self) -> str | None:
+        if not self.native_modules:
+            return "no_native_modules"
+        if self._import_map_included:
+            return "import_map_included"
+        return None
+
+    def _esbuild_external_flags(
+        self, odoo_root: Path, alias_flags: list[str]
+    ) -> tuple[list[str], list[str]]:
+        from odoo.tools.assets.esm_registry import external_bare_specifiers
+
+        if self._standalone:
+            alias_flags += self._standalone_alias_flags(
+                odoo_root,
+                {
+                    flag.partition("=")[0].removeprefix("--alias:")
+                    for flag in alias_flags
+                },
+            )
+            return [], alias_flags
+        return [
+            f"--external:{EXTERNAL_SPECIFIER_PREFIX}*",
+            "--external:/web/static/lib/*",
+            *(f"--external:{spec}" for spec in sorted(external_bare_specifiers())),
+        ], alias_flags
+
+    def _log_esbuild_invoke(
+        self,
+        entry_lines: list[str],
+        entry_bytes: int,
+        alias_flags: list[str],
+        external_flags: list[str],
+        tmp_dir: str,
+    ) -> None:
+        log_event(
+            _esbuild_log,
+            logging.DEBUG,
+            "invoke",
+            bundle=self.name,
+            entries=len(entry_lines),
+            entry_bytes=entry_bytes,
+            aliases=len(alias_flags),
+            externals=len(external_flags) + 1,
+            tmp=tmp_dir,
+        )
+
     def compile(
         self,
         timeout_s: int | None = None,
@@ -257,28 +332,12 @@ class EsbuildCompiler:
         dynamic_child_specs: frozenset[str] | None = None,
         secondary_parent_stubs: dict[str, str] | None = None,
     ) -> EsbuildResult:
-        from odoo.tools.assets.esm_registry import external_bare_specifiers
-
         timeout_s, target, source_maps = self._esbuild_resolve_opts(
             timeout_s, target, source_maps
         )
-        if not self.native_modules:
+        if reason := self._esbuild_skip_reason():
             log_event(
-                _esbuild_log,
-                logging.DEBUG,
-                "skip",
-                bundle=self.name,
-                reason="no_native_modules",
-            )
-            return EsbuildResult("", None, None)
-
-        if self._import_map_included:
-            log_event(
-                _esbuild_log,
-                logging.DEBUG,
-                "skip",
-                bundle=self.name,
-                reason="import_map_included",
+                _esbuild_log, logging.DEBUG, "skip", bundle=self.name, reason=reason
             )
             return EsbuildResult("", None, None)
 
@@ -308,49 +367,24 @@ class EsbuildCompiler:
             list(alias_flags), secondary_parent_stubs, tmp_dir, odoo_root
         )
 
-        log_event(
-            _esbuild_log,
-            logging.DEBUG,
-            "invoke",
-            bundle=self.name,
-            entries=len(entry_lines),
-            entry_bytes=entry_bytes,
-            aliases=len(alias_flags),
-            externals=len(external_flags) + 1,
-            tmp=tmp_dir,
+        self._log_esbuild_invoke(
+            entry_lines, entry_bytes, alias_flags, external_flags, tmp_dir
         )
         sourcemap_flags = [f"--sourcemap={source_maps}"] if source_maps else []
         sourcemap_path = f"{out_path}.map"
-        if self._standalone:
-            external_specifier_flags = []
-            alias_flags += self._standalone_alias_flags(
-                odoo_root,
-                {
-                    flag.partition("=")[0].removeprefix("--alias:")
-                    for flag in alias_flags
-                },
-            )
-        else:
-            external_specifier_flags = [
-                f"--external:{EXTERNAL_SPECIFIER_PREFIX}*",
-                "--external:/web/static/lib/*",
-                *(f"--external:{spec}" for spec in sorted(external_bare_specifiers())),
-            ]
-        argv = [
+        external_specifier_flags, alias_flags = self._esbuild_external_flags(
+            odoo_root, alias_flags
+        )
+        argv = _esbuild_argv(
             esbuild,
-            "--bundle",
-            "--format=esm",
-            "--minify",
-            "--keep-names",
-            *external_specifier_flags,
-            *external_flags,
-            f"--target={target}",
-            "--resolve-extensions=.js,.mjs,.json",
-            f"--outfile={out_path}",
-            f"--metafile={metafile_path}",
-            *sourcemap_flags,
-            *alias_flags,
-        ]
+            target=target,
+            out_path=out_path,
+            metafile_path=metafile_path,
+            external_specifier_flags=external_specifier_flags,
+            external_flags=external_flags,
+            sourcemap_flags=sourcemap_flags,
+            alias_flags=alias_flags,
+        )
         try:
             self._run_esbuild(argv, timeout_s, entry_text, _t0)
             code = self._postprocess_esbuild_output(
@@ -571,7 +605,7 @@ class EsbuildCompiler:
         must_be_real: set[str],
     ) -> None:
         mirror.mkdir(parents=True, exist_ok=True)
-        taken = occupied.get(rel, frozenset())
+        taken: frozenset[str] | set[str] = occupied.get(rel, frozenset())
         for entry in real_dir.iterdir():
             if entry.name in taken:
                 continue

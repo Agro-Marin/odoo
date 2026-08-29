@@ -39,7 +39,12 @@ class TestFormatList(unittest.TestCase):
 
     def test_unknown_style_falls_back_to_standard(self):
         self.assertEqual(
-            format_list(None, ["a", "b"], style="no-such-style", lang_code="en_US"),
+            format_list(
+                None,
+                ["a", "b"],
+                style="no-such-style",  # type: ignore[arg-type]
+                lang_code="en_US",
+            ),
             "a and b",
         )
 

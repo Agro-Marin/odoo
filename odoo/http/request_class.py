@@ -182,12 +182,16 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         context: dict[str, Any] | None = None,
         su: bool | None = None,
     ) -> None:
-        self.env = self.env(None, user, context, su)
-        self.env.transaction.default_env = self.env
-        current_worker_thread().uid = self.env.uid
+        env = self.env
+        assert env is not None, "update_env() needs a database-bound request"
+        self.env = env = env(None, user, context, su)
+        env.transaction.default_env = env
+        current_worker_thread().uid = env.uid
 
     def update_context(self, **overrides: Any) -> None:
-        self.update_env(context=self.env.context | overrides)
+        env = self.env
+        assert env is not None, "update_context() needs a database-bound request"
+        self.update_env(context=env.context | overrides)
 
     @functools.cached_property
     def best_lang(self):
@@ -269,7 +273,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         if cr is None and self.env is not None:
             cr = self.env.cr
         if cr is not None:
-            self.env = odoo.api.Environment(cr, self.session.uid, self.session.context)
+            self.env = odoo.api.Environment(
+                cr, self.session.uid, self.session.context or {}
+            )
 
     def _inject_future_response(self, response: Response) -> Response:
         headers = response.headers

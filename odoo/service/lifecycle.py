@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from odoo import api, db
 from odoo.libs import gc
@@ -20,6 +21,7 @@ from odoo.release import nt_service_name
 from odoo.tools import config, profiler
 from odoo.tools.misc import stripped_sys_argv
 
+from ._base_server import CommonServer
 from ._env import _IS_POSIX, _IS_WINDOWS, env_float, env_int
 from ._watcher import (
     FSWatcherInotify,
@@ -28,9 +30,12 @@ from ._watcher import (
     watchdog,
 )
 
+if TYPE_CHECKING:
+    from odoo.db import BaseCursor
+
 _logger = logging.getLogger("odoo.service.server")
 
-server = None
+server: CommonServer | None = None
 server_phoenix = False
 
 
@@ -95,7 +100,7 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     if post_install_suite.has_http_case():
         with registry.cursor() as cr:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
-            env["ir.qweb"]._pregenerate_assets_bundles()
+            env["ir.qweb"]._pregenerate_assets_bundles()  # type: ignore[attr-defined]
 
     result = loader.run_suite(
         post_install_suite,
@@ -228,6 +233,11 @@ def _connection_budget_demand() -> tuple[int, int]:
     return processes, demand
 
 
+def _scalar(cr: BaseCursor) -> Any:
+    row = cr.fetchone()
+    return row[0] if row else None
+
+
 def _warn_on_connection_budget() -> None:
     import odoo
 
@@ -238,11 +248,11 @@ def _warn_on_connection_budget() -> None:
         configured_port = config["db_port"]
         with contextlib.closing(db.db_connect("postgres").cursor()) as cr:
             cr.execute("SHOW max_connections")
-            server_max = int(cr.fetchone()[0])
+            server_max = int(_scalar(cr))
             cr.execute("SHOW superuser_reserved_connections")
-            reserved = int(cr.fetchone()[0])
+            reserved = int(_scalar(cr))
             cr.execute("SELECT inet_server_port()")
-            server_port = cr.fetchone()[0]
+            server_port = _scalar(cr)
     except Exception:
         _logger.debug("Could not check the connection budget", exc_info=True)
         return

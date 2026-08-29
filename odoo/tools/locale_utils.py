@@ -55,7 +55,9 @@ def get_lang(env: Environment, lang_code: str | None = None) -> LangData:
     elif (context_lang := env.context.get("lang")) in langs:
         lang = context_lang
     elif (
-        company_lang := env.user.with_context(lang="en_US").company_id.partner_id.lang
+        company_lang := env.user.with_context(  # type: ignore[attr-defined]
+            lang="en_US"
+        ).company_id.partner_id.lang
     ) in langs:
         lang = company_lang
     return env["res.lang"]._get_data(code=lang)

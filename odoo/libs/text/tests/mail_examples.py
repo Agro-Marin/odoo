@@ -404,7 +404,7 @@ GMAIL_1_IN = [
         '<div data-o-mail-quote="1"><br data-o-mail-quote="1"></div>'
     ),
 ]
-GMAIL_1_OUT = []
+GMAIL_1_OUT: list[str] = []
 
 HOTMAIL_1 = """<div>
     <div dir="ltr"><br>

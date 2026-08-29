@@ -6,6 +6,7 @@ import logging
 import sys
 import time
 import traceback
+import types
 import typing
 
 import odoo.db
@@ -13,6 +14,7 @@ from odoo import api, tools
 from odoo.api import Environment
 from odoo.db import schema
 from odoo.libs.hashing import cache_hash
+from odoo.logutils import RUNBOT
 from odoo.tools import OrderedSet
 from odoo.tools.convert import ConvertMode as LoadMode
 from odoo.tools.convert import IdRef, convert_file
@@ -33,7 +35,8 @@ LoadKind = typing.Literal["data", "demo"]
 if typing.TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
-    from odoo.db import BaseCursor
+    from odoo.db import BaseCursor, Cursor
+    from odoo.orm._protocols import IrCronProtocol, IrModuleModuleProtocol
     from odoo.tests.result import OdooTestResult
 
     from .module_graph import ModuleNode
@@ -58,6 +61,86 @@ def _scan_data_file(filename: str, content: bytes) -> tuple[str, bool]:
     return digest, dynamic
 
 
+_DEPRECATED_MANIFEST_KEYS = {
+    "init_xml": "module %s: key 'init_xml' is deprecated in Odoo 19.",
+    "demo_xml": "module %s: key 'demo_xml' is deprecated in Odoo 19, use 'demo'.",
+}
+
+
+def _read_stored_checksums(env: Environment, package: ModuleNode) -> dict:
+    env.cr.execute(
+        "SELECT data_file_checksums FROM ir_module_module WHERE id = %s",
+        [package.id],
+    )
+    row = env.cr.fetchone()
+    if not row:
+        return {}
+    stored = row[0]
+    if not isinstance(stored, dict) or stored.get("v") != _DATA_FILE_CHECKSUM_VERSION:
+        return {}
+    files = stored.get("files")
+    return files if isinstance(files, dict) else {}
+
+
+def _write_stored_checksums(
+    env: Environment, package: ModuleNode, new_files: dict
+) -> None:
+    env.cr.execute(
+        "UPDATE ir_module_module SET data_file_checksums = %s::jsonb WHERE id = %s",
+        [
+            json.dumps({"v": _DATA_FILE_CHECKSUM_VERSION, "files": new_files}),
+            package.id,
+        ],
+    )
+    env["ir.module.module"].invalidate_model(["data_file_checksums"])
+
+
+def _is_reusable_checksum_entry(entry: object, digest: str) -> typing.TypeGuard[dict]:
+    return (
+        isinstance(entry, dict)
+        and entry.get("sha") == digest
+        and not entry.get("dyn")
+        and isinstance(entry.get("xmlids"), list)
+    )
+
+
+def _load_tracked_file(
+    env: Environment,
+    package: ModuleNode,
+    filename: str,
+    idref: IdRef,
+    mode: LoadMode,
+    kind: LoadKind,
+    stored_files: dict,
+) -> dict:
+    with tools.file_open(f"{package.name}/{filename}", "rb", env=env) as fp:
+        content = fp.read()
+    digest, dynamic = _scan_data_file(filename, content)
+    registry = env.registry
+    entry = stored_files.get(filename)
+    if not dynamic and _is_reusable_checksum_entry(entry, digest):
+        registry.loaded_xmlids.update(entry["xmlids"])
+        _logger.info("skipping unchanged %s/%s", package.name, filename)
+        return entry
+
+    _logger.info("loading %s/%s", package.name, filename)
+    recorder: set[str] = set()
+    previous_recorder = registry._xmlid_recorder
+    registry._xmlid_recorder = recorder
+    try:
+        convert_file(
+            env,
+            package.name,
+            filename,
+            idref,
+            mode,
+            noupdate=kind == "demo",
+        )
+    finally:
+        registry._xmlid_recorder = previous_recorder
+    return {"sha": digest, "xmlids": sorted(recorder), "dyn": dynamic}
+
+
 def load_data(
     env: Environment,
     idref: IdRef,
@@ -67,37 +150,20 @@ def load_data(
 ) -> None:
     keys = ("init_xml", "data") if kind == "data" else ("demo", "demo_xml")
 
-    registry = env.registry
     track = (
         kind == "data"
         and mode == "update"
         and tools.config["skip_unchanged_data_files"]
         and schema.column_exists(env.cr, "ir_module_module", "data_file_checksums")
     )
-    stored_files: dict = {}
+    stored_files = _read_stored_checksums(env, package) if track else {}
     new_files: dict = {}
-    if track:
-        env.cr.execute(
-            "SELECT data_file_checksums FROM ir_module_module WHERE id = %s",
-            [package.id],
-        )
-        row = env.cr.fetchone()
-        stored = row[0] if row else None
-        if isinstance(stored, dict) and stored.get("v") == _DATA_FILE_CHECKSUM_VERSION:
-            stored_files = stored.get("files") or {}
 
     files: set[str] = set()
     for k in keys:
-        if k == "init_xml" and package.manifest[k]:
-            _logger.warning(
-                "module %s: key 'init_xml' is deprecated in Odoo 19.",
-                package.name,
-            )
-        if k == "demo_xml" and package.manifest[k]:
-            _logger.warning(
-                "module %s: key 'demo_xml' is deprecated in Odoo 19, use 'demo'.",
-                package.name,
-            )
+        deprecation = _DEPRECATED_MANIFEST_KEYS.get(k)
+        if deprecation and package.manifest[k]:
+            _logger.warning(deprecation, package.name)
         for filename in package.manifest[k]:
             if filename in files:
                 _logger.warning(
@@ -120,52 +186,12 @@ def load_data(
                 )
                 continue
 
-            with tools.file_open(f"{package.name}/{filename}", "rb", env=env) as fp:
-                content = fp.read()
-            digest, dynamic = _scan_data_file(filename, content)
-            entry = stored_files.get(filename)
-            if (
-                not dynamic
-                and isinstance(entry, dict)
-                and entry.get("sha") == digest
-                and not entry.get("dyn")
-                and isinstance(entry.get("xmlids"), list)
-            ):
-                registry.loaded_xmlids.update(entry["xmlids"])
-                new_files[filename] = entry
-                _logger.info("skipping unchanged %s/%s", package.name, filename)
-                continue
-
-            _logger.info("loading %s/%s", package.name, filename)
-            recorder: set[str] = set()
-            previous_recorder = getattr(registry, "_xmlid_recorder", None)
-            registry._xmlid_recorder = recorder
-            try:
-                convert_file(
-                    env,
-                    package.name,
-                    filename,
-                    idref,
-                    mode,
-                    noupdate=kind == "demo",
-                )
-            finally:
-                registry._xmlid_recorder = previous_recorder
-            new_files[filename] = {
-                "sha": digest,
-                "xmlids": sorted(recorder),
-                "dyn": dynamic,
-            }
+            new_files[filename] = _load_tracked_file(
+                env, package, filename, idref, mode, kind, stored_files
+            )
 
     if track:
-        env.cr.execute(
-            "UPDATE ir_module_module SET data_file_checksums = %s::jsonb WHERE id = %s",
-            [
-                json.dumps({"v": _DATA_FILE_CHECKSUM_VERSION, "files": new_files}),
-                package.id,
-            ],
-        )
-        env["ir.module.module"].invalidate_model(["data_file_checksums"])
+        _write_stored_checksums(env, package, new_files)
 
 
 def load_demo(
@@ -188,7 +214,7 @@ def load_demo(
         todo = env.ref("base.demo_failure_todo", raise_if_not_found=False)
         Failure = env.get("ir.demo_failure")
         if todo and Failure is not None:
-            todo.state = "open"
+            todo.write({"state": "open"})
             Failure.create({"module_id": package.id, "error": traceback.format_exc()})
         return False
 
@@ -248,6 +274,7 @@ UpdateOperation = typing.Literal["install", "upgrade", "reinit"]
 
 class _PackageLoader:
     __slots__ = (
+        "cr",
         "cursor_queries_at_start",
         "env",
         "extra_queries_at_start",
@@ -276,6 +303,7 @@ class _PackageLoader:
     def __init__(
         self,
         env: Environment,
+        cr: Cursor,
         package: ModuleNode,
         *,
         index: int,
@@ -289,6 +317,7 @@ class _PackageLoader:
         models_updated: set[str],
     ) -> None:
         self.env = env
+        self.cr = cr
         self.registry = env.registry
         self.package = package
         self.index = index
@@ -302,17 +331,17 @@ class _PackageLoader:
         self.models_updated = models_updated
 
         self.started_at = time.time()
-        self.cursor_queries_at_start = env.cr.sql_log_count
+        self.cursor_queries_at_start = cr.sql_log_count
         self.extra_queries_at_start = odoo.db.sql_counter
 
         self.operation: UpdateOperation | None = None
         self.log_level = logging.DEBUG
         self.model_names: OrderedSet[str] = OrderedSet()
-        self.module = None
-        self.py_module = None
+        self.module: IrModuleModuleProtocol = None  # type: ignore[assignment]
+        self.py_module: types.ModuleType = None  # type: ignore[assignment]
         self.test_time = 0.0
         self.test_queries = 0
-        self.test_results = None
+        self.test_results: OdooTestResult | None = None
 
     @property
     def name(self) -> str:
@@ -365,15 +394,15 @@ class _PackageLoader:
 
     def load_models(self) -> None:
         registry, package = self.registry, self.package
-        model_names = registry.load(package)
+        model_names: OrderedSet[str] = OrderedSet(registry.load(package))
 
         if self.operation:
             model_names = registry.descendants(model_names, "_inherit", "_inherits")
             self.models_updated.update(model_names)
             self.models_to_check -= model_names
-            registry._setup_models__(self.env.cr, [], skip_if_clean=True)
+            registry._setup_models__(self.cr, [], skip_if_clean=True)
             registry.init_models(
-                self.env.cr,
+                self.cr,
                 model_names,
                 {"module": package.name},
                 self.operation == "install",
@@ -400,7 +429,7 @@ class _PackageLoader:
                 package.demo = load_demo(env, package, idref, "init")
         else:
             self.module.write(self.module.get_values_from_terp(package.manifest))
-            mode = "update" if self.operation == "upgrade" else "init"
+            mode: LoadMode = "update" if self.operation == "upgrade" else "init"
             load_data(env, idref, mode, kind="data", package=package)
             if package.demo:
                 package.demo = load_demo(env, package, idref, mode)
@@ -434,7 +463,7 @@ class _PackageLoader:
         _warn_models_without_access_rules(env, self.name, self.model_names, registry)
         registry.updated_modules.append(self.name)
 
-        values = {
+        values: dict[str, str | None] = {
             "state": "installed",
             "db_version": adapt_version(self.package.manifest["version"]),
         }
@@ -463,8 +492,8 @@ class _PackageLoader:
         if not suite.countTestCases():
             return
         if not self.operation:
-            self.registry._setup_models__(self.env.cr, [], skip_if_clean=True)
-        self.registry.check_null_constraints(self.env.cr)
+            self.registry._setup_models__(self.cr, [], skip_if_clean=True)
+        self.registry.check_null_constraints(self.cr)
         tests_t0, tests_q0 = time.time(), odoo.db.sql_counter
         self.test_results = loader.run_suite(suite, global_report=self.report)
         assert self.report is not None, "Missing report during tests"
@@ -487,7 +516,7 @@ class _PackageLoader:
             self.name,
             time.time() - self.started_at,
             f" (incl. {self.test_time:.2f}s test)" if self.test_time else "",
-            self.env.cr.sql_log_count - self.cursor_queries_at_start,
+            self.cr.sql_log_count - self.cursor_queries_at_start,
             f" ({', '.join(extras)})" if extras else "",
         )
         results = self.test_results
@@ -543,14 +572,15 @@ def load_module_graph(
         models_to_check = OrderedSet()
 
     registry = env.registry
-    assert isinstance(env.cr, odoo.db.Cursor), "Need for a real Cursor to load modules"
-    migrations = MigrationManager(env.cr, graph)
+    cr = env.cr
+    assert isinstance(cr, odoo.db.Cursor), "Need for a real Cursor to load modules"
+    migrations = MigrationManager(cr, graph)
     module_count = len(graph)
     _logger.info("loading %d modules...", module_count)
 
     t0 = time.time()
     extra_queries_at_start = odoo.db.sql_counter
-    cursor_queries_at_start = env.cr.sql_log_count
+    cursor_queries_at_start = cr.sql_log_count
 
     models_updated: set[str] = set()
     gc_sweeps = 0
@@ -561,6 +591,7 @@ def load_module_graph(
                 continue
             _PackageLoader(
                 env,
+                cr,
                 package,
                 index=index,
                 module_count=module_count,
@@ -577,11 +608,12 @@ def load_module_graph(
     finally:
         gc.unfreeze()
 
-    _logger.runbot(
+    _logger.log(
+        RUNBOT,
         "%s modules loaded in %.2fs, %s queries (+%s extra)",
         len(graph),
         time.time() - t0,
-        env.cr.sql_log_count - cursor_queries_at_start,
+        cr.sql_log_count - cursor_queries_at_start,
         odoo.db.sql_counter - extra_queries_at_start,
     )
 
@@ -627,7 +659,7 @@ class _ModuleLoader:
     def __init__(
         self,
         registry: Registry,
-        cr: BaseCursor,
+        cr: Cursor,
         *,
         update_module: bool,
         upgrade_modules: Collection[str],
@@ -647,8 +679,8 @@ class _ModuleLoader:
         self.new_db_demo = new_db_demo
         self.models_to_check = models_to_check
         self.graph: ModuleGraph = None  # type: ignore[assignment]
-        self.env = None  # type: ignore[assignment]
-        self.report = None
+        self.env: Environment = None  # type: ignore[assignment]
+        self.report: OdooTestResult | None = None
 
     def bootstrap(self) -> bool:
         cr = self.cr
@@ -684,7 +716,7 @@ class _ModuleLoader:
             return
         for pyfile in tools.config["pre_upgrade_scripts"]:
             odoo.modules.migration.exec_script(
-                self.cr, self.graph["base"].db_version, pyfile, "base", "pre"
+                self.cr, self.graph["base"].db_version or "", pyfile, "base", "pre"
             )
 
     def capture_database_field_metadata(self) -> None:
@@ -719,9 +751,7 @@ class _ModuleLoader:
 
     def load_languages(self) -> None:
         load_lang = tools.config.get("load_language")
-        lang_pending = bool(load_lang) and not getattr(
-            self.registry, "_load_language_done", False
-        )
+        lang_pending = bool(load_lang) and not self.registry._load_language_done
         if lang_pending or self.update_module:
             self.registry._setup_models__(self.cr, [], skip_if_clean=True)
 
@@ -797,10 +827,9 @@ class _ModuleLoader:
     def converge_module_graph(self) -> None:
         env = self.env
         while True:
+            states: tuple[str, ...] = ("installed", "to upgrade", "to remove")
             if self.update_module:
-                states = ("installed", "to upgrade", "to remove", "to install")
-            else:
-                states = ("installed", "to upgrade", "to remove")
+                states += ("to install",)
             env.cr.execute(
                 "SELECT name from ir_module_module WHERE state = ANY(%s)",
                 [list(states)],
@@ -909,7 +938,8 @@ class _ModuleLoader:
             if model in self.registry:
                 env[model]._check_removed_columns()
             elif _logger.isEnabledFor(logging.INFO):
-                _logger.runbot(
+                _logger.log(
+                    RUNBOT,
                     "Model %s is declared but cannot be loaded! (Perhaps a module was partially removed or renamed)",
                     model,
                 )
@@ -917,7 +947,10 @@ class _ModuleLoader:
         self._reflect_inherits_across_the_whole_registry()
 
         env["ir.model.data"]._process_end(self.registry.updated_modules)
-        vacuum_cron = env.ref("base.autovacuum_job", raise_if_not_found=False)
+        vacuum_cron = typing.cast(
+            "IrCronProtocol | None",
+            env.ref("base.autovacuum_job", raise_if_not_found=False),
+        )
         if vacuum_cron:
             trigger_at = datetime.datetime.now(datetime.UTC).replace(
                 tzinfo=None
@@ -927,29 +960,6 @@ class _ModuleLoader:
         env.flush_all()
 
     def _reflect_inherits_across_the_whole_registry(self) -> None:
-        """Re-register the inherit xmlids an updated module owns on someone else's model.
-
-        ``_reflect_inherits`` writes one xmlid per module in the child model's
-        MRO, so a module that only *declares a mixin* owns rows keyed on models
-        it does not extend: ``base.model_inherit__mail_guest__mixin_image``
-        exists because ``mixin.avatar`` is base's, not because base knows what
-        ``mail.guest`` is.
-
-        ``_PackageLoader.load_models`` cannot register those. It widens its scope
-        with ``descendants``, but modules load in graph order and base loads
-        first, when ``mail.guest`` is not in the registry to be found; and the
-        pass that would catch it later, ``models_to_check``, intersects with
-        models base had already updated, which for the same reason it is not in.
-        So on a plain ``-u base`` the row is never re-reflected, never re-enters
-        ``loaded_xmlids``, and ``_process_end`` reaps it as an orphan -- deleting
-        a live inheritance link, at INFO level, exit 0.
-
-        The closure is only knowable here, once every module has contributed its
-        models, and it has to run before ``_process_end`` rather than alongside
-        the other late model work in ``reinit_models_to_check``, which runs after
-        the reap. Reflecting the whole registry is idempotent: every row it
-        upserts is one the tree already describes.
-        """
         if not self.registry.updated_modules:
             return
         self.env["ir.model.inherit"]._reflect_inherits(list(self.registry.models))
@@ -1055,6 +1065,7 @@ def load_modules(
     initialize_sys_path()
 
     with registry.cursor() as cr:
+        assert isinstance(cr, odoo.db.Cursor), "Need a real Cursor to load modules"
         loader = _ModuleLoader(
             registry,
             cr,

@@ -13,6 +13,48 @@ if TYPE_CHECKING:
 _Collector = Collector
 
 
+def _stored_compute_adjacency(triggers: defaultdict) -> dict:
+    all_targets: set = set()
+    for dep_field, paths in triggers.items():
+        for targets in paths.values():
+            for target in targets:
+                if target.store and target.compute:
+                    all_targets.add(target)
+                    if dep_field.store and dep_field.compute:
+                        all_targets.add(dep_field)
+
+    adjacency: dict = {field: set() for field in all_targets}
+    for dep_field, paths in triggers.items():
+        if dep_field not in all_targets:
+            continue
+        dep_adjacency = adjacency[dep_field]
+        for targets in paths.values():
+            for target in targets:
+                if target in all_targets and target is not dep_field:
+                    dep_adjacency.add(target)
+    return adjacency
+
+
+def _condense_components(
+    adjacency: dict, sccs: list
+) -> tuple[dict, list[set[int]], list[int]]:
+    component_of: dict = {}
+    for component_index, component in enumerate(sccs):
+        for field in component:
+            component_of[field] = component_index
+    component_adjacency: list[set[int]] = [set() for _ in sccs]
+    component_in_degree: list[int] = [0] * len(sccs)
+    for field, dependents in adjacency.items():
+        source = component_of[field]
+        source_adjacency = component_adjacency[source]
+        for dependent in dependents:
+            sink = component_of[dependent]
+            if sink != source and sink not in source_adjacency:
+                source_adjacency.add(sink)
+                component_in_degree[sink] += 1
+    return component_of, component_adjacency, component_in_degree
+
+
 class TriggerTree(dict):
     __slots__ = ("root",)
     root: Collection
@@ -336,42 +378,11 @@ class ModelGraph:
     def _compute_recompute_order(
         triggers: defaultdict,
     ) -> dict[FieldLike, int]:
-        all_targets: set[FieldLike] = set()
-        for dep_field, paths in triggers.items():
-            for targets in paths.values():
-                for target in targets:
-                    if target.store and target.compute:
-                        all_targets.add(target)
-                        if dep_field.store and dep_field.compute:
-                            all_targets.add(dep_field)
-
-        adjacency: dict[FieldLike, set[FieldLike]] = {
-            field: set() for field in all_targets
-        }
-        for dep_field, paths in triggers.items():
-            if dep_field not in all_targets:
-                continue
-            dep_adjacency = adjacency[dep_field]
-            for targets in paths.values():
-                for target in targets:
-                    if target in all_targets and target is not dep_field:
-                        dep_adjacency.add(target)
-
+        adjacency = _stored_compute_adjacency(triggers)
         sccs = _strongly_connected_components(adjacency)
-        component_of: dict[FieldLike, int] = {}
-        for component_index, component in enumerate(sccs):
-            for field in component:
-                component_of[field] = component_index
-        component_adjacency: list[set[int]] = [set() for _ in sccs]
-        component_in_degree: list[int] = [0] * len(sccs)
-        for field, dependents in adjacency.items():
-            source = component_of[field]
-            source_adjacency = component_adjacency[source]
-            for dependent in dependents:
-                sink = component_of[dependent]
-                if sink != source and sink not in source_adjacency:
-                    source_adjacency.add(sink)
-                    component_in_degree[sink] += 1
+        _, component_adjacency, component_in_degree = _condense_components(
+            adjacency, sccs
+        )
 
         queue: list[int] = [
             index for index, degree in enumerate(component_in_degree) if degree == 0

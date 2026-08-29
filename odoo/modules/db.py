@@ -14,7 +14,10 @@ from odoo.modules._protocols import SqlReader
 from .registry import Registry
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from odoo.db import Cursor
+    from odoo.modules.module import Manifest
 
 _logger = logging.getLogger(__name__)
 
@@ -71,9 +74,6 @@ _MODULE_COLUMNS = (
 )
 
 _MODULE_INSERT_CHUNK = 1000
-"""Rows per INSERT. The extended protocol caps a statement at 65535 parameters,
-which is 4681 rows over these 14 columns; this workspace already carries 1554
-modules, so the ceiling is close enough to be worth not standing on."""
 
 
 def _insert_modules(cr: SqlReader, rows: list[tuple]) -> dict[str, int]:
@@ -91,7 +91,7 @@ def _insert_modules(cr: SqlReader, rows: list[tuple]) -> dict[str, int]:
     return ids
 
 
-def initialize(cr: Cursor) -> None:
+def _run_base_schema_script(cr: Cursor) -> None:
     try:
         f = odoo.tools.misc.file_path("base/data/base_data.sql")
     except FileNotFoundError as e:
@@ -102,31 +102,12 @@ def initialize(cr: Cursor) -> None:
     with odoo.tools.misc.file_open(f) as base_sql_file:
         cr.execute(base_sql_file.read())
 
-    manifests = odoo.modules.Manifest.all_addon_manifests()
-    category_cache: dict[str, int] = {}
-    module_rows = [
-        (
-            info["author"],
-            info["website"],
-            info.name,
-            Json({"en_US": info["name"]}),
-            Json({"en_US": info["description"]}),
-            create_categories(cr, info["category"].split("/"), category_cache),
-            info["auto_install"] is not False,
-            "uninstalled" if info["installable"] else "uninstallable",
-            info["web"],
-            info["license"],
-            info["application"],
-            info["icon"],
-            info["sequence"],
-            Json({"en_US": info["summary"]}),
-        )
-        for info in manifests
-    ]
-    module_ids = _insert_modules(cr, module_rows)
 
-    all_data_rows = []
-    all_dep_rows = []
+def _copy_module_metadata(
+    cr: Cursor, manifests: Iterable[Manifest], module_ids: dict[str, int]
+) -> None:
+    all_data_rows: list[tuple[str, str, str, int, bool]] = []
+    all_dep_rows: list[tuple[int, str, bool]] = []
     for info in manifests:
         module_id = module_ids[info.name]
         all_data_rows.append(
@@ -154,12 +135,8 @@ def initialize(cr: Cursor) -> None:
             all_dep_rows,
         )
 
-    if odoo.tools.config.get("skip_auto_install"):
-        cr.execute(
-            """UPDATE ir_module_module SET state='to install' WHERE name = 'base'"""
-        )
-        return
 
+def _mark_auto_install_modules(cr: Cursor) -> None:
     while True:
         cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)
         to_auto_install = [x[0] for x in cr.fetchall()]
@@ -172,6 +149,42 @@ def initialize(cr: Cursor) -> None:
             """UPDATE ir_module_module SET state='to install' WHERE name = ANY(%s)""",
             (list(to_auto_install),),
         )
+
+
+def initialize(cr: Cursor) -> None:
+    _run_base_schema_script(cr)
+
+    manifests = odoo.modules.Manifest.all_addon_manifests()
+    category_cache: dict[str, int] = {}
+    module_rows = [
+        (
+            info["author"],
+            info["website"],
+            info.name,
+            Json({"en_US": info["name"]}),
+            Json({"en_US": info["description"]}),
+            create_categories(cr, info["category"].split("/"), category_cache),
+            info["auto_install"] is not False,
+            "uninstalled" if info["installable"] else "uninstallable",
+            info["web"],
+            info["license"],
+            info["application"],
+            info["icon"],
+            info["sequence"],
+            Json({"en_US": info["summary"]}),
+        )
+        for info in manifests
+    ]
+    module_ids = _insert_modules(cr, module_rows)
+    _copy_module_metadata(cr, manifests, module_ids)
+
+    if odoo.tools.config.get("skip_auto_install"):
+        cr.execute(
+            """UPDATE ir_module_module SET state='to install' WHERE name = 'base'"""
+        )
+        return
+
+    _mark_auto_install_modules(cr)
 
 
 def create_categories(

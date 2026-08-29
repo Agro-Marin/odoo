@@ -205,8 +205,8 @@ class ormcache:
                 d[key] = value
             return value
 
-        lookup.__cache__ = self
-        return lookup
+        lookup.__cache__ = self  # type: ignore[attr-defined]
+        return typing.cast("C", lookup)
 
     def add_value(
         self,
@@ -271,6 +271,178 @@ class ormcache_context(ormcache):
         super().determine_key()
 
 
+class _StatsLine:
+    __slots__ = ["counter", "method", "nb_entries", "sz_entries_max", "sz_entries_sum"]
+
+    def __init__(self, method: Callable, counter: ormcache_counter) -> None:
+        self.sz_entries_sum: int = 0
+        self.sz_entries_max: int = 0
+        self.nb_entries: int = 0
+        self.counter = counter
+        self.method = method
+
+
+type _CacheStats = defaultdict[str, dict[Callable, _StatsLine]]
+type _CacheUsage = defaultdict[str, list[tuple[str, int, int, int]]]
+
+
+def _keep_logging_ormcache_stats() -> bool:
+    if _logger_state == "run":
+        return True
+    _logger.info("Stopping logging ORM cache stats")
+    return False
+
+
+def _collect_ormcache_stats(show_size: bool) -> tuple[_CacheStats, _CacheUsage] | None:
+    from odoo.modules.registry import Registry
+
+    cache_stats: _CacheStats = defaultdict(dict)
+    cache_usage: _CacheUsage = defaultdict(list)
+
+    registries = Registry.registries.snapshot
+    class_slots: dict[type, tuple[str, ...]] = {}
+    for i, (dbname, registry) in enumerate(registries.items(), start=1):
+        if not _keep_logging_ormcache_stats():
+            return None
+        _logger.info("Processing database %s (%d/%d)", dbname, i, len(registries))
+        db_cache_stats = cache_stats[dbname]
+        db_cache_usage = cache_usage[dbname]
+        for cache_name, cache in registry.ormcache_lrus.items():
+            cache_total_size = 0
+            for cache_key, cache_value in cache.snapshot.items():
+                method = cache_key[1]
+                stats = db_cache_stats.get(method)
+                if stats is None:
+                    stats = db_cache_stats[method] = _StatsLine(
+                        method, _COUNTERS[dbname, method]
+                    )
+                stats.nb_entries += 1
+                if not show_size:
+                    continue
+                size = get_cache_size(
+                    (cache_key, cache_value),
+                    cache_info=method.__qualname__,
+                    class_slots=class_slots,
+                )
+                cache_total_size += size
+                stats.sz_entries_sum += size
+                stats.sz_entries_max = max(stats.sz_entries_max, size)
+            db_cache_usage.append(
+                (cache_name, len(cache), cache.count, cache_total_size)
+            )
+
+    for (dbname, method), counter in _COUNTERS.copy().items():
+        if not _keep_logging_ormcache_stats():
+            return None
+        db_cache_stats = cache_stats[dbname]
+        if db_cache_stats.get(method) is None:
+            db_cache_stats[method] = _StatsLine(method, counter)
+
+    return cache_stats, cache_usage
+
+
+def _ormcache_stats_header(show_size: bool) -> list[str]:
+    log_msgs = ["Caches stats:"]
+    if not _TX_STATS_ENABLED:
+        log_msgs.append(
+            "(TX Hit Ratio / TX Call disabled \u2014 set ODOO_ORMCACHE_TX_STATS=1"
+            " to collect per-transaction stats)"
+        )
+    size_column_info = (
+        (f"{'Memory %':>10},{'Memory SUM':>12},{'Memory MAX':>12},")
+        if show_size
+        else ""
+    )
+    log_msgs.append(
+        f"{'Cache Name':>25},"
+        f"{'Entry':>7},"
+        f"{size_column_info}"
+        f"{'Hit':>6},"
+        f"{'Miss':>6},"
+        f"{'Err':>6},"
+        f"{'Gen Time [s]':>13},"
+        f"{'Hit Ratio':>10},"
+        f"{'TX Hit Ratio':>13},"
+        f"{'TX Call':>8},"
+        "  Method"
+    )
+    return log_msgs
+
+
+def _ormcache_stats_row(stat: _StatsLine, sz_entries_all: int, show_size: bool) -> str:
+    size_data = (
+        (
+            f"{stat.sz_entries_sum / (sz_entries_all or 1) * 100:9.1f}%,"
+            f"{stat.sz_entries_sum:12d},"
+            f"{stat.sz_entries_max:12d},"
+        )
+        if show_size
+        else ""
+    )
+    return (
+        f"{stat.counter.cache_name:>25},"
+        f"{stat.nb_entries:7d},"
+        f"{size_data}"
+        f"{stat.counter.hit:6d},"
+        f"{stat.counter.miss:6d},"
+        f"{stat.counter.err:6d},"
+        f"{stat.counter.gen_time:13.3f},"
+        f"{stat.counter.ratio:9.1f}%,"
+        f"{stat.counter.tx_ratio:12.1f}%,"
+        f"{stat.counter.tx_calls:8d},"
+        f"  {stat.method.__qualname__}"
+    )
+
+
+def _format_ormcache_stats(
+    cache_stats: _CacheStats, cache_usage: _CacheUsage, show_size: bool
+) -> list[str] | None:
+    header = _ormcache_stats_header(show_size)
+    column_info = header[-1]
+    log_msgs = header[:-1]
+
+    for dbname, db_cache_stats in sorted(
+        cache_stats.items(), key=lambda k: k[0] or "~"
+    ):
+        if not _keep_logging_ormcache_stats():
+            return None
+        log_msgs.append(f"Database {dbname or '<no_db>'}:")
+        log_msgs.extend(
+            f" * {cache_name}: {entries}/{count}"
+            f"{f' ({cache_total_size} bytes)' if cache_total_size else ''}"
+            for cache_name, entries, count, cache_total_size in cache_usage[dbname]
+        )
+        log_msgs.append("Details:")
+
+        db_cache_stat = sorted(
+            db_cache_stats.items(), key=lambda k: (-k[1].sz_entries_sum, k[0].__name__)
+        )
+        sz_entries_all = sum(stat.sz_entries_sum for _, stat in db_cache_stat)
+        log_msgs.append(column_info)
+        log_msgs.extend(
+            _ormcache_stats_row(stat, sz_entries_all, show_size)
+            for _method, stat in db_cache_stat
+        )
+    return log_msgs
+
+
+def _run_ormcache_stats(show_size: bool) -> None:
+    global _logger_state  # noqa: PLW0603  process-wide cache-stats logging state
+    try:
+        collected = _collect_ormcache_stats(show_size)
+        if collected is None:
+            return
+        log_msgs = _format_ormcache_stats(*collected, show_size)
+        if log_msgs is None:
+            return
+        _logger.info("\n".join(log_msgs))
+    except Exception:
+        _logger.exception("error while logging ormcache statistics")
+    finally:
+        with _logger_lock:
+            _logger_state = "wait"
+
+
 def log_ormcache_stats(
     sig: int | None = None,
     frame: Any = None,
@@ -286,155 +458,9 @@ def log_ormcache_stats(
             return
         _logger_state = "run"
 
-    def check_continue_logging() -> bool:
-        if _logger_state == "run":
-            return True
-        _logger.info("Stopping logging ORM cache stats")
-        return False
-
-    class StatsLine:
-        def __init__(self, method: Callable, counter: ormcache_counter) -> None:
-            self.sz_entries_sum: int = 0
-            self.sz_entries_max: int = 0
-            self.nb_entries: int = 0
-            self.counter = counter
-            self.method = method
-
-    def _log_ormcache_stats() -> None:
-        from odoo.modules.registry import Registry
-
-        try:
-            cache_stats: defaultdict[str, dict[Callable, StatsLine]] = defaultdict(dict)
-            cache_usage: defaultdict[str, list[tuple[str, int, int, int]]] = (
-                defaultdict(list)
-            )
-
-            registries = Registry.registries.snapshot
-            class_slots: dict[type, tuple[str, ...]] = {}
-            for i, (dbname, registry) in enumerate(registries.items(), start=1):
-                if not check_continue_logging():
-                    return
-                _logger.info(
-                    "Processing database %s (%d/%d)", dbname, i, len(registries)
-                )
-                db_cache_stats = cache_stats[dbname]
-                db_cache_usage = cache_usage[dbname]
-                for cache_name, cache in registry.ormcache_lrus.items():
-                    cache_total_size = 0
-                    for cache_key, cache_value in cache.snapshot.items():
-                        method = cache_key[1]
-                        stats = db_cache_stats.get(method)
-                        if stats is None:
-                            stats = db_cache_stats[method] = StatsLine(
-                                method, _COUNTERS[dbname, method]
-                            )
-                        stats.nb_entries += 1
-                        if not show_size:
-                            continue
-                        size = get_cache_size(
-                            (cache_key, cache_value),
-                            cache_info=method.__qualname__,
-                            class_slots=class_slots,
-                        )
-                        cache_total_size += size
-                        stats.sz_entries_sum += size
-                        stats.sz_entries_max = max(stats.sz_entries_max, size)
-                    db_cache_usage.append(
-                        (cache_name, len(cache), cache.count, cache_total_size)
-                    )
-
-            for (
-                (
-                    dbname,
-                    method,
-                ),
-                counter,
-            ) in _COUNTERS.copy().items():
-                if not check_continue_logging():
-                    return
-                db_cache_stats = cache_stats[dbname]
-                stats = db_cache_stats.get(method)
-                if stats is None:
-                    db_cache_stats[method] = StatsLine(method, counter)
-
-            log_msgs = ["Caches stats:"]
-            if not _TX_STATS_ENABLED:
-                log_msgs.append(
-                    "(TX Hit Ratio / TX Call disabled — set ODOO_ORMCACHE_TX_STATS=1"
-                    " to collect per-transaction stats)"
-                )
-            size_column_info = (
-                (f"{'Memory %':>10},{'Memory SUM':>12},{'Memory MAX':>12},")
-                if show_size
-                else ""
-            )
-            column_info = (
-                f"{'Cache Name':>25},"
-                f"{'Entry':>7},"
-                f"{size_column_info}"
-                f"{'Hit':>6},"
-                f"{'Miss':>6},"
-                f"{'Err':>6},"
-                f"{'Gen Time [s]':>13},"
-                f"{'Hit Ratio':>10},"
-                f"{'TX Hit Ratio':>13},"
-                f"{'TX Call':>8},"
-                "  Method"
-            )
-
-            for dbname, db_cache_stats in sorted(
-                cache_stats.items(), key=lambda k: k[0] or "~"
-            ):
-                if not check_continue_logging():
-                    return
-                log_msgs.append(f"Database {dbname or '<no_db>'}:")
-                log_msgs.extend(
-                    f" * {cache_name}: {entries}/{count}{' (' if cache_total_size else ''}{cache_total_size}{' bytes)' if cache_total_size else ''}"
-                    for cache_name, entries, count, cache_total_size in cache_usage[
-                        dbname
-                    ]
-                )
-                log_msgs.append("Details:")
-
-                db_cache_stat = sorted(
-                    db_cache_stats.items(),
-                    key=lambda k: (-k[1].sz_entries_sum, k[0].__name__),
-                )
-                sz_entries_all = sum(stat.sz_entries_sum for _, stat in db_cache_stat)
-                log_msgs.append(column_info)
-                for method, stat in db_cache_stat:
-                    size_data = (
-                        (
-                            f"{stat.sz_entries_sum / (sz_entries_all or 1) * 100:9.1f}%,"
-                            f"{stat.sz_entries_sum:12d},"
-                            f"{stat.sz_entries_max:12d},"
-                        )
-                        if show_size
-                        else ""
-                    )
-                    log_msgs.append(
-                        f"{stat.counter.cache_name:>25},"
-                        f"{stat.nb_entries:7d},"
-                        f"{size_data}"
-                        f"{stat.counter.hit:6d},"
-                        f"{stat.counter.miss:6d},"
-                        f"{stat.counter.err:6d},"
-                        f"{stat.counter.gen_time:13.3f},"
-                        f"{stat.counter.ratio:9.1f}%,"
-                        f"{stat.counter.tx_ratio:12.1f}%,"
-                        f"{stat.counter.tx_calls:8d},"
-                        f"  {method.__qualname__}"
-                    )
-            _logger.info("\n".join(log_msgs))
-        except Exception:
-            _logger.exception("error while logging ormcache statistics")
-        finally:
-            global _logger_state  # noqa: PLW0603  process-wide cache-stats logging state
-            with _logger_lock:
-                _logger_state = "wait"
-
     threading.Thread(
-        target=_log_ormcache_stats,
+        target=_run_ormcache_stats,
+        args=(show_size,),
         name=(
             "odoo.signal.log_ormcache_stats_with_size"
             if show_size

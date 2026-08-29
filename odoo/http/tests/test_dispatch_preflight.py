@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 from werkzeug.exceptions import HTTPException
 
+from odoo.http._protocols import RequestState
 from odoo.http.dispatcher import (
     HttpDispatcher,
     Json2Dispatcher,
@@ -175,7 +176,7 @@ def test_unmatched_json_error_keeps_the_status_code():
 
     captured = {}
 
-    class _Req:
+    class _Req(RequestState):
         def make_json_response(self, data, headers=None, cookies=None, status=200):
             captured["status"] = status
             return data

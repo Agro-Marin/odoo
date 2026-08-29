@@ -49,6 +49,8 @@ class _LexerWorker:
             )
         except OSError:
             return None
+        if proc.stdin is None or proc.stdout is None:
+            return None
         os.set_blocking(proc.stdin.fileno(), False)
         os.set_blocking(proc.stdout.fileno(), False)
         self._inbuf = b""
@@ -69,6 +71,7 @@ class _LexerWorker:
                 proc.wait(timeout=5)
 
     def _write_all(self, proc: subprocess.Popen, data: bytes, deadline: float) -> None:
+        assert proc.stdin is not None
         fd = proc.stdin.fileno()
         view = memoryview(data)
         while view:
@@ -87,6 +90,7 @@ class _LexerWorker:
             view = view[written:]
 
     def _read_line(self, proc: subprocess.Popen, deadline: float) -> str:
+        assert proc.stdout is not None
         fd = proc.stdout.fileno()
         while True:
             newline = self._inbuf.find(b"\n")

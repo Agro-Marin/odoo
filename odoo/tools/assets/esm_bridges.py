@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import Any, Protocol
 from urllib.parse import quote
 
 from odoo import modules
@@ -62,7 +62,7 @@ class BridgeShimManager:
         ]
         if not stale:
             return
-        cr = self.env.cr
+        cr: Any = self.env.cr
         if cr.readonly:
             log_event(
                 _bridge_log,
@@ -194,7 +194,7 @@ class BridgeShimManager:
                 src,
                 source_map=source_map,
                 importing_specifier=specifier,
-                importing_url=asset.url or None,
+                importing_url=getattr(asset, "url", None) or None,
                 _exports_cache=exports_cache,
             )
             shim, _star = _bridge_shim_source(

@@ -27,8 +27,8 @@ except ImportError:
     Certificate = None
     load_pem_x509_certificate = None
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING, NamedTuple
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from odoo.tools.pdf import (
     ArrayObject,
@@ -90,9 +90,10 @@ class PdfSigner:
         if not self.company or not load_pem_x509_certificate:
             return None
 
-        _dummy, sig_field_value = self._setup_form(
-            visible_signature, field_name, signer
-        )
+        form = self._setup_form(visible_signature, field_name, signer)
+        if form is None:
+            return None
+        _dummy, sig_field_value = form
 
         if not self._perform_signature(sig_field_value):
             return None
@@ -104,115 +105,89 @@ class PdfSigner:
     def _load_key_and_certificate(
         self,
     ) -> tuple[PrivateKeyTypes | None, Certificate | None]:
+        company: Any = self.company
         if (
-            "signing_certificate_id" not in self.company._fields
-            or not self.company.signing_certificate_id.pem_certificate
+            company is None
+            or "signing_certificate_id" not in company._fields
+            or not company.signing_certificate_id.pem_certificate
         ):
             return None, None
 
-        certificate = self.company.signing_certificate_id
+        certificate = company.signing_certificate_id
         cert_bytes = base64.decodebytes(certificate.pem_certificate)
         private_key_bytes = base64.decodebytes(certificate.private_key_id.content)
         return load_pem_private_key(private_key_bytes, None), load_pem_x509_certificate(
             cert_bytes
         )
 
-    def _setup_form(
-        self,
-        visible_signature: bool,
-        field_name: str,
-        signer: ResUsers | None = None,
-    ) -> tuple[DictionaryObject, DictionaryObject] | None:
+    def _acro_form(self) -> DictionaryObject:
         if "/AcroForm" not in self.writer._root_object:
             form = DictionaryObject()
             form.update({NameObject("/SigFlags"): NumberObject(3)})
-            form_ref = self.writer._add_object(form)
-
-            self.writer._root_object.update({NameObject("/AcroForm"): form_ref})
+            self.writer._root_object.update(
+                {NameObject("/AcroForm"): self.writer._add_object(form)}
+            )
         else:
             form = self.writer._root_object["/AcroForm"].get_object()
-
             form.update({NameObject("/SigFlags"): NumberObject(3)})
+        return form
 
-        page = self.writer.pages[0]
-
-        signature_field = DictionaryObject()
-
-        signature_field.update(
+    @staticmethod
+    def _appearance_resources() -> DictionaryObject:
+        return DictionaryObject(
             {
-                NameObject("/FT"): NameObject("/Sig"),
-                NameObject("/T"): create_string_object(field_name),
-                NameObject("/Type"): NameObject("/Annot"),
-                NameObject("/Subtype"): NameObject("/Widget"),
-                NameObject("/F"): NumberObject(132),
-                NameObject("/P"): page.indirect_reference,
+                NameObject("/Font"): DictionaryObject(
+                    {
+                        NameObject("/F1"): DictionaryObject(
+                            {
+                                NameObject("/Type"): NameObject("/Font"),
+                                NameObject("/Subtype"): NameObject("/Type1"),
+                                NameObject("/BaseFont"): NameObject("/Helvetica"),
+                            }
+                        )
+                    }
+                )
             }
         )
 
-        if visible_signature:
-            origin = page.mediabox.upper_right
-            rect_size = (200, 20)
-            padding = 5
+    def _visible_appearance(
+        self, page, signer: ResUsers | None
+    ) -> tuple[list[float], DictionaryObject]:
+        origin = page.mediabox.upper_right
+        rect_size = (200, 20)
+        padding = 5
+        rect = [
+            origin[0] - rect_size[0] - padding,
+            origin[1] - rect_size[1] - padding,
+            origin[0] - padding,
+            origin[1] - padding,
+        ]
 
-            rect = [
-                origin[0] - rect_size[0] - padding,
-                origin[1] - rect_size[1] - padding,
-                origin[0] - padding,
-                origin[1] - padding,
-            ]
-
-            stream = StreamObject()
-            stream.update(
-                {
-                    NameObject("/BBox"): self._create_number_array_object(
-                        [0, 0, rect_size[0], rect_size[1]]
-                    ),
-                    NameObject("/Resources"): DictionaryObject(
-                        {
-                            NameObject("/Font"): DictionaryObject(
-                                {
-                                    NameObject("/F1"): DictionaryObject(
-                                        {
-                                            NameObject("/Type"): NameObject("/Font"),
-                                            NameObject("/Subtype"): NameObject(
-                                                "/Type1"
-                                            ),
-                                            NameObject("/BaseFont"): NameObject(
-                                                "/Helvetica"
-                                            ),
-                                        }
-                                    )
-                                }
-                            )
-                        }
-                    ),
-                    NameObject("/Type"): NameObject("/XObject"),
-                    NameObject("/Subtype"): NameObject("/Form"),
-                }
-            )
-
-            content = "Digitally signed"
-            if signer is not None:
-                content = f"{content} by {signer.name} <{signer.email}>"
-
-            stream._data = (
-                f"q 0.5 0 0 0.5 0 0 cm BT /F1 12 Tf 0 TL 0 10 Td "
-                f"({_escape_pdf_literal(content)}) Tj ET Q"
-            ).encode()
-            signature_appearence = DictionaryObject()
-            signature_appearence.update({NameObject("/N"): stream})
-            signature_field.update(
-                {
-                    NameObject("/AP"): signature_appearence,
-                }
-            )
-        else:
-            rect = [0, 0, 0, 0]
-
-        signature_field.update(
-            {NameObject("/Rect"): self._create_number_array_object(rect)}
+        stream = StreamObject()
+        stream.update(
+            {
+                NameObject("/BBox"): self._create_number_array_object(
+                    [0, 0, rect_size[0], rect_size[1]]
+                ),
+                NameObject("/Resources"): self._appearance_resources(),
+                NameObject("/Type"): NameObject("/XObject"),
+                NameObject("/Subtype"): NameObject("/Form"),
+            }
         )
 
+        content = "Digitally signed"
+        if signer is not None:
+            content = f"{content} by {signer.name} <{signer.email}>"
+
+        stream._data = (
+            f"q 0.5 0 0 0.5 0 0 cm BT /F1 12 Tf 0 TL 0 10 Td "
+            f"({_escape_pdf_literal(content)}) Tj ET Q"
+        ).encode()
+        signature_appearence = DictionaryObject()
+        signature_appearence.update({NameObject("/N"): stream})
+        return rect, signature_appearence
+
+    def _signature_field_value(self) -> DictionaryObject:
         signature_field_value = DictionaryObject()
         signature_field_value.update(
             {
@@ -232,12 +207,11 @@ class PdfSigner:
                 ),
             }
         )
+        return signature_field_value
 
-        signature_field_ref = self.writer._add_object(signature_field)
-        signature_field_value_ref = self.writer._add_object(signature_field_value)
-
-        signature_field.update({NameObject("/V"): signature_field_value_ref})
-
+    def _register_signature_field(
+        self, form: DictionaryObject, page, signature_field_ref
+    ) -> None:
         if "/Fields" not in self.writer._root_object:
             fields = ArrayObject()
         else:
@@ -249,6 +223,43 @@ class PdfSigner:
             page[NameObject("/Annots")] = ArrayObject()
         page[NameObject("/Annots")].append(signature_field_ref)
 
+    def _setup_form(
+        self,
+        visible_signature: bool,
+        field_name: str,
+        signer: ResUsers | None = None,
+    ) -> tuple[DictionaryObject, DictionaryObject] | None:
+        form = self._acro_form()
+        page = self.writer.pages[0]
+
+        signature_field = DictionaryObject()
+        signature_field.update(
+            {
+                NameObject("/FT"): NameObject("/Sig"),
+                NameObject("/T"): create_string_object(field_name),
+                NameObject("/Type"): NameObject("/Annot"),
+                NameObject("/Subtype"): NameObject("/Widget"),
+                NameObject("/F"): NumberObject(132),
+                NameObject("/P"): page.indirect_reference,
+            }
+        )
+
+        if visible_signature:
+            rect, signature_appearence = self._visible_appearance(page, signer)
+            signature_field.update({NameObject("/AP"): signature_appearence})
+        else:
+            rect = [0, 0, 0, 0]
+
+        signature_field.update(
+            {NameObject("/Rect"): self._create_number_array_object(rect)}
+        )
+
+        signature_field_value = self._signature_field_value()
+        signature_field_ref = self.writer._add_object(signature_field)
+        signature_field_value_ref = self.writer._add_object(signature_field_value)
+        signature_field.update({NameObject("/V"): signature_field_value_ref})
+
+        self._register_signature_field(form, page, signature_field_ref)
         return signature_field, signature_field_value
 
     def _get_signature_algorithm(
@@ -272,16 +283,10 @@ class PdfSigner:
             return _SignatureAlgorithm("sha512", "ed25519", private_key.sign)
         return None
 
-    def _get_cms_object(
-        self,
-        digest: bytes,
-        certificate: Certificate,
-        algorithm: _SignatureAlgorithm,
-    ) -> cms.ContentInfo:
-        cert = x509.Certificate.load(certificate.public_bytes(encoding=Encoding.DER))
-        encap_content_info = {"content_type": "data", "content": None}
-
-        attrs = cms.CMSAttributes(
+    def _signed_attributes(
+        self, digest: bytes, algorithm: _SignatureAlgorithm
+    ) -> cms.CMSAttributes:
+        return cms.CMSAttributes(
             [
                 cms.CMSAttribute({"type": "content_type", "values": ["data"]}),
                 cms.CMSAttribute(
@@ -323,18 +328,15 @@ class PdfSigner:
                         ],
                     }
                 ),
-                cms.CMSAttribute(
-                    {
-                        "type": "message_digest",
-                        "values": [digest],
-                    }
-                ),
+                cms.CMSAttribute({"type": "message_digest", "values": [digest]}),
             ]
         )
 
-        signed_attrs = algorithm.sign(attrs.dump())
-
-        signer_info = cms.SignerInfo(
+    @staticmethod
+    def _signer_info(
+        cert, attrs: cms.CMSAttributes, signature: bytes, algorithm: _SignatureAlgorithm
+    ) -> cms.SignerInfo:
+        return cms.SignerInfo(
             {
                 "version": "v1",
                 "digest_algorithm": algos.DigestAlgorithm(
@@ -343,7 +345,7 @@ class PdfSigner:
                 "signature_algorithm": algos.SignedDigestAlgorithm(
                     {"algorithm": algorithm.signature}
                 ),
-                "signature": signed_attrs,
+                "signature": signature,
                 "sid": cms.SignerIdentifier(
                     {
                         "issuer_and_serial_number": cms.IssuerAndSerialNumber(
@@ -358,12 +360,24 @@ class PdfSigner:
             }
         )
 
+    def _get_cms_object(
+        self,
+        digest: bytes,
+        certificate: Certificate,
+        algorithm: _SignatureAlgorithm,
+    ) -> cms.ContentInfo:
+        cert = x509.Certificate.load(certificate.public_bytes(encoding=Encoding.DER))
+        attrs = self._signed_attributes(digest, algorithm)
+        signer_info = self._signer_info(
+            cert, attrs, algorithm.sign(attrs.dump()), algorithm
+        )
+
         signed_data = {
             "version": "v1",
             "digest_algorithms": [
                 algos.DigestAlgorithm({"algorithm": algorithm.digest})
             ],
-            "encap_content_info": encap_content_info,
+            "encap_content_info": {"content_type": "data", "content": None},
             "certificates": [cert],
             "signer_infos": [signer_info],
         }
@@ -480,5 +494,5 @@ class PdfSigner:
             hashed.update(data[byte_range[i] : byte_range[i] + byte_range[i + 1]])
         return hashed.digest()
 
-    def _create_number_array_object(self, array: list[int]) -> ArrayObject:
+    def _create_number_array_object(self, array: Sequence[float]) -> ArrayObject:
         return ArrayObject([NumberObject(item) for item in array])

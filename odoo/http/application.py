@@ -26,7 +26,12 @@ from .constants import (
     is_ensure_db_path,
 )
 from .core import _request_stack, request
-from .exceptions import RegistryError, SessionExpiredException
+from .exceptions import (
+    RegistryError,
+    SessionExpiredException,
+    get_error_response,
+    set_error_response,
+)
 from .geoip import geoip2, maxminddb
 from .request_class import Request
 from .routing import _generate_routing_rules, build_routing_map
@@ -137,7 +142,9 @@ class Application:
     def get_db_router(self, db: str | None, env: Any = None) -> werkzeug.routing.Map:
         if not db:
             return self.nodb_routing_map
-        return (env if env is not None else request.env)["ir.http"].routing_map()
+        router_env = env if env is not None else request.env
+        assert router_env is not None, "a database router needs a bound environment"
+        return router_env["ir.http"].routing_map()
 
     @_locked_cached_property
     def geoip_city_db(self):
@@ -254,26 +261,27 @@ class Application:
             _logger.error("Exception during request handling.", exc_info=exc)
 
     def _ensure_error_response(self, exc: Exception, request: Request | None) -> None:
-        if hasattr(exc, "error_response"):
+        if get_error_response(exc) is not None:
             return
         if isinstance(exc, AccessDenied):
             exc.suppress_traceback()
         if request is not None:
-            exc.error_response = request.dispatcher.handle_error(exc)
+            set_error_response(exc, request.dispatcher.handle_error(exc))
         else:
             from werkzeug.exceptions import InternalServerError
 
-            exc.error_response = InternalServerError(str(exc) or None)
+            set_error_response(exc, InternalServerError(str(exc) or None))
 
     def _finalize_error_response(self, exc: Exception, request: Request | None) -> None:
         if request is None or not request._post_init_done:
             return
         try:
-            response = exc.error_response
+            response = get_error_response(exc)
             if isinstance(response, HTTPException):
                 response = response.get_response(request.httprequest.environ)
+            assert response is not None
             request.dispatcher.post_dispatch(response)
-            exc.error_response = response
+            set_error_response(exc, response)
         except Exception:
             _logger.warning(
                 "Could not post-process the error response; "
@@ -323,7 +331,9 @@ class Application:
                 self._log_request_exception(exc)
                 self._ensure_error_response(exc, request)
                 self._finalize_error_response(exc, request)
-                return exc.error_response(environ, start_response)
+                error_response = get_error_response(exc)
+                assert error_response is not None
+                return error_response(environ, start_response)
 
             finally:
                 if pushed:

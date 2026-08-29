@@ -75,26 +75,58 @@ class _PsqlSqlScanner:
         self.single_quote_escaped = False
         self.in_double_quote = False
 
+    def _resume_carry_over(self, line: str, n: int) -> int:
+        if self.comment_depth:
+            return self._resume_block_comment(line, 0, n)
+        if self.dollar_tag is not None:
+            return self._resume_dollar_body(line, 0, n)
+        if self.in_single_quote:
+            return self._resume_single_quote(line, 0, n)
+        if self.in_double_quote:
+            return self._resume_double_quote(line, 0, n)
+        return 0
+
+    def _consume_copy_data(self, line: str) -> None:
+        self.lineno += 1
+        if line.rstrip("\n").rstrip("\r") == "\\.":
+            self.in_copy_data = False
+            self._reset_statement()
+
+    def _absorb_ident_char(self, c: str, i: int) -> None:
+        if self._ident_run_start < 0:
+            self._ident_run_start = i
+            self._ident_run_is_ident = _is_ident_start(c)
+            self._word = c
+        elif not self._ident_run_is_ident and _is_ident_start(c):
+            self._flush_word()
+            self._ident_run_start = i
+            self._ident_run_is_ident = True
+            self._word = c
+        elif len(self._word) <= _COPY_WORD_MAX_LEN:
+            self._word += c
+
+    def _meta_command_violation(
+        self, line: str, i: int, n: int
+    ) -> tuple[int, str] | None:
+        word = self._cmd_word(line, i, n)
+        arg_pattern = _ALLOWED_PSQL_META_COMMANDS.get(word)
+        if arg_pattern is None:
+            return (self.lineno, word)
+        if not arg_pattern.match(line, i + len(word)):
+            end = line.find("\n", i)
+            text = line[i:] if end == -1 else line[i:end]
+            return (self.lineno, text.rstrip()[:80])
+        return None
+
     def feed(self, line: str) -> tuple[int, str] | None:
         n = len(line)
         self._reset_ident_run()
 
         if self.in_copy_data:
-            self.lineno += 1
-            if line.rstrip("\n").rstrip("\r") == "\\.":
-                self.in_copy_data = False
-                self._reset_statement()
+            self._consume_copy_data(line)
             return None
 
-        i = 0
-        if self.comment_depth:
-            i = self._resume_block_comment(line, i, n)
-        elif self.dollar_tag is not None:
-            i = self._resume_dollar_body(line, i, n)
-        elif self.in_single_quote:
-            i = self._resume_single_quote(line, i, n)
-        elif self.in_double_quote:
-            i = self._resume_double_quote(line, i, n)
+        i = self._resume_carry_over(line, n)
 
         while i < n:
             c = line[i]
@@ -136,34 +168,18 @@ class _PsqlSqlScanner:
                 i = self._resume_double_quote(line, i + 1, n)
                 continue
             if c == "\\":
-                word = self._cmd_word(line, i, n)
-                arg_pattern = _ALLOWED_PSQL_META_COMMANDS.get(word)
-                if arg_pattern is None:
-                    return (self.lineno, word)
-                if not arg_pattern.match(line, i + len(word)):
-                    end = line.find("\n", i)
-                    text = line[i:] if end == -1 else line[i:end]
-                    return (self.lineno, text.rstrip()[:80])
+                violation = self._meta_command_violation(line, i, n)
+                if violation is not None:
+                    return violation
                 self._reset_ident_run()
                 self._note_opaque_token()
-                nl = line.find("\n", i)
-                if nl == -1:
+                i = line.find("\n", i)
+                if i == -1:
                     return None
-                i = nl
                 continue
 
             if _is_ident_cont(c):
-                if self._ident_run_start < 0:
-                    self._ident_run_start = i
-                    self._ident_run_is_ident = _is_ident_start(c)
-                    self._word = c
-                elif not self._ident_run_is_ident and _is_ident_start(c):
-                    self._flush_word()
-                    self._ident_run_start = i
-                    self._ident_run_is_ident = True
-                    self._word = c
-                elif len(self._word) <= _COPY_WORD_MAX_LEN:
-                    self._word += c
+                self._absorb_ident_char(c, i)
             else:
                 self._reset_ident_run()
 
@@ -233,6 +249,8 @@ class _PsqlSqlScanner:
 
     def _resume_dollar_body(self, line: str, i: int, n: int) -> int:
         tag = self.dollar_tag
+        if tag is None:
+            return i
         close = line.find(tag, i)
         if close == -1:
             self.lineno += line.count("\n", i)

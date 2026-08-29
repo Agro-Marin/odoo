@@ -1,9 +1,10 @@
 import io
 import unittest
+from typing import Any
 
 from odoo.tools.babel_extractors.javascript_extractor import extract_javascript
 
-_OPTS = {"jsx": True, "template_string": True, "parse_template_string": True}
+_OPTS: Any = {"jsx": True, "template_string": True, "parse_template_string": True}
 
 
 def _extract(src):

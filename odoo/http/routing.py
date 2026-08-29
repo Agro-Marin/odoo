@@ -7,7 +7,7 @@ import logging
 import warnings
 from collections.abc import Callable, Collection, Generator, Iterable
 from types import MappingProxyType
-from typing import Any
+from typing import Any, cast
 
 import werkzeug.routing
 
@@ -15,6 +15,7 @@ from odoo.tools import unique
 from odoo.tools.misc import submap
 
 from ._params import build_param_specs
+from ._protocols import Endpoint, HasRouting, RoutedMethod
 from .constants import ROUTING_KEYS
 from .controller import Controller
 from .core import request
@@ -76,8 +77,8 @@ class FasterRule(werkzeug.routing.Rule):
         return LazyCompiledBuilder(self, super()._compile_builder, append_unknown)
 
 
-def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
-    routing = submap(endpoint.routing, ROUTING_KEYS)
+def rule_routing_kwargs(endpoint: HasRouting) -> dict[str, Any]:
+    routing = dict(submap(endpoint.routing, ROUTING_KEYS))
     methods = routing.get("methods")
     if methods is not None and "OPTIONS" not in methods:
         routing["methods"] = [*methods, "OPTIONS"]
@@ -85,7 +86,7 @@ def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
 
 
 def build_routing_map(
-    rules: Iterable[tuple[str, Callable]],
+    rules: Iterable[tuple[str, Endpoint]],
     converters: dict[str, type] | None = None,
 ) -> werkzeug.routing.Map:
     routing_map = werkzeug.routing.Map(strict_slashes=False, converters=converters)
@@ -116,7 +117,7 @@ def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
     return accepts_var_keyword, frozenset(named), bound_self_name
 
 
-def _apply_param_specs(endpoint: Callable, specs: dict[str, Any] | None) -> None:
+def _apply_param_specs(endpoint: Endpoint, specs: dict[str, Any] | None) -> None:
     endpoint._param_specs = specs
     endpoint.typed_list_params = (
         frozenset(name for name, spec in specs.items() if spec.target is list)
@@ -213,8 +214,9 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 return Response.load(result, fname)
             return result
 
-        route_wrapper.original_routing = routing
-        route_wrapper.original_endpoint = endpoint
+        routed = cast("RoutedMethod", route_wrapper)
+        routed.original_routing = routing
+        routed.original_endpoint = endpoint
         return route_wrapper
 
     return decorator
@@ -337,7 +339,7 @@ def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
 
 def _generate_routing_rules(
     modules: list[str], nodb_only: bool
-) -> Generator[tuple[str, Any]]:
+) -> Generator[tuple[str, Endpoint]]:
     for ctrl in _get_controllers(modules):
         for method_name, method in inspect.getmembers(ctrl, inspect.ismethod):
             if not _is_route(ctrl, method_name):
@@ -357,8 +359,9 @@ def _generate_routing_rules(
             )
 
             for url in merged_routing["routes"]:
-                endpoint = functools.partial(method)
-                functools.update_wrapper(endpoint, method)
+                partial = functools.partial(method)
+                functools.update_wrapper(partial, method)
+                endpoint = cast("Endpoint", partial)
                 endpoint.routing = frozen_routing
                 _apply_param_specs(endpoint, param_specs)
 

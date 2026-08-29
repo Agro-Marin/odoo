@@ -1,7 +1,11 @@
 import unittest
+from typing import TYPE_CHECKING, cast
 
 from odoo.libs.sql import SQL
 from odoo.tools.query import Query
+
+if TYPE_CHECKING:
+    from odoo.api import Environment
 
 
 class _StubEnv:
@@ -16,7 +20,7 @@ class _StubEnv:
 
 class TestQueryMemoInvalidation(unittest.TestCase):
     def _memoized(self):
-        query = Query(_StubEnv(), "res_partner")
+        query = Query(cast("Environment", _StubEnv()), "res_partner")
         query.set_result_ids([1, 2, 3])
         self.assertEqual(query._ids, (1, 2, 3))
         return query
@@ -62,7 +66,7 @@ class TestQueryMemoInvalidation(unittest.TestCase):
         self.assertEqual(sub.params, (1, 2, 3))
 
     def test_empty_memo_survives_a_shape_change(self):
-        query = Query(_StubEnv(rows=[]), "res_partner")
+        query = Query(cast("Environment", _StubEnv(rows=[])), "res_partner")
         query.set_result_ids([])
         self.assertTrue(query.is_empty())
 
@@ -72,7 +76,7 @@ class TestQueryMemoInvalidation(unittest.TestCase):
         self.assertTrue(query.is_empty())
 
     def test_accessors_still_read_back_what_was_assigned(self):
-        query = Query(_StubEnv(), "res_partner")
+        query = Query(cast("Environment", _StubEnv()), "res_partner")
         self.assertIsNone(query.limit)
         self.assertIsNone(query.offset)
         self.assertIsNone(query.groupby)
@@ -99,8 +103,8 @@ class TestQueryMemoInvalidation(unittest.TestCase):
         self.assertIn("OFFSET", code)
 
     def test_order_setter_still_coerces_a_string(self):
-        query = Query(_StubEnv(), "res_partner")
-        query.order = "id DESC"
+        query = Query(cast("Environment", _StubEnv()), "res_partner")
+        query.order = SQL("id DESC")
         self.assertEqual(query.order, SQL("id DESC"))
 
 

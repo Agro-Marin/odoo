@@ -130,7 +130,14 @@ class BaseCursor:
             pass
 
         @property
+        def closed(self) -> bool:
+            pass
+
+        @property
         def rowcount(self) -> int: ...
+
+        @property
+        def connection(self) -> psycopg.Connection: ...
 
     def savepoint(self, flush: bool = True) -> Savepoint:
         if flush:

@@ -983,7 +983,7 @@ ways: 6 stems are written with two or more verbs drawn from one semantic family,
 and 104 groups of methods share a byte-identical body under different names.
 
 **Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the 24,816 non-test methods
+``[gate doc_restated_counts]``. The population is the 24,819 non-test methods
 declared on a model class **in this repository** -- the population
 ``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
 figure is a floor.
@@ -1217,7 +1217,7 @@ Four limits:
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,503 definitions it is 22.2 % of every method
+**``_get_`` is not a default.** At 5,504 definitions it is 22.2 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
 computing. The split that matters is against ``_prepare_``: 686 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
@@ -1288,8 +1288,8 @@ assembles is in the wrong family.
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **372** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **195**
+**A ``bool`` return does not make a predicate** ``[review]``. **373** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **196**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1651,7 +1651,7 @@ to a field name and a registry string.
 
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
-call sites ever see. **89** parameters annotated ``field_name`` are ``str`` and
+call sites ever see. **92** parameters annotated ``field_name`` are ``str`` and
 **0** are a ``Field``, against ``field``'s **101** ``Field`` and **17** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s

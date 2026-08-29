@@ -1,23 +1,10 @@
-import importlib.util
 import pathlib
 
 import pytest
 
-_SCRIPT = (
-    pathlib.Path(__file__).resolve().parents[2]
-    / "upgrade_code"
-    / "18.5-00-domain-dynamic-dates.py"
-)
+from odoo.tools.tests._upgrade_script import load_upgrade_script
 
-
-def _load():
-    spec = importlib.util.spec_from_file_location("domain_dynamic_dates", _SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-MODULE = _load()
+MODULE = load_upgrade_script("domain_dynamic_dates", "18.5-00-domain-dynamic-dates.py")
 
 
 class _File:

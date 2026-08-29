@@ -62,7 +62,7 @@ class TestLazyComparison(unittest.TestCase):
 
     def test_equality_delegates_to_an_unhashable_value(self):
         class Obj:
-            __hash__ = None
+            __hash__ = None  # type: ignore[assignment]
 
             def __init__(self, num):
                 self.num = num

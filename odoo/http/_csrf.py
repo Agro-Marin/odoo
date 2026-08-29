@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
+from typing import Any
 
 from odoo.tools import consteq
 
@@ -10,19 +11,28 @@ from ._protocols import RequestState
 from .constants import CSRF_TOKEN_MAX_AGE, STORED_SESSION_BYTES
 
 
+def _csrf_secret(env: Any) -> str:
+    assert env is not None, "CSRF tokens need a database-bound request"
+    secret = env["ir.config_parameter"].sudo().get_param("database.secret")
+    if not secret:
+        msg = "CSRF protection requires a configured database secret"
+        raise ValueError(msg)
+    return secret
+
+
+def _csrf_digest(secret: str, sid: str, max_ts: int | str) -> str:
+    payload = f"{sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
+    return hmac.new(secret.encode("ascii"), payload, hashlib.sha256).hexdigest()
+
+
 class _RequestCsrfMixin(RequestState):
     def csrf_token(self, time_limit: int | None = None) -> str:
-        secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
-        if not secret:
-            msg = "CSRF protection requires a configured database secret"
-            raise ValueError(msg)
+        secret = _csrf_secret(self.env)
 
         if time_limit is None:
             time_limit = CSRF_TOKEN_MAX_AGE
         max_ts = int(time.time() + time_limit)
-        msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
-
-        hm = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
+        hm = _csrf_digest(secret, self.session.sid, max_ts)
 
         if self.session.is_new:
             self.session.touch()
@@ -32,10 +42,7 @@ class _RequestCsrfMixin(RequestState):
         if not csrf:
             return False
 
-        secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
-        if not secret:
-            msg = "CSRF protection requires a configured database secret"
-            raise ValueError(msg)
+        secret = _csrf_secret(self.env)
 
         hm, _, max_ts = csrf.rpartition("o")
         if not max_ts:
@@ -49,6 +56,4 @@ class _RequestCsrfMixin(RequestState):
         if not hm.isascii():
             return False
 
-        msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
-        hm_expected = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
-        return consteq(hm, hm_expected)
+        return consteq(hm, _csrf_digest(secret, self.session.sid, max_ts))

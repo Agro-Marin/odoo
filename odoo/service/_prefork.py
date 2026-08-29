@@ -61,16 +61,16 @@ class PreforkServer(CommonServer):
         self.limit_request = config["limit_request"]
         self.cron_timeout = cron_real_time_budget() or None
         self.job_timeout = job_real_time_budget() or None
-        self.beat = 4
-        self.socket = None
-        self.workers_http = {}
-        self.workers_cron = {}
-        self.workers_job = {}
-        self.workers = {}
+        self.beat: float = 4
+        self.socket: socket.socket | None = None
+        self.workers_http: dict[int, WorkerHTTP] = {}
+        self.workers_cron: dict[int, WorkerCron] = {}
+        self.workers_job: dict[int, WorkerJob] = {}
+        self.workers: dict[int, Worker] = {}
         self._drain_procs: dict[int, psutil.Process] = {}
         self.generation = 0
-        self.queue = deque()
-        self.long_polling_pid = None
+        self.queue: deque[int] = deque()
+        self.long_polling_pid: int | None = None
         self.long_polling_popen: subprocess.Popen | None = None
         self.long_polling_spawn_time = 0.0
         self._consecutive_fast_deaths = 0
@@ -80,7 +80,7 @@ class PreforkServer(CommonServer):
         return os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
 
     def _set_socket_cloexec(self) -> None:
-        if not _IS_POSIX:
+        if not _IS_POSIX or self.socket is None:
             return
         fd = self.socket.fileno()
         flags = fcntl.fcntl(fd, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
@@ -352,7 +352,7 @@ class PreforkServer(CommonServer):
                 sel.register(fd, selectors.EVENT_READ)
             ready = sel.select(self.beat)
         for key, _ in ready:
-            fd = key.fileobj
+            fd = key.fd
             if fd in fds:
                 fds[fd].watchdog_time = time.monotonic()
             empty_pipe(fd)
@@ -396,7 +396,7 @@ class PreforkServer(CommonServer):
                     family = socket.AF_INET6
                 self.socket = socket.socket(family, socket.SOCK_STREAM)
                 self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                self.socket.setblocking(0)
+                self.socket.setblocking(False)
                 self.socket.bind((self.interface, self.port))
                 self.socket.listen(8 * self.population)
 

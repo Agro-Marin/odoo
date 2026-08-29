@@ -90,7 +90,7 @@ class _Relational(Field["BaseModel"]):
         field_cache = self._get_cache(env)
 
         check_pending = self.is_stored_computed
-        vals = []
+        vals: list[typing.Any] = []
         _append = vals.append
         for record_id in records._ids:
             try:

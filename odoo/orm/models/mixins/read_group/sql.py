@@ -28,6 +28,53 @@ from ....fields.temporal import _get_sql_timezones_set
 class _ReadGroupSQLMixin(_ModelStubs):
     __slots__ = ()
 
+    def _read_group_select_sum_currency(self, field, fname: str, query: Query) -> SQL:
+        if not field.is_monetary:
+            raise ValueError(
+                f'Aggregator "sum_currency" only works on currency field for {fname!r}'
+            )
+
+        from ....fields.temporal import Date
+
+        CurrencyRate = self.env["res.currency.rate"]
+        rate_subquery_table = SQL(
+            """(SELECT DISTINCT ON (%(currency_field_sql)s) %(currency_field_sql)s, %(rate_field_sql)s
+                FROM "res_currency_rate"
+                WHERE %(company_field_sql)s IS NULL OR %(company_field_sql)s = %(company_id)s
+                ORDER BY
+                    %(currency_field_sql)s,
+                    %(company_field_sql)s,
+                    CASE WHEN %(name_field_sql)s <= %(today)s THEN %(name_field_sql)s END DESC,
+                    CASE WHEN %(name_field_sql)s > %(today)s THEN %(name_field_sql)s END ASC)
+            """,
+            currency_field_sql=CurrencyRate._field_to_sql(
+                CurrencyRate._table, "currency_id"
+            ),
+            rate_field_sql=CurrencyRate._field_to_sql(CurrencyRate._table, "rate"),
+            company_field_sql=CurrencyRate._field_to_sql(
+                CurrencyRate._table, "company_id"
+            ),
+            company_id=self.env.company.root_id.id,
+            name_field_sql=CurrencyRate._field_to_sql(CurrencyRate._table, "name"),
+            today=Date.context_today(self),
+        )
+        currency_field_name = field.get_currency_field(self)
+        assert currency_field_name is not None
+        alias_rate = query.make_alias(self._table, f"{currency_field_name}__rates")
+        currency_field_sql = self._field_to_sql(self._table, currency_field_name, query)
+        condition = SQL(
+            "%s = %s",
+            currency_field_sql,
+            SQL.identifier(alias_rate, "currency_id"),
+        )
+        query.add_join("LEFT JOIN", alias_rate, rate_subquery_table, condition)
+
+        return SQL(
+            "SUM(%s / COALESCE(%s, 1.0))",
+            self._field_to_sql(self._table, fname, query),
+            SQL.identifier(alias_rate, "rate"),
+        )
+
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
         if aggregate_spec == "__count":
             return SQL("COUNT(*)")
@@ -49,53 +96,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
         field = self._fields[fname]
         self._check_field_access(field, "read")
         if func == "sum_currency":
-            if not field.is_monetary:
-                raise ValueError(
-                    f'Aggregator "sum_currency" only works on currency field for {fname!r}'
-                )
-
-            from ....fields.temporal import Date
-
-            CurrencyRate = self.env["res.currency.rate"]
-            rate_subquery_table = SQL(
-                """(SELECT DISTINCT ON (%(currency_field_sql)s) %(currency_field_sql)s, %(rate_field_sql)s
-                    FROM "res_currency_rate"
-                    WHERE %(company_field_sql)s IS NULL OR %(company_field_sql)s = %(company_id)s
-                    ORDER BY
-                        %(currency_field_sql)s,
-                        %(company_field_sql)s,
-                        CASE WHEN %(name_field_sql)s <= %(today)s THEN %(name_field_sql)s END DESC,
-                        CASE WHEN %(name_field_sql)s > %(today)s THEN %(name_field_sql)s END ASC)
-                """,
-                currency_field_sql=CurrencyRate._field_to_sql(
-                    CurrencyRate._table, "currency_id"
-                ),
-                rate_field_sql=CurrencyRate._field_to_sql(CurrencyRate._table, "rate"),
-                company_field_sql=CurrencyRate._field_to_sql(
-                    CurrencyRate._table, "company_id"
-                ),
-                company_id=self.env.company.root_id.id,
-                name_field_sql=CurrencyRate._field_to_sql(CurrencyRate._table, "name"),
-                today=Date.context_today(self),
-            )
-            currency_field_name = field.get_currency_field(self)
-            assert currency_field_name is not None
-            alias_rate = query.make_alias(self._table, f"{currency_field_name}__rates")
-            currency_field_sql = self._field_to_sql(
-                self._table, currency_field_name, query
-            )
-            condition = SQL(
-                "%s = %s",
-                currency_field_sql,
-                SQL.identifier(alias_rate, "currency_id"),
-            )
-            query.add_join("LEFT JOIN", alias_rate, rate_subquery_table, condition)
-
-            return SQL(
-                "SUM(%s / COALESCE(%s, 1.0))",
-                self._field_to_sql(self._table, fname, query),
-                SQL.identifier(alias_rate, "rate"),
-            )
+            return self._read_group_select_sum_currency(field, fname, query)
 
         if func not in READ_GROUP_AGGREGATE:
             raise ValueError(
@@ -122,6 +123,84 @@ class _ReadGroupSQLMixin(_ModelStubs):
             return False
         return True
 
+    def _read_group_groupby_many2one_path(
+        self,
+        alias: str,
+        fname: str,
+        field,
+        seq_fnames: str,
+        granularity,
+        groupby_spec: str,
+        query: Query,
+    ) -> SQL:
+        if not field.is_many2one:
+            raise ValueError(
+                f"Only many2one path is accepted for the {groupby_spec!r} groupby spec"
+            )
+
+        comodel = self.env[field.comodel_name]
+        coquery = comodel.with_context(active_test=False)._search([])
+        if self.env.su or not coquery.where_clause:
+            coalias = query.make_alias(alias, fname)
+        else:
+            coalias = query.make_alias(alias, f"{fname}__{self.env.uid}")
+        condition = SQL(
+            "%s = %s",
+            self._field_to_sql(alias, fname, query),
+            SQL.identifier(coalias, "id"),
+        )
+        if coquery.where_clause:
+            subselect_arg = SQL("%s.*", SQL.identifier(comodel._table))
+            query.add_join(
+                "LEFT JOIN",
+                coalias,
+                coquery.subselect(subselect_arg),
+                condition,
+            )
+        else:
+            query.add_join("LEFT JOIN", coalias, comodel._table, condition)
+        return comodel._read_group_groupby(
+            coalias,
+            f"{seq_fnames}:{granularity}" if granularity else seq_fnames,
+            query,
+        )
+
+    def _read_group_groupby_many2many(
+        self, alias: str, field, groupby_spec: str, query: Query
+    ) -> SQL:
+        if field.related and not field.store:
+            access_model, field, alias = self._traverse_related_sql(alias, field, query)
+        else:
+            access_model = self
+
+        access_model._check_field_access(field, "read")
+
+        if not field.store:
+            raise ValueError(f"Group by non-stored many2many field: {groupby_spec!r}")
+        assert (
+            field.relation is not None
+            and field.column1 is not None
+            and field.column2 is not None
+        )
+        codomain = field.get_comodel_domain(self)
+        comodel = self.env[field.comodel_name].with_context(**field.context)
+        coquery = comodel._search(codomain, bypass_access=field.bypass_search_access)
+        rel_alias = query.make_alias(alias, field.name)
+        condition = SQL(
+            "%s = %s",
+            SQL.identifier(alias, "id"),
+            SQL.identifier(rel_alias, field.column1),
+        )
+        if coquery.where_clause:
+            condition = SQL(
+                "%s AND %s IN %s",
+                condition,
+                SQL.identifier(rel_alias, field.column2),
+                coquery.subselect(),
+            )
+        query.add_join("LEFT JOIN", rel_alias, field.relation, condition)
+        return SQL.identifier(rel_alias, field.column2)
+
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
         fname, seq_fnames, granularity = parse_read_group_spec(groupby_spec)
         if fname not in self._fields:
@@ -136,36 +215,8 @@ class _ReadGroupSQLMixin(_ModelStubs):
             )
 
         elif seq_fnames:
-            if not field.is_many2one:
-                raise ValueError(
-                    f"Only many2one path is accepted for the {groupby_spec!r} groupby spec"
-                )
-
-            comodel = self.env[field.comodel_name]
-            coquery = comodel.with_context(active_test=False)._search([])
-            if self.env.su or not coquery.where_clause:
-                coalias = query.make_alias(alias, fname)
-            else:
-                coalias = query.make_alias(alias, f"{fname}__{self.env.uid}")
-            condition = SQL(
-                "%s = %s",
-                self._field_to_sql(alias, fname, query),
-                SQL.identifier(coalias, "id"),
-            )
-            if coquery.where_clause:
-                subselect_arg = SQL("%s.*", SQL.identifier(comodel._table))
-                query.add_join(
-                    "LEFT JOIN",
-                    coalias,
-                    coquery.subselect(subselect_arg),
-                    condition,
-                )
-            else:
-                query.add_join("LEFT JOIN", coalias, comodel._table, condition)
-            return comodel._read_group_groupby(
-                coalias,
-                f"{seq_fnames}:{granularity}" if granularity else seq_fnames,
-                query,
+            return self._read_group_groupby_many2one_path(
+                alias, fname, field, seq_fnames, granularity, groupby_spec, query
             )
 
         elif granularity and not (field.is_temporal or field.is_properties):
@@ -174,44 +225,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
             )
 
         elif field.is_many2many:
-            if field.related and not field.store:
-                access_model, field, alias = self._traverse_related_sql(
-                    alias, field, query
-                )
-            else:
-                access_model = self
-
-            access_model._check_field_access(field, "read")
-
-            if not field.store:
-                raise ValueError(
-                    f"Group by non-stored many2many field: {groupby_spec!r}"
-                )
-            assert (
-                field.relation is not None
-                and field.column1 is not None
-                and field.column2 is not None
-            )
-            codomain = field.get_comodel_domain(self)
-            comodel = self.env[field.comodel_name].with_context(**field.context)
-            coquery = comodel._search(
-                codomain, bypass_access=field.bypass_search_access
-            )
-            rel_alias = query.make_alias(alias, field.name)
-            condition = SQL(
-                "%s = %s",
-                SQL.identifier(alias, "id"),
-                SQL.identifier(rel_alias, field.column1),
-            )
-            if coquery.where_clause:
-                condition = SQL(
-                    "%s AND %s IN %s",
-                    condition,
-                    SQL.identifier(rel_alias, field.column2),
-                    coquery.subselect(),
-                )
-            query.add_join("LEFT JOIN", rel_alias, field.relation, condition)
-            return SQL.identifier(rel_alias, field.column2)
+            return self._read_group_groupby_many2many(alias, field, groupby_spec, query)
 
         else:
             sql_expr = self._field_to_sql(alias, fname, query)
@@ -333,6 +347,41 @@ class _ReadGroupSQLMixin(_ModelStubs):
         except IndexError:
             raise ValueError(f"Invalid having clause {having_domain!r}") from None
 
+    def _read_group_orderby_many2one(
+        self,
+        term: str,
+        direction: str,
+        nulls: str,
+        groupby_terms: dict[str, SQL],
+        orderby_terms: list,
+        query: Query,
+    ) -> None:
+        query._any_value_orderby = True
+        query._collect_order_groupby = True
+        try:
+            sql_order = self._order_to_sql(f"{term} {direction} {nulls}", query)
+        finally:
+            query._any_value_orderby = False
+            query._collect_order_groupby = False
+        if sql_order:
+            orderby_terms.append(sql_order)
+            if query._order_groupby:
+                groupby_terms[term] = SQL(", ").join(
+                    [groupby_terms[term], *query._order_groupby]
+                )
+                query._order_groupby.clear()
+
+    def _read_group_orderby_day_of_week(
+        self, term: str, groupby_terms: dict[str, SQL], sql_direction, sql_nulls
+    ) -> SQL:
+        first_week_day = int(get_lang(self.env).week_start)
+        sql_expr = SQL(
+            "mod(7 - %s + %s::int, 7)",
+            first_week_day,
+            groupby_terms[term],
+        )
+        return SQL("%s %s %s", sql_expr, sql_direction, sql_nulls)
+
     def _read_group_orderby(
         self, order: str | None, groupby_terms: dict[str, SQL], query: Query
     ) -> SQL:
@@ -378,46 +427,15 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 and field.is_many2one
                 and self.env[field.comodel_name]._order != "id"
             ):
-                query._any_value_orderby = True
-                query._collect_order_groupby = True
-                try:
-                    sql_order = self._order_to_sql(f"{term} {direction} {nulls}", query)
-                finally:
-                    query._any_value_orderby = False
-                    query._collect_order_groupby = False
-                if sql_order:
-                    orderby_terms.append(sql_order)
-                    if query._order_groupby:
-                        groupby_terms[term] = SQL(", ").join(
-                            [groupby_terms[term], *query._order_groupby]
-                        )
-                        query._order_groupby.clear()
+                self._read_group_orderby_many2one(
+                    term, direction, nulls, groupby_terms, orderby_terms, query
+                )
 
             elif granularity == "day_of_week":
-                """
-                Day offset relative to the first day of week in the user lang
-                formula: ((7 - first_week_day) + day_in_SQL) % 7
-
-                               | week starts on
-                           SQL | mon   sun   sat
-                               |  1  |  7  |  6   <-- first_week_day (in odoo)
-                          -----|-----------------
-                    mon     1  |  0  |  1  |  2
-                    tue     2  |  1  |  2  |  3
-                    wed     3  |  2  |  3  |  4
-                    thu     4  |  3  |  4  |  5
-                    fri     5  |  4  |  5  |  6
-                    sat     6  |  5  |  6  |  0
-                    sun     0  |  6  |  0  |  1
-                """
-                first_week_day = int(get_lang(self.env).week_start)
-                sql_expr = SQL(
-                    "mod(7 - %s + %s::int, 7)",
-                    first_week_day,
-                    groupby_terms[term],
-                )
                 orderby_terms.append(
-                    SQL("%s %s %s", sql_expr, sql_direction, sql_nulls)
+                    self._read_group_orderby_day_of_week(
+                        term, groupby_terms, sql_direction, sql_nulls
+                    )
                 )
             else:
                 sql_expr = groupby_terms[term]
@@ -426,6 +444,87 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 )
 
         return SQL(", ").join(orderby_terms)
+
+    def _property_comodel(self, definition: dict, property_name: str):
+        comodel = self.env.get(definition.get("comodel"))
+        if comodel is None or comodel._transient or comodel._abstract:
+            raise UserError(
+                _(
+                    'You cannot use "%(property_name)s" because the linked "%(model_name)s" model doesn\'t exist or is invalid',
+                    property_name=definition.get("string", property_name),
+                    model_name=definition.get("comodel"),
+                )
+            )
+        return comodel
+
+    def _read_group_property_collection(
+        self,
+        alias: str,
+        fname: str,
+        property_name: str,
+        definition: dict,
+        property_type: str,
+        sql_property: SQL,
+        query: Query,
+    ) -> SQL:
+        property_alias = query.make_alias(alias, f"{fname}_{property_name}")
+        sql_property = SQL(
+            """ CASE
+                    WHEN jsonb_typeof(%(property)s) = 'array'
+                    THEN %(property)s
+                    ELSE '[]'::jsonb
+                 END """,
+            property=sql_property,
+        )
+        if property_type == "tags":
+            tags = [tag[0] for tag in definition.get("tags") or []]
+            condition = SQL(
+                "%s->>0 = ANY(%s::text[])",
+                SQL.identifier(property_alias),
+                tags,
+            )
+        else:
+            comodel = self._property_comodel(definition, property_name)
+
+            condition = SQL(
+                "%s::int IN (SELECT id FROM %s)",
+                SQL.identifier(property_alias),
+                SQL.identifier(comodel._table),
+            )
+
+        query.add_join(
+            "LEFT JOIN",
+            property_alias,
+            SQL("jsonb_array_elements(%s)", sql_property),
+            condition,
+        )
+
+        return SQL.identifier(property_alias)
+
+    def _read_group_property_selection(
+        self,
+        alias: str,
+        fname: str,
+        property_name: str,
+        definition: dict,
+        sql_property: SQL,
+        query: Query,
+    ) -> SQL:
+        options = [option[0] for option in definition.get("selection") or ()]
+
+        property_alias = query.make_alias(alias, f"{fname}_{property_name}")
+        query.add_join(
+            "LEFT JOIN",
+            property_alias,
+            SQL(
+                "(SELECT unnest(%s::text[]) %s)",
+                options,
+                SQL.identifier(property_alias),
+            ),
+            SQL("%s->>0 = %s", sql_property, SQL.identifier(property_alias)),
+        )
+
+        return SQL.identifier(property_alias)
 
     def _read_group_groupby_properties(
         self, alias: str, field: Field, property_name: str, query: Query
@@ -436,75 +535,23 @@ class _ReadGroupSQLMixin(_ModelStubs):
         sql_property = self._field_to_sql(alias, f"{fname}.{property_name}", query)
 
         if property_type in ("tags", "many2many"):
-            property_alias = query.make_alias(alias, f"{fname}_{property_name}")
-            sql_property = SQL(
-                """ CASE
-                        WHEN jsonb_typeof(%(property)s) = 'array'
-                        THEN %(property)s
-                        ELSE '[]'::jsonb
-                     END """,
-                property=sql_property,
-            )
-            if property_type == "tags":
-                tags = [tag[0] for tag in definition.get("tags") or []]
-                condition = SQL(
-                    "%s->>0 = ANY(%s::text[])",
-                    SQL.identifier(property_alias),
-                    tags,
-                )
-            else:
-                comodel = self.env.get(definition.get("comodel"))
-                if comodel is None or comodel._transient or comodel._abstract:
-                    raise UserError(
-                        _(
-                            'You cannot use "%(property_name)s" because the linked "%(model_name)s" model doesn\'t exist or is invalid',
-                            property_name=definition.get("string", property_name),
-                            model_name=definition.get("comodel"),
-                        )
-                    )
-
-                condition = SQL(
-                    "%s::int IN (SELECT id FROM %s)",
-                    SQL.identifier(property_alias),
-                    SQL.identifier(comodel._table),
-                )
-
-            query.add_join(
-                "LEFT JOIN",
-                property_alias,
-                SQL("jsonb_array_elements(%s)", sql_property),
-                condition,
+            return self._read_group_property_collection(
+                alias,
+                fname,
+                property_name,
+                definition,
+                property_type,
+                sql_property,
+                query,
             )
 
-            return SQL.identifier(property_alias)
-
-        elif property_type == "selection":
-            options = [option[0] for option in definition.get("selection") or ()]
-
-            property_alias = query.make_alias(alias, f"{fname}_{property_name}")
-            query.add_join(
-                "LEFT JOIN",
-                property_alias,
-                SQL(
-                    "(SELECT unnest(%s::text[]) %s)",
-                    options,
-                    SQL.identifier(property_alias),
-                ),
-                SQL("%s->>0 = %s", sql_property, SQL.identifier(property_alias)),
+        if property_type == "selection":
+            return self._read_group_property_selection(
+                alias, fname, property_name, definition, sql_property, query
             )
 
-            return SQL.identifier(property_alias)
-
-        elif property_type == "many2one":
-            comodel = self.env.get(definition.get("comodel"))
-            if comodel is None or comodel._transient or comodel._abstract:
-                raise UserError(
-                    _(
-                        'You cannot use "%(property_name)s" because the linked "%(model_name)s" model doesn\'t exist or is invalid',
-                        property_name=definition.get("string", property_name),
-                        model_name=definition.get("comodel"),
-                    )
-                )
+        if property_type == "many2one":
+            comodel = self._property_comodel(definition, property_name)
 
             return SQL(
                 """ CASE

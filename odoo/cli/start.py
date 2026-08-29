@@ -97,7 +97,7 @@ class Start(Command):
 
 def is_path_in_module(path: str | Path) -> bool:
     path = Path(path)
-    return any(Manifest._from_path(p) for p in (path, *path.parents))
+    return any(Manifest._from_path(str(p)) for p in (path, *path.parents))
 
 
 def _is_path_arg(index: int, args: list[str]) -> bool:

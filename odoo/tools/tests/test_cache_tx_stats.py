@@ -20,7 +20,7 @@ class _Pool:
     db_name = "testdb"
 
     def __init__(self):
-        self.ormcache_lrus = defaultdict(lambda: LRU(1000))
+        self.ormcache_lrus: defaultdict[str, LRU] = defaultdict(lambda: LRU(1000))
 
 
 class _Model:
@@ -57,7 +57,7 @@ class TestOrmcacheTxStats(unittest.TestCase):
 
     def test_flag_off_skips_tx_stats(self):
         cache_mod._TX_STATS_ENABLED = False
-        calls = []
+        calls: list = []
         model = _Model(calls)
         self.assertEqual(model.double(5), 10)
         self.assertEqual(model.double(5), 10)
@@ -71,7 +71,7 @@ class TestOrmcacheTxStats(unittest.TestCase):
 
     def test_flag_on_collects_tx_stats(self):
         cache_mod._TX_STATS_ENABLED = True
-        calls = []
+        calls: list = []
         model = _Model(calls)
 
         self.assertEqual(model.double(7), 14)

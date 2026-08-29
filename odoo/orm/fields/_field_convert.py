@@ -62,48 +62,51 @@ class _FieldConvertMixin(_FieldStubs):
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 
-    def get_column_update(self, record: ModelLike) -> typing.Any:
-        record_id = record.id
-        field_cache = record.env._core.get_field_data(self)
-        if self.translate is True:
-            langs_dict = {}
-            flat_value = SENTINEL
-            found = False
-            for cache_key, sub_cache in field_cache.items():
-                if not isinstance(sub_cache, dict):
-                    if cache_key == record_id:
-                        found = True
-                        if sub_cache is not None:
-                            flat_value = sub_cache
-                    continue
-                if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
+    def _column_update_model_translation(
+        self, record: ModelLike, record_id, field_cache
+    ) -> typing.Any:
+        langs_dict = {}
+        flat_value = SENTINEL
+        found = False
+        for cache_key, sub_cache in field_cache.items():
+            if not isinstance(sub_cache, dict):
+                if cache_key == record_id:
                     found = True
-                    lang = cache_key[0]
-                    if value is not None:
-                        langs_dict[lang] = value
-            if not found:
-                raise KeyError(record_id)
-            if not langs_dict and flat_value is not SENTINEL:
-                langs_dict[record.env.lang or "en_US"] = flat_value
-            return PsycopgJson(langs_dict) if langs_dict else None
-        if self.translate:
-            value = field_cache[record_id]
-            return PsycopgJson(value) if value else None
-        if not self.company_dependent:
-            if not self._is_context_dependent(record.env):
-                value = field_cache[record_id]
-                if value is PENDING:
-                    return PENDING
-                return self.convert_to_column(value, record, validate=False)
-            found = False
-            for cache in field_cache.values():
-                if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
-                    found = True
-                    if value is not PENDING:
-                        return self.convert_to_column(value, record, validate=False)
-            if found:
-                return PENDING
+                    if sub_cache is not None:
+                        flat_value = sub_cache
+                continue
+            if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
+                found = True
+                lang = cache_key[0]
+                if value is not None:
+                    langs_dict[lang] = value
+        if not found:
             raise KeyError(record_id)
+        if not langs_dict and flat_value is not SENTINEL:
+            langs_dict[record.env.lang or "en_US"] = flat_value
+        return PsycopgJson(langs_dict) if langs_dict else None
+
+    def _column_update_plain(
+        self, record: ModelLike, record_id, field_cache
+    ) -> typing.Any:
+        if not self._is_context_dependent(record.env):
+            value = field_cache[record_id]
+            if value is PENDING:
+                return PENDING
+            return self.convert_to_column(value, record, validate=False)
+        found = False
+        for cache in field_cache.values():
+            if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
+                found = True
+                if value is not PENDING:
+                    return self.convert_to_column(value, record, validate=False)
+        if found:
+            return PENDING
+        raise KeyError(record_id)
+
+    def _column_update_company_dependent(
+        self, record: ModelLike, record_id, field_cache
+    ) -> typing.Any:
         values = {}
         flat_value = SENTINEL
         found = False
@@ -132,6 +135,18 @@ class _FieldConvertMixin(_FieldStubs):
         if not values and saw_pending:
             return PENDING
         return PsycopgJson(values) if values else None
+
+    def get_column_update(self, record: ModelLike) -> typing.Any:
+        record_id = record.id
+        field_cache = record.env._core.get_field_data(self)
+        if self.translate is True:
+            return self._column_update_model_translation(record, record_id, field_cache)
+        if self.translate:
+            value = field_cache[record_id]
+            return PsycopgJson(value) if value else None
+        if not self.company_dependent:
+            return self._column_update_plain(record, record_id, field_cache)
+        return self._column_update_company_dependent(record, record_id, field_cache)
 
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True

@@ -8,9 +8,6 @@ from pathlib import Path
 
 import odoo.addons
 
-inotify = None
-watchdog = None
-
 if os.name == "posix":
     try:
         import inotify
@@ -23,7 +20,9 @@ if os.name == "posix":
 
         INOTIFY_LISTEN_EVENTS = IN_MODIFY | IN_CREATE | IN_MOVED_TO
     except ImportError:
-        inotify = None
+        inotify = None  # type: ignore[assignment]
+else:
+    inotify = None  # type: ignore[assignment]
 
 if not inotify:
     try:
@@ -35,7 +34,9 @@ if not inotify:
         )
         from watchdog.observers import Observer
     except ImportError:
-        watchdog = None
+        watchdog = None  # type: ignore[assignment]
+else:
+    watchdog = None  # type: ignore[assignment]
 
 _logger = logging.getLogger("odoo.service.server")
 
@@ -326,8 +327,8 @@ class FSWatcherInotify(FSWatcherBase):
                             if self.handle_file(full_path):
                                 return
                     elif dir_creation_events.intersection(type_names):
-                        full_path = Path(path, filename)
-                        for root, _, files in full_path.walk():
+                        created_dir = Path(path, filename)
+                        for root, _, files in created_dir.walk():
                             self._watch_directory(root)
                             for file in files:
                                 if self.handle_file(str(root / file)):

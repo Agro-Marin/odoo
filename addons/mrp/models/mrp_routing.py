@@ -225,9 +225,21 @@ class MrpRoutingWorkcenter(models.Model):
                 "quantity", operation.bom_id.product_qty or 1
             )
             unit = self.env.context.get("unit", operation.bom_id.product_uom_id)
-            (capacity, setup, cleanup) = workcenter._get_capacity(
-                product, unit, operation.bom_id.product_qty or 1
-            )
+            # workcenter_id is required, so a SAVED operation always has one --
+            # but a new record from a form view has not been given one yet, and
+            # _get_capacity is a singleton method. These are the values it
+            # returns when no capacity line matches: the default capacity, and
+            # time_start/time_stop, which read 0.0 off an empty workcenter.
+            if workcenter:
+                (capacity, setup, cleanup) = workcenter._get_capacity(
+                    product, unit, operation.bom_id.product_qty or 1
+                )
+            else:
+                # workcenter_id is required, so only a not-yet-saved form record
+                # reaches here. These are what _get_capacity returns when no
+                # capacity line matches, read off an empty workcenter.
+                capacity = operation.bom_id.product_qty or 1
+                setup = cleanup = 0.0
             operation.cycle_number = float_round(
                 quantity / capacity, precision_digits=0, rounding_method="UP"
             )

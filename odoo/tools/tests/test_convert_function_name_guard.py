@@ -1,9 +1,13 @@
 import unittest
+from typing import TYPE_CHECKING, cast
 
 from lxml import etree
 
 from odoo.tools.convert import _eval_xml
 from odoo.tools.safe_eval import _UNSAFE_ATTRIBUTES
+
+if TYPE_CHECKING:
+    from odoo.api import Environment
 
 
 class _ExplodingEnv(dict):
@@ -28,23 +32,29 @@ class TestFunctionNameGuard(unittest.TestCase):
         ):
             with self.subTest(name=name):
                 with self.assertRaises(NameError) as ctx:
-                    _eval_xml(None, _function_node(name), _ExplodingEnv())
+                    _eval_xml(
+                        None, _function_node(name), cast("Environment", _ExplodingEnv())
+                    )
                 self.assertIn(name, str(ctx.exception))
 
     def test_every_unsafe_attribute_is_refused(self):
         for name in _UNSAFE_ATTRIBUTES:
             with self.subTest(name=name):
                 with self.assertRaises(NameError):
-                    _eval_xml(None, _function_node(name), _ExplodingEnv())
+                    _eval_xml(
+                        None, _function_node(name), cast("Environment", _ExplodingEnv())
+                    )
 
     def test_a_missing_name_becomes_the_empty_string(self):
         node = etree.fromstring('<function model="res.partner"/>')
         with self.assertRaises(AssertionError):
-            _eval_xml(None, node, _ExplodingEnv())
+            _eval_xml(None, node, cast("Environment", _ExplodingEnv()))
 
     def test_an_ordinary_name_passes_the_guard(self):
         with self.assertRaises(AssertionError) as ctx:
-            _eval_xml(None, _function_node("create"), _ExplodingEnv())
+            _eval_xml(
+                None, _function_node("create"), cast("Environment", _ExplodingEnv())
+            )
         self.assertIn("res.partner", str(ctx.exception))
 
 

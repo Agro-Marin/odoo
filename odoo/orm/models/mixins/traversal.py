@@ -98,7 +98,7 @@ class TraversalMixin(_ModelStubs):
             _SENTINEL = SENTINEL
             _PENDING = PENDING
             _get = field_cache.get
-            result = []
+            result: list[typing.Any] = []
             _append = result.append
             if can_scan_identity(field):
                 _none_val: typing.Any = field.convert_to_record(None, records[:1])

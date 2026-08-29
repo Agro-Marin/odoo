@@ -9,7 +9,7 @@ import os
 import sys
 import tempfile
 import warnings
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from os.path import expandvars, normcase
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -30,7 +30,7 @@ crypt_context = CryptContext(
 
 _dangerous_logger = logging.getLogger(__name__)
 
-optparse._ = str
+optparse._ = str  # type: ignore[attr-defined]
 
 ALL_DEV_MODE = ["access", "assets", "qweb", "reload", "xml"]
 DEFAULT_SERVER_WIDE_MODULES = ["base", "rpc", "web"]
@@ -46,9 +46,9 @@ EMPTY = _Empty()
 
 
 class _OdooOption(optparse.Option):
-    config = None
+    config: Any = None
 
-    TYPES = [
+    TYPES = (
         "int",
         "float",
         "string",
@@ -60,7 +60,7 @@ class _OdooOption(optparse.Option):
         "upgrade_path",
         "pre_upgrade_scripts",
         "without_demo",
-    ]
+    )
 
     @classproperty
     def TYPE_CHECKER(self):
@@ -128,7 +128,7 @@ class _OdooOption(optparse.Option):
             for opt in self._short_opts + self._long_opts:
                 self.config.optional_options[opt] = self
         if env_name is None and is_new_option and self.file_loadable:
-            self.env_name = "ODOO_" + self.dest.upper()
+            self.env_name = "ODOO_" + (self.dest or "").upper()
         elif env_name and not is_new_option:
             raise ValueError(
                 f"cannot set env_name to an option that is not indexed: {self}"
@@ -138,7 +138,7 @@ class _OdooOption(optparse.Option):
         out = []
         if self.cli_loadable:
             out.append(super().__str__())
-        if self.file_loadable:
+        if self.file_loadable and self.dest:
             out.append(self.dest)
         return "/".join(out)
 
@@ -147,12 +147,13 @@ class _FileOnlyOption(_OdooOption):
     def __init__(self, **attrs: Any) -> None:
         super().__init__(**attrs, cli_loadable=False, help=optparse.SUPPRESS_HELP)
 
-    def _check_opt_strings(self, opts: list[str]) -> None:
+    def _check_opt_strings(self, opts):
         if opts:
             msg = "No option can be supplied"
             raise TypeError(msg)
+        return []
 
-    def _set_opt_strings(self, opts: list[str]) -> None:
+    def _set_opt_strings(self, opts):
         return
 
 
@@ -256,7 +257,7 @@ class configmanager:
 
         return parser
 
-    def _add_file_only_options(
+    def _add_file_only_registry_options(
         self, parser: optparse.OptionParser, FileOnlyOption: type
     ) -> None:
         parser.add_option(FileOnlyOption(dest="admin_passwd", my_default="admin"))
@@ -293,6 +294,10 @@ class configmanager:
                 file_exportable=False,
             )
         )
+
+    def _add_file_only_transfer_options(
+        self, parser: optparse.OptionParser, FileOnlyOption: type
+    ) -> None:
         parser.add_option(
             FileOnlyOption(
                 dest="import_file_maxbytes",
@@ -344,6 +349,12 @@ class configmanager:
                 dest="websocket_rate_limit_delay", type="float", my_default=0.2
             )
         )
+
+    def _add_file_only_options(
+        self, parser: optparse.OptionParser, FileOnlyOption: type
+    ) -> None:
+        self._add_file_only_registry_options(parser, FileOnlyOption)
+        self._add_file_only_transfer_options(parser, FileOnlyOption)
 
     def _add_common_options(
         self,
@@ -441,7 +452,7 @@ class configmanager:
             my_default=False,
             help="install demo data in new databases",
         )
-        group.add_option(
+        group.add_option(  # type: ignore[call-overload]
             "--without-demo",
             dest="with_demo",
             type="without_demo",
@@ -666,13 +677,7 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-    def _add_logging_options(
-        self,
-        parser: optparse.OptionParser,
-        OdooOption: type,
-        PosixOnlyOption: type,
-    ) -> None:
-        group = optparse.OptionGroup(parser, "Logging Configuration")
+    def _add_logging_destination(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--logfile",
             dest="logfile",
@@ -687,6 +692,8 @@ class configmanager:
             my_default=False,
             help="Send the log to the syslog server",
         )
+
+    def _add_logging_handlers(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--log-handler",
             action="append",
@@ -749,15 +756,19 @@ class configmanager:
             help="specify the level of the logging. Accepted values: %s." % (levels,),
         )
 
-        parser.add_option_group(group)
-
-    def _add_smtp_options(
+    def _add_logging_options(
         self,
         parser: optparse.OptionParser,
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        group = optparse.OptionGroup(parser, "SMTP Configuration")
+        group = optparse.OptionGroup(parser, "Logging Configuration")
+        self._add_logging_destination(group)
+        self._add_logging_handlers(group)
+
+        parser.add_option_group(group)
+
+    def _add_smtp_envelope(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--email-from",
             dest="email_from",
@@ -770,6 +781,8 @@ class configmanager:
             my_default="",
             help="specify for which email address the SMTP configuration can be used",
         )
+
+    def _add_smtp_server(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--smtp",
             dest="smtp_server",
@@ -790,6 +803,8 @@ class configmanager:
             my_default=False,
             help="if passed, SMTP connections will be encrypted with SSL (STARTTLS)",
         )
+
+    def _add_smtp_credentials(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--smtp-user",
             dest="smtp_user",
@@ -810,6 +825,8 @@ class configmanager:
             "(0 disables the timeout)",
             type="int",
         )
+
+    def _add_smtp_tls(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--smtp-helo-name",
             dest="smtp_helo_name",
@@ -832,6 +849,19 @@ class configmanager:
             my_default="",
             help="specify the SSL private key used for authentication",
         )
+
+    def _add_smtp_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        group = optparse.OptionGroup(parser, "SMTP Configuration")
+        self._add_smtp_envelope(group)
+        self._add_smtp_server(group)
+        self._add_smtp_credentials(group)
+        self._add_smtp_tls(group)
+
         parser.add_option_group(group)
 
     def _add_database_options(
@@ -1190,13 +1220,7 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-    def _add_advanced_options(
-        self,
-        parser: optparse.OptionParser,
-        OdooOption: type,
-        PosixOnlyOption: type,
-    ) -> None:
-        group = optparse.OptionGroup(parser, "Advanced options")
+    def _add_advanced_dev(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--dev",
             dest="dev_mode",
@@ -1225,6 +1249,8 @@ class configmanager:
             file_loadable=False,
             help="stop the server after its initialization",
         )
+
+    def _add_advanced_limits(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--osv-memory-count-limit",
             dest="osv_memory_count_limit",
@@ -1241,6 +1267,8 @@ class configmanager:
             "TransientModel (mostly wizard) are kept in the database. Default to 1 hour.",
             type="float",
         )
+
+    def _add_advanced_workers(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--max-cron-threads",
             dest="max_cron_threads",
@@ -1274,6 +1302,8 @@ class configmanager:
             "processing on this instance. (default 1)",
             type="int",
         )
+
+    def _add_advanced_locale(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--unaccent",
             dest="unaccent",
@@ -1296,24 +1326,24 @@ class configmanager:
             my_default="/usr/share/GeoIP/GeoLite2-Country.mmdb",
             help="Absolute path to the GeoIP Country database file.",
         )
-        parser.add_option_group(group)
 
-    def _add_multiprocessing_options(
+    def _add_advanced_options(
         self,
         parser: optparse.OptionParser,
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        group = optparse.OptionGroup(parser, "Multiprocessing options")
-        group.add_option(
-            PosixOnlyOption(
-                "--workers",
-                dest="workers",
-                my_default=0,
-                help="Specify the number of workers, 0 disable prefork mode.",
-                type="int",
-            )
-        )
+        group = optparse.OptionGroup(parser, "Advanced options")
+        self._add_advanced_dev(group)
+        self._add_advanced_limits(group)
+        self._add_advanced_workers(group)
+        self._add_advanced_locale(group)
+
+        parser.add_option_group(group)
+
+    def _add_multiprocessing_memory(
+        self, group: optparse.OptionGroup, PosixOnlyOption: type
+    ) -> None:
         group.add_option(
             "--limit-memory-soft",
             dest="limit_memory_soft",
@@ -1365,6 +1395,10 @@ class configmanager:
                 type="int",
             )
         )
+
+    def _add_multiprocessing_time(
+        self, group: optparse.OptionGroup, PosixOnlyOption: type
+    ) -> None:
         group.add_option(
             "--limit-time-real",
             dest="limit_time_real",
@@ -1397,6 +1431,26 @@ class configmanager:
                 type="int",
             )
         )
+
+    def _add_multiprocessing_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        group = optparse.OptionGroup(parser, "Multiprocessing options")
+        group.add_option(
+            PosixOnlyOption(
+                "--workers",
+                dest="workers",
+                my_default=0,
+                help="Specify the number of workers, 0 disable prefork mode.",
+                type="int",
+            )
+        )
+        self._add_multiprocessing_memory(group, PosixOnlyOption)
+        self._add_multiprocessing_time(group, PosixOnlyOption)
+
         parser.add_option_group(group)
 
     def _load_default_options(self) -> None:
@@ -1449,13 +1503,13 @@ class configmanager:
         for loglevel, message, args, kwargs in cls._log_entries:
             _dangerous_logger.log(loglevel, message, *args, **kwargs)
         cls._log_entries.clear()
-        cls._log = _dangerous_logger.log
+        cls._log = _dangerous_logger.log  # type: ignore[method-assign, assignment]
 
         for message, args, kwargs in cls._warn_entries:
             kwargs.setdefault("stacklevel", 1)
             warnings.warn(message, *args, **kwargs)
         cls._warn_entries.clear()
-        cls._warn = warnings.warn
+        cls._warn = warnings.warn  # type: ignore[method-assign, assignment]
 
     def parse_config(
         self,
@@ -1487,7 +1541,7 @@ class configmanager:
         for arg_no, arg in enumerate(args):
             if option := self.optional_options.get(arg):
                 if arg_no == len(args) - 1 or args[arg_no + 1].startswith("-"):
-                    args[arg_no] += "=" + self.format(option.dest, option.const)
+                    args[arg_no] += "=" + self.format(option.dest or "", option.const)
                     self._log(logging.DEBUG, "changed %s for %s", arg, args[arg_no])
 
         opt, unknown_args = self.parser.parse_args(args)
@@ -1556,9 +1610,7 @@ class configmanager:
                 handler for comma in opt.log_handler for handler in comma
             ]
 
-    def _postprocess_options(self) -> None:
-        self._runtime_options.clear()
-
+    def _postprocess_exclusive_options(self) -> None:
         if self.options["syslog"] and self.options["logfile"]:
             self.parser.error("the syslog and logfile options are exclusive")
 
@@ -1572,6 +1624,7 @@ class configmanager:
                 "Cannot use -i/--init or -u/--update with multiple databases in the -d/--database/db_name"
             )
 
+    def _postprocess_server_wide_modules(self) -> None:
         if not self["server_wide_modules"]:
             self._runtime_options["server_wide_modules"] = DEFAULT_SERVER_WIDE_MODULES
         for mod in REQUIRED_SERVER_WIDE_MODULES:
@@ -1586,6 +1639,7 @@ class configmanager:
                     "server_wide_modules"
                 ]
 
+    def _postprocess_log_handler(self) -> None:
         self._runtime_options["log_handler"] = list(
             _deduplicate_loggers(
                 [
@@ -1597,6 +1651,7 @@ class configmanager:
             )
         )
 
+    def _postprocess_init_update(self) -> None:
         init_modules = self["init"]
         if "all" in init_modules:
             self._warn(
@@ -1612,6 +1667,7 @@ class configmanager:
             else dict.fromkeys(self["update"], True)
         )
 
+    def _postprocess_dev_mode(self) -> None:
         if self["db_replica_host"] == "":
             self._runtime_options["db_replica_host"] = None
             if "replica" not in self["dev_mode"]:
@@ -1633,20 +1689,23 @@ class configmanager:
         if "all" in self["dev_mode"]:
             self._runtime_options["dev_mode"] = self["dev_mode"] + ALL_DEV_MODE
 
-        if test_file := self["test_file"]:
-            if not Path(test_file).is_file():
-                self._log(logging.WARNING, f"test file {test_file!r} cannot be found")
-            elif not test_file.endswith(".py"):
-                self._log(
-                    logging.WARNING,
-                    f"test file {test_file!r} is not a python file",
-                )
-            else:
-                self._log(logging.INFO, "Transforming --test-file into --test-tags")
-                test_tags = [t for t in (self["test_tags"] or "").split(",") if t]
-                test_tags.append(str(Path(self["test_file"]).resolve()))
-                self._runtime_options["test_tags"] = ",".join(test_tags)
-                self._runtime_options["test_enable"] = True
+    def _postprocess_test_file(self) -> None:
+        test_file = self["test_file"]
+        if not test_file:
+            return
+        if not Path(test_file).is_file():
+            self._log(logging.WARNING, f"test file {test_file!r} cannot be found")
+        elif not test_file.endswith(".py"):
+            self._log(logging.WARNING, f"test file {test_file!r} is not a python file")
+        else:
+            self._log(logging.INFO, "Transforming --test-file into --test-tags")
+            test_tags = [t for t in (self["test_tags"] or "").split(",") if t]
+            test_tags.append(str(Path(self["test_file"]).resolve()))
+            self._runtime_options["test_tags"] = ",".join(test_tags)
+            self._runtime_options["test_enable"] = True
+
+    def _postprocess_test_options(self) -> None:
+        self._postprocess_test_file()
         if self["test_enable"] and not self["test_tags"]:
             self._runtime_options["test_tags"] = "+standard"
         self._runtime_options["test_enable"] = bool(self["test_tags"])
@@ -1658,6 +1717,15 @@ class configmanager:
                     "Empty %s, tests won't run",
                     self.options_index["db_name"],
                 )
+
+    def _postprocess_options(self) -> None:
+        self._runtime_options.clear()
+        self._postprocess_exclusive_options()
+        self._postprocess_server_wide_modules()
+        self._postprocess_log_handler()
+        self._postprocess_init_update()
+        self._postprocess_dev_mode()
+        self._postprocess_test_options()
 
     def _warn_deprecated_options(self) -> None:
         if self["http_enable"] and not self.http_socket_activation:
@@ -1854,10 +1922,12 @@ class configmanager:
         if value == "None":
             return None
         option = self.options_index[option_name]
+        check_func: Callable[..., Any]
         if option.action in ("store_true", "store_false"):
             check_func = self._check_bool
         else:
-            check_func = self.parser.option_class.TYPE_CHECKER[option.type]
+            option_class: Any = self.parser.option_class
+            check_func = option_class.TYPE_CHECKER[option.type]
         return check_func(option, option_name, value)
 
     @classmethod
@@ -1874,10 +1944,11 @@ class configmanager:
 
     def format(self, option_name: str, value: Any) -> str:
         option = self.options_index[option_name]
+        option_class: Any = self.parser.option_class
         if option.action in ("store_true", "store_false"):
-            format_func = self.parser.option_class.TYPE_FORMATTER["bool"]
+            format_func = option_class.TYPE_FORMATTER["bool"]
         else:
-            format_func = self.parser.option_class.TYPE_FORMATTER[option.type]
+            format_func = option_class.TYPE_FORMATTER[option.type]
         return format_func(value)
 
     def load(self) -> None:

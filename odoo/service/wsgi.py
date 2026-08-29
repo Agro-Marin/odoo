@@ -17,7 +17,7 @@ import werkzeug.serving
 from werkzeug.urls import uri_to_iri
 
 from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
-from odoo.tools import config
+from odoo.tools.config import config
 
 from ._env import env_float, env_int
 

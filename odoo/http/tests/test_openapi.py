@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import werkzeug.routing
 
@@ -40,7 +41,7 @@ def test_methods_none_route_emits_operations():
 
 
 def test_operation_id_disambiguates_realistic_collision():
-    used = set()
+    used: set[str] = set()
     first = _operation_id("GET", "/shop/cart", used)
     second = _operation_id("GET", "/shop-cart", used)
     assert first == "get_shop_cart"
@@ -150,8 +151,9 @@ def test_security_schemes_registered_per_auth():
 def test_openapi_from_map_roundtrip():
     m = werkzeug.routing.Map()
 
-    def handler(self, ident): ...
+    def _handler(self, ident): ...
 
+    handler: Any = _handler
     handler.routing = {"type": "http", "auth": "public"}
     handler.original_endpoint = handler
     m.add(werkzeug.routing.Rule("/a/<int:ident>", endpoint=handler, methods=["GET"]))

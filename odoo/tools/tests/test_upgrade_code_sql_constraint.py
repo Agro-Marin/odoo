@@ -1,20 +1,12 @@
-import importlib.util
 import logging
 import pathlib
 import unittest
 
-_SCRIPT = (
-    pathlib.Path(__file__).resolve().parents[2]
-    / "upgrade_code"
-    / "18.1-00-sql-constraint.py"
-)
+from odoo.tools.tests._upgrade_script import load_upgrade_script
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("sql_constraint_upgrade", _SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_upgrade_script("sql_constraint_upgrade", "18.1-00-sql-constraint.py")
 
 
 class _File:

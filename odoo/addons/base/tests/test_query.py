@@ -6,7 +6,7 @@ class QueryTestCase(BaseCase):
     def test_basic_query(self):
         query = Query(None, "product_product")
         query.add_table("product_template")
-        query.add_where("product_product.template_id = product_template.id")
+        query.add_where(SQL("product_product.template_id = product_template.id"))
         alias = query.join(
             "product_template", "categ_id", "product_category", "id", "categ_id"
         )
@@ -28,7 +28,7 @@ class QueryTestCase(BaseCase):
     def test_query_chained_explicit_joins(self):
         query = Query(None, "product_product")
         query.add_table("product_template")
-        query.add_where("product_product.template_id = product_template.id")
+        query.add_where(SQL("product_product.template_id = product_template.id"))
         alias = query.join(
             "product_template", "categ_id", "product_category", "id", "categ_id"
         )
@@ -50,7 +50,7 @@ class QueryTestCase(BaseCase):
     def test_mixed_query_chained_explicit_implicit_joins(self):
         query = Query(None, "product_product")
         query.add_table("product_template")
-        query.add_where("product_product.template_id = product_template.id")
+        query.add_where(SQL("product_product.template_id = product_template.id"))
         alias = query.join(
             "product_template", "categ_id", "product_category", "id", "categ_id"
         )
@@ -60,7 +60,7 @@ class QueryTestCase(BaseCase):
         )
         self.assertEqual(alias, "product_template__categ_id__user_id")
         query.add_table("account_account")
-        query.add_where("product_category.expense_account_id = account_account.id")
+        query.add_where(SQL("product_category.expense_account_id = account_account.id"))
 
         self.assertEqual(
             query.from_clause.code,

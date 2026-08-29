@@ -1,7 +1,7 @@
 import logging
 import threading
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from types import MappingProxyType
 from typing import NamedTuple
 
@@ -266,8 +266,8 @@ def validate_esm_config(
     import_map_includes: Mapping,
     secondary_import_map_includes: Mapping,
     *,
-    standalone_bundles: set = frozenset(),
-    runtime_bundles: set = frozenset(),
+    standalone_bundles: Collection[str] = frozenset(),
+    runtime_bundles: Collection[str] = frozenset(),
 ) -> None:
     for mapping_name, mapping in (
         ("dynamic_children", dynamic_children),

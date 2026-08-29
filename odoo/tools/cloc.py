@@ -27,11 +27,11 @@ VALID_EXTENSION = [".py", ".js", ".xml", ".css", ".scss"]
 
 class Cloc:
     def __init__(self) -> None:
-        self.modules: dict[str, dict[str, tuple[int, int]]] = {}
+        self.modules: dict[str, dict[str, tuple[int, int] | tuple[int, str]]] = {}
         self.code: dict[str, int] = {}
         self.total: dict[str, int] = {}
         self.errors: dict[str, dict[str, Any]] = {}
-        self.excluded: dict[str, dict[str, tuple[int, int]]] = {}
+        self.excluded: dict[str, dict[str, tuple[int, int] | tuple[int, str]]] = {}
         self.max_width: int = 70
 
     def parse_xml(self, s: str) -> tuple[int, int]:
@@ -112,7 +112,9 @@ class Cloc:
             if item:
                 self.modules[module][item] = count
             self.code[module] = self.code.get(module, 0) + count[0]
-            self.total[module] = self.total.get(module, 0) + count[1]
+            total = count[1]
+            if isinstance(total, int):
+                self.total[module] = self.total.get(module, 0) + total
             self.max_width = max(self.max_width, len(module), len(item) + 4)
 
     def count_path(self, path: str, exclude: set[str] | None = None) -> None:
@@ -156,7 +158,8 @@ class Cloc:
                     continue
 
                 content = Path(file_path).read_bytes().decode("latin1")
-                self.book(module_name, file_path, self.parse(content, ext))
+                if (parsed := self.parse(content, ext)) is not None:
+                    self.book(module_name, file_path, parsed)
 
     def count_modules(self, env: Environment) -> None:
         exclude_path = {
@@ -165,7 +168,7 @@ class Cloc:
             if (m := odoo.modules.Manifest.for_addon(name, display_warning=False))
         }
 
-        domain = [("state", "=", "installed")]
+        domain: list[tuple[str, str, Any]] = [("state", "=", "installed")]
         if env["ir.module.module"]._fields.get("imported"):
             domain.append(("imported", "=", False))
         module_list = env["ir.module.module"].search(domain).mapped("name")
@@ -175,7 +178,7 @@ class Cloc:
             if manifest and manifest.addons_path not in exclude_path:
                 self.count_path(manifest.path)
 
-    def count_customization(self, env: Environment) -> None:
+    def _count_custom_server_actions(self, env: Environment) -> None:
         imported_module_sa = ""
         if env["ir.module.module"]._fields.get("imported"):
             imported_module_sa = "OR (m.imported = TRUE AND m.state = 'installed')"
@@ -191,7 +194,8 @@ class Cloc:
         """
         env.cr.execute(query)
         data = {r[0]: (r[1], r[2]) for r in env.cr.fetchall()}
-        for a in env["ir.actions.server"].browse(data.keys()):
+        server_actions: Any = env["ir.actions.server"]
+        for a in server_actions.browse(data.keys()):
             self.book(
                 data[a.id][0] or "odoo/studio",
                 f"ir.actions.server/{a.id}: {a.name}",
@@ -199,6 +203,7 @@ class Cloc:
                 "__cloc_exclude__" in data[a.id][1],
             )
 
+    def _count_custom_computed_fields(self, env: Environment) -> None:
         imported_module_field = ("'odoo/studio'", "")
         if env["ir.module.module"]._fields.get("imported"):
             imported_module_field = (
@@ -214,10 +219,9 @@ class Cloc:
               GROUP BY f.id, f.name
         """.format(*imported_module_field)
         env.cr.execute(query)
-        all_data = env.cr.fetchall()
         data = {
             r[0]: (r[2], r[3])
-            for r in all_data
+            for r in env.cr.fetchall()
             if not ("studio_customization" in r[3] and not r[1].startswith("x_studio"))
         }
         for f in env["ir.model.fields"].browse(data.keys()):
@@ -228,9 +232,7 @@ class Cloc:
                 "__cloc_exclude__" in data[f.id][1],
             )
 
-        if not env["ir.module.module"]._fields.get("imported"):
-            return
-
+    def _count_imported_qweb_views(self, env: Environment) -> None:
         query = """
             SELECT view.id, min(mod.name), array_agg(data.module)
               FROM ir_ui_view view
@@ -251,6 +253,7 @@ class Cloc:
                 "__cloc_exclude__" in custom_views[view.id][1],
             )
 
+    def _count_imported_attachments(self, env: Environment) -> None:
         query = r"""
             SELECT attach.id, min(mod.name), array_agg(data.module)
               FROM ir_attachment attach
@@ -274,13 +277,24 @@ class Cloc:
                 self.book(module_name, attach.url, (-1, "Max file size exceeded"))
                 continue
 
-            content = attach.raw.decode("latin1")
-            self.book(
-                module_name,
-                attach.url,
-                self.parse(content, ext),
-                "__cloc_exclude__" in uploaded_file[attach.id][1],
-            )
+            parsed = self.parse(attach.raw.decode("latin1"), ext)
+            if parsed is not None:
+                self.book(
+                    module_name,
+                    attach.url,
+                    parsed,
+                    "__cloc_exclude__" in uploaded_file[attach.id][1],
+                )
+
+    def count_customization(self, env: Environment) -> None:
+        self._count_custom_server_actions(env)
+        self._count_custom_computed_fields(env)
+
+        if not env["ir.module.module"]._fields.get("imported"):
+            return
+
+        self._count_imported_qweb_views(env)
+        self._count_imported_attachments(env)
 
     def count_env(self, env: Environment) -> None:
         self.count_modules(env)
@@ -315,6 +329,8 @@ class Cloc:
                     reverse=True,
                 ):
                     code, total = self.modules[m][i]
+                    if not isinstance(total, int):
+                        continue
                     s += fmt.format(
                         k="    " + i, lines=total, other=total - code, code=code
                     )
@@ -333,6 +349,8 @@ class Cloc:
                     reverse=True,
                 ):
                     code, total = self.excluded[m][i]
+                    if not isinstance(total, int):
+                        continue
                     ex += fmt.format(
                         k="    " + i, lines=total, other=total - code, code=code
                     )

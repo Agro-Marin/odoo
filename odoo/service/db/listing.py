@@ -159,10 +159,12 @@ def _scan_countries() -> tuple[tuple[str, str], ...]:
     root = ET.parse(  # noqa: S314  parses Odoo's own res_country_data.xml from root_path
         Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
     ).getroot()
-    countries = []
+    countries: list[tuple[str, str]] = []
     for country in root.findall('.//record[@model="res.country"]'):
-        name = country.find('field[@name="name"]').text
-        code = country.find('field[@name="code"]').text
+        name = country.findtext('field[@name="name"]')
+        code = country.findtext('field[@name="code"]')
+        if code is None or name is None:
+            continue
         countries.append((code, name))
     return tuple(sorted(countries, key=lambda c: c[1]))
 

@@ -145,5 +145,10 @@ class TestProgramShape(unittest.TestCase):
         segments, holes = compile_static_template(
             parse('<p t-out="first"/><p t-out="second"/>')
         )
-        render_static_program(segments, holes, lambda e: seen.append(e) or "v")
+
+        def _record(e):
+            seen.append(e)
+            return "v"
+
+        render_static_program(segments, holes, _record)
         self.assertEqual(seen, ["first", "second"])

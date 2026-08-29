@@ -80,7 +80,7 @@ def exp_authenticate(
         _logger.debug("exp_authenticate: %r is reachable but not an Odoo database", db)
         return False
     with registry.cursor() as cr:
-        env = odoo.api.Environment(cr, None, {})
+        env = odoo.api.Environment(cr, None, {})  # type: ignore[arg-type]
         env.transaction.default_env = env
         try:
             credential = {

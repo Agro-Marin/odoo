@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+from collections.abc import Callable
 
 _IS_POSIX = os.name == "posix"
 _IS_WINDOWS = os.name == "nt"
@@ -32,14 +33,14 @@ def env_str(name: str, default: str = "") -> str:
     return (os.environ.get(name) or "").strip() or default
 
 
-def _parse(
+def _parse[T: (int, float)](
     name: str,
-    default: float,
-    conv: type,
+    default: T,
+    conv: Callable[[str], T],
     label: str,
-    minimum: float | None,
+    minimum: T | None,
     logger: logging.Logger | None,
-) -> float:
+) -> T:
     raw = os.environ.get(name)
     if raw is None:
         return default

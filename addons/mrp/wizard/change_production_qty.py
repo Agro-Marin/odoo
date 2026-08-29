@@ -54,7 +54,6 @@ class ChangeProductionQty(models.TransientModel):
         return move.move_dest_ids and not move.product_uom_id.is_zero(qty)
 
     def change_prod_qty(self):
-        precision = self.env["decimal.precision"].get_precision("Product Unit")
         activity_mixin = self.env["mixin.stock.activity"]
         for wizard in self:
             production = wizard.mo_id

@@ -126,7 +126,7 @@ class Shell(Command):
         if preferred_interface:
             shells_to_try = list(dict.fromkeys([preferred_interface, "python"]))
         else:
-            shells_to_try = self.supported_shells
+            shells_to_try = list(self.supported_shells)
 
         for shell in shells_to_try:
             if not self._repl_available(shell):
@@ -190,7 +190,7 @@ class Shell(Command):
         console.interact(banner="")
 
     def shell(self, dbname: str | None) -> None:
-        local_vars = {
+        local_vars: dict[str, Any] = {
             "odoo": odoo,
         }
         if dbname:

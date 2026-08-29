@@ -96,7 +96,7 @@ class TestGetLangFrameWalk(unittest.TestCase):
 
     def test_assert_raises_context_local_is_not_a_context(self):
         def inner():
-            with self.assertRaises(ValueError) as context:  # noqa: F841
+            with self.assertRaises(ValueError) as context:  # noqa: F841 - the name is the stranger under test
                 raise ValueError("boom")
             return _get_lang(inspect.currentframe())
 

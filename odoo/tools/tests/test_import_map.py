@@ -60,10 +60,16 @@ def _sha256_expr(body: str) -> str:
 
 
 class TestImportMapFor(unittest.TestCase):
+    def _body(self, script_tag: str) -> str:
+        match = _TAG_BODY.search(script_tag)
+        self.assertIsNotNone(match, "the script tag has no inline body")
+        assert match is not None
+        return match["body"]
+
     def test_resolves_urls_from_the_external_libs_registry(self):
         map_ = import_map_for("@popperjs/core")
         self.assertEqual(
-            json.loads(_TAG_BODY.search(map_.script_tag)["body"]),
+            json.loads(self._body(map_.script_tag)),
             {"imports": {"@popperjs/core": external_libs()["@popperjs/core"]}},
         )
 
@@ -71,7 +77,7 @@ class TestImportMapFor(unittest.TestCase):
         for specs in (("@popperjs/core",), ("luxon", "dompurify"), ("@odoo/owl",)):
             with self.subTest(specs=specs):
                 map_ = import_map_for(*specs)
-                body = _TAG_BODY.search(map_.script_tag)["body"]
+                body = self._body(map_.script_tag)
                 self.assertEqual(map_.csp_hash, _sha256_expr(body))
 
     def test_hash_matches_a_browser_computed_value(self):
@@ -139,6 +145,7 @@ class TestIotHomepagePlaceholder(unittest.TestCase):
         source = self.CONTROLLER.read_text(encoding="utf-8")
         match = re.search(r'IMPORT_MAP_PLACEHOLDER = "([^"]+)"', source)
         self.assertIsNotNone(match, "homepage.py no longer defines the placeholder")
+        assert match is not None
         return match.group(1)
 
     def test_a_page_loading_bootstrap_carries_the_placeholder(self):

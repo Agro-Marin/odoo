@@ -26,6 +26,143 @@ class TranslationMixin(_ModelStubs):
             field_name, translations, source_lang=source_lang
         )
 
+    def _check_translation_langs(self, translations: dict, source_lang: str) -> None:
+        valid_langs = {code for code, _ in self.env["res.lang"].get_installed()} | {
+            "en_US"
+        }
+        missing_langs = (set(translations) | {source_lang}) - valid_langs
+        if missing_langs:
+            raise UserError(
+                _(
+                    "The following languages are not activated: %(missing_names)s",
+                    missing_names=", ".join(missing_langs),
+                )
+            )
+
+    def _update_model_translations(self, field_name: str, translations: dict) -> bool:
+        if any(
+            translation and not isinstance(translation, str)
+            for translation in translations.values()
+        ):
+            raise UserError(
+                _(
+                    "Translations for model translated fields only accept falsy values and str"
+                )
+            )
+        value_en = translations.get("en_US", True)
+        if not value_en and value_en != "":
+            translations.pop("en_US")
+        translations = {
+            lang: translation if isinstance(translation, str) else None
+            for lang, translation in translations.items()
+        }
+        if not translations:
+            return False
+
+        translation_fallback = (
+            translations["en_US"]
+            if translations.get("en_US") is not None
+            else (
+                translations[self.env.lang]
+                if translations.get(self.env.lang) is not None
+                else next(
+                    (v for v in translations.values() if v is not None),
+                    None,
+                )
+            )
+        )
+        self.invalidate_recordset([field_name])
+        self.env.cr.execute(
+            SQL(
+                """ UPDATE %(table)s
+                SET %(field)s = NULLIF(
+                    jsonb_strip_nulls(%(fallback)s || COALESCE(%(field)s, '{}'::jsonb) || %(value)s),
+                    '{}'::jsonb)
+                WHERE id = %(id)s
+            """,
+                table=SQL.identifier(self._table),
+                field=SQL.identifier(field_name),
+                fallback=Jsonb({"en_US": translation_fallback}),
+                value=Jsonb(translations),
+                id=self.id,
+            )
+        )
+        self.modified([field_name])
+        return True
+
+    def _update_term_translations(
+        self, field, translations: dict, digest, source_lang: str
+    ) -> bool:
+        old_values = field._get_stored_translations(self)
+        if not old_values:
+            return False
+
+        for lang in translations:
+            if f"_{lang}" in old_values:
+                old_values[lang] = old_values.pop(f"_{lang}")
+        translations = {
+            lang: _translations
+            for lang, _translations in translations.items()
+            if _translations
+        }
+
+        source_key = next(
+            (
+                lang
+                for lang in [
+                    f"_{source_lang}",
+                    source_lang,
+                    "_en_US",
+                    "en_US",
+                ]
+                if lang in old_values
+            ),
+            None,
+        )
+        if source_key is not None:
+            old_source_lang_value = old_values[source_key]
+        else:
+            old_source_lang_value = next(iter(old_values.values()))
+        old_values_to_translate = {
+            lang: value
+            for lang, value in old_values.items()
+            if lang != source_lang and lang in translations
+        }
+        old_translation_dictionary = field.get_translation_dictionary(
+            old_source_lang_value, old_values_to_translate
+        )
+
+        if digest:
+            digested2term = {
+                digest(old_en_term): old_en_term
+                for old_en_term in old_translation_dictionary
+            }
+            translations = {
+                lang: {
+                    digested2term[src]: value
+                    for src, value in lang_translations.items()
+                    if src in digested2term
+                }
+                for lang, lang_translations in translations.items()
+            }
+
+        new_values = old_values
+        for lang, _translations in translations.items():
+            _old_translations = {
+                src: values[lang]
+                for src, values in old_translation_dictionary.items()
+                if lang in values
+            }
+            _new_translations = _old_translations | _translations
+            new_values[lang] = field.convert_to_cache(
+                field.translate(_new_translations.get, old_source_lang_value),
+                self,
+            )
+        field._update_cache(
+            self.with_context(prefetch_langs=True), new_values, dirty=True
+        )
+        return True
+
     def _update_field_translations(
         self,
         field_name: str,
@@ -39,19 +176,8 @@ class TranslationMixin(_ModelStubs):
         field = self._fields[field_name]
         translations = dict(translations)
         self._check_field_access(field, "write")
-
-        valid_langs = {code for code, _ in self.env["res.lang"].get_installed()} | {
-            "en_US"
-        }
         source_lang = source_lang or "en_US"
-        missing_langs = (set(translations) | {source_lang}) - valid_langs
-        if missing_langs:
-            raise UserError(
-                _(
-                    "The following languages are not activated: %(missing_names)s",
-                    missing_names=", ".join(missing_langs),
-                )
-            )
+        self._check_translation_langs(translations, source_lang)
 
         if not field.translate:
             return False
@@ -66,123 +192,12 @@ class TranslationMixin(_ModelStubs):
             )
 
         if field.translate is True:
-            if any(
-                translation and not isinstance(translation, str)
-                for translation in translations.values()
-            ):
-                raise UserError(
-                    _(
-                        "Translations for model translated fields only accept falsy values and str"
-                    )
-                )
-            value_en = translations.get("en_US", True)
-            if not value_en and value_en != "":
-                translations.pop("en_US")
-            translations = {
-                lang: translation if isinstance(translation, str) else None
-                for lang, translation in translations.items()
-            }
-            if not translations:
+            if not self._update_model_translations(field_name, translations):
                 return False
-
-            translation_fallback = (
-                translations["en_US"]
-                if translations.get("en_US") is not None
-                else (
-                    translations[self.env.lang]
-                    if translations.get(self.env.lang) is not None
-                    else next(
-                        (v for v in translations.values() if v is not None),
-                        None,
-                    )
-                )
-            )
-            self.invalidate_recordset([field_name])
-            self.env.cr.execute(
-                SQL(
-                    """ UPDATE %(table)s
-                    SET %(field)s = NULLIF(
-                        jsonb_strip_nulls(%(fallback)s || COALESCE(%(field)s, '{}'::jsonb) || %(value)s),
-                        '{}'::jsonb)
-                    WHERE id = %(id)s
-                """,
-                    table=SQL.identifier(self._table),
-                    field=SQL.identifier(field_name),
-                    fallback=Jsonb({"en_US": translation_fallback}),
-                    value=Jsonb(translations),
-                    id=self.id,
-                )
-            )
-            self.modified([field_name])
-        else:
-            old_values = field._get_stored_translations(self)
-            if not old_values:
-                return False
-
-            for lang in translations:
-                if f"_{lang}" in old_values:
-                    old_values[lang] = old_values.pop(f"_{lang}")
-            translations = {
-                lang: _translations
-                for lang, _translations in translations.items()
-                if _translations
-            }
-
-            source_key = next(
-                (
-                    lang
-                    for lang in [
-                        f"_{source_lang}",
-                        source_lang,
-                        "_en_US",
-                        "en_US",
-                    ]
-                    if lang in old_values
-                ),
-                None,
-            )
-            if source_key is not None:
-                old_source_lang_value = old_values[source_key]
-            else:
-                old_source_lang_value = next(iter(old_values.values()))
-            old_values_to_translate = {
-                lang: value
-                for lang, value in old_values.items()
-                if lang != source_lang and lang in translations
-            }
-            old_translation_dictionary = field.get_translation_dictionary(
-                old_source_lang_value, old_values_to_translate
-            )
-
-            if digest:
-                digested2term = {
-                    digest(old_en_term): old_en_term
-                    for old_en_term in old_translation_dictionary
-                }
-                translations = {
-                    lang: {
-                        digested2term[src]: value
-                        for src, value in lang_translations.items()
-                        if src in digested2term
-                    }
-                    for lang, lang_translations in translations.items()
-                }
-
-            new_values = old_values
-            for lang, _translations in translations.items():
-                _old_translations = {
-                    src: values[lang]
-                    for src, values in old_translation_dictionary.items()
-                    if lang in values
-                }
-                _new_translations = _old_translations | _translations
-                new_values[lang] = field.convert_to_cache(
-                    field.translate(_new_translations.get, old_source_lang_value),
-                    self,
-                )
-            field._update_cache(
-                self.with_context(prefetch_langs=True), new_values, dirty=True
-            )
+        elif not self._update_term_translations(
+            field, translations, digest, source_lang
+        ):
+            return False
 
         self[field_name] = self[field_name]
         return True

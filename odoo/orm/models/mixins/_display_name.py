@@ -31,7 +31,10 @@ class _DisplayNameMixin(_ModelStubs):
     def name_create(self, name: str) -> tuple[int, str]:
         if not self._rec_name:
             raise UserError(
-                f"Cannot execute name_create: no _rec_name defined on {self._name}"
+                self.env._(
+                    "Cannot execute name_create: no _rec_name defined on %(model)s",
+                    model=self._name,
+                )
             )
         record = self.create({self._rec_name: name})
         return record.id, record.display_name

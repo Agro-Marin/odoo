@@ -7,7 +7,7 @@ from odoo.tools.cache import ormcache
 
 class _Pool:
     def __init__(self):
-        self.ormcache_lrus = defaultdict(lambda: LRU(1000))
+        self.ormcache_lrus: defaultdict[str, LRU] = defaultdict(lambda: LRU(1000))
 
 
 class _Model:
@@ -24,7 +24,7 @@ class _Model:
 class TestAddValueGeneration(unittest.TestCase):
     def setUp(self):
         self.model = _Model()
-        self.cache = type(self.model)._get_id.__cache__
+        self.cache = type(self.model)._get_id.__cache__  # type: ignore[attr-defined]
         self.lru = self.model.pool.ormcache_lrus[self.cache.cache_name]
 
     def _key(self, name):

@@ -6,6 +6,8 @@ from odoo.libs.sql import SQL, make_identifier
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
+    from odoo.api import Environment
+
 
 def _sql_from_table(alias: str, table: SQL) -> SQL:
     if (alias_identifier := SQL.identifier(alias)) == table:
@@ -44,7 +46,7 @@ class Query:
         "_where_clauses",
     )
 
-    def __init__(self, env: object, alias: str, table: SQL | None = None) -> None:
+    def __init__(self, env: Environment, alias: str, table: SQL | None = None) -> None:
         self._env = env
 
         self._tables: dict[str, SQL] = {
@@ -99,8 +101,8 @@ class Query:
             self._joins[alias] = (sql_kind, table, condition)
             self._invalidate_ids()
 
-    def add_where(self, where_clause: str | SQL, where_params: tuple = ()) -> None:
-        self._where_clauses.append(SQL(where_clause, *where_params))
+    def add_where(self, where_clause: SQL) -> None:
+        self._where_clauses.append(where_clause)
         self._invalidate_ids()
 
     def join(
@@ -156,8 +158,8 @@ class Query:
         return self._order
 
     @order.setter
-    def order(self, value: SQL | str | None):
-        self._order = SQL(value) if value is not None else None
+    def order(self, value: SQL | None):
+        self._order = value
         self._invalidate_ids()
 
     @property
@@ -272,7 +274,7 @@ class Query:
             )
         ids = tuple(ids)
         if not ids:
-            self.add_where("FALSE")
+            self.add_where(SQL("FALSE"))
         elif ordered:
             alias = self.join(
                 self.table,

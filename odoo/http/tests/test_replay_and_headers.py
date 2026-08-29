@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 import werkzeug.datastructures
 from werkzeug.test import EnvironBuilder
@@ -7,9 +9,8 @@ from odoo.http.request_class import Request
 from odoo.http.wrappers import FutureResponse, HTTPRequest, Response
 
 
-class _FakeRequest:
-    _inject_future_response = Request._inject_future_response
-    _reset_for_replay = Request._reset_for_replay
+class _FakeRequest(Request):
+    session: Any
 
     def __init__(self):
         self.future_response = FutureResponse()

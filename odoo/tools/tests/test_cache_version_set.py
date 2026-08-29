@@ -17,9 +17,9 @@ class TestSetDigestStability(unittest.TestCase):
         )
 
     def test_insertion_order_does_not_change_digest(self):
-        s1 = set()
+        s1: set = set()
         s1.update(("alpha", "beta", "gamma", "delta", "epsilon"))
-        s2 = set()
+        s2: set = set()
         s2.update(("epsilon", "delta", "gamma", "beta", "alpha"))
         self.assertEqual(_canonical_bytes(s1), _canonical_bytes(s2))
 

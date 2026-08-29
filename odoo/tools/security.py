@@ -5,6 +5,7 @@ import hmac as hmac_lib
 import time
 import typing
 import zlib
+from typing import Any
 
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
@@ -22,13 +23,14 @@ def hmac(
     env: Environment,
     scope: str,
     message: typing.Any,
-    hash_function: Callable[..., object] = hashlib.sha256,
+    hash_function: Callable[[], Any] = hashlib.sha256,
 ) -> str:
     if not scope:
         msg = "Non-empty scope required"
         raise ValueError(msg)
 
-    secret = env(su=True)["ir.config_parameter"].get_param("database.secret")
+    config_parameter: Any = env(su=True)["ir.config_parameter"]
+    secret = config_parameter.get_param("database.secret")
     if not secret:
         raise ValueError(
             "The 'database.secret' configuration parameter is missing or empty; "

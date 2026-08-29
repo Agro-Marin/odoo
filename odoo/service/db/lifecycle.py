@@ -51,7 +51,9 @@ def _check_faketime_mode(db_name: str) -> None:
         db = odoo.db.db_connect(db_name)
         with db.cursor() as cursor:
             cursor.execute("SELECT (pg_catalog.now() AT TIME ZONE 'UTC');")
-            server_now = cursor.fetchone()[0]
+            server_now_row = cursor.fetchone()
+            assert server_now_row is not None, "SELECT now() returned no row"
+            server_now = server_now_row[0]
             time_offset = (datetime.now() - server_now).total_seconds()
 
             cursor.execute(
@@ -64,7 +66,8 @@ def _check_faketime_mode(db_name: str) -> None:
                 (int(time_offset),),
             )
             cursor.execute("SELECT (now() AT TIME ZONE 'UTC');")
-            new_now = cursor.fetchone()[0]
+            new_now_row = cursor.fetchone()
+            new_now = new_now_row[0] if new_now_row else None
             _logger.info("Faketime mode, new cursor now is %s", new_now)
             cursor.commit()
     except psycopg.Error as e:
@@ -116,7 +119,9 @@ def _create_empty_database(
         def _create() -> None:
             nonlocal already_exists
             try:
-                cr.execute(create_sql, log_exceptions=False)
+                cr.execute(  # noqa: E8501  parameterised SQL(), built above
+                    create_sql, log_exceptions=False
+                )
             except psycopg.errors.DuplicateDatabase, psycopg.errors.UniqueViolation:
                 already_exists = True
 
@@ -254,7 +259,7 @@ def _duplicate_database(
         registry = odoo.modules.registry.Registry.new(db_name, run_tests=False)
         with registry.cursor() as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
-            env["ir.config_parameter"].init(force=True)
+            env["ir.config_parameter"].init(force=True)  # type: ignore[call-arg]
             if neutralize_database:
                 odoo.modules.neutralize.neutralize_database(cr)
 

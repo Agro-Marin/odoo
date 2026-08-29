@@ -6,9 +6,10 @@ Every Python model defined or extended by the `base` module, with fields, key me
 
 ## Actions System
 
-### models/ir_actions.py
+The action types — the core navigation primitives of the webclient — are one
+file per type, each inheriting `ir.actions.actions`.
 
-Defines all action types — the core navigation primitives of the webclient.
+### models/ir_actions_actions.py
 
 #### IrActions — `ir.actions.actions` (`_name`, `_table = ir_actions`)
 
@@ -30,6 +31,8 @@ Base action model. All action types inherit from this.
 - `_get_action_dict()` — Return action data dict for webclient
 - `_get_fields_readable()` — Fields safe for web access
 
+### models/ir_actions_path.py
+
 #### IrActionsPath — `ir.actions.path` (`_name`)
 
 A side table holding one row per action that declares a URL path, so the
@@ -43,6 +46,8 @@ search. Two `models.Constraint`s carry it: `_path_unique` on the path and
 - `init()` — Backfill from existing action paths, then WARN about any action
   whose path could not be backed because another already claims it. Those actions
   keep an unreachable path and are named in the log rather than dropped.
+
+### models/ir_actions_act_window.py
 
 #### IrActionsAct_Window — `ir.actions.act_window` (`_name`, inherits `ir.actions.actions`)
 
@@ -70,6 +75,8 @@ Window action — opens a view on a model.
 - `read(fields, load)` — Enriches help from model's `get_empty_list_help()`
 - `_get_action_dict()` — Includes embedded actions data
 
+### models/ir_actions_act_window_view.py
+
 #### IrActionsAct_WindowView — `ir.actions.act_window.view` (`_name`)
 
 View ordering within a window action.
@@ -80,9 +87,13 @@ View ordering within a window action.
 - `act_window_id` (Many2one → ir.actions.act_window, cascade)
 - `multi` (Boolean)
 
+### models/ir_actions_act_window_close.py
+
 #### IrActionsAct_Window_Close — `ir.actions.act_window_close` (`_name`, inherits actions)
 
 Close window action. Minimal — just inherits type.
+
+### models/ir_actions_act_url.py
 
 #### IrActionsAct_Url — `ir.actions.act_url` (`_name`, inherits actions)
 
@@ -90,6 +101,8 @@ URL action — opens an external URL.
 
 **Fields:**
 - `url` (Text, required), `target` (Selection) — `new`, `self`, `download`
+
+### models/ir_actions_todo.py
 
 #### IrActionsTodo — `ir.actions.todo` (`_name`)
 
@@ -102,6 +115,8 @@ Configuration wizard queue.
 **Key Methods:**
 - `ensure_one_open_todo()` — Keep only one open todo
 - `action_launch()` — Launch wizard action
+
+### models/ir_actions_client.py
 
 #### IrActionsClient — `ir.actions.client` (`_name`, inherits actions)
 
@@ -884,15 +899,48 @@ SMTP server configuration and email sending.
 
 ## Module System
 
-### models/ir_module.py
+### models/mixin_module_link.py
 
-#### IrModuleModuleExclusion — `ir.module.module.exclusion` (`_name`)
+#### MixinModuleLink — `mixin.module.link` (`_name`, AbstractModel)
+
+One row per module named by another module's manifest. `name` is the *string*
+the manifest wrote, so a link may point at a module this database has never
+seen; `linked_id` resolves it to a record when one exists and `state` reports
+`unknown` when it does not. Both concrete links below inherit it, which is why
+neither declares those two fields itself.
+
+**Fields:** `name` (Char, indexed), `module_id` (Many2one → ir.module.module, cascade), `linked_id` (Many2one → ir.module.module, computed + searchable), `state` (Selection, computed)
+
+**Key Methods:**
+- `_search_linked_id(operator, value)` — Search on the resolved module by
+  translating to a search on `name`, so an unresolvable link still matches
+  `not in`
+
+### models/ir_module_module_dependency.py
+
+#### IrModuleModuleDependency — `ir.module.module.dependency` (`_name`, inherits `mixin.module.link`)
+
+One row per `depends` entry in a manifest. `_module_dependency_uniq` forbids
+declaring the same dependency twice.
+
+**Fields:** `linked_id` (relabelled *Dependency*), `auto_install_required` (Boolean, default=True) — whether this dependency blocks automatic installation of the dependent
+
+**Key Methods:**
+- `all_dependencies(module_names)` — Transitive closure of the dependency graph,
+  read breadth-first with one `_read_group` per level rather than per module
+
+### models/ir_module_module_exclusion.py
+
+#### IrModuleModuleExclusion — `ir.module.module.exclusion` (`_name`, inherits `mixin.module.link`)
 
 One row per `excludes` entry in a manifest — the modules that may not be
 installed alongside this one. Read by the installer before it resolves the
-dependency graph.
+dependency graph. `_module_exclusion_uniq` forbids declaring the same exclusion
+twice.
 
-**Fields:** `name` (Char), `module_id` (Many2one → ir.module.module, cascade), `exclusion_id` (Many2one → ir.module.module), `state` (Selection, computed)
+**Fields:** `linked_id` (relabelled *Excluded Module*)
+
+### models/ir_module.py
 
 #### IrModuleCategory — `ir.module.category` (`_name`)
 
@@ -1708,7 +1756,14 @@ Quick lookup — file → model → primary role:
 | File | Model(s) | Role |
 |------|----------|------|
 | `report_base_report_irmodulereference.py` | report.base.report_irmodulereference | Module Reference report values |
-| `ir_actions.py` | ir.actions.actions, .act_window, .act_url, .client, .todo, .act_window_close, .act_window.view | All action types |
+| `ir_actions_actions.py` | ir.actions.actions | Base action model, bindings, path |
+| `ir_actions_path.py` | ir.actions.path | Side table making an action path unique |
+| `ir_actions_act_window.py` | ir.actions.act_window | Window action (opens views on a model) |
+| `ir_actions_act_window_view.py` | ir.actions.act_window.view | View ordering within a window action |
+| `ir_actions_act_window_close.py` | ir.actions.act_window_close | Close-window action |
+| `ir_actions_act_url.py` | ir.actions.act_url | URL action |
+| `ir_actions_client.py` | ir.actions.client | Client-side action (JS component) |
+| `ir_actions_todo.py` | ir.actions.todo | Configuration wizard queue |
 | `ir_actions_report.py` | ir.actions.report | PDF/HTML report rendering (WeasyPrint) |
 | `ir_actions_server.py` | ir.actions.server, .server.history, server.action.history.wizard | Automated actions (code/CRUD/webhook) |
 | `ir_asset.py` | ir.asset | Asset bundle management |
@@ -1724,6 +1779,7 @@ Quick lookup — file → model → primary role:
 | `ir_exports.py` | ir.exports, ir.exports.line | Export presets |
 | `ir_fields.py` | ir.fields.converter | Import type converters |
 | `ir_filters.py` | ir.filters | Saved search filters |
+| `ir_job.py` | ir.job, ir.job.channel | Background job queue + channels |
 | `ir_http.py` | ir.http | HTTP routing/auth/dispatch |
 | `ir_logging.py` | ir.logging | Server/client logs |
 | `ir_mail_server.py` | ir.mail_server | SMTP configuration/sending |
@@ -1734,6 +1790,10 @@ Quick lookup — file → model → primary role:
 | `ir_model_fields.py` | ir.model.fields | Field metadata registry |
 | `ir_model_fields_selection.py` | ir.model.fields.selection | Selection options |
 | `ir_module.py` | ir.module.module, .category | Module lifecycle |
+| `mixin_module_link.py` | mixin.module.link | Manifest-named module link (abstract) |
+| `ir_module_module_dependency.py` | ir.module.module.dependency | Manifest `depends` entries |
+| `ir_module_module_exclusion.py` | ir.module.module.exclusion | Manifest `excludes` entries |
+| `kpi_provider.py` | kpi.provider | KPI aggregation hook (abstract) |
 | `ir_profile.py` | ir.profile | Code profiling |
 | `ir_qweb.py` | ir.qweb | Template engine |
 | `ir_qweb_fields.py` | ir.qweb.field (+ 21 subclasses) | Template field formatters |
@@ -1746,6 +1806,14 @@ Quick lookup — file → model → primary role:
 | `ir_ui_view_name_manager.py` | NameManager (utility) | View XML validator |
 | `assetsbundle/bundle.py` | AssetsBundle (non-ORM) | Asset compilation |
 | `mixin_avatar.py` | mixin.avatar | SVG avatar generation |
+| `mixin_band.py` | mixin.band | Numeric band / range mixin |
+| `mixin_catalog.py` | mixin.catalog | Unique translated name, archivable |
+| `mixin_favorite.py` | mixin.favorite | Per-record favourite flag |
+| `mixin_user_favorite.py` | mixin.user.favorite | Per-user favourite flag |
+| `mixin_merge.py` | mixin.merge | Record merge engine |
+| `mixin_tag.py` | mixin.tag | Coloured label with a stable code |
+| `mixin_tag_nested.py` | mixin.tag.nested | Tag with a parent/child hierarchy |
+| `tag_tag.py` | tag.tag | Generic tag records |
 | `decimal_precision.py` | decimal.precision | Decimal precision config |
 | `mixin_image.py` | mixin.image | Multi-resolution images |
 | `properties_base_definition.py` | properties.base.definition | Properties definitions |
@@ -1766,9 +1834,26 @@ Quick lookup — file → model → primary role:
 | `mixin_format_address.py` | mixin.format.address | Address formatting |
 | `mixin_format_vat_label.py` | mixin.format.vat.label | VAT label formatting |
 | `res_partner_industry.py` | res.partner.industry | Industries |
+| `res_partner_age_range.py` | res.partner.age.range | Partner age brackets |
 | `res_users.py` | res.users | User accounts |
 | `res_users_apikeys.py` | res.users.apikeys, .description, .show | API keys |
 | `res_users_deletion.py` | res.users.deletion | User deletion queue |
 | `res_users_identitycheck.py` | res.users.identitycheck | Password verification |
 | `res_users_log.py` | res.users.log | Login tracking |
 | `res_users_settings.py` | res.users.settings | User preferences |
+
+Wizards (`wizard/`):
+
+| File | Model(s) | Role |
+|------|----------|------|
+| `base_export_language.py` | base.language.export | Translation export wizard |
+| `base_import_language.py` | base.language.import | Translation import wizard |
+| `base_language_install.py` | base.language.install | Language installation wizard |
+| `base_module_update.py` | base.module.update | Module list update wizard |
+| `base_module_upgrade.py` | base.module.upgrade | Module upgrade wizard |
+| `base_module_uninstall.py` | base.module.uninstall | Module uninstall wizard |
+| `base_partner_merge.py` | base.partner.merge.automatic.wizard, base.partner.merge.line | Partner deduplication wizard |
+| `change_password.py` | change.password.wizard, change.password.user, change.password.own | Password change wizards |
+| `reset_view_arch.py` | reset.view.arch.wizard | View arch reset wizard |
+| `server_action_history.py` | server.action.history.wizard | Server-action run history wizard |
+| `wizard_ir_model_menu_create.py` | wizard.ir.model.menu.create | Menu creation wizard |

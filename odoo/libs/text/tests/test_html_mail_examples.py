@@ -478,7 +478,7 @@ class TestSanitizer(unittest.TestCase):
 
 class TestHtmlTools(unittest.TestCase):
     def test_plaintext2html(self):
-        cases = [
+        cases: list[tuple[str, str | None, bool, str]] = [
             (
                 "First \nSecond \nThird\n \nParagraph\n\r--\nSignature paragraph",
                 "div",
@@ -487,13 +487,13 @@ class TestHtmlTools(unittest.TestCase):
             ),
             (
                 "First<p>It should be escaped</p>\nSignature",
-                False,
+                None,
                 True,
                 "<p>First&lt;p&gt;It should be escaped&lt;/p&gt;<br/>Signature</p>",
             ),
             (
                 "First \nSecond \nThird",
-                False,
+                None,
                 False,
                 "First <br/>Second <br/>Third",
             ),
@@ -526,13 +526,13 @@ class TestHtmlTools(unittest.TestCase):
             self.assertEqual(text, expected, "html_html_to_inner_content is broken")
 
     def test_append_to_html(self):
-        test_samples = [
+        test_samples: list[tuple[str, str, bool, bool, str | None, str]] = [
             (
                 '<!DOCTYPE...><HTML encoding="blah">some <b>content</b></HtMl>',
                 "--\nYours truly",
                 True,
                 True,
-                False,
+                None,
                 '<!DOCTYPE...><HTML encoding="blah">some <b>content</b>\n<pre>--\nYours truly</pre>\n</HtMl>',
             ),
             (
@@ -540,7 +540,7 @@ class TestHtmlTools(unittest.TestCase):
                 "--\nYours truly",
                 True,
                 False,
-                False,
+                None,
                 '<!DOCTYPE...><HTML encoding="blah">some <b>content</b>\n<p>--<br/>Yours truly</p>\n</HtMl>',
             ),
             (
@@ -548,7 +548,7 @@ class TestHtmlTools(unittest.TestCase):
                 "--\nYours & <truly>",
                 True,
                 True,
-                False,
+                None,
                 "<html><body>some <b>content</b>\n<pre>--\nYours &amp; &lt;truly&gt;</pre>\n</body></html>",
             ),
             (
@@ -556,7 +556,7 @@ class TestHtmlTools(unittest.TestCase):
                 "<!DOCTYPE...>\n<html><body>\n<p>--</p>\n<p>Yours truly</p>\n</body>\n</html>",
                 False,
                 False,
-                False,
+                None,
                 "<html><body>some <b>content</b>\n\n\n<p>--</p>\n<p>Yours truly</p>\n\n\n</body></html>",
             ),
         ]

@@ -1,4 +1,5 @@
 import base64
+import functools
 import json
 import logging
 import os
@@ -96,6 +97,53 @@ _STALL_SIGKILL_GRACE_S = 10.0
 _STDERR_DRAIN_JOIN_S = 10.0
 
 
+def _drain_pipe(pipe: IO[bytes], sink: list[bytes]) -> None:
+    try:
+        while chunk := pipe.read(4096):
+            sink.append(chunk)
+    except OSError, ValueError:
+        pass
+
+
+def _kill_pg_dump_on_stall(
+    proc: subprocess.Popen, total_timeout: float, stall_killed: list[bool]
+) -> None:
+    stall_killed[0] = True
+    _logger.error(
+        "pg_dump exceeded total wall-clock timeout (%.0fs); sending SIGTERM",
+        total_timeout,
+    )
+    with suppress(ProcessLookupError):
+        proc.terminate()
+    try:
+        proc.wait(timeout=_STALL_SIGKILL_GRACE_S)
+    except subprocess.TimeoutExpired:
+        _logger.error(
+            "pg_dump ignored SIGTERM %.0fs after stall; sending SIGKILL",
+            _STALL_SIGKILL_GRACE_S,
+        )
+        with suppress(ProcessLookupError):
+            proc.kill()
+
+
+def _reap_pg_dump(proc: subprocess.Popen) -> None:
+    wait_timeout = env_float("ODOO_PG_DUMP_WAIT_TIMEOUT", 30.0, logger=_logger)
+    try:
+        proc.wait(timeout=wait_timeout)
+    except subprocess.TimeoutExpired:
+        _logger.error(
+            "pg_dump did not exit within %.0fs after stdout EOF; sending SIGTERM",
+            wait_timeout,
+        )
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _logger.error("pg_dump still alive; sending SIGKILL")
+            proc.kill()
+            proc.wait()
+
+
 def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None:
     proc = subprocess.Popen(
         cmd,
@@ -104,49 +152,31 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    stdout, stderr = proc.stdout, proc.stderr
+    assert stdout is not None and stderr is not None
+
     stderr_chunks: list[bytes] = []
-
-    def _drain_stderr() -> None:
-        try:
-            while chunk := proc.stderr.read(4096):
-                stderr_chunks.append(chunk)
-        except OSError, ValueError:
-            pass
-
     stderr_thread = threading.Thread(
-        target=_drain_stderr, name="odoo.service.db.pg_dump.stderr", daemon=True
+        target=_drain_pipe,
+        args=(stderr, stderr_chunks),
+        name="odoo.service.db.pg_dump.stderr",
+        daemon=True,
     )
     stderr_thread.start()
 
     total_timeout = _pg_dump_total_timeout()
     stall_killed = [False]
-
-    def _kill_on_stall() -> None:
-        stall_killed[0] = True
-        _logger.error(
-            "pg_dump exceeded total wall-clock timeout (%.0fs); sending SIGTERM",
-            total_timeout,
-        )
-        with suppress(ProcessLookupError):
-            proc.terminate()
-        try:
-            proc.wait(timeout=_STALL_SIGKILL_GRACE_S)
-        except subprocess.TimeoutExpired:
-            _logger.error(
-                "pg_dump ignored SIGTERM %.0fs after stall; sending SIGKILL",
-                _STALL_SIGKILL_GRACE_S,
-            )
-            with suppress(ProcessLookupError):
-                proc.kill()
-
-    stall_timer = threading.Timer(total_timeout, _kill_on_stall)
+    stall_timer = threading.Timer(
+        total_timeout,
+        functools.partial(_kill_pg_dump_on_stall, proc, total_timeout, stall_killed),
+    )
     stall_timer.daemon = True
     stall_timer.start()
     try:
-        shutil.copyfileobj(proc.stdout, stream)
+        shutil.copyfileobj(stdout, stream)
     finally:
         stall_timer.cancel()
-        proc.stdout.close()
+        stdout.close()
         stderr_thread.join(timeout=_STDERR_DRAIN_JOIN_S)
         if stderr_thread.is_alive():
             _logger.warning(
@@ -155,22 +185,8 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
                 _STDERR_DRAIN_JOIN_S,
             )
         else:
-            proc.stderr.close()
-        wait_timeout = env_float("ODOO_PG_DUMP_WAIT_TIMEOUT", 30.0, logger=_logger)
-        try:
-            proc.wait(timeout=wait_timeout)
-        except subprocess.TimeoutExpired:
-            _logger.error(
-                "pg_dump did not exit within %.0fs after stdout EOF; sending SIGTERM",
-                wait_timeout,
-            )
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                _logger.error("pg_dump still alive; sending SIGKILL")
-                proc.kill()
-                proc.wait()
+            stderr.close()
+        _reap_pg_dump(proc)
     stderr_output = b"".join(stderr_chunks)
     if stall_killed[0] and proc.returncode != 0:
         raise RuntimeError(

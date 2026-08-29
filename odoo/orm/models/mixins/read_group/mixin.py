@@ -23,120 +23,124 @@ if typing.TYPE_CHECKING:
 class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMixin):
     __slots__ = ()
 
-    @api.model
-    def _read_grouping_sets(
+    _ROW_SAFE_AGGREGATE_SUFFIXES = (
+        ":max",
+        ":min",
+        ":bool_and",
+        ":bool_or",
+        ":array_agg_distinct",
+        ":recordset",
+        ":count_distinct",
+    )
+
+    @classmethod
+    def _read_group_aggregates_need_dedup(cls, aggregates: Sequence[str]) -> bool:
+        return any(
+            not aggregate.endswith(cls._ROW_SAFE_AGGREGATE_SUFFIXES)
+            for aggregate in aggregates
+            if aggregate != "__count"
+        )
+
+    @staticmethod
+    def _read_grouping_sets_m2m_batches(
+        grouping_sets: Sequence[Sequence[str]], many2many_groupby_specs: list[str]
+    ) -> list[tuple[list[int], list[Sequence[str]]]]:
+        m2m_combinaisons = (
+            groupby
+            for i in range(len(many2many_groupby_specs), -1, -1)
+            for groupby in itertools.combinations(many2many_groupby_specs, i)
+        )
+
+        grouping_sets_to_process = dict(enumerate(grouping_sets))
+        batched_calls = []
+
+        for m2m_comb in m2m_combinaisons:
+            if not grouping_sets_to_process:
+                break
+            sub_grouping_sets = []
+            sub_result_indexes = []
+            for i, groupby in list(grouping_sets_to_process.items()):
+                if all(m2m in groupby for m2m in m2m_comb):
+                    sub_grouping_sets.append(groupby)
+                    sub_result_indexes.append(i)
+                    grouping_sets_to_process.pop(i)
+
+            if sub_grouping_sets:
+                batched_calls.append((sub_result_indexes, sub_grouping_sets))
+
+        if grouping_sets_to_process:
+            raise RuntimeError(
+                f"M2M decomposition lost grouping sets: "
+                f"{list(grouping_sets_to_process.values())}"
+            )
+        return batched_calls
+
+    def _read_grouping_sets_split_m2m(
         self,
         domain: DomainType,
         grouping_sets: Sequence[Sequence[str]],
-        aggregates: Sequence[str] = (),
-        order: str | None = None,
-    ) -> list[list[tuple]]:
-        if not grouping_sets:
-            msg = "The 'grouping_sets' parameter cannot be empty."
-            raise ValueError(msg)
-
-        query = self._search(domain)
-        result = [[] for __ in grouping_sets]
-        if query.is_empty():
-            self._check_read_group_spec_access(
-                itertools.chain.from_iterable(grouping_sets), aggregates, query
-            )
-            return result
-
-        all_groupby_specs = tuple(
-            unique(spec for groupby in grouping_sets for spec in groupby)
+        aggregates: Sequence[str],
+        order: str | None,
+        all_groupby_specs: tuple[str, ...],
+        many2many_groupby_specs: list[str],
+        result: list[list[tuple]],
+    ) -> bool:
+        batched_calls = self._read_grouping_sets_m2m_batches(
+            grouping_sets, many2many_groupby_specs
         )
+        if len(batched_calls) <= 1:
+            return False
 
-        many2many_groupby_specs = []
-        if len(grouping_sets) > 1:
-            many2many_groupby_specs.extend(
-                spec
-                for spec in all_groupby_specs
-                if self._groupby_spec_might_duplicate_rows(self, spec)
-            )
+        for indexes, sub_grouping_sets in batched_calls:
+            sub_order_parts = []
+            all_sub_groupby = {
+                spec for groupby in sub_grouping_sets for spec in groupby
+            }
+            for order_part in (order or "").split(","):
+                order_part = order_part.strip()
+                if not any(
+                    order_part == spec or order_part.startswith(f"{spec} ")
+                    for spec in all_groupby_specs
+                    if spec not in all_sub_groupby
+                ):
+                    sub_order_parts.append(order_part)
 
-        if many2many_groupby_specs and any(
-            not aggregate.endswith(
-                (
-                    ":max",
-                    ":min",
-                    ":bool_and",
-                    ":bool_or",
-                    ":array_agg_distinct",
-                    ":recordset",
-                    ":count_distinct",
-                ),
+            sub_results = self._read_grouping_sets(
+                domain,
+                sub_grouping_sets,
+                aggregates=aggregates,
+                order=",".join(sub_order_parts),
             )
+            for index, subresult in zip(indexes, sub_results, strict=True):
+                result[index] = subresult
+        return True
+
+    @staticmethod
+    def _read_group_count_distinct(
+        aggregates: Sequence[str], order: str | None
+    ) -> tuple[tuple[str, ...], str | None]:
+        aggregates = tuple(
+            aggregate if aggregate != "__count" else "id:count_distinct"
             for aggregate in aggregates
-            if aggregate != "__count"
-        ):
-            m2m_combinaisons = (
-                groupby
-                for i in range(len(many2many_groupby_specs), -1, -1)
-                for groupby in itertools.combinations(many2many_groupby_specs, i)
-            )
+        )
+        if order:
+            parts = []
+            for part in order.split(","):
+                part = part.strip()
+                if part == "__count" or part.startswith("__count "):
+                    part = "id:count_distinct" + part[len("__count") :]
+                parts.append(part)
+            order = ", ".join(parts)
+        return aggregates, order
 
-            grouping_sets_to_process = dict(enumerate(grouping_sets))
-            batched_calls = []
-
-            for m2m_comb in m2m_combinaisons:
-                if not grouping_sets_to_process:
-                    break
-                sub_grouping_sets = []
-                sub_result_indexes = []
-                for i, groupby in list(grouping_sets_to_process.items()):
-                    if all(m2m in groupby for m2m in m2m_comb):
-                        sub_grouping_sets.append(groupby)
-                        sub_result_indexes.append(i)
-                        grouping_sets_to_process.pop(i)
-
-                if sub_grouping_sets:
-                    batched_calls.append((sub_result_indexes, sub_grouping_sets))
-
-            if grouping_sets_to_process:
-                raise RuntimeError(
-                    f"M2M decomposition lost grouping sets: "
-                    f"{list(grouping_sets_to_process.values())}"
-                )
-            if len(batched_calls) > 1:
-                for indexes, sub_grouping_sets in batched_calls:
-                    sub_order_parts = []
-                    all_sub_groupby = {
-                        spec for groupby in sub_grouping_sets for spec in groupby
-                    }
-                    for order_part in (order or "").split(","):
-                        order_part = order_part.strip()
-                        if not any(
-                            order_part == spec or order_part.startswith(f"{spec} ")
-                            for spec in all_groupby_specs
-                            if spec not in all_sub_groupby
-                        ):
-                            sub_order_parts.append(order_part)
-
-                    sub_results = self._read_grouping_sets(
-                        domain,
-                        sub_grouping_sets,
-                        aggregates=aggregates,
-                        order=",".join(sub_order_parts),
-                    )
-                    for index, subresult in zip(indexes, sub_results, strict=True):
-                        result[index] = subresult
-                return result
-
-        elif many2many_groupby_specs and "__count" in aggregates:
-            aggregates = tuple(
-                aggregate if aggregate != "__count" else "id:count_distinct"
-                for aggregate in aggregates
-            )
-            if order:
-                parts = []
-                for part in order.split(","):
-                    part = part.strip()
-                    if part == "__count" or part.startswith("__count "):
-                        part = "id:count_distinct" + part[len("__count") :]
-                    parts.append(part)
-                order = ", ".join(parts)
-
+    def _read_grouping_sets_query(
+        self,
+        query,
+        grouping_sets: Sequence[Sequence[str]],
+        all_groupby_specs: tuple[str, ...],
+        aggregates: Sequence[str],
+        order: str | None,
+    ) -> tuple[dict[str, SQL], list[SQL]]:
         groupby_terms: dict[str, SQL] = {
             spec: self._read_group_groupby(self._table, spec, query)
             for spec in all_groupby_specs
@@ -151,12 +155,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         else:
             grouping_select_sql = SQL("0")
 
-        select_args = [
-            grouping_select_sql,
-            *groupby_terms.values(),
-            *aggregates_terms,
-        ]
-
         query.order = self._read_group_orderby(order, groupby_terms, query)
         grouping_sets_sql = [
             SQL(
@@ -169,6 +167,64 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         ]
         query.groupby = SQL(
             "GROUPING SETS (%s)", SQL(", ").join(unique(grouping_sets_sql))
+        )
+        return groupby_terms, [
+            grouping_select_sql,
+            *groupby_terms.values(),
+            *aggregates_terms,
+        ]
+
+    @api.model
+    def _read_grouping_sets(
+        self,
+        domain: DomainType,
+        grouping_sets: Sequence[Sequence[str]],
+        aggregates: Sequence[str] = (),
+        order: str | None = None,
+    ) -> list[list[tuple]]:
+        if not grouping_sets:
+            msg = "The 'grouping_sets' parameter cannot be empty."
+            raise ValueError(msg)
+
+        query = self._search(domain)
+        result: list[list[tuple]] = [[] for __ in grouping_sets]
+        if query.is_empty():
+            self._check_read_group_spec_access(
+                itertools.chain.from_iterable(grouping_sets), aggregates, query
+            )
+            return result
+
+        all_groupby_specs = tuple(
+            unique(spec for groupby in grouping_sets for spec in groupby)
+        )
+
+        many2many_groupby_specs: list[str] = []
+        if len(grouping_sets) > 1:
+            many2many_groupby_specs.extend(
+                spec
+                for spec in all_groupby_specs
+                if self._groupby_spec_might_duplicate_rows(self, spec)
+            )
+
+        if many2many_groupby_specs and self._read_group_aggregates_need_dedup(
+            aggregates
+        ):
+            if self._read_grouping_sets_split_m2m(
+                domain,
+                grouping_sets,
+                aggregates,
+                order,
+                all_groupby_specs,
+                many2many_groupby_specs,
+                result,
+            ):
+                return result
+
+        elif many2many_groupby_specs and "__count" in aggregates:
+            aggregates, order = self._read_group_count_distinct(aggregates, order)
+
+        groupby_terms, select_args = self._read_grouping_sets_query(
+            query, grouping_sets, all_groupby_specs, aggregates, order
         )
 
         row_values = self.env.execute_query(query.select(*select_args))
@@ -417,24 +473,9 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             return
         self._check_field_access(field, "read")
 
-    @api.model
-    @api.readonly
-    @api.deprecated(
-        "Since 19.0, read_group is deprecated. Please use _read_group in the backend code or formatted_read_group for a complete formatted result"
-    )
-    def read_group(
-        self,
-        domain,
-        fields,
-        groupby,
-        offset=0,
-        limit=None,
-        orderby=False,
-        lazy=True,
-    ):
-        groupby = [groupby] if isinstance(groupby, str) else groupby
-        lazy_groupby = groupby[:1] if lazy else groupby
-
+    def _read_group_annotate_groupby(
+        self, lazy_groupby: Sequence[str]
+    ) -> dict[str, str]:
         annotated_groupby = {}
         for group_spec in lazy_groupby:
             field_name, property_name, granularity = parse_read_group_spec(group_spec)
@@ -451,7 +492,15 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 annotated_groupby[group_spec] = f"{field_name}:{granularity or 'month'}"
             else:
                 annotated_groupby[group_spec] = group_spec
+        return annotated_groupby
 
+    def _read_group_annotate_aggregates(
+        self,
+        fields: Sequence[str],
+        lazy_groupby: Sequence[str],
+        lazy: bool,
+        annotated_groupby: dict[str, str],
+    ) -> dict[str, str]:
         annotated_aggregates = {
             (
                 f"{lazy_groupby[0].split(':')[0]}_count"
@@ -484,23 +533,85 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 and field_spec not in annotated_groupby
             ):
                 annotated_aggregates[name] = f"{name}:{field.aggregator}"
+        return annotated_aggregates
 
-        if orderby:
-            new_terms = []
-            for order_term in orderby.split(","):
-                order_term = order_term.strip()
-                for key_name, annotated in itertools.chain(
-                    reversed(annotated_groupby.items()),
-                    annotated_aggregates.items(),
-                ):
-                    key_name = key_name.split(":")[0]
-                    if order_term.startswith(f"{key_name} ") or key_name == order_term:
-                        order_term = annotated + order_term[len(key_name) :]
-                        break
-                new_terms.append(order_term)
-            orderby = ",".join(new_terms)
+    @staticmethod
+    def _read_group_annotate_orderby(
+        orderby, annotated_groupby: dict[str, str], annotated_aggregates: dict[str, str]
+    ) -> str:
+        if not orderby:
+            return ",".join(annotated_groupby.values())
+        new_terms = []
+        for order_term in orderby.split(","):
+            order_term = order_term.strip()
+            for key_name, annotated in itertools.chain(
+                reversed(annotated_groupby.items()),
+                annotated_aggregates.items(),
+            ):
+                key_name = key_name.split(":")[0]
+                if order_term.startswith(f"{key_name} ") or key_name == order_term:
+                    order_term = annotated + order_term[len(key_name) :]
+                    break
+            new_terms.append(order_term)
+        return ",".join(new_terms)
+
+    def _read_group_apply_fill_temporal(
+        self,
+        rows_dict: list[dict],
+        lazy_groupby: Sequence[str],
+        annotated_aggregates: dict[str, str],
+    ) -> list[dict]:
+        fill_temporal = self.env.context.get("fill_temporal")
+        if not lazy_groupby or not (
+            (rows_dict and fill_temporal) or isinstance(fill_temporal, dict)
+        ):
+            return rows_dict
+        if not isinstance(fill_temporal, dict):
+            fill_temporal = {}
         else:
-            orderby = ",".join(annotated_groupby.values())
+            known_keys = {
+                name
+                for name, param in inspect.signature(
+                    self._read_group_fill_temporal,
+                    annotation_format=annotationlib.Format.FORWARDREF,
+                ).parameters.items()
+                if param.default is not inspect.Parameter.empty
+            }
+            fill_temporal = {
+                key: value for key, value in fill_temporal.items() if key in known_keys
+            }
+        return self._read_group_fill_temporal(
+            rows_dict,
+            lazy_groupby,
+            annotated_aggregates,
+            **fill_temporal,
+        )
+
+    @api.model
+    @api.readonly
+    @api.deprecated(
+        "Since 19.0, read_group is deprecated. Please use _read_group in the backend code or formatted_read_group for a complete formatted result"
+    )
+    def read_group(
+        self,
+        domain,
+        fields,
+        groupby,
+        offset=0,
+        limit=None,
+        orderby=False,
+        lazy=True,
+    ):
+        groupby = [groupby] if isinstance(groupby, str) else groupby
+        lazy_groupby = groupby[:1] if lazy else groupby
+
+        annotated_groupby = self._read_group_annotate_groupby(lazy_groupby)
+        annotated_aggregates = self._read_group_annotate_aggregates(
+            fields, lazy_groupby, lazy, annotated_groupby
+        )
+        orderby = self._read_group_annotate_orderby(
+            orderby, annotated_groupby, annotated_aggregates
+        )
 
         domain = Domain(domain)
         rows = self._read_group(
@@ -522,32 +633,9 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             for row in rows
         ]
 
-        fill_temporal = self.env.context.get("fill_temporal")
-        if lazy_groupby and (
-            (rows_dict and fill_temporal) or isinstance(fill_temporal, dict)
-        ):
-            if not isinstance(fill_temporal, dict):
-                fill_temporal = {}
-            else:
-                known_keys = {
-                    name
-                    for name, param in inspect.signature(
-                        self._read_group_fill_temporal,
-                        annotation_format=annotationlib.Format.FORWARDREF,
-                    ).parameters.items()
-                    if param.default is not inspect.Parameter.empty
-                }
-                fill_temporal = {
-                    key: value
-                    for key, value in fill_temporal.items()
-                    if key in known_keys
-                }
-            rows_dict = self._read_group_fill_temporal(
-                rows_dict,
-                lazy_groupby,
-                annotated_aggregates,
-                **fill_temporal,
-            )
+        rows_dict = self._read_group_apply_fill_temporal(
+            rows_dict, lazy_groupby, annotated_aggregates
+        )
 
         if lazy_groupby and lazy:
             rows_dict = self._read_group_fill_results(

@@ -26,7 +26,7 @@ from ._retry import RequestRetryParticipant
 from .constants import NOT_FOUND_NODB, STATIC_CACHE
 from .core import borrow_request
 from .dispatcher import _dispatchers, infer_dispatcher_for_unmatched
-from .exceptions import RegistryError
+from .exceptions import RegistryError, get_error_response, set_error_response
 from .helpers import is_cors_preflight
 from .stream import Stream
 from .wrappers import Response
@@ -120,10 +120,12 @@ class _RequestServeMixin(RequestState):
             return self._serve_aborted(exc)
 
     def _acquire_registry_cursor(self) -> Any:
+        db = self.db
+        assert db, "a database-bound request needs a database name"
         cr = None
         try:
             with borrow_request():
-                registry = Registry(self.db)
+                registry = Registry(db)
             cr = registry.cursor(readonly=True)
             self.registry = registry.check_signaling(cr)
             return cr
@@ -137,10 +139,10 @@ class _RequestServeMixin(RequestState):
                 from odoo.db import close_db
                 from odoo.service.db import list_dbs
 
-                db_absent = self.db not in list_dbs(force=True)
+                db_absent = db not in list_dbs(force=True)
                 if db_absent:
-                    Registry.forget(self.db)
-                    close_db(self.db)
+                    Registry.forget(db)
+                    close_db(db)
             except Exception:
                 _logger.debug(
                     "Stale-registry cleanup after RegistryError failed",
@@ -149,7 +151,7 @@ class _RequestServeMixin(RequestState):
             finally:
                 if cr is not None:
                     cr.close()
-            err = RegistryError(f"Cannot get registry {self.db}")
+            err = RegistryError(f"Cannot get registry {db}")
             err.db_absent = db_absent
             err.transient = not isinstance(e, psycopg.ProgrammingError)
             raise err from e
@@ -159,14 +161,18 @@ class _RequestServeMixin(RequestState):
             raise
 
     def _serve_db(self) -> Response:
-        cr = None
+        cr: Any = None
         try:
             cr = self._acquire_registry_cursor()
-            current_worker_thread().dbname = self.registry.db_name
+            registry = self.registry
+            assert registry is not None
+            current_worker_thread().dbname = registry.db_name
 
-            self.env = odoo.api.Environment(cr, self.session.uid, self.session.context)
+            self.env = odoo.api.Environment(
+                cr, self.session.uid, self.session.context or {}
+            )
             try:
-                rule, args = self.registry["ir.http"]._match(self.httprequest.path)
+                rule, args = registry["ir.http"]._match(self.httprequest.path)
             except NotFound as not_found_exc:
                 self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
                 serve_func = functools.partial(
@@ -208,16 +214,18 @@ class _RequestServeMixin(RequestState):
             else:
                 current_worker_thread().cursor_mode = "rw"
 
+            env = self.env
+            assert env is not None
             if cr.readonly:
                 cr.close()
-                cr = self.env.registry.cursor()
+                cr = env.registry.cursor()
             else:
                 cr.rollback()
             assert not cr.readonly
             if promoted:
                 self._reset_for_replay(cr)
             else:
-                self.env = self.env(cr=cr)
+                self.env = env(cr=cr)
             try:
                 return retrying(serve_func, env=self.env)
             except Exception as exc:
@@ -240,28 +248,36 @@ class _RequestServeMixin(RequestState):
             and not self.dispatcher.serializes_errors_in_dev_mode
         ):
             return
-        if not hasattr(exc, "error_response"):
+        if get_error_response(exc) is None:
             if isinstance(exc, AccessDenied):
                 exc.suppress_traceback()
-            exc.error_response = self.registry["ir.http"]._handle_error(exc)
+            registry = self._bound_registry()
+            set_error_response(exc, registry["ir.http"]._handle_error(exc))
+
+    def _bound_registry(self) -> Registry:
+        registry = self.registry
+        assert registry is not None, "ir.http is only reachable with a registry"
+        return registry
 
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
-        self.registry["ir.http"]._apply_max_upload_size()
+        registry = self._bound_registry()
+        registry["ir.http"]._apply_max_upload_size()
         self.params = self.get_http_params()
-        self.registry["ir.http"]._auth_method_public()
-        response = self.registry["ir.http"]._serve_fallback()
+        registry["ir.http"]._auth_method_public()
+        response = registry["ir.http"]._serve_fallback()
         if response:
-            self.registry["ir.http"]._post_dispatch(response)
+            registry["ir.http"]._post_dispatch(response)
             return response
 
         no_fallback = NotFound()
         no_fallback.__context__ = not_found
-        no_fallback.error_response = self.registry["ir.http"]._handle_error(no_fallback)
+        set_error_response(no_fallback, registry["ir.http"]._handle_error(no_fallback))
         raise no_fallback
 
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
-        self.registry["ir.http"]._authenticate(rule.endpoint)
-        self.registry["ir.http"]._pre_dispatch(rule, args)
+        registry = self._bound_registry()
+        registry["ir.http"]._authenticate(rule.endpoint)
+        registry["ir.http"]._pre_dispatch(rule, args)
         response = self.dispatcher.dispatch(rule.endpoint, args)
-        self.registry["ir.http"]._post_dispatch(response)
+        registry["ir.http"]._post_dispatch(response)
         return response

@@ -1,4 +1,5 @@
 import time
+from typing import Any
 
 import pytest
 
@@ -40,6 +41,9 @@ class _FakeSession:
 
 
 class _FakeRequest(_RequestCsrfMixin):
+    env: Any
+    session: Any
+
     def __init__(self, secret=SECRET, sid=SID, is_new=False):
         self.env = _FakeEnv({"ir.config_parameter": _FakeParam(secret)})
         self.session = _FakeSession(sid, is_new)

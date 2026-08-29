@@ -7,6 +7,7 @@ from contextlib import closing
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import psycopg
 from freezegun import freeze_time
 
 import odoo
@@ -1016,6 +1017,26 @@ class TestIrCronUser(TransactionCaseWithUserDemo, TestIrCron):
                 )
 
         self.assertEqual(cron.failure_count, 1, "The cron should have failed once")
+
+
+@tagged("post_install", "-at_install")
+class TestNotifyChannelIsBestEffort(BaseCase):
+    def test_a_database_error_does_not_reach_the_caller(self):
+        with (
+            patch.object(ir_cron.db, "db_connect") as connect,
+            self.assertLogs("odoo.addons.base.models.ir_cron", "WARNING") as logs,
+        ):
+            connect.side_effect = psycopg.OperationalError(
+                "FATAL:  sorry, too many clients already"
+            )
+            ir_cron.notify_channel(CRON_TRIGGER_CHANNEL, "somedb")
+        self.assertIn("Could not notify", logs.output[0])
+
+    def test_a_non_database_error_still_propagates(self):
+        with patch.object(ir_cron.db, "db_connect") as connect:
+            connect.side_effect = TypeError("a bug in this function, not the cluster")
+            with self.assertRaises(TypeError):
+                ir_cron.notify_channel(CRON_TRIGGER_CHANNEL, "somedb")
 
 
 @tagged("post_install", "-at_install")

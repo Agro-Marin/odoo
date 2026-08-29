@@ -23,35 +23,6 @@ _logger = logging.getLogger(CURSOR_LOGGER_NAME)
 _TEXT_OID = 25
 _NUMERIC_OID = 1700
 _JSON_OIDS: frozenset[int] = frozenset({114, 3802})
-"""``json`` and ``jsonb``, the two types where the encodings disagreed.
-
-Everything else about `copy_from` rests on binary and text writing identical
-rows, so a caller never has to know its column types. For JSON that was false,
-and silently: a plain ``str`` is a JSON *document* to text COPY, which lets
-PostgreSQL parse it, and a JSON *string value* to binary COPY, which serialises
-it again. Measured on 400 random rows across eleven column types, the only
-column that differed was ``jsonb`` -- in 312 of them:
-
-    passed '{"a": 1}'   text -> {"a": 1} (object)   binary -> "{\"a\": 1}" (string)
-
-Which encoding a call gets is decided by the *numeric* fraction of the row, so
-whether a JSON column round-tripped depended on how many unrelated numeric
-columns sat beside it.
-
-The fix is a per-cell wrap rather than degrading the whole COPY to text.
-Degrading was the first attempt and was measured at **+31%** on 20k rows with
-one JSON column among five (31.9 ms -> 41.7 ms) -- a real cost for a conversion
-only `str` values need. The wrap costs nothing: same rows, same encoding, wrap
-on 23.7 ms against 24.6 ms off, which is noise. Anything already wrapped by the
-caller (`psycopg.types.json.Json`/`Jsonb`, which is what the ORM's translated
-fields produce) was correct under both encodings and is left alone.
-
-One asymmetry is left, deliberately: a bare `dict` is accepted by binary and
-raises `ProgrammingError` under text. Closing it would mean reading the column
-types for *text* COPY too -- a catalog round-trip on every text COPY -- to
-detect a JSON column that the caller could have declared by wrapping the value.
-The `str` case is the one that was silently wrong; a `dict` fails loudly.
-"""
 
 
 def _raw_json(value: str) -> str:
@@ -67,6 +38,7 @@ def _table_identifier(table: str) -> _sql.Identifier:
 
 if TYPE_CHECKING:
     import threading
+    from collections.abc import Iterable, Iterator
     from contextlib import AbstractContextManager
     from typing import Protocol
 
@@ -114,6 +86,7 @@ if TYPE_CHECKING:
         def _binary_pays_off(self, oids: list[int]) -> bool: ...
         def _resolve_id_sequence(self, table: str) -> str: ...
         def _lock_table_for_bulk(self, table: str) -> None: ...
+        def _preallocate_copy_ids(self, table: str, count: int) -> list[int]: ...
 
 
 def _validate_copy_args(
@@ -150,6 +123,42 @@ def _validate_copy_args(
             f"use execute_values, or move the COPY out of the enclosing "
             f"cr.pipeline() block."
         )
+
+
+def _copy_statement(
+    table: str, columns: list[str], binary: bool, on_error: str | None
+) -> _sql.Composed:
+    copy_opts = []
+    if binary:
+        copy_opts.append("FORMAT BINARY")
+    if on_error and not binary:
+        copy_opts.append(f"ON_ERROR {on_error}")
+    if copy_opts:
+        opts_sql = _sql.SQL(" ({})".format(", ".join(copy_opts)))
+    else:
+        opts_sql = _sql.SQL("")
+    return _sql.SQL("COPY {} ({}) FROM STDIN{}").format(
+        _table_identifier(table),
+        _sql.SQL(", ").join(map(_sql.Identifier, columns)),
+        opts_sql,
+    )
+
+
+def _coerced_rows(rows: Iterable[Any], col_types: list[int]) -> Iterator[Any]:
+    numeric_idxs = tuple(i for i, oid in enumerate(col_types) if oid == _NUMERIC_OID)
+    json_idxs = tuple(i for i, oid in enumerate(col_types) if oid in _JSON_OIDS)
+    if not (numeric_idxs or json_idxs):
+        yield from rows
+        return
+    for row in rows:
+        row = list(row)
+        for i in numeric_idxs:
+            if isinstance(row[i], float):
+                row[i] = _Decimal(str(row[i]))
+        for i in json_idxs:
+            if isinstance(row[i], str):
+                row[i] = _Jsonb(row[i], dumps=_raw_json)
+        yield row
 
 
 class _BulkAccessMixin:
@@ -232,15 +241,7 @@ class _BulkAccessMixin:
             count = len(rows)
             if count == 0:
                 return []
-            seq_name = self._resolve_id_sequence(table)
-            self.execute(
-                SQL(
-                    "SELECT nextval(%s::regclass) FROM generate_series(1, %s)",
-                    seq_name,
-                    count,
-                )
-            )
-            ids = [row[0] for row in self.fetchall()]
+            ids = self._preallocate_copy_ids(table, count)
             columns = ["id", *columns]
             rows = [(id_, *row) for id_, row in zip(ids, rows, strict=True)]
         else:
@@ -253,32 +254,8 @@ class _BulkAccessMixin:
             binary = False
             col_types = None
 
-        cols_sql = _sql.SQL(", ").join(map(_sql.Identifier, columns))
-        copy_opts = []
-        if binary:
-            copy_opts.append("FORMAT BINARY")
-        if on_error and not binary:
-            copy_opts.append(f"ON_ERROR {on_error}")
-        if copy_opts:
-            opts_sql = _sql.SQL(" ({})".format(", ".join(copy_opts)))
-        else:
-            opts_sql = _sql.SQL("")
-        copy_stmt = _sql.SQL("COPY {} ({}) FROM STDIN{}").format(
-            _table_identifier(table),
-            cols_sql,
-            opts_sql,
-        )
-
-        if col_types:
-            _numeric_idxs = frozenset(
-                i for i, oid in enumerate(col_types) if oid == _NUMERIC_OID
-            )
-            _json_idxs = frozenset(
-                i for i, oid in enumerate(col_types) if oid in _JSON_OIDS
-            )
-        else:
-            _numeric_idxs = None
-            _json_idxs = None
+        copy_stmt = _copy_statement(table, columns, binary, on_error)
+        write_rows = _coerced_rows(rows, col_types) if col_types else rows
 
         have_hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if have_hooks else 0.0
@@ -289,17 +266,7 @@ class _BulkAccessMixin:
             with obj.copy(copy_stmt) as copy:
                 if col_types:
                     copy.set_types(col_types)
-                for row in rows:
-                    if _numeric_idxs or _json_idxs:
-                        row = list(row)
-                        for i in _numeric_idxs or ():
-                            v = row[i]
-                            if isinstance(v, float):
-                                row[i] = _Decimal(str(v))
-                        for i in _json_idxs or ():
-                            v = row[i]
-                            if isinstance(v, str):
-                                row[i] = _Jsonb(v, dumps=_raw_json)
+                for row in write_rows:
                     copy.write_row(row)
                     row_count += 1
         except Exception as e:
@@ -323,6 +290,18 @@ class _BulkAccessMixin:
             self._record_sql_log("into", table, delay)
 
         return ids
+
+    def _preallocate_copy_ids(
+        self: _CursorInternals, table: str, count: int
+    ) -> list[int]:
+        self.execute(
+            SQL(
+                "SELECT nextval(%s::regclass) FROM generate_series(1, %s)",
+                self._resolve_id_sequence(table),
+                count,
+            )
+        )
+        return [row[0] for row in self.fetchall()]
 
     def _lock_table_for_bulk(self: _CursorInternals, table: str) -> None:
         cache = self._schema_cache

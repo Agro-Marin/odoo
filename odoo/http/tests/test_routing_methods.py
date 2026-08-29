@@ -1,11 +1,13 @@
+from collections.abc import Mapping
 from types import MappingProxyType
+from typing import Any
 
 from odoo.http.routing import rule_routing_kwargs
 
 
 class _Endpoint:
     def __init__(self, **routing):
-        self.routing = MappingProxyType(routing)
+        self.routing: Mapping[str, Any] = MappingProxyType(routing)
 
 
 def test_options_is_added_to_a_cors_less_route():

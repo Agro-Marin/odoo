@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from odoo.libs.intervals import Intervals, intervals_overlap, invert_intervals
 
@@ -184,7 +184,13 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(invert_intervals([(1, 2)], 5, 5), [])
 
 
-class _IntervalAlgebra:
+if TYPE_CHECKING:
+    _MixinBase = unittest.TestCase
+else:
+    _MixinBase = object
+
+
+class _IntervalAlgebra(_MixinBase):
     keep_distinct = False
 
     def ints(self, pairs):

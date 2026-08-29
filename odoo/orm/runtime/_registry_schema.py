@@ -84,6 +84,61 @@ class _RegistrySchemaMixin(_RegistryStubs):
                         else:
                             _schema.warning("Missing not-null constraint on %s", field)
 
+    def _build_index_expression(self, field, index) -> tuple[str, str, str]:
+        column_expression = f'"{field.name}"'
+        if index == "trigram":
+            if field.translate:
+                column_expression = (
+                    f"""(jsonb_path_query_array({column_expression}, '$.*')::text)"""
+                )
+            if self.has_unaccent == FunctionStatus.INDEXABLE:
+                column_expression = self.unaccent(column_expression)
+            elif self.has_unaccent:
+                warnings.warn(
+                    "PostgreSQL function 'unaccent' is present but not immutable, "
+                    "therefore trigram indexes may not be effective.",
+                    stacklevel=1,
+                )
+            expression = f"{column_expression} gin_trgm_ops"
+            method = "gin"
+            where = ""
+        elif index == "btree_not_null" and field.company_dependent:
+            expression = f"({column_expression} IS NOT NULL)"
+            method = "btree"
+            where = f"{column_expression} IS NOT NULL"
+        else:
+            expression = f"{column_expression}"
+            method = "btree"
+            where = (
+                f"{column_expression} IS NOT NULL" if index == "btree_not_null" else ""
+            )
+        return expression, method, where
+
+    def _apply_index(
+        self,
+        cr: Cursor,
+        indexname: str,
+        tablename: str,
+        expression: str,
+        method: str,
+        where: str,
+        stale: bool,
+    ) -> None:
+        try:
+            with cr.savepoint(flush=False):
+                if stale:
+                    sql.drop_index(cr, indexname, tablename)
+                sql.create_index(
+                    cr,
+                    indexname,
+                    tablename,
+                    [expression],
+                    method,
+                    where,
+                )
+        except psycopg.OperationalError:
+            _schema.error("Unable to add index %r for %s", indexname, self)
+
     def check_indexes(self, cr: Cursor, model_names: Iterable[str]) -> None:
 
         expected = [
@@ -146,47 +201,10 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 stale = False
 
             if will_index:
-                column_expression = f'"{field.name}"'
-                if index == "trigram":
-                    if field.translate:
-                        column_expression = f"""(jsonb_path_query_array({column_expression}, '$.*')::text)"""
-                    if self.has_unaccent == FunctionStatus.INDEXABLE:
-                        column_expression = self.unaccent(column_expression)
-                    elif self.has_unaccent:
-                        warnings.warn(
-                            "PostgreSQL function 'unaccent' is present but not immutable, "
-                            "therefore trigram indexes may not be effective.",
-                            stacklevel=1,
-                        )
-                    expression = f"{column_expression} gin_trgm_ops"
-                    method = "gin"
-                    where = ""
-                elif index == "btree_not_null" and field.company_dependent:
-                    expression = f"({column_expression} IS NOT NULL)"
-                    method = "btree"
-                    where = f"{column_expression} IS NOT NULL"
-                else:
-                    expression = f"{column_expression}"
-                    method = "btree"
-                    where = (
-                        f"{column_expression} IS NOT NULL"
-                        if index == "btree_not_null"
-                        else ""
-                    )
-                try:
-                    with cr.savepoint(flush=False):
-                        if stale:
-                            sql.drop_index(cr, indexname, tablename)
-                        sql.create_index(
-                            cr,
-                            indexname,
-                            tablename,
-                            [expression],
-                            method,
-                            where,
-                        )
-                except psycopg.OperationalError:
-                    _schema.error("Unable to add index %r for %s", indexname, self)
+                expression, method, where = self._build_index_expression(field, index)
+                self._apply_index(
+                    cr, indexname, tablename, expression, method, where, stale
+                )
 
             elif (
                 not index

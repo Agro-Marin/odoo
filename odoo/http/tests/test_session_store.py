@@ -2,6 +2,7 @@ import os
 import pathlib
 import time
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -217,8 +218,8 @@ def test_soft_rotation_adopts_once_the_peer_file_lands(store):
     assert not store.get(next_sid).is_new
 
 
-class _RotationRequest:
-    _save_session = Request._save_session
+class _RotationRequest(Request):
+    httprequest: Any
 
     def __init__(self, store, session, sid_on_cookie):
         self.app = SimpleNamespace(session_store=store)

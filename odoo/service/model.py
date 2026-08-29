@@ -34,7 +34,7 @@ _logger = logging.getLogger(__name__)
 
 
 class Params:
-    def __init__(self, args: list, kwargs: dict) -> None:
+    def __init__(self, args: Sequence, kwargs: dict) -> None:
         self.args = args
         self.kwargs = kwargs
 
@@ -55,15 +55,17 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
         )
     cls = type(model)
 
-    method = getattr(cls, name, None)
+    method: Callable | None = getattr(cls, name, None)
     per_class = _PUBLIC_METHOD_CACHE.get(cls)
     if per_class is None:
         per_class = _PUBLIC_METHOD_CACHE[cls] = {}
-    elif method is not None and per_class.get(name) is method:
-        return method
+    else:
+        cached = per_class.get(name)
+        if cached is not None and cached is method:
+            return cached
 
     if name.startswith("_") or name in _UNSAFE_ATTRIBUTES:
-        raise AccessError(
+        raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
             f"Private methods (such as '{model._name}.{name}') "
             f"cannot be called remotely."
         )
@@ -72,7 +74,7 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
         raise AttributeError(f"The method '{model._name}.{name}' does not exist")
 
     if method == getattr(model, name, None):
-        raise AccessError(
+        raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
             f"The method '{model._name}.{name}' cannot be called remotely."
         )
 
@@ -80,7 +82,7 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
         if not (cla_method := mro_cls.__dict__.get(name)):
             continue
         if getattr(cla_method, "_api_private", False):
-            raise AccessError(
+            raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
                 f"Private methods (such as '{model._name}.{name}') "
                 f"cannot be called remotely."
             )
@@ -89,7 +91,7 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
     return method
 
 
-def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.Any:
+def call_kw(model: BaseModel, name: str, args: Sequence, kwargs: Mapping) -> typing.Any:
     method = get_public_method(model, name)
     api_model = getattr(method, "_api_model", False)
 
@@ -97,12 +99,12 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
 
     if name == "create":
         if not args:
-            raise AccessError(
+            raise AccessError(  # noqa: E8505  names the caller's own protocol error
                 f"Method '{model._name}.create' requires a vals dict or list "
                 f"of vals dicts as its first positional argument."
             )
         if not api_model:
-            raise AccessError(
+            raise AccessError(  # noqa: E8505  addresses whoever wrote the override
                 f"Method '{model._name}.create' is not declared with "
                 f"@api.model_create_multi (or @api.model). An override that "
                 f"drops the decorator makes call_kw treat the vals as record "
@@ -114,7 +116,7 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
         recs = model
     else:
         if not args:
-            raise AccessError(
+            raise AccessError(  # noqa: E8505  names the caller's own protocol error
                 f"Method '{model._name}.{name}' requires record ids as its "
                 f"first positional argument."
             )
@@ -199,7 +201,9 @@ def execute_cr(
     env.transaction.default_env = env
     recs = env.get(obj)
     if recs is None:
-        raise UserError(f"Object {obj} doesn't exist")
+        raise UserError(  # noqa: E8505  the RPC named a model that does not exist
+            f"Object {obj} doesn't exist"
+        )
     thread = current_worker_thread()
     thread.rpc_model_method = f"{obj}.{method}"
     result = retrying(partial(call_kw, recs, method, args, kw), env)

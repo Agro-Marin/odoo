@@ -21,15 +21,9 @@ from . import _pypdf as pypdf
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-PdfReaderBase, PdfWriter, filters, generic, errors, create_string_object = (
-    pypdf.PdfReader,
-    pypdf.PdfWriter,
-    pypdf.filters,
-    pypdf.generic,
-    pypdf.errors,
-    pypdf.create_string_object,
-)
-(
+from ._pypdf import PdfReader as PdfReaderBase
+from ._pypdf import PdfWriter, create_string_object, errors, filters, generic
+from pypdf.generic import (
     ArrayObject,
     BooleanObject,
     ByteStringObject,
@@ -38,15 +32,6 @@ PdfReaderBase, PdfWriter, filters, generic, errors, create_string_object = (
     IndirectObject,
     NameObject,
     NumberObject,
-) = (
-    generic.ArrayObject,
-    generic.BooleanObject,
-    generic.ByteStringObject,
-    generic.DecodedStreamObject,
-    generic.DictionaryObject,
-    generic.IndirectObject,
-    generic.NameObject,
-    generic.NumberObject,
 )
 
 PdfReadError = errors.PdfReadError
@@ -175,13 +160,13 @@ def add_banner(
     pdf_stream: io.BytesIO,
     text: str | None = None,
     logo: bool = False,
-    thickness: float | object = SENTINEL,
+    thickness: float = SENTINEL,  # type: ignore[assignment]
 ) -> io.BytesIO:
     from reportlab.lib import colors
     from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen import canvas
 
-    if thickness is SENTINEL:
+    if thickness is SENTINEL:  # type: ignore[comparison-overlap]
         from reportlab.lib.units import cm
 
         thickness = 2 * cm
@@ -289,7 +274,7 @@ class OdooPdfFileReader(PdfReader):
             )
             if not embedded_files:
                 return
-            visited_nodes = set()
+            visited_nodes: set = set()
             yield from _traverse_nodes(embedded_files)
         except Exception:
             return
@@ -447,6 +432,7 @@ class OdooPdfFileWriter(BrandedFileWriter):
     def convert_to_pdfa(self) -> None:
         self._header = b"%PDF-1.7"
 
+        assert self._reader is not None
         pdf_id = ByteStringObject(md5(self._reader.stream.getvalue()).digest())
         self._set_id(ArrayObject((pdf_id, pdf_id)))
 

@@ -37,15 +37,18 @@ if typing.TYPE_CHECKING:
 
     from .._protocols import (
         IrAttachmentProtocol,
+        IrCronProtocol,
         IrDefaultProtocol,
         IrModelAccessProtocol,
         IrModelConstraintProtocol,
         IrModelDataProtocol,
         IrModelFieldsProtocol,
+        IrModelInheritProtocol,
         IrModelProtocol,
         IrModuleModuleProtocol,
         IrRuleProtocol,
         IrUiViewProtocol,
+        ResCountryProtocol,
         ResLangProtocol,
         ResUsersProtocol,
     )
@@ -62,12 +65,12 @@ _orm_cache = logging.getLogger("odoo.orm.cache")
 
 class Environment(Mapping[str, "BaseModel"]):
     cr: BaseCursor
-    uid: int
+    uid: int | None
     context: frozendict
     su: bool
     transaction: Transaction
 
-    def __new__(cls, cr: BaseCursor, uid: int, context: dict, su: bool = False):
+    def __new__(cls, cr: BaseCursor, uid: int | None, context: dict, su: bool = False):
         if not isinstance(cr, BaseCursor):
             raise TypeError(
                 f"Environment(cr=...) expected BaseCursor, got {type(cr).__name__}"
@@ -110,6 +113,9 @@ class Environment(Mapping[str, "BaseModel"]):
 
         envs.add(self)
         transaction._last_env = weakref_ref(self)
+        # isinstance is load-bearing, not redundant under `int | None`:
+        # test_environment_uid pins that an opaque placeholder is accepted as
+        # uid, and such an env must not become the transaction default.
         if transaction.default_env is None and uid and isinstance(uid, int):
             transaction.default_env = self
         return self
@@ -128,6 +134,11 @@ class Environment(Mapping[str, "BaseModel"]):
     def __getitem__(  # type: ignore[overload-overlap]
         self, model_name: typing.Literal["ir.attachment"]
     ) -> IrAttachmentProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.cron"]
+    ) -> IrCronProtocol: ...
 
     @typing.overload
     def __getitem__(  # type: ignore[overload-overlap]
@@ -161,6 +172,11 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @typing.overload
     def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.model.inherit"]
+    ) -> IrModelInheritProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
         self, model_name: typing.Literal["ir.module.module"]
     ) -> IrModuleModuleProtocol: ...
 
@@ -173,6 +189,11 @@ class Environment(Mapping[str, "BaseModel"]):
     def __getitem__(  # type: ignore[overload-overlap]
         self, model_name: typing.Literal["ir.ui.view"]
     ) -> IrUiViewProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["res.country"]
+    ) -> ResCountryProtocol: ...
 
     @typing.overload
     def __getitem__(  # type: ignore[overload-overlap]
@@ -324,7 +345,9 @@ class Environment(Mapping[str, "BaseModel"]):
     def lang(self) -> str | None:
         lang = self.context.get("lang")
         if lang and lang != "en_US" and not self["res.lang"]._get_data(code=lang):
-            raise UserError(f"Invalid language code: {lang}")
+            raise UserError(  # noqa: E8505  see above: this one cannot be translated
+                f"Invalid language code: {lang}"
+            )
         return lang or None
 
     @functools.cached_property
@@ -544,7 +567,7 @@ class Environment(Mapping[str, "BaseModel"]):
         if not isinstance(query, SQL):
             raise TypeError(f"execute_query expected SQL, got {type(query).__name__}")
         self.flush_query(query)
-        self.cr.execute(query)
+        self.cr.execute(query)  # noqa: E8501  query is checked to be SQL above
         try:
             return self.cr.fetchall()
         except ProgrammingError as exc:

@@ -81,7 +81,9 @@ class _FieldDescriptionMixin(_FieldStubs):
         return self.help
 
     def _description_falsy_value_label(self, env) -> str | None:
-        return env._(self.falsy_value_label) if self.falsy_value_label else None
+        if not self.falsy_value_label:
+            return None
+        return env._(self.falsy_value_label)  # noqa: E8502  _lt() at the declaration
 
     def is_editable(self) -> bool:
         return not self.readonly

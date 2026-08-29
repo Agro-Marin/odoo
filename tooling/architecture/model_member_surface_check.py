@@ -76,15 +76,18 @@ _BASE_MODEL_EXTRA_MEMBERS = frozenset(
 PROTOCOLS: dict[str, tuple[str, str]] = {
     "ir.http": ("odoo/http/_protocols.py", "HttpExtension"),
     "ir.attachment": ("odoo/orm/_protocols.py", "IrAttachmentProtocol"),
+    "ir.cron": ("odoo/orm/_protocols.py", "IrCronProtocol"),
     "ir.default": ("odoo/orm/_protocols.py", "IrDefaultProtocol"),
     "ir.model": ("odoo/orm/_protocols.py", "IrModelProtocol"),
     "ir.model.access": ("odoo/orm/_protocols.py", "IrModelAccessProtocol"),
     "ir.model.constraint": ("odoo/orm/_protocols.py", "IrModelConstraintProtocol"),
     "ir.model.data": ("odoo/orm/_protocols.py", "IrModelDataProtocol"),
     "ir.model.fields": ("odoo/orm/_protocols.py", "IrModelFieldsProtocol"),
+    "ir.model.inherit": ("odoo/orm/_protocols.py", "IrModelInheritProtocol"),
     "ir.module.module": ("odoo/orm/_protocols.py", "IrModuleModuleProtocol"),
     "ir.rule": ("odoo/orm/_protocols.py", "IrRuleProtocol"),
     "ir.ui.view": ("odoo/orm/_protocols.py", "IrUiViewProtocol"),
+    "res.country": ("odoo/orm/_protocols.py", "ResCountryProtocol"),
     "res.lang": ("odoo/orm/_protocols.py", "ResLangProtocol"),
     "res.users": ("odoo/orm/_protocols.py", "ResUsersProtocol"),
 }

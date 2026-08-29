@@ -1,5 +1,6 @@
 import threading
 import types
+from typing import Any
 
 from odoo.http.helpers import (
     _normalize_dbfilter_host,
@@ -79,7 +80,7 @@ def test_db_filter_without_request_uses_empty_host():
 
 def test_restore_thread_attr_deletes_when_absent():
     sentinel = object()
-    t = threading.current_thread()
+    t: Any = threading.current_thread()
     if hasattr(t, "_probe_attr"):
         del t._probe_attr
     _restore_thread_attr(t, "_probe_attr", sentinel, sentinel)

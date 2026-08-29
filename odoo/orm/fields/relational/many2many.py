@@ -33,6 +33,28 @@ if typing.TYPE_CHECKING:
 _schema = logging.getLogger("odoo.schema")
 
 
+def _relation_add(new_relation: dict, xs, y) -> None:
+    for x in xs:
+        new_relation[x].add(y)
+
+
+def _relation_remove(new_relation: dict, xs, y) -> None:
+    for x in xs:
+        new_relation[x].discard(y)
+
+
+def _relation_set(new_relation: dict, xs, ys) -> None:
+    for x in xs:
+        new_relation[x] = OrderedSet(ys)
+
+
+def _relation_delete(old_relation: dict, new_relation: dict, ys) -> None:
+    for ys1 in old_relation.values():
+        ys1 -= ys
+    for ys1 in new_relation.values():
+        ys1 -= ys
+
+
 class Many2many(_RelationalMulti):
     type = "many2many"
     is_many2many = True
@@ -274,7 +296,7 @@ class Many2many(_RelationalMulti):
                     records, *self._relation_columns(), pairs
                 )
 
-            y_to_xs = defaultdict(OrderedSet)
+            y_to_xs: defaultdict[typing.Any, OrderedSet] = defaultdict(OrderedSet)
             for x, y in pairs:
                 y_to_xs[y].add(x)
                 modified_corecord_ids.add(y)
@@ -330,6 +352,63 @@ class Many2many(_RelationalMulti):
                 ]
             )
 
+    def _write_real_apply_commands(
+        self, records_commands_list, comodel, old_relation: dict, new_relation: dict
+    ) -> None:
+        for recs, commands in records_commands_list:
+            to_create = []
+            to_delete = []
+            for command in commands or ():
+                if not isinstance(command, (list, tuple)) or not command:
+                    continue
+                match command[0]:
+                    case Command.CREATE:
+                        to_create.append((recs._ids, command[2]))
+                    case Command.UPDATE:
+                        prefetch_ids = recs[self.name]._prefetch_ids
+                        comodel.browse(command[1]).with_prefetch(prefetch_ids).write(
+                            command[2]
+                        )
+                    case Command.DELETE:
+                        to_delete.append(command[1])
+                    case Command.UNLINK:
+                        _relation_remove(new_relation, recs._ids, command[1])
+                    case Command.LINK:
+                        _relation_add(new_relation, recs._ids, command[1])
+                    case Command.CLEAR | Command.SET:
+                        to_create = [
+                            (set(ids) - set(recs._ids), vals)
+                            for (ids, vals) in to_create
+                        ]
+                        _relation_set(
+                            new_relation,
+                            recs._ids,
+                            command[2] if command[0] == Command.SET else (),
+                        )
+
+            if to_create:
+                lines = comodel.create([vals for ids, vals in to_create])
+                for line, (ids, _vals) in zip(lines, to_create, strict=True):
+                    _relation_add(new_relation, ids, line.id)
+
+            if to_delete:
+                comodel.browse(to_delete).unlink()
+                _relation_delete(old_relation, new_relation, to_delete)
+
+    def _check_new_relation_access(
+        self, model, comodel, old_relation: dict, new_relation: dict
+    ) -> None:
+        try:
+            comodel.browse(
+                co_id
+                for rec_id, new_co_ids in new_relation.items()
+                for co_id in new_co_ids - old_relation[rec_id]
+            ).check_access("read")
+        except AccessError as e:
+            raise AccessError(
+                model.env._("Failed to write field %s", self) + "\n" + str(e)
+            ) from e
+
     @override
     def write_real(
         self,
@@ -357,74 +436,12 @@ class Many2many(_RelationalMulti):
         }
         new_relation = {x: OrderedSet(ys) for x, ys in old_relation.items()}
 
-        def relation_add(xs, y):
-            for x in xs:
-                new_relation[x].add(y)
-
-        def relation_remove(xs, y):
-            for x in xs:
-                new_relation[x].discard(y)
-
-        def relation_set(xs, ys):
-            for x in xs:
-                new_relation[x] = OrderedSet(ys)
-
-        def relation_delete(ys):
-            for ys1 in old_relation.values():
-                ys1 -= ys
-            for ys1 in new_relation.values():
-                ys1 -= ys
-
-        for recs, commands in records_commands_list:
-            to_create = []
-            to_delete = []
-            for command in commands or ():
-                if not isinstance(command, (list, tuple)) or not command:
-                    continue
-                match command[0]:
-                    case Command.CREATE:
-                        to_create.append((recs._ids, command[2]))
-                    case Command.UPDATE:
-                        prefetch_ids = recs[self.name]._prefetch_ids
-                        comodel.browse(command[1]).with_prefetch(prefetch_ids).write(
-                            command[2]
-                        )
-                    case Command.DELETE:
-                        to_delete.append(command[1])
-                    case Command.UNLINK:
-                        relation_remove(recs._ids, command[1])
-                    case Command.LINK:
-                        relation_add(recs._ids, command[1])
-                    case Command.CLEAR | Command.SET:
-                        to_create = [
-                            (set(ids) - set(recs._ids), vals)
-                            for (ids, vals) in to_create
-                        ]
-                        relation_set(
-                            recs._ids,
-                            command[2] if command[0] == Command.SET else (),
-                        )
-
-            if to_create:
-                lines = comodel.create([vals for ids, vals in to_create])
-                for line, (ids, _vals) in zip(lines, to_create, strict=True):
-                    relation_add(ids, line.id)
-
-            if to_delete:
-                comodel.browse(to_delete).unlink()
-                relation_delete(to_delete)
+        self._write_real_apply_commands(
+            records_commands_list, comodel, old_relation, new_relation
+        )
 
         if not model.env.su:
-            try:
-                comodel.browse(
-                    co_id
-                    for rec_id, new_co_ids in new_relation.items()
-                    for co_id in new_co_ids - old_relation[rec_id]
-                ).check_access("read")
-            except AccessError as e:
-                raise AccessError(
-                    model.env._("Failed to write field %s", self) + "\n" + str(e)
-                ) from e
+            self._check_new_relation_access(model, comodel, old_relation, new_relation)
 
         self._apply_relation_delta(
             records, comodel, old_relation, new_relation, store=self.store

@@ -145,6 +145,90 @@ class UnlinkMixin(_ModelStubs):
     ) -> tuple[Self, Self]:
         return self.env.backend.delete(self, sub_ids, Data, Defaults, Attachment)
 
+    def _delete_sql_default_guard(
+        self, sub_ids: tuple[int, ...], Defaults: typing.Any, many2one_fields
+    ) -> None:
+        IrModelFields = self.env["ir.model.fields"]
+        field_ids = tuple(
+            IrModelFields._get_ids(field.model_name).get(field.name)
+            for field in many2one_fields
+        )
+        sub_ids_json_text = tuple(json_dumps(id_) for id_ in sub_ids)
+        if default := Defaults.search(
+            [
+                ("field_id", "in", field_ids),
+                ("json_value", "in", sub_ids_json_text),
+            ],
+            limit=1,
+            order="id desc",
+        ):
+            ir_field = default.field_id.sudo()
+            field = self.env[ir_field.model]._fields[ir_field.name]
+            record = self.browse(json_loads(default.json_value))
+            raise UserError(
+                _(
+                    "Unable to delete %(record)s because it is used as the default value of %(field)s",
+                    record=record,
+                    field=field,
+                )
+            )
+
+    def _delete_sql_restrict_guard(self, model, field, sub_ids) -> None:
+        if res := self.env.execute_query(
+            SQL(
+                """
+            SELECT id, %(field)s
+            FROM %(table)s
+            WHERE %(field)s IS NOT NULL
+            AND %(field)s @? %(jsonpath)s
+            ORDER BY id
+            LIMIT 1
+            """,
+                table=SQL.identifier(model._table),
+                field=SQL.identifier(field.name),
+                jsonpath=f"$.* ? ({' || '.join(f'@ == {id_}' for id_ in sub_ids)})",
+            )
+        ):
+            on_restrict_id, field_json = res[0]
+            to_delete_id = next(iter(field_json.values()))
+            on_restrict_record = model.browse(on_restrict_id)
+            to_delete_record = self.browse(to_delete_id)
+            raise UserError(
+                _(
+                    "You cannot delete %(to_delete_record)s, as it is used by %(on_restrict_record)s",
+                    to_delete_record=to_delete_record,
+                    on_restrict_record=on_restrict_record,
+                )
+            )
+
+    def _delete_sql_clear_company_dependent(self, model, field, sub_ids) -> None:
+        affected = self.env.execute_query(
+            SQL(
+                """
+            UPDATE %(table)s
+            SET %(field)s = (
+                SELECT jsonb_object_agg(
+                    key,
+                    CASE
+                        WHEN value::int4 in %(ids)s THEN NULL
+                        ELSE value::int4
+                    END)
+                FROM jsonb_each_text(%(field)s)
+            )
+            WHERE %(field)s IS NOT NULL
+            AND %(field)s @? %(jsonpath)s
+            RETURNING id
+            """,
+                table=SQL.identifier(model._table),
+                field=SQL.identifier(field.name),
+                ids=sub_ids,
+                jsonpath=f"$.* ? ({' || '.join(f'@ == {id_}' for id_ in sub_ids)})",
+            )
+        )
+        if affected:
+            affected_recs = model.browse(row[0] for row in affected)
+            affected_recs.modified([field.name])
+
     def _delete_sql(
         self,
         sub_ids: tuple[int, ...],
@@ -174,33 +258,10 @@ class UnlinkMixin(_ModelStubs):
         )
         attachments = Attachment.browse(row[0] for row in cr.fetchall())
 
-        if (
-            many2one_fields := self.env.registry.many2one_company_dependents[self._name]
-        ) and not self.env.context.get(MODULE_UNINSTALL_FLAG):
-            IrModelFields = self.env["ir.model.fields"]
-            field_ids = tuple(
-                IrModelFields._get_ids(field.model_name).get(field.name)
-                for field in many2one_fields
-            )
-            sub_ids_json_text = tuple(json_dumps(id_) for id_ in sub_ids)
-            if default := Defaults.search(
-                [
-                    ("field_id", "in", field_ids),
-                    ("json_value", "in", sub_ids_json_text),
-                ],
-                limit=1,
-                order="id desc",
-            ):
-                ir_field = default.field_id.sudo()
-                field = self.env[ir_field.model]._fields[ir_field.name]
-                record = self.browse(json_loads(default.json_value))
-                raise UserError(
-                    _(
-                        "Unable to delete %(record)s because it is used as the default value of %(field)s",
-                        record=record,
-                        field=field,
-                    )
-                )
+        many2one_fields = self.env.registry.many2one_company_dependents[self._name]
+        uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
+        if many2one_fields and not uninstalling:
+            self._delete_sql_default_guard(sub_ids, Defaults, many2one_fields)
 
         if many2one_fields and not all(
             isinstance(id_, int) and id_ > 0 for id_ in sub_ids
@@ -210,62 +271,10 @@ class UnlinkMixin(_ModelStubs):
             )
         for field in many2one_fields:
             model = self.env[field.model_name]
-            if field.ondelete == "restrict" and not self.env.context.get(
-                MODULE_UNINSTALL_FLAG
-            ):
-                if res := self.env.execute_query(
-                    SQL(
-                        """
-                    SELECT id, %(field)s
-                    FROM %(table)s
-                    WHERE %(field)s IS NOT NULL
-                    AND %(field)s @? %(jsonpath)s
-                    ORDER BY id
-                    LIMIT 1
-                    """,
-                        table=SQL.identifier(model._table),
-                        field=SQL.identifier(field.name),
-                        jsonpath=f"$.* ? ({' || '.join(f'@ == {id_}' for id_ in sub_ids)})",
-                    )
-                ):
-                    on_restrict_id, field_json = res[0]
-                    to_delete_id = next(iter(field_json.values()))
-                    on_restrict_record = model.browse(on_restrict_id)
-                    to_delete_record = self.browse(to_delete_id)
-                    raise UserError(
-                        _(
-                            "You cannot delete %(to_delete_record)s, as it is used by %(on_restrict_record)s",
-                            to_delete_record=to_delete_record,
-                            on_restrict_record=on_restrict_record,
-                        )
-                    )
+            if field.ondelete == "restrict" and not uninstalling:
+                self._delete_sql_restrict_guard(model, field, sub_ids)
             else:
-                affected = self.env.execute_query(
-                    SQL(
-                        """
-                    UPDATE %(table)s
-                    SET %(field)s = (
-                        SELECT jsonb_object_agg(
-                            key,
-                            CASE
-                                WHEN value::int4 in %(ids)s THEN NULL
-                                ELSE value::int4
-                            END)
-                        FROM jsonb_each_text(%(field)s)
-                    )
-                    WHERE %(field)s IS NOT NULL
-                    AND %(field)s @? %(jsonpath)s
-                    RETURNING id
-                    """,
-                        table=SQL.identifier(model._table),
-                        field=SQL.identifier(field.name),
-                        ids=sub_ids,
-                        jsonpath=f"$.* ? ({' || '.join(f'@ == {id_}' for id_ in sub_ids)})",
-                    )
-                )
-                if affected:
-                    affected_recs = model.browse(row[0] for row in affected)
-                    affected_recs.modified([field.name])
+                self._delete_sql_clear_company_dependent(model, field, sub_ids)
 
         Defaults.discard_records(records)
 

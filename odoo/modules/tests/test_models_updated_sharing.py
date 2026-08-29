@@ -46,6 +46,7 @@ class _Package:
 def _load(env, package, operation, models_to_check, models_updated):
     loader = loading._PackageLoader(
         env,
+        env.cr,
         package,
         index=1,
         module_count=2,

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from PIL import Image
 
 from odoo.exceptions import UserError
@@ -60,7 +62,7 @@ class ImageProcess(_ImageProcessBase):
 
 
 def image_process(
-    source: bytes | bool | None,
+    source: bytes | Literal[False] | None,
     size: tuple[int, int] = (0, 0),
     verify_resolution: bool = False,
     quality: int = 0,
@@ -69,7 +71,7 @@ def image_process(
     colorize: bool | tuple[int, int, int] = False,
     output_format: str = "",
     padding: int | bool = False,
-) -> bytes | bool | None:
+) -> bytes | Literal[False] | None:
     return _image_process_base(
         source,
         size=size,
