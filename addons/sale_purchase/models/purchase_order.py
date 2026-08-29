@@ -43,8 +43,8 @@ class PurchaseOrder(models.Model):
         return self.line_ids.sale_order_id
 
     def _activity_cancel_on_sale(self):
-        """If some PO are cancelled, we need to put an activity on their origin SO (only the open ones). Since a PO can have
-        been modified by several SO, when cancelling one PO, many next activities can be schedulded on different SO.
+        """If some PO are cancelled, we need to put an activity on their origin SO. Since a PO can have
+        been modified by several SO, when cancelling one PO, many next activities can be scheduled on different SO.
         """
         purchase_lines = self.line_ids.filtered("sale_line_id")
         notify_orders_of_exception(
