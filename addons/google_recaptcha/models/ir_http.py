@@ -124,9 +124,9 @@ class IrHttp(models.AbstractModel):
                 return "is_bot"
             if res_action and res_action != action:
                 logger.warning(
-                    "Trial captcha verification for ip address %s failed with action %f, expected: %s.",
+                    "Trial captcha verification for ip address %s failed with action %s, expected: %s.",
                     ip_addr,
-                    score,
+                    res_action,
                     action,
                 )
                 return "wrong_action"
