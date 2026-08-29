@@ -60,6 +60,7 @@ class Console(code.InteractiveConsole):
 
 
 class Shell(Command):
+    description = "Start odoo in an interactive shell"
     supported_shells = ("ipython", "ptpython", "bpython", "python")
     _REPL_MODULES = {"ipython": "IPython", "ptpython": "ptpython", "bpython": "bpython"}
 

@@ -19,6 +19,8 @@ _MODNAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 
 
 class Scaffold(Command):
+    description = "Generates an Odoo module skeleton."
+
     def __init__(self) -> None:
         super().__init__()
         try:

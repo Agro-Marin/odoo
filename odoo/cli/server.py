@@ -114,6 +114,8 @@ def main(args: list[str]) -> None:
 
 
 class Server(Command):
+    description = "Start the odoo server (default command)"
+
     def run(self, args: list[str]) -> None:
         config.parser.prog = self.prog
         main(args)

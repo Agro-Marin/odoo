@@ -63,6 +63,8 @@ def _should_skip(filepath: Path) -> bool:
 
 
 class Deploy(Command):
+    description = "Deploy a module on an Odoo instance"
+
     def __init__(self) -> None:
         super().__init__()
         self.session = requests.Session()

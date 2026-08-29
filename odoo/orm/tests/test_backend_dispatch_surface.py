@@ -8,6 +8,11 @@ from odoo.orm.runtime.backend import InMemoryBackend
 
 _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 
+# Every place the ORM chooses between the SQL path and env.backend. The surface
+# has grown to fifteen sites across nine files
+# -- including four in Layer 1, where a field reaches the backend directly
+# rather than through a model mixin. Each entry says what the in-memory branch
+# does NOT do, so a site marked LOSSY is a known gap, not an oversight.
 DISPATCH_SITES: dict[tuple[str, str], str] = {
     ("models/mixins/create.py", "_create"): (
         "in-memory path skips the COPY fast path (performance only)"

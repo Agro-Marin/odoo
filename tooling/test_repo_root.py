@@ -139,6 +139,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_layer_check"): "ROOT",
         ("architecture", "js_cycle_check"): "ROOT",
         ("architecture", "py_cycle_check"): "REPO_ROOT",
+        ("architecture", "py_docstring_at_runtime"): "ROOT",
         ("architecture", "named_export_coherence"): "ROOT",
         ("architecture", "cross_repo_coherence"): "ROOT",
         ("architecture", "compute_context_deps"): "ROOT",

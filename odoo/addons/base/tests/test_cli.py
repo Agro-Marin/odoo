@@ -67,17 +67,35 @@ class TestCommand(BaseCase):
             kwargs["stdout"] = kwargs["stderr"] = sp.PIPE
         return sp.Popen([*self.run_args, *args], text=text, **kwargs)
 
-    def test_docstring(self):
+    def test_help_text(self):
         load_internal_commands()
         load_addons_commands()
         for name, cmd in commands.items():
+            help_text = cmd.description or cmd.__doc__
             self.assertTrue(
-                cmd.__doc__,
-                msg=f"Command {name} needs a docstring to be displayed with 'odoo-bin help'",
+                help_text,
+                msg=(
+                    f"Command {name} has no help text: set `description` on the "
+                    f"class. A docstring will not do -- the prose strip removes "
+                    f"it and `odoo-bin help` goes blank."
+                ),
             )
-            self.assertFalse(
-                "\n" in cmd.__doc__ or len(cmd.__doc__) > 120,
-                msg=f"Command {name}'s docstring format is invalid for 'odoo-bin help'",
+            first_line = help_text.strip().partition("\n")[0].strip()
+            self.assertTrue(
+                first_line,
+                msg=(
+                    f"Command {name}'s help text starts with a blank line; "
+                    f"`odoo-bin help` lists the first line and would show "
+                    f"nothing"
+                ),
+            )
+            self.assertLessEqual(
+                len(first_line),
+                120,
+                msg=(
+                    f"Command {name}'s first help line is {len(first_line)} "
+                    f"characters; `odoo-bin help` puts it on one line"
+                ),
             )
 
     def test_unknown_command(self):

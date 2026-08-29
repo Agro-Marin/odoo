@@ -25,6 +25,8 @@ def _exit_nothing_done(verb: str, requested: list[str] | set[str]) -> None:
 
 
 class Module(DatabaseCommand):
+    description = "Manage modules, install demo data"
+
     def __init__(self) -> None:
         super().__init__()
         self.add_config_arguments(self.parser)

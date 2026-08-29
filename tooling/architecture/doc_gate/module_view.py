@@ -387,19 +387,46 @@ class TestOrmDocstringAgreesWithGate(unittest.TestCase):
             "orm/__init__.py's Layer 0 listing and the layer-0 contract disagree",
         )
 
-    def test_every_orm_member_is_documented(self) -> None:
+    @staticmethod
+    def _members_on_disk() -> set[str]:
+        """Every orm member, spelled as the docstring's listing spells it."""
         orm = ROOT / "odoo" / "orm"
-        members = {p.stem for p in orm.glob("*.py") if p.stem != "__init__"}
+        members = {p.name for p in orm.glob("*.py") if p.stem != "__init__"}
         members |= {
-            p.name
+            f"{p.name}/"
             for p in orm.iterdir()
             if p.is_dir() and (p / "__init__.py").exists() and p.name != "tests"
         }
-        undocumented = {m for m in members if m not in self.docstring}
+        return members
+
+    def _listed_entries(self) -> list[str]:
+        return re.findall(r"^  (\w+\.py|\w+/)\s*$", self.docstring, re.MULTILINE)
+
+    def test_every_orm_member_is_documented(self) -> None:
+        undocumented = self._members_on_disk() - set(self._listed_entries())
         self.assertEqual(
             set(),
             undocumented,
             f"orm/__init__.py's docstring does not mention: {sorted(undocumented)}",
+        )
+
+    def test_no_member_is_listed_that_is_not_on_disk(self) -> None:
+        stale = set(self._listed_entries()) - self._members_on_disk()
+        self.assertEqual(
+            set(),
+            stale,
+            f"orm/__init__.py lists {sorted(stale)}, which no longer exists; a "
+            f"stale entry makes the index describe a tree that is not there",
+        )
+
+    def test_no_member_is_listed_twice(self) -> None:
+        entries = self._listed_entries()
+        duplicated = sorted({e for e in entries if entries.count(e) > 1})
+        self.assertEqual(
+            [],
+            duplicated,
+            f"{duplicated} listed more than once in orm/__init__.py; a module "
+            f"classified into two layers means one of the two is wrong",
         )
 
     def test_the_page_names_the_tie_breaker(self) -> None:
@@ -420,8 +447,10 @@ class TestPinnedCyclesAndRemovals(unittest.TestCase):
         known = getattr(report, "known", None) or report.cycles
         measured = {" <-> ".join(cycle) for cycle in known}
 
-        self.assertIn("Four are pinned, all the benign", DOC)
-        block = DOC.split("Four are pinned, all the benign", 1)[1]
+        count = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five"}[len(measured)]
+        anchor = f"{count} are pinned, all the benign"
+        self.assertIn(anchor, DOC, "module.md does not state the measured count")
+        block = DOC.split(anchor, 1)[1]
         block = block.split("```", 2)[1]
         listed = {
             " <-> ".join(part.strip() for part in line.split("<->"))
@@ -433,8 +462,7 @@ class TestPinnedCyclesAndRemovals(unittest.TestCase):
             listed,
             "the pinned cycles in module.md and py_cycle_check disagree",
         )
-        count = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five"}[len(measured)]
-        self.assertIn(f"{count} are pinned, all the benign", DOC_FLAT)
+        self.assertIn(anchor, DOC_FLAT)
 
     def test_the_orm_really_has_no_cycle(self) -> None:
         import py_cycle_check

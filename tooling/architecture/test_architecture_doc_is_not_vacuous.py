@@ -45,6 +45,8 @@ EXPECTED_SURVIVORS: dict[str, str] = {
     "TestCitationsResolve.test_line_number_citations_resolve": "conditional",
     "TestOrmDocstringAgreesWithGate.test_every_orm_member_is_documented": "code-only",
     "TestOrmDocstringAgreesWithGate.test_layer0_section_matches_the_contract": "code-only",
+    "TestOrmDocstringAgreesWithGate.test_no_member_is_listed_that_is_not_on_disk": "code-only",
+    "TestOrmDocstringAgreesWithGate.test_no_member_is_listed_twice": "code-only",
     "TestPatchModuleConvention.test_every_registered_patch_exposes_the_hook": "code-only",
     "TestPinnedCyclesAndRemovals.test_the_backtick_note_is_not_reinstated": "negative",
     "TestPinnedViolations.test_no_new_violations": "code-only",

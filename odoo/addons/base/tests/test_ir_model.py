@@ -2203,3 +2203,36 @@ class TestIrModelConstraintReflection(TransactionCase):
         after = self._constraint_rows(names)
         self.assertNotEqual(after[drifted][2], "bogus", "drifted row repaired")
         self.assertEqual(after[drifted][0], before[drifted][0])
+
+
+class TestIrModelInfoStopsAtTheOrmBoundary(TransactionCase):
+    def _info(self, model_name):
+        model = self.env[model_name]
+        return self.env["ir.model"]._prepare_model_vals(model)["info"]
+
+    def test_no_model_inherits_pythons_object_docstring(self):
+        borrowed = [
+            name
+            for name in self.env.registry.models
+            if (self._info(name) or "") == object.__doc__
+        ]
+        self.assertFalse(
+            borrowed,
+            msg=(
+                f"{len(borrowed)} model(s) show object.__doc__ as their "
+                f"Information text. The MRO walk that finds it runs to the end "
+                f"of the chain, and object always has a docstring, so any model "
+                f"without one of its own borrows Python's."
+            ),
+        )
+
+    def test_a_model_with_no_documentation_reports_none(self):
+        self.assertIsNone(
+            self._info("ir.model"),
+            msg="a model with no docstring of its own has no Information text",
+        )
+
+    def test_a_documented_model_still_reports_its_own_text(self):
+        cls = self.env.registry["ir.model"]
+        with patch.object(cls, "__doc__", "What this model is for."):
+            self.assertEqual(self._info("ir.model"), "What this model is for.")

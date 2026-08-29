@@ -39,6 +39,7 @@ except ImportError:
     parse_version = _parse_version_module.parse_version
 
     class Command:  # type: ignore[no-redef]
+        description: str | None = None
 
         def __init__(self) -> None:
             self._parser: argparse.ArgumentParser | None = None
@@ -48,7 +49,9 @@ except ImportError:
             if self._parser is None:
                 self._parser = argparse.ArgumentParser(
                     prog=Path(sys.argv[0]).name,
-                    description=__doc__.replace("/odoo/upgrade_code", str(UPGRADE)),
+                    description=(self.description or "").replace(
+                        "/odoo/upgrade_code", str(UPGRADE)
+                    ),
                     formatter_class=argparse.RawDescriptionHelpFormatter,
                 )
             return self._parser
@@ -190,6 +193,9 @@ def migrate(
 
 
 class UpgradeCode(Command):
+    description = (
+        "Rewrite the entire source code using the scripts found at /odoo/upgrade_code"
+    )
     name = "upgrade_code"
 
     def __init__(self) -> None:

@@ -31,6 +31,7 @@ class SubcommandHelpFormatter(argparse.RawTextHelpFormatter):
 
 
 class I18n(DatabaseCommand):
+    description = "Import, export, setup languages and internationalization files"
     _EPILOG = textwrap.dedent("""\
         Language codes must follow the XPG (POSIX) locale format.
         see: https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html

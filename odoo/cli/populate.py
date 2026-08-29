@@ -46,6 +46,10 @@ def _parse_model_factors(
 
 
 class Populate(DatabaseCommand):
+    description = (
+        "Populate database via duplication of existing data for testing/demo purposes"
+    )
+
     def __init__(self) -> None:
         super().__init__()
         parser = self.parser

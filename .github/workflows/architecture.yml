@@ -1018,6 +1018,24 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run docstring-at-runtime gate
+        id: py_docstring_at_runtime
+        # Prose in odoo/odoo is removed by policy, so `__doc__` is None there --
+        # and code that then calls a method on it, indexes it or concatenates it
+        # raises. That has happened twice: `odoo/cli/upgrade_code.py` died on
+        # `__doc__.replace(...)` and could not print --help at all, and
+        # base_sparse_field could not be installed because `Field.__doc__ +=`
+        # raised TypeError at import. Both are the same shape, both are caught
+        # here, and the gate is drift-zero rather than floored: there is nothing
+        # to pay down, only a class not to reintroduce.
+        run: |
+          set +e
+          python tooling/architecture/py_docstring_at_runtime.py --check \
+            | tee /tmp/py_docstring_at_runtime.log
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run count-as-boolean ratchet (core)
         id: py_count_as_boolean
         # ADR-0057. A `search_count` whose answer is only a yes or a no scans the

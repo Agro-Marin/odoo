@@ -245,6 +245,8 @@ enforce them.
 | [0072](0072-the-cross-repo-gate-checks-names-not-only-modules.md) | The cross-repo gate checks names, not only modules | 2026-08-28 | Accepted |
 | [0073](0073-a-python-import-across-repositories-must-resolve.md) | A Python import across repositories must resolve too | 2026-08-28 | Accepted |
 | [0074](0074-a-shipped-static-source-reaches-a-bundle.md) | A shipped static source reaches a bundle | 2026-08-28 | Accepted |
+| [0075](0075-tools-stays-below-the-serving-tier.md) | `odoo.tools` stays below the serving tier | 2026-08-29 | Accepted |
+| [0076](0076-runtime-code-does-not-read-a-docstring.md) | Runtime code does not read a docstring | 2026-08-29 | Accepted |
 
 ## Template
 

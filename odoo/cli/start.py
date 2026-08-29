@@ -11,6 +11,8 @@ from .server import main
 
 
 class Start(Command):
+    description = "Quickly start the odoo server with default options"
+
     def get_module_list(self, path: str | Path) -> list[str]:
         base = Path(path)
         return [

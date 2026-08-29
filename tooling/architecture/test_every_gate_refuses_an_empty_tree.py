@@ -63,6 +63,7 @@ GATES = {
     "libs_facade_check": ["--check"],
     "facade_surface_check": ["--check"],
     "py_cycle_check": ["--check"],
+    "py_docstring_at_runtime": ["--check"],
     "package_index_check": ["--check"],
     "subsystem_map_check": ["--check"],
     "doc_restated_counts": ["--check"],

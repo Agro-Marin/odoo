@@ -87,6 +87,8 @@ def _read_field_file(path: str) -> tuple[tuple[str, str], ...]:
 
 
 class Obfuscate(DatabaseCommand):
+    description = "Obfuscate data in a given odoo database"
+
     def __init__(self) -> None:
         super().__init__()
         self._cr: Cursor | None = None

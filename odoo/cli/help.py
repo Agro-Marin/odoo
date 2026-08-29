@@ -15,6 +15,7 @@ from .command import (
 
 
 class Help(Command):
+    description = "Display the list of available commands"
     template = textwrap.dedent("""\
         usage: {prog_name} [--addons-path=PATH,...] <command> [...]
 
@@ -48,7 +49,7 @@ class Help(Command):
         name_desc = [
             (
                 cmd_name,
-                (cmd.__doc__ or cmd.description or "")
+                (cmd.description or cmd.__doc__ or "")
                 .strip()
                 .partition("\n")[0]
                 .strip(),
