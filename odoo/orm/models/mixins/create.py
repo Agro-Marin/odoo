@@ -218,14 +218,6 @@ class CreateMixin(_ModelStubs):
                 ) or key in cached_only:
                     protected.update(self.pool.field_computed.get(field, [field]))
                 if field.is_many2one and field.bypass_search_access and not self.env.su:
-                    # Collected, not checked here. `check_access` on a
-                    # one-record recordset has to fetch whatever the comodel's
-                    # ir.rule reads, and a recordset of one has nothing to
-                    # prefetch with -- so a rule as small as ("name","!=",x)
-                    # cost one SELECT per record. Indexing the map with a falsy
-                    # co_id on purpose: it creates the entry, so a batch that
-                    # only ever sets the field to False still pays the
-                    # model-level ACL check it paid before.
                     co_ids = bypass_access_ids[field]
                     if co_id := field.convert_to_cache(val, self):
                         co_ids.add(co_id)
@@ -375,10 +367,6 @@ class CreateMixin(_ModelStubs):
         ids = records._ids
         if not ids:
             return
-        # Only the fields the scratch records actually touched. This walked
-        # every field on the model -- 200+ on the wide ones -- to reach a
-        # handful, and `_invalidate_cache` still has to resolve the storage
-        # layout before it can decide there is nothing to drop.
         env = self.env
         core = env._core
         for field in self._fields.values():
@@ -472,7 +460,10 @@ class CreateMixin(_ModelStubs):
         cr = self.env.cr
         ids: list[int] = []
         use_copy = (
-            not COPY_DISABLED and col_fields and len(stored_list) >= COPY_THRESHOLD
+            not COPY_DISABLED
+            and col_fields
+            and len(stored_list) >= COPY_THRESHOLD
+            and not cr.in_pipeline
         )
         subprof = _OrmProfile(_orm_crud)
 

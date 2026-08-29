@@ -47,6 +47,7 @@ from odoo.db.reaper import checked_out as reaper_checked_out
 from odoo.db.utils import categorize_query, connection_info_for
 from odoo.exceptions import ConcurrencyError
 from odoo.modules.registry import Registry
+from odoo.orm.models.mixins._crud_common import COPY_THRESHOLD
 from odoo.service.db import exp_drop
 from odoo.tests import common
 from odoo.tests.common import BaseCase, HttpCase
@@ -74,12 +75,6 @@ def _callees(func):
 
 
 def _calls(func):
-    """Names invoked as plain calls in `func`, read off its AST.
-
-    `_callees` reads `co_names`, which cannot tell a call from an attribute
-    read; where the question is "does this call retrying()", the AST is what
-    answers it.
-    """
     import ast
     import textwrap
 
@@ -92,7 +87,6 @@ def _calls(func):
 
 
 def _own_methods(model_cls):
-    """`{method name: names it references}` for the model's own methods."""
     methods = {}
     for name in dir(model_cls):
         if not name.startswith("_") and name != "method_direct_trigger":
@@ -105,7 +99,6 @@ def _own_methods(model_cls):
 
 
 def _reachable(start, methods):
-    """Every method reachable from `start` through `methods`."""
     seen, todo = set(), [start]
     while todo:
         name = todo.pop()
@@ -785,6 +778,51 @@ class TestCursorBulkMethods(BaseCase):
             cr.execute("SELECT count(*) FROM _test_nest")
             self.assertEqual(cr.fetchone()[0], 4)
 
+    def test_pipeline_of_one_statement_never_enters_pipeline_mode(self):
+        with registry().cursor() as cr:
+            with cr.pipeline():
+                cr.execute("SELECT 1 AS a")
+                self.assertIsNotNone(
+                    cr.description,
+                    "a lone statement in a pipeline block should have run "
+                    "outside pipeline mode",
+                )
+                self.assertEqual(cr.fetchall(), [(1,)])
+
+    def test_pipeline_enters_on_the_second_statement(self):
+        with registry().cursor() as cr:
+            with cr.pipeline():
+                cr.execute("SELECT 1 AS a")
+                cr.execute("SELECT 2 AS b")
+                self.assertIsNone(
+                    cr.description,
+                    "the second statement should have run in pipeline mode",
+                )
+                self.assertEqual(cr.fetchall(), [(2,)])
+
+    def test_pipeline_nesting_does_not_re_enter_the_mode(self):
+        with registry().cursor() as cr:
+            with cr.pipeline():
+                cr.execute("SELECT 1 AS a")
+                with cr.pipeline():
+                    cr.execute("SELECT 2 AS b")
+                    self.assertIsNone(cr.description)
+                    self.assertEqual(cr.fetchall(), [(2,)])
+                cr.execute("SELECT 3 AS c")
+                self.assertIsNone(cr.description)
+                self.assertEqual(cr.fetchall(), [(3,)])
+
+    def test_copy_from_inside_a_pipeline_says_what_is_wrong(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _cp_err (id int)")
+            with cr.pipeline():
+                cr.execute("SELECT 1")
+                cr.execute("SELECT 2")
+                with self.assertRaises(Exception) as caught:
+                    cr.copy_from("_cp_err", ["id"], [(1,)])
+            self.assertIn("cannot run inside pipeline mode", str(caught.exception))
+            self.assertIn("execute_values", str(caught.exception))
+
     def test_pipeline_fire_and_forget_updates(self):
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_upd (id int, val int)")
@@ -833,6 +871,19 @@ def _merge(cr, table, columns, rows, on_columns, *, returning="NEW.id"):
     )
     cr.execute(query)
     return cr.fetchall()
+
+
+class TestCreateInsidePipeline(common.TransactionCase):
+    def test_create_above_the_copy_threshold_inside_a_pipeline(self):
+        Partner = self.env["res.partner"]
+        names = [f"pipe_{i}" for i in range(COPY_THRESHOLD + 5)]
+        with self.cr.pipeline():
+            self.cr.execute("SELECT 1")
+            self.cr.execute("SELECT 2")
+            partners = Partner.create([{"name": name} for name in names])
+            self.env.flush_all()
+        self.assertEqual(len(partners), len(names))
+        self.assertEqual(sorted(partners.mapped("name")), sorted(names))
 
 
 class TestMerge(BaseCase):
@@ -4050,13 +4101,6 @@ class TestCronsRecoverLikeRequests(BaseCase):
         )
 
     def test_nothing_reaches_the_action_except_the_wrapped_runner(self):
-        """The other half, and the half that actually protects the budget.
-
-        Reaching `_run_callback` is worth nothing if some other path invokes the
-        job's action beside it: that path would run outside `retrying()` and
-        charge every recoverable error to the cron again. So the action must
-        have exactly one caller.
-        """
         methods = _own_methods(registry()["ir.cron"])
         callers = {name for name, calls in methods.items() if self.ACTION in calls} - {
             self.ACTION

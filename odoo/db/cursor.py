@@ -2,7 +2,7 @@ import logging
 import os
 import threading
 from collections.abc import Collection, Generator, Iterable
-from contextlib import contextmanager, suppress
+from contextlib import ExitStack, contextmanager, suppress
 from datetime import datetime
 from inspect import currentframe
 from time import monotonic
@@ -118,16 +118,6 @@ class BaseCursor:
     def rollback(self) -> None:
         raise NotImplementedError
 
-    # Declared for the type checker and NOT at runtime, deliberately: every
-    # concrete cursor provides these -- Cursor and InMemoryCursor implement
-    # them, TestCursor forwards them to the cursor it wraps through
-    # __getattr__ -- and that hook only fires when normal lookup FAILS, so a
-    # real method here would shadow the forwarding and answer for it.
-    #
-    # `fetchall` and `rowcount` join them because BaseCursor is what
-    # Environment.cr is typed as, and 13 call sites read rows off one.
-    # `fetchscalar` above already calls `self.fetchone()`, so the base has
-    # always required this family while declaring only half of it.
     if TYPE_CHECKING:
 
         def close(self) -> None:
@@ -139,23 +129,10 @@ class BaseCursor:
         def fetchall(self) -> list[tuple[Any, ...]]:
             pass
 
-        # a read-only property, because that is what every concrete cursor
-        # makes it; a bare `rowcount: int` declares a writeable attribute and
-        # each of them then reads as narrowing the base.
         @property
         def rowcount(self) -> int: ...
 
     def savepoint(self, flush: bool = True) -> Savepoint:
-        """Open a SQL savepoint; `flush=False` skips the ORM flush/restore.
-
-        With `flush=True` (the default), a rollback also restores ORM state
-        (invalidates/re-clears the caches this transaction may have refilled).
-        With `flush=False`, `Savepoint.rollback()` only undoes the SQL: it does
-        NOT restore ORM state. A caller opening a non-flushing savepoint over a
-        live `self.transaction` that may cache/write ORM-visible records must
-        invalidate what it touched itself (e.g. `invalidate_model()`) on the
-        rollback path, or stale ORM state can survive the SQL rollback.
-        """
         if flush:
             cls = self._flushing_savepoint_cls
             if self.transaction is not None and not cls._restores_orm_state:
@@ -190,7 +167,6 @@ class BaseCursor:
         raise NotImplementedError
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
-        """Fetch up to `size` rows; unlike `fetchmany`, `size <= 0` returns no rows."""
         res: list[dict[str, Any]] = []
         while size > 0 and (row := self.dictfetchone()) is not None:
             res.append(row)
@@ -234,6 +210,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
         self._schema_cache = TransactionSchemaCache()
         self._schema_changed = False
+
+        self._pipeline_depth = 0
+        self._pipeline_stack: ExitStack | None = None
+        self._pipeline_statements = 0
+        self._pipeline_entered = False
 
         self._thread = threading.current_thread()
 
@@ -283,7 +264,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         return _rows_to_dicts(self._col_names(), rows)
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
-        """Fetch up to `size` rows; unlike `fetchmany`, `size <= 0` returns no rows."""
         if size <= 0:
             return []
         rows = self._obj.fetchmany(size)
@@ -304,9 +284,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         return self._obj.fetchall()
 
     def fetchmany(self, size: int = 0) -> list[tuple[Any, ...]]:
-        """Fetch up to `size` rows; `size <= 0` means "use `self.arraysize`" (psycopg
-        sentinel), unlike `dictfetchmany`, where it means "no rows".
-        """
         return self._obj.fetchmany(size)
 
     @property
@@ -396,6 +373,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
         query, params, prepare, qs, ddl_kw = self._resolve_ddl(query, params, prepare)
 
+        if self._pipeline_stack is not None:
+            self._arm_pipeline()
+
         debug = _logger.isEnabledFor(logging.DEBUG)
         hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if hooks else 0.0
@@ -442,14 +422,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         params: tuple | list | dict | None,
         prepare: bool | None,
     ) -> tuple[Any, tuple | list | dict | None, bool | None, str, str | None]:
-        """Decide what actually goes on the wire, and report the DDL verdict.
-
-        PostgreSQL rejects `$N` in DDL structural positions, so a DDL statement
-        has its parameters inlined as quoted literals here and is never
-        auto-prepared. `qs` and the leading keyword travel back out because the
-        caller needs them again afterwards, to decide whether the statement
-        changed the schema.
-        """
         if isinstance(query, bytes):
             try:
                 qs = query.decode()
@@ -561,10 +533,36 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             query_type, table = categorize_query(query)
             self._record_sql_log(query_type, table, delay)
 
+    @property
+    def in_pipeline(self) -> bool:
+        return self._pipeline_entered
+
+    def _arm_pipeline(self) -> None:
+        self._pipeline_statements += 1
+        if self._pipeline_statements == 2 and self._pipeline_stack is not None:
+            self._pipeline_stack.enter_context(self._cnx.pipeline())
+            self._pipeline_entered = True
+
     @contextmanager
     def pipeline(self) -> Generator[None]:
-        with self._cnx.pipeline():
-            yield
+        if self._pipeline_depth:
+            self._pipeline_depth += 1
+            try:
+                yield
+            finally:
+                self._pipeline_depth -= 1
+            return
+
+        self._pipeline_depth = 1
+        self._pipeline_statements = 0
+        try:
+            with ExitStack() as stack:
+                self._pipeline_stack = stack
+                yield
+        finally:
+            self._pipeline_stack = None
+            self._pipeline_depth = 0
+            self._pipeline_entered = False
 
     def close(self) -> None:
         if not self._closed:

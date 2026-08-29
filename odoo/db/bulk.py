@@ -55,12 +55,6 @@ The `str` case is the one that was silently wrong; a `dict` fails loudly.
 
 
 def _raw_json(value: str) -> str:
-    """Serialise an already-serialised JSON document unchanged.
-
-    `Jsonb(text, dumps=_raw_json)` is what makes binary COPY agree with text
-    COPY for a `str`: text hands the bytes to PostgreSQL to parse, and this
-    makes binary do the same instead of re-encoding the string as a JSON scalar.
-    """
     return value
 
 
@@ -73,6 +67,7 @@ def _table_identifier(table: str) -> _sql.Identifier:
 
 if TYPE_CHECKING:
     import threading
+    from contextlib import AbstractContextManager
     from typing import Protocol
 
     import psycopg
@@ -92,6 +87,10 @@ if TYPE_CHECKING:
             params: tuple | list | dict | None = None,
             log_exceptions: bool = True,
         ) -> None: ...
+
+        in_pipeline: bool
+
+        def pipeline(self) -> AbstractContextManager[None]: ...
         def fetchone(self) -> tuple[Any, ...] | None: ...
         def fetchall(self) -> list[tuple[Any, ...]]: ...
         def _record_metrics(
@@ -118,17 +117,13 @@ if TYPE_CHECKING:
 
 
 def _validate_copy_args(
+    cursor: _CursorInternals,
+    table: str,
     columns: list[str],
     returning_ids: bool,
     binary: bool,
     on_error: str | None,
 ) -> None:
-    """Reject an impossible `copy_from` before it becomes a statement.
-
-    Kept as a free function called *before* `_before_statement()`, because a
-    rejected call must issue nothing -- and under `odoo.tests.cursor.TestCursor`
-    that mark is what opens the rollback savepoint.
-    """
     if not columns:
         raise ValueError("copy_from: columns must be a non-empty list")
     if on_error is not None and on_error not in ("ignore", "stop"):
@@ -148,6 +143,12 @@ def _validate_copy_args(
             "reconciled with rows silently dropped by the server. "
             "Use batched INSERT ... RETURNING id for fault-tolerant "
             "inserts that need IDs."
+        )
+    if cursor.in_pipeline:
+        raise _errors.NotSupportedError(
+            f"copy_from({table!r}) cannot run inside pipeline mode; "
+            f"use execute_values, or move the COPY out of the enclosing "
+            f"cr.pipeline() block."
         )
 
 
@@ -179,7 +180,7 @@ class _BulkAccessMixin:
         batches = range(0, len(argslist), page_size)
         prefix, suffix = query[:marker_pos], query[marker_pos + 2 :]
         use_pipeline = len(argslist) > page_size and not fetch
-        ctx = self._cnx.pipeline() if use_pipeline else _nullcontext()
+        ctx = self.pipeline() if use_pipeline else _nullcontext()
         ph_by_len: dict[int, str] = {}
         try:
             with ctx:
@@ -222,7 +223,7 @@ class _BulkAccessMixin:
         on_error: str | None = None,
         log_exceptions: bool = True,
     ) -> list[int] | None:
-        _validate_copy_args(columns, returning_ids, binary, on_error)
+        _validate_copy_args(self, table, columns, returning_ids, binary, on_error)
         self._before_statement()
 
         if returning_ids:
