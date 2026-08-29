@@ -147,7 +147,6 @@ SELECT
         return """
 FROM event_registration
 LEFT JOIN event_event ON event_event.id = event_registration.event_id
-LEFT JOIN event_slot ON event_slot.id = event_registration.event_slot_id
 LEFT JOIN event_event_ticket ON event_event_ticket.id = event_registration.event_ticket_id
 LEFT JOIN sale_order ON sale_order.id = event_registration.sale_order_id
 LEFT JOIN sale_order_line ON sale_order_line.id = event_registration.sale_order_line_id
