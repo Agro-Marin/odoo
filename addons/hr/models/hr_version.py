@@ -497,8 +497,48 @@ class HrVersion(models.Model):
             )
         return dates_vals
 
+    def _notify_new_hr_responsible(self, vals):
+        """Tell the employees whose HR Responsible just changed who it now is.
+
+        The field is `groups="hr.group_hr_user"` and mail filters every tracking
+        row by field access, so this change cannot reach the employee through
+        the chatter: it is the only channel they have.
+
+        One message for the whole write, not one per version. Versions of the
+        same employee are written together routinely, and `write` re-enters
+        itself under ``sync_contract_dates`` to reconcile the contract dates --
+        both would otherwise send the same sentence twice.
+        """
+        responsible_id = vals.get("hr_responsible_id")
+        if not responsible_id or self.env.context.get("sync_contract_dates"):
+            return
+
+        recipients = self.env["res.partner"]
+        for version in self:
+            if (
+                version.hr_responsible_id.id == responsible_id
+                or not version.employee_id
+            ):
+                continue
+            employee = version.employee_id
+            recipients |= employee.user_id.partner_id or employee.work_contact_id
+        if not recipients:
+            return
+
+        responsible = self.env["res.users"].browse(responsible_id)
+        # sudo: the recipient cannot read hr.version, and the message carries no
+        # document -- it is posted to their Inbox, not onto a record.
+        self.env["mixin.mail.thread"].sudo().message_notify(
+            body=self.env._(
+                "Your HR Responsible has been updated to %s.", responsible.name
+            ),
+            partner_ids=recipients.ids,
+            subject=self.env._("HR Responsible Update"),
+        )
+
     def write(self, vals):
         self._check_employee_keeps_a_version(vals)
+        self._notify_new_hr_responsible(vals)
 
         if self.env.context.get("sync_contract_dates") or (
             "contract_date_start" not in vals and "contract_date_end" not in vals
