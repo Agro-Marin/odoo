@@ -62,10 +62,17 @@ class IrUiView(models.Model):
                 r.visibility = r.visibility
 
     def _compute_first_page_id(self):
+        # One search for every view, not one per view. This backs the
+        # `first_page_id` column of the Website > Pages list, so the old
+        # `limit=1` per record cost a query per row on screen.
+        pages = self.env["website.page"].search([("view_id", "in", self.ids)])
+        # `search` hands them back in the model's own order, so the first one
+        # seen per view is the one `limit=1` used to return.
+        first_by_view = {}
+        for page in pages:
+            first_by_view.setdefault(page.view_id.id, page)
         for view in self:
-            view.first_page_id = self.env["website.page"].search(
-                [("view_id", "in", view.ids)], limit=1
-            )
+            view.first_page_id = first_by_view.get(view.id, False)
 
     @api.model_create_multi
     def create(self, vals_list):

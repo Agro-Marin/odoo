@@ -2319,3 +2319,61 @@ class TestThemeViews(common.TransactionCase):
             "Test Child View modified",
             "View should receive modification on theme update.",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestFirstPageIdBatchCost(common.TransactionCase):
+    """`first_page_id` is a column of the Website > Pages list.
+
+    It used to run `website.page.search(..., limit=1)` once per view, so opening
+    that list cost a query per row on screen. The assertion is on the MARGINAL
+    cost between two sizes: an absolute query count at one size cannot tell a
+    flat cost from a linear one, and it breaks on every unrelated query added
+    elsewhere.
+    """
+
+    def test_first_page_id_does_not_query_per_view(self):
+        website = self.env["website"].search([], limit=1)
+        pages = self.env["website.page"].create(
+            [
+                {
+                    "name": f"batch cost {i}",
+                    "url": f"/batch-cost-{i}",
+                    "website_id": website.id,
+                    "view_id": self.env["ir.ui.view"]
+                    .create(
+                        {
+                            "name": f"batch cost view {i}",
+                            "type": "qweb",
+                            "key": f"website.batch_cost_view_{i}",
+                            "arch": "<t t-name='website.batch_cost'><div/></t>",
+                        }
+                    )
+                    .id,
+                }
+                for i in range(20)
+            ]
+        )
+        self.env.flush_all()
+        views = pages.view_id
+
+        def queries_for(count):
+            # Read through the field, not by calling the compute directly: a
+            # direct call runs outside `Field.compute_value`'s `env.protecting`,
+            # so assigning re-enters `__get__` per record and the compute is
+            # invoked once per view on top of the batch. That is an artefact of
+            # the measurement, and it hides what opening the list actually costs.
+            self.env.invalidate_all()
+            before = self.env.cr.sql_log_count
+            views[:count].mapped("first_page_id")
+            return self.env.cr.sql_log_count - before
+
+        small = queries_for(2)
+        large = queries_for(20)
+        self.assertLessEqual(
+            large,
+            small,
+            f"_compute_first_page_id costs {large} queries for 20 views against "
+            f"{small} for 2: it is searching per view. Two sizes rather than one, "
+            f"and 2 rather than 1 so a warm cache cannot make it vacuous.",
+        )

@@ -5,7 +5,7 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import DAILY, rrule
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.tests.common import TransactionCase, tagged
 
 _logger = logging.getLogger(__name__)
@@ -267,3 +267,76 @@ class TestHrAttendancePerformance(TransactionCase):
             len(self.attendances.ids),
             t1 - t0,
         )
+
+
+@tagged("post_install", "-at_install")
+class TestAttendanceComputeBatchCost(TransactionCase):
+    """The employee computes must cost the same whatever the headcount.
+
+    Both of these back the Attendances overview, which lists every employee, and
+    both used to issue their query inside `for employee in self`. Measured at 40
+    employees before the fix: `hours_today` 82 queries, `last_attendance_id` 47.
+
+    The assertion is on the MARGINAL cost between two sizes, not an absolute
+    count: an absolute pin at one size cannot see an N+1 at all, and it breaks
+    on every unrelated query added elsewhere.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.employees = cls.env["hr.employee"].create(
+            [{"name": f"batch cost {i}"} for i in range(20)]
+        )
+        now = fields.Datetime.now()
+        cls.env["hr.attendance"].create(
+            [
+                {
+                    "employee_id": employee.id,
+                    "check_in": now - relativedelta(hours=3),
+                    "check_out": now - relativedelta(hours=1),
+                }
+                for employee in cls.employees
+            ]
+        )
+        cls.env.flush_all()
+
+    def _queries_for(self, compute_name, field_name, count):
+        records = self.employees[:count]
+        self.env.invalidate_all()
+        records.mapped("attendance_ids")  # the dependency is not what is measured
+        before = self.env.cr.sql_log_count
+        if field_name is None:
+            # `last_attendance_id` is stored, so reading it is a column read and
+            # never runs the compute; the recompute path is the one with the
+            # cost, and calling it is the only way to reach it. Non-stored
+            # fields are read through instead -- a direct call runs outside
+            # `Field.compute_value`'s `env.protecting`, so assigning re-enters
+            # `__get__` per record and inflates the count with invocations no
+            # reader pays for.
+            getattr(records, compute_name)()
+        else:
+            records.mapped(field_name)
+        return self.env.cr.sql_log_count - before
+
+    def _assert_flat(self, compute_name, field_name=None):
+        small = self._queries_for(compute_name, field_name, 2)
+        large = self._queries_for(compute_name, field_name, 20)
+        # Not equality: the small measurement runs first and warms caches the
+        # large one reuses, so the large size can legitimately cost *less*. The
+        # invariant is that it must not cost MORE -- that is what per-employee
+        # querying looks like from outside.
+        self.assertLessEqual(
+            large,
+            small,
+            f"{compute_name} costs {large} queries for 20 employees against "
+            f"{small} for 2: it is querying per employee. Two sizes rather than "
+            f"one because a single size cannot tell a flat cost from a linear one, "
+            f"and 2 rather than 1 so a warm cache cannot make it vacuous.",
+        )
+
+    def test_hours_today_does_not_query_per_employee(self):
+        self._assert_flat("_compute_hours_today", field_name="hours_today")
+
+    def test_last_attendance_id_does_not_query_per_employee(self):
+        self._assert_flat("_compute_last_attendance_id")

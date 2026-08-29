@@ -4,6 +4,7 @@ from datetime import UTC
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, exceptions, fields, models
+from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 
@@ -170,18 +171,23 @@ class HrEmployee(models.Model):
     def _compute_hours_today(self):
         now = fields.Datetime.now()
         now_utc = now.replace(tzinfo=UTC)
-        for employee in self:
-            # start of day in the employee's timezone might be the previous day in utc
-            tz = timezone(employee.tz)
-            now_tz = now_utc.astimezone(tz)
-            start_tz = now_tz + relativedelta(
+        # One query per distinct timezone, not per employee. "Today" is the only
+        # thing here that varies between employees, and it varies by their tz --
+        # of which a company has one or a handful, while the Attendances
+        # overview computes this for every employee it lists.
+        by_tz = self.grouped("tz")
+        for tz_name, employees in by_tz.items():
+            start_tz = now_utc.astimezone(timezone(tz_name)) + relativedelta(
                 hour=0, minute=0
             )  # day start in the employee's timezone
             start_naive = start_tz.astimezone(UTC).replace(tzinfo=None)
 
-            attendances = self.env["hr.attendance"].search(
+            # One search per distinct timezone, not per employee: every
+            # employee sharing a tz is fetched by this one call, and
+            # TestAttendanceComputeBatchCost pins the cost flat from 2 to 20.
+            attendances = self.env["hr.attendance"].search(  # noqa: E8507  loop is over timezones, not records
                 [
-                    ("employee_id", "in", employee.ids),
+                    ("employee_id", "in", employees.ids),
                     ("check_in", "<=", now),
                     "|",
                     ("check_out", ">=", start_naive),
@@ -189,31 +195,55 @@ class HrEmployee(models.Model):
                 ],
                 order="check_in asc",
             )
-            hours_previously_today = 0
-            worked_hours = 0
-            attendance_worked_hours = 0
-            for attendance in attendances:
-                delta = (attendance.check_out or now) - max(
-                    attendance.check_in, start_naive
-                )
-                attendance_worked_hours = delta.total_seconds() / 3600.0
-                worked_hours += attendance_worked_hours
-                hours_previously_today += attendance_worked_hours
-            employee.last_attendance_worked_hours = attendance_worked_hours
-            hours_previously_today -= attendance_worked_hours
-            employee.hours_previously_today = hours_previously_today
-            employee.hours_today = worked_hours
+            per_employee = attendances.grouped("employee_id")
+            for employee in employees:
+                hours_previously_today = 0
+                worked_hours = 0
+                attendance_worked_hours = 0
+                for attendance in per_employee.get(employee, attendances.browse()):
+                    delta = (attendance.check_out or now) - max(
+                        attendance.check_in, start_naive
+                    )
+                    attendance_worked_hours = delta.total_seconds() / 3600.0
+                    worked_hours += attendance_worked_hours
+                    hours_previously_today += attendance_worked_hours
+                employee.last_attendance_worked_hours = attendance_worked_hours
+                hours_previously_today -= attendance_worked_hours
+                employee.hours_previously_today = hours_previously_today
+                employee.hours_today = worked_hours
 
     @api.depends("attendance_ids")
     def _compute_last_attendance_id(self):
+        # Two queries whatever the number of employees, instead of one search
+        # per employee: ask for each employee's latest check_in, then fetch the
+        # attendances sitting on those. The `limit=1` per employee that used to
+        # be here is what makes this the classic latest-per-group N+1, and the
+        # Attendances overview walks every employee it lists.
+        Attendance = self.env["hr.attendance"]
+        self.last_attendance_id = False
+        if not self:
+            return
+        latest = Attendance._read_group(
+            [("employee_id", "in", self.ids)],
+            groupby=["employee_id"],
+            aggregates=["check_in:max"],
+        )
+        if not latest:
+            return
+        domain = Domain.OR(
+            [
+                Domain("employee_id", "=", employee.id)
+                & Domain("check_in", "=", check_in)
+                for employee, check_in in latest
+            ]
+        )
+        by_employee = {}
+        # Ordered so that a tie on `check_in` resolves the same way the old
+        # `order="check_in desc"` with `limit=1` did: the last row wins.
+        for attendance in Attendance.search(domain, order="id"):
+            by_employee[attendance.employee_id.id] = attendance
         for employee in self:
-            employee.last_attendance_id = self.env["hr.attendance"].search(
-                [
-                    ("employee_id", "in", employee.ids),
-                ],
-                order="check_in desc",
-                limit=1,
-            )
+            employee.last_attendance_id = by_employee.get(employee.id, False)
 
     @api.depends(
         "last_attendance_id.check_in",
