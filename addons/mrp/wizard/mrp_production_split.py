@@ -45,6 +45,8 @@ class MrpProductionSplit(models.TransientModel):
         "# Splits", compute="_compute_num_splits", readonly=True
     )
 
+    MAX_SPLITS = 1000
+
     @api.depends("production_id")
     def _compute_max_batch_size(self):
         for wizard in self:
@@ -52,8 +54,6 @@ class MrpProductionSplit(models.TransientModel):
             wizard.max_batch_size = (
                 bom_id.batch_size if bom_id.enable_batch_size else wizard.product_qty
             )
-
-    MAX_SPLITS = 1000
 
     @api.depends("max_batch_size")
     def _compute_num_splits(self):
