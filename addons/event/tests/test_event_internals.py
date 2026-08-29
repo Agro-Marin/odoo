@@ -1,6 +1,7 @@
 from datetime import date, datetime, timedelta
 
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo import Command, exceptions
 from odoo.fields import Datetime as FieldsDatetime
@@ -84,6 +85,26 @@ class TestEventInternalsCommon(EventCase):
 
 @tagged("event_event")
 class TestEventData(TestEventInternalsCommon):
+    @users("user_eventmanager")
+    def test_event_question_list_is_reorderable(self):
+        """A manager can reorder event questions from Configuration.
+
+        `event.question` orders by `sequence`, but no view of the module let a
+        user set it, so the order the model promises could not be changed from
+        the UI. The assertion goes through `get_views` rather than the raw
+        arch, because that is the path the client takes: a field the manager
+        may not write is dropped during postprocessing, and a handle that never
+        reaches the client is no handle at all.
+        """
+        arch = self.env["event.question"].get_views(
+            [(self.env.ref("event.event_question_view_list").id, "list")]
+        )["views"]["list"]["arch"]
+        node = etree.fromstring(arch.encode()).find(".//field[@name='sequence']")
+        self.assertIsNotNone(
+            node, "the questions list must expose the field it is ordered by"
+        )
+        self.assertEqual(node.get("widget"), "handle")
+
     @users("user_eventmanager")
     def test_event_configuration_question_from_type(self):
         """Enure configuration & translations are copied from Event Type on Event creation"""
