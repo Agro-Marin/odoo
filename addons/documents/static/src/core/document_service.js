@@ -662,6 +662,9 @@ export class DocumentService {
                                 JSON.stringify(context.allowed_company_ids),
                             );
                         }
+                        if (context.document_id) {
+                            formData.append("document_id", context.document_id);
+                        }
                     }
                 },
                 displayErrorNotification: false,
