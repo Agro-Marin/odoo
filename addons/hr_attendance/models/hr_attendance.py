@@ -906,6 +906,10 @@ class HrAttendance(models.Model):
                     + previous_attendances_duration
                     - max_tol
                 ) > expected_worked_hours:
+                    # Set check_out on the in-memory record only (no write()) to force
+                    # worked_hours to recompute against this end-of-day boundary; the
+                    # real check_out, clamped by excess_hours below, is what actually
+                    # gets persisted via the write() call further down.
                     att.check_out = att.check_in.replace(hour=23, minute=59, second=59)
                     excess_hours = att.worked_hours - (
                         expected_worked_hours + max_tol - previous_attendances_duration
