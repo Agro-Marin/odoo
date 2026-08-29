@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import SQL
 
 
 class HrEmployeeSkillReport(models.BaseModel):
@@ -17,7 +18,8 @@ class HrEmployeeSkillReport(models.BaseModel):
         drop_view_if_exists(self.env.cr, self._table)
 
         self.env.cr.execute(
-            """
+            SQL(
+                """
         CREATE OR REPLACE VIEW %s AS (
             WITH
                 individual_skill AS (
@@ -65,6 +67,7 @@ class HrEmployeeSkillReport(models.BaseModel):
             WHERE date_table.date >= emp_skill_level.valid_from AND date_table.employee_id = emp_skill_level.employee_id AND (emp_skill_level.valid_to IS NULL OR date_table.date <= emp_skill_level.valid_to)
             ORDER BY date_table.date, emp_skill_level.employee_id, emp_skill_level.skill_id, emp_skill_level.valid_from DESC
         )
-        """
-            % (self._table,)
+        """,
+                SQL.identifier(self._table),
+            )
         )
