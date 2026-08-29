@@ -1814,6 +1814,19 @@ class HrEmployee(models.Model):
         return None
 
     @api.model
+    def _search_display_name(self, operator, value):
+        domain = super()._search_display_name(operator, value)
+        if self.env.context.get("import_file"):
+            # ``hr_employee_comp_rule`` is not a plain company filter: it ORs
+            # three hierarchy clauses onto it, so one's own record, one's
+            # manager and one's subordinates' manager stay readable even when
+            # their company is not selected. That is right for reading and
+            # wrong for an import, where a homonym would silently update an
+            # employee of a company the importer is not working in.
+            domain &= Domain("company_id", "in", self.env.companies.ids)
+        return domain
+
+    @api.model
     def search_fetch(self, domain, field_names=None, offset=0, limit=None, order=None):
         if self.browse().has_access("read"):
             return super().search_fetch(domain, field_names, offset, limit, order)
