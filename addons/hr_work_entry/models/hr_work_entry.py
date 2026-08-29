@@ -158,6 +158,9 @@ class HrWorkEntry(models.Model):
             return True
         return False
 
+    def action_set_to_draft(self):
+        return self.write({"state": "draft"})
+
     def action_split(self, vals):
         self.ensure_one()
         if self.duration < 1:
