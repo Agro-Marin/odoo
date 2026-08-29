@@ -114,9 +114,30 @@ class SaleOrder(models.Model):
             use_location = getattr(self.carrier_id, use_locations_fname)
             if use_location and pickup_location_data:
                 pickup_location = json.loads(pickup_location_data)
+                self._check_pickup_location_data(pickup_location)
             else:
                 pickup_location = None
             self.pickup_location_data = pickup_location
+
+    def _check_pickup_location_data(self, pickup_location):
+        """Ensure a pickup location payload carries the fields `_action_confirm` relies on.
+
+        :param dict pickup_location: The decoded pickup location address.
+        :raise UserError: If a required field is missing.
+        :return: None
+        """
+        missing_fnames = [
+            fname
+            for fname in ("street", "city", "zip_code", "country_code")
+            if not pickup_location.get(fname)
+        ]
+        if missing_fnames:
+            raise UserError(
+                _(
+                    "The pickup location is missing required information: %s",
+                    ", ".join(missing_fnames),
+                )
+            )
 
     def _get_pickup_locations(self, zip_code=None, country=None, **kwargs):
         """Return the pickup locations of the delivery method close to a given zip code.
@@ -199,6 +220,7 @@ class SaleOrder(models.Model):
                 continue
 
             # Retrieve all the data : name, street, city, state, zip, country.
+            order._check_pickup_location_data(order_location)
             name = order_location.get("name") or order.partner_shipping_id.name
             street = order_location["street"]
             city = order_location["city"]
