@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 
 from odoo import exceptions
-from odoo.tests import tagged
+from odoo.tests import Form, tagged
 
 from odoo.addons.event.tests.common import EventCase
 
@@ -98,6 +98,37 @@ class TestEventSlotsCommon(EventCase):
             cls.test_reg_slot_2 = cls._create_registrations_for_slot_and_ticket(
                 cls.test_event, second_slot, second_ticket, 1
             )
+
+
+@tagged("event_slot")
+class TestEventSlotForm(TestEventSlotsCommon):
+    def test_slot_form_can_be_saved(self):
+        """Adding a slot from the form view must work.
+
+        `date` is required on the model, was absent from the slot form, and the
+        action that opens the slot views set no default for it. Switching that
+        action to the form view and saving therefore hit a NotNullViolation --
+        a raw Postgres error, with no field on screen to correct it.
+        """
+        action = self.test_event.action_view_slot_calendar()
+        self.assertIn(
+            "default_date",
+            action["context"],
+            "the action must seed a date for the views that create a slot",
+        )
+        slot_form = Form(
+            self.env["event.slot"].with_context(**action["context"]),
+            view="event.view_event_slot_form",
+        )
+        slot = slot_form.save()
+        self.assertEqual(
+            slot.date,
+            action["context"]["default_date"],
+            "a slot created from the form lands on the seeded date",
+        )
+        self.assertEqual(slot.event_id, self.test_event)
+        # the seeded date is inside the event, so the range constraint is happy
+        slot._check_time_range()
 
 
 @tagged("event_slot", "event_registration")
