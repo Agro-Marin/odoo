@@ -12,13 +12,7 @@ NOTIFY_PERIODS = [("days", "Days"), ("weeks", "Weeks"), ("months", "Months")]
 
 
 class MixinDataCleaningNotification(models.AbstractModel):
-    """Tell a rule's watchers, on a period, what it is proposing.
-
-    Carried by `data_recycle.model`, `data_cleaning.model` and
-    `data_merge.model`, which had one copy each of everything below.
-
-    A consumer supplies `_cleaning_mode_field` and the three hooks at the end.
-    """
+    """Tell a rule's watchers, on a period, what it is proposing."""
 
     _name = "mixin.data.cleaning.notification"
     _description = "Data Cleaning Notification"
