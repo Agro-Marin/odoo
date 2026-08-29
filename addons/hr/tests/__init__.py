@@ -22,3 +22,4 @@ from . import test_user_local_dates
 from . import test_hr_employee_rights
 from . import test_hr_responsible_notify
 from . import test_res_users_department
+from . import test_contract_template_form
