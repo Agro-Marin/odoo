@@ -163,6 +163,8 @@ class HrWorkEntry(models.Model):
 
     def action_split(self, vals):
         self.ensure_one()
+        if self.state == "validated":
+            raise UserError(self.env._("You can't split a validated work entry."))
         if self.duration < 1:
             raise UserError(
                 self.env._("You can't split a work entry with less than 1 hour.")
