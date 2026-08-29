@@ -76,8 +76,8 @@ class DocumentsRequest_Wizard(models.TransientModel):
         )
 
         activity_vals = {
-            "user_id": self.requestee_id.user_ids[0].id
-            if self.requestee_id.user_ids
+            "user_id": self.requestee_id.main_user_id.id
+            if self.requestee_id.main_user_id
             else self.env.user.id,
             "note": self.activity_note,
             "activity_type_id": self.activity_type_id.id
