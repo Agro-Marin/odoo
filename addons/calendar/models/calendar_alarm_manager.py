@@ -64,9 +64,7 @@ class CalendarAlarm_Manager(models.AbstractModel):
         around the next reminder rather than every event that has one.
         """
         if seconds is not None:
-            return SQL(
-                "now() at time zone 'utc' + %s * interval '1' second", seconds
-            )
+            return SQL("now() at time zone 'utc' + %s * interval '1' second", seconds)
         return SQL(
             """COALESCE(
                 (SELECT MIN(cal.start - interval '1' minute * calcul_delta.max_delta)
@@ -270,7 +268,9 @@ class CalendarAlarm_Manager(models.AbstractModel):
         alarms = self.env["calendar.alarm"].browse(events_by_alarm.keys())
         for alarm in alarms:
             alarm_attendees = attendees.filtered(
-                lambda attendee, alarm=alarm: attendee.event_id.id in events_by_alarm[alarm.id]
+                lambda attendee, alarm=alarm: (
+                    attendee.event_id.id in events_by_alarm[alarm.id]
+                )
             )
             alarm_attendees.with_context(
                 calendar_template_ignore_recurrence=True
