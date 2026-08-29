@@ -113,6 +113,27 @@ class Data_RecycleModel(models.Model):
                     )
                 ) from error
 
+    @api.onchange("recycle_mode")
+    def _onchange_recycle_mode(self):
+        """Automatic mode recycles on its own, and `recycle_action` defaults to Delete.
+
+        The form offers the two modes as equal radio buttons, so nothing on the way
+        in says that one of them proposes and waits while the other acts.
+        """
+        if self.recycle_mode != "automatic":
+            return None
+        return {
+            "warning": {
+                "title": self.env._("Automatic Mode"),
+                "message": self.env._(
+                    "Once saved, this rule recycles every record its filter selects "
+                    "on each run of the scheduled action, with nobody validating the "
+                    "proposals first. Records it deletes cannot be recovered. Check "
+                    "the filter before saving."
+                ),
+            }
+        }
+
     @api.depends("res_model_id")
     def _compute_domain(self):
         self.domain = "[]"

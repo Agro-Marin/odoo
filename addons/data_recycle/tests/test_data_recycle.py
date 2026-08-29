@@ -202,6 +202,35 @@ class TestDataRecycle(TransactionCase):
 
     # Guards
 
+    def test_switching_to_automatic_warns_before_it_is_saved(self):
+        """Automatic mode acts with nobody validating, and the default action deletes."""
+        spec = {
+            "name": {},
+            "res_model_id": {},
+            "recycle_mode": {},
+            "recycle_action": {},
+        }
+        values = {
+            "name": "Warned",
+            "res_model_id": self.server_model.id,
+            "recycle_action": "unlink",
+            "recycle_mode": "automatic",
+        }
+        Rule = self.env["data_recycle.model"]
+
+        warning = Rule.onchange(values, ["recycle_mode"], spec).get("warning")
+        self.assertTrue(
+            warning, "switching to automatic must warn before the form is saved"
+        )
+        self.assertIn("validat", warning["message"])
+
+        self.assertFalse(
+            Rule.onchange(
+                dict(values, recycle_mode="manual"), ["recycle_mode"], spec
+            ).get("warning"),
+            "manual mode proposes and waits, so it has nothing to warn about",
+        )
+
     def test_a_rule_with_no_filter_refuses_to_run(self):
         unfiltered = self.env["data_recycle.model"].create(
             {
