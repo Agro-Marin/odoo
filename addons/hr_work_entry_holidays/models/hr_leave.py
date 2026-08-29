@@ -102,9 +102,20 @@ class HrLeave(models.Model):
             overlappping.filtered(lambda entry: entry.state != "validated").write(
                 {"leave_id": False}
             )
-            included.filtered(lambda entry: entry.state != "validated").write(
-                {"active": False}
+            included = included.filtered(lambda entry: entry.state != "validated")
+            # Entries fully covered by the new leave may still carry a leave_id
+            # from an earlier, still-open leave they used to belong to (now
+            # superseded). Archiving them here must also refuse that earlier
+            # leave, or it is silently left un-refused while its work entries
+            # disappear underneath it.
+            stale_leaves = (
+                included.mapped("leave_id").filtered(
+                    lambda l: l.state in ("confirm", "validate", "validate1")
+                )
+                - self
             )
+            included.write({"active": False})
+            stale_leaves.action_refuse()
 
     def write(self, vals):
         if not self:
