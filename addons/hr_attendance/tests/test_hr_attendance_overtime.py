@@ -1600,3 +1600,57 @@ class TestHrAttendanceOvertime(HttpCase):
         self.assertTrue(afternoon_att.linked_overtime_ids)
         # Should be the same as it's the reverse checking
         self.assertEqual(overtime_lines._linked_attendances(), afternoon_att)
+
+    def test_overtime_rule_timing_type_leave(self):
+        """An attendance recorded while the employee is on a personal leave
+        should be counted as overtime under a timing_type='leave' rule."""
+        with freeze_time("2025-11-10 12:00:00"):
+            ruleset = self.env["hr.attendance.overtime.ruleset"].create(
+                {
+                    "name": "Ruleset timing leave",
+                    "company_id": self.company.id,
+                    "rule_ids": [
+                        Command.create(
+                            {
+                                "name": "Rule timing leave",
+                                "base_off": "timing",
+                                "timing_type": "leave",
+                                "timing_start": 0,
+                                "timing_stop": 24,
+                            }
+                        )
+                    ],
+                }
+            )
+            employee = self.env["hr.employee"].create(
+                {
+                    "name": "On Leave Worker",
+                    "company_id": self.company.id,
+                    "tz": "UTC",
+                    "date_version": date(2020, 1, 1),
+                    "contract_date_start": date(2020, 1, 1),
+                    "resource_calendar_id": self.company.resource_calendar_id.id,
+                    "ruleset_id": ruleset.id,
+                }
+            )
+            self.env["resource.calendar.leaves"].create(
+                {
+                    "name": "Personal leave",
+                    "resource_id": employee.resource_id.id,
+                    "calendar_id": employee.resource_calendar_id.id,
+                    "date_from": datetime(2025, 11, 10, 0, 0),
+                    "date_to": datetime(2025, 11, 10, 23, 59, 59),
+                }
+            )
+            attendance = self.env["hr.attendance"].create(
+                {
+                    "employee_id": employee.id,
+                    "check_in": datetime(2025, 11, 10, 8, 0),
+                    "check_out": datetime(2025, 11, 10, 17, 0),
+                }
+            )
+            self.assertTrue(
+                attendance.overtime_hours > 0,
+                "Attendance recorded during a personal leave should be "
+                "counted as overtime by a timing_type='leave' rule.",
+            )
