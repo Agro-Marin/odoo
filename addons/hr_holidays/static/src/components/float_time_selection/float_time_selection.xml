@@ -5,6 +5,7 @@
         <xpath expr="//input" position="attributes">
             <attribute name="t-on-input">handleInputChange</attribute>
             <attribute name="t-on-click">onCharHoursClick</attribute>
+            <attribute name="t-ref">inputFloatTimeRef</attribute>
         </xpath>
     </t>
 </templates>

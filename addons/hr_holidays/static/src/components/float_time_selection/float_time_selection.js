@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { onWillStart, useState } from "@odoo/owl";
+import { onWillStart, useRef, useState } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { FloatTimeField, floatTimeField } from "@web/fields/basic/float_time/float_time_field";
@@ -26,6 +26,7 @@ export class FloatTimeSelectionField extends FloatTimeField {
 
     setup() {
         super.setup();
+        this.inputFloatTimeRef = useRef("inputFloatTimeRef");
         this.popover = usePopover(FloatTimeSelectionPopover, {
             onClose: this.onClose.bind(this),
         });

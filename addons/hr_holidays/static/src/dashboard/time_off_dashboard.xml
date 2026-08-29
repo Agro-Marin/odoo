@@ -29,7 +29,7 @@
                     <t t-esc="state.allocationRequests"/>
                 </span>
                 <a class="text-uppercase o_timeoff_details p-1" t-on-click="newAllocationRequest">
-                    <t t-if="employeeId">Grant Time</t>
+                    <t t-if="props.employeeId">Grant Time</t>
                     <t t-else="">New Allocation Request</t>
                 </a>
             </div>
