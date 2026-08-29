@@ -12,6 +12,7 @@ from . import test_resource
 from . import test_ui
 from . import test_scenario
 from . import test_hr_department
+from . import test_hr_departure_reason
 from . import test_hr_version
 from . import test_hr_contract_versions
 from . import test_flexible_resource_calendar
