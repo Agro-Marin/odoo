@@ -243,8 +243,8 @@ export class PeerToPeer {
         if (transport === "server") {
             await this.options.broadcastAll(transportPayload);
         } else if (transport === "rtc") {
-            for (const cliendId of Object.keys(this.peersInfos)) {
-                this._channelNotify(cliendId, transportPayload);
+            for (const peerId of Object.keys(this.peersInfos)) {
+                this._channelNotify(peerId, transportPayload);
             }
         } else {
             throw new Error(
