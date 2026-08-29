@@ -82,19 +82,19 @@ class GamificationActivity(models.Model):
     # and a sentence, and two more callers (quest completion, skill unlock)
     # open-coded the same create and bypassed the helpers entirely.
 
-    #: activity_type -> (icon, summary template).  The template is rendered at
-    #: READ time from the row's own fields, never stored: a stored sentence is
-    #: frozen in the language of whoever triggered the event and goes stale the
-    #: moment a user, badge or quest is renamed.
+    #: activity_type -> default icon. The summary itself is rendered at READ
+    #: time from the row's own fields by ``_render_summary``, never stored: a
+    #: stored sentence is frozen in the language of whoever triggered the
+    #: event and goes stale the moment a user, badge or quest is renamed.
     ACTIVITY_KINDS = {
-        "badge": ("fa fa-certificate", None),
-        "kudos": ("fa fa-heart", None),
-        "achievement": ("fa fa-trophy", None),
-        "streak_milestone": ("fa fa-fire", None),
-        "level_up": ("fa fa-arrow-up", None),
-        "challenge_completed": ("fa fa-flag-checkered", None),
-        "quest_completed": ("fa fa-flag-checkered", None),
-        "skill_unlocked": ("fa fa-puzzle-piece", None),
+        "badge": "fa fa-certificate",
+        "kudos": "fa fa-heart",
+        "achievement": "fa fa-trophy",
+        "streak_milestone": "fa fa-fire",
+        "level_up": "fa fa-arrow-up",
+        "challenge_completed": "fa fa-flag-checkered",
+        "quest_completed": "fa fa-flag-checkered",
+        "skill_unlocked": "fa fa-puzzle-piece",
     }
 
     @api.model
@@ -135,7 +135,7 @@ class GamificationActivity(models.Model):
             entry = dict(entry)
             kind = entry["activity_type"]
             summary_args = entry.pop("summary_args", {})
-            entry.setdefault("icon", self.ACTIVITY_KINDS.get(kind, ("fa fa-star",))[0])
+            entry.setdefault("icon", self.ACTIVITY_KINDS.get(kind, "fa fa-star"))
             entry.setdefault("summary", self._render_summary(kind, entry, summary_args))
             vals_list.append(entry)
         return self.sudo().create(vals_list)
