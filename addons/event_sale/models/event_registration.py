@@ -78,7 +78,7 @@ class EventRegistration(models.Model):
                 sold_registrations.sale_status = "sold"
                 (registrations - sold_registrations).sale_status = "to_pay"
                 sold_registrations.filtered(
-                    lambda reg: not reg.state or reg.state in {"draft", "cancel"}
+                    lambda reg: not reg.state or reg.state == "draft"
                 ).state = "open"
                 (
                     registrations - sold_registrations - cancelled_registrations
