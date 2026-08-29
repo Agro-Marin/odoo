@@ -1,0 +1,368 @@
+import contextlib
+import socket
+import time
+from unittest.mock import MagicMock, patch
+
+import psycopg
+import pytest
+
+from odoo.db import PoolError
+from odoo.service import _threaded
+
+
+class _Stop(SystemExit):
+    pass
+
+
+@pytest.fixture
+def server():
+    srv = object.__new__(_threaded.ThreadedServer)
+    srv.logger = MagicMock()
+    srv.quit_signals_received = 0
+    srv.limit_reached_time = None
+    srv.limits_reached_threads = set()
+    srv._stop_after_init = False
+    return srv
+
+
+@pytest.fixture
+def listen(server):
+    def _run(outcomes, *, max_age=0.001):
+        backoffs = []
+        connect = MagicMock(side_effect=[*outcomes, _Stop()])
+        with (
+            patch.object(_threaded.db, "db_connect", connect),
+            patch.object(
+                _threaded,
+                "capped_backoff",
+                side_effect=lambda n, *a, **k: backoffs.append(n) or 0,
+            ),
+            patch.object(_threaded, "config", {"limit_time_worker_cron": max_age}),
+            patch.object(_threaded, "arm_cron_listen"),
+            patch.object(_threaded, "drain_cron_notifies", return_value=set()),
+            patch.object(_threaded, "cron_database_list", return_value=[]),
+            patch.object(_threaded, "CRON_NOTIFY_JITTER_MAX_S", 0),
+            patch.object(_threaded, "SLEEP_INTERVAL", 0),
+            pytest.raises(SystemExit),
+        ):
+            _threaded.ThreadedServer._listen_thread(
+                server,
+                0,
+                channel="ch",
+                process_jobs=MagicMock(),
+                label="cron",
+            )
+        return backoffs, connect, server.logger.getChild.return_value
+
+    return _run
+
+
+@pytest.fixture
+def healthy():
+    left, right = socket.socketpair()
+    conn = MagicMock()
+    conn.cursor.return_value.connection = left
+    try:
+        yield conn
+    finally:
+        left.close()
+        right.close()
+
+
+class TestCronReconnectBackoff:
+    def test_repeated_outages_escalate_the_wait(self, listen):
+        backoffs, _, log = listen([psycopg.OperationalError("down")] * 4)
+        assert backoffs == [1, 2, 3, 4], (
+            "each failed reconnect must raise the attempt count handed to "
+            "capped_backoff; a flat count is a hot loop against a database "
+            "that is down"
+        )
+        assert log.warning.call_count == 4
+        assert not log.critical.called, (
+            "a database being down is expected operations, not a bug in the "
+            "server; CRITICAL here is what trains operators to ignore it"
+        )
+
+    def test_a_pool_error_backs_off_the_same_way(self, listen):
+        backoffs, _, log = listen([PoolError("no connection budget")] * 2)
+        assert backoffs == [1, 2]
+        assert log.warning.call_count == 2 and not log.critical.called, (
+            "PoolError is the local equivalent of an outage. Both arms back "
+            "off, so the log level is the only thing that separates them — and "
+            "falling through to the catch-all reports exhaustion of our own "
+            "connection budget as an uncaught server fault"
+        )
+
+    def test_an_unexpected_error_also_backs_off_rather_than_spinning(self, listen):
+        backoffs, _, log = listen([ValueError("something else")] * 3)
+        assert backoffs == [1, 2, 3], (
+            "the catch-all exists so an unforeseen fault cannot turn the cron "
+            "listener into a busy loop"
+        )
+        assert log.critical.call_count == 3, (
+            "and an unforeseen fault IS reported as one, unlike an outage"
+        )
+
+    def test_a_successful_pass_resets_the_escalation(self, listen, healthy):
+        backoffs, _, _log = listen(
+            [
+                psycopg.OperationalError("down"),
+                psycopg.OperationalError("down"),
+                healthy,
+                psycopg.OperationalError("down again"),
+            ]
+        )
+        assert backoffs == [1, 2, 1], (
+            f"the wait did not reset after the connection came back: {backoffs}. "
+            f"A database that flaps every few minutes would keep escalating "
+            f"until it was being retried once an hour"
+        )
+
+    def test_system_exit_is_re_raised_and_not_retried(self, listen):
+        backoffs, connect, _ = listen([])
+        assert backoffs == [], "SystemExit must not be treated as an outage"
+        assert connect.call_count == 1, "and must not be retried"
+
+
+@pytest.fixture
+def run_server(server):
+    def _run(*, stop, preload_rc=0, start=None, loop=None):
+        calls = []
+        server.start = MagicMock(
+            side_effect=start or (lambda **kw: calls.append(("start", kw)))
+        )
+        server.stop = MagicMock(side_effect=lambda: calls.append(("stop", {})))
+        server.cron_spawn = MagicMock(side_effect=lambda: calls.append(("cron", {})))
+        server.job_spawn = MagicMock(side_effect=lambda: calls.append(("job", {})))
+        server.process_limit = MagicMock(
+            side_effect=loop or (lambda: setattr(server, "quit_signals_received", 1))
+        )
+        server.reload = MagicMock(side_effect=lambda: calls.append(("reload", {})))
+        with (
+            patch.object(_threaded, "preload_registries", return_value=preload_rc),
+            patch.object(_threaded, "config", {"test_enable": False}),
+            patch.object(_threaded, "LIMIT_MONITOR_INTERVAL_S", 0),
+        ):
+            rc = _threaded.ThreadedServer.run(server, ["db"], stop=stop)
+        return rc, [name for name, _ in calls]
+
+    return _run
+
+
+class TestRunStopAfterInit:
+    def test_it_returns_the_preload_code(self, run_server):
+        rc, _ = run_server(stop=True, preload_rc=3)
+        assert rc == 3, (
+            "--stop-after-init is how a test run reports failure; swallowing "
+            "the code makes a red suite exit 0"
+        )
+
+    def test_it_does_not_start_serving(self, run_server):
+        _, calls = run_server(stop=True)
+        assert "cron" not in calls and "job" not in calls, calls
+
+    def test_it_still_stops(self, run_server):
+        _, calls = run_server(stop=True)
+        assert calls[-1] == "stop"
+
+
+class TestRunServing:
+    def test_serving_returns_none_whatever_the_preload_said(self, run_server):
+        rc, _ = run_server(stop=False, preload_rc=3)
+        assert rc is None, (
+            "the preload code is only an exit status for --stop-after-init; a "
+            "server that ran and was signalled exited normally"
+        )
+
+    def test_it_spawns_cron_and_job_workers_before_the_loop(self, run_server):
+        _, calls = run_server(stop=False)
+        assert calls[:3] == ["start", "cron", "job"], calls
+
+    def test_the_loop_ends_on_a_quit_signal(self, run_server):
+        _, calls = run_server(stop=False)
+        assert calls[-1] == "stop"
+
+    def test_a_keyboard_interrupt_is_a_clean_exit(self, run_server):
+        rc, calls = run_server(
+            stop=False, loop=MagicMock(side_effect=KeyboardInterrupt)
+        )
+        assert rc is None
+        assert calls[-1] == "stop", "Ctrl-C must still run the shutdown path"
+
+    def test_stop_runs_even_when_start_raises(self, run_server):
+        with pytest.raises(RuntimeError, match="port in use"):
+            run_server(
+                stop=False, start=MagicMock(side_effect=RuntimeError("port in use"))
+            )
+
+
+class TestRunLimitReached:
+    def _drive(self, server, others, *, aged=False):
+        now = time.monotonic()
+        server.limit_reached_time = (now - 3600) if aged else now
+        server._has_other_http_requests = MagicMock(return_value=others)
+        calls = []
+        server.start = MagicMock()
+        server.stop = MagicMock()
+        server.cron_spawn = MagicMock()
+        server.job_spawn = MagicMock()
+        passes = iter(range(1))
+        server.process_limit = MagicMock(
+            side_effect=lambda: (
+                next(passes, None) is None
+                and setattr(server, "quit_signals_received", 1)
+            )
+        )
+        server.reload = MagicMock(
+            side_effect=lambda: (
+                calls.append("reload"),
+                setattr(server, "quit_signals_received", 1),
+            )
+        )
+        with (
+            patch.object(_threaded, "preload_registries", return_value=0),
+            patch.object(_threaded, "config", {"test_enable": False}),
+            patch.object(_threaded, "dumpstacks") as dump,
+            patch.object(_threaded, "LIMIT_MONITOR_INTERVAL_S", 0),
+            patch.object(_threaded, "SLEEP_INTERVAL", 60),
+        ):
+            _threaded.ThreadedServer.run(server, ["db"], stop=False)
+        return calls, dump
+
+    def test_with_no_other_requests_it_reloads_at_once(self, server):
+        calls, dump = self._drive(server, others=False)
+        assert calls == ["reload"], (
+            "the limit was reached and nothing else is in flight, so there is "
+            "nothing to wait for — the reload is due now, not in SLEEP_INTERVAL"
+        )
+        dump.assert_called_once()
+
+    def test_with_other_requests_in_flight_it_waits_instead(self, server):
+        calls, dump = self._drive(server, others=True)
+        assert calls == [], (
+            "reloading while another request is being served drops it; the "
+            "server waits out SLEEP_INTERVAL first"
+        )
+        dump.assert_not_called()
+
+    def test_but_it_does_not_wait_forever_for_them(self, server):
+        calls, _ = self._drive(server, others=True, aged=True)
+        assert calls == ["reload"], (
+            "past SLEEP_INTERVAL the reload happens regardless — otherwise one "
+            "long-lived request pins a worker over its memory limit indefinitely"
+        )
+
+    def test_the_dump_names_only_the_offending_threads(self, server):
+        thread = MagicMock(ident=4242)
+        server.limits_reached_threads = {thread}
+        _, dump = self._drive(server, others=False)
+        assert dump.call_args.kwargs["thread_idents"] == [4242], (
+            "dumping every thread buries the one that exceeded the limit"
+        )
+
+
+@pytest.fixture
+def report_run(server):
+    def _make_report(*, successful, tests_run):
+        report = MagicMock()
+        report.wasSuccessful.return_value = successful
+        report.testsRun = tests_run
+        return report
+
+    def _run(reports):
+        registries = {
+            name: MagicMock(_assertion_report=_make_report(**kwargs))
+            for name, kwargs in reports.items()
+        }
+        registry_cls = MagicMock()
+        registry_cls.registries.items.return_value = list(registries.items())
+        registry_cls.registries._lock = contextlib.nullcontext()
+        logger = MagicMock()
+        server.start = MagicMock()
+        server.stop = MagicMock()
+        with (
+            patch.object(_threaded, "preload_registries", return_value=1),
+            patch.object(_threaded, "config", {"test_enable": True}),
+            patch.object(_threaded, "Registry", registry_cls),
+            patch.dict(
+                "sys.modules",
+                {"odoo.tests.result": MagicMock(_logger=logger)},
+            ),
+        ):
+            rc = _threaded.ThreadedServer.run(server, ["db"], stop=True)
+        levels = {
+            name: level
+            for level in ("error", "warning", "info")
+            for call in getattr(logger, level).call_args_list
+            for name in [call.args[2]]
+        }
+        return rc, levels
+
+    return _run
+
+
+class TestStopAfterInitReportLevel:
+    def test_a_failing_suite_is_reported_at_error(self, report_run):
+        _, levels = report_run({"db": {"successful": False, "tests_run": 12}})
+        assert levels == {"db": "error"}
+
+    def test_a_suite_that_ran_nothing_is_reported_at_warning(self, report_run):
+        _, levels = report_run({"db": {"successful": True, "tests_run": 0}})
+        assert levels == {"db": "warning"}, (
+            "zero tests is not success — it is a tag selector that matched "
+            "nothing, and it must not read the same as a passing run"
+        )
+
+    def test_a_passing_suite_is_reported_at_info(self, report_run):
+        _, levels = report_run({"db": {"successful": True, "tests_run": 12}})
+        assert levels == {"db": "info"}
+
+    def test_each_database_is_judged_on_its_own(self, report_run):
+        _, levels = report_run(
+            {
+                "good": {"successful": True, "tests_run": 5},
+                "bad": {"successful": False, "tests_run": 5},
+                "empty": {"successful": True, "tests_run": 0},
+            }
+        )
+        assert levels == {"good": "info", "bad": "error", "empty": "warning"}, (
+            "one failing database must not downgrade the others, nor they it"
+        )
+
+    def test_the_preload_code_is_still_what_is_returned(self, report_run):
+        rc, _ = report_run({"db": {"successful": False, "tests_run": 1}})
+        assert rc == 1, "the exit status comes from the preload, not the log level"
+
+
+class TestHasOtherHttpRequests:
+    def _ask(self, over_limit, threads):
+        srv = object.__new__(_threaded.ThreadedServer)
+        srv.limits_reached_threads = set(over_limit)
+        with patch.object(_threaded.threading, "enumerate", return_value=threads):
+            return srv._has_other_http_requests()
+
+    def _thread(self, kind):
+        t = MagicMock()
+        t.type = kind
+        return t
+
+    def test_an_unrelated_http_request_counts(self):
+        other = self._thread("http")
+        assert self._ask([], [other]) is True
+
+    def test_the_over_limit_thread_does_not_count_itself(self):
+        culprit = self._thread("http")
+        assert self._ask([culprit], [culprit]) is False, (
+            "the thread that blew the limit is the reason for the reload; "
+            "counting it as work in flight makes the server wait for itself"
+        )
+
+    def test_cron_and_job_threads_are_not_http_requests(self):
+        assert self._ask([], [self._thread("cron"), self._thread("job")]) is False
+
+    def test_a_thread_with_no_type_is_not_an_http_request(self):
+        bare = MagicMock(spec=[])
+        assert self._ask([], [bare]) is False, (
+            "getattr(t, 'type', None) — a plain library thread has no `type`, "
+            "and treating it as a request holds off every reload"
+        )

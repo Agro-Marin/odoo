@@ -1,0 +1,193 @@
+import errno
+import logging
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from odoo.service import _watcher
+
+from .conftest import requires_inotify
+
+
+@pytest.fixture
+def sysctl(tmp_path):
+    def _write(**values):
+        for name, value in values.items():
+            (tmp_path / name).write_text(f"{value}\n")
+        return patch.object(_watcher, "INOTIFY_SYSCTL_DIR", tmp_path)
+
+    return _write
+
+
+class TestInotifyLimitDiagnosis:
+    def test_an_unrelated_error_gets_no_diagnosis(self, sysctl):
+        with sysctl(max_user_instances=128, max_user_watches=65536):
+            assert _watcher.inotify_limit_diagnosis(OSError(errno.EACCES, "nope")) == ""
+
+    def test_an_exception_with_no_errno_gets_no_diagnosis(self, sysctl):
+        with sysctl(max_user_instances=128, max_user_watches=65536):
+            assert _watcher.inotify_limit_diagnosis(ValueError("unrelated")) == ""
+
+    def test_enospc_names_both_limits_and_their_values(self, sysctl):
+        with sysctl(max_user_instances=128, max_user_watches=65536):
+            message = _watcher.inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
+        assert "fs.inotify.max_user_instances=128" in message
+        assert "fs.inotify.max_user_watches=65536" in message
+        assert "not disk space" in message, (
+            "ENOSPC reads as a full filesystem to everyone who has ever seen "
+            "it; the message has to say otherwise or the operator debugs the "
+            "wrong thing"
+        )
+
+    def test_an_unreadable_limit_does_not_lose_the_other_one(self, sysctl):
+        with sysctl(max_user_watches=65536):
+            message = _watcher.inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
+        assert "fs.inotify.max_user_instances=unreadable" in message
+        assert "fs.inotify.max_user_watches=65536" in message, (
+            "a diagnosis that raises while explaining a failure is worse than "
+            "no diagnosis"
+        )
+
+    def test_it_explains_that_instances_are_shared_across_processes(self, sysctl):
+        with sysctl(max_user_instances=128, max_user_watches=65536):
+            message = _watcher.inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
+        assert "editor" in message, (
+            "the usual cause is another process holding the instances, and the "
+            "message is where that gets said"
+        )
+
+
+@requires_inotify
+class TestBuildWatcher:
+    def _build(self, exc):
+        obj = object.__new__(_watcher.FSWatcherInotify)
+        with patch.object(_watcher, "InotifyTrees", side_effect=exc):
+            obj._build_watcher(["/some/path"])
+        return obj
+
+    def test_an_unrecognised_failure_is_re_raised_unchanged(self):
+        original = RuntimeError("something else entirely")
+        with pytest.raises(RuntimeError) as caught:
+            self._build(original)
+        assert caught.value is original, (
+            "wrapping an unrelated fault in an inotify-capacity message sends "
+            "the reader after the wrong sysctl"
+        )
+
+    def test_a_capacity_failure_is_re_raised_as_enospc_with_the_diagnosis(self):
+        with pytest.raises(OSError) as caught:
+            self._build(OSError(errno.ENOSPC, "no space"))
+        assert caught.value.errno == errno.ENOSPC
+        assert "fs.inotify" in str(caught.value)
+        assert isinstance(caught.value.__cause__, OSError), (
+            "the original must stay reachable as __cause__; the traceback is "
+            "the only thing that says which watch it died on"
+        )
+
+    def test_a_successful_build_registers_the_overflow_sentinel(self):
+        obj = object.__new__(_watcher.FSWatcherInotify)
+        trees = MagicMock()
+        with (
+            patch.object(_watcher, "InotifyTrees", return_value=trees),
+            patch.object(_watcher, "_InotifyInternals") as internals,
+        ):
+            obj._build_watcher(["/a", "/b"])
+        assert obj.roots == ["/a", "/b"]
+        internals.return_value.register_path.assert_called_once_with(
+            _watcher.OVERFLOW_WD, _watcher.OVERFLOW_PATH
+        )
+
+
+@requires_inotify
+class TestWatchDirectory:
+    def _watcher_with(self, internals):
+        obj = object.__new__(_watcher.FSWatcherInotify)
+        obj.internals = internals
+        return obj
+
+    def test_a_fresh_directory_is_watched_once(self):
+        internals = MagicMock()
+        internals.add_watch.return_value = 7
+        self._watcher_with(internals)._watch_directory(Path("/tmp/x"))
+        internals.add_watch.assert_called_once_with("/tmp/x")
+        internals.remove_watch_superficially.assert_not_called()
+
+    def test_a_path_the_kernel_still_holds_is_purged_and_re_added(self):
+        internals = MagicMock()
+        internals.add_watch.side_effect = [None, 7]
+        self._watcher_with(internals)._watch_directory(Path("/tmp/x"))
+        internals.remove_watch_superficially.assert_called_once_with("/tmp/x")
+        assert internals.add_watch.call_count == 2, (
+            "a directory the kernel moved or recreated keeps its old watch "
+            "descriptor; without the purge the re-add is a no-op and every "
+            "edit below it is lost"
+        )
+
+    def test_a_failing_purge_does_not_stop_the_re_add(self):
+        internals = MagicMock()
+        internals.add_watch.side_effect = [None, 7]
+        internals.remove_watch_superficially.side_effect = RuntimeError("gone")
+        self._watcher_with(internals)._watch_directory(Path("/tmp/x"))
+        assert internals.add_watch.call_count == 2
+
+    def test_an_unwatchable_directory_warns_rather_than_killing_the_watcher(
+        self, caplog, sysctl
+    ):
+        internals = MagicMock()
+        internals.add_watch.side_effect = OSError(errno.ENOSPC, "no space")
+        with (
+            sysctl(max_user_instances=128, max_user_watches=65536),
+            caplog.at_level(logging.WARNING, logger="odoo.service.server"),
+        ):
+            self._watcher_with(internals)._watch_directory(Path("/tmp/x"))
+        message = caplog.text
+        assert "cannot watch /tmp/x" in message
+        assert "fs.inotify" in message, (
+            "one unwatchable directory must not take the watcher down, but it "
+            "must say WHY, or autoreload silently stops covering that subtree"
+        )
+
+
+@requires_inotify
+class TestResyncAfterOverflow:
+    def _resync(self, tmp_path, roots):
+        obj = object.__new__(_watcher.FSWatcherInotify)
+        obj.roots = [str(r) for r in roots]
+        watched, invalidated = [], []
+        obj._watch_directory = lambda d: watched.append(Path(d))
+        obj.handle_asset_file = invalidated.append
+        obj._resync()
+        return watched, invalidated
+
+    def test_every_directory_under_every_root_is_re_armed(self, tmp_path):
+        root = tmp_path / "src"
+        (root / "a" / "b").mkdir(parents=True)
+        (root / "c").mkdir()
+        watched, _ = self._resync(tmp_path, [root])
+        assert set(watched) == {root, root / "a", root / "a" / "b", root / "c"}, (
+            "overflow means events were LOST, including the ones that would "
+            "have armed watches on new directories; re-arming only the roots "
+            "leaves every subtree created during the gap invisible"
+        )
+
+    def test_a_root_that_no_longer_exists_is_skipped_not_fatal(self, tmp_path):
+        alive = tmp_path / "alive"
+        alive.mkdir()
+        watched, _ = self._resync(tmp_path, [tmp_path / "deleted", alive])
+        assert set(watched) == {alive}, "the deleted root must not raise"
+
+    def test_the_root_itself_is_armed_outside_the_walk_as_well(self, tmp_path):
+        root = tmp_path / "src"
+        root.mkdir()
+        watched, _ = self._resync(tmp_path, [root])
+        assert watched.count(root) == 2, watched
+
+    def test_the_asset_caches_are_dropped(self, tmp_path):
+        root = tmp_path / "src"
+        root.mkdir()
+        _, invalidated = self._resync(tmp_path, [root])
+        assert invalidated == [_watcher.OVERFLOW_PATH], (
+            "a bundle rebuilt from a file whose change event was dropped is "
+            "stale until something else touches it"
+        )
