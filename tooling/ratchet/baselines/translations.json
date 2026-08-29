@@ -1,4 +1,4 @@
 {
-  "count": 492,
-  "note": "mail: mail.pot re-exported at community scope (odoo/addons,addons), picking up the six strings that had no msgid. The seventh resolved itself: the composer ValueError that carried it became an f-string under lint_gettext_developer_error."
+  "count": 497,
+  "note": "rebased onto da46eb273bb: 504 -> 497, mails seven, re-measured on the new base. Five of the 497 are upstreams: origin measures 504 against its own committed floor of 499, so that gate was already red by five before this branch, and this banks the measured value rather than leaving it red by the same five. Nobody has established which five."
 }

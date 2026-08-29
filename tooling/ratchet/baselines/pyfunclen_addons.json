@@ -1,4 +1,4 @@
 {
-  "count": 13156,
-  "note": "Function-length budget raised 80 -> 90 (ADR-0025). RE-MEASURED at the new budget, not improved.\n\n17280 -> 13156. Two independent moves are in that number and only one of them is work:\n\n    17280   committed floor, budget 80\n    16681   budget 80, after the base_import/base_import_module refactor\n            in the preceding commit (-599, real: 13 functions split)\n    13156   budget 90, same tree (-3525, forgiveness, not work)\n\nMeasured in a detached worktree at HEAD with only this change applied. This gate\nis --mode no-increase, so the intermediate 16681 would have passed unbanked; it\nis recorded here so the -3525 is not later mistaken for a refactor."
+  "count": 13200,
+  "note": "rebased onto da46eb273bb: re-measured at the 90-line budget over the addons tree as the rebase target leaves it. 13156 was the same measurement over the old base; the +44 is addons churn in the 135 commits between, not a regression here -- origin measures 18906 at the 80-line budget against a floor of 19330, i.e. 424 under and falling."
 }
