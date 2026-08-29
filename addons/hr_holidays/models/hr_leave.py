@@ -1322,6 +1322,13 @@ Versions:
                 )
             )
 
+    def _invalidate_allocation_computes(self):
+        # hr.leave.allocation's leaves_taken/max_leaves computes read
+        # hr.leave without an @api.depends on it (the dependency isn't
+        # expressible from this side), so every ORM entry point that changes
+        # a leave's impact on an allocation must invalidate them by hand.
+        self.env["hr.leave.allocation"].invalidate_model(["leaves_taken", "max_leaves"])
+
     @api.model_create_multi
     def create(self, vals_list):
         # Override to avoid automatic logging of creation
@@ -1358,9 +1365,7 @@ Versions:
             HrLeave, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
         holidays._check_validity()
-        self.env["hr.leave.allocation"].invalidate_model(
-            ["leaves_taken", "max_leaves"]
-        )  # missing dependency on compute
+        self._invalidate_allocation_computes()
 
         for holiday in holidays:
             if not self.env.context.get("leave_fast_create"):
@@ -1400,9 +1405,10 @@ Versions:
             "message_main_attachment_id",
         }:
             if any(
-                hol.date_from.date() < fields.Date.today()
+                hol.date_from
+                and hol.date_from.date() < fields.Date.today()
                 and hol.employee_id.leave_manager_id != self.env.user
-                and hol.state not in ("confirm", "draft")
+                and hol.state != "confirm"
                 for hol in self
             ):
                 raise UserError(
@@ -1452,9 +1458,7 @@ Versions:
                 "cancel",
             ):
                 self._check_validity()
-            self.env["hr.leave.allocation"].invalidate_model(
-                ["leaves_taken", "max_leaves"]
-            )  # missing dependency on compute
+            self._invalidate_allocation_computes()
         if not self.env.context.get("leave_fast_create"):
             for holiday in self:
                 if employee_id:
@@ -1498,9 +1502,7 @@ Versions:
 
     def unlink(self):
         self.sudo()._post_leave_cancel()
-        self.env["hr.leave.allocation"].invalidate_model(
-            ["leaves_taken", "max_leaves"]
-        )  # missing dependency on compute
+        self._invalidate_allocation_computes()
         return super(HrLeave, self.with_context(leave_skip_date_check=True)).unlink()
 
     def copy_data(self, default=None):
