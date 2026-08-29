@@ -23,14 +23,17 @@ class IrHttp(models.AbstractModel):
         return self._add_public_key_to_session_info(frontend_session_info)
 
     @api.model
+    def _is_recaptcha_enabled(self):
+        """Return whether reCAPTCHA verification is enabled."""
+        config_params = self.env["ir.config_parameter"].sudo()
+        return str2bool(config_params.get_param("enable_recaptcha", default=True))
+
+    @api.model
     def _add_public_key_to_session_info(self, session_info):
         """Add the ReCaptcha public key to the given session_info object"""
         config_params = self.env["ir.config_parameter"].sudo()
-        recaptcha_enabled = str2bool(
-            config_params.get_param("enable_recaptcha", default=True)
-        )
         public_key = config_params.get_param("recaptcha_public_key")
-        if public_key and recaptcha_enabled:
+        if public_key and self._is_recaptcha_enabled():
             session_info["recaptcha_public_key"] = public_key
         return session_info
 
@@ -41,11 +44,7 @@ class IrHttp(models.AbstractModel):
         is considered inactive and this method returns without raising.
         """
         super()._check_request_recaptcha_token(action)
-        config_params = request.env["ir.config_parameter"].sudo()
-        recaptcha_enabled = str2bool(
-            config_params.get_param("enable_recaptcha", default=True)
-        )
-        if not recaptcha_enabled:
+        if not self._is_recaptcha_enabled():
             return
         ip_addr = request.httprequest.remote_addr
         token = request.params.pop("recaptcha_token_response", False)
