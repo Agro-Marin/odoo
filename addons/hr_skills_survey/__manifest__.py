@@ -12,7 +12,7 @@ This module adds certification to resume for employees.
     "depends": ["hr_skills", "survey"],
     "data": [
         "data/hr_resume_data.xml",
-        "views/hr_templates.xml",
+        "views/hr_resume_line_views.xml",
         "views/survey_survey_views.xml",
     ],
     "auto_install": True,
