@@ -13,7 +13,6 @@
                 </button>
                 <t t-call="hr_attendance.companyHeader" t-if="this.props.activeDisplay != 'settings'">
                     <t t-set="companyImageUrl" t-value="this.props.companyImageUrl"/>
-                    <t t-set="companyName" t-value="this.props.companyName"/>
                 </t>
             </div>
             <div class="o_hr_kiosk_mode_top d-flex flex-column-reverse flex-sm-row justify-content-between mx-4 my-3" t-if="this.props.activeDisplay != 'settings'">
@@ -47,7 +46,6 @@
                 </div>
                 <t t-call="hr_attendance.companyHeader" t-if="this.props.activeDisplay != 'settings'">
                     <t t-set="companyImageUrl" t-value="this.props.companyImageUrl"/>
-                    <t t-set="companyName" t-value="this.props.companyName"/>
                 </t>
             </div>
         </t>
