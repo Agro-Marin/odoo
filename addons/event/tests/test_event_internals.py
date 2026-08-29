@@ -1262,6 +1262,51 @@ class TestEventRegistrationData(TestEventInternalsCommon):
         self.assertEqual(new_reg.email, contact.email)
         self.assertEqual(new_reg.phone, contact.phone)
 
+    @users("user_eventmanager")
+    def test_registration_display_name_unsaved(self):
+        """An unsaved attendee shows "New", not the technical NewId.
+
+        `display_name` falls back to `#<id>` when the attendee carries no name,
+        and the form breadcrumb prefers `display_name` over the framework's own
+        "New" label. On a record that has never been saved that `id` is a
+        `NewId`, so the breadcrumb read `#NewId_0x...` while creating one.
+        """
+        event = self.env["event.event"].create(
+            {
+                "name": "Test Event",
+                "date_begin": FieldsDatetime.to_string(datetime.now()),
+                "date_end": FieldsDatetime.to_string(
+                    datetime.now() + timedelta(days=2)
+                ),
+            }
+        )
+        unsaved = self.env["event.registration"].new({"event_id": event.id})
+        self.assertEqual(unsaved.display_name, "New")
+
+        named = self.env["event.registration"].new(
+            {"event_id": event.id, "name": "Ramona"}
+        )
+        self.assertEqual(
+            named.display_name, "Ramona", "a name still wins over the fallback"
+        )
+
+        saved = self.env["event.registration"].create({"event_id": event.id})
+        self.assertEqual(
+            saved.display_name,
+            f"#{saved.id}",
+            "a saved attendee without a name keeps the #<id> fallback",
+        )
+
+        onchanged = self.env["event.registration"].new(
+            {"event_id": event.id}, origin=saved
+        )
+        self.assertEqual(
+            onchanged.display_name,
+            f"#{saved.id}",
+            "an onchange runs on a NewId carrying an origin -- that attendee IS "
+            "saved, so it keeps its number instead of falling back to New",
+        )
+
 
 @tagged("event_registration", "phone_number")
 class TestEventRegistrationPhone(EventCase):

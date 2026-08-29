@@ -489,9 +489,21 @@ class EventRegistration(models.Model):
         return ret
 
     def _compute_display_name(self):
-        """Custom display_name in case a registration is not linked to an attendee"""
+        """Custom display_name in case a registration is not linked to an attendee
+
+        The `#<id>` fallback is only meaningful once the attendee has a number.
+        On an unsaved record that id is a `NewId`, and since the form breadcrumb
+        prefers `display_name` over its own "New" label, creating an attendee
+        used to put `#NewId_0x...` in the breadcrumb. `_origin` rather than `id`
+        is what separates the two cases: it is empty only for a record that has
+        never been saved, so an onchange -- which runs on a `NewId` carrying the
+        origin of a saved attendee -- still shows that attendee's number.
+        """
         for registration in self:
-            registration.display_name = registration.name or f"#{registration.id}"
+            origin = registration._origin
+            registration.display_name = registration.name or (
+                f"#{origin.id}" if origin else _("New")
+            )
 
     # ------------------------------------------------------------
     # ACTIONS / BUSINESS
