@@ -91,6 +91,11 @@ class IapAccount(models.Model):
             route = "/iap/1/update-warning-email-alerts"
             endpoint = iap_tools.iap_get_endpoint(self.env)
             url = url_join(endpoint, route)
+            # One blocking iap_jsonrpc round-trip per account: this endpoint's
+            # contract takes a single account, unlike the batched
+            # 'iap_accounts' list _get_account_information_from_iap sends in
+            # one call. A bulk write across many accounts pays one network
+            # round-trip per record inside this write() transaction.
             for account in self:
                 data = {
                     "account_token": account.sudo().account_token,
