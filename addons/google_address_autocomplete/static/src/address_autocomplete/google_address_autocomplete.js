@@ -64,6 +64,8 @@ export class AddressAutoComplete extends CharField {
         return [
             {
                 options: async (request) => {
+                    // Keep in sync with MINIMAL_INPUT_SIZE in
+                    // controllers/google_address_autocomplete.py.
                     if (request.length > 5) {
                         const suggestions = await googlePlacesSession.getAddressPropositions({
                             partial_address: request,

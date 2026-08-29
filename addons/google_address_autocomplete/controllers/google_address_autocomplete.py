@@ -45,6 +45,11 @@ FIELDS_PRIORITY = [
 ]
 GOOGLE_PLACES_ENDPOINT = "https://maps.googleapis.com/maps/api/place"
 TIMEOUT = 2.5
+# Keep in sync with the JS widget's own `request.length > 5` guard
+# (static/src/address_autocomplete/google_address_autocomplete.js): a request
+# below this size never reaches the server through the widget, but the check
+# stays here too as a floor against a caller hitting the public route directly.
+MINIMAL_INPUT_SIZE = 5
 
 
 class AutoCompleteController(http.Controller):
@@ -105,12 +110,7 @@ class AutoCompleteController(http.Controller):
         language_code=None,
         country_code=None,
     ):
-        minimal_input_size = int(
-            request.env["ir.config_parameter"]
-            .sudo()
-            .get_param("google_address_autocomplete.minimal_partial_address_size", "5")
-        )
-        if len(partial_address) <= minimal_input_size:
+        if len(partial_address) <= MINIMAL_INPUT_SIZE:
             return {"results": [], "session_id": session_id}
 
         params = {
