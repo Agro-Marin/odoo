@@ -141,8 +141,5 @@
             <field eval="(datetime.now()+timedelta(hours=-3)).strftime('%Y-%m-%d %H:%M:00')" name="check_out"/>
             <field name="employee_id" ref="hr.employee_chs"/>
         </record>
-        <record id="attendance14" model="hr.attendance">
-            <field name="validated_overtime_hours">2</field>
-        </record>
     </data>
 </odoo>
