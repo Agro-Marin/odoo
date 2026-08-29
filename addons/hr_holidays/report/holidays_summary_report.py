@@ -201,12 +201,19 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
         holidays_report = self.env["ir.actions.report"]._get_report_from_name(
             "hr_holidays.report_holidayssummary"
         )
-        holidays = self.env["hr.leave"].browse(self.ids)
+        # `self` is report_model's own empty recordset (see
+        # ir.actions.report._get_rendering_context: it calls
+        # `report_model._get_report_values(docids, ...)` on an unbound
+        # `report.<name>` model), and docids here are hr.employee ids, not
+        # hr.leave ones. A `docs`/`holidays` key built from
+        # `self.env["hr.leave"].browse(self.ids)` was always an empty
+        # hr.leave recordset built from the wrong model's ids, and the QWeb
+        # template never reads `docs` — dropped rather than fixed to browse
+        # the wrong model correctly.
         if data and data.get("form"):
             return {
-                "doc_ids": self.ids,
+                "doc_ids": docids,
                 "doc_model": holidays_report.model,
-                "docs": holidays,
                 "get_header_info": self._get_header_info(
                     data["form"]["date_from"], data["form"]["holiday_type"]
                 ),
@@ -217,7 +224,6 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
             }
 
         return {
-            "doc_ids": self.ids,
+            "doc_ids": docids,
             "doc_model": holidays_report.model,
-            "docs": holidays,
         }
