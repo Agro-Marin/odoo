@@ -40,9 +40,9 @@ class EventEvent(models.Model):
         )
         event_subtotals_mapping = dict.fromkeys(self._origin, 0)
         for event, currency, sum_price_total in event_subtotals:
-            event_subtotals_mapping[event] += event.currency_id._convert(
+            event_subtotals_mapping[event] += currency._convert(
                 sum_price_total,
-                currency,
+                event.currency_id,
                 event.company_id or self.env.company,
                 date_now,
             )
