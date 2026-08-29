@@ -236,7 +236,7 @@ class MixinRating(models.AbstractModel):
             in the grades computation.
         :param record_ids: Optional override for which records to grade,
             passed to :meth:`_rating_domain`; a ``Query`` stays a subquery.
-        :returns: A dictionary where the key is the rating and the value
+        :returns: A dictionary where the key is the grade bucket and the value
             is the count of unique ``(res_model, res_id)`` pairs whose
             grades are associated with that rating.
 
