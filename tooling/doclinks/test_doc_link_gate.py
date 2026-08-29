@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import doc_link_gate as gate
@@ -209,6 +210,58 @@ class TestReferenceExtraction:
     def test_anchors_are_stripped(self):
         assert gate._strip_anchor("guide.md#section") == "guide.md"
 
+    def test_a_same_page_anchor_is_a_reference(self):
+        refs = gate._extract_refs("[Section three](#3-the-thing)\n")
+        assert [raw for _, raw in refs] == ["#3-the-thing"]
+
+
+class TestHeadingSlugs:
+    def _write(self, tmp_path, body):
+        path = tmp_path / "page.md"
+        path.write_text(body, encoding="utf-8")
+        gate.heading_slugs.cache_clear()
+        return path
+
+    def test_a_heading_slugs_the_way_github_does(self, tmp_path):
+        path = self._write(tmp_path, "## 2. The signalling tables — how it works\n")
+        assert "2-the-signalling-tables--how-it-works" in gate.heading_slugs(path)
+
+    def test_backticks_and_emphasis_do_not_reach_the_slug(self, tmp_path):
+        path = self._write(tmp_path, "### The **`env.cache`** pair\n")
+        assert "the-envcache-pair" in gate.heading_slugs(path)
+
+    def test_an_attribute_anchor_is_honoured_beside_the_slug(self, tmp_path):
+        path = self._write(tmp_path, "## Flow 1: Page Load {#flow-1}\n")
+        slugs = gate.heading_slugs(path)
+        assert "flow-1" in slugs
+        assert "flow-1-page-load" in slugs
+
+    def test_a_hash_inside_a_fence_is_not_a_heading(self, tmp_path):
+        path = self._write(tmp_path, "```\n# not a heading\n```\n## real\n")
+        assert gate.heading_slugs(path) == frozenset({"real"})
+
+    def test_a_link_to_a_missing_heading_is_a_violation(self, tmp_path, monkeypatch):
+        (tmp_path / "target.md").write_text("## Kept heading\n", encoding="utf-8")
+        (tmp_path / "source.md").write_text(
+            "[gone](target.md#renamed-heading)\n", encoding="utf-8"
+        )
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        gate.heading_slugs.cache_clear()
+        gate._repo_top_level_dirs.cache_clear()
+        violations = gate.scan(globs=["*.md"], excludes=[])
+        assert [v.raw_path for v in violations] == ["target.md#renamed-heading"]
+        assert "no such heading" in violations[0].resolved_path
+
+    def test_a_link_to_a_heading_that_exists_is_not(self, tmp_path, monkeypatch):
+        (tmp_path / "target.md").write_text("## Kept heading\n", encoding="utf-8")
+        (tmp_path / "source.md").write_text(
+            "[here](target.md#kept-heading)\n", encoding="utf-8"
+        )
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        gate.heading_slugs.cache_clear()
+        gate._repo_top_level_dirs.cache_clear()
+        assert gate.scan(globs=["*.md"], excludes=[]) == []
+
 
 class TestAdrCitations:
     def test_the_citation_form_is_recognised(self):
@@ -263,3 +316,31 @@ class TestAdrCitations:
     def test_this_gate_plants_no_live_citation_of_its_own(self):
         source = Path(gate.__file__).read_text(encoding="utf-8")
         assert gate.RE_ADR.findall(source) == []
+
+
+class TestItRefusesAScanThatReachedNothing:
+    def _empty_checkout(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(sys, "argv", ["doc_link_gate.py"])
+        (tmp_path / "odoo-bin").write_text("", encoding="utf-8")
+
+    def test_no_document_at_all_is_refused(self, tmp_path, monkeypatch, capsys):
+        self._empty_checkout(tmp_path, monkeypatch)
+        assert gate._main() == 2
+        assert "refusing to report a pass" in capsys.readouterr().err
+
+    def test_documents_but_no_citation_source_is_refused(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        self._empty_checkout(tmp_path, monkeypatch)
+        (tmp_path / "CLAUDE.md").write_text("# Root\n", encoding="utf-8")
+        assert gate._main() == 2
+        assert "citation source" in capsys.readouterr().err
+
+    def test_the_real_tree_is_not_refused(self):
+        scanned = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
+        cited = gate._glob_files(gate.ADR_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
+        assert scanned and cited, (
+            "the globs reach nothing in this checkout, so the guard above would "
+            "fire on every run"
+        )

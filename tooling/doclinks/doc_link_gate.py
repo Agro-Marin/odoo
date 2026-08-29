@@ -11,7 +11,7 @@ import re
 import sys
 from bisect import bisect_right
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -46,6 +46,7 @@ DEFAULT_EXCLUDES = [
 REF_PATTERNS = [
     re.compile(r"\[[^\]]+\]\(([^)]+\.md(?:#[^)]*)?)\)"),
     re.compile(r"`([^`\s]+\.md)`"),
+    re.compile(r"\[[^\]]+\]\((#[\w-]+)\)"),
 ]
 
 RE_ADR = re.compile(r"\bADR[-‑](\d{4})\b")
@@ -104,6 +105,44 @@ class Violation:
 
 def _strip_anchor(path: str) -> str:
     return path.split("#", 1)[0]
+
+
+def _anchor_of(path: str) -> str:
+    return path.split("#", 1)[1] if "#" in path else ""
+
+
+_HEADING = re.compile(r"^#{1,6}[ \t]+(.*)$", re.MULTILINE)
+_ATTR_ANCHOR = re.compile(r"\{#([\w-]+)\}\s*$")
+_FENCE = re.compile(r"^(?:```|~~~)", re.MULTILINE)
+
+
+def _slug(heading: str) -> str:
+    text = re.sub(r"`|\*\*|\*|~~", "", heading)
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    return re.sub(r"[^\w\- ]", "", text.strip().lower()).replace(" ", "-")
+
+
+@cache
+def heading_slugs(path: Path) -> frozenset[str]:
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError, UnicodeDecodeError:
+        return frozenset()
+    outside, fenced = [], False
+    for line in content.splitlines():
+        if _FENCE.match(line):
+            fenced = not fenced
+            continue
+        if not fenced:
+            outside.append(line)
+    slugs: set[str] = set()
+    for heading in _HEADING.findall("\n".join(outside)):
+        attribute = _ATTR_ANCHOR.search(heading.strip())
+        if attribute:
+            slugs.add(attribute.group(1))
+            heading = _ATTR_ANCHOR.sub("", heading).strip()
+        slugs.add(_slug(heading))
+    return frozenset(slugs)
 
 
 def _inside_repo(candidate: Path) -> bool:
@@ -236,7 +275,27 @@ def scan(
         for line, raw_path in _extract_refs(content):
             if _is_placeholder(raw_path):
                 continue
-            resolved = _resolve_ref(source_file, raw_path)
+            anchor = _anchor_of(raw_path)
+            resolved = (
+                source_file
+                if raw_path.startswith("#")
+                else _resolve_ref(source_file, raw_path)
+            )
+            if (
+                resolved is not None
+                and anchor
+                and resolved.suffix == ".md"
+                and anchor not in heading_slugs(resolved)
+            ):
+                violations.append(
+                    Violation(
+                        source_file=str(source_file.relative_to(REPO_ROOT)),
+                        line=line,
+                        raw_path=raw_path,
+                        resolved_path=f"{resolved}#{anchor} (no such heading)",
+                    )
+                )
+                continue
             if resolved is None:
                 cleaned = _strip_anchor(raw_path)
                 attempted = (
@@ -323,6 +382,19 @@ def _main() -> int:
         help="Print all violations; do not compare against baseline.",
     )
     args = parser.parse_args()
+
+    scanned = _glob_files(DEFAULT_SCAN_GLOBS, DEFAULT_EXCLUDES)
+    cited = _glob_files(ADR_SCAN_GLOBS, DEFAULT_EXCLUDES)
+    if not scanned or not cited:
+        print(
+            f"doc_link_gate: matched {len(scanned)} document(s) and "
+            f"{len(cited)} citation source(s) — refusing to report a pass. "
+            f"A scan that reaches nothing produces no violations, and this "
+            f"gate's baseline is a hard zero, so silence is indistinguishable "
+            f"from success. Check the globs against the tree they name.",
+            file=sys.stderr,
+        )
+        return 2
 
     violations = scan() + scan_adr_citations()
 

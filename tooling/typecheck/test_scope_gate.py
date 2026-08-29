@@ -76,6 +76,51 @@ class ModuleOfTests(unittest.TestCase):
         self.assertFalse(any("*" in e for e in scope_gate.excluded_from_program()))
 
 
+def _forget_the_exclusion_cache() -> None:
+    clear = getattr(scope_gate.excluded_from_program, "cache_clear", None)
+    if clear is not None:
+        clear()
+
+
+class ProgramExclusionIsReadOnce(unittest.TestCase):
+    def _reads_of_tsconfig(self, call):
+        seen = []
+        real = Path.read_text
+
+        def counting(this, *args, **kwargs):
+            if this.name == "tsconfig.json":
+                seen.append(str(this))
+            return real(this, *args, **kwargs)
+
+        _forget_the_exclusion_cache()
+        with mock.patch.object(Path, "read_text", counting):
+            call()
+        return len(seen)
+
+    def test_module_files_parses_tsconfig_once_not_once_per_file(self):
+        reads = self._reads_of_tsconfig(lambda: scope_gate.module_files("web"))
+        self.assertLessEqual(
+            reads,
+            1,
+            f"tsconfig.json was parsed {reads} times for one module_files() "
+            f"call; excluded_from_program() has lost its cache",
+        )
+
+    def test_the_scan_it_measures_is_not_trivial(self):
+        self.assertGreater(
+            len(scope_gate.module_files("web")),
+            500,
+            "the module scan found almost nothing, so the check above would "
+            "pass by doing no work",
+        )
+
+    def test_the_answer_survives_forgetting_it(self):
+        _forget_the_exclusion_cache()
+        first = scope_gate.excluded_from_program()
+        _forget_the_exclusion_cache()
+        self.assertEqual(first, scope_gate.excluded_from_program())
+
+
 class CommittedScopeTests(unittest.TestCase):
     def test_web_is_gated(self):
         self.assertIn("web", scope_gate.SCOPED_MODULES)

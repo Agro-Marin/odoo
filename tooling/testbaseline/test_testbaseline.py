@@ -198,6 +198,33 @@ class EvaluateTests(unittest.TestCase):
             reported_total=total,
         )
 
+    def test_a_clean_suite_that_collected_nothing_is_not_green(self):
+        clean = Baseline(suite="/base", expected={}, tests_total=3335)
+        verdict = evaluate("/base", self.scan_of({}, 0), clean)
+        self.assertEqual(verdict.exit_code, EXIT_USAGE)
+        self.assertNotIn("GREEN nothing here is attributable", "".join(verdict.lines))
+
+    def test_a_run_that_collected_nothing_gets_no_verdict(self):
+        verdict = evaluate("/quality_control", self.scan_of({}, 0), self.BASE)
+        self.assertEqual(verdict.exit_code, EXIT_USAGE)
+        self.assertIn("collected NO tests", verdict.lines[0])
+        self.assertEqual(verdict.new, ())
+        self.assertEqual(verdict.fixed, ())
+
+    def test_the_size_it_reports_is_the_whole_baseline(self):
+        verdict = evaluate("/quality_control", self.scan_of({}, 0), self.BASE)
+        self.assertEqual(verdict.size_drift, -self.BASE.tests_total)
+
+    def test_one_test_is_enough_for_a_verdict(self):
+        verdict = evaluate("/quality_control", self.scan_of({}, 1), self.BASE)
+        self.assertEqual(verdict.exit_code, EXIT_DRIFT)
+        self.assertEqual(len(verdict.fixed), len(self.BASE.expected))
+
+    def test_a_baseline_that_recorded_no_size_still_gets_a_verdict(self):
+        sizeless = Baseline(suite="/x", expected={}, tests_total=0)
+        verdict = evaluate("/x", self.scan_of({}, 0), sizeless)
+        self.assertEqual(verdict.exit_code, EXIT_OK)
+
     def test_the_recorded_set_reported_again_is_green(self):
         verdict = evaluate(
             "/quality_control", self.scan_of(dict(self.BASE.expected), 38), self.BASE
