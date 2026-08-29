@@ -74,7 +74,7 @@ class HrVersion(models.Model):
 
     date_version = fields.Date(
         required=True,
-        default=fields.Date.today,
+        default=fields.Date.context_today,
         tracking=True,
         groups="hr.group_hr_user",
     )
@@ -593,7 +593,7 @@ class HrVersion(models.Model):
 
     @api.depends("date_start", "date_end")
     def _compute_date_state(self):
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         for version in self:
             version.is_current = version.date_start <= today and (
                 not version.date_end or version.date_end >= today
@@ -607,7 +607,7 @@ class HrVersion(models.Model):
             version.is_in_contract = version._is_in_contract()
 
     def _is_in_contract(self, date=None):
-        date = date or fields.Date.today()
+        date = date or fields.Date.context_today(self)
         # Return True if the employee is in contract on a given date
         if not self.contract_date_start:
             return False

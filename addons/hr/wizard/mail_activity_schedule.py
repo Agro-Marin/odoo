@@ -56,7 +56,7 @@ class MailActivitySchedule(models.TransientModel):
                 # No contract start to anchor on: let the base compute assign a
                 # value (must not leave plan_date unassigned).
                 continue
-            today = fields.Date.today()
+            today = fields.Date.context_today(self)
             planned_due_date = min(start_dates)
             if planned_due_date < today or (planned_due_date - today).days < 30:
                 scheduler.plan_date = today + relativedelta(days=+30)
