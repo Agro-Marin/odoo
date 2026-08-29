@@ -150,7 +150,7 @@ class IapAccount(models.Model):
                     disable_iap_update=True, tracking_disable=True
                 ).write(account_info)
 
-    def _get_account_info(self, account_id, balance, information):
+    def _get_account_info(self, account, balance, information):
         return {
             "balance": balance,
             "warning_threshold": information["warning_threshold"],
