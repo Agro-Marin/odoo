@@ -1,4 +1,3 @@
-
 {
     "name": "Time Off in Payslips",
     "version": "1.0",
