@@ -1,3 +1,4 @@
+import unittest
 from datetime import date, datetime
 
 from odoo.tests import tagged
@@ -6,19 +7,22 @@ from odoo.addons.hr_calendar.tests.common import TestHrCalendarCommon
 
 
 @tagged("work_hours")
+@unittest.skip(
+    "res.partner.get_working_hours_for_all_attendees (hr_calendar) returns a "
+    "single all-day-unavailable slot instead of the real weekly schedule, so "
+    "every test in this class fails on that unrelated, out-of-hr_holidays-"
+    "scope bug. See task 27918. The previous guard here "
+    '(`if "hr.version" in cls.env: skip`) was stale: hr.version has lived in '
+    "core hr since before this fork, so hr_holidays' hard dependency on hr "
+    "made the guard unconditionally true and its own message wrong "
+    "(hr_contract is not what registers hr.version)."
+)
 class TestWorkingHours(TestHrCalendarCommon):
     """Test global leaves for a whole company, conflict resolutions"""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # YTI TODO: Those tests seem to be never launched from now.
-        if "hr.version" in cls.env:
-            cls.skipTest(
-                cls,
-                "hr_contract module is installed. To test these features you need to install hr_holidays_contract",
-            )
-
         cls.leave_type = cls.env["hr.leave.type"].create(
             {
                 "name": "Unpaid Time Off",
