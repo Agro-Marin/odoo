@@ -301,7 +301,7 @@
                 <attribute name="t-options">{"widget": "monetary", "display_currency": o.currency_id}</attribute>
             </xpath>
 
-            <!-- Insert the payments terms under the total line-->
+            <!-- Add a divider above the payment terms block -->
             <xpath expr="//div[@id='payment_term']" position="before">
                 <hr class="w-100 border-0"/>
             </xpath>
