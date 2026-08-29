@@ -10,7 +10,7 @@ class EventMailSlot(models.Model):
     _order = "scheduled_date DESC, id ASC"
 
     event_slot_id = fields.Many2one(
-        "event.slot", "Slot", ondelete="cascade", required=True
+        "event.slot", "Slot", ondelete="cascade", required=True, index=True
     )
     scheduled_date = fields.Datetime(
         "Schedule Date", compute="_compute_scheduled_date", store=True
