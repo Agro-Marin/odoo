@@ -35,6 +35,8 @@ class AccountTax(models.Model):
     @api.model
     def _round_tax_details_tax_amounts(self, base_lines, company, mode="mixed"):
         # EXTENDS 'account'
+        # Mirrored in JS: static/src/helpers/account_tax.js
+        # (round_tax_details_tax_amounts) — keep both in sync.
         country_code = company.account_fiscal_country_id.code
         if country_code == "MX":
             mode = "excluded"
@@ -43,6 +45,8 @@ class AccountTax(models.Model):
     @api.model
     def _round_tax_details_base_lines(self, base_lines, company, mode="mixed"):
         # EXTENDS 'account'
+        # Mirrored in JS: static/src/helpers/account_tax.js
+        # (round_tax_details_base_lines) — keep both in sync.
         country_code = company.account_fiscal_country_id.code
         if country_code == "MX":
             mode = "excluded"

@@ -9,6 +9,8 @@ import { accountTaxHelpers } from "@account/helpers/account_tax";
 
 patch(accountTaxHelpers, {
     // EXTENDS 'account'
+    // Mirrored in Python: models/account_tax.py
+    // (_round_tax_details_tax_amounts) — keep both in sync.
     round_tax_details_tax_amounts(base_lines, company, { mode = "mixed" } = {}) {
         const country_code = company.account_fiscal_country_id.code;
         if (country_code === "MX") {
@@ -18,6 +20,8 @@ patch(accountTaxHelpers, {
     },
 
     // EXTENDS 'account'
+    // Mirrored in Python: models/account_tax.py
+    // (_round_tax_details_base_lines) — keep both in sync.
     round_tax_details_base_lines(base_lines, company, { mode = "mixed" } = {}) {
         const country_code = company.account_fiscal_country_id.code;
         if (country_code === "MX") {
