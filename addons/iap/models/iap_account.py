@@ -76,6 +76,11 @@ class IapAccount(models.Model):
         )
 
     def write(self, vals):
+        if "service_id" in vals and any(
+            account.service_locked and account.service_id.id != vals["service_id"]
+            for account in self
+        ):
+            raise UserError(_("You cannot change the service of a locked IAP account."))
         res = super().write(vals)
         if not self.env.context.get("disable_iap_update") and any(
             warning_attribute in vals
