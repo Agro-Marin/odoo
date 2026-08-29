@@ -1,4 +1,3 @@
-
 from datetime import UTC
 
 from odoo import api, models
