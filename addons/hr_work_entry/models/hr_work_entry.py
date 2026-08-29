@@ -260,6 +260,7 @@ class HrWorkEntry(models.Model):
                 calendar_intervals = calendar._attendance_intervals_batch(
                     datetime_start.replace(tzinfo=UTC),
                     datetime_stop.replace(tzinfo=UTC),
+                    tz=UTC,
                 )[False]
             else:
                 calendar_intervals = Intervals(
