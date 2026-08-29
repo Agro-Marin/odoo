@@ -73,6 +73,7 @@ describe("EmbeddedActions.deleteAction", () => {
     });
 
     test("successful unlink removes the tab and persists settings once", async () => {
+        /** @type {any} */
         let savedConfig = null;
         let settingsCalls = 0;
         const self = makeSelf(
@@ -202,6 +203,7 @@ describe("EmbeddedActionsConfigHandler.setEmbeddedActionsConfig", () => {
 
 describe("EmbeddedActions.toggleActionVisibility", () => {
     test("toggles and persists a copy on success", async () => {
+        /** @type {any} */
         let savedConfig = null;
         const self = {
             embeddedInfos: { visibleEmbeddedActions: [7] },
@@ -270,6 +272,7 @@ describe("EmbeddedActions.toggleBar", () => {
     });
 
     test("a failing _applyBarVisibility releases the guard and keeps the state", async () => {
+        /** @type {any} */
         const self = {
             embeddedInfos: { showEmbedded: false },
             async _applyBarVisibility() {
@@ -559,21 +562,37 @@ describe("EmbeddedActionsBar rendering", () => {
 describe("EmbeddedActions.isVisible", () => {
     test("an action outside the saved set is hidden", () => {
         const infos = { visibleEmbeddedActions: [7] };
-        expect(EmbeddedActions.isVisible(infos, { id: 7 })).toBe(true);
-        expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(false);
+        expect(EmbeddedActions.isVisible(infos, /** @type {any} */ ({ id: 7 }))).toBe(
+            true,
+        );
+        expect(EmbeddedActions.isVisible(infos, /** @type {any} */ ({ id: 8 }))).toBe(
+            false,
+        );
     });
 
     test("showAllEmbeddedActions shows one the saved set omits", () => {
         const infos = { visibleEmbeddedActions: [7], showAllEmbeddedActions: true };
-        expect(EmbeddedActions.isVisible(infos, { id: 7 })).toBe(true);
-        expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(true);
+        expect(EmbeddedActions.isVisible(infos, /** @type {any} */ ({ id: 7 }))).toBe(
+            true,
+        );
+        expect(EmbeddedActions.isVisible(infos, /** @type {any} */ ({ id: 8 }))).toBe(
+            true,
+        );
     });
 
     test("the flag is read per call, so it survives a set that arrives later", () => {
-        const infos = { visibleEmbeddedActions: [], showAllEmbeddedActions: true };
-        expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(true);
+        /** @type {Record<string, any>} */
+        const infos = {
+            visibleEmbeddedActions: [],
+            showAllEmbeddedActions: true,
+        };
+        expect(EmbeddedActions.isVisible(infos, /** @type {any} */ ({ id: 8 }))).toBe(
+            true,
+        );
         infos.visibleEmbeddedActions = [7];
-        expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(true);
+        expect(EmbeddedActions.isVisible(infos, /** @type {any} */ ({ id: 8 }))).toBe(
+            true,
+        );
     });
 });
 

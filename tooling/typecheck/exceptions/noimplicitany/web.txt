@@ -28,7 +28,6 @@ addons/web/static/src/components/record_selectors/tag_navigation_hook.js
 addons/web/static/src/components/resizable_panel/resizable_panel.js
 addons/web/static/src/components/select_menu/select_menu.js
 addons/web/static/src/components/signature/name_and_signature.js
-addons/web/static/src/components/time_picker/time_picker.js
 addons/web/static/src/components/tree_editor/tree_editor.js
 addons/web/static/src/components/tree_editor/tree_editor_operator_editor.js
 addons/web/static/src/components/tree_editor/tree_editor_value_editors.js
@@ -151,7 +150,6 @@ addons/web/static/src/views/settings/settings_form_view.js
 addons/web/static/src/views/settings/widgets/res_config_invite_users.js
 addons/web/static/src/views/view.js
 addons/web/static/src/views/view_button/view_button_hook.js
-addons/web/static/src/views/view_buttons.js
 addons/web/static/src/views/view_compiler.js
 addons/web/static/src/views/view_components/multi_create_popover.js
 addons/web/static/src/views/view_components/multi_currency_popover.js
@@ -164,7 +162,6 @@ addons/web/static/src/views/view_service.js
 addons/web/static/src/views/view_utils.js
 addons/web/static/src/webclient/actions/action_button_executor.js
 addons/web/static/src/webclient/actions/action_executors/act_window.js
-addons/web/static/src/webclient/actions/action_loader.js
 addons/web/static/src/webclient/actions/action_service.js
 addons/web/static/src/webclient/actions/action_state.js
 addons/web/static/src/webclient/actions/breadcrumb_manager.js
@@ -271,7 +268,6 @@ addons/web/static/tests/core/tree/in_range_operator.test.js
 addons/web/static/tests/core/tree/round_trip_semantics.test.js
 addons/web/static/tests/core/tree/tree_processor_service.test.js
 addons/web/static/tests/core/utils/arrays.test.js
-addons/web/static/tests/core/utils/asset_log.test.js
 addons/web/static/tests/core/utils/assets.test.js
 addons/web/static/tests/core/utils/autoresize.test.js
 addons/web/static/tests/core/utils/dom/dvu.test.js
@@ -295,7 +291,6 @@ addons/web/static/tests/fields/basic/char/char_field.test.js
 addons/web/static/tests/fields/basic/monetary/monetary_field.test.js
 addons/web/static/tests/fields/display/gauge/gauge_field.test.js
 addons/web/static/tests/fields/field_audit_regressions.test.js
-addons/web/static/tests/fields/input_field_hook.test.js
 addons/web/static/tests/fields/media/binary/binary_field.test.js
 addons/web/static/tests/fields/media/image/image_field.test.js
 addons/web/static/tests/fields/media/image/image_variants.test.js
@@ -473,7 +468,6 @@ addons/web/static/tests/webclient/actions/close_action.test.js
 addons/web/static/tests/webclient/actions/close_executor.test.js
 addons/web/static/tests/webclient/actions/concurrency.test.js
 addons/web/static/tests/webclient/actions/embedded_action.test.js
-addons/web/static/tests/webclient/actions/error_handling.test.js
 addons/web/static/tests/webclient/actions/load_state.test.js
 addons/web/static/tests/webclient/actions/load_state_branches.test.js
 addons/web/static/tests/webclient/actions/misc.test.js

@@ -15,8 +15,8 @@ const MINUTES_PER_HOUR = 60;
 
 /**
  * @typedef TimePickerProps
- * @property {string|Array|Object} [cssClass={}]
- * @property {string|Array|Object} [inputCssClass={}]
+ * @property {string|string[]|Object} [cssClass={}]
+ * @property {string|string[]|Object} [inputCssClass={}]
  * @property {string|Time|false|null} [value="00:00"]
  * @property {(value: Time) => any} [onChange]
  * @property {() => {}} [onInvalid]
@@ -64,7 +64,9 @@ export class TimePicker extends Component {
     dropdownState;
     /** @type {{ value: Time | null, inputValue: string, isValid: boolean }} */
     state;
+    /** @type {any[]} */
     suggestions = [];
+    /** @type {any} */
     navigatedValue = null;
     isDirty = false;
     /** @type {number | undefined} */

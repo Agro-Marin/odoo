@@ -321,7 +321,9 @@ export class GraphModel extends Model {
         let lineOverlayDataset = null;
         if (stacked && datasets.length > 1) {
             const label = _t("Sum");
+            /** @type {number[]} */
             const data = [];
+            /** @type {any[]} */
             const currencyIds = [];
             for (const dataset of datasets) {
                 for (let i = 0; i < dataset.data.length; i++) {

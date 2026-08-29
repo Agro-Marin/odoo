@@ -12,7 +12,7 @@ import { browser } from "@web/core/browser/browser";
 
 describe.current.tags("headless");
 
-const mountManifestLink = (href) => {
+const mountManifestLink = (/** @type {string} */ href) => {
     const fixture = getFixture();
     const manifestLink = document.createElement("link");
     manifestLink.rel = "manifest";

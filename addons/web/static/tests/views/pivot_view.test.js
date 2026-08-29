@@ -239,7 +239,9 @@ test('pivot view without "string" attribute', async () => {
 			</pivot>`,
     });
 
-    const model = findComponent(view, (c) => c instanceof PivotController).model;
+    const model = /** @type {any} */ (
+        findComponent(view, (c) => c instanceof PivotController)
+    ).model;
     expect(model.metaData.title.toString()).toBe("Untitled");
 });
 
@@ -1384,7 +1386,9 @@ test("expanding two headers in quick succession opens both", async () => {
 				<field name="product_id" type="row"/>
 			</pivot>`,
     });
-    const model = findComponent(view, (c) => c instanceof PivotController).model;
+    const model = /** @type {any} */ (
+        findComponent(view, (c) => c instanceof PivotController)
+    ).model;
 
     expect("tbody tr").toHaveCount(4);
     expect(".o_pivot_header_cell_closed:contains(xpad)").toHaveCount(1);

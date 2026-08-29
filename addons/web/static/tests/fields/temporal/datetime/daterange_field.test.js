@@ -11,7 +11,7 @@ import {
     queryAllProperties,
     queryAllTexts,
     queryAllValues,
-    queryFirst,
+    queryOne,
     queryValue,
     resize,
 } from "@odoo/hoot-dom";
@@ -1047,7 +1047,7 @@ test("list daterange: start date input width matches its span counterpart", asyn
 
     expect(".o_data_row").toHaveCount(1);
     await contains(".o_list_record_selector input").click();
-    const initialWidth = queryFirst(".o_field_daterange span").offsetWidth;
+    const initialWidth = queryOne(".o_field_daterange span:first").offsetWidth;
     await contains(".o_field_daterange span:first").click();
     await animationFrame();
     expect(".o_field_daterange input").toHaveProperty("offsetWidth", initialWidth);

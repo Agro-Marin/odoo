@@ -20,6 +20,13 @@ import {
 
 describe.current.tags("headless");
 
+const traceGlobals = /** @type {Record<string, any>} */ (globalThis);
+
+/**
+ * @param {string} key
+ * @param {string} value
+ * @param {() => void} body
+ */
 function withLocalStorage(key, value, body) {
     const prior = globalThis.localStorage.getItem(key);
     globalThis.localStorage.setItem(key, value);
@@ -34,7 +41,11 @@ function withLocalStorage(key, value, body) {
     }
 }
 
+/**
+ * @param {() => void} body
+ */
 function captureConsoleDebug(body) {
+    /** @type {any[][]} */
     const captured = [];
     const original = console.debug;
     console.debug = (...args) => captured.push(args);
@@ -165,8 +176,11 @@ describe("makeXxxLog factory", () => {
     });
 });
 
+/**
+ * @param {() => any} body
+ */
 function withTraceSink(body) {
-    const globals = globalThis;
+    const globals = traceGlobals;
     const priorFlag = globals.__odooTrace;
     const priorCounts = globals.__odooTraceCounts_;
     globals.__odooTrace = true;
@@ -218,7 +232,7 @@ describe("namespaces added for the JS-improvement campaign", () => {
 
 describe("structured sink (__odooTrace)", () => {
     test("off by default, so a normal page records nothing", () => {
-        const globals = globalThis;
+        const globals = traceGlobals;
         const priorCounts = globals.__odooTraceCounts_;
         globals.__odooTraceReset();
         try {
@@ -235,7 +249,7 @@ describe("structured sink (__odooTrace)", () => {
             rpcLog("request", "/b");
             rpcLog("ok", "/a");
             viewLog("load", "form");
-            return globalThis.__odooTraceStats();
+            return traceGlobals.__odooTraceStats();
         });
         expect(stats).toEqual({
             "rpc.request": 2,
@@ -250,7 +264,7 @@ describe("structured sink (__odooTrace)", () => {
                 withLocalStorage("debug.model", "", () =>
                     modelLog("load", "res.partner"),
                 );
-                return globalThis.__odooTraceStats();
+                return traceGlobals.__odooTraceStats();
             });
             expect(stats).toEqual({ "model.load": 1 });
         });
@@ -260,18 +274,18 @@ describe("structured sink (__odooTrace)", () => {
     test("__odooTraceStats returns a copy, not the live sink", () => {
         withTraceSink(() => {
             rpcLog("request", "/a");
-            const first = globalThis.__odooTraceStats();
+            const first = traceGlobals.__odooTraceStats();
             rpcLog("request", "/b");
             expect(first["rpc.request"]).toBe(1);
-            expect(globalThis.__odooTraceStats()["rpc.request"]).toBe(2);
+            expect(traceGlobals.__odooTraceStats()["rpc.request"]).toBe(2);
         });
     });
 
     test("__odooTraceReset empties the sink", () => {
         withTraceSink(() => {
             rpcLog("request", "/a");
-            globalThis.__odooTraceReset();
-            expect(globalThis.__odooTraceStats()).toEqual({});
+            traceGlobals.__odooTraceReset();
+            expect(traceGlobals.__odooTraceStats()).toEqual({});
         });
     });
 
@@ -279,7 +293,7 @@ describe("structured sink (__odooTrace)", () => {
         const stats = withTraceSink(() => {
             makeServiceLog("start")("orm");
             makeComponentLog("mount")("WebClient");
-            return globalThis.__odooTraceStats();
+            return traceGlobals.__odooTraceStats();
         });
         expect(stats).toEqual({ "service.start": 1, "component.mount": 1 });
     });
@@ -288,7 +302,7 @@ describe("structured sink (__odooTrace)", () => {
 describe("active() — the guard a call site must use", () => {
     test("false when nothing listens", () => {
         withLocalStorage("debug.rpc", "", () => {
-            const globals = globalThis;
+            const globals = traceGlobals;
             const prior = globals.__odooTrace;
             globals.__odooTrace = false;
             try {
@@ -300,7 +314,7 @@ describe("active() — the guard a call site must use", () => {
     });
 
     test("true when only the console gate is on", () => {
-        const globals = globalThis;
+        const globals = traceGlobals;
         const prior = globals.__odooTrace;
         globals.__odooTrace = false;
         try {
@@ -314,7 +328,7 @@ describe("active() — the guard a call site must use", () => {
 
     test("true when only the structured sink is armed", () => {
         withLocalStorage("debug.rpc", "", () => {
-            const globals = globalThis;
+            const globals = traceGlobals;
             const prior = globals.__odooTrace;
             globals.__odooTrace = true;
             try {

@@ -7,14 +7,6 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useSyncedInputProperty } from "@web/core/utils/hooks";
 
 export class CheckBox extends Component {
-    /**
-     * Assigned in setup() and called from a later callback, which is a
-     * sequence TypeScript cannot follow, so the field is declared.
-     *
-     * @type {() => boolean}
-     */
-    syncWithValue;
-
     static template = "web.CheckBox";
     static nextId = 1;
     static defaultProps = {
@@ -58,7 +50,12 @@ export class CheckBox extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
 
-    /** @type {() => boolean} */
+    /**
+     * Assigned in setup() and called from a later callback, which is a
+     * sequence TypeScript cannot follow, so the field is declared.
+     *
+     * @type {() => boolean}
+     */
     syncWithValue;
 
     setup() {

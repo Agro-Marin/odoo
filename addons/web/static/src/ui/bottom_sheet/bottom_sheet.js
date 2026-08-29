@@ -76,6 +76,42 @@ export class BottomSheet extends Component {
     /** @type {boolean} */
     skipsAnimation = false;
 
+    /**
+     * Assigned in setup() and read from callbacks and from the template, a
+     * sequence TypeScript cannot follow, so the fields are declared.
+     *
+     * @type {{
+     *     isPositionedReady: boolean,
+     *     isSnappingEnabled: boolean,
+     *     isDismissing: boolean,
+     *     progress: number,
+     * }}
+     */
+    state;
+
+    /**
+     * @type {{
+     *     viewportHeight: number,
+     *     naturalHeight: number,
+     *     initialHeight: number,
+     *     maxHeight: number,
+     *     dismissThreshold: number,
+     * }}
+     */
+    measurements;
+
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    containerRef;
+
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    scrollRailRef;
+
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    sheetRef;
+
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    sheetBodyRef;
+
     setup() {
         this.maxHeightPercent = 90;
 

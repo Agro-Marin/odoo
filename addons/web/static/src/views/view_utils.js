@@ -333,10 +333,11 @@ export const STATIC_ACTION_MENU_DESCRIPTORS = {
 };
 
 /**
- * @param {Record<string, Object>} overlays
- * @returns {Record<string, Object>}
+ * @param {Record<string, Record<string, any>>} overlays
+ * @returns {Record<string, Record<string, any>>}
  */
 export function buildStaticActionMenuItems(overlays) {
+    /** @type {Record<string, Record<string, any>>} */
     const items = {};
     for (const [key, overlay] of Object.entries(overlays)) {
         const descriptor = STATIC_ACTION_MENU_DESCRIPTORS[key];
@@ -353,7 +354,7 @@ export function buildStaticActionMenuItems(overlays) {
 /**
  * @param {() => any} archiveFn
  * @param {{ multi?: boolean }} [options]
- * @returns {Object}
+ * @returns {Record<string, any>}
  */
 export function archiveConfirmationProps(archiveFn, { multi = false } = {}) {
     return {
@@ -371,7 +372,7 @@ export function archiveConfirmationProps(archiveFn, { multi = false } = {}) {
 /**
  * @param {{ action: string, type: string }} openAction
  * @param {any} record
- * @returns {Object}
+ * @returns {Record<string, any>}
  */
 export function buildOpenActionParams(openAction, record) {
     return {
@@ -388,9 +389,9 @@ export function buildOpenActionParams(openAction, record) {
 }
 
 /**
- * @param {Object} staticItems
- * @param {Object} [actionMenus]
- * @returns {{ action: Object[], print: Object[] }}
+ * @param {Record<string, Record<string, any>>} staticItems
+ * @param {Record<string, any>} [actionMenus]
+ * @returns {{ action: Record<string, any>[], print: Record<string, any>[] }}
  */
 export function buildActionMenuItems(staticItems, actionMenus) {
     const staticActionItems = Object.entries(staticItems)

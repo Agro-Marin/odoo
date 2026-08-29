@@ -2,10 +2,12 @@
     "name": "Denmark - FIK Number",
     "version": "1.0",
     "category": "Accounting/Localizations",
+    "summary": "Use FIK Number as Payment reference",
     "description": """
 Support Danish FIK number as payment references on customer invoices.
 """,
-    "summary": "Use FIK Number as Payment reference",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "l10n_dk",
     ],
@@ -13,6 +15,4 @@ Support Danish FIK number as payment references on customer invoices.
         "views/account_journal_view.xml",
     ],
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

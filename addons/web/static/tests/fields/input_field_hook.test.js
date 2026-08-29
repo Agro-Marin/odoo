@@ -174,6 +174,7 @@ describe("blur/Tab no-write on parse-equal re-entry", () => {
     });
 
     test("blur: a parse-equal re-entry re-emits FIELD_IS_DIRTY(false) and clears the save indicator", async () => {
+        /** @type {any[]} */
         const dirtyEvents = [];
         class DirtySpy extends Component {
             static template = xml`<span class="o_dirty_spy"/>`;
@@ -241,6 +242,7 @@ describe("rejected update clears dirty-typing signal", () => {
     test("a rejected onchange still emits FIELD_IS_DIRTY(false) (try/finally guard)", async () => {
         expect.errors(1);
 
+        /** @type {any[]} */
         const dirtyEvents = [];
         class DirtySpy extends Component {
             static template = xml`<span class="o_dirty_spy"/>`;
@@ -283,6 +285,7 @@ describe("urgent commit racing an in-flight update", () => {
     test("an urgent commit writes what the user typed, even mid-flight", async () => {
         /** @type {any[]} */
         const updates = [];
+        /** @type {any} */
         let bus = null;
 
         class UpdateSpy extends Component {
@@ -294,7 +297,10 @@ describe("urgent commit racing an in-flight update", () => {
                 if (!record.__updateSpy) {
                     record.__updateSpy = true;
                     const update = record.update.bind(record);
-                    record.update = (changes, options) => {
+                    record.update = (
+                        /** @type {any} */ changes,
+                        /** @type {any} */ options,
+                    ) => {
                         updates.push({ ...changes });
                         return update(changes, options);
                     };
@@ -314,6 +320,7 @@ describe("urgent commit racing an in-flight update", () => {
         });
 
         await fieldInput("name").edit("typed", { confirm: false });
+        /** @type {Promise<any>[]} */
         const proms = [];
         bus.trigger("NEED_LOCAL_CHANGES", { proms });
         bus.trigger("WILL_SAVE_URGENTLY", { proms });
@@ -324,6 +331,7 @@ describe("urgent commit racing an in-flight update", () => {
     });
 
     test("an urgent commit settles even while an onchange never answers", async () => {
+        /** @type {any} */
         let bus = null;
         const neverAnswers = new Deferred();
         onRpc("res.partner", "onchange", () => neverAnswers);
@@ -349,8 +357,10 @@ describe("urgent commit racing an in-flight update", () => {
 
         await fieldInput("name").edit("typed", { confirm: false });
 
+        /** @type {Promise<any>[]} */
         const pending = [];
         bus.trigger("NEED_LOCAL_CHANGES", { proms: pending });
+        /** @type {Promise<any>[]} */
         const urgent = [];
         bus.trigger("WILL_SAVE_URGENTLY", { proms: urgent });
 

@@ -342,7 +342,8 @@ test("Focus is correctly restored after confirmation", async () => {
     });
     expect(".modal-footer .btn-primary").toBeFocused();
     await contains(".modal-footer .btn-primary").click();
-    expect(document.body).toBeFocused();
+    expect(".modal-footer .btn-primary").toHaveAttribute("disabled");
+    expect(".modal").toBeFocused();
     destroy(dialog);
     await Promise.resolve();
     expect(".my-input").toBeFocused();

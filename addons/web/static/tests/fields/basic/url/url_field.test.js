@@ -6,7 +6,7 @@ import {
     middleClick,
     queryAllAttributes,
     queryAllTexts,
-    queryFirst,
+    queryOne,
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 
@@ -145,13 +145,13 @@ test("in editable list view", async () => {
         "example.com",
         "odoo.com",
     ]);
-    let cell = queryFirst("tbody td:not(.o_list_record_selector)");
+    let cell = queryOne("tbody td:not(.o_list_record_selector):first");
     await contains(cell).click();
     expect(cell.parentElement).toHaveClass("o_selected_row");
     expect(cell.querySelector("input")).toHaveValue("example.com");
     await fieldInput("url").edit("test");
     await contains(getFixture()).click();
-    cell = queryFirst("tbody td:not(.o_list_record_selector)");
+    cell = queryOne("tbody td:not(.o_list_record_selector):first");
     expect(cell.parentElement).not.toHaveClass("o_selected_row");
     expect("tbody td:not(.o_list_record_selector) a").toHaveCount(2);
     expect(".o_field_url.o_field_widget[name='url'] a").toHaveCount(2);

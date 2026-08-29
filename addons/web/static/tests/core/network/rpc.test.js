@@ -146,6 +146,7 @@ test("check connection aborted", async () => {
 });
 
 test("abort during body streaming stays silent, no InvalidResponseError", async () => {
+    /** @type {(reason?: any) => void} */
     let rejectJson;
     const response = new Response("{}", {
         status: 200,
@@ -222,7 +223,7 @@ test("settings.timeout: timeout before the response arrives is a ConnectionTimeo
     patchBrowserFetch(
         (_url, { signal }) =>
             new Promise((_resolve, reject) => {
-                signal.addEventListener("abort", () => reject(signal.reason));
+                signal?.addEventListener("abort", () => reject(signal.reason));
             }),
     );
 
@@ -245,6 +246,7 @@ test("settings.timeout firing during the body read is a ConnectionTimeoutError, 
 });
 
 test("settings.timeout: silent caller abort during body read still wins over a fired timeout", async () => {
+    /** @type {(reason?: any) => void} */
     let rejectJson;
     const response = new Response("{}", {
         status: 200,

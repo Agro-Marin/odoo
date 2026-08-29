@@ -1,6 +1,6 @@
 // @ts-check
 
-import { advanceTime, queryFirst } from "@odoo/hoot";
+import { advanceTime, queryOne } from "@odoo/hoot";
 
 import { contains } from "./dom_test_helpers.js";
 
@@ -17,7 +17,7 @@ import { contains } from "./dom_test_helpers.js";
  * @returns {Promise<void>}
  */
 async function swipe(target, direction, dragOptions, moveToOptions) {
-    const el = queryFirst(target);
+    const el = queryOne(target);
     if (direction < 0) {
         el.scrollLeft = el.scrollWidth - el.offsetWidth;
     } else {

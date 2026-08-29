@@ -59,12 +59,16 @@ function parseButtonOptions(node) {
  * @returns {{ className: string, disabled: boolean, icon: string|false, title: string|undefined, string: string|undefined, options: Object, display: string, clickParams: Object, column_invisible: string|null, invisible: string|boolean|null|undefined, readonly: string|null, required: string|null, modifiers: Object, attrs: Object }}
  */
 export function processButton(node) {
+    /** @type {Record<string, (val: string) => any>} */
     const withDefault = {
         close: (val) => exprToBoolean(val, false),
         context: (val) => val || "{}",
     };
+    /** @type {Record<string, any>} */
     const clickParams = {};
+    /** @type {Record<string, any>} */
     const attrs = {};
+    /** @type {Record<string, any>} */
     const modifiers = {};
     for (const { name, value } of node.attributes) {
         if (BUTTON_CLICK_PARAMS.includes(name)) {

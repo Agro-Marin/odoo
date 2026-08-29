@@ -28,6 +28,7 @@ class Partner extends models.Model {
 defineModels([Partner]);
 
 test("attach document widget calls action with attachment ids", async () => {
+    /** @type {HTMLInputElement | undefined} */
     let fileInput;
     patchWithCleanup(AttachDocumentWidget.prototype, {
         setup() {
@@ -78,12 +79,16 @@ test("attach document widget calls action with attachment ids", async () => {
     await animationFrame();
     await click(".o_attach_document");
     await animationFrame();
+    if (!fileInput) {
+        throw new Error("the widget never created its file input");
+    }
     await manuallyDispatchProgrammaticEvent(fileInput, "change");
     await animationFrame();
     expect.verifySteps(["web_save", "post", "my_action", "web_read"]);
 });
 
 test("attach document widget calls action with attachment ids on a new record", async () => {
+    /** @type {HTMLInputElement | undefined} */
     let fileInput;
     patchWithCleanup(AttachDocumentWidget.prototype, {
         setup() {
@@ -131,6 +136,9 @@ test("attach document widget calls action with attachment ids on a new record", 
     await contains("[name='display_name'] input").edit("yop");
     await click(".o_attach_document");
     await animationFrame();
+    if (!fileInput) {
+        throw new Error("the widget never created its file input");
+    }
     await manuallyDispatchProgrammaticEvent(fileInput, "change");
     await animationFrame();
     expect.verifySteps(["web_save", "post", "my_action", "web_read"]);

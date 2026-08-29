@@ -22,6 +22,30 @@ class ResUserGroupIdsField extends FieldComponent {
     }
     static props = { ...standardFieldProps };
 
+    /**
+     * Built in setup() from the record's hierarchy payload and read from the
+     * builders it then calls, a sequence TypeScript cannot follow, so the
+     * fields are declared.
+     *
+     * @type {Record<string, any>}
+     */
+    hierarchyGroups;
+
+    /** @type {Record<string, any>[]} */
+    categories;
+
+    /** @type {Record<string, any>} */
+    extraCategory;
+
+    /** @type {Record<string, any>} */
+    _fields;
+
+    /** @type {Record<string, any>} */
+    fields;
+
+    /** @type {Record<string, any>} */
+    info;
+
     setup() {
         const { groups, privileges, categories } = deepCopy(
             toRaw(this.props.record.data.view_group_hierarchy),
@@ -95,6 +119,7 @@ class ResUserGroupIdsField extends FieldComponent {
      */
     buildFields(privileges, groups) {
         this._fields = {};
+        /** @type {Record<string, number>} */
         const booleanFieldToGroupId = {};
         for (const category of this.categories) {
             category.privileges = [];

@@ -1,7 +1,7 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { click, queryFirst, waitFor } from "@odoo/hoot-dom";
+import { click, queryOne, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     clickModalButton,
@@ -262,7 +262,11 @@ test("Signature widget works inside of a dropdown", async () => {
     expect(".modal-footer button.btn-primary").toHaveCount(1);
 
     let maxDelay = 100;
-    while (queryFirst(".modal-footer button.btn-primary")["disabled"] && maxDelay > 0) {
+    while (
+        /** @type {HTMLButtonElement} */ (queryOne(".modal-footer button.btn-primary"))
+            .disabled &&
+        maxDelay > 0
+    ) {
         await animationFrame();
         maxDelay--;
     }
@@ -304,7 +308,11 @@ test("Signature widget on an unsaved record persists via the record (no write to
     await click(".o_web_sign_auto_button");
 
     let maxDelay = 100;
-    while (queryFirst(".modal-footer button.btn-primary")["disabled"] && maxDelay > 0) {
+    while (
+        /** @type {HTMLButtonElement} */ (queryOne(".modal-footer button.btn-primary"))
+            .disabled &&
+        maxDelay > 0
+    ) {
         await animationFrame();
         maxDelay--;
     }

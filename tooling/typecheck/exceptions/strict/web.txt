@@ -100,7 +100,6 @@ addons/web/static/tests/_framework/mock_server/mock_server.js
 addons/web/static/tests/_framework/mock_server_state.hoot.js
 addons/web/static/tests/_framework/mock_templates.hoot.js
 addons/web/static/tests/_framework/mock_user.hoot.js
-addons/web/static/tests/_framework/search_test_helpers.js
 addons/web/static/tests/_framework/view_test_helpers.js
 addons/web/static/tests/components/action_swiper.test.js
 addons/web/static/tests/components/autocomplete.test.js
@@ -108,7 +107,6 @@ addons/web/static/tests/components/checkbox.test.js
 addons/web/static/tests/components/code_editor.test.js
 addons/web/static/tests/components/color_picker.test.js
 addons/web/static/tests/components/custom_color_picker.test.js
-addons/web/static/tests/components/datetime/datetime_controller.test.js
 addons/web/static/tests/components/datetime/datetime_hook.test.js
 addons/web/static/tests/components/datetime/datetime_input.test.js
 addons/web/static/tests/components/datetime/datetime_picker.test.js
@@ -181,7 +179,6 @@ addons/web/static/tests/core/utils/autoresize.test.js
 addons/web/static/tests/core/utils/binary.test.js
 addons/web/static/tests/core/utils/concurrency.test.js
 addons/web/static/tests/core/utils/dependency_graph.test.js
-addons/web/static/tests/core/utils/dnd/sortable_service.test.js
 addons/web/static/tests/core/utils/dom/dvu.test.js
 addons/web/static/tests/core/utils/draggable.test.js
 addons/web/static/tests/core/utils/functions.test.js
@@ -195,11 +192,9 @@ addons/web/static/tests/core/utils/patch.test.js
 addons/web/static/tests/core/utils/pdfjs.test.js
 addons/web/static/tests/core/utils/render.test.js
 addons/web/static/tests/core/utils/render_instrumentation.test.js
-addons/web/static/tests/core/utils/scrolling.test.js
 addons/web/static/tests/core/utils/sortable.test.js
 addons/web/static/tests/core/utils/strings.test.js
 addons/web/static/tests/core/utils/timing.test.js
-addons/web/static/tests/core/utils/ui.test.js
 addons/web/static/tests/core/utils/urls.test.js
 addons/web/static/tests/core/virtual_grid_hook.test.js
 addons/web/static/tests/env.test.js
@@ -207,7 +202,6 @@ addons/web/static/tests/fields/basic/char/char_field.test.js
 addons/web/static/tests/fields/basic/monetary/monetary_field.test.js
 addons/web/static/tests/fields/basic/numeric_fields.test.js
 addons/web/static/tests/fields/field_audit_regressions.test.js
-addons/web/static/tests/fields/input_field_hook.test.js
 addons/web/static/tests/fields/media/binary/binary_field.test.js
 addons/web/static/tests/fields/media/image/image_field.test.js
 addons/web/static/tests/fields/media/image_url/image_url_field.test.js
@@ -230,7 +224,6 @@ addons/web/static/tests/fields/specialized/domain/domain_field.test.js
 addons/web/static/tests/fields/specialized/properties/properties_field.test.js
 addons/web/static/tests/fields/specialized/properties/properties_layout.test.js
 addons/web/static/tests/fields/specialized/properties/property_tags.test.js
-addons/web/static/tests/fields/specialized/user_groups/res_user_group_ids_field.test.js
 addons/web/static/tests/fields/temporal/datetime/date_field.test.js
 addons/web/static/tests/fields/temporal/datetime/datetime_field.test.js
 addons/web/static/tests/fields/translation_dialog.test.js
@@ -336,7 +329,6 @@ addons/web/static/tests/views/settings/settings_form_view.test.js
 addons/web/static/tests/views/settings/settings_upgrade_boolean_field.test.js
 addons/web/static/tests/views/view.test.js
 addons/web/static/tests/views/view_button.test.js
-addons/web/static/tests/views/view_button_hook.test.js
 addons/web/static/tests/views/view_compiler.test.js
 addons/web/static/tests/views/view_components/view_scale_selector.test.js
 addons/web/static/tests/views/view_dialogs/export_data_dialog.test.js
@@ -348,7 +340,6 @@ addons/web/static/tests/views/view_utils.test.js
 addons/web/static/tests/views/widgets/notification_alert.test.js
 addons/web/static/tests/web_test_helpers.js
 addons/web/static/tests/webclient/actions/act_url_executor.test.js
-addons/web/static/tests/webclient/actions/action_container.test.js
 addons/web/static/tests/webclient/actions/action_dispatch.test.js
 addons/web/static/tests/webclient/actions/action_dispatch_branches.test.js
 addons/web/static/tests/webclient/actions/action_host.test.js

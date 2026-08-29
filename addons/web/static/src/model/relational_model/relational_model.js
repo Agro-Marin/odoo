@@ -174,7 +174,7 @@ export class RelationalModel extends Model {
             isMonoRecord: false,
             context: {},
             fieldsToAggregate: Object.keys(params.config.activeFields),
-            ...params.config,
+            .../** @type {Partial<RelationalModelConfig>} */ (params.config),
             isRoot: true,
         };
 
@@ -185,6 +185,7 @@ export class RelationalModel extends Model {
         /** @type {Map<string, Set<Function>>} */
         this._lifecycleListeners = new Map();
 
+        /** @type {number} */
         this.initialLimit = params.limit || this.Class.DEFAULT_LIMIT;
         this.initialGroupsLimit = params.groupsLimit;
         this.initialCountLimit = params.countLimit || this.Class.DEFAULT_COUNT_LIMIT;
@@ -300,6 +301,7 @@ export class RelationalModel extends Model {
         if (profiling) {
             performance.mark("model:loadData:start");
         }
+        /** @type {any} */
         let data;
         const loadAbort = new AbortController();
         try {
@@ -448,7 +450,9 @@ export class RelationalModel extends Model {
         for (let round = 0; round < ASK_CHANGES_MAX_ROUNDS; round++) {
             const proms = [];
             this.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
-            const compound = [...this._compoundUpdates].map((p) => p.catch(() => {}));
+            const compound = [...(this._compoundUpdates ?? [])].map((p) =>
+                p.catch(() => {}),
+            );
             await Promise.all([...proms, ...compound, this.mutex.getUnlockedDef()]);
             if (!this._compoundUpdates.size) {
                 return;

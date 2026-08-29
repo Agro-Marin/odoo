@@ -91,6 +91,7 @@ export class AutoComplete extends Component {
      * @type {Deferred<void> | null}
      */
     loadingPromise = null;
+    /** @type {any} */
     _loadedRequest = null;
     _loadedInputValue = "";
     /**
@@ -200,6 +201,7 @@ export class AutoComplete extends Component {
             }
             this.externalClose(/** @type {Node} */ (target));
         };
+        /** @type {(() => void)[]} */
         this._globalCleanups = [];
         onWillDestroy(() => this._removeGlobalListeners());
     }

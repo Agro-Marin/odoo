@@ -123,6 +123,25 @@ export class SelectMenu extends Component {
         distanceBeforeReload: 500,
     };
 
+    /**
+     * Assigned in setup() and read from the callbacks it registers, a
+     * sequence TypeScript cannot follow, so the field is declared.
+     *
+     * @type {ReturnType<typeof useDropdownState>}
+     */
+    dropdownState;
+
+    /**
+     * @type {{
+     *     choices: any[],
+     *     displayedOptions: any[],
+     *     searchValue: string | null,
+     *     appliedSearch: string,
+     *     isFocused: boolean,
+     * }}
+     */
+    state;
+
     setup() {
         this.selectMenuId = uniqueId("o_select_menu_");
         this.menuId = `${this.selectMenuId}_menu`;
@@ -136,6 +155,7 @@ export class SelectMenu extends Component {
         });
         this.inputRef = useRef("inputRef");
         this.menuRef = useChildRef();
+        this.dropdownState = useDropdownState();
         this.onInputKeepLast = new KeepLast({ rejectSuperseded: true });
         this.loadMoreSentinel = useRef("loadMoreSentinel");
         /** @type {IntersectionObserver | null} */
@@ -147,7 +167,6 @@ export class SelectMenu extends Component {
             }
             this.onInput(searchString);
         }, INPUT_DEBOUNCE_DELAY);
-        this.dropdownState = useDropdownState();
 
         /** @type {Map<any, any>} */
         this._choiceMemory = new Map();

@@ -15,6 +15,10 @@ import {
 /**
  * @param {Object} [overrides]
  */
+/**
+ * @param {Record<string, any>} [overrides]
+ * @returns {any} the action-manager surface preprocessAction/makeController reach
+ */
 function makeFakeAm(overrides = {}) {
     let id = 0;
     return { _nextId: () => ++id, ...overrides };

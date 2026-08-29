@@ -861,6 +861,7 @@ test("Cumulative prop and cumulated start", async () => {
 });
 
 test("cumulated start ignores the falsy-date group when picking the start date", async () => {
+    /** @type {any[]} */
     const startDomains = [];
     onRpc("formatted_read_group", ({ parent, kwargs }) => {
         if (kwargs.groupby.includes("date:month")) {

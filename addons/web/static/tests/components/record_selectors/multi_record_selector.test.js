@@ -38,6 +38,10 @@ async function mountMultiRecordSelector(props) {
         static components = { MultiRecordSelector };
         static template = xml`<MultiRecordSelector t-props="recordProps" />`;
         static props = ["*"];
+
+        /** @type {Record<string, any>} */
+        state;
+
         setup() {
             this.state = useState({ resIds: props.resIds });
         }

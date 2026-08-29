@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, getFixture, test } from "@odoo/hoot";
-import { queryAllTexts, queryFirst } from "@odoo/hoot-dom";
+import { queryAllTexts, queryOne } from "@odoo/hoot-dom";
 
 import {
     contains,
@@ -72,13 +72,13 @@ test("in editable list view", async () => {
         "href",
         "mailto:john.doe@odoo.com",
     );
-    let cell = queryFirst("tbody td:not(.o_list_record_selector)");
+    let cell = queryOne("tbody td:not(.o_list_record_selector):first");
     await contains(cell).click();
     expect(cell.parentElement).toHaveClass("o_selected_row");
     expect(`.o_field_email input[type="email"]`).toHaveValue("john.doe@odoo.com");
     await fieldInput("email").edit("new@odoo.com");
     await contains(getFixture()).click();
-    cell = queryFirst("tbody td:not(.o_list_record_selector)");
+    cell = queryOne("tbody td:not(.o_list_record_selector):first");
     expect(cell.parentElement).not.toHaveClass("o_selected_row");
     expect(queryAllTexts(`tbody td:not(.o_list_record_selector) a`)).toEqual([
         "new@odoo.com",

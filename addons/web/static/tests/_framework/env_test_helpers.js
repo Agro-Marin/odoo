@@ -14,7 +14,6 @@ import { patch } from "@web/core/utils/patch";
 import { makeEnv, startServices } from "@web/env";
 
 /** @import { OdooEnv } from "@web/env" */
-
 import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
 
 /**

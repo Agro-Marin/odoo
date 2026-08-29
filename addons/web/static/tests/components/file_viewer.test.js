@@ -75,11 +75,16 @@ test("switching file resets the iframe loaded state", async () => {
 
 test("re-anchors on a new files list", async () => {
     const other = { ...IMAGE_FILE, name: "other.png" };
+    /** @type {(files: any[]) => void} */
     let update;
     class Parent extends Component {
         static components = { FileViewer };
         static props = {};
         static template = xml`<FileViewer files="state.files" startIndex="0" modal="false"/>`;
+
+        /** @type {{ files: any[] }} */
+        state;
+
         setup() {
             this.state = useState({ files: [IMAGE_FILE, other] });
             update = (files) => (this.state.files = files);

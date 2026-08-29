@@ -1,29 +1,31 @@
 {
-    'name': 'Uzbekistan - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['uz'],
-    'description': """
+    "name": "Uzbekistan - Accounting",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Uzbekistan Accounting: Chart of Account.
 ========================================
 
 Uzbekistan accounting chart and localization.
   """,
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'account',
-        'account_vat',
+    "author": "Odoo S.A.",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_vat",
     ],
-    'demo': [
-        'demo/demo_company.xml'
+    "countries": [
+        "uz",
     ],
-    'data': [
-        'data/account.account.tag.csv',
-        'views/res_company_views.xml',
-        'views/res_partner_views.xml',
-        'views/report_invoice.xml',
-        'views/report_templates.xml',
+    "data": [
+        "data/account.account.tag.csv",
+        "views/res_company_views.xml",
+        "views/res_partner_views.xml",
+        "views/report_invoice.xml",
+        "views/report_templates.xml",
     ],
-    'installable': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "installable": True,
 }

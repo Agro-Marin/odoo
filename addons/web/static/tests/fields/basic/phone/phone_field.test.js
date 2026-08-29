@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, edit, pointerDown, queryFirst, queryOne } from "@odoo/hoot-dom";
+import { click, edit, pointerDown, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     clickSave,
@@ -81,7 +81,7 @@ test("PhoneField in editable list view on normal screens", async () => {
     expect("tbody td:not(.o_list_record_selector) a:first").toHaveText("yop");
     expect(".o_field_widget a.o_form_uri").toHaveCount(2);
 
-    const cell = queryFirst("tbody td:not(.o_list_record_selector)");
+    const cell = queryOne("tbody td:not(.o_list_record_selector):first");
     await click(cell);
     await animationFrame();
     expect(cell.parentElement).toHaveClass("o_selected_row");
@@ -116,7 +116,7 @@ test("use TAB to navigate to a PhoneField", async () => {
     await pointerDown(".o_field_widget[name=name] input");
 
     expect(".o_field_widget[name=name] input").toBeFocused();
-    expect(queryOne`[name="foo"] input:only`).toBe(getNextTabableElement());
+    expect(getNextTabableElement()).toBe(queryOne`[name="foo"] input:only`);
 });
 
 test("phone field with placeholder", async () => {

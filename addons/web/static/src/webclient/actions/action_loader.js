@@ -75,13 +75,13 @@ export function makeController(params, am) {
 }
 
 /**
- * @param {ActionDescription} action
+ * @param {Action} action
  * @param {Context} context
  * @param {ActionManager} am
  * @returns {Action}
  */
 export function preprocessAction(action, context, am) {
-    action = /** @type {Action} */ ({ ...action });
+    action = { ...action };
     try {
         delete action._originalAction;
         action._originalAction = JSON.stringify(action);
@@ -103,7 +103,7 @@ export function preprocessAction(action, context, am) {
         action.target = action.target || "current";
     }
     if (action.type === "ir.actions.act_window") {
-        action.views = action.views.map(
+        action.views = /** @type {any[][]} */ (action.views).map(
             (v) => /** @type {[number | false, string]} */ ([v[0], v[1]]),
         );
         action.controllers = {};

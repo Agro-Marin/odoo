@@ -299,8 +299,7 @@ export class SampleServer {
      */
     _mockRead(params) {
         const model = this.data[params.model];
-        const ids = params.args[0];
-        const fieldNames = params.args[1];
+        const [ids, fieldNames] = params.args ?? [];
         const records = [];
         for (const r of model.records) {
             if (!ids.includes(r.id)) {
@@ -710,7 +709,7 @@ export class SampleServer {
         const modelFields = this.data[params.model].fields;
         const records = this.data[params.model].records;
         for (const g of groups) {
-            const recordsInGroup = records.filter((r) => {
+            const recordsInGroup = records.filter((/** @type {any} */ r) => {
                 if (["date", "datetime"].includes(gb.type)) {
                     return r[groupBy] === serializeGroupDateValue(g[alias], field);
                 } else if (gb.type === "many2one") {

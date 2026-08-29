@@ -425,7 +425,7 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
 test.tags("desktop");
 test("'more' menu sections follow a menu reload that keeps the overflow count", async () => {
     const SECTIONS = [10, 11, 12, 13, 14, 15];
-    const build = (names) => {
+    const build = (/** @type {string[]} */ names) => {
         const menus = {
             root: { id: "root", name: "root", appID: "root", children: [1] },
             1: {
@@ -660,7 +660,9 @@ test("the systray holds only its items, with no filler elements between them", a
 test.tags("desktop");
 test("the navbar accessors tolerate assignment, so a subclass cannot throw on one", () => {
     for (const name of ["currentAppSections", "systrayItems"]) {
-        const descriptor = Object.getOwnPropertyDescriptor(NavBar.prototype, name);
+        const descriptor = /** @type {PropertyDescriptor} */ (
+            Object.getOwnPropertyDescriptor(NavBar.prototype, name)
+        );
         expect(typeof descriptor.get).toBe("function");
         expect(typeof descriptor.set).toBe("function", {
             message:

@@ -1226,8 +1226,10 @@ test("exportState returns a snapshot decoupled from the live model", async () =>
     model.query.push({ searchItemId: -1 });
     expect(state.query).toHaveLength(queryLength);
 
-    const someId = Object.keys(model.searchItems)[0];
-    expect(someId).not.toBe(undefined);
+    const [someId] = Object.keys(model.searchItems);
+    if (someId === undefined) {
+        throw new Error("the model has no search item to probe");
+    }
     model.searchItems[someId].__probe = "MUTATED";
     expect(state.searchItems[someId].__probe).toBe(undefined);
 });

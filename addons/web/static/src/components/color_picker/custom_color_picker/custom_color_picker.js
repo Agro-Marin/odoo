@@ -66,6 +66,7 @@ export class CustomColorPicker extends Component {
                 .padStart(2, "0");
             this.defaultColor += opacityHex;
         }
+        /** @type {Record<string, any>} */
         this.colorComponents = {};
         this.uniqueId = uniqueId("colorpicker");
         this.selectedHexValue = "";

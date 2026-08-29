@@ -45,6 +45,14 @@ export class NavBar extends Component {
     };
     static props = {};
 
+    /**
+     * Assigned in setup() and refilled by adapt(), a sequence TypeScript
+     * cannot follow, so the field is declared.
+     *
+     * @type {any[]}
+     */
+    currentAppSectionsExtra;
+
     setup() {
         this.currentAppSectionsExtra = [];
         this.failedSystrayKeys = new Set();

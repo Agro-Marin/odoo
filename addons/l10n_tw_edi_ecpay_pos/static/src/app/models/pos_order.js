@@ -1,25 +1,32 @@
-import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { EcpayInfoPopup } from "@l10n_tw_edi_ecpay_pos/app/components/popups/ecpay_info_popup";
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
+import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(PosOrder.prototype, {
     setup() {
         super.setup(...arguments);
-        if (this.company.account_fiscal_country_id?.code === "TW" && this.config.is_ecpay_enabled) {
+        if (
+            this.company.account_fiscal_country_id?.code === "TW" &&
+            this.config.is_ecpay_enabled
+        ) {
             if (!this.partner_id && this.config._tw_walk_in_customer) {
                 this.update({ partner_id: this.config._tw_walk_in_customer });
             }
             if (this.partner_id) {
-                this.l10n_tw_edi_is_b2b = this.partner_id.commercial_partner_id.is_company;
+                this.l10n_tw_edi_is_b2b =
+                    this.partner_id.commercial_partner_id.is_company;
             }
         }
     },
 
     setPartner(partner) {
         super.setPartner(partner);
-        if (this.company.account_fiscal_country_id?.code === "TW" && this.config.is_ecpay_enabled) {
+        if (
+            this.company.account_fiscal_country_id?.code === "TW" &&
+            this.config.is_ecpay_enabled
+        ) {
             if (partner) {
                 this.setToInvoice(true);
                 this.setEcpayInvoiceInfo({ l10n_tw_edi_is_print: true });
@@ -57,7 +64,10 @@ patch(PosOrder.prototype, {
         );
     },
 
-    async askAndSetEcpayInvoiceInfo(dialog, { partner = null, isFromPaymentScreen = false } = {}) {
+    async askAndSetEcpayInvoiceInfo(
+        dialog,
+        { partner = null, isFromPaymentScreen = false } = {},
+    ) {
         const orderPartner = partner || this.getPartner();
 
         const isTwEcpay =

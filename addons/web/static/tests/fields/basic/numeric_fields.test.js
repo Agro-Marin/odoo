@@ -1,7 +1,7 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { click, keyDown, pointerDown, queryAll, queryFirst } from "@odoo/hoot-dom";
+import { click, keyDown, pointerDown, queryAll, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
@@ -152,12 +152,24 @@ test("Numeric fields: NumpadDecimal key is different from the decimalPoint", asy
         resId: 1,
     });
 
-    const floatFactorField = queryFirst(".o_field_float_factor input");
-    const floatInput = queryFirst(".o_field_float input");
-    const integerInput = queryFirst(".o_field_integer input");
-    const monetaryInput = queryFirst(".o_field_monetary input");
-    const percentageInput = queryFirst(".o_field_percentage input");
-    const progressbarInput = queryFirst(".o_field_progressbar input");
+    const floatFactorField = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_float_factor input")
+    );
+    const floatInput = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_float input")
+    );
+    const integerInput = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_integer input")
+    );
+    const monetaryInput = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_monetary input")
+    );
+    const percentageInput = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_percentage input")
+    );
+    const progressbarInput = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_progressbar input")
+    );
 
     /**
      * @param {object} params
@@ -276,13 +288,17 @@ test("useNumpadDecimal should synchronize handlers on input elements", async () 
     await animationFrame();
 
     expect("main > input").toHaveCount(1);
-    await testInputElements(queryAll("main > input"));
+    await testInputElements(
+        /** @type {HTMLInputElement[]} */ (queryAll("main > input")),
+    );
 
     comp.state.showOtherInput = true;
     await animationFrame();
 
     expect("main > input").toHaveCount(2);
-    await testInputElements(queryAll("main > input"));
+    await testInputElements(
+        /** @type {HTMLInputElement[]} */ (queryAll("main > input")),
+    );
 });
 
 test("select all content on focus", async () => {
@@ -292,7 +308,9 @@ test("select all content on focus", async () => {
         arch: `<form><field name="monetary"/></form>`,
     });
 
-    const input = queryFirst(".o_field_widget[name='monetary'] input");
+    const input = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_widget[name='monetary'] input")
+    );
     await pointerDown(input);
     await animationFrame();
     expect(input.selectionStart).toBe(0);
@@ -308,7 +326,9 @@ test("select all content on focus (human readable format)", async () => {
         resId: 1,
     });
 
-    const input = queryFirst(".o_field_widget[name='int_field'] input");
+    const input = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_widget[name='int_field'] input")
+    );
     expect(input).toHaveValue("5k");
     await pointerDown(input);
     await animationFrame();

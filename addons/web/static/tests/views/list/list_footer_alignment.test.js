@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { queryAll, queryAllTexts } from "@odoo/hoot-dom";
+import { queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import {
     defineModels,
     fields,
@@ -92,10 +92,7 @@ describe("footer follows the renderer's column set", () => {
         });
         const headers = queryAllTexts("thead th");
         const qtyIndex = headers.findIndex((h) => h.trim().toUpperCase() === "QTY");
-        const totalCell = queryAll("tfoot tr td").find(
-            (td) => td.innerText.trim() === "5",
-        );
-        expect(totalCell).not.toBe(undefined);
+        const totalCell = queryOne("tfoot tr td:contains(/^5$/)");
         const rect = totalCell.getBoundingClientRect();
         expect(columnAt(rect.left + rect.width / 2)).toBe(qtyIndex);
     });

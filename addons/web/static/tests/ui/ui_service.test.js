@@ -60,6 +60,10 @@ test("isBlocked and activeElement are reactive properties", async () => {
             </div>
         `;
         static props = ["*"];
+
+        /** @type {any} */
+        ui;
+
         setup() {
             this.ui = useState(useService("ui"));
             useActiveElement("delegatedRef");

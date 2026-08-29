@@ -66,6 +66,9 @@ export class X2ManyField extends FieldComponent {
     /** @type {import("services").ServiceFactories["notification"]} */
     notificationService;
 
+    /** @type {Record<string, any>} */
+    fieldDefinition;
+
     setup() {
         this.fieldDefinition = this.field.definition;
         const crud = useX2ManyCrud(() => this.list, this.isMany2Many);
@@ -352,7 +355,7 @@ export class X2ManyField extends FieldComponent {
     }
 
     /** @param {{ context?: Object, editable?: string }} [params] */
-    async onAdd({ context, editable } = /** @type {any} */ ({})) {
+    async onAdd({ context, editable } = {}) {
         context = makeContext([this.props.context, context]);
         if (this.isMany2Many) {
             const domain = getFieldDomain(

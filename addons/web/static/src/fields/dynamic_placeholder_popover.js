@@ -110,6 +110,9 @@ export class DynamicPlaceholderPopover extends Component {
         this.state.fieldType = "";
     }
 
+    /**
+     * @param {KeyboardEvent} ev
+     */
     async onInputKeydown(ev) {
         switch (ev.key) {
             case "Enter": {

@@ -47,6 +47,26 @@ export class FileViewer extends Component {
         modal: true,
     };
 
+    /**
+     * Assigned in setup() and read from callbacks and from the template, a
+     * sequence TypeScript cannot follow, so the fields are declared.
+     *
+     * @type {{ dx: number, dy: number, x: number, y: number }}
+     */
+    translate;
+
+    /**
+     * @type {{
+     *     index: number,
+     *     file: any,
+     *     imageLoaded: boolean,
+     *     scale: number,
+     *     angle: number,
+     *     isIframeLoaded: boolean,
+     * }}
+     */
+    state;
+
     setup() {
         useAutofocus();
         this.imageRef = useRef("image");

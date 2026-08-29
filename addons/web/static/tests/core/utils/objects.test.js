@@ -108,8 +108,10 @@ test("deepEqual", () => {
         deepEqual(new Set([{ x: 1 }, { y: 2 }]), new Set([{ y: 2 }, { x: 1 }])),
     ).toBe(true);
 
+    /** @type {Record<string, any>} */
     const a = { x: 1 };
     a.self = a;
+    /** @type {Record<string, any>} */
     const b = { x: 1 };
     b.self = b;
     expect(deepEqual(a, b)).toBe(true);

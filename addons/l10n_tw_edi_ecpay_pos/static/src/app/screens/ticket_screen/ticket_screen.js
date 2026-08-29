@@ -13,7 +13,8 @@ patch(TicketScreen.prototype, {
 
         const currentPartner = destinationOrder.getPartner();
         const canSetPartner =
-            !currentPartner || currentPartner.id === this.pos.config._tw_walk_in_customer;
+            !currentPartner ||
+            currentPartner.id === this.pos.config._tw_walk_in_customer;
 
         if (partner && canSetPartner) {
             destinationOrder.setPartner(partner);

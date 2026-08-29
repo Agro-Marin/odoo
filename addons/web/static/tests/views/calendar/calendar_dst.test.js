@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryAllTexts, queryFirst } from "@odoo/hoot-dom";
+import { queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import { mockDate, mockTimeZone } from "@odoo/hoot-mock";
 import {
     defineModels,
@@ -113,10 +113,10 @@ test("events around spring-forward render in the local day column", async () => 
     });
 
     expect(
-        queryFirst(`.o_event[data-event-id="1"]`).closest("[data-date]"),
+        queryOne(`.o_event[data-event-id="1"]`).closest("[data-date]"),
     ).toHaveAttribute("data-date", "2024-03-31");
     expect(
-        queryFirst(`.o_event[data-event-id="2"]`).closest("[data-date]"),
+        queryOne(`.o_event[data-event-id="2"]`).closest("[data-date]"),
     ).toHaveAttribute("data-date", "2024-04-01");
 });
 
@@ -132,10 +132,10 @@ test("events around fall-back render in the local day column", async () => {
     });
 
     expect(
-        queryFirst(`.o_event[data-event-id="3"]`).closest("[data-date]"),
+        queryOne(`.o_event[data-event-id="3"]`).closest("[data-date]"),
     ).toHaveAttribute("data-date", "2024-10-27");
     expect(
-        queryFirst(`.o_event[data-event-id="4"]`).closest("[data-date]"),
+        queryOne(`.o_event[data-event-id="4"]`).closest("[data-date]"),
     ).toHaveAttribute("data-date", "2024-10-27");
 });
 
@@ -206,6 +206,6 @@ test("summer events in a slash-less DST zone render in the local day column", as
     });
 
     expect(
-        queryFirst(`.o_event[data-event-id="5"]`).closest("[data-date]"),
+        queryOne(`.o_event[data-event-id="5"]`).closest("[data-date]"),
     ).toHaveAttribute("data-date", "2024-07-10");
 });

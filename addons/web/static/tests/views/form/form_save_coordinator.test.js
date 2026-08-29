@@ -8,12 +8,9 @@ import {
 } from "@web/views/form/form_save_coordinator";
 
 /**
- * @param {Object} [opts]
- * @param {boolean} [opts.dirty=true]
- * @param {Function} [opts.save]
- * @param {Function} [opts.urgentSave]
- * @param {Function} [opts.discard]
- * @param {Object} [opts.hooks]
+ * @param {Record<string, any>} [opts] `dirty`, `save`, `urgentSave`, `discard`
+ *   and `hooks` are read here; the rest is spread onto the record double, so
+ *   a case may also hand it `__proto__`.
  */
 function makeContext({
     dirty = true,
@@ -129,7 +126,7 @@ describe("FormSaveCoordinator — errorMode", () => {
             data: { message: "rpc-failed" },
         });
         const { coordinator } = makeContext({
-            save: async ({ onError } = {}) => {
+            save: async (/** @type {{ onError?: Function }} */ { onError } = {}) => {
                 onErrorPassedToSave = onError;
                 if (!onError) {
                     throw fakeError;
@@ -162,7 +159,7 @@ describe("FormSaveCoordinator — errorMode", () => {
         let dialogCalls = 0;
         const connectionError = new Error("Connection lost");
         const { coordinator } = makeContext({
-            save: async ({ onError } = {}) =>
+            save: async (/** @type {{ onError?: Function }} */ { onError } = {}) =>
                 await onError(connectionError, {
                     discard: () => {},
                     retry: () => true,
@@ -187,7 +184,7 @@ describe("FormSaveCoordinator — errorMode", () => {
     test("errorMode='rethrow' propagates the error to the caller", async () => {
         const fakeError = new Error("rpc-failed");
         const { coordinator } = makeContext({
-            save: async ({ onError } = {}) => {
+            save: async (/** @type {{ onError?: Function }} */ { onError } = {}) => {
                 if (onError) {
                     return await onError(fakeError, {
                         discard: () => {},
@@ -230,7 +227,7 @@ describe("FormSaveCoordinator — multi-company recovery", () => {
         let dialogCalls = 0;
         const accessError = new Error("AccessError with suggested_company");
         const { coordinator } = makeContext({
-            save: async ({ onError } = {}) => {
+            save: async (/** @type {{ onError?: Function }} */ { onError } = {}) => {
                 if (!onError) {
                     throw accessError;
                 }

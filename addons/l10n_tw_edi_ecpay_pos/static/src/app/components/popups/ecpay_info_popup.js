@@ -1,9 +1,8 @@
 import { Component, useState } from "@odoo/owl";
-import { AlertDialog } from "@web/ui/dialog";
-import { Dialog } from "@web/ui/dialog";
-import { _t } from "@web/core/translation";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { AlertDialog, Dialog } from "@web/ui/dialog";
 
 const CARRIER_TYPES = Object.freeze({
     MEMBER_ACCOUNT: "1",
@@ -46,7 +45,9 @@ export class EcpayInfoPopup extends Component {
     get carrierTypes() {
         return Object.freeze({
             [CARRIER_TYPES.MEMBER_ACCOUNT]: _t("Member Account"),
-            [CARRIER_TYPES.CITIZEN_DIGITAL_CERTIFICATE]: _t("Citizen Digital Certificate"),
+            [CARRIER_TYPES.CITIZEN_DIGITAL_CERTIFICATE]: _t(
+                "Citizen Digital Certificate",
+            ),
             [CARRIER_TYPES.MOBILE_BARCODE]: _t("Mobile Barcode"),
             [CARRIER_TYPES.EASYCARD]: _t("EasyCard"),
             [CARRIER_TYPES.IPASS]: _t("iPass"),
@@ -119,10 +120,11 @@ export class EcpayInfoPopup extends Component {
         try {
             this.state.isLoading = true;
             this.state.validCarrierNumber = false;
-            await this.pos.data.call("pos.session", "l10n_tw_edi_check_mobile_barcode", [
-                [this.pos.session.id],
-                this.state.carrierNumber.trim(),
-            ]);
+            await this.pos.data.call(
+                "pos.session",
+                "l10n_tw_edi_check_mobile_barcode",
+                [[this.pos.session.id], this.state.carrierNumber.trim()],
+            );
             this.state.validCarrierNumber = true;
         } catch (error) {
             this._showAlert(_t("ECpay Error"), error.data.message);
@@ -169,7 +171,9 @@ export class EcpayInfoPopup extends Component {
         ) {
             return [
                 false,
-                _t("Please enter a valid carrier number (2 capital letters followed by 14 digits)"),
+                _t(
+                    "Please enter a valid carrier number (2 capital letters followed by 14 digits)",
+                ),
             ];
         }
 
@@ -181,7 +185,7 @@ export class EcpayInfoPopup extends Component {
             return [
                 false,
                 _t(
-                    "Please enter a valid mobile barcode (/ following 7 alphanumeric or +-. string)"
+                    "Please enter a valid mobile barcode (/ following 7 alphanumeric or +-. string)",
                 ),
             ];
         }

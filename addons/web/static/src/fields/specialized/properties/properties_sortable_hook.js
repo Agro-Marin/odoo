@@ -28,7 +28,7 @@ function resolveDropTarget({ parent, next, previous }, getGroupedPropertiesList)
         const sibling = next.classList.contains("o_field_property_group_label")
             ? next.closest(".o_property_group")
             : next;
-        const to = sibling.getAttribute("property-name");
+        const to = sibling?.getAttribute("property-name");
         if (to) {
             return { to, moveBefore: true };
         }

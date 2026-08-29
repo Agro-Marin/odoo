@@ -6,7 +6,6 @@ import {
     queryAll,
     queryAllAttributes,
     queryAllTexts,
-    queryOne,
     queryValue,
 } from "@odoo/hoot-dom";
 import { animationFrame, mockDate, mockTimeZone, runAllTimers } from "@odoo/hoot-mock";

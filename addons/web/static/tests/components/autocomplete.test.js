@@ -46,7 +46,10 @@ function isInViewWithinScrollableY(target) {
     return y > 0 && y < containerHeight && x > 0 && x < containerWidth;
 }
 
-function buildSources(/** @type {any} */ generate, options = {}) {
+function buildSources(
+    /** @type {any} */ generate,
+    /** @type {{ optionSlot?: any }} */ options = {},
+) {
     return [
         {
             options: generate,

@@ -697,7 +697,7 @@ export class MockServer {
         rpc.setCache(rpcCache);
         after(async () => {
             rpc.setCache(null);
-            await rpcCache.indexedDB.deleteDatabase();
+            await rpcCache.indexedDB?.deleteDatabase();
         });
 
         mockFetch(/** @type {any} */ (this._handleRequest.bind(this)));
@@ -1593,26 +1593,31 @@ export async function makeMockServer() {
 /**
  * @overload
  * @param {OrmCallback} callback
+ * @returns {void}
  */
 /**
  * @overload
  * @param {RoutePath | Iterable<RoutePath>} route
  * @param {RouteCallback} callback
  * @param {RouteOptions} [options]
+ * @returns {void}
  */
 /**
  * @overload
  * @param {StringMatcher} method
  * @param {OrmCallback} callback
+ * @returns {void}
  */
 /**
  * @overload
  * @param {StringMatcher} model
  * @param {StringMatcher} method
  * @param {OrmCallback} callback
+ * @returns {void}
  */
 /**
  * @param {...any} args
+ * @returns {void}
  */
 export function onRpc(...args) {
     before(() =>

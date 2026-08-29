@@ -352,11 +352,11 @@ function getOrderByField({ _fields, _name }, fieldNameSpec) {
         _fields = relation._fields;
         _name = relation._name;
     }
-    const fieldName = fieldNames.at(-1);
+    const fieldName = fieldNames.at(-1) ?? "";
     if (!(fieldName in _fields)) {
         throw fieldNotFoundError(_name, fieldName, "could not order records");
     }
-    return _fields[fieldNames.at(-1)];
+    return _fields[fieldName];
 }
 
 /**
@@ -3667,7 +3667,7 @@ export class Model extends Array {
                     if (container) {
                         result[field.name] = container[
                             field.definition_record_field
-                        ].map((def) => ({
+                        ].map((/** @type {any} */ def) => ({
                             ...def,
                             value: record[field.name][def.name],
                         }));

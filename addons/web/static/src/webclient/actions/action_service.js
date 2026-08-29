@@ -230,6 +230,7 @@ export class ActionManager {
         this.breadcrumbCache = new BreadcrumbCache();
         this.navigation = new NavigationTracker();
         this._id = 0;
+        /** @type {any[]} */
         this.controllerStack = [];
         /**
          * @type {ActionDispatch|null}

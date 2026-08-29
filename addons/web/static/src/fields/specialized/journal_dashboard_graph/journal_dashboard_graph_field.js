@@ -25,6 +25,18 @@ export class JournalDashboardGraphField extends FieldComponent {
         graphType: "bar",
     };
 
+    /**
+     * The parsed contents of the field's JSON value, set by renderChart() and
+     * read by the config getters it then calls, a sequence TypeScript cannot
+     * follow, so the field is declared.
+     *
+     * @type {any}
+     */
+    data;
+
+    /** @type {any} */
+    chart;
+
     setup() {
         this.canvasRef = useChartCanvas(() => [this.field.value]);
     }

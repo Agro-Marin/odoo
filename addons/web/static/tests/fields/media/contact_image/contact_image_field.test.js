@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryFirst } from "@odoo/hoot-dom";
+import { queryOne } from "@odoo/hoot-dom";
 import {
     defineModels,
     fields,
@@ -41,7 +41,7 @@ async function mountContact(id, patch) {
         ...patch,
     };
     await mountView({ resModel: "partner", type: "form", arch: ARCH, resId: id });
-    return queryFirst(".o_field_widget[name='avatar'] img");
+    return queryOne(".o_field_widget[name='avatar'] img");
 }
 
 test.tags("desktop");

@@ -120,6 +120,7 @@ export class ExportDataDialog extends Component {
         this.fetchFieldsKeepLast = new KeepLast({ rejectSuperseded: true });
 
         this.state = useState({
+            /** @type {any[]} */
             exportList: [],
             isCompatible: false,
             isEditingTemplate: false,

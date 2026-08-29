@@ -35,6 +35,7 @@ class FooterComponent extends Component {
 test("empty providers", async () => {
     await mountWithCleanup(MainComponentsContainer);
     const config = {
+        /** @type {any[]} */
         providers: [],
     };
     getService("dialog").add(CommandPalette, {
@@ -1222,6 +1223,7 @@ test("command palette dialog can be rendered and closed on outside click", async
     await mountWithCleanup(MainComponentsContainer);
 
     const config = {
+        /** @type {any[]} */
         providers: [],
     };
     getService("dialog").add(CommandPalette, {

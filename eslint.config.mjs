@@ -58,6 +58,7 @@ const COMMUNITY_MODULES = [
     "addons/l10n_gcc_pos",
     "addons/l10n_in_pos",
     "addons/l10n_sa_pos",
+    "addons/l10n_tw_edi_ecpay_pos",
     "addons/pos_adyen",
     "addons/pos_discount",
     "addons/pos_epson_printer",

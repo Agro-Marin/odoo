@@ -341,7 +341,7 @@ export class MagicColumnWidths {
         const table = this.tableRef.el;
         const th = /** @type {HTMLElement} */ (ev.target).closest("th");
         table.style.width = `${Math.floor(table.getBoundingClientRect().width)}px`;
-        const thPosition = [...th.parentNode.children].indexOf(th);
+        const thPosition = [...(th?.parentNode?.children ?? [])].indexOf(th);
         const resizingColumnElements = [...table.getElementsByTagName("tr")]
             .filter((tr) => tr.children.length === th.parentNode.children.length)
             .map((tr) => tr.children[thPosition]);

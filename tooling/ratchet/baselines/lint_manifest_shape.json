@@ -1,4 +1,4 @@
 {
-  "count": 620,
-  "note": "Rebase onto origin/19.0-marin. 622 -> 620: origin has since canonicalised two manifests. Banked because the floor is exact and fails downward."
+  "count": 619,
+  "note": "The ten localizations 91eb7a12c88 imported from the mirror never went through _sort_manifests.py, which is the whole of the +10 that took this gate red. Canonicalised those ten; the eleventh unit was a redundant default in the same set."
 }

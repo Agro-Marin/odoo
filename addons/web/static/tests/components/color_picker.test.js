@@ -30,7 +30,7 @@ test("basic rendering", async () => {
                 selectedColor: "",
                 defaultTab: "",
             },
-            getUsedCustomColors: () => [],
+            getUsedCustomColors: () => /** @type {string[]} */ ([]),
             applyColor() {},
             applyColorPreview() {},
             applyColorResetPreview() {},
@@ -56,7 +56,7 @@ test("basic rendering with selected color", async () => {
                 selectedColor: "#B5D6A5",
                 defaultTab: "",
             },
-            getUsedCustomColors: () => [],
+            getUsedCustomColors: () => /** @type {string[]} */ ([]),
             applyColor() {},
             applyColorPreview() {},
             applyColorResetPreview() {},
@@ -79,7 +79,7 @@ test("keyboard navigation", async () => {
                 selectedColor: "",
                 defaultTab: "",
             },
-            getUsedCustomColors: () => [],
+            getUsedCustomColors: () => /** @type {string[]} */ ([]),
             applyColor() {},
             applyColorPreview() {},
             applyColorResetPreview() {},
@@ -161,7 +161,7 @@ test("colorpicker inside the builder are linked to the builder theme colors", as
                 selectedColor: "",
                 defaultTab: "",
             },
-            getUsedCustomColors: () => [],
+            getUsedCustomColors: () => /** @type {string[]} */ ([]),
             applyColor() {},
             applyColorPreview() {},
             applyColorResetPreview() {},
@@ -199,7 +199,7 @@ test("colorpicker outside the builder are not linked to the builder theme colors
                 selectedColor: "",
                 defaultTab: "",
             },
-            getUsedCustomColors: () => [],
+            getUsedCustomColors: () => /** @type {string[]} */ ([]),
             applyColor() {},
             applyColorPreview() {},
             applyColorResetPreview() {},
@@ -310,7 +310,7 @@ test("can register an extra tab", async () => {
                 selectedColor: "#FF0000",
                 defaultTab: "",
             },
-            getUsedCustomColors: () => [],
+            getUsedCustomColors: () => /** @type {string[]} */ ([]),
             applyColor() {},
             applyColorPreview() {},
             applyColorResetPreview() {},
@@ -341,7 +341,7 @@ test("useColorPicker commits the previewed custom color on close without a calle
                 "colorButton",
                 {
                     state: this.colorState,
-                    getUsedCustomColors: () => [],
+                    getUsedCustomColors: () => /** @type {string[]} */ ([]),
                     applyColor: () => expect.step("applyColor"),
                     applyColorPreview: () => {},
                     applyColorResetPreview: () => {},
@@ -390,7 +390,7 @@ test("should mark default color as selected when it is selected", async () => {
                 selectedColor: "#212527",
                 defaultTab: "custom",
             },
-            getUsedCustomColors: () => [],
+            getUsedCustomColors: () => /** @type {string[]} */ ([]),
             applyColor() {},
             applyColorPreview() {},
             applyColorResetPreview() {},
@@ -425,14 +425,14 @@ test("a preview that moves focus off the swatch does not re-enter onColorFocusin
     await mountWithCleanup(ColorPicker, {
         props: {
             state: { selectedColor: "", defaultTab: "" },
-            getUsedCustomColors: () => [],
+            getUsedCustomColors: () => /** @type {string[]} */ ([]),
             applyColor() {},
             applyColorPreview() {
                 previews++;
                 if (previews > 5) {
                     return;
                 }
-                document.activeElement?.blur();
+                /** @type {HTMLElement | null} */ (document.activeElement)?.blur();
             },
             applyColorResetPreview() {},
             colorPrefix: "",
@@ -457,7 +457,7 @@ test("useColorPicker re-reads its props on every open when given a getter", asyn
         setup() {
             this.picker = useColorPicker("root", () => ({
                 state: { selectedColor: "", defaultTab: "" },
-                getUsedCustomColors: () => [],
+                getUsedCustomColors: () => /** @type {string[]} */ ([]),
                 applyColor: () => {},
                 applyColorPreview: () => {},
                 applyColorResetPreview: () => {},

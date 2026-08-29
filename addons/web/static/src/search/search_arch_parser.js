@@ -178,7 +178,7 @@ export class SearchArchParser {
      */
     defaultOperatorFor(node, fieldType) {
         const type = node.hasAttribute("widget")
-            ? node.getAttribute("widget")
+            ? /** @type {string} */ (node.getAttribute("widget"))
             : fieldType;
         return ["char", "html", "many2many", "one2many", "text"].includes(type)
             ? "ilike"

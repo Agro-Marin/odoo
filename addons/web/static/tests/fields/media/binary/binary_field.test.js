@@ -60,7 +60,9 @@ test("BinaryField is correctly rendered (readonly)", async () => {
             message: "we should download the correct data",
         });
 
-        return new Blob([body.get("data")], { type: "text/plain" });
+        return new Blob([/** @type {BlobPart} */ (body.get("data"))], {
+            type: "text/plain",
+        });
     });
 
     await mountView({
@@ -87,7 +89,7 @@ test("BinaryField is correctly rendered (readonly)", async () => {
     });
 
     const deferred = new Deferred();
-    const downloadOnClick = (ev) => {
+    const downloadOnClick = (/** @type {any} */ ev) => {
         const target = ev.target;
         if (target.tagName === "A" && "download" in target.attributes) {
             ev.preventDefault();
@@ -116,7 +118,9 @@ test("BinaryField is correctly rendered", async () => {
             message: "we should download the correct data",
         });
 
-        return new Blob([body.get("data")], { type: "text/plain" });
+        return new Blob([/** @type {BlobPart} */ (body.get("data"))], {
+            type: "text/plain",
+        });
     });
 
     await mountView({
@@ -150,7 +154,7 @@ test("BinaryField is correctly rendered", async () => {
     });
 
     const deferred = new Deferred();
-    const downloadOnClick = (ev) => {
+    const downloadOnClick = (/** @type {any} */ ev) => {
         const target = ev.target;
         if (target.tagName === "A" && "download" in target.attributes) {
             ev.preventDefault();
@@ -554,7 +558,7 @@ test("download sends the filename field NAME, not its resolved value", async () 
     });
 
     const deferred = new Deferred();
-    const downloadOnClick = (ev) => {
+    const downloadOnClick = (/** @type {any} */ ev) => {
         const target = ev.target;
         if (target.tagName === "A" && "download" in target.attributes) {
             ev.preventDefault();
@@ -658,6 +662,7 @@ function captureFileUpdate(
 const FILE_UPDATE_MODEL_FIELDS = { document: {}, document_name: {} };
 
 test("binary and pdf_viewer write a file the same way", () => {
+    /** @type {any[][]} */
     const cases = [
         [
             "filename names a field on the record",

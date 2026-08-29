@@ -115,6 +115,7 @@ export function getDefaultConfig() {
         actionType: false,
         cache: true,
         actionXmlId: false,
+        /** @type {any[]} */
         embeddedActions: [],
         currentEmbeddedActionId: false,
         parentActionId: false,
@@ -126,7 +127,9 @@ export function getDefaultConfig() {
         setDisplayName: (/** @type {any} */ newDisplayName) => {
             breadcrumbReactive[0].name = newDisplayName;
         },
+        /** @type {any[]} */
         viewSwitcherEntries: [],
+        /** @type {any[]} */
         views: [],
     };
 }

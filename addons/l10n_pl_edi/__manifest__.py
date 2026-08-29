@@ -1,23 +1,25 @@
 {
-    'name': 'Polish E-Invoicing FA(3)',
-    'category': 'Accounting/Localizations',
-    'author': 'Odoo S.A.',
-    'summary': 'Support for FA(3) electronic invoices in Poland via KSeF',
-    'description': """Export FA(3) compliant XML invoices and prepare for integration with KSeF.""",
-    'data': [
-        'views/account_move_views.xml',
-        'views/report_invoice.xml',
-        'views/res_config_settings_views.xml',
-        'data/ir_cron_data.xml',
-        'data/fa3_template.xml',
+    "name": "Polish E-Invoicing FA(3)",
+    "category": "Accounting/Localizations",
+    "summary": "Support for FA(3) electronic invoices in Poland via KSeF",
+    "description": "Export FA(3) compliant XML invoices and prepare for integration with KSeF.",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_pl",
+        "certificate",
     ],
-    'demo': [
-        'demo/account_invoice_demo.xml',
+    "data": [
+        "views/account_move_views.xml",
+        "views/report_invoice.xml",
+        "views/res_config_settings_views.xml",
+        "data/ir_cron_data.xml",
+        "data/fa3_template.xml",
     ],
-    'depends': [
-        'l10n_pl',
-        'certificate'
+    "demo": [
+        "demo/account_invoice_demo.xml",
     ],
-    'auto_install': ['l10n_pl'],
-    'license': 'LGPL-3',
+    "auto_install": [
+        "l10n_pl",
+    ],
 }

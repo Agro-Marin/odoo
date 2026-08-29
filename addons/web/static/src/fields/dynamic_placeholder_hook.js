@@ -15,8 +15,9 @@ import {
 
 const TRIGGER_KEY = "#";
 
-export function useDynamicPlaceholder(elementRef) {
+export function useDynamicPlaceholder(/** @type {any} */ elementRef) {
     const ownerField = useComponent();
+    /** @type {Function | undefined} */
     let closeCallback;
     const popover = usePopover(DynamicPlaceholderPopover, {
         onClose: () => closeCallback?.(),
@@ -24,7 +25,9 @@ export function useDynamicPlaceholder(elementRef) {
     const notification = useService("notification");
     const orm = useService("orm");
 
+    /** @type {any} */
     let model = null;
+    /** @type {any} */
     let pendingRangeIndex = null;
 
     /**

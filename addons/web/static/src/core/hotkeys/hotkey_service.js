@@ -195,7 +195,7 @@ export class HotkeyService {
         let winner = candidates.shift();
         if (winner?.area) {
             for (const candidate of candidates) {
-                if (candidate.area && winner.area.contains(candidate.area)) {
+                if (candidate.area && winner?.area?.contains(candidate.area)) {
                     winner = candidate;
                 }
             }

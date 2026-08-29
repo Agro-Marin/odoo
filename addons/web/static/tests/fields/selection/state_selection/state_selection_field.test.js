@@ -1,7 +1,14 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, press, queryAll, queryAllTexts, queryFirst } from "@odoo/hoot-dom";
+import {
+    click,
+    press,
+    queryAll,
+    queryAllTexts,
+    queryFirst,
+    queryOne,
+} from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     defineModels,
@@ -306,7 +313,7 @@ test("StateSelectionField in editable list view", async () => {
         message: "there should not be a dropdown",
     });
 
-    let cell = queryFirst("tbody td.o_state_selection_cell");
+    let cell = queryOne("tbody td.o_state_selection_cell:first");
     await click(".o_state_selection_cell .o_field_state_selection span.o_status");
     await animationFrame();
     expect(cell.parentElement).not.toHaveClass("o_selected_row", {
@@ -340,7 +347,7 @@ test("StateSelectionField in editable list view", async () => {
         message: "should not be in edit mode",
     });
 
-    cell = queryFirst("tbody td.o_state_selection_cell");
+    cell = queryOne("tbody td.o_state_selection_cell:first");
     await click(cell);
     await animationFrame();
     expect(cell.parentElement).toHaveClass("o_selected_row", {
@@ -436,7 +443,7 @@ test("StateSelectionField line stay in edit mode when StateSelectionField is ope
     expect(".o-dropdown--menu").toHaveCount(0, {
         message: "there should not be a dropdown anymore",
     });
-    const firstCell = queryFirst("tbody td.o_state_selection_cell");
+    const firstCell = queryOne("tbody td.o_state_selection_cell:first");
     expect(firstCell.parentElement).not.toHaveClass("o_selected_row", {
         message: "first row should not be in edit mode anymore",
     });

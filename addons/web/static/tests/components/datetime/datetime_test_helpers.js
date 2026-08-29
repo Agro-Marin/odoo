@@ -57,8 +57,8 @@ export function assertDateTimePicker(expectedParams) {
     let selectedCells = 0;
     let invalidCells = 0;
     let todayCells = 0;
-    for (let i = 0; i < date.length; i++) {
-        const { cells, daysOfWeek, weekNumbers } = date[i];
+    for (const [i, expectedDate] of date.entries()) {
+        const { cells, daysOfWeek, weekNumbers } = expectedDate;
         const cellEls = queryAll(
             `.o_date_picker:nth-child(${i + 1}) .o_date_item_cell`,
         );
@@ -141,7 +141,7 @@ export async function zoomOut() {
     await animationFrame();
 }
 
-export async function editTime(time, timepickerIndex = 0) {
+export async function editTime(/** @type {string} */ time, timepickerIndex = 0) {
     await click(`.o_time_picker_input:eq(${timepickerIndex})`);
     await animationFrame();
     await edit(time, { confirm: "enter" });

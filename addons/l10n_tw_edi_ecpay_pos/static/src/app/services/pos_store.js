@@ -1,10 +1,10 @@
-import { AlertDialog } from "@web/ui/dialog";
 import { EcpayCertificateReceipt } from "@l10n_tw_edi_ecpay_pos/app/components/order_receipt/ecpay_certificate_receipt";
 import { EcpayTransactionReceipt } from "@l10n_tw_edi_ecpay_pos/app/components/order_receipt/ecpay_transaction_receipt";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
-import { _t } from "@web/core/translation";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
+import { AlertDialog } from "@web/ui/dialog";
 
 const { DateTime } = luxon;
 const CONSOLE_COLOR = "#F5B427";
@@ -14,7 +14,7 @@ patch(PosStore.prototype, {
         const uniform_invoice = await this.data.call(
             "pos.order",
             "l10n_tw_edi_get_uniform_invoice",
-            [order.id]
+            [order.id],
         );
 
         if (uniform_invoice) {
@@ -25,7 +25,7 @@ patch(PosStore.prototype, {
                         title: _t("ECPay connection error"),
                         body:
                             _t(
-                                "\n Unable to upload the e-invoice due to `Error`. Please make necessary changes and submit the invoice again."
+                                "\n Unable to upload the e-invoice due to `Error`. Please make necessary changes and submit the invoice again.",
                             ) + uniform_invoice.ecpay_error.replace(/<[^>]*>/g, ""),
                     });
                 } else {
@@ -33,7 +33,7 @@ patch(PosStore.prototype, {
                         "Store",
                         "syncAllOrders",
                         "Unable to upload the e-invoice due to `Error`. Please make necessary changes and submit the invoice again.",
-                        CONSOLE_COLOR
+                        CONSOLE_COLOR,
                     );
                 }
                 return;
@@ -47,7 +47,8 @@ patch(PosStore.prototype, {
                 .toFormat("yyyy-MM-dd HH:mm:ss");
             order.iis_random_number = uniform_invoice.iis_random_number;
             order.iis_tax_amount = uniform_invoice.iis_tax_amount;
-            order.l10n_tw_edi_invoice_amount = uniform_invoice.l10n_tw_edi_invoice_amount;
+            order.l10n_tw_edi_invoice_amount =
+                uniform_invoice.l10n_tw_edi_invoice_amount;
             order.iis_identifier = uniform_invoice.iis_identifier;
             order.iis_carrier_type = uniform_invoice.iis_carrier_type;
             order.iis_carrier_num = uniform_invoice.iis_carrier_num;
@@ -83,21 +84,25 @@ patch(PosStore.prototype, {
         if (!isOffline && order?.isPrintEcpayInvoice && !order.ecpay_error) {
             await this._getUniformInvoiceData(order, { throw: true });
         }
-        const result = await super.printReceipt({ basic, order, printBillActionTriggered });
+        const result = await super.printReceipt({
+            basic,
+            order,
+            printBillActionTriggered,
+        });
         if (result && !isOffline && order?.isPrintEcpayInvoice && !order.ecpay_error) {
             await this.printer.print(
                 EcpayCertificateReceipt,
                 {
                     order,
                 },
-                this.printOptions
+                this.printOptions,
             );
             await this.printer.print(
                 EcpayTransactionReceipt,
                 {
                     order,
                 },
-                this.printOptions
+                this.printOptions,
             );
         }
         return result;

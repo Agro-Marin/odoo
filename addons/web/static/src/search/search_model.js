@@ -109,13 +109,56 @@ export class SearchModel extends SearchQueryMixin(
     ),
 ) {
     /**
+     * A SearchModel is only ever built inside a view, so its env always
+     * carries the view config the methods below read.
+     *
+     * @type {import("@web/env").OdooEnv & { config: Record<string, any> }}
+     */
+    env;
+
+    /**
+     * Assigned by load()/_loadFromState(), which the constructor does not
+     * await, a sequence TypeScript cannot follow, so the fields are declared.
+     *
+     * @type {string}
+     */
+    resModel;
+
+    /** @type {any[]} */
+    globalDomain;
+
+    /** @type {string[]} */
+    globalGroupBy;
+
+    /** @type {any[]} */
+    globalOrderBy;
+
+    /** @type {string[] | undefined} */
+    defaultGroupBy;
+
+    /** @type {Record<string, any>} */
+    searchViewFields;
+
+    /** @type {{ controlPanel: Object | false, searchPanel: boolean }} */
+    display;
+
+    /** @type {SearchItems} */
+    searchItems;
+
+    /** @type {number | false} */
+    searchViewId;
+
+    /** @type {QueryGroup[] | null} */
+    _groups;
+
+    /**
      * @param {import("@web/env").OdooEnv} env
      * @param {Record<string, any>} services
      * @param {Record<string, any>} [args]
      */
     constructor(env, services, args) {
         super();
-        this.env = env;
+        this.env = /** @type {any} */ (env);
         this.setup(services, args);
     }
 
@@ -617,7 +660,9 @@ export class SearchModel extends SearchQueryMixin(
                 groupId: this.nextGroupId,
                 id: this.nextId,
             });
-            this.searchItems[this.nextId] = searchItem;
+            this.searchItems[this.nextId] = /** @type {StoredSearchItem} */ (
+                searchItem
+            );
             this.nextId++;
         });
         this.nextGroupId++;
@@ -706,9 +751,8 @@ export class SearchModel extends SearchQueryMixin(
      */
     _getDomain(params = {}) {
         const withSearchPanel =
-            ("withSearchPanel" in params ? params.withSearchPanel : true) &&
-            this.display.searchPanel;
-        const withGlobal = "withGlobal" in params ? params.withGlobal : true;
+            (params.withSearchPanel ?? true) && this.display.searchPanel;
+        const withGlobal = params.withGlobal ?? true;
         return computeDomain({
             groups: this._getGroups(),
             globalDomain: this.globalDomain,
@@ -763,8 +807,7 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {string[]}
      */
     _getGroupBy(options = {}) {
-        const fallbackOnDefault =
-            "fallbackOnDefault" in options ? options.fallbackOnDefault : true;
+        const fallbackOnDefault = options.fallbackOnDefault ?? true;
         return computeGroupBy({
             groups: this._getGroups(),
             globalGroupBy: this.globalGroupBy,

@@ -61,6 +61,19 @@ export class ConfirmationDialog extends Component {
     /** @param {boolean} disabled */
     setButtonsDisabled(disabled) {
         this.state.isProcess = disabled;
+        if (!disabled) {
+            return;
+        }
+        // A disabled control is not focusable, but the buttons are disabled
+        // through an attribute on the next render and the browser leaves
+        // focus where it was. Hand it to the modal, which is focusable and is
+        // the focus trap's root, so it stays in the dialog rather than
+        // stranded on an inert button.
+        const active = document.activeElement;
+        const modal = this.modalRef.el;
+        if (modal && active instanceof HTMLElement && modal.contains(active)) {
+            modal.focus();
+        }
     }
 
     /**

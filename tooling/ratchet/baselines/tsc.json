@@ -1,4 +1,4 @@
 {
-  "count": 1584,
-  "note": "Rebase onto origin/19.0-marin. The floor was 1626 and the composed tree measures 1584: origin has since fixed several of the same nullability sites this branch typed, and where both had fixed one the resolution kept origin runtime-correct form over a type assertion. An exact ratchet fails in both directions, so the fall is banked. Measured with npx tsc -p tsconfig.json --noEmit in a detached worktree at the rebased tip, odoo checked out alone, typescript 5.9.3."
+  "count": 1513,
+  "note": "addons/web: the typing work behind the two default-deny lanes removes 71 project-wide errors."
 }

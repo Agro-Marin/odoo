@@ -467,6 +467,7 @@ describe("useService", () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const state = reactive({ child: true });
         const def = new Deferred();
+        /** @type {any} */
         let failing;
 
         class Child extends Component {
@@ -517,6 +518,7 @@ describe("useService", () => {
     test("a rejection while the owner is alive still propagates", async () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const def = new Deferred();
+        /** @type {any} */
         let failing;
 
         class Child extends Component {
@@ -551,6 +553,7 @@ describe("useService", () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const state = reactive({ child: true });
         let def = new Deferred();
+        /** @type {any} */
         let svc;
 
         class Child extends Component {
@@ -849,12 +852,22 @@ describe("useSyncedInputProperty", () => {
         class Host extends Component {
             static props = {};
             static template = xml`<input t-ref="i" t-att-value="state.v"/>`;
+
+            /** @type {{ v: any }} */
+            state;
+
+            /** @type {() => boolean} */
+            sync;
+
             setup() {
-                this.state = useState({ v: initial });
-                this.ref = useRef("i");
+                const state = useState({ v: initial });
+                const ref = /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */ (
+                    useRef("i")
+                );
+                this.state = state;
                 this.sync = useSyncedInputProperty(
-                    () => this.ref.el,
-                    () => this.state.v,
+                    () => ref.el,
+                    () => state.v,
                 );
             }
         }
@@ -863,7 +876,8 @@ describe("useSyncedInputProperty", () => {
 
     test("a value the user typed over is written back on the next patch", async () => {
         const host = await mountWithCleanup(makeHost("a"));
-        /** @type {HTMLInputElement} */ (queryOne("input")).value = "typed over";
+        const input = /** @type {HTMLInputElement} */ (queryOne("input"));
+        input.value = "typed over";
 
         host.state.v = "a";
         host.render();
@@ -876,17 +890,28 @@ describe("useSyncedInputProperty", () => {
         class Host extends Component {
             static props = {};
             static template = xml`<input t-ref="i"/>`;
+
+            /** @type {{ v: any }} */
+            state;
+
+            /** @type {() => boolean} */
+            sync;
+
             setup() {
-                this.state = useState({ v: undefined });
-                this.ref = useRef("i");
+                const state = useState({ v: undefined });
+                const ref = /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */ (
+                    useRef("i")
+                );
+                this.state = state;
                 this.sync = useSyncedInputProperty(
-                    () => this.ref.el,
-                    () => this.state.v,
+                    () => ref.el,
+                    () => state.v,
                 );
             }
         }
         const host = await mountWithCleanup(Host);
-        /** @type {HTMLInputElement} */ (queryOne("input")).value = "user owns this";
+        const input = /** @type {HTMLInputElement} */ (queryOne("input"));
+        input.value = "user owns this";
 
         expect(host.sync()).toBe(false);
         host.render();
@@ -899,7 +924,8 @@ describe("useSyncedInputProperty", () => {
         const host = await mountWithCleanup(makeHost("a"));
 
         expect(host.sync()).toBe(false);
-        /** @type {HTMLInputElement} */ (queryOne("input")).value = "drifted";
+        const input = /** @type {HTMLInputElement} */ (queryOne("input"));
+        input.value = "drifted";
         expect(host.sync()).toBe(true);
         expect(queryValue("input")).toBe("a");
         expect(host.sync()).toBe(false);
@@ -909,20 +935,31 @@ describe("useSyncedInputProperty", () => {
         class Host extends Component {
             static props = {};
             static template = xml`<input type="checkbox" t-ref="i" t-att-checked="state.v"/>`;
+
+            /** @type {{ v: any }} */
+            state;
+
+            /** @type {() => boolean} */
+            sync;
+
             setup() {
-                this.state = useState({ v: true });
-                this.ref = useRef("i");
+                const state = useState({ v: true });
+                const ref = /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */ (
+                    useRef("i")
+                );
+                this.state = state;
                 this.sync = useSyncedInputProperty(
-                    () => this.ref.el,
-                    () => this.state.v,
+                    () => ref.el,
+                    () => state.v,
                     { property: "checked" },
                 );
             }
         }
         const host = await mountWithCleanup(Host);
-        queryOne("input").checked = false;
+        const input = /** @type {HTMLInputElement} */ (queryOne("input"));
+        input.checked = false;
 
         expect(host.sync()).toBe(true);
-        expect(queryOne("input").checked).toBe(true);
+        expect(input.checked).toBe(true);
     });
 });

@@ -67,7 +67,7 @@ test("handle RPC_ERROR of type='server' and no associated dialog class", async (
     error.model = "some model";
 
     mockService("dialog", {
-        add(dialogClass, props) {
+        add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(RPCErrorDialog);
             expect(omit(props, "traceback", "serverHost")).toEqual({
                 name: "RPC_ERROR",
@@ -110,7 +110,7 @@ test("handle custom RPC_ERROR of type='server' and associated custom dialog clas
     error.data = errorData;
 
     mockService("dialog", {
-        add(dialogClass, props) {
+        add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(CustomDialog);
             expect(omit(props, "traceback", "serverHost")).toEqual({
                 name: "RPC_ERROR",
@@ -156,7 +156,7 @@ test("handle normal RPC_ERROR of type='server' and associated custom dialog clas
     error.data = errorData;
     error.model = "some model";
     mockService("dialog", {
-        add(dialogClass, props) {
+        add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(NormalDialog);
             expect(omit(props, "traceback", "serverHost")).toEqual({
                 name: "RPC_ERROR",
@@ -195,7 +195,7 @@ test("session-expired RPC error (code 100) routes to SessionExpiredDialog", asyn
         },
     });
     mockService("dialog", {
-        add(dialogClass, props) {
+        add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(SessionExpiredDialog);
             expect(props.exceptionName).toBe("odoo.http.SessionExpiredException");
         },
@@ -209,7 +209,7 @@ test("session-expired RPC error (code 100) routes to SessionExpiredDialog", asyn
 test("ServerActionWithWarningsError routes to WarningDialog", async () => {
     expect.errors(1);
     mockService("dialog", {
-        add(dialogClass, props) {
+        add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(WarningDialog);
             expect.step(props.exceptionName);
         },
@@ -418,7 +418,7 @@ test("handle uncaught promise errors", async () => {
     error.name = "TestError";
 
     mockService("dialog", {
-        add(dialogClass, props) {
+        add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(ClientErrorDialog);
             expect(omit(props, "traceback", "serverHost")).toEqual({
                 name: "UncaughtPromiseError > TestError",
@@ -444,7 +444,7 @@ test("handle uncaught client errors", async () => {
     error.name = "TestError";
 
     mockService("dialog", {
-        add(dialogClass, props) {
+        add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(ClientErrorDialog);
             expect(props.name).toBe("UncaughtClientError > TestError");
             expect(props.message).toBe(
@@ -537,7 +537,9 @@ test("supersededErrorHandler runs before the dialog handlers", async () => {
     expect(supersededErrorHandler(env, uncaught, new Error("real"))).toBe(false);
 });
 
+/** @type {any} */
 let unhandledRejectionCb;
+/** @type {any} */
 let errorCb;
 
 describe("Error Service Logs", () => {
@@ -721,6 +723,7 @@ describe("Error Service Logs", () => {
         });
 
         await makeMockEnv();
+        /** @type {any} */
         let errorEvent = new Event("error", {
             promise: null,
             cancelable: true,
@@ -762,7 +765,7 @@ test("a 403 Forbidden routes to WarningDialog, not the session-expired dialog", 
         },
     });
     mockService("dialog", {
-        add(dialogClass, props) {
+        add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(WarningDialog);
             expect(dialogClass).not.toBe(SessionExpiredDialog);
             expect(props.exceptionName).toBe("werkzeug.exceptions.Forbidden");

@@ -324,7 +324,9 @@ export const SEARCH_MODEL_REQUIRES = [
 /**
  * Instance state assigned in `setup()` / `_loadFromArch` and reached from
  * across the chain. Declared by no class body, so no gate but this one can
- * see it.
+ * see it. Twelve names left this list when `search_model.js` grew class-field
+ * declarations for them: once a class body declares one, it is no longer
+ * invisible state and every other gate can see it too.
  * @type {string[]}
  */
 export const SEARCH_MODEL_SHARED_STATE = [
@@ -335,7 +337,6 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "_facets",
     "_filledPropertyFields",
     "_groupBy",
-    "_groups",
     "_orderBy",
     "_pendingNotification",
     "_reloadMutex",
@@ -345,17 +346,11 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "_sectionsByTypeSource",
     "blockNotification",
     "canOrderByCount",
-    "defaultGroupBy",
     "defaultGroupByRemoved",
     "dialog",
-    "display",
-    "env",
     "fieldService",
     "getDefaultDomain",
     "globalContext",
-    "globalDomain",
-    "globalGroupBy",
-    "globalOrderBy",
     "hideCustomGroupBy",
     "intervalOptions",
     "irFilters",
@@ -366,14 +361,10 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "orm",
     "query",
     "referenceMoment",
-    "resModel",
     "searchDomain",
-    "searchItems",
     "searchMenuTypes",
     "searchPanelInfo",
     "searchViewArch",
-    "searchViewFields",
-    "searchViewId",
     "sections",
     "sectionsPromise",
     "treeProcessor",

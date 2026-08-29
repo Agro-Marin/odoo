@@ -183,6 +183,7 @@ describe("archiveConfirmationProps", () => {
         defaults.confirm();
         expect(archived).toBe(1);
 
+        /** @type {Record<string, any>} */
         const merged = {
             ...archiveConfirmationProps(() => archived++),
             body: "custom",

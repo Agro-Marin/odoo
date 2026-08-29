@@ -127,6 +127,7 @@ describe("hotkey canonicalisation", () => {
 
 describe("navigation accessibility", () => {
     class MenuParent extends Component {
+        /** @type {string[]} */
         static props = [];
         static template = xml`
             <div class="container" role="menu" t-ref="containerRef">
@@ -162,6 +163,7 @@ describe("navigation accessibility", () => {
 
     test("an item's own id is never overwritten by the generated one", async () => {
         class OwnIds extends Component {
+            /** @type {string[]} */
             static props = [];
             static template = xml`
                 <div class="container" role="menu" t-ref="containerRef">
@@ -444,6 +446,7 @@ describe("property names are data, not property names", () => {
 
 describe("input bindings are per owner", () => {
     class InputHost extends Component {
+        /** @type {string[]} */
         static props = [];
         static template = xml`<div class="host"><input class="shared"/></div>`;
     }

@@ -697,6 +697,7 @@ test("When they are a lot of choices, not all are show at first and scrolling lo
         setup() {
             this.scrollSettings = scrollSettings;
 
+            /** @type {any[]} */
             this.choices = [];
             for (let i = 0; i < scrollSettings.defaultCount * 2; i++) {
                 this.choices.push({ label: i.toString(), value: i });
@@ -1477,6 +1478,7 @@ test("a group header is never reported as the selected option", async () => {
 });
 
 test("an emptied choices prop does not show 'No results' next to grouped options", async () => {
+    /** @type {() => void} */
     let clearChoices;
     class Parent extends Component {
         static components = { SelectMenu };
@@ -1484,7 +1486,7 @@ test("an emptied choices prop does not show 'No results' next to grouped options
         static template = xml`
             <SelectMenu choices="state.choices" groups="groups" onSelect="() => {}"/>`;
         setup() {
-            this.state = useState({ choices: [] });
+            this.state = useState({ /** @type {any[]} */ choices: [] });
             this.groups = [
                 { label: "Group A", choices: [{ value: "a", label: "Alpha" }] },
             ];

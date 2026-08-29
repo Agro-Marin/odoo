@@ -1,9 +1,8 @@
 {
-    'name': "Georgia - Accounting",
-    'category': "Accounting/Localizations/Account Charts",
-    'summary': "Georgian accounting localization package",
-    'countries': ['GE'],
-    'description': """
+    "name": "Georgia - Accounting",
+    "category": "Accounting/Localizations/Account Charts",
+    "summary": "Georgian accounting localization package",
+    "description": """
 This module provides the basic accounting configuration required to use Odoo Accounting in Georgia, including:
 ==================================================================================================================
 * Georgian chart of accounts
@@ -13,15 +12,18 @@ This module provides the basic accounting configuration required to use Odoo Acc
 
 The module is designed to provide a standard accounting setup for companies operating in Georgia and can be extended further based on specific business or legal requirements.
     """,
-    'author': "Odoo S.A.",
-    'depends': [
-        'account',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "countries": [
+        "GE",
     ],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'license': "LGPL-3",
+    "demo": [
+        "demo/demo_company.xml",
+    ],
 }

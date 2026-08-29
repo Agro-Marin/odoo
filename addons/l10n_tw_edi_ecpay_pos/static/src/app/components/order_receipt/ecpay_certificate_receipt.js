@@ -8,16 +8,22 @@ export class EcpayCertificateReceipt extends OrderReceipt {
     }
 
     get qrCodeLeft() {
-        return this.order.qrcode_left ? this.getEcpayQrcode(this.order.qrcode_left) : undefined;
+        return this.order.qrcode_left
+            ? this.getEcpayQrcode(this.order.qrcode_left)
+            : undefined;
     }
 
     get qrCodeRight() {
-        return this.order.qrcode_right ? this.getEcpayQrcode(this.order.qrcode_right) : undefined;
+        return this.order.qrcode_right
+            ? this.getEcpayQrcode(this.order.qrcode_right)
+            : undefined;
     }
 
     getEcpayQrcode(data) {
         const codeWriter = new window.ZXing.BrowserQRCodeSvgWriter();
-        const qrCodeSvg = new XMLSerializer().serializeToString(codeWriter.write(data, 250, 250));
+        const qrCodeSvg = new XMLSerializer().serializeToString(
+            codeWriter.write(data, 250, 250),
+        );
         return "data:image/svg+xml;base64," + window.btoa(qrCodeSvg);
     }
 }

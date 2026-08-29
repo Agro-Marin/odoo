@@ -178,9 +178,12 @@ describe("adding listeners", () => {
         class Test extends Interaction {
             static selector = "iframe";
             start() {
-                const spanEl = this.el.contentDocument.createElement("span");
+                const doc = /** @type {Document} */ (
+                    /** @type {HTMLIFrameElement} */ (this.el).contentDocument
+                );
+                const spanEl = doc.createElement("span");
                 spanEl.textContent = "abc";
-                this.el.contentDocument.body.appendChild(spanEl);
+                doc.body.appendChild(spanEl);
                 this.addListener(spanEl, "click", () => expect.step("click"));
                 spanEl.click();
             }
@@ -193,10 +196,15 @@ describe("adding listeners", () => {
         class Test extends Interaction {
             static selector = "iframe";
             start() {
-                const spanEl = this.el.contentDocument.createElement("span");
+                const doc = /** @type {Document} */ (
+                    /** @type {HTMLIFrameElement} */ (this.el).contentDocument
+                );
+                const spanEl = doc.createElement("span");
                 spanEl.textContent = "abc";
-                this.el.contentDocument.body.appendChild(spanEl);
-                const spanEls = this.el.contentDocument.querySelectorAll("span");
+                doc.body.appendChild(spanEl);
+                const spanEls = /** @type {HTMLIFrameElement} */ (
+                    this.el
+                ).contentDocument.querySelectorAll("span");
                 this.addListener(spanEls, "click", () => expect.step("click"));
                 spanEl.click();
             }
@@ -5078,6 +5086,7 @@ describe("DOM effect scope", () => {
 
     test("a listener body runs inside the scope", async () => {
         let inScope = 0;
+        /** @type {boolean | null} */
         let handlerInScope = null;
         patchWithCleanup(InteractionService.prototype, {
             domEffectScope(fn) {
@@ -5136,6 +5145,7 @@ describe("DOM effect scope", () => {
 
     test("keepInHistory as a suffix opts the listener out", async () => {
         let inScope = 0;
+        /** @type {boolean | null} */
         let handlerInScope = null;
         patchWithCleanup(InteractionService.prototype, {
             domEffectScope(fn) {
@@ -5164,6 +5174,7 @@ describe("DOM effect scope", () => {
 
     test("keepInHistory composes with another modifier and is stripped from the event", async () => {
         let inScope = 0;
+        /** @type {boolean | null} */
         let handlerInScope = null;
         let defaultPrevented = null;
         patchWithCleanup(InteractionService.prototype, {

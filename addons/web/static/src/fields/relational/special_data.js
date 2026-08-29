@@ -78,6 +78,7 @@ export function useSpecialData(loadFn) {
         subscribers.add(reloadOnStaleCache);
         joinedSubscribers.add(subscribers);
         if (!specialDataCaches.has(key)) {
+            /** @type {(value: any) => void} */
             let deliver;
             const delivered = new Promise((resolve) => {
                 deliver = resolve;

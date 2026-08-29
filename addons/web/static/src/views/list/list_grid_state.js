@@ -68,7 +68,7 @@ export class ListGridState {
     }
 
     /**
-     * @param {object} options
+     * @param {Record<string, any>} options
      */
     update(options) {
         if (options.list !== undefined) {

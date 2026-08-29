@@ -49,11 +49,11 @@ import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
  * @property {string} title
  * @property {boolean} useSampleModel
  * @property {Object} widgets
- * @property {Map} customGroupBys
+ * @property {Map<string, any>} customGroupBys
  * @property {string[]} expandedRowGroupBys
  * @property {string[]} expandedColGroupBys
  * @property {Object} sortedColumn
- * @property {Array} domain
+ * @property {any[]} domain
  */
 
 /**
@@ -93,7 +93,7 @@ export class PivotModel extends Model {
      * @param {string|null} params.metaData.defaultOrder
      * @param {boolean} params.metaData.disableLinking
      * @param {boolean} params.metaData.useSampleModel
-     * @param {Map} [params.metaData.customGroupBys={}]
+     * @param {Map<string, any>} [params.metaData.customGroupBys={}]
      * @param {string[]} [params.metaData.expandedColGroupBys=[]]
      * @param {string[]} [params.metaData.expandedRowGroupBys=[]]
      * @param {Object|null} [params.metaData.sortedColumn=null]
