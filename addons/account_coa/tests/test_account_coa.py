@@ -4,11 +4,13 @@ from odoo.tests import TransactionCase, tagged
 
 
 @tagged("post_install", "-at_install")
-class TestBaseAccount(TransactionCase):
+class TestAccountCoa(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.company = cls.env["res.company"].create({"name": "Base Account Test Co"})
+        cls.company = cls.env["res.company"].create(
+            {"name": "Chart of Accounts Test Co"}
+        )
         cls.env.user.company_ids = [Command.link(cls.company.id)]
         cls.Account = cls.env["account.account"].with_company(cls.company)
 
@@ -177,7 +179,7 @@ class TestAccountCodeMapping(TransactionCase):
             self.assertEqual(m.code, acc.with_company(m.company_id).code)
 
     def test_pack_mapping_id_encoding(self):
-        from odoo.addons.base_account.models.account_code_mapping import (
+        from odoo.addons.account_coa.models.account_code_mapping import (
             COMPANY_OFFSET,
             _pack_mapping_id,
         )
@@ -188,7 +190,7 @@ class TestAccountCodeMapping(TransactionCase):
         self.assertEqual(vid % COMPANY_OFFSET, company_id)
 
     def test_pack_mapping_id_guards_overflow(self):
-        from odoo.addons.base_account.models.account_code_mapping import (
+        from odoo.addons.account_coa.models.account_code_mapping import (
             COMPANY_OFFSET,
             _pack_mapping_id,
         )

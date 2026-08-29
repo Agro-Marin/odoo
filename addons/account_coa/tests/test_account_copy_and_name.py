@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
@@ -7,7 +8,11 @@ class TestAccountCopyAndName(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.Account = cls.env["account.account"]
+        cls.company = cls.env["res.company"].create(
+            {"name": "Chart of Accounts Copy Test Co"}
+        )
+        cls.env.user.company_ids = [Command.link(cls.company.id)]
+        cls.Account = cls.env["account.account"].with_company(cls.company)
 
     def test_copy_generates_new_code_and_copy_name(self):
         account = self.Account.create(

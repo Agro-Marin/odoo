@@ -4,11 +4,14 @@
     <record id="view_account_form" model="ir.ui.view">
         <field name="name">account.account.form.account</field>
         <field name="model">account.account</field>
-        <field name="inherit_id" ref="base_account.view_account_form" />
+        <field name="inherit_id" ref="account_coa.view_account_form" />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
-                <button class="oe_stat_button" name="action_view_related_taxes"
-                    type="object" icon="fa-bars"
+                <button
+                    class="oe_stat_button"
+                    name="action_view_related_taxes"
+                    type="object"
+                    icon="fa-bars"
                     invisible="related_taxes_amount == 0">
                     <div class="o_stat_info">
                         <span class="o_stat_value">
@@ -19,8 +22,11 @@
                         </span>
                     </div>
                 </button>
-                <button class="oe_stat_button" name="account.action_move_line_select"
-                    type="action" icon="fa-bars">
+                <button
+                    class="oe_stat_button"
+                    name="account.action_move_line_select"
+                    type="action"
+                    icon="fa-bars">
                     <div class="o_stat_info">
                         <span class="o_stat_value">
                             <field name="current_balance" />
@@ -33,7 +39,9 @@
             </xpath>
             <!-- Tax field in accounting page -->
             <xpath expr="//field[@name='account_type']" position="after">
-                <field name="tax_ids" widget="many2many_tax_tags"
+                <field
+                    name="tax_ids"
+                    widget="many2many_tax_tags"
                     invisible="account_type == 'off_balance'"
                     options="{'no_quick_create': True}" />
             </xpath>
@@ -49,7 +57,7 @@
     <record id="view_account_list" model="ir.ui.view">
         <field name="name">account.account.list.account</field>
         <field name="model">account.account</field>
-        <field name="inherit_id" ref="base_account.view_account_list" />
+        <field name="inherit_id" ref="account_coa.view_account_list" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='account_type']" position="after">
                 <field name="group_id" optional="hide" />
@@ -63,25 +71,28 @@
     <record id="view_account_search" model="ir.ui.view">
         <field name="name">account.account.search.account</field>
         <field name="model">account.account</field>
-        <field name="inherit_id" ref="base_account.view_account_search" />
+        <field name="inherit_id" ref="account_coa.view_account_search" />
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='inactiveacc']" position="before">
-                <filter string="Account with Entries" name="used"
+                <filter
+                    string="Account with Entries"
+                    name="used"
                     domain="[('used', '=', True)]" />
             </xpath>
         </field>
     </record>
 
-    <record model="ir.actions.server" id="action_unmerge_accounts">
+    <record id="action_unmerge_accounts" model="ir.actions.server">
         <field name="name">Unmerge account</field>
-        <field name="model_id" ref="base_account.model_account_account" />
-        <field name="group_ids" eval="[Command.link(ref('account.group_account_manager'))]" />
-        <field name="binding_model_id" ref="base_account.model_account_account" />
+        <field name="model_id" ref="account_coa.model_account_account" />
+        <field name="binding_model_id" ref="account_coa.model_account_account" />
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
-        <field name="code">
-if records:
-    action = records.action_unmerge()
-        </field>
+        <field name="code">if records:
+    action = records.action_unmerge()</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_manager'))]" />
     </record>
+
 </odoo>

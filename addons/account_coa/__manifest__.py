@@ -1,10 +1,10 @@
 {
-    "name": "Base Account",
+    "name": "Chart of Accounts",
     "version": "1.0",
     "summary": "Chart of Accounts foundation",
     "description": """
-Base Account
-============
+Chart of Accounts
+=================
 Provides the core Chart of Accounts structure: account types, codes,
 tags, and multi-company code mappings.  Designed as a lightweight
 foundation that heavier accounting modules (``account``, ``account_accountant``)

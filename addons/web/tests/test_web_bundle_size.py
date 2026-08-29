@@ -34,6 +34,7 @@ class TestWebBundleSize(TransactionCase):
         {
             "account",
             "account_add_gln",
+            "account_coa",
             "account_edi_ubl_cii",
             "account_payment_provider",
             "account_tax",
@@ -47,7 +48,6 @@ class TestWebBundleSize(TransactionCase):
             "barcodes",
             "barcodes_gs1_nomenclature",
             "base",
-            "base_account",
             "base_import",
             "base_import_module",
             "base_install_request",
