@@ -4,7 +4,6 @@
         <record id="hr_attendance_overtime_employee_schedule_rule" model="hr.attendance.overtime.rule" forcecreate="0">
             <field name="name">Employee Schedule Rule</field>
             <field name="base_off">quantity</field>
-            <field name="timing_type">schedule</field>
             <field name="expected_hours_from_contract" eval="True"/>
             <field name="paid" eval="True"/>
             <field name="ruleset_id" ref="hr_attendance_default_ruleset"/>
