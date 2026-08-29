@@ -53,6 +53,14 @@ class TestIapAccount(TransactionCase):
         with self.assertRaises(UserError):
             account.warning_threshold = -1
 
+    def test_positive_threshold_needs_a_recipient(self):
+        """A positive alert threshold with no recipients is rejected."""
+        account = self.env["iap.account"].create({"service_id": self.service.id})
+        with self.assertRaises(UserError):
+            account.write(
+                {"warning_threshold": 10, "warning_user_ids": [Command.clear()]}
+            )
+
     def test_warning_recipients_need_email(self):
         """Alert recipients without an email address are rejected."""
         account = self.env["iap.account"].create({"service_id": self.service.id})
