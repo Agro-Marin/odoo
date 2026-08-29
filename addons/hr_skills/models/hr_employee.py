@@ -142,10 +142,30 @@ class HrEmployee(models.Model):
             ),
         )
 
+        # Group by (employee, skill, level) instead of overwriting on every
+        # record: an employee can legitimately hold both an expired
+        # certification and its currently-valid renewal for the same
+        # skill/level (mixin_hr_individual_skill's own business rules), and a
+        # plain last-write-wins assignment picks whichever happens to be
+        # iterated last instead of the currently-valid one.
         employee_cert_data = defaultdict(dict)
-        for es in emp_skills:
-            key = (es.skill_id, es.skill_level_id)
-            employee_cert_data[es.employee_id][key] = es.valid_to
+        emp_skills_by_key = dict(
+            emp_skills.grouped(
+                lambda es: (es.employee_id, es.skill_id, es.skill_level_id)
+            )
+        )
+        for (employee, skill_id, skill_level_id), certs in emp_skills_by_key.items():
+            current_certs = certs.filtered(
+                lambda c: not c.valid_to or c.valid_to >= today
+            )
+            if current_certs:
+                without_expiry = current_certs.filtered(lambda c: not c.valid_to)
+                valid_to = (
+                    False if without_expiry else max(current_certs.mapped("valid_to"))
+                )
+            else:
+                valid_to = max(certs.mapped("valid_to"))
+            employee_cert_data[employee][(skill_id, skill_level_id)] = valid_to
 
         existing_activities = self.env["mail.activity"].search(
             Domain.AND(
