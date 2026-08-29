@@ -241,7 +241,7 @@ class HrVersion(models.Model):
                 if version._is_fully_flexible()
                 else timezone(calendar.tz)
             )
-            attendances = attendances_by_resource[resource.id]
+            attendances = attendances_by_resource.get(resource.id, Intervals([]))
 
             # Other calendars: In case the employee has declared time off in another calendar
             # Example: Take a time off, then a credit time.
