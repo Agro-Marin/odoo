@@ -4,14 +4,15 @@ import contextlib
 import logging.config
 import os
 import sys
-import threading
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 from unittest import SkipTest
 
 import odoo.tests.loader
 from odoo import api
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.logutils import init_logger
 from odoo.modules.registry import Registry
 from odoo.service.db.lifecycle import _check_faketime_mode
@@ -55,19 +56,7 @@ def addons_path(value: str) -> Any:
     )
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Script for testing the install / uninstall / reinstall"
-        " cycle of Odoo modules. Prefer the 'cycle' subcommand to"
-        " running this without anything specified (this is the"
-        " default behaviour)."
-    )
-    parser.set_defaults(
-        func=test_cycle,
-        reinstall=True,
-    )
-    fake_commands = parser.add_mutually_exclusive_group()
-
+def _add_global_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--database",
         "-d",
@@ -101,7 +90,8 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated list of paths to directories containing extra Odoo modules",
     )
 
-    cmds = parser.add_subparsers(title="subcommands", metavar="")
+
+def _add_cycle_command(cmds: argparse._SubParsersAction) -> None:
     cycle_cmd = cmds.add_parser(
         "cycle",
         help="Full install/uninstall/reinstall cycle.",
@@ -111,6 +101,10 @@ def parse_args() -> argparse.Namespace:
     )
     cycle_cmd.set_defaults(func=test_cycle)
 
+
+def _add_uninstall_command(
+    cmds: argparse._SubParsersAction, fake_commands: argparse._MutuallyExclusiveGroup
+) -> None:
     fake_commands.add_argument(
         "--uninstall",
         "-U",
@@ -137,6 +131,10 @@ def parse_args() -> argparse.Namespace:
         help="Skips reinstalling the module(s) after uninstalling.",
     )
 
+
+def _add_standalone_command(
+    cmds: argparse._SubParsersAction, fake_commands: argparse._MutuallyExclusiveGroup
+) -> None:
     fake_commands.add_argument(
         "--standalone",
         action=StandaloneAction,
@@ -151,6 +149,27 @@ def parse_args() -> argparse.Namespace:
         "standalone",
         help="List of module names or tags separated by commas, 'all' will run all available scripts.",
     )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Script for testing the install / uninstall / reinstall"
+        " cycle of Odoo modules. Prefer the 'cycle' subcommand to"
+        " running this without anything specified (this is the"
+        " default behaviour)."
+    )
+    parser.set_defaults(
+        func=test_cycle,
+        reinstall=True,
+    )
+    fake_commands = parser.add_mutually_exclusive_group()
+
+    _add_global_options(parser)
+
+    cmds = parser.add_subparsers(title="subcommands", metavar="")
+    _add_cycle_command(cmds)
+    _add_uninstall_command(cmds, fake_commands)
+    _add_standalone_command(cmds, fake_commands)
 
     return parser.parse_args()
 
@@ -259,7 +278,7 @@ class _SelectsCommand(argparse.Action):
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        values: str | list | None,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         namespace.func = self.command
@@ -279,7 +298,7 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    config["db_name"] = threading.current_thread().dbname = args.database
+    config["db_name"] = current_worker_thread().dbname = args.database
     if args.data_dir:
         config["data_dir"] = args.data_dir
     if args.addons_path:
@@ -302,10 +321,12 @@ if __name__ == "__main__":
         }
     )
 
-    prof = contextlib.nullcontext()
+    prof: contextlib.AbstractContextManager = contextlib.nullcontext()
     if os.environ.get("ODOO_PROFILE_PRELOAD"):
         interval = float(os.environ.get("ODOO_PROFILE_PRELOAD_INTERVAL", "0.1"))
-        collectors = [profiler.PeriodicCollector(interval=interval)]
+        collectors: list[str | profiler.Collector] = [
+            profiler.PeriodicCollector(interval=interval)
+        ]
         if os.environ.get("ODOO_PROFILE_PRELOAD_SQL"):
             collectors.append("sql")
         prof = profiler.Profiler(db=args.database, collectors=collectors)

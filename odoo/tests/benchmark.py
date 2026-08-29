@@ -2,12 +2,12 @@ import json
 import logging
 import math
 import statistics
-import threading
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools.misc import real_time
 
 if TYPE_CHECKING:
@@ -308,7 +308,7 @@ class BenchmarkTimer:
         self.end_query_time: float = 0
 
     def __enter__(self) -> Self:
-        thread = threading.current_thread()
+        thread = current_worker_thread()
         if not hasattr(thread, "query_count"):
             thread.query_count = 0
         if not hasattr(thread, "query_time"):
@@ -321,7 +321,7 @@ class BenchmarkTimer:
 
     def __exit__(self, *args: object) -> None:
         self.end_time = real_time()
-        thread = threading.current_thread()
+        thread = current_worker_thread()
         self.end_query_count = thread.query_count
         self.end_query_time = thread.query_time
 
@@ -362,7 +362,7 @@ def save_results(results: list[dict], path: str) -> None:
 
 def compare_results(baseline: list[dict], current: list[dict]) -> str:
     base_map = {r["name"]: r for r in baseline if r.get("name")}
-    lines = []
+    lines: list[str] = []
     lines.extend(
         (
             f"\n{'Test':<55s} {'Base p50':>10s} {'Curr p50':>10s} {'Speedup':>8s}",
@@ -395,10 +395,13 @@ class BenchmarkCase:
     benchmark_iterations = 30
     benchmark_warmup = 5
 
+    all_results: ClassVar[list[BenchmarkStats]]
+    env: Any
+
     @classmethod
     def setUpClass(cls) -> None:
-        super().setUpClass()
-        cls.all_results: list[BenchmarkStats] = []
+        super().setUpClass()  # type: ignore[misc]  # the concrete suite mixes in TransactionCase
+        cls.all_results = []
 
     def _run_benchmark(
         self,

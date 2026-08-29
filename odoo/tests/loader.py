@@ -79,6 +79,7 @@ def _get_upgrade_test_modules(module: str) -> Generator[Any]:
                 if (pymod := sys.modules.get(spec.name)) is None:
                     pymod = importlib.util.module_from_spec(spec)
                     sys.modules[spec.name] = pymod
+                    assert spec.loader is not None
                     try:
                         spec.loader.exec_module(pymod)
                     except BaseException:
@@ -108,7 +109,7 @@ def run_suite(
     module.current_test = True
     try:
         results = OdooTestResult(global_report=global_report)
-        suite(results)
+        suite.run(results)
     finally:
         module.current_test = False
     return results

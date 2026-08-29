@@ -33,6 +33,28 @@ def _combine_bool_exprs(op: str, expr1: Any, expr2: Any) -> str:
     return f"({expr1}) {op} ({expr2})"
 
 
+def _field_modifiers(
+    node: Any, field_info: dict, flevel: Any, existing: dict | None
+) -> dict[str, Any]:
+    modifiers: dict[str, Any] = {}
+    for attr in ("required", "readonly", "invisible", "column_invisible"):
+        default = attr in ("required", "readonly") and field_info.get(attr, False)
+        expr = node.get(attr) or str(default)
+        modifiers[attr] = MODIFIER_ALIASES.get(expr, expr)
+
+    for ancestor in node.xpath(
+        f"ancestor::*[@invisible][count(ancestor::field) = {flevel}]"
+    ):
+        modifiers["invisible"] = _combine_bool_exprs(
+            "or", ancestor.get("invisible"), modifiers["invisible"]
+        )
+
+    for modifier, expr in (existing or {}).items():
+        modifiers[modifier] = _combine_bool_exprs("and", expr, modifiers[modifier])
+
+    return modifiers
+
+
 class Form:
     def __init__(
         self, record: BaseModel, view: int | str | BaseModel | None = None
@@ -53,11 +75,12 @@ class Form:
         else:
             view_id = view or False
 
-        views = record.get_views([(view_id, "form")])
+        views = record.get_views(  # type: ignore[attr-defined]  # base adds it to every model
+            [(view_id, "form")]
+        )
         self._models_info = views["models"]
         tree = etree.fromstring(views["views"]["form"]["arch"])
-        view = self._process_view(tree, record)
-        self._view = view
+        self._view = self._process_view(tree, record)
 
         self._values = UpdateDict()
         if record:
@@ -97,8 +120,10 @@ class Form:
 
     def _process_view(self, tree: Any, model: BaseModel, level: int = 2) -> dict:
         fields = {"id": {"type": "id"}}
-        fields_spec = {}
-        modifiers = {"id": {"required": "False", "readonly": "True"}}
+        fields_spec: dict[str, dict] = {}
+        modifiers: dict[str, dict[str, Any]] = {
+            "id": {"required": "False", "readonly": "True"}
+        }
         contexts = {}
         flevel = tree.xpath("count(ancestor::field)")
         daterange_field_names = {}
@@ -111,32 +136,9 @@ class Form:
             fields[field_name] = field_info
             fields_spec[field_name] = field_spec = {}
 
-            field_modifiers = {}
-            for attr in (
-                "required",
-                "readonly",
-                "invisible",
-                "column_invisible",
-            ):
-                default = attr in ("required", "readonly") and field_info.get(
-                    attr, False
-                )
-                expr = node.get(attr) or str(default)
-                field_modifiers[attr] = MODIFIER_ALIASES.get(expr, expr)
-
-            for ancestor in node.xpath(
-                f"ancestor::*[@invisible][count(ancestor::field) = {flevel}]"
-            ):
-                field_modifiers["invisible"] = _combine_bool_exprs(
-                    "or", ancestor.get("invisible"), field_modifiers["invisible"]
-                )
-
-            if field_name in modifiers:
-                for modifier, expr in modifiers[field_name].items():
-                    field_modifiers[modifier] = _combine_bool_exprs(
-                        "and", expr, field_modifiers[modifier]
-                    )
-
+            field_modifiers = _field_modifiers(
+                node, field_info, flevel, modifiers.get(field_name)
+            )
             modifiers[field_name] = field_modifiers
 
             ctx = node.get("context")
@@ -190,7 +192,9 @@ class Form:
             "fields_spec": fields_spec,
             "modifiers": modifiers,
             "contexts": contexts,
-            "onchange": model._onchange_spec({"arch": etree.tostring(tree)}),
+            "onchange": model._onchange_spec(  # type: ignore[attr-defined]  # base adds it to every model
+                {"arch": etree.tostring(tree)}
+            ),
         }
 
     def _get_one2many_edition_view(
@@ -232,7 +236,9 @@ class Form:
         assert self._record.id, "editing unstored records is not supported"
         self._values.clear()
 
-        [record_values] = self._record.web_read(self._view["fields_spec"])
+        [record_values] = self._record.web_read(  # type: ignore[attr-defined]  # base adds it to every model
+            self._view["fields_spec"]
+        )
         self._env.flush_all()
         self._env.clear()
 
@@ -365,7 +371,9 @@ class Form:
     def save(self) -> BaseModel:
         values = self._get_save_values()
         if not self._record or values:
-            [record_values] = self._record.web_save(values, self._view["fields_spec"])
+            [record_values] = self._record.web_save(  # type: ignore[attr-defined]  # base adds it to every model
+                values, self._view["fields_spec"]
+            )
             self._env.flush_all()
             self._env.clear()
 
@@ -386,6 +394,24 @@ class Form:
 
     def _get_save_values(self) -> dict:
         return self._get_values("save")
+
+    def _o2m_commands(
+        self, mode: str, value: O2MValue, field_info: dict, parent_values: UpdateDict
+    ) -> list:
+        subview = field_info["edition_view"]
+        return value.to_commands(
+            lambda vals: self._get_values(
+                mode,
+                vals,
+                subview,
+                modifiers_values={
+                    "id": False,
+                    **vals,
+                    "parent": Dotter(parent_values),
+                },
+                parent_link=field_info.get("relation_field"),
+            )
+        )
 
     def _get_values(
         self,
@@ -452,22 +478,7 @@ class Form:
                 if mode == "all":
                     value = list(value)
                 else:
-                    subview = field_info["edition_view"]
-                    value = value.to_commands(
-                        lambda vals, subview=subview, field_info=field_info: (
-                            self._get_values(
-                                mode,
-                                vals,
-                                subview,
-                                modifiers_values={
-                                    "id": False,
-                                    **vals,
-                                    "parent": Dotter(values),
-                                },
-                                parent_link=field_info.get("relation_field"),
-                            )
-                        )
-                    )
+                    value = self._o2m_commands(mode, value, field_info, values)
 
             elif field_info["type"] == "many2many":
                 if mode == "all":
@@ -624,7 +635,7 @@ class O2MForm(Form):
             values[field_info["relation_field"]] = parent_values
         return values
 
-    def save(self) -> None:
+    def save(self) -> BaseModel:
         proxy = self._proxy
         field_value = proxy._form._values[proxy._field]
         values = self._get_save_values()
@@ -635,6 +646,7 @@ class O2MForm(Form):
             field_value.update(id_, values)
 
         proxy._form._perform_onchange(proxy._field)
+        return self._record
 
     def _get_save_values(self) -> UpdateDict:
         values = UpdateDict(self._values)
@@ -683,7 +695,7 @@ class UpdateDict(dict):
 class X2MValue(collections.abc.Sequence):
     _virtual_seq = itertools.count()
 
-    __hash__ = None
+    __hash__ = None  # type: ignore[assignment]  # unhashable by design
 
     def __init__(self, iterable_of_vals: Any = ()) -> None:
         self._data: dict[Any, UpdateDict] = {
@@ -745,13 +757,16 @@ class X2MValue(collections.abc.Sequence):
     def to_list_of_vals(self) -> list[UpdateDict]:
         return list(self._data.values())
 
+    def to_commands(self) -> list:
+        raise NotImplementedError
+
     def _to_commands(
         self,
         convert_values: Callable[[UpdateDict], Any],
         removal_command: Callable[[Any], Any],
     ) -> list:
         given = set(self._given)
-        result = []
+        result: list = []
         for id_, vals in self._data.items():
             if isinstance(id_, str) and id_.startswith("virtual_"):
                 result.append((Command.CREATE, id_, convert_values(vals)))
@@ -786,9 +801,9 @@ class M2MValue(X2MValue):
 
 
 class X2MProxy:
-    _form: Form | None = None
-    _field: str | None = None
-    _field_info: dict | None = None
+    _form: Form
+    _field: str
+    _field_info: dict
 
     def __init__(self, form: Form, field_name: str) -> None:
         self._form = form
@@ -840,7 +855,7 @@ class O2MProxy(X2MProxy):
 
 
 class M2MProxy(X2MProxy, collections.abc.Sequence):
-    def __getitem__(self, index: Any) -> BaseModel:
+    def __getitem__(self, index: Any) -> BaseModel:  # type: ignore[override]  # a slice browses to a recordset, which is not a Sequence
         comodel_name = self._field_info["relation"]
         return self._form._env[comodel_name].browse(self._field_value[index])
 
@@ -899,7 +914,7 @@ class M2MProxy(X2MProxy, collections.abc.Sequence):
 def convert_read_to_form(values: dict, model_fields: dict) -> dict:
     result = {}
     for fname, value in values.items():
-        field_info = {"type": "id"} if fname == "id" else model_fields[fname]
+        field_info: dict = {"type": "id"} if fname == "id" else model_fields[fname]
         if field_info["type"] == "one2many":
             if "edition_view" in field_info:
                 subfields = field_info["edition_view"]["fields"]
@@ -942,6 +957,8 @@ def get_static_context(context_str: str) -> dict:
     assert isinstance(context_ast, ast.Dict)
     result = {}
     for key_ast, val_ast in zip(context_ast.keys, context_ast.values, strict=False):
+        if key_ast is None:
+            continue
         try:
             key = ast.literal_eval(key_ast)
             val = ast.literal_eval(val_ast)

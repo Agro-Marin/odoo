@@ -3,7 +3,7 @@ import inspect
 import logging
 import sys
 from pathlib import PurePath
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar, ParamSpec
 from unittest import SkipTest
 from unittest import TestCase as _TestCase
 
@@ -11,7 +11,7 @@ from .utils import InfrastructureUnavailable, addon_relative_path
 
 if TYPE_CHECKING:
     import types
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
 
 _logger = logging.getLogger(__name__)
 
@@ -19,6 +19,8 @@ _logger = logging.getLogger(__name__)
 __unittest = True
 
 _subtest_msg_sentinel = object()
+
+_P = ParamSpec("_P")
 
 
 class _Outcome:
@@ -41,28 +43,24 @@ class _Outcome:
                 infrastructure=isinstance(e, InfrastructureUnavailable),
             )
         except BaseException:
-            exc_info = sys.exc_info()
+            exception_type, exception, tb = sys.exc_info()
             self.success = False
-
-            if exc_info is not None:
-                exception_type, exception, tb = exc_info
+            if tb is not None:
                 tb = self._complete_traceback(tb)
-                exc_info = (exception_type, exception, tb)
-            self.test._addError(self.result, test_case, exc_info)
-
-            exc_info = None
+            self.test._addError(self.result, test_case, (exception_type, exception, tb))
+            del exception_type, exception, tb
 
     def _complete_traceback(
         self, initial_tb: types.TracebackType
-    ) -> types.TracebackType:
+    ) -> types.TracebackType | None:
         Traceback = type(initial_tb)
 
         tb_frames = set()
-        tb = initial_tb
-        while tb:
-            tb_frames.add(tb.tb_frame)
-            tb = tb.tb_next
-        tb = initial_tb
+        walk: types.TracebackType | None = initial_tb
+        while walk:
+            tb_frames.add(walk.tb_frame)
+            walk = walk.tb_next
+        tb: types.TracebackType | None = initial_tb
 
         current_frame = inspect.currentframe()
         common_frame = None
@@ -103,7 +101,9 @@ class _Outcome:
 
 
 class TestCase(_TestCase):
-    _class_cleanups = []
+    _class_cleanups: ClassVar[list] = []
+    tearDown_exceptions: ClassVar[list] = []
+    _classSetupFailed: ClassVar[bool] = False
     __unittest_skip__ = False
     __unittest_skip_why__ = ""
     _moduleSetUpFailed = False
@@ -127,25 +127,38 @@ class TestCase(_TestCase):
 
     def __init__(self, methodName: str = "runTest") -> None:
         self._testMethodName = methodName
-        self._outcome = None
+        self._outcome: _Outcome | None = None
         if methodName != "runTest" and not hasattr(self, methodName):
             raise ValueError(f"no such test method in {self.__class__}: {methodName}")
-        self._cleanups = []
-        self._subtest = None
+        self._cleanups: list = []
+        self._subtest: _SubTest | None = None
 
-        self._type_equality_funcs = {}
-        self.addTypeEqualityFunc(dict, "assertDictEqual")
-        self.addTypeEqualityFunc(list, "assertListEqual")
-        self.addTypeEqualityFunc(tuple, "assertTupleEqual")
-        self.addTypeEqualityFunc(set, "assertSetEqual")
-        self.addTypeEqualityFunc(frozenset, "assertSetEqual")
-        self.addTypeEqualityFunc(str, "assertMultiLineEqual")
+        self._type_equality_funcs: dict[type, str] = {
+            dict: "assertDictEqual",
+            list: "assertListEqual",
+            tuple: "assertTupleEqual",
+            set: "assertSetEqual",
+            frozenset: "assertSetEqual",
+            str: "assertMultiLineEqual",
+        }
 
-    def addCleanup(self, function: Any, *args: Any, **kwargs: Any) -> None:
+    def addCleanup(
+        self,
+        function: Callable[_P, object],
+        /,
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> None:
         self._cleanups.append((function, args, kwargs))
 
     @classmethod
-    def addClassCleanup(cls, function: Any, *args: Any, **kwargs: Any) -> None:
+    def addClassCleanup(
+        cls,
+        function: Callable[_P, object],
+        /,
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> None:
         cls._class_cleanups.append((function, args, kwargs))
 
     def shortDescription(self) -> None:
@@ -161,9 +174,10 @@ class TestCase(_TestCase):
                 **params,
                 **{k: v for k, v in parent.params.items() if k not in params},
             }
-        self._subtest = _SubTest(self, msg, params)
+        subtest = self._subtest = _SubTest(self, msg, params)
         try:
-            with self._outcome.testPartExecutor(self._subtest):
+            assert self._outcome is not None
+            with self._outcome.testPartExecutor(subtest):
                 yield
         finally:
             self._subtest = parent
@@ -189,7 +203,7 @@ class TestCase(_TestCase):
     def _callCleanup(self, function: Any, *args: Any, **kwargs: Any) -> None:
         function(*args, **kwargs)
 
-    def run(self, result: Any) -> Any:
+    def run(self, result: Any) -> Any:  # type: ignore[override]  # a result is mandatory here
         result.startTest(self)
 
         testMethod = getattr(self, self._testMethodName)
@@ -246,6 +260,7 @@ class TestCase(_TestCase):
 
     def doCleanups(self) -> None:
 
+        assert self._outcome is not None
         while self._cleanups:
             function, args, kwargs = self._cleanups.pop()
             with self._outcome.testPartExecutor(self):

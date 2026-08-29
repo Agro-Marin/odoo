@@ -16,7 +16,7 @@ from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from functools import partial, wraps
 from itertools import zip_longest
-from typing import TYPE_CHECKING, Any, Self, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 from unittest import TestResult
 from unittest.mock import Mock, _patch, patch
 from urllib.parse import urlsplit
@@ -38,6 +38,7 @@ from odoo.db.utils import seed_planner_stats
 from odoo.exceptions import AccessError
 from odoo.fields import Command
 from odoo.libs.password import CryptContext
+from odoo.logutils import RUNBOT
 from odoo.modules.registry import DummyRLock, Registry
 from odoo.tools import (
     SQL,
@@ -140,10 +141,10 @@ def skip_if_dev_mode(*flags: str) -> None:
         )
 
 
-standalone_tests = defaultdict(list)
+standalone_tests: defaultdict[str, list] = defaultdict(list)
 
 
-class RegistryRLock(threading._RLock):
+class RegistryRLock(threading._RLock):  # type: ignore[misc]  # only the private class is subclassable
     @property
     def count(self) -> int:
         return self._count
@@ -344,13 +345,66 @@ class BlockedRequest(requests.exceptions.ConnectionError):
 _super_send = requests.Session.send
 
 
+def _normalise_expected(
+    records: odoo.models.BaseModel,
+    expected_values: list[dict],
+    field_names: Iterable[str],
+) -> list[dict]:
+    rows = []
+    for vs in expected_values:
+        row: dict[str, Any] = {}
+        for name in field_names:
+            field_type = records._fields[name].type
+            if vs[name] is None:
+                row[name] = False
+            elif field_type in ("one2many", "many2many"):
+                row[name] = sorted(vs[name])
+            elif field_type == "float":
+                row[name] = float(vs[name])
+            elif field_type == "integer":
+                row[name] = int(vs[name])
+            else:
+                row[name] = vs[name]
+        rows.append(row)
+    return rows
+
+
+def _normalise_records(
+    records: odoo.models.BaseModel, field_names: Iterable[str]
+) -> list[dict]:
+    rows = []
+    for record in records:
+        row: dict[str, Any] = {}
+        for field_name in field_names:
+            record_value = record[field_name]
+            match record._fields[field_name]:
+                case odoo.fields.Many2one():
+                    record_value = record_value.id
+                case odoo.fields.One2many() | odoo.fields.Many2many():
+                    record_value = sorted(record_value.ids)
+                case odoo.fields.Float() as field if digits := field.get_digits(
+                    record.env
+                ):
+                    record_value = Approx(record_value, digits[1], decorate=False)
+                case odoo.fields.Monetary() as field if (
+                    currency_field_name := field.get_currency_field(record)
+                ):
+                    if c := record[currency_field_name]:
+                        record_value = Approx(record_value, c, decorate=False)
+
+            row[field_name] = record_value
+        rows.append(row)
+    return rows
+
+
 class BaseCase(case.TestCase):
-    registry: Registry = None
-    env: api.Environment = None
-    cr: Cursor = None
+    registry: Registry = None  # type: ignore[assignment]
+    env: api.Environment = None  # type: ignore[assignment]
+    cr: Cursor = None  # type: ignore[assignment]
+    registry_patches: ClassVar[list]
 
     test_tags: set[str] | None = None
-    freeze_time = None
+    freeze_time: ClassVar[Any] = None
     _starts_freeze_time_itself = False
 
     test_module: str = ""
@@ -405,7 +459,7 @@ class BaseCase(case.TestCase):
         )
         raise BlockedRequest(f"External requests verboten (was {r.method} {r.url})")
 
-    def run(self, result: OdooTestResult) -> None:
+    def run(self, result: OdooTestResult) -> None:  # type: ignore[override]  # a result is mandatory here
         testMethod = getattr(self, self._testMethodName)
 
         if getattr(testMethod, "_retry", True) and getattr(self, "_retry", True):
@@ -417,7 +471,7 @@ class BaseCase(case.TestCase):
         for retry in range(tests_run_count):
             result.had_failure = False
             if retry:
-                _logger.runbot(f"Retrying a failed test: {self}")
+                _logger.log(RUNBOT, "Retrying a failed test: %s", self)
             with ExitStack() as attempt:
                 if retry:
                     attempt.enter_context(result.retry())
@@ -425,7 +479,7 @@ class BaseCase(case.TestCase):
                 if retry == tests_run_count - 1:
                     super().run(cast("TestResult", result))
                     if not result.wasSuccessful() and BaseCase._tests_run_count != 1:
-                        _logger.runbot("Disabling auto-retry after a failed test")
+                        _logger.log(RUNBOT, "Disabling auto-retry after a failed test")
                         BaseCase._tests_run_count = 1
                     break
 
@@ -458,7 +512,7 @@ class BaseCase(case.TestCase):
         cls.addClassCleanup(check_remaining_processes)
 
         def check_remaining_patchers():
-            for patcher in list(_patch._active_patches):
+            for patcher in list(_patch._active_patches):  # type: ignore[attr-defined]  # mock keeps the registry private
                 if hasattr(patcher, "target"):
                     description = f"{patcher.target}.{patcher.attribute}"
                 else:
@@ -494,7 +548,8 @@ class BaseCase(case.TestCase):
         super().setUpClass()
         if cls.freeze_time and not cls._starts_freeze_time_itself:
             cls.startClassPatcher(cls.freeze_time)
-        if "standard" in cls.test_tags or "click_all" in cls.test_tags:
+        class_tags = cls.test_tags or set()
+        if "standard" in class_tags or "click_all" in class_tags:
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
@@ -515,7 +570,7 @@ class BaseCase(case.TestCase):
         )
 
     def cursor(self) -> Cursor:
-        return self.registry.cursor()
+        return cast("Cursor", self.registry.cursor())
 
     @property
     def uid(self):
@@ -620,7 +675,7 @@ class BaseCase(case.TestCase):
 
                 yield cm
 
-    def assertRaises(
+    def assertRaises(  # type: ignore[override]  # narrowed to one exception type
         self,
         exception: type[BaseException],
         func: Callable | None = None,
@@ -690,7 +745,7 @@ class BaseCase(case.TestCase):
     def assertQueries(
         self, expected: list[str], flush: bool = True
     ) -> Generator[list[str]]:
-        actual_queries = []
+        actual_queries: list[str] = []
 
         yield from self._patchExecute(actual_queries, flush)
 
@@ -708,7 +763,7 @@ class BaseCase(case.TestCase):
     def assertQueriesContain(
         self, expected: list[str], flush: bool = True
     ) -> Generator[list[str]]:
-        actual_queries = []
+        actual_queries: list[str] = []
 
         yield from self._patchExecute(actual_queries, flush)
 
@@ -732,7 +787,7 @@ class BaseCase(case.TestCase):
     ) -> Generator[None]:
         if self.warm:
             with patch("random.random", lambda: 1):
-                login = self.env.user.login
+                login = self.env.user.login  # type: ignore[attr-defined]  # res.users is an addon model
                 expected = counters.get(login, default)
                 if flush:
                     self.env.flush_all()
@@ -809,45 +864,10 @@ class BaseCase(case.TestCase):
                     f"All expected values must have the same keys, found differences between records 0 and {i}",
                 )
 
-        expected_reformatted = []
-        for vs in expected_values:
-            r = {}
-            for f in field_names:
-                t = records._fields[f].type
-                if vs[f] is None:
-                    r[f] = False
-                elif t in ("one2many", "many2many"):
-                    r[f] = sorted(vs[f])
-                elif t == "float":
-                    r[f] = float(vs[f])
-                elif t == "integer":
-                    r[f] = int(vs[f])
-                else:
-                    r[f] = vs[f]
-            expected_reformatted.append(r)
-
-        record_reformatted = []
-        for record in records:
-            r = {}
-            for field_name in field_names:
-                record_value = record[field_name]
-                match record._fields[field_name]:
-                    case odoo.fields.Many2one():
-                        record_value = record_value.id
-                    case odoo.fields.One2many() | odoo.fields.Many2many():
-                        record_value = sorted(record_value.ids)
-                    case odoo.fields.Float() as field if digits := field.get_digits(
-                        record.env
-                    ):
-                        record_value = Approx(record_value, digits[1], decorate=False)
-                    case odoo.fields.Monetary() as field if (
-                        currency_field_name := field.get_currency_field(record)
-                    ):
-                        if c := record[currency_field_name]:
-                            record_value = Approx(record_value, c, decorate=False)
-
-                r[field_name] = record_value
-            record_reformatted.append(r)
+        expected_reformatted = _normalise_expected(
+            records, expected_values, field_names
+        )
+        record_reformatted = _normalise_records(records, field_names)
 
         try:
             self.assertSequenceEqual(
@@ -931,7 +951,7 @@ class BaseCase(case.TestCase):
         def _patched_cursor(readonly: bool = False):
             return TestCursor(
                 cr,
-                _registry_test_lock,
+                cast("Any", _registry_test_lock),
                 readonly and cls._registry_readonly_enabled,
             )
 
@@ -1009,7 +1029,7 @@ class BaseCase(case.TestCase):
     def assertCanOpenTestCursor(self) -> None:
         if odoo.modules.module.current_test is not self:
             message = f"Trying to open a test cursor for {self.canonical_tag} while already in a test {current_test_tag()}"
-            _logger.runbot(message)
+            _logger.log(RUNBOT, message)
             raise BadRequest(message)
         request = odoo.http.request
         if not request or self.http_request_allow_all:
@@ -1020,7 +1040,8 @@ class BaseCase(case.TestCase):
             expected = http_request_required_key
             if not expected:
                 expected = "None (request are not enabled)"
-            _logger.runbot(
+            _logger.log(
+                RUNBOT,
                 "Request with path %s has been ignored during test as it "
                 "does not contain the test_cursor cookie or it is expired."
                 ' (required "%s", got "%s")',
@@ -1060,7 +1081,7 @@ class Like:
             [re.escape(part.strip()) for part in self.pattern.split("...")]
         )
 
-    __hash__ = None
+    __hash__ = None  # type: ignore[assignment]  # unhashable by design
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, str):
@@ -1093,6 +1114,7 @@ class Approx:
     ) -> None:
         self.value = value
         self.decorate = decorate
+        self.cmp: Callable[[float, float], int]
         if isinstance(rounding, int):
             self.cmp = partial(float_compare, precision_digits=rounding)
         elif isinstance(rounding, float):
@@ -1110,11 +1132,19 @@ class Approx:
             return NotImplemented
         return self.cmp(self.value, other) == 0
 
-    __hash__ = None
+    __hash__ = None  # type: ignore[assignment]  # unhashable by design
 
 
 class TransactionCase(BaseCase):
     muted_registry_logger = mute_logger(odoo.orm.runtime.registry._logger.name)
+    registry_start_invalidated: ClassVar[bool]
+    registry_start_sequence: ClassVar[int]
+    registry_cache_sequences: ClassVar[dict]
+    _signal_changes_patcher: ClassVar[Any]
+    commit_patcher: ClassVar[Any]
+    rollback_patcher: ClassVar[Any]
+    close_patcher: ClassVar[Any]
+    _crypt_context_patcher: ClassVar[Any]
     _starts_freeze_time_itself = True
 
     @classmethod
@@ -1165,8 +1195,8 @@ class TransactionCase(BaseCase):
         )
         cls.startClassPatcher(cls._signal_changes_patcher)
 
-        cls.cr = cls.registry.cursor()
-        cls.addClassCleanup(cast("Cursor", cls.cr).close)
+        cls.cr = cast("Cursor", cls.registry.cursor())
+        cls.addClassCleanup(cls.cr.close)
 
         seed_planner_stats(cls.cr)
 
@@ -1289,8 +1319,8 @@ class SingleTransactionCase(BaseCase):
         cls.addClassCleanup(cls.registry.reset_changes)
         cls.addClassCleanup(cls.registry.clear_all_caches)
 
-        cls.cr = cls.registry.cursor()
-        cls.addClassCleanup(cast("Cursor", cls.cr).close)
+        cls.cr = cast("Cursor", cls.registry.cursor())
+        cls.addClassCleanup(cls.cr.close)
         seed_planner_stats(cls.cr)
 
         if cls.freeze_time:
@@ -1367,8 +1397,9 @@ def tagged(*tags: str) -> Callable:
     include = {t for t in tags if not t.startswith("-")}
     exclude = {t[1:] for t in tags if t.startswith("-")}
 
-    def tags_decorator(obj: Any) -> Any:
-        if not isinstance(obj, type):
+    def tags_decorator(target: Any) -> Any:
+        obj: Any = target
+        if not isinstance(target, type):
             obj.test_tags = getattr(obj, "test_tags", set()) | include
             obj.test_tags_exclude = getattr(obj, "test_tags_exclude", set()) | exclude
             return obj
@@ -1412,9 +1443,10 @@ class freeze_time:
         )
 
     def __call__(self, arg: Any) -> Any:
+        target: Any = arg
         if isinstance(arg, type) and issubclass(arg, case.TestCase):
-            arg.freeze_time = self
-            return arg
+            target.freeze_time = self
+            return target
 
         return self.freezer(arg)
 

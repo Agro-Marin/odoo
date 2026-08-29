@@ -21,6 +21,7 @@ import werkzeug.serving
 
 from odoo.service import _base_server, _helpers, _prefork, _threaded
 from odoo.service import wsgi as _helpers_wsgi
+from odoo.tools import SQL
 
 
 @pytest.fixture(scope="module")
@@ -249,15 +250,19 @@ class TestWorkerCronConnectPostgres:
             worker_cron._connect_postgres()
         return conn, cursor, mock_connect
 
+    def _executed(self, cursor):
+        return [
+            query.code if isinstance(query, SQL) else query
+            for query in (c.args[0] for c in cursor.execute.call_args_list)
+        ]
+
     def test_executes_listen_when_not_in_recovery(self, worker_cron):
         _, cursor, _ = self._connect(worker_cron, in_recovery=False)
-        executed = [c.args[0] for c in cursor.execute.call_args_list]
-        assert "LISTEN cron_trigger" in executed
+        assert 'LISTEN "cron_trigger"' in self._executed(cursor)
 
     def test_skips_listen_in_recovery_mode(self, worker_cron):
         _, cursor, _ = self._connect(worker_cron, in_recovery=True)
-        executed = [c.args[0] for c in cursor.execute.call_args_list]
-        assert "LISTEN cron_trigger" not in executed
+        assert 'LISTEN "cron_trigger"' not in self._executed(cursor)
 
     def test_commits_after_listen(self, worker_cron):
         _, cursor, _ = self._connect(worker_cron, in_recovery=False)

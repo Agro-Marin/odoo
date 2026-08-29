@@ -1,13 +1,15 @@
 import contextlib
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import odoo
 from odoo.db import BaseCursor, Cursor, Savepoint
 
 if TYPE_CHECKING:
     import threading
+
+    from .common import BaseCase
 
 _logger = logging.getLogger(__name__)
 
@@ -25,8 +27,9 @@ class TestCursor(BaseCursor):
         self._cursor = cursor
         self.readonly = readonly
         self._lock = lock
-        current_test = odoo.modules.module.current_test
-        assert current_test, "Test Cursor without active test ?"
+        running = odoo.modules.module.current_test
+        assert not isinstance(running, bool), "Test Cursor without active test ?"
+        current_test = cast("BaseCase", running)
         current_test.assertCanOpenTestCursor()
         lock_timeout = current_test.test_cursor_lock_timeout
         if not self._lock.acquire(timeout=lock_timeout):

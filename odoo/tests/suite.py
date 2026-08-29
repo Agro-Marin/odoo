@@ -1,11 +1,13 @@
 import logging
 import sys
+from collections.abc import Callable
 from typing import Any
-from unittest import BaseTestSuite, TestCase, util
+from unittest import BaseTestSuite, util
 
 import odoo
 
 from . import case
+from .case import TestCase
 from .http import HttpCase
 from .result import OdooTestResult, stats_logger
 from .utils import InfrastructureUnavailable
@@ -14,7 +16,12 @@ __unittest = True
 
 
 class TestSuite(BaseTestSuite):
-    def run(self, result: OdooTestResult, debug: bool = False) -> OdooTestResult:
+    _cleanup: bool
+    _removeTestAtIndex: Callable[[int], None]
+
+    def run(  # type: ignore[override]  # this runner requires an OdooTestResult
+        self, result: OdooTestResult, debug: bool = False
+    ) -> OdooTestResult:
         for index, test in enumerate(self):
             if result.shouldStop:
                 break
@@ -25,7 +32,7 @@ class TestSuite(BaseTestSuite):
             result._previousTestClass = test.__class__
 
             if not test.__class__._classSetupFailed:
-                test(result)
+                test.run(result)
 
             if self._cleanup:
                 self._removeTestAtIndex(index)

@@ -6,7 +6,7 @@ import re
 import sys
 import time
 import traceback
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol
 
 from .. import db
 from . import case
@@ -31,7 +31,7 @@ class Stat(NamedTuple):
     time: float = 0.0
     queries: int = 0
 
-    def __add__(self, other: Stat) -> Stat:
+    def __add__(self, other: object) -> Stat:
         if not isinstance(other, Stat):
             return NotImplemented
 
@@ -57,10 +57,18 @@ $
 )
 
 
+class TestLike(Protocol):
+    failureException: Any
+
+    def id(self) -> str: ...
+
+    def shortDescription(self) -> str | None: ...
+
+
 class OdooTestResult:
     _monotonic = staticmethod(time.monotonic)
 
-    _previousTestClass = None
+    _previousTestClass: type[case.TestCase] | None = None
     _moduleSetUpFailed = False
 
     def __init__(
@@ -76,16 +84,14 @@ class OdooTestResult:
         self.skipped = 0
         self.infrastructure_skipped = 0
         self.tb_locals = False
-        self.time_start = None
-        self.queries_start = None
+        self.time_start = 0.0
+        self.queries_start = 0
         self._soft_fail = False
         self._is_retry = False
         self.had_failure = False
-        self.stats = collections.defaultdict(Stat)
+        self.stats: dict[str, Stat] = collections.defaultdict(Stat)
         self.global_report = global_report
-        self.shouldStop = (
-            self.global_report and self.global_report.shouldStop
-        ) or False
+        self.shouldStop: bool = bool(global_report and global_report.shouldStop)
 
     def total_errors_count(self) -> int:
         result = self.errors_count + self.failures_count
@@ -108,7 +114,7 @@ class OdooTestResult:
     def printErrors(self) -> None:
         pass
 
-    def startTest(self, test: case.TestCase) -> None:
+    def startTest(self, test: TestLike) -> None:
         if not self._is_retry:
             self.testsRun += 1
         self.log(
@@ -120,14 +126,14 @@ class OdooTestResult:
         self.time_start = self._monotonic()
         self.queries_start = db.sql_counter
 
-    def stopTest(self, test: case.TestCase) -> None:
+    def stopTest(self, test: TestLike) -> None:
         if stats_logger.isEnabledFor(logging.INFO):
             self.stats[test.id()] = Stat(
                 time=self._monotonic() - self.time_start,
                 queries=db.sql_counter - self.queries_start,
             )
 
-    def addError(self, test: case.TestCase, err: tuple) -> None:
+    def addError(self, test: TestLike, err: tuple) -> None:
         if self._soft_fail:
             self.had_failure = True
         else:
@@ -135,7 +141,7 @@ class OdooTestResult:
         self.logError("ERROR", test, err)
         self._checkShouldStop()
 
-    def addFailure(self, test: case.TestCase, err: tuple) -> None:
+    def addFailure(self, test: TestLike, err: tuple) -> None:
         if self._soft_fail:
             self.had_failure = True
         else:
@@ -144,7 +150,7 @@ class OdooTestResult:
         self._checkShouldStop()
 
     def addSubTest(
-        self, test: case.TestCase, subtest: case.TestCase, err: tuple | None
+        self, test: case.TestCase, subtest: TestLike, err: tuple | None
     ) -> None:
         if err is not None:
             if issubclass(err[0], test.failureException):
@@ -152,11 +158,11 @@ class OdooTestResult:
             else:
                 self.addError(subtest, err)
 
-    def addSuccess(self, test: case.TestCase) -> None:
+    def addSuccess(self, test: TestLike) -> None:
         pass
 
     def addSkip(
-        self, test: case.TestCase, reason: str, infrastructure: bool = False
+        self, test: TestLike, reason: str, infrastructure: bool = False
     ) -> None:
         self.skipped += 1
         if not infrastructure:
@@ -196,7 +202,7 @@ class OdooTestResult:
     def wasSuccessful(self) -> bool:
         return self.failures_count == self.errors_count == 0
 
-    def _exc_info_to_string(self, err: tuple, test: case.TestCase) -> str:
+    def _exc_info_to_string(self, err: tuple, test: TestLike) -> str:
         exctype, value, tb = err
         while tb and self._is_relevant_tb_level(tb):
             tb = tb.tb_next
@@ -269,16 +275,16 @@ class OdooTestResult:
         level: int,
         msg: str,
         *args: Any,
-        test: case.TestCase | None = None,
+        test: TestLike | None = None,
         exc_info: Any = None,
         extra: dict | None = None,
         stack_info: bool = False,
         caller_infos: tuple | None = None,
     ) -> None:
-        test = test or self
-        while isinstance(test, case._SubTest) and test.test_case:
-            test = test.test_case
-        logger = logging.getLogger(test.__module__)
+        source: TestLike | OdooTestResult = test or self
+        while isinstance(source, case._SubTest) and source.test_case:
+            source = source.test_case
+        logger = logging.getLogger(source.__module__)
         try:
             caller_infos = caller_infos or logger.findCaller(stack_info)
         except ValueError:
@@ -304,8 +310,8 @@ class OdooTestResult:
             return
 
         details = stats_logger.isEnabledFor(logging.DEBUG)
-        stats_tree = collections.defaultdict(Stat)
-        counts = collections.Counter()
+        stats_tree: dict[str, Stat] = collections.defaultdict(Stat)
+        counts: collections.Counter[str] = collections.Counter()
         for test, stat in self.stats.items():
             r = _TEST_ID.match(test)
             if not r:
@@ -335,7 +341,7 @@ class OdooTestResult:
                     stat.queries,
                 )
 
-    def getDescription(self, test: case.TestCase) -> str:
+    def getDescription(self, test: TestLike) -> str:
         if isinstance(test, case._SubTest):
             tc = test.test_case
             return (
@@ -359,7 +365,7 @@ class OdooTestResult:
                 queries=db.sql_counter - queries_before,
             )
 
-    def logError(self, flavour: str, test: case.TestCase, error: tuple) -> None:
+    def logError(self, flavour: str, test: TestLike, error: tuple) -> None:
         err = self._exc_info_to_string(error, test)
         caller_infos = self.getErrorCallerInfo(error, test)
         self.log(logging.INFO, "=" * 70, test=test, caller_infos=caller_infos)
@@ -374,7 +380,7 @@ class OdooTestResult:
         )
 
     def getErrorCallerInfo(
-        self, error: tuple, test: case.TestCase
+        self, error: tuple, test: TestLike
     ) -> tuple[str, int, str, None] | None:
 
         if not isinstance(test, case.TestCase):

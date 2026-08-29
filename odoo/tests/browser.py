@@ -27,6 +27,7 @@ import psutil
 import requests
 
 import odoo.tools
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.logutils import RUNBOT
 from odoo.tools.misc import find_in_path
 
@@ -117,6 +118,7 @@ class ChromeBrowser:
             raise InfrastructureUnavailable("websocket-client module is not installed")
         self.user_data_dir = tempfile.mkdtemp(suffix="_chrome_odoo")
 
+        self.screencaster: Screencaster | NoScreencast
         if scs := odoo.tools.config["screencasts"]:
             self.screencaster = Screencaster(self, scs)
         else:
@@ -130,11 +132,11 @@ class ChromeBrowser:
             self._sigxcpu_installed = True
 
         self._request_id = itertools.count()
-        self._result = Future()
-        self.error_checker = None
+        self._result: Future[Any] = Future()
+        self.error_checker: Callable | None = None
         self.had_failure = False
-        self._responses = {}
-        self._frames = {}
+        self._responses: dict[int, Future] = {}
+        self._frames: dict[str, Any] = {}
         try:
             self.chrome, self.devtools_port = self._chrome_start(
                 user_data_dir=self.user_data_dir,
@@ -149,7 +151,7 @@ class ChromeBrowser:
 
     def _connect(self) -> None:
         self.ws = self._open_websocket()
-        self._handlers = {
+        self._handlers: dict[str, Callable] = {
             "Fetch.requestPaused": self._handle_request_paused,
             "Runtime.consoleAPICalled": self._handle_console,
             "Runtime.exceptionThrown": self._handle_exception,
@@ -272,7 +274,7 @@ class ChromeBrowser:
                 )
                 self._websocket_request("Browser.close")
             except ChromeBrowserException as e:
-                _logger.runbot("WS error during browser shutdown: %s", e)
+                _logger.log(RUNBOT, "WS error during browser shutdown: %s", e)
             except Exception:
                 _logger.warning("Error during browser shutdown", exc_info=True)
             self._logger.info("Closing websocket connection")
@@ -493,7 +495,7 @@ class ChromeBrowser:
         return ws
 
     def _receive(self, dbname: str) -> None:
-        threading.current_thread().dbname = dbname
+        current_worker_thread().dbname = dbname
         while True:
             try:
                 msg = self.ws.recv()
@@ -508,11 +510,11 @@ class ChromeBrowser:
                     self._result.set_exception(e)
                     while True:
                         try:
-                            _, f = self._responses.popitem()
+                            _, pending = self._responses.popitem()
                         except KeyError:
                             break
                         else:
-                            f.cancel()
+                            pending.cancel()
                 return
             except Exception as e:
                 if isinstance(e, ConnectionResetError) and self._result.done():
@@ -552,6 +554,7 @@ class ChromeBrowser:
         if timeout is None:
             timeout = 10.0 * self.throttling_factor
         f = self._websocket_send(method, params=params, with_future=True)
+        assert f is not None
         try:
             return f.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
@@ -657,50 +660,51 @@ class ChromeBrowser:
                 self.take_screenshot()
                 self._settle_exception(ChromeBrowserException(message))
         elif message == self.success_signal:
+            self._handle_success_signal(_logger)
 
-            @run
-            def _get_heap():
-                yield self._websocket_send(
-                    "HeapProfiler.collectGarbage", with_future=True
+    def _handle_success_signal(self, _logger: logging.Logger) -> None:
+
+        @run
+        def _get_heap():
+            yield self._websocket_send("HeapProfiler.collectGarbage", with_future=True)
+            r = yield self._websocket_send("Runtime.getHeapUsage", with_future=True)
+            _logger.info("heap %d (allocated %d)", r["usedSize"], r["totalSize"])
+
+        @run
+        def _check_form():
+            node_id = 0
+
+            with contextlib.suppress(Exception):
+                d = yield self._websocket_send(
+                    "DOM.getDocument", params={"depth": 0}, with_future=True
                 )
-                r = yield self._websocket_send("Runtime.getHeapUsage", with_future=True)
-                _logger.info("heap %d (allocated %d)", r["usedSize"], r["totalSize"])
+                form = yield self._websocket_send(
+                    "DOM.querySelector",
+                    params={
+                        "nodeId": d["root"]["nodeId"],
+                        "selector": ".o_form_dirty",
+                    },
+                    with_future=True,
+                )
+                node_id = form["nodeId"]
 
-            @run
-            def _check_form():
-                node_id = 0
-
-                with contextlib.suppress(Exception):
-                    d = yield self._websocket_send(
-                        "DOM.getDocument", params={"depth": 0}, with_future=True
-                    )
-                    form = yield self._websocket_send(
-                        "DOM.querySelector",
-                        params={
-                            "nodeId": d["root"]["nodeId"],
-                            "selector": ".o_form_dirty",
-                        },
-                        with_future=True,
-                    )
-                    node_id = form["nodeId"]
-
-                if node_id:
-                    self.take_screenshot("unsaved_form_")
-                    msg = """\
+            if node_id:
+                self.take_screenshot("unsaved_form_")
+                msg = """\
 Tour finished with a dirty form view being open.
 
 Dirty form views are automatically saved when the page is closed, \
 which leads to stray network requests and inconsistencies."""
-                    if self._result.done():
-                        _logger.error("%s", msg)
-                    else:
-                        self._settle_exception(ChromeBrowserException(msg))
-                    return
+                if self._result.done():
+                    _logger.error("%s", msg)
+                else:
+                    self._settle_exception(ChromeBrowserException(msg))
+                return
 
-                if not self._result.done():
-                    self._settle_result(True)
-                elif not self._result.cancelled() and self._result.exception() is None:
-                    _logger.error("Tried to make the tour successful twice.")
+            if not self._result.done():
+                self._settle_result(True)
+            elif not self._result.cancelled() and self._result.exception() is None:
+                _logger.error("Tried to make the tour successful twice.")
 
     def _handle_exception(self, exceptionDetails: dict, timestamp: float) -> None:
         message = exceptionDetails["text"]
@@ -736,15 +740,16 @@ which leads to stray network requests and inconsistencies."""
         "dir": RUNBOT,
     }
 
-    def take_screenshot(self, prefix="sc_") -> Future[dict]:
+    def take_screenshot(self, prefix: str = "sc_") -> Future[dict] | None:
         def handler(f):
             try:
                 base_png = f.result(timeout=0)["data"]
             except Exception as e:
-                self._logger.runbot("Couldn't capture screenshot: %s", e)
+                self._logger.log(RUNBOT, "Couldn't capture screenshot: %s", e)
                 return
             if not base_png:
-                self._logger.runbot(
+                self._logger.log(
+                    RUNBOT,
                     "Couldn't capture screenshot: expected image data, got %r",
                     base_png,
                 )
@@ -772,7 +777,12 @@ which leads to stray network requests and inconsistencies."""
         *,
         http_only: bool = False,
     ) -> None:
-        params = {"name": name, "value": value, "path": path, "domain": domain}
+        params: dict[str, Any] = {
+            "name": name,
+            "value": value,
+            "path": path,
+            "domain": domain,
+        }
         if http_only:
             params["httpOnly"] = True
         self._websocket_request("Network.setCookie", params=params)
@@ -858,7 +868,7 @@ which leads to stray network requests and inconsistencies."""
         if res.get("subtype") == "error":
             raise ChromeBrowserException("Running code returned an error: %s" % res)
 
-        err = ChromeBrowserException("failed")
+        err: Exception = ChromeBrowserException("failed")
         try:
             if (
                 self._result.result(max(0.0, start + timeout - time.monotonic()))
@@ -975,7 +985,7 @@ class Screencaster:
         self.directory = pathlib.Path(directory, get_db_name(), "screencasts")
         ts = datetime.now()
         self.frames_dir = self.directory / f"frames-{ts:%Y%m%dT%H%M%S.%f}"
-        self.frames = []
+        self.frames: list[dict[str, Any]] = []
 
     def start(self) -> None:
         self._logger.info("Starting screencast")
@@ -1034,7 +1044,7 @@ class Screencaster:
         try:
             ffmpeg_path = find_in_path("ffmpeg")
         except OSError:
-            self._logger.runbot("Screencast frames in: %s", self.frames_dir)
+            self._logger.log(RUNBOT, "Screencast frames in: %s", self.frames_dir)
             return
 
         outfile = self.frames_dir.with_suffix(".mp4")
@@ -1069,7 +1079,7 @@ class Screencaster:
         else:
             concat_script_path.unlink()
             shutil.rmtree(self.frames_dir, ignore_errors=True)
-            self._logger.runbot("Screencast in: %s", outfile)
+            self._logger.log(RUNBOT, "Screencast in: %s", outfile)
 
 
 @lru_cache(1)

@@ -33,7 +33,12 @@ def run_tests(
         _logger.error("run_tests should be used only in threaded mode")
         return None
 
+    from odoo.service._threaded import ThreadedServer
     from odoo.service.lifecycle import server
+
+    if not isinstance(server, ThreadedServer):
+        _logger.error("run_tests needs a threaded server; none is running")
+        return None
 
     if not server.httpd:
         server.http_spawn()

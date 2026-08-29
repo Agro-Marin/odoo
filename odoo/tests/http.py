@@ -7,7 +7,7 @@ import logging
 import threading
 import time
 from contextlib import ExitStack, contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.mock import patch
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from uuid import uuid4
@@ -17,6 +17,7 @@ import requests
 
 import odoo.http
 from odoo import api
+from odoo.logutils import RUNBOT
 from odoo.service import security
 from odoo.tools import profiler
 
@@ -71,9 +72,10 @@ class HttpCase(TransactionCase):
     browser = None
     browser_size = "1366x768"
     touch_enabled = False
-    session: odoo.http.Session = None
+    session: odoo.http.Session
 
-    _logger: logging.Logger = None
+    xmlrpc_url: ClassVar[str]
+    _logger: logging.Logger
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -86,7 +88,7 @@ class HttpCase(TransactionCase):
             cls.registry_enter_test_mode_cls()
 
         ICP = cls.env["ir.config_parameter"]
-        ICP.set_param("web.base.url", cls.base_url())
+        ICP.set_param("web.base.url", cls.base_url())  # type: ignore[attr-defined]  # ir.config_parameter is an addon model
         ICP.env.flush_all()
         cls.xmlrpc_url = f"{cls.base_url()}/xmlrpc/2/"
         cls._logger = logging.getLogger("%s.%s" % (cls.__module__, cls.__name__))
@@ -344,21 +346,9 @@ class HttpCase(TransactionCase):
             ],
         }
 
-    def browser_js(
-        self,
-        url_path,
-        code,
-        ready="",
-        login=None,
-        timeout=60,
-        cookies=None,
-        error_checker=None,
-        watch=False,
-        success_signal=DEFAULT_SUCCESS_SIGNAL,
-        debug=False,
-        cpu_throttling=None,
-        **kw,
-    ):
+    def _browser_js_budget(
+        self, timeout: float, watch: bool, debug: Any
+    ) -> tuple[float, bool]:
         if not self.env.registry.loaded:
             self._logger.warning("HttpCase test should be in post_install only")
 
@@ -374,6 +364,63 @@ class HttpCase(TransactionCase):
             timeout = 1e6
         if watch:
             self._logger.warning("watch mode is only suitable for local testing")
+        return timeout, watch
+
+    def _browser_js_patch_bus(self, atexit: contextlib.ExitStack) -> None:
+        if "bus.bus" not in self.env.registry:
+            return
+
+        from odoo.addons.bus.models.bus import BusBus
+        from odoo.addons.bus.websocket import (
+            CloseCode,
+            WebsocketConnectionHandler,
+            _kick_all,
+        )
+
+        atexit.callback(_kick_all, CloseCode.KILL_NOW)
+        original_send_one = BusBus._sendone
+
+        def sendone_wrapper(self, target, notification_type, message):
+            original_send_one(self, target, notification_type, message)
+            self.env.cr.precommit.run()
+            self.env.cr.postcommit.run()
+
+        atexit.enter_context(patch.object(BusBus, "_sendone", sendone_wrapper))
+        atexit.enter_context(
+            patch.object(
+                WebsocketConnectionHandler,
+                "websocket_allowed",
+                return_value=True,
+            )
+        )
+
+    def _browser_js_url(self, url_path: str, *, watch: bool, debug: Any) -> str:
+        url = urljoin(self.base_url(), url_path)
+        if not watch:
+            return url
+        parsed = urlsplit(url)
+        qs = dict(parse_qsl(parsed.query))
+        qs["watch"] = "1"
+        if debug is not False:
+            qs["debug"] = "assets"
+        return urlunsplit(parsed._replace(query=urlencode(qs)))
+
+    def browser_js(
+        self,
+        url_path,
+        code,
+        ready="",
+        login=None,
+        timeout=60,
+        cookies=None,
+        error_checker=None,
+        watch=False,
+        success_signal=DEFAULT_SUCCESS_SIGNAL,
+        debug=False,
+        cpu_throttling=None,
+        **kw,
+    ):
+        timeout, watch = self._browser_js_budget(timeout, watch, debug)
 
         browser = common.ChromeBrowser(
             self, headless=not watch, success_signal=success_signal, debug=debug
@@ -382,42 +429,12 @@ class HttpCase(TransactionCase):
             atexit.callback(browser.stop)
             atexit.enter_context(self.allow_requests(browser=browser))
             atexit.callback(self._wait_remaining_requests)
-            if "bus.bus" in self.env.registry:
-                from odoo.addons.bus.models.bus import BusBus
-                from odoo.addons.bus.websocket import (
-                    CloseCode,
-                    WebsocketConnectionHandler,
-                    _kick_all,
-                )
-
-                atexit.callback(_kick_all, CloseCode.KILL_NOW)
-                original_send_one = BusBus._sendone
-
-                def sendone_wrapper(self, target, notification_type, message):
-                    original_send_one(self, target, notification_type, message)
-                    self.env.cr.precommit.run()
-                    self.env.cr.postcommit.run()
-
-                atexit.enter_context(patch.object(BusBus, "_sendone", sendone_wrapper))
-                atexit.enter_context(
-                    patch.object(
-                        WebsocketConnectionHandler,
-                        "websocket_allowed",
-                        return_value=True,
-                    )
-                )
+            self._browser_js_patch_bus(atexit)
 
             self.authenticate(login, login, browser=browser)
             self.cr.flush()
             self.cr.clear()
-            url = urljoin(self.base_url(), url_path)
-            if watch:
-                parsed = urlsplit(url)
-                qs = dict(parse_qsl(parsed.query))
-                qs["watch"] = "1"
-                if debug is not False:
-                    qs["debug"] = "assets"
-                url = urlunsplit(parsed._replace(query=urlencode(qs)))
+            url = self._browser_js_url(url_path, watch=watch, debug=debug)
             self._logger.info('Open "%s" in browser', url)
 
             browser.screencaster.start()
@@ -446,7 +463,7 @@ class HttpCase(TransactionCase):
                 'The ready "%s" code was always falsy' % ready,
             )
 
-            error = False
+            error: ChromeBrowserException | None = None
             try:
                 browser._wait_code_ok(code, timeout, error_checker=error_checker)
             except ChromeBrowserException as chrome_browser_exception:
@@ -485,14 +502,15 @@ class HttpCase(TransactionCase):
             self._logger.warning("step_delay is only suitable for local testing")
         if options["delayToCheckUndeterminisms"] > 0:
             timeout += 1000 * options["delayToCheckUndeterminisms"]
-            _logger.runbot(
+            _logger.log(
+                RUNBOT,
                 "Tour %s is launched with mode: check for undeterminisms.",
                 tour_name,
             )
         Users = self.registry["res.users"]
 
         def setup(_):
-            Users.tour_enabled = False
+            Users.tour_enabled = False  # type: ignore[attr-defined]  # res.users is an addon model
 
         with (
             patch.object(Users, "tour_enabled", False),
@@ -508,12 +526,12 @@ class HttpCase(TransactionCase):
                 **kwargs,
             )
 
-    def profile(self, **kwargs: Any) -> Any:
-        sup = super()
-        _profiler = sup.profile(**kwargs)
+    def profile(self, description: str = "", **kwargs: Any) -> Any:
+        make_profiler = super().profile
+        _profiler = make_profiler(description, **kwargs)
 
         def route_profiler(request):
-            _route_profiler = sup.profile(
+            _route_profiler = make_profiler(
                 description=request.httprequest.full_path, db=_profiler.db
             )
             _profiler.sub_profilers.append(_route_profiler)
