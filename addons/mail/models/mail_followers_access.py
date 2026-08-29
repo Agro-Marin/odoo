@@ -7,8 +7,8 @@ from odoo.tools import SQL
 from odoo.addons.mail.tools.access_scan import scan_accessible_query
 
 if typing.TYPE_CHECKING:
-    from odoo.orm.domains import DomainType
-    from odoo.orm.query import Query
+    from odoo.api import DomainType
+    from odoo.tools import Query
 
 
 class MailFollowers(models.Model):

@@ -1,7 +1,7 @@
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { EcpayInfoPopup } from "@l10n_tw_edi_ecpay_pos/app/components/popups/ecpay_info_popup";
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(PosOrder.prototype, {

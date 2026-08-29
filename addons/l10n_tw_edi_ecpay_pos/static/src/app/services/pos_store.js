@@ -1,8 +1,8 @@
-import { AlertDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 import { EcpayCertificateReceipt } from "@l10n_tw_edi_ecpay_pos/app/components/order_receipt/ecpay_certificate_receipt";
 import { EcpayTransactionReceipt } from "@l10n_tw_edi_ecpay_pos/app/components/order_receipt/ecpay_transaction_receipt";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { patch } from "@web/core/utils/patch";
 

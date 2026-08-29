@@ -1,7 +1,7 @@
 import { Component, useState } from "@odoo/owl";
-import { AlertDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
-import { Dialog } from "@web/core/dialog/dialog";
-import { _t } from "@web/core/l10n/translation";
+import { AlertDialog } from "@web/ui/dialog";
+import { Dialog } from "@web/ui/dialog";
+import { _t } from "@web/core/translation";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useService } from "@web/core/utils/hooks";
 

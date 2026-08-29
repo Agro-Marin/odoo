@@ -308,6 +308,7 @@
             "@l10n_se_sie_import/*": ["../enterprise/l10n_se_sie_import/static/src/*"],
             "@l10n_tr_nilvera_edispatch/*": ["addons/l10n_tr_nilvera_edispatch/static/src/*"],
             "@l10n_tr_reports/*": ["../enterprise/l10n_tr_reports/static/src/*"],
+            "@l10n_tw_edi_ecpay_pos/*": ["addons/l10n_tw_edi_ecpay_pos/static/src/*"],
             "@l10n_tw_edi_ecpay_website_sale/*": ["addons/l10n_tw_edi_ecpay_website_sale/static/src/*"],
             "@l10n_uk_bacs/*": ["../enterprise/l10n_uk_bacs/static/src/*"],
             "@l10n_uk_reports/*": ["../enterprise/l10n_uk_reports/static/src/*"],

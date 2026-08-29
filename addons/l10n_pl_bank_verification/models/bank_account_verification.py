@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from odoo import api, fields, models
-from odoo.tools import index_exists, SQL
+from odoo.db.schema import index_exists
+from odoo.tools import SQL
 
 
 _logger = logging.getLogger(__name__)
