@@ -231,6 +231,7 @@ class CalendarEvent(models.Model):
         help="Whether the event is private, considering the user privacy",
         compute="_compute_effective_privacy",
     )
+    privacy_placeholder = fields.Char(compute="_compute_privacy_placeholder")
     show_as = fields.Selection(
         [("free", "Available"), ("busy", "Busy")],
         "Show as",
@@ -524,6 +525,23 @@ class CalendarEvent(models.Model):
         for event in self:
             event.effective_privacy = (
                 event.privacy or event.sudo().user_id.calendar_default_privacy
+            )
+
+    @api.depends("effective_privacy")
+    def _compute_privacy_placeholder(self):
+        """The label the empty `privacy` field stands for, for use as placeholder.
+
+        `privacy` is left unset by design -- the event then follows the organiser's
+        own default -- so the field is blank on almost every event and the reader
+        has no way to tell what it resolves to. `effective_privacy` already knows;
+        this only turns it into the label the selection would have shown.
+        """
+        labels = dict(
+            self._fields["effective_privacy"]._description_selection(self.env)
+        )
+        for event in self:
+            event.privacy_placeholder = labels.get(
+                event.effective_privacy, _("User default")
             )
 
     @api.depends_context("active_model", "active_id")

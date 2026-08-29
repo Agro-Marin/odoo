@@ -620,3 +620,26 @@ class TestAccessRights(TransactionCase):
                 ),
             ):
                 setattr(form, field_name, value)
+
+    def test_privacy_placeholder_names_the_effective_privacy(self):
+        """The blank `privacy` field says what it resolves to.
+
+        `privacy` is left unset on almost every event -- the event then follows the
+        organiser's own default -- so the form showed an empty selection over the
+        fixed words "User default", which name the mechanism and not the answer.
+        `effective_privacy` already knows the answer; `privacy_placeholder` is that
+        answer as the label the selection would have shown.
+        """
+        self.john.with_user(self.john).write(
+            {"calendar_default_privacy": "confidential"}
+        )
+        event = self.create_event(self.john)
+
+        self.assertFalse(event.privacy, "The event follows the organiser's default")
+        self.assertEqual(event.effective_privacy, "confidential")
+        self.assertEqual(event.privacy_placeholder, "Only internal users")
+
+        # An explicit privacy is its own placeholder: the field is no longer blank,
+        # so nothing is shown, but the two must not disagree.
+        event.privacy = "public"
+        self.assertEqual(event.privacy_placeholder, "Public")
