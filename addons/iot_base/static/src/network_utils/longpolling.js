@@ -75,6 +75,7 @@ export class IoTLongpolling {
             delete listener.devices[device_identifier];
             if (!Object.keys(listener.devices).length) {
                 this.stopPolling(iot_ip);
+                delete this._listeners[iot_ip];
             }
         }
     }
@@ -175,6 +176,11 @@ export class IoTLongpolling {
         this._rpcIoT(iot_ip, this.pollRoute, { listener: listener }, 60000, fallback).then(
             (result) => {
                 this._retries = 0;
+                if (!this._listeners[iot_ip]) {
+                    // The listener was removed (all its devices unregistered) while this
+                    // request was in flight; nothing left to update or re-poll for.
+                    return;
+                }
                 this._listeners[iot_ip].abortController = null;
                 if (result.result) {
                     if (this._session_id === result.result.session_id) {
