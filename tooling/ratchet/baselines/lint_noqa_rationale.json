@@ -1,4 +1,4 @@
 {
-  "count": 59,
-  "note": "Rebase onto origin/19.0-marin. 60 before, 59 after. Verified this is origin fixing one rather than the rebase dropping a suppression: every one of the 242 noqa lines on the pre-rebase tip is present on the rebased tip, compared line by line (one had been lost, res_partner.py E8501, and is restored in this same change)."
+  "count": 63,
+  "note": "Ten localization modules ported from the 19.0 mirror. +4 bare suppressions arriving with them: three `# noqa: BLE001` on `except Exception` around KSeF calls (l10n_pl_edi account_move.py:781, account_move_send.py:59 and :98) and one `# noqa: RUF075` on a test fixture yield (l10n_tw_edi_ecpay_pos).\n\nBanked rather than annotated. The rule wants a rationale, and a rationale is a claim about why catching everything is right at that call site -- which for a remote tax-authority API is a claim about which failures the caller can be handed and which must be recorded on the move instead. Written without being able to exercise the API, it would be a guess in the shape of documentation, which is worse than a floor: the next reader would trust it. Left for whoever integrates KSeF."
 }

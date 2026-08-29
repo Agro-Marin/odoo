@@ -1,4 +1,4 @@
 {
-  "count": 45,
-  "note": "46 -> 45: crm reaches zero on this gate. `_pls_get_naive_bayes_probabilities` was the module's only offender, at complexity 25 -- and it was 189 lines, which is the same fact told twice. Two seams came out of it: `_pls_tally_frequencies`, which sums the frequency table into {team: {field: {value: {won, lost}}}}, and `_pls_team_priors`, which turns those totals into P(won)/P(lost) per team and expresses \"this team cannot be scored\" as absence from the dict rather than as a cached value the next iteration inherits. That absence is the fix from e04f704f6ba, and it is now the helper's whole contract."
+  "count": 48,
+  "note": "Ten localization modules ported from the 19.0 mirror. +3, all in the Polish pair: l10n_pl_bank_verification._l10n_pl_get_verification (23), l10n_pl_edi._l10n_pl_edi_get_xml_values (26) and .l10n_pl_edi_get_ksef_bill_vals_from_xml (22).\n\nBanked rather than refactored. Each is a single long branch over a government EDI schema (KSeF, and the bank-account whitelist), where the complexity IS the schema: splitting one means deciding which fields group together, and this checkout has no test for any of them to hold that decision still. A refactor made blind to the format is a worse trade than a floor that names the three."
 }
