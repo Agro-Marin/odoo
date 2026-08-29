@@ -122,7 +122,7 @@ class TestPostContract(AccountTestInvoicingCommon):
             wizard = self.env["validate.account.move"].create(
                 {"move_ids": [Command.set(self._invoice(today).ids)]}
             )
-            wizard.validate_move()
+            wizard.action_post_moves()
             self.assertEqual(len(calls), 3, "the confirmation wizard skipped the rules")
 
             auto = self._invoice(today)

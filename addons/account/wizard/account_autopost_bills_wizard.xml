@@ -8,9 +8,12 @@
             <form string="Autopost Bills">
                 <p>Hey there !</p>
                 <p> It looks like you've successfully validated the last <b>
-                        <field name="nb_unmodified_bills" readonly="True" class="oe_inline"
-                            invisible="nb_unmodified_bills &gt; 9" />
-                        <span invisible="nb_unmodified_bills &lt; 10">10+</span>
+                    <field
+                        name="nb_unmodified_bills"
+                        readonly="True"
+                        class="oe_inline"
+                        invisible="nb_unmodified_bills &gt; 9" />
+                    <span invisible="nb_unmodified_bills &lt; 10">10+</span>
                     </b>
                     bills for <b>
                         <field name="partner_name" />

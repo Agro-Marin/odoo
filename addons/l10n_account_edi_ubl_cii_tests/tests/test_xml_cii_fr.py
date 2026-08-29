@@ -384,7 +384,7 @@ class TestCIIFR(TestUBLCommon):
             'vat': "FR89215010646",
         }
         # assert there is no matching partner
-        partner_match = self.env['res.partner']._retrieve_partner(**partner_vals)
+        partner_match = self.env['res.partner']._get_matching_partner(**partner_vals)
         self.assertFalse(partner_match)
 
         # Import attachment as an invoice

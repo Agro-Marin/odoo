@@ -13,7 +13,11 @@
                         </h1>
                     </div>
                     <separator string="Matched Journal Items" colspan="4" />
-                    <field name="reconciled_line_ids" readonly="1" colspan="4" nolabel="1" />
+                    <field
+                        name="reconciled_line_ids"
+                        readonly="1"
+                        colspan="4"
+                        nolabel="1" />
                 </group>
             </form>
         </field>

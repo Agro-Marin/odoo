@@ -5,7 +5,8 @@
         <field name="name">account.bank.statement.list</field>
         <field name="model">account.bank.statement</field>
         <field name="arch" type="xml">
-            <list decoration-danger="journal_id and not is_complete or not is_valid"
+            <list
+                decoration-danger="journal_id and not is_complete or not is_valid"
                 decoration-muted="not journal_id"
                 create="false"
                 string="Statements">
@@ -31,27 +32,33 @@
                 <field name="name" string="Statement" />
                 <field name="date" />
                 <filter string="Empty" name="empty" domain="[('line_ids','=',False)]" />
-                <filter name="invalid" string="Invalid"
+                <filter
+                    name="invalid"
+                    string="Invalid"
                     domain="['|', ('is_valid', '=', False),('is_complete', '=', False)]" />
                 <separator />
                 <filter name="filter_date" date="date" />
-                <field name="journal_id" domain="[('type', 'in', ('bank', 'cash', 'credit'))]" />
+                <field
+                    name="journal_id"
+                    domain="[('type', 'in', ('bank', 'cash', 'credit'))]" />
                 <group>
-                    <filter string="Journal" name="journal" context="{'group_by': 'journal_id'}" />
+                    <filter
+                        string="Journal"
+                        name="journal"
+                        context="{'group_by': 'journal_id'}" />
                     <filter string="Date" name="date" context="{'group_by': 'date'}" />
                 </group>
             </search>
         </field>
     </record>
 
-
     <record id="action_bank_statement_tree" model="ir.actions.act_window">
         <field name="name">Bank Statements</field>
         <field name="res_model">account.bank.statement</field>
         <field name="view_mode">list,pivot,graph,form</field>
+        <field name="search_view_id" ref="view_bank_statement_search" />
         <field name="domain">[('journal_id.type', '=', 'bank')]</field>
         <field name="context">{'journal_type':'bank'}</field>
-        <field name="search_view_id" ref="view_bank_statement_search" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Register a bank statement
@@ -72,9 +79,9 @@
         <field name="name">Credit Statements</field>
         <field name="res_model">account.bank.statement</field>
         <field name="view_mode">list,pivot,graph</field>
+        <field name="search_view_id" ref="view_bank_statement_search" />
         <field name="domain">[('journal_id.type', '=', 'credit')]</field>
         <field name="context">{'journal_type': 'credit'}</field>
-        <field name="search_view_id" ref="view_bank_statement_search" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Register a bank statement
@@ -91,7 +98,7 @@
         </field>
     </record>
 
-    <record model="ir.actions.act_window.view" id="action_bank_statement_tree_bank">
+    <record id="action_bank_statement_tree_bank" model="ir.actions.act_window.view">
         <field name="sequence" eval="1" />
         <field name="view_mode">list</field>
         <field name="view_id" ref="view_bank_statement_tree" />
@@ -124,7 +131,6 @@
 
     <record id="action_view_bank_statement_tree" model="ir.actions.act_window">
         <field name="name">Cash Registers</field>
-        <field name="type">ir.actions.act_window</field>
         <field name="res_model">account.bank.statement</field>
         <field name="view_mode">list,pivot,graph</field>
         <field name="view_id" ref="view_bank_statement_tree" />
@@ -141,6 +147,7 @@
                 payments on a daily basis.
             </p>
         </field>
+        <field name="type">ir.actions.act_window</field>
     </record>
 
 </odoo>

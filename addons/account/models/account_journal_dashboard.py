@@ -145,16 +145,17 @@ class AccountJournal(models.Model):
         to_check = self.grouped(
             lambda j: j.company_id._get_user_fiscal_lock_date(j, ignore_exceptions=True)
         )
+        descendants = (
+            self.env["res.company"]
+            .sudo()
+            .search([("id", "child_of", self.company_id.ids)])
+        )
         queries = []
         for lock_date, journals in to_check.items():
-            journal_company_ids = journals.company_id.ids
-            companies = (
-                self.env["res.company"]
-                .sudo()
-                .search(
-                    [
-                        ("id", "child_of", journal_company_ids),
-                    ]
+            journal_companies = journals.company_id
+            companies = descendants.filtered(
+                lambda company, journal_companies=journal_companies: (
+                    journal_companies & company.parent_ids
                 )
             )
             queries.append(
@@ -456,13 +457,13 @@ class AccountJournal(models.Model):
                 or journal.company_id.id != self.env.company.id,
                 "company_name": journal.company_id.sudo().name,
             }
-        self._fill_bank_cash_dashboard_data(dashboard_data)
-        self._fill_sale_purchase_dashboard_data(dashboard_data)
-        self._fill_general_dashboard_data(dashboard_data)
+        self._update_bank_cash_dashboard_data(dashboard_data)
+        self._update_sale_purchase_dashboard_data(dashboard_data)
+        self._update_general_dashboard_data(dashboard_data)
         self._update_onboarding_data(dashboard_data)
         return dashboard_data
 
-    def _fill_dashboard_data_count(self, dashboard_data, model, name, domain):
+    def _update_dashboard_data_count(self, dashboard_data, model, name, domain):
         res = {
             journal.id: count
             for journal, count in self.env[model]._read_group(
@@ -523,18 +524,27 @@ class AccountJournal(models.Model):
             )
         totals = {}
         for date_limit, account_ids in accounts_by_date_limit.items():
-            domain = base_domain & Domain("account_id", "in", list(account_ids))
-            if date_limit:
-                domain &= Domain("date", ">", date_limit)
+            totals.update(
+                self._get_account_totals_after_date(
+                    base_domain, date_limit, account_ids
+                )
+            )
+        return totals
+
+    def _get_account_totals_after_date(self, base_domain, date_limit, account_ids):
+        domain = base_domain & Domain("account_id", "in", list(account_ids))
+        if date_limit:
+            domain &= Domain("date", ">", date_limit)
+        return {
+            (account.id, date_limit): (balance, count_lines, currencies)
             for account, balance, count_lines, currencies in self.env[
                 "account.move.line"
             ]._read_group(
                 domain=domain,
                 aggregates=["amount_currency:sum", "id:count", "currency_id:recordset"],
                 groupby=["account_id"],
-            ):
-                totals[(account.id, date_limit)] = (balance, count_lines, currencies)
-        return totals
+            )
+        }
 
     def _get_statement_lines_to_check(self):
         return {
@@ -553,7 +563,7 @@ class AccountJournal(models.Model):
             )
         }
 
-    def _fill_bank_cash_dashboard_data(self, dashboard_data):
+    def _update_bank_cash_dashboard_data(self, dashboard_data):
         bank_cash_journals = self.filtered(
             lambda journal: journal.type in BANK_CASH_TYPES
         )
@@ -673,7 +683,7 @@ class AccountJournal(models.Model):
                 late[journal.id] = [r for r in rows[journal.id] if r["late"]]
         return to_pay, late
 
-    def _fill_sale_purchase_dashboard_data(self, dashboard_data):
+    def _update_sale_purchase_dashboard_data(self, dashboard_data):
         sale_purchase_journals = self.filtered(
             lambda journal: journal.type in SALE_PURCHASE_TYPES
         )
@@ -742,11 +752,11 @@ class AccountJournal(models.Model):
                 }
             )
 
-    def _fill_general_dashboard_data(self, dashboard_data):
+    def _update_general_dashboard_data(self, dashboard_data):
         general_journals = self.filtered(lambda journal: journal.type == "general")
         if not general_journals:
             return
-        general_journals._fill_dashboard_data_count(
+        general_journals._update_dashboard_data_count(
             dashboard_data,
             "account.move",
             "number_draft",

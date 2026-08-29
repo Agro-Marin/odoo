@@ -1429,10 +1429,10 @@ class AccountTestInvoicingCommon(ProductCommon):
 
     @classmethod
     def _clear_xml_content(cls, xml_element: etree._Element, clean_namespaces=True):
-        for child in xml_element:
+        for child in list(xml_element):
             xml_element.remove(child)
 
-        for attrib_key in xml_element.attrib:
+        for attrib_key in list(xml_element.attrib):
             del xml_element.attrib[attrib_key]
 
         if clean_namespaces:

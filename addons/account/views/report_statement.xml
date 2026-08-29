@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
-        <!-- Empty override: the web.internal_layout header is a CSS grid
-             (grid-template-columns: 1fr auto 1fr), so no column overrides are needed. -->
-        <template id="report_statement_internal_layout" inherit_id="web.internal_layout" primary="True">
-        </template>
 
+    <data>
+        <!--
+            Empty override: the web.internal_layout header is a CSS grid
+            (grid-template-columns: 1fr auto 1fr), so no column overrides are needed.
+        -->
+        <template
+            id="report_statement_internal_layout"
+            inherit_id="web.internal_layout"
+            primary="True" />
         <template id="report_statement">
             <t t-call="web.html_container">
                 <t t-foreach="docs" t-as="o">
                     <t t-call="account.report_statement_internal_layout">
                         <div class="page">
-                        <div class="oe_structure"></div>
-                            <div class="border border-top-0 border-end-0 border-start-0 border-info">
+                        <div class="oe_structure" />
+                            <div
+                                class="border border-top-0 border-end-0 border-start-0 border-info">
                                 <div class="row">
                                     <div class="col-12">
                                         <h4 class="text-center w-100">
@@ -25,14 +30,15 @@
                                 </div>
                             </div>
 
-                            <div class="oe_structure"></div>
+                            <div class="oe_structure" />
                             <div class="pt-2 pb-2">
                                 <div class="row">
                                     <div class="col-7">
                                         <h5>
                                             <strong>
                                                 <span t-out="o.journal_id.display_name">Journal Name</span>
-                                                <span t-if="o.journal_id.bank_account_id">
+                                                <span
+                                                    t-if="o.journal_id.bank_account_id">
                                                     - <span t-out="o.journal_id.bank_account_id.display_name">Bank Account Name</span>
                                                 </span>
                                                 <span t-if="o.journal_id.code">
@@ -54,8 +60,9 @@
                                 </div>
                             </div>
 
-                            <div class="oe_structure"></div>
-                            <table class="table table-lg m-0 table-borderless border border-end-0 border-start-0 border-info">
+                            <div class="oe_structure" />
+                            <table
+                                class="table table-lg m-0 table-borderless border border-end-0 border-start-0 border-info">
                                 <tbody>
                                     <tr>
                                         <td class="pt-2 pb-2 ps-0 pe-0">
@@ -66,7 +73,7 @@
                                                     </td>
                                                     <td class="p-0">
                                                         <strong>
-                                                            <span t-out="o.line_ids and o.line_ids.sorted(lambda line: line.date)[0].date" t-options='{"widget": "date"}'>2023-08-11</span>
+                                                            <span t-out="o.line_ids and o.line_ids.sorted(lambda line: line.date)[0].date" t-options="{&quot;widget&quot;: &quot;date&quot;}">2023-08-11</span>
                                                         </strong>
                                                     </td>
                                                     <td class="text-end p-0">
@@ -81,7 +88,7 @@
                                                     </td>
                                                     <td class="p-0">
                                                         <strong>
-                                                            <span t-out="o.line_ids and o.line_ids.sorted(lambda line: line.date)[-1].date" t-options='{"widget": "date"}'>2023-08-31</span>
+                                                            <span t-out="o.line_ids and o.line_ids.sorted(lambda line: line.date)[-1].date" t-options="{&quot;widget&quot;: &quot;date&quot;}">2023-08-31</span>
                                                         </strong>
                                                     </td>
                                                     <td class="text-end p-0">
@@ -96,7 +103,7 @@
                                 </tbody>
                             </table>
 
-                            <div class="oe_structure"></div>
+                            <div class="oe_structure" />
                             <table class="table table-borderless m-0">
                                 <tbody>
                                     <tr t-foreach="o.line_ids" t-as="line">
@@ -104,7 +111,9 @@
                                             <span class="d-block fw-bold" t-field="line.date">2023-08-11</span>
                                         </td>
                                         <td class="py-1">
-                                            <span class="d-block fw-bold" t-if="line.partner_id">
+                                            <span
+                                                class="d-block fw-bold"
+                                                t-if="line.partner_id">
                                                 <span t-out="line.partner_id.name">Marc Demo</span> <span t-if="line.partner_bank_id and line.partner_bank_id.partner_id != line.partner_id">(<span t-out="line.partner_bank_id.partner_id.name">Bank of odoo</span>)</span>
                                             </span>
                                             <span class="d-block" t-if="line.partner_bank_id or line.account_number" t-out="line.account_number or line.partner_bank_id.acc_number">534677881234</span>
@@ -116,11 +125,12 @@
                                     </tr>
                                 </tbody>
                             </table>
-                            <div class="oe_structure"></div>
+                            <div class="oe_structure" />
                         </div>
                     </t>
                 </t>
             </t>
         </template>
     </data>
+
 </odoo>

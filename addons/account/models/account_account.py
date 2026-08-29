@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
@@ -145,20 +147,20 @@ class AccountAccount(models.Model):
     @api.constrains("company_ids")
     def _check_company_move_line_consistency(self):
         self.invalidate_recordset(fnames=["company_ids"])
+        companies_by_account = defaultdict(set)
+        for account, company in (
+            self.env["account.move.line"]
+            .sudo()
+            ._read_group([("account_id", "in", self.ids)], ["account_id", "company_id"])
+        ):
+            companies_by_account[account.id].add(company)
         for companies, accounts in self.grouped(
             lambda a: a.company_ids,
         ).items():
-            if (
-                self.env["account.move.line"]
-                .sudo()
-                .search_count(
-                    [
-                        ("account_id", "in", accounts.ids),
-                        "!",
-                        ("company_id", "child_of", companies.ids),
-                    ],
-                    limit=1,
-                )
+            if any(
+                not (companies & company.parent_ids)
+                for account in accounts
+                for company in companies_by_account[account.id]
             ):
                 raise UserError(
                     _(
@@ -768,22 +770,20 @@ class AccountAccount(models.Model):
                     lambda r: r.reconcile,
                 )._toggle_reconcile_to_false()
 
-        if vals.get("currency_id"):
-            for account in self:
-                if self.env["account.move.line"].search_count(
-                    [
-                        ("account_id", "=", account.id),
-                        ("currency_id", "not in", (False, vals["currency_id"])),
-                    ],
-                    limit=1,
-                ):
-                    raise UserError(
-                        _(
-                            "You cannot set a currency on this account as it "
-                            "already has some journal entries having a different "
-                            "foreign currency.",
-                        )
-                    )
+        if vals.get("currency_id") and self.env["account.move.line"].search_count(
+            [
+                ("account_id", "in", self.ids),
+                ("currency_id", "not in", (False, vals["currency_id"])),
+            ],
+            limit=1,
+        ):
+            raise UserError(
+                _(
+                    "You cannot set a currency on this account as it "
+                    "already has some journal entries having a different "
+                    "foreign currency.",
+                )
+            )
 
         # Deprecating an account is archiving it since `deprecated` was folded into
         # `active`; the guard kept reading the old key, so the ORM rejected the write

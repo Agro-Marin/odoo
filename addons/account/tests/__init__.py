@@ -17,7 +17,6 @@ from . import test_account_account
 from . import test_account_tax
 from . import test_account_tax_settings_company
 from . import test_account_tax_merge_wizard
-from . import test_account_to_check
 from . import test_account_analytic
 from . import test_account_payment
 from . import test_account_payment_channel

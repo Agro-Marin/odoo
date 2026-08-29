@@ -1,4 +1,4 @@
 {
-  "count": 42,
-  "note": "45 -> 42. odoo/tools reaches zero.\n\nThree ValueErrors built their message with `_()` / `env._()`: one in convert.py\nfor a data file that failed to load, two in translate.py for an unrecognised\nfile format and extension. A ValueError raised out of the loader reaches a\nreader as a traceback, never as UI, so the gettext call buys a catalogue entry\nnobody reads and a lookup on a path that is already failing. All three are\nf-strings now."
+  "count": 37,
+  "note": "account_move_mail._routing_check_route wrapped a ValueError message in _(). A ValueError reaches a reader as a traceback, never as UI, so the translation is dead weight; it is an f-string now.\n\n38 -> 37. Measured HEAD 42 -> 41 in a detached worktree carrying only this change; the floor was already at 38 from another session, so this banks that 38 minus the one counted here.\n\nCommand: odoo-bin -d <db> -i test_lint --test-enable --test-tags /test_lint"
 }

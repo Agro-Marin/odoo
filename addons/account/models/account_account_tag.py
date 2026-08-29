@@ -101,7 +101,7 @@ class AccountAccountTag(models.Model):
 
     @api.model
     def _get_tax_tags(self, tag_name, country_id):
-        domain = self._get_tax_tags_domain(tag_name, country_id)
+        domain = self._get_domain_tax_tags(tag_name, country_id)
         original_lang = self.env.context.get("lang", "en_US")
         rslt_tags = (
             self.env["account.account.tag"]
@@ -114,7 +114,7 @@ class AccountAccountTag(models.Model):
         return rslt_tags.with_context(lang=original_lang)
 
     @api.model
-    def _get_tax_tags_domain(self, formula, country_id):
+    def _get_domain_tax_tags(self, formula, country_id):
         return [
             ("name", "=", formula.lstrip("-")),
             ("country_id", "=", country_id),
@@ -123,7 +123,7 @@ class AccountAccountTag(models.Model):
 
     def _get_related_tax_report_expressions(self):
         # A formula names its tag with any number of leading signs stripped, the same
-        # rule _get_tax_tags_domain applies, and `name` is translated while `formula`
+        # rule _get_domain_tax_tags applies, and `name` is translated while `formula`
         # is not: search en_US, over-match in SQL, then compare stripped formulas here.
         tags = self.with_context(lang="en_US")
         if not tags:
@@ -182,7 +182,7 @@ class AccountAccountTag(models.Model):
             if code != "en_US"
         )
         for lang in langs:
-            lang_sql = SQL("'%s'" % lang)
+            lang_sql = SQL("%s::text", lang)
             self.env.cr.execute(
                 SQL(
                     """

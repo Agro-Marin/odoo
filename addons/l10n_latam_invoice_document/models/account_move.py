@@ -184,7 +184,7 @@ class AccountMove(models.Model):
             and not self.posted_before
         ):
             self.name = False
-            self._compute_name()
+            self.env.add_to_compute(self._fields["name"], self)
 
     @api.depends("journal_id", "l10n_latam_document_type_id")
     def _compute_highest_name(self):

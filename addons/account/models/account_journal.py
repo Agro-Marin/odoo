@@ -1,9 +1,11 @@
 import re
+from collections import defaultdict
 from typing import NamedTuple
 from urllib.parse import urlencode
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.fields import Domain
 from odoo.libs.web import urls
 from odoo.tools import email_normalize, email_normalize_all, groupby, is_encodable
 from odoo.tools.misc import hash_sign
@@ -773,7 +775,7 @@ class AccountJournal(models.Model):
                 journal.code = False
             journal.update(self._get_type_defaults(journal.type, journal.company_id))
 
-        self._compute_code()
+        self.env.add_to_compute(self._fields["code"], self)
 
     @api.depends("type")
     def _compute_name_placeholder(self):
@@ -825,14 +827,16 @@ class AccountJournal(models.Model):
 
     @api.constrains("company_id")
     def _check_company_consistency(self):
+        move_companies_by_journal = defaultdict(set)
+        for journal, move_company in self.env["account.move"]._read_group(
+            [("journal_id", "in", self.ids)], ["journal_id", "company_id"]
+        ):
+            move_companies_by_journal[journal.id].add(move_company)
         for company, journals in groupby(self, lambda journal: journal.company_id):
-            if self.env["account.move"].search_count(
-                [
-                    ("journal_id", "in", [journal.id for journal in journals]),
-                    "!",
-                    ("company_id", "child_of", company.id),
-                ],
-                limit=1,
+            if any(
+                company not in move_company.parent_ids
+                for journal in journals
+                for move_company in move_companies_by_journal[journal.id]
             ):
                 raise UserError(
                     _(
@@ -865,14 +869,29 @@ class AccountJournal(models.Model):
 
     @api.constrains("allowed_account_ids")
     def _check_allowed_accounts_cover_existing_items(self):
-        for journal in self.filtered("allowed_account_ids"):
-            permitted = (
-                journal.allowed_account_ids | journal._get_structural_account_ids()
-            )
-            offending = self.env["account.move.line"].search(
+        journals = self.filtered("allowed_account_ids")
+        if not journals:
+            return
+        per_journal = Domain.OR(
+            Domain(
                 [
                     ("journal_id", "=", journal.id),
-                    ("account_id", "not in", permitted.ids),
+                    (
+                        "account_id",
+                        "not in",
+                        (
+                            journal.allowed_account_ids
+                            | journal._get_structural_account_ids()
+                        ).ids,
+                    ),
+                ]
+            )
+            for journal in journals
+        )
+        offending = self.env["account.move.line"].search(
+            per_journal
+            & Domain(
+                [
                     # a voided entry is not an accounting fact: leaving it in
                     # would let one cancelled move freeze the list for good
                     ("parent_state", "!=", "cancel"),
@@ -881,18 +900,19 @@ class AccountJournal(models.Model):
                         "not in",
                         self.env["account.move.line"]._NON_ACCOUNTABLE_DISPLAY_TYPES,
                     ),
-                ],
-                limit=1,
-            )
-            if offending:
-                raise ValidationError(
-                    _(
-                        "Journal %(journal)s already has journal items on "
-                        "%(account)s, which this list of allowed accounts excludes.",
-                        journal=journal.display_name,
-                        account=offending.account_id.display_name,
-                    )
+                ]
+            ),
+            limit=1,
+        )
+        if offending:
+            raise ValidationError(
+                _(
+                    "Journal %(journal)s already has journal items on "
+                    "%(account)s, which this list of allowed accounts excludes.",
+                    journal=offending.journal_id.display_name,
+                    account=offending.account_id.display_name,
                 )
+            )
 
     @api.constrains("type", "default_account_id")
     def _check_type_default_account_id_type(self):
@@ -971,9 +991,10 @@ class AccountJournal(models.Model):
 
     @api.constrains("active")
     def _check_auto_post_draft_entries(self):
-        for journal in self.filtered(lambda j: not j.active):
+        archived = self.filtered(lambda j: not j.active)
+        if archived:
             pending_moves = self.env["account.move"].search(
-                [("journal_id", "=", journal.id), ("state", "=", "draft")], limit=1
+                [("journal_id", "in", archived.ids), ("state", "=", "draft")], limit=1
             )
 
             if pending_moves:
@@ -1201,7 +1222,7 @@ class AccountJournal(models.Model):
         return values
 
     @api.model
-    def _get_selectable_domain(self):
+    def _get_domain_selectable(self):
         # Extension point for restricting which journals a user may pick on a move.
         # It stays a DOMAIN rather than a record rule because the journals a user may
         # *select* are a narrower set than the ones they may *read* on existing entries.
@@ -1330,7 +1351,6 @@ class AccountJournal(models.Model):
     def _prepare_credit_account_vals(self, company, code, vals):
         return self._prepare_account_vals(company, code, vals, "liability_credit_card")
 
-    @api.model
     @api.model
     def _find_or_create_default_account(self, company, journal_type, vals):
         if journal_type == "credit":

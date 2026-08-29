@@ -879,12 +879,12 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 )
 
                 if lock_date_field == "hard_lock_date":
-                    def _validate_locks(*args, **kwargs):
+                    def _check_locks(*args, **kwargs):
                         pass
 
                     with patch(
-                        "odoo.addons.account.models.res_company.ResCompany._validate_locks",
-                        new=_validate_locks,
+                        "odoo.addons.account.models.res_company.ResCompany._check_locks",
+                        new=_check_locks,
                     ):
                         self.company_data["company"][lock_date_field] = False
                 else:

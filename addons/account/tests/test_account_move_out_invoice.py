@@ -5290,7 +5290,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
 
         self.env["validate.account.move"].create(
             {"force_post": True, "move_ids": [Command.set((invoice1 + invoice2).ids)]}
-        ).validate_move()
+        ).action_post_moves()
 
         for aml in invoice1.line_ids:
             self.assertEqual(aml.partner_id, self.partner_a)

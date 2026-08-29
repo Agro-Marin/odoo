@@ -18,10 +18,7 @@ class AccountMove(models.Model):
             company_id = route[2].get("company_id", self.env.company.id)
             if not isinstance(company_id, int):
                 raise ValueError(
-                    _(
-                        "Default value for 'company_id' for %(record)s is not an integer",
-                        record=route[4],
-                    )
+                    f"Default value for 'company_id' for {route[4]} is not an integer"
                 )
             journal_alias_company = self.env["res.company"].search(
                 [["id", "=", company_id]]
@@ -117,12 +114,67 @@ class AccountMove(models.Model):
             default_company_id=company.id,
         )
         move = super(AccountMove, move_ctx).message_new(msg_dict, custom_values=values)
-        move._compute_name()
+        self.env.add_to_compute(move._fields["name"], move)
 
         return move
 
     def _attachment_fields_to_clear(self):
         return super()._attachment_fields_to_clear() + ["message_main_attachment_id"]
+
+    def _message_post_after_hook_from_alias(
+        self, new_message, message_values, valid_files_data, extra_files_data
+    ):
+        file_data_groups = self._group_files_data_into_groups_of_mixed_types(
+            valid_files_data
+        ) or [[]]
+        invoices = self
+        if len(file_data_groups) > 1:
+            create_vals = [
+                self.copy_data()[0].copy()
+                for _unused in range(len(file_data_groups) - 1)
+            ]
+            invoices |= self.with_context(skip_is_manually_modified=True).create(
+                create_vals
+            )
+
+        for invoice, file_data_group in zip(invoices, file_data_groups, strict=False):
+            attachment_records = self._from_files_data(file_data_group)
+            if invoice == self:
+                attachment_records |= self._from_files_data(extra_files_data)
+                new_message.attachment_ids = [Command.set(attachment_records.ids)]
+                message_values["attachment_ids"] = [
+                    Command.link(attachment.id) for attachment in attachment_records
+                ]
+                res = super(
+                    AccountMove, self.with_context(no_document=True)
+                )._message_post_after_hook(new_message, message_values)
+            else:
+                sub_new_message = new_message.copy(
+                    {
+                        "res_id": invoice.id,
+                        "attachment_ids": [Command.set(attachment_records.ids)],
+                    }
+                )
+                sub_message_values = {
+                    **message_values,
+                    "res_id": invoice.id,
+                    "attachment_ids": [
+                        Command.link(attachment.id)
+                        for attachment in attachment_records
+                    ],
+                }
+                super(
+                    AccountMove, invoice.with_context(no_document=True)
+                )._message_post_after_hook(sub_new_message, sub_message_values)
+            invoice._fix_attachments_on_record_from_files_data(
+                file_data_group, extra_files_data
+            )
+
+        for invoice, file_data_group in zip(invoices, file_data_groups, strict=False):
+            if file_data_group:
+                invoice._extend_with_attachments(file_data_group, new=True)
+
+        return res
 
     def _message_post_after_hook(self, new_message, message_values):
         attachments = new_message.attachment_ids
@@ -150,75 +202,23 @@ class AccountMove(models.Model):
                 extra_files_data.append(file_data)
 
         if self.env.context.get("from_alias"):
-            file_data_groups = self._group_files_data_into_groups_of_mixed_types(
-                valid_files_data
-            ) or [[]]
-            invoices = self
-            if len(file_data_groups) > 1:
-                create_vals = [
-                    self.copy_data()[0].copy()
-                    for _unused in range(len(file_data_groups) - 1)
-                ]
-                invoices |= self.with_context(skip_is_manually_modified=True).create(
-                    create_vals
-                )
-
-            for invoice, file_data_group in zip(
-                invoices, file_data_groups, strict=False
-            ):
-                attachment_records = self._from_files_data(file_data_group)
-                if invoice == self:
-                    attachment_records |= self._from_files_data(extra_files_data)
-                    new_message.attachment_ids = [Command.set(attachment_records.ids)]
-                    message_values["attachment_ids"] = [
-                        Command.link(attachment.id) for attachment in attachment_records
-                    ]
-                    res = super(
-                        AccountMove, self.with_context(no_document=True)
-                    )._message_post_after_hook(new_message, message_values)
-                else:
-                    sub_new_message = new_message.copy(
-                        {
-                            "res_id": invoice.id,
-                            "attachment_ids": [Command.set(attachment_records.ids)],
-                        }
-                    )
-                    sub_message_values = {
-                        **message_values,
-                        "res_id": invoice.id,
-                        "attachment_ids": [
-                            Command.link(attachment.id)
-                            for attachment in attachment_records
-                        ],
-                    }
-                    super(
-                        AccountMove, invoice.with_context(no_document=True)
-                    )._message_post_after_hook(sub_new_message, sub_message_values)
-                invoice._fix_attachments_on_record_from_files_data(
-                    file_data_group, extra_files_data
-                )
-
-            for invoice, file_data_group in zip(
-                invoices, file_data_groups, strict=False
-            ):
-                if file_data_group:
-                    invoice._extend_with_attachments(file_data_group, new=True)
-
-            return res
-        else:
-            attachment_records = self._from_files_data(files_data)
-            self._fix_attachments_on_record_from_files_data(
-                valid_files_data, extra_files_data
+            return self._message_post_after_hook_from_alias(
+                new_message, message_values, valid_files_data, extra_files_data
             )
 
-            if self.env.user.active and self.env.user._is_internal():
-                self._extend_with_attachments(files_data)
+        attachment_records = self._from_files_data(files_data)
+        self._fix_attachments_on_record_from_files_data(
+            valid_files_data, extra_files_data
+        )
 
-            new_message.attachment_ids = [Command.set(attachment_records.ids)]
-            message_values["attachment_ids"] = [
-                Command.link(attachment.id) for attachment in attachment_records
-            ]
-            return super()._message_post_after_hook(new_message, message_values)
+        if self.env.user.active and self.env.user._is_internal():
+            self._extend_with_attachments(files_data)
+
+        new_message.attachment_ids = [Command.set(attachment_records.ids)]
+        message_values["attachment_ids"] = [
+            Command.link(attachment.id) for attachment in attachment_records
+        ]
+        return super()._message_post_after_hook(new_message, message_values)
 
     def _creation_subtype(self):
         if self.move_type in ("out_invoice", "out_receipt"):

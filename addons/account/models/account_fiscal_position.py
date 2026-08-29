@@ -119,7 +119,14 @@ class AccountFiscalPosition(models.Model):
                 )
 
     @api.constrains("country_id", "country_group_id", "state_ids", "foreign_vat")
-    def _validate_foreign_vat_country(self):
+    def _check_foreign_vat_country(self):
+        foreign_vat_positions = self.search(
+            [
+                *self._check_company_domain(self.company_id),
+                ("foreign_vat", "!=", False),
+                ("country_id", "in", self.country_id.ids),
+            ]
+        )
         for record in self:
             if not record.foreign_vat:
                 continue
@@ -153,14 +160,13 @@ class AccountFiscalPosition(models.Model):
                     )
                 )
 
-            if record.search_count(
-                [
-                    *record._check_company_domain(record.company_id),
-                    ("foreign_vat", "not in", (False, record.foreign_vat)),
-                    ("id", "!=", record.id),
-                    ("country_id", "=", record.country_id.id),
-                ],
-                limit=1,
+            if any(
+                other.id != record.id
+                and other.country_id == record.country_id
+                and other.foreign_vat not in (False, record.foreign_vat)
+                for other in foreign_vat_positions.filtered_domain(
+                    record._check_company_domain(record.company_id)
+                )
             ):
                 raise ValidationError(
                     _(
@@ -213,18 +219,23 @@ class AccountFiscalPosition(models.Model):
 
     @api.depends("foreign_vat", "country_id", "company_id")
     def _compute_foreign_vat_header_mode(self):
+        AccountTax = self.env["account.tax"]
+        country_taxes = AccountTax.search(
+            [
+                *AccountTax._check_company_domain(self.company_id),
+                ("country_id", "in", self.country_id.ids),
+            ]
+        )
         for fiscal_position in self:
             if (
                 not fiscal_position.foreign_vat
                 or not fiscal_position.country_id
-                or self.env["account.tax"].search(
-                    [
-                        *self.env["account.tax"]._check_company_domain(
-                            fiscal_position.company_id
-                        ),
-                        ("country_id", "=", fiscal_position.country_id.id),
-                    ],
-                    limit=1,
+                or country_taxes.filtered(
+                    lambda tax, fiscal_position=fiscal_position: (
+                        tax.country_id == fiscal_position.country_id
+                    )
+                ).filtered_domain(
+                    AccountTax._check_company_domain(fiscal_position.company_id)
                 )
             ):
                 fiscal_position.foreign_vat_header_mode = False

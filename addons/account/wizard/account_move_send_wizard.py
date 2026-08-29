@@ -223,6 +223,7 @@ class AccountMoveSendWizard(models.TransientModel):
             wizard.template_id = self._get_default_mail_template_id(wizard.move_id)
 
     @api.depends("template_id")
+    @api.depends_context("lang")
     def _compute_lang(self):
         for wizard in self:
             wizard.lang = (

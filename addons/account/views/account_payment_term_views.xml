@@ -9,7 +9,10 @@
                 <field name="name" string="Payment Terms" />
                 <field name="active" />
                 <separator />
-                <filter name="archived" string="Archived" domain="[('active', '=', False)]" />
+                <filter
+                    name="archived"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
             </search>
         </field>
     </record>
@@ -35,7 +38,10 @@
                     <field name="active" invisible="1" />
                     <field name="fiscal_country_codes" invisible="1" />
                     <field name="company_id" invisible="1" />
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
                         invisible="active" />
                     <div class="oe_title">
                         <label for="name" string="Payment Terms" />
@@ -44,38 +50,54 @@
                         </h1>
                     </div>
                     <group>
-                        <field name="company_id" options="{'no_create': True}" class="w-25"
-                            groups="base.group_multi_company" placeholder="Visible to all" />
+                        <field
+                            name="company_id"
+                            options="{'no_create': True}"
+                            class="w-25"
+                            groups="base.group_multi_company"
+                            placeholder="Visible to all" />
                         <label for="early_discount" />
                         <div class="o_field_highlight">
                             <field name="early_discount" />
-                            <field name="discount_percentage"
+                            <field
+                                name="discount_percentage"
                                 class="text-end o_field_highlight o_input oe_inline"
                                 invisible="not early_discount" />
                             <span invisible="not early_discount"> % if paid within </span>
-                            <field name="discount_days"
+                            <field
+                                name="discount_days"
                                 class="text-end o_field_highlight o_input oe_inline"
                                 invisible="not early_discount" />
                             <span invisible="not early_discount"> days</span>
                             <div invisible="not early_discount">
-                                <span> Reduced tax: <field name="early_pay_discount_computation"
-                                        class="w-auto" />
+                                <span> Reduced tax: <field name="early_pay_discount_computation" class="w-auto" />
                                 </span>
                             </div>
                         </div>
                     </group>
                     <group>
                         <group string="Due Terms">
-                            <field name="line_ids" widget="payment_term_line_ids" nolabel="1"
+                            <field
+                                name="line_ids"
+                                widget="payment_term_line_ids"
+                                nolabel="1"
                                 colspan="2">
-                                <list string="Payment Terms" editable="bottom" no_open="True">
+                                <list
+                                    string="Payment Terms"
+                                    editable="bottom"
+                                    no_open="True">
                                     <field name="sequence" widget="handle" />
                                     <field name="value_amount" />
                                     <field name="value" nolabel="1" />
                                     <field name="nb_days" string="After" />
                                     <field name="delay_type" nolabel="1" />
-                                    <field name="display_days_next_month" column_invisible="1" />
-                                    <field name="days_next_month" width="30px" nolabel="1"
+                                    <field
+                                        name="display_days_next_month"
+                                        column_invisible="1" />
+                                    <field
+                                        name="days_next_month"
+                                        width="30px"
+                                        nolabel="1"
                                         invisible="not display_days_next_month" />
                                 </list>
                             </field>
@@ -85,21 +107,22 @@
                                 <field name="display_on_invoice" nolabel="1" />
                                 <label for="display_on_invoice" />
                             </div>
-                            <div class="d-flex gap-2" colspan="2" col="4"> Example: <field
-                                    name="example_amount" class="oe_inline" />
-                                    <span
-                                    invisible="not example_tax_amount">including <field
-                                        name="example_tax_amount" class="oe_inline" /> tax </span>
-                                on <field name="example_date"
-                                    class="fw-bold border-bottom o_example_date" />
+                            <div class="d-flex gap-2" colspan="2" col="4"> Example: <field name="example_amount" class="oe_inline" />
+                                <span invisible="not example_tax_amount">including <field name="example_tax_amount" class="oe_inline" /> tax </span>
+                                on <field name="example_date" class="fw-bold border-bottom o_example_date" />
                             </div>
                             <div colspan="2" class="py-1 bg-secondary">
-                                <field name="note"
+                                <field
+                                    name="note"
                                     placeholder="Description on invoice (e.g. Payment terms: 30 days after invoice date)"
                                     class="border-bottom o_example_note" />
-                                <field name="example_preview_discount" class="ps-2"
+                                <field
+                                    name="example_preview_discount"
+                                    class="ps-2"
                                     invisible="not early_discount or not display_on_invoice" />
-                                <field name="example_preview" class="ps-2"
+                                <field
+                                    name="example_preview"
+                                    class="ps-2"
                                     invisible="not display_on_invoice" />
                             </div>
                         </group>

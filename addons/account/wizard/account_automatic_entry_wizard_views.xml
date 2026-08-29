@@ -11,49 +11,72 @@
                 <field name="move_line_ids" invisible="1" />
                 <field name="display_currency_helper" invisible="1" />
                 <field name="action" invisible="1" />
-                <div invisible="not display_currency_helper" class="alert alert-info text-center"
+                <div
+                    invisible="not display_currency_helper"
+                    class="alert alert-info text-center"
                     role="status">
                     The selected destination account is set to use a specific currency. Every entry
                     transferred to it will be converted into this currency, causing
                     the loss of any pre-existing foreign currency amount.
                 </div>
-                <div invisible="not lock_date_message" class="alert alert-warning text-center"
+                <div
+                    invisible="not lock_date_message"
+                    class="alert alert-warning text-center"
                     role="status">
                     <field name="lock_date_message" nolabel="1" />
                 </div>
                 <group>
                     <group invisible="action != 'change_period'">
                         <field name="date" string="Recognition Date" />
-                        <field name="expense_accrual_account" string="Accrued Account"
+                        <field
+                            name="expense_accrual_account"
+                            string="Accrued Account"
                             invisible="account_type != 'expense'"
                             required="account_type == 'expense' and action == 'change_period'" />
-                        <field name="revenue_accrual_account" string="Accrued Account"
+                        <field
+                            name="revenue_accrual_account"
+                            string="Accrued Account"
                             invisible="account_type != 'income'"
                             required="account_type == 'income' and action == 'change_period'" />
                     </group>
                     <group invisible="action != 'change_account'">
                         <field name="date" string="Transfer Date" />
-                        <field name="destination_account_id" required="action == 'change_account'" />
+                        <field
+                            name="destination_account_id"
+                            required="action == 'change_account'" />
                     </group>
                     <group>
-                        <label for="total_amount" string="Adjusting Amount"
+                        <label
+                            for="total_amount"
+                            string="Adjusting Amount"
                             invisible="action != 'change_period'" />
                         <div invisible="action != 'change_period'">
-                            <field name="percentage" style="width:40% !important"
-                                readonly="action != 'change_period'" />%<span class="px-3"></span>(<field
-                                name="total_amount" class="oe_inline" />) </div>
-                        <field name="total_amount" readonly="1"
+                            <field name="percentage" style="width:40% !important" readonly="action != 'change_period'" />%<span class="px-3" />(<field name="total_amount" class="oe_inline" />) </div>
+                        <field
+                            name="total_amount"
+                            readonly="1"
                             invisible="action == 'change_period'" />
                         <field name="journal_id" />
                     </group>
                 </group>
-                <label for="preview_move_data"
+                <label
+                    for="preview_move_data"
                     string="The following Journal Entries will be generated" />
-                <field name="preview_move_data" widget="grouped_view_widget" class="d-block" />
+                <field
+                    name="preview_move_data"
+                    widget="grouped_view_widget"
+                    class="d-block" />
                 <footer>
-                    <button string="Create Journal Entries" name="do_action" type="object"
-                        class="oe_highlight" data-hotkey="q" />
-                    <button string="Cancel" class="btn btn-secondary" special="cancel"
+                    <button
+                        string="Create Journal Entries"
+                        name="do_action"
+                        type="object"
+                        class="oe_highlight"
+                        data-hotkey="q" />
+                    <button
+                        string="Cancel"
+                        class="btn btn-secondary"
+                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

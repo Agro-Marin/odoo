@@ -438,7 +438,7 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
         for invoices in [invoice1, invoice1 | invoice2]:
             with self.subTest(invoices=invoices):
                 with self.assertRaises(Exception):
-                    vam.validate_move()
+                    vam.action_post_moves()
                 self.assertTrue("posted" not in invoices.mapped("state"))
 
     def test_cross_analytics_computing(self):

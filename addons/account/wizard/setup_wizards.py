@@ -145,12 +145,12 @@ class AccountSetupBankManualConfig(models.TransientModel):
     def _number_unlinked_journal(self, journal_type):
         return self.env["account.journal"].search_count(
             [
-                *self._unlinked_journal_domain(journal_type),
+                *self._get_domain_unlinked_journal(journal_type),
                 ("id", "!=", self.default_linked_journal_id(journal_type)),
             ]
         )
 
-    def _unlinked_journal_domain(self, journal_type):
+    def _get_domain_unlinked_journal(self, journal_type):
         return [
             *self.env["account.journal"]._check_company_domain(self.env.company),
             ("type", "=", journal_type),
@@ -164,19 +164,24 @@ class AccountSetupBankManualConfig(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list):
+        wanted_bics = {
+            vals["bank_bic"]
+            for vals in vals_list
+            if not vals.get("bank_id") and vals.get("bank_bic")
+        }
+        bank_by_bic = {
+            bank.bic: bank
+            for bank in self.env["res.bank"].search([("bic", "in", list(wanted_bics))])
+        }
+        for bic in wanted_bics - bank_by_bic.keys():
+            bank_by_bic[bic] = self.env["res.bank"].create({"name": bic, "bic": bic})
+
         for vals in vals_list:
             vals["partner_id"] = self.env.company.partner_id.id
             vals["new_journal_name"] = vals["acc_number"]
 
             if not vals.get("bank_id") and vals.get("bank_bic"):
-                vals["bank_id"] = (
-                    self.env["res.bank"]
-                    .search([("bic", "=", vals["bank_bic"])], limit=1)
-                    .id
-                    or self.env["res.bank"]
-                    .create({"name": vals["bank_bic"], "bic": vals["bank_bic"]})
-                    .id
-                )
+                vals["bank_id"] = bank_by_bic[vals["bank_bic"]].id
 
         return super().create(vals_list)
 
@@ -196,7 +201,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
 
     def default_linked_journal_id(self, journal_type):
         candidates = self.env["account.journal"].search(
-            self._unlinked_journal_domain(journal_type)
+            self._get_domain_unlinked_journal(journal_type)
         )
         if not candidates:
             return False

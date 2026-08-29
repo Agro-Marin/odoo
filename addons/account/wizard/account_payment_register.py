@@ -302,13 +302,15 @@ class AccountPaymentRegister(models.TransientModel):
             )
 
         for extra_domain in extra_domains:
-            journal = self.env["account.journal"].search(
-                default_domain + extra_domain, limit=1
-            )
+            journal = self._get_first_journal(default_domain + extra_domain)
             if journal:
                 return journal
 
         return self.env["account.journal"]
+
+    @api.model
+    def _get_first_journal(self, domain):
+        return self.env["account.journal"].search(domain, limit=1)
 
     @api.model
     def _get_batch_available_partner_banks(self, batch_result, journal):
@@ -617,6 +619,14 @@ class AccountPaymentRegister(models.TransientModel):
 
     @api.depends("available_journal_ids")
     def _compute_journal_id(self):
+        Journal = self.env["account.journal"]
+        fallback_journals = Journal.search(
+            [
+                *Journal._check_company_domain(self.company_id),
+                ("type", "in", ("bank", "cash", "credit")),
+                ("id", "in", self.available_journal_ids.ids),
+            ]
+        )
         for wizard in self:
             if wizard.journal_id in wizard.available_journal_ids:
                 continue
@@ -627,16 +637,9 @@ class AccountPaymentRegister(models.TransientModel):
                 batch = wizard.batches[0]
                 wizard.journal_id = wizard._get_batch_journal(batch)
             else:
-                wizard.journal_id = self.env["account.journal"].search(
-                    [
-                        *self.env["account.journal"]._check_company_domain(
-                            wizard.company_id
-                        ),
-                        ("type", "in", ("bank", "cash", "credit")),
-                        ("id", "in", self.available_journal_ids.ids),
-                    ],
-                    limit=1,
-                )
+                wizard.journal_id = fallback_journals.filtered_domain(
+                    Journal._check_company_domain(wizard.company_id)
+                )[:1]
 
     @api.depends("can_edit_wizard", "journal_id")
     def _compute_available_partner_bank_ids(self):
@@ -1497,8 +1500,7 @@ class AccountPaymentRegister(models.TransientModel):
                 ).reconcile()
             lines.move_id.matched_payment_ids = [Command.link(payment.id)]
 
-    def _create_payments(self):
-        self.ensure_one()
+    def _get_payable_batches(self):
         batches = []
         for batch in self.batches:
             batch_account = self._get_batch_account(batch)
@@ -1515,83 +1517,94 @@ class AccountPaymentRegister(models.TransientModel):
                     payment_method=self.payment_channel_id.name,
                 )
             )
+        return batches
+
+    def _get_single_payment_to_process(self, first_batch_result):
+        payment_vals = self._create_payment_vals_from_wizard(first_batch_result)
+        to_process_values = {
+            "create_vals": payment_vals,
+            "to_reconcile": first_batch_result["lines"],
+            "batch": first_batch_result,
+        }
+
+        if (
+            self.writeoff_is_exchange_account
+            and self.currency_id == self.company_currency_id
+        ):
+            total_batch_residual = sum(
+                first_batch_result["lines"].mapped("amount_residual_currency")
+            )
+            to_process_values["rate"] = (
+                abs(total_batch_residual / self.amount) if self.amount else 0.0
+            )
+        return to_process_values
+
+    def _split_batches_per_move(self, batches, lines_to_pay):
+        new_batches = []
+        for batch_result in batches:
+            sub_batches = {}
+            for line in batch_result["lines"]:
+                if line not in lines_to_pay:
+                    continue
+                if line.move_id.id in sub_batches:
+                    sub_batches[line.move_id.id]["lines"] += line
+                else:
+                    sub_batches[line.move_id.id] = {
+                        **batch_result,
+                        "payment_values": {
+                            **batch_result["payment_values"],
+                            "payment_type": "inbound"
+                            if line.balance > 0
+                            else "outbound",
+                        },
+                        "lines": line,
+                    }
+            new_batches.extend(sub_batches.values())
+        return new_batches
+
+    def _get_batched_payments_to_process(self, batches):
+        lines_to_pay = (
+            self._get_total_amounts_to_pay(batches)["lines"]
+            if self.installments_mode in ("next", "overdue", "before_date")
+            else self.line_ids
+        )
+        if not self.group_payment:
+            batches = self._split_batches_per_move(batches, lines_to_pay)
+
+        to_process = []
+        filtered_batches = []
+        for batch_result in batches:
+            filtered_lines = batch_result["lines"] & lines_to_pay
+            if not filtered_lines:
+                continue
+            # batch_result may still be the same dict cached on the
+            # self.batches compute field (when self.group_payment is
+            # True, the rebuild above is skipped) - never mutate it in
+            # place, build a fresh dict instead.
+            batch_result = {**batch_result, "lines": filtered_lines}
+            filtered_batches.append(batch_result)
+            to_process.append(
+                {
+                    "create_vals": self._create_payment_vals_from_batch(batch_result),
+                    "to_reconcile": batch_result["lines"],
+                    "batch": batch_result,
+                }
+            )
+        return filtered_batches, to_process
+
+    def _create_payments(self):
+        self.ensure_one()
+        batches = self._get_payable_batches()
 
         first_batch_result = batches[0]
         edit_mode = self.can_edit_wizard and (
             len(first_batch_result["lines"]) == 1 or self.group_payment
         )
-        to_process = []
 
         if edit_mode:
-            payment_vals = self._create_payment_vals_from_wizard(first_batch_result)
-            to_process_values = {
-                "create_vals": payment_vals,
-                "to_reconcile": first_batch_result["lines"],
-                "batch": first_batch_result,
-            }
-
-            if (
-                self.writeoff_is_exchange_account
-                and self.currency_id == self.company_currency_id
-            ):
-                total_batch_residual = sum(
-                    first_batch_result["lines"].mapped("amount_residual_currency")
-                )
-                to_process_values["rate"] = (
-                    abs(total_batch_residual / self.amount) if self.amount else 0.0
-                )
-
-            to_process.append(to_process_values)
+            to_process = [self._get_single_payment_to_process(first_batch_result)]
         else:
-            lines_to_pay = (
-                self._get_total_amounts_to_pay(batches)["lines"]
-                if self.installments_mode in ("next", "overdue", "before_date")
-                else self.line_ids
-            )
-            if not self.group_payment:
-                new_batches = []
-                for batch_result in batches:
-                    sub_batches = {}
-                    for line in batch_result["lines"]:
-                        if line not in lines_to_pay:
-                            continue
-                        if line.move_id.id in sub_batches:
-                            sub_batches[line.move_id.id]["lines"] += line
-                        else:
-                            sub_batches[line.move_id.id] = {
-                                **batch_result,
-                                "payment_values": {
-                                    **batch_result["payment_values"],
-                                    "payment_type": "inbound"
-                                    if line.balance > 0
-                                    else "outbound",
-                                },
-                                "lines": line,
-                            }
-                    new_batches.extend(sub_batches.values())
-                batches = new_batches
-
-            filtered_batches = []
-            for batch_result in batches:
-                filtered_lines = batch_result["lines"] & lines_to_pay
-                if not filtered_lines:
-                    continue
-                # batch_result may still be the same dict cached on the
-                # self.batches compute field (when self.group_payment is
-                # True, the rebuild above is skipped) - never mutate it in
-                # place, build a fresh dict instead.
-                batch_result = {**batch_result, "lines": filtered_lines}
-                filtered_batches.append(batch_result)
-                to_process.append(
-                    {
-                        "create_vals": self._create_payment_vals_from_batch(
-                            batch_result
-                        ),
-                        "to_reconcile": batch_result["lines"],
-                        "batch": batch_result,
-                    }
-                )
-            batches = filtered_batches
+            batches, to_process = self._get_batched_payments_to_process(batches)
 
         lines = sum(
             (batch_result["lines"] for batch_result in batches),

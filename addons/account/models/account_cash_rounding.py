@@ -50,7 +50,7 @@ class AccountCashRounding(models.Model):
     )
 
     @api.constrains("rounding")
-    def validate_rounding(self):
+    def _check_rounding(self):
         for record in self:
             if record.rounding <= 0:
                 raise ValidationError(

@@ -355,14 +355,14 @@ class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
 
     def _with_narrowed_selection(self, excluded):
         AccountJournal = type(self.env["account.journal"])
-        original = AccountJournal._get_selectable_domain
+        original = AccountJournal._get_domain_selectable
 
         def narrowed(journal_self):
             return [*original(journal_self), ("id", "!=", excluded.id)]
 
-        AccountJournal._get_selectable_domain = narrowed
+        AccountJournal._get_domain_selectable = narrowed
         self.env["account.move"].invalidate_model(["journal_id_domain"])
-        self.addCleanup(setattr, AccountJournal, "_get_selectable_domain", original)
+        self.addCleanup(setattr, AccountJournal, "_get_domain_selectable", original)
 
     def test_a_narrowed_journal_is_refused_on_write(self):
         journals = self.env["account.journal"].search(
@@ -408,7 +408,7 @@ class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
 
     def test_core_narrows_only_by_the_allowed_user_list(self):
         self.assertEqual(
-            self.env["account.journal"]._get_selectable_domain(),
+            self.env["account.journal"]._get_domain_selectable(),
             [
                 "|",
                 ("allowed_user_ids", "=", False),
@@ -423,21 +423,21 @@ class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
             {"name": "Selectable excluded", "code": "SELX", "type": "sale"}
         )
         AccountJournal = type(self.env["account.journal"])
-        original = AccountJournal._get_selectable_domain
+        original = AccountJournal._get_domain_selectable
 
         def narrowed(journal_self):
             return [*original(journal_self), ("id", "!=", excluded.id)]
 
-        AccountJournal._get_selectable_domain = narrowed
+        AccountJournal._get_domain_selectable = narrowed
         try:
             self.env["account.move"].invalidate_model(["journal_id_domain"])
             selectable = self.env["account.journal"].search(self._domain_for())
         finally:
-            AccountJournal._get_selectable_domain = original
+            AccountJournal._get_domain_selectable = original
         self.assertNotIn(
             excluded,
             selectable,
-            "a clause returned by _get_selectable_domain must reach journal_id_domain",
+            "a clause returned by _get_domain_selectable must reach journal_id_domain",
         )
         self.assertTrue(
             selectable,

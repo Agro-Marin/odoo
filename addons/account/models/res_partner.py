@@ -68,7 +68,7 @@ class ResPartner(models.Model):
     name = fields.Char(tracking=True)
     credit = fields.Monetary(
         compute="_compute_credit_debit",
-        search="_credit_search",
+        search="_search_credit",
         string="Total Receivable",
         help="Total amount this customer owes you.",
         groups="account.group_account_invoice,account.group_account_readonly",
@@ -104,7 +104,7 @@ class ResPartner(models.Model):
     )
     debit = fields.Monetary(
         compute="_compute_credit_debit",
-        search="_debit_search",
+        search="_search_debit",
         string="Total Payable",
         help="Total amount you have to pay to this vendor.",
         groups="account.group_account_invoice,account.group_account_readonly",
@@ -389,11 +389,11 @@ class ResPartner(models.Model):
         )
 
     @api.model
-    def _credit_search(self, operator, operand):
+    def _search_credit(self, operator, operand):
         return self._asset_difference_search("asset_receivable", operator, operand)
 
     @api.model
-    def _debit_search(self, operator, operand):
+    def _search_debit(self, operator, operand):
         return self._asset_difference_search("liability_payable", operator, operand)
 
     @api.depends_context("allowed_company_ids")
@@ -505,7 +505,7 @@ class ResPartner(models.Model):
             partner[field] = counts[partner.id]
 
     @api.model
-    def _get_supplier_bill_domain(self):
+    def _get_domain_supplier_bill(self):
         return [
             *self.env["account.move"]._check_company_domain(self.env.company),
             ("move_type", "in", ("in_invoice", "in_refund")),
@@ -514,7 +514,7 @@ class ResPartner(models.Model):
     @api.depends_context("company")
     def _compute_supplier_invoice_count(self):
         self._compute_move_count_by_partner(
-            "supplier_invoice_count", self._get_supplier_bill_domain()
+            "supplier_invoice_count", self._get_domain_supplier_bill()
         )
 
     @api.depends_context("company")
@@ -572,6 +572,7 @@ class ResPartner(models.Model):
     def _compute_show_credit_limit(self):
         self.show_credit_limit = self.env.company.account_use_credit_limit
 
+    @api.depends_context("uid")
     def _compute_application_statistics_hook(self):
         data_list = super()._compute_application_statistics_hook()
         if not self.env.user.has_group("account.group_account_invoice"):
@@ -637,7 +638,7 @@ class ResPartner(models.Model):
             [("id", "child_of", self.ids)]
         )
         action["domain"] = [
-            *self._get_supplier_bill_domain(),
+            *self._get_domain_supplier_bill(),
             ("partner_id", "in", all_child.ids),
         ]
         action["context"] = {
@@ -992,6 +993,13 @@ class ResPartner(models.Model):
             ],
         }
 
+    def _get_first_partner(self, domain):
+        return self.search(
+            domain,
+            order="is_company DESC, supplier_rank DESC, company_id, parent_id DESC, id DESC",
+            limit=1,
+        )
+
     @api.model
     def _import_retrieve_customer(self, search_plan, company, customer_values_list):
         cache = {}
@@ -1017,10 +1025,8 @@ class ResPartner(models.Model):
                     if cache_key is not None and cache_key in cache:
                         partner = cache[cache_key]
                     elif domain:
-                        partner = self.search(
-                            Domain.AND([static_domain, domain]),
-                            order="is_company DESC, supplier_rank DESC, company_id, parent_id DESC, id DESC",
-                            limit=1,
+                        partner = self._get_first_partner(
+                            Domain.AND([static_domain, domain])
                         )
                     elif search_method:
                         partner = search_method(
@@ -1056,7 +1062,7 @@ class ResPartner(models.Model):
             (30, self._import_retrieve_customer_from_name),
         ]
 
-    def _retrieve_partner(
+    def _get_matching_partner(
         self,
         name=None,
         phone=None,

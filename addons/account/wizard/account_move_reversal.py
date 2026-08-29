@@ -53,16 +53,18 @@ class AccountMoveReversal(models.TransientModel):
 
     @api.depends("move_ids")
     def _compute_available_journal_ids(self):
+        Journal = self.env["account.journal"]
+        journals = Journal.search(Journal._check_company_domain(self.company_id))
         for record in self:
-            domain = self.env["account.journal"]._check_company_domain(
-                record.company_id
+            allowed = journals.filtered_domain(
+                Journal._check_company_domain(record.company_id)
             )
             if record.move_ids:
-                domain = [
-                    *domain,
-                    ("type", "in", record.move_ids.journal_id.mapped("type")),
-                ]
-            record.available_journal_ids = self.env["account.journal"].search(domain)
+                types = record.move_ids.journal_id.mapped("type")
+                allowed = allowed.filtered(
+                    lambda journal, types=types: journal.type in types
+                )
+            record.available_journal_ids = allowed
 
     @api.constrains("journal_id", "move_ids")
     def _check_journal_type(self):
@@ -148,24 +150,9 @@ class AccountMoveReversal(models.TransientModel):
             "invoice_origin": move.invoice_origin,
         }
 
-    def reverse_moves(self, is_modify=False):
-        self.ensure_one()
-        moves = self.move_ids
-
-        default_values_list = [
-            {
-                "partner_bank_id": False,
-                **self._prepare_default_reversal(move),
-            }
-            for move in moves
-        ]
-
+    def _get_reversal_batches(self, moves, default_values_list, is_modify):
         batches = [
-            [
-                self.env["account.move"],
-                [],
-                True,
-            ],
+            [self.env["account.move"], [], True],
             [self.env["account.move"], [], False],
         ]
         for move, default_vals in zip(moves, default_values_list, strict=True):
@@ -176,41 +163,22 @@ class AccountMoveReversal(models.TransientModel):
             batch_index = 0 if is_cancel_needed else 1
             batches[batch_index][0] |= move
             batches[batch_index][1].append(default_vals)
+        return batches
 
-        moves_to_redirect = self.env["account.move"]
-        for batch_moves, batch_default_values, is_cancel_needed in batches:
-            new_moves = batch_moves._reverse_moves(
-                batch_default_values, cancel=is_cancel_needed
-            )
-            new_moves._compute_partner_bank_id()
-            batch_moves._message_log_batch(
-                bodies={
-                    move.id: move.env._(
-                        "This entry has been %s",
-                        reverse._get_html_link(title=move.env._("reversed")),
-                    )
-                    for move, reverse in zip(batch_moves, new_moves, strict=True)
-                }
-            )
+    def _get_modified_reversal_moves(self, batch_moves):
+        moves_vals_list = []
+        for move in batch_moves.with_context(include_business_fields=True):
+            data = move.copy_data(self._modify_default_reverse_values(move))[0]
+            data["line_ids"] = [
+                line
+                for line in data["line_ids"]
+                if line[2]["display_type"]
+                in ("product", *NON_ACCOUNTABLE_DISPLAY_TYPES)
+            ]
+            moves_vals_list.append(data)
+        return self.env["account.move"].create(moves_vals_list)
 
-            if is_modify:
-                moves_vals_list = []
-                for move in batch_moves.with_context(include_business_fields=True):
-                    data = move.copy_data(self._modify_default_reverse_values(move))[0]
-                    data["line_ids"] = [
-                        line
-                        for line in data["line_ids"]
-                        if line[2]["display_type"]
-                        in ("product", *NON_ACCOUNTABLE_DISPLAY_TYPES)
-                    ]
-                    moves_vals_list.append(data)
-                new_moves = self.env["account.move"].create(moves_vals_list)
-                new_moves._compute_partner_bank_id()
-
-            moves_to_redirect |= new_moves
-
-        self.new_move_ids = moves_to_redirect
-
+    def _get_reversal_redirect_action(self, moves_to_redirect):
         action = {
             "name": _("Reverse Moves"),
             "type": "ir.actions.act_window",
@@ -236,6 +204,44 @@ class AccountMoveReversal(models.TransientModel):
                     "default_move_type": moves_to_redirect.mapped("move_type").pop()
                 }
         return action
+
+    def reverse_moves(self, is_modify=False):
+        self.ensure_one()
+        moves = self.move_ids
+
+        default_values_list = [
+            {
+                "partner_bank_id": False,
+                **self._prepare_default_reversal(move),
+            }
+            for move in moves
+        ]
+        batches = self._get_reversal_batches(moves, default_values_list, is_modify)
+
+        moves_to_redirect = self.env["account.move"]
+        for batch_moves, batch_default_values, is_cancel_needed in batches:
+            new_moves = batch_moves._reverse_moves(
+                batch_default_values, cancel=is_cancel_needed
+            )
+            new_moves._compute_partner_bank_id()
+            batch_moves._message_log_batch(
+                bodies={
+                    move.id: move.env._(
+                        "This entry has been %s",
+                        reverse._get_html_link(title=move.env._("reversed")),
+                    )
+                    for move, reverse in zip(batch_moves, new_moves, strict=True)
+                }
+            )
+
+            if is_modify:
+                new_moves = self._get_modified_reversal_moves(batch_moves)
+                new_moves._compute_partner_bank_id()
+
+            moves_to_redirect |= new_moves
+
+        self.new_move_ids = moves_to_redirect
+        return self._get_reversal_redirect_action(moves_to_redirect)
 
     def refund_moves(self):
         return self.reverse_moves(is_modify=False)

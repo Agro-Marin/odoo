@@ -43,10 +43,7 @@ def _renamed(name):
     return re.sub(r"payment_method_line(?!pay)", "payment_channel", name)
 
 
-def migrate(cr, version):
-    if not version:
-        return
-
+def _rename_table_and_columns(cr):
     if schema.table_exists(cr, OLD_TABLE) and not schema.table_exists(cr, NEW_TABLE):
         cr.execute(f'ALTER TABLE "{OLD_TABLE}" RENAME TO "{NEW_TABLE}"')
         # RENAME TO leaves an owned sequence under its old name.
@@ -60,6 +57,8 @@ def migrate(cr, version):
         ):
             cr.execute(f'ALTER TABLE "{table}" RENAME COLUMN "{old}" TO "{new}"')
 
+
+def _rename_constraints_and_indexes(cr):
     # RENAME TO carries neither the constraints nor the indexes, so without this
     # the old spelling outlives the rename in every schema dump. Odoo matches a
     # foreign key on (table, column) and not on its name -- measured: the upgrade
@@ -94,6 +93,8 @@ def migrate(cr, version):
         f"UPDATE ir_model_constraint SET name = {RENAMED.format('name')} WHERE {MATCHES.format('name')}"
     )
 
+
+def _rename_registry_rows(cr):
     cr.execute(
         "UPDATE ir_model SET model = %s WHERE model = %s", (NEW_MODEL, OLD_MODEL)
     )
@@ -120,6 +121,8 @@ def migrate(cr, version):
         """
     )
 
+
+def _rename_hand_built_definitions(cr):
     # A view, filter or action a user built by hand is the only one not reloaded
     # from XML by this upgrade, and the token names nothing else in any of them.
     cr.execute(
@@ -153,3 +156,13 @@ def migrate(cr, version):
          WHERE {MATCHES.format("l.name")}
         """
     )
+
+
+def migrate(cr, version):
+    if not version:
+        return
+
+    _rename_table_and_columns(cr)
+    _rename_constraints_and_indexes(cr)
+    _rename_registry_rows(cr)
+    _rename_hand_built_definitions(cr)

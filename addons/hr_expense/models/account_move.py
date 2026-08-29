@@ -87,10 +87,10 @@ class AccountMove(models.Model):
         return super()._creation_message()
 
     @api.depends("expense_ids")
-    def _compute_needed_terms(self):
+    def _compute_payment_terms(self):
         # EXTENDS account
         # We want to set the account destination based on the 'payment_mode'.
-        super()._compute_needed_terms()
+        super()._compute_payment_terms()
         for move in self:
             if move.expense_ids and "company_account" in move.expense_ids.mapped(
                 "payment_mode"

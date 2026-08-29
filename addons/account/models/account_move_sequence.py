@@ -17,6 +17,82 @@ class AccountMove(models.Model):
     def _must_check_constrains_date_sequence(self):
         return self.state == "posted" and not self.quick_edit_mode
 
+    def _get_reference_move_domain(self, is_payment):
+        domain = [
+            ("journal_id", "=", self.journal_id.id),
+            ("id", "!=", self.id or self._origin.id),
+            ("name", "not in", ("/", "", False)),
+        ]
+        if self.journal_id.refund_sequence:
+            refund_types = ("out_refund", "in_refund")
+            domain += [
+                (
+                    "move_type",
+                    "in" if self.move_type in refund_types else "not in",
+                    refund_types,
+                )
+            ]
+        if self.journal_id.payment_sequence:
+            domain += [("payment_ids", "!=" if is_payment else "=", False)]
+        if self.journal_id.is_self_billing:
+            if self.partner_id:
+                domain += [
+                    (
+                        "commercial_partner_id",
+                        "=",
+                        self.partner_id.commercial_partner_id.id,
+                    )
+                ]
+            else:
+                domain += [(0, "=", 1)]
+        return domain
+
+    def _get_sequence_anti_regex(self, sequence_number_reset):
+        if sequence_number_reset in ("year", "year_range"):
+            return (
+                self._prepare_regex_non_capturing(
+                    self._sequence_monthly_regex.split("(?P<seq>")[0]
+                )
+                + "$"
+            )
+        if sequence_number_reset == "never":
+            return (
+                self._prepare_regex_non_capturing(
+                    self._sequence_yearly_regex.split("(?P<seq>")[0]
+                )
+                + "$"
+            )
+        return None
+
+    def _update_strict_last_sequence_clause(self, where_string, param, is_payment):
+        domain = self._get_reference_move_domain(is_payment)
+        reference_move_name = (
+            self.sudo()
+            .search(domain + [("date", "<=", self.date)], order="date desc", limit=1)
+            .name
+        )
+        if not reference_move_name:
+            reference_move_name = (
+                self.sudo().search(domain, order="date asc", limit=1).name
+            )
+        sequence_number_reset = self._deduce_sequence_number_reset(reference_move_name)
+        date_start, date_end, *_ = self._get_sequence_date_range(sequence_number_reset)
+        where_string += """ AND date BETWEEN %(date_start)s AND %(date_end)s"""
+        param["date_start"] = date_start
+        param["date_end"] = date_end
+
+        anti_regex = self._get_sequence_anti_regex(sequence_number_reset)
+        if anti_regex:
+            param["anti_regex"] = anti_regex
+
+        if (
+            param.get("anti_regex")
+            and not self.journal_id.sequence_override_regex
+            and not self.env.context.get("no_anti_regex")
+        ):
+            where_string += " AND sequence_prefix !~ %(anti_regex)s "
+        return where_string
+
     def _get_last_sequence_domain(self, relaxed=False):
         # pylint: disable=sql-injection
         self.ensure_one()
@@ -27,75 +103,9 @@ class AccountMove(models.Model):
         is_payment = self.origin_payment_id or self.env.context.get("is_payment")
 
         if not relaxed:
-            domain = [
-                ("journal_id", "=", self.journal_id.id),
-                ("id", "!=", self.id or self._origin.id),
-                ("name", "not in", ("/", "", False)),
-            ]
-            if self.journal_id.refund_sequence:
-                refund_types = ("out_refund", "in_refund")
-                domain += [
-                    (
-                        "move_type",
-                        "in" if self.move_type in refund_types else "not in",
-                        refund_types,
-                    )
-                ]
-            if self.journal_id.payment_sequence:
-                domain += [("payment_ids", "!=" if is_payment else "=", False)]
-            if self.journal_id.is_self_billing:
-                if self.partner_id:
-                    domain += [
-                        (
-                            "commercial_partner_id",
-                            "=",
-                            self.partner_id.commercial_partner_id.id,
-                        )
-                    ]
-                else:
-                    domain += [(0, "=", 1)]
-            reference_move_name = (
-                self.sudo()
-                .search(
-                    domain + [("date", "<=", self.date)], order="date desc", limit=1
-                )
-                .name
+            where_string = self._update_strict_last_sequence_clause(
+                where_string, param, is_payment
             )
-            if not reference_move_name:
-                reference_move_name = (
-                    self.sudo().search(domain, order="date asc", limit=1).name
-                )
-            sequence_number_reset = self._deduce_sequence_number_reset(
-                reference_move_name
-            )
-            date_start, date_end, *_ = self._get_sequence_date_range(
-                sequence_number_reset
-            )
-            where_string += """ AND date BETWEEN %(date_start)s AND %(date_end)s"""
-            param["date_start"] = date_start
-            param["date_end"] = date_end
-
-            if sequence_number_reset in ("year", "year_range"):
-                param["anti_regex"] = (
-                    self._prepare_regex_non_capturing(
-                        self._sequence_monthly_regex.split("(?P<seq>")[0]
-                    )
-                    + "$"
-                )
-            elif sequence_number_reset == "never":
-                param["anti_regex"] = (
-                    self._prepare_regex_non_capturing(
-                        self._sequence_yearly_regex.split("(?P<seq>")[0]
-                    )
-                    + "$"
-                )
-
-            if (
-                param.get("anti_regex")
-                and not self.journal_id.sequence_override_regex
-                and not self.env.context.get("no_anti_regex")
-            ):
-                where_string += " AND sequence_prefix !~ %(anti_regex)s "
 
         if self.journal_id.refund_sequence:
             if self.move_type in ("out_refund", "in_refund"):

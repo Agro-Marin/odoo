@@ -263,9 +263,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             else _("Cut-off {label} {percent}%")
         )
 
-    def _get_move_dict_vals_change_account(self):
-        line_vals = []
-
+    def _get_change_account_groupings(self):
         counterpart_balances = defaultdict(lambda: defaultdict(lambda: 0))
         counterpart_distribution_amount = defaultdict(lambda: defaultdict(dict))
         grouped_source_lines = defaultdict(lambda: self.env["account.move.line"])
@@ -314,7 +312,10 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                     and frozendict(line.analytic_distribution),
                 )
             ] += line
+        return counterpart_balances, grouped_source_lines
 
+    def _get_change_account_counterpart_line_vals(self, counterpart_balances):
+        line_vals = []
         for (
             counterpart_partner,
             counterpart_currency,
@@ -367,7 +368,10 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                         "analytic_distribution": analytic_distribution,
                     }
                 )
+        return line_vals
 
+    def _get_change_account_source_line_vals(self, grouped_source_lines):
+        line_vals = []
         for (
             partner,
             currency,
@@ -403,6 +407,14 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                         "analytic_distribution": analytic_distribution,
                     }
                 )
+        return line_vals
+
+    def _get_move_dict_vals_change_account(self):
+        counterpart_balances, grouped_source_lines = (
+            self._get_change_account_groupings()
+        )
+        line_vals = self._get_change_account_counterpart_line_vals(counterpart_balances)
+        line_vals += self._get_change_account_source_line_vals(grouped_source_lines)
 
         accounts = self.env["account.account"].browse(
             [line["account_id"] for line in line_vals]
@@ -649,6 +661,78 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             return self._do_action_change_account(move_vals)
         return None
 
+    def _reconcile_accrual_lines(
+        self,
+        accrual_account,
+        accrual_move,
+        destination_move,
+        destination_move_offset,
+        accrual_move_offsets,
+    ):
+        destination_move_lines = destination_move.mapped("line_ids").filtered(
+            lambda line: line.account_id == accrual_account
+        )[destination_move_offset : destination_move_offset + 2]
+        offset = accrual_move_offsets[accrual_move]
+        accrual_move_lines = accrual_move.mapped("line_ids").filtered(
+            lambda line: line.account_id == accrual_account
+        )[offset : offset + 2]
+        accrual_move_offsets[accrual_move] += 2
+        (accrual_move_lines + destination_move_lines).filtered(
+            lambda line: not line.currency_id.is_zero(line.balance)
+        ).reconcile()
+
+    def _post_accrual_messages(self, move, accrual_move, destination_move, amount):
+        body = Markup(
+            "%(title)s<ul><li>%(link1)s %(second)s</li><li>%(link2)s %(third)s</li></ul>"
+        ) % {
+            "title": _("Adjusting Entries have been created for this invoice:"),
+            "link1": self._format_move_link(accrual_move),
+            "second": self._format_strings(
+                _("cancelling {percent}%% of {amount}"), move, amount
+            ),
+            "link2": self._format_move_link(destination_move),
+            "third": self._format_strings(
+                _("postponing it to {new_date}"), move, amount
+            ),
+        }
+        move.message_post(body=body)
+        return (
+            self._format_strings(
+                escape(
+                    _(
+                        "Adjusting Entry {link} {percent}%% of {amount} recognized from {date}"
+                    )
+                ),
+                move,
+                amount,
+            ),
+            self._format_strings(
+                escape(
+                    _(
+                        "Adjusting Entry {link} {percent}%% of {amount} recognized on {new_date}"
+                    )
+                ),
+                move,
+                amount,
+            ),
+        )
+
+    def _get_generated_entries_action(self, created_moves):
+        action = {
+            "name": _("Generated Entries"),
+            "domain": [("id", "in", created_moves.ids)],
+            "res_model": "account.move",
+            "view_mode": "list,form",
+            "type": "ir.actions.act_window",
+            "views": [
+                (self.env.ref("account.view_move_tree").id, "list"),
+                (False, "form"),
+            ],
+        }
+        if len(created_moves) == 1:
+            action.update({"view_mode": "form", "res_id": created_moves.id})
+        return action
+
     def _do_action_change_period(self, move_vals):
         accrual_account = (
             self.revenue_accrual_account
@@ -676,77 +760,25 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 and accrual_move.state == "posted"
                 and destination_move.state == "posted"
             ):
-                destination_move_lines = destination_move.mapped("line_ids").filtered(
-                    lambda line: line.account_id == accrual_account
-                )[destination_move_offset : destination_move_offset + 2]
+                self._reconcile_accrual_lines(
+                    accrual_account,
+                    accrual_move,
+                    destination_move,
+                    destination_move_offset,
+                    accrual_move_offsets,
+                )
                 destination_move_offset += 2
-                accrual_move_lines = accrual_move.mapped("line_ids").filtered(
-                    lambda line: line.account_id == accrual_account
-                )[
-                    accrual_move_offsets[accrual_move] : accrual_move_offsets[
-                        accrual_move
-                    ]
-                    + 2
-                ]
-                accrual_move_offsets[accrual_move] += 2
-                (accrual_move_lines + destination_move_lines).filtered(
-                    lambda line: not line.currency_id.is_zero(line.balance)
-                ).reconcile()
-            body = Markup(
-                "%(title)s<ul><li>%(link1)s %(second)s</li><li>%(link2)s %(third)s</li></ul>"
-            ) % {
-                "title": _("Adjusting Entries have been created for this invoice:"),
-                "link1": self._format_move_link(accrual_move),
-                "second": self._format_strings(
-                    _("cancelling {percent}%% of {amount}"), move, amount
-                ),
-                "link2": self._format_move_link(destination_move),
-                "third": self._format_strings(
-                    _("postponing it to {new_date}"), move, amount
-                ),
-            }
-            move.message_post(body=body)
-            destination_messages += [
-                self._format_strings(
-                    escape(
-                        _(
-                            "Adjusting Entry {link} {percent}%% of {amount} recognized from {date}"
-                        )
-                    ),
-                    move,
-                    amount,
-                )
-            ]
-            accrual_move_messages[accrual_move] += [
-                self._format_strings(
-                    escape(
-                        _(
-                            "Adjusting Entry {link} {percent}%% of {amount} recognized on {new_date}"
-                        )
-                    ),
-                    move,
-                    amount,
-                )
-            ]
+            destination_message, accrual_message = self._post_accrual_messages(
+                move, accrual_move, destination_move, amount
+            )
+            destination_messages.append(destination_message)
+            accrual_move_messages[accrual_move].append(accrual_message)
 
         destination_move.message_post(body=Markup("<br/>\n").join(destination_messages))
         for accrual_move, messages in accrual_move_messages.items():
             accrual_move.message_post(body=Markup("<br/>\n").join(messages))
 
-        action = {
-            "name": _("Generated Entries"),
-            "domain": [("id", "in", created_moves.ids)],
-            "res_model": "account.move",
-            "view_mode": "list,form",
-            "type": "ir.actions.act_window",
-            "views": [
-                (self.env.ref("account.view_move_tree").id, "list"),
-                (False, "form"),
-            ],
-        }
-        if len(created_moves) == 1:
-            action.update({"view_mode": "form", "res_id": created_moves.id})
-        return action
+        return self._get_generated_entries_action(created_moves)
 
     def _do_action_change_account(self, move_vals):
         new_move = self.env["account.move"].create(move_vals)

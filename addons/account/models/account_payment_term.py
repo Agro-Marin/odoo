@@ -173,6 +173,7 @@ class AccountPaymentTerm(models.Model):
         "discount_percentage",
         "discount_days",
     )
+    @api.depends_context("lang")
     def _compute_example_previews(self):
         for record in self:
             currency = record.currency_id

@@ -9,7 +9,7 @@ class TestImportVendorBill(AccountTestInvoicingCommon):
 
         def retrieve_partner(vat, import_vat):
             self.partner_a.with_context(no_vat_validation=True).vat = vat
-            return self.env["res.partner"]._retrieve_partner(vat=import_vat)
+            return self.env["res.partner"]._get_matching_partner(vat=import_vat)
 
         self.assertEqual(
             self.partner_a, retrieve_partner("BE0477472701", "BE0477472701")

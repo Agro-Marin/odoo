@@ -1038,7 +1038,7 @@ class AccountReportExpression(models.Model):
     def _get_existing_tax_tag_keys(self, tag_names_by_country_id):
         tag_model = self.env["account.account.tag"]
         or_domains = [
-            Domain(tag_model._get_tax_tags_domain(tag_name, country_id))
+            Domain(tag_model._get_domain_tax_tags(tag_name, country_id))
             for country_id, tag_names in tag_names_by_country_id.items()
             for tag_name in tag_names
         ]
@@ -1298,7 +1298,7 @@ class AccountReportExpression(models.Model):
         for tag_expression in tag_expressions:
             country = tag_expression.report_line_id.report_id.country_id
             or_domains.append(
-                self.env["account.account.tag"]._get_tax_tags_domain(
+                self.env["account.account.tag"]._get_domain_tax_tags(
                     tag_expression.formula, country.id
                 )
             )

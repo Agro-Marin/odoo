@@ -10,10 +10,11 @@
                     <group>
                         <field name="name" />
                         <label for="code_prefix_start" string="Code Prefix" />
-                        <div> From <field name="code_prefix_start" class="oe_inline" /> to <field
-                                name="code_prefix_end" class="oe_inline" />
+                        <div> From <field name="code_prefix_start" class="oe_inline" /> to <field name="code_prefix_end" class="oe_inline" />
                         </div>
-                        <field name="company_id" options="{'no_create': True}"
+                        <field
+                            name="company_id"
+                            options="{'no_create': True}"
                             groups="base.group_multi_company" />
                     </group>
                 </sheet>
@@ -26,7 +27,8 @@
         <field name="model">account.group</field>
         <field name="arch" type="xml">
             <search string="Account groups">
-                <field name="name"
+                <field
+                    name="name"
                     filter_domain="['|', ('code_prefix_start', '=like', self + '%'), ('name', 'ilike', self)]"
                     string="Account group" />
             </search>

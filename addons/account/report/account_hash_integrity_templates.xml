@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <template id="report_hash_integrity">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="company">
@@ -7,8 +8,7 @@
                     <div class="page">
                         <div class="row mt-4" id="hash_header">
                             <div class="col-12">
-                                <h2>Data Inalterability Check Report - <span
-                                        t-out="data['printing_date']" /></h2>
+                                <h2>Data Inalterability Check Report - <span t-out="data['printing_date']" /></h2>
                             </div>
                         </div>
                         <div class="row">
@@ -18,11 +18,15 @@
                         </div>
                         <div class="row">
                             <div class="col-12">
-                                <table class="table table-borderless" id="hash_config_table">
+                                <table
+                                    class="table table-borderless"
+                                    id="hash_config_table">
                                     <thead class="o_thead_no_repeat">
                                         <tr>
                                             <th class="w-25" scope="col">Journal (Sequence Prefix)</th>
-                                            <th class="text-center text-nowrap" scope="col">
+                                            <th
+                                                class="text-center text-nowrap"
+                                                scope="col">
                                                 Restricted</th>
                                             <th class="w-50" scope="col">Check</th>
                                         </tr>
@@ -31,10 +35,12 @@
                                         <t t-foreach="data['results']" t-as="result">
                                             <tr>
                                                 <td>
-                                                    <span t-out="result['journal_name']" />
+                                                    <span
+                                                        t-out="result['journal_name']" />
                                                 </td>
                                                 <td class="text-center">
-                                                    <span t-out="result['restricted_by_hash_table']" />
+                                                    <span
+                                                        t-out="result['restricted_by_hash_table']" />
                                                 </td>
                                                 <td>
                                                     <span t-out="result['msg_cover']" />
@@ -45,7 +51,8 @@
                                 </table>
                             </div>
                         </div>
-                        <t t-if="any(result['status'] == 'verified' for result in data['results'])">
+                        <t
+                            t-if="any(result['status'] == 'verified' for result in data['results'])">
                             <div class="row o_page_break_before">
                                 <div class="col-12 mt-3" id="hash_data_consistency">
                                     <h3>Data consistency check</h3>
@@ -54,7 +61,8 @@
                             <div class="row">
                                 <div class="col-12" id="hash_data_consistency_table">
                                     <table class="table table-borderless">
-                                        <thead class="o_thead_no_repeat border-bottom border-dark">
+                                        <thead
+                                            class="o_thead_no_repeat border-bottom border-dark">
                                             <tr>
                                                 <th class="text-start fw-bold" scope="col">Journal</th>
                                                 <th class="text-start fw-bold" scope="col">First
@@ -67,27 +75,39 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <t t-foreach="data['results']" t-as="result">
-                                                <t t-if="result['status'] == 'verified'">
+                                            <t
+                                                t-foreach="data['results']"
+                                                t-as="result">
+                                                <t
+                                                    t-if="result['status'] == 'verified'">
                                                     <tr class="border-bottom">
                                                         <td class="align-top">
-                                                            <span t-out="result['journal_name']" />
+                                                            <span
+                                                                t-out="result['journal_name']" />
                                                         </td>
-                                                        <td class="align-top text-break">
-                                                            <span t-out="result['first_hash']" />
-                                                        </td>
-                                                        <td class="align-top">
-                                                            <span t-out="result['first_move_name']" />
-                                                            <br />
-                                                            <span t-out="result['first_move_date']" />
-                                                        </td>
-                                                        <td class="align-top text-break">
-                                                            <span t-out="result['last_hash']" />
+                                                        <td
+                                                            class="align-top text-break">
+                                                            <span
+                                                                t-out="result['first_hash']" />
                                                         </td>
                                                         <td class="align-top">
-                                                            <span t-out="result['last_move_name']" />
+                                                            <span
+                                                                t-out="result['first_move_name']" />
                                                             <br />
-                                                            <span t-out="result['last_move_date']" />
+                                                            <span
+                                                                t-out="result['first_move_date']" />
+                                                        </td>
+                                                        <td
+                                                            class="align-top text-break">
+                                                            <span
+                                                                t-out="result['last_hash']" />
+                                                        </td>
+                                                        <td class="align-top">
+                                                            <span
+                                                                t-out="result['last_move_name']" />
+                                                            <br />
+                                                            <span
+                                                                t-out="result['last_move_date']" />
                                                         </td>
                                                     </tr>
                                                 </t>
@@ -110,4 +130,5 @@
             </t>
         </t>
     </template>
+
 </odoo>

@@ -1,4 +1,4 @@
 {
-  "count": 789,
-  "note": "791 -> 789, measured at the CI scope. Banked in the change that measured it."
+  "count": 714,
+  "note": "account: <record> field children sorted into the canonical order by _sort_xml_records.py, 28 files.\n\n774 -> 714, the floor plus this change s delta (HEAD 789 -> 729, measured in a detached worktree carrying only this change). The floor was already at 774 from another session.\n\nCommand: odoo-bin -d <db> -i test_lint --test-enable --test-tags /test_lint"
 }

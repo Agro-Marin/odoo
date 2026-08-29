@@ -202,11 +202,11 @@ class AccountBankStatementLine(models.Model):
         record_by_id = {line.id: line for line in self}
         reached = self.browse()
         for journal in self.journal_id:
-            reached |= self._assign_running_balance(journal, record_by_id)
+            reached |= self._update_running_balance(journal, record_by_id)
         for line in self - reached:
             line.running_balance = 0.0
 
-    def _assign_running_balance(self, journal, record_by_id):
+    def _update_running_balance(self, journal, record_by_id):
         journal_lines = self.filtered(lambda line: line.journal_id == journal)
         indexes = journal_lines.sorted("internal_index").mapped("internal_index")
         min_index, max_index = indexes[0] or "", indexes[-1] or ""
@@ -216,7 +216,7 @@ class AccountBankStatementLine(models.Model):
 
         balance = self._get_running_balance_before(journal, companies, min_index)
         reached = self.browse()
-        window = self._fetch_running_balance_window(
+        window = self._get_running_balance_window(
             journal, companies, min_index, max_index
         )
         for line_id, amount, is_anchor, balance_start, state in window:
@@ -272,7 +272,7 @@ class AccountBankStatementLine(models.Model):
         )
         return balance + self.env.cr.fetchone()[0]
 
-    def _fetch_running_balance_window(self, journal, companies, min_index, max_index):
+    def _get_running_balance_window(self, journal, companies, min_index, max_index):
         self.env.cr.execute(
             SQL(
                 """
@@ -603,7 +603,7 @@ class AccountBankStatementLine(models.Model):
             company=self.company_id,
         )
 
-    def _get_default_amls_matching_domain(self):
+    def _get_domain_default_amls_matching(self):
         self.ensure_one()
         all_reconcilable_account_ids = (
             self.env["account.account"]

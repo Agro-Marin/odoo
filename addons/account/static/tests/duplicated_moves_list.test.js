@@ -46,9 +46,6 @@ describe("duplicated moves list", () => {
 
         await contains(".o_data_cell").click();
 
-        await expect.waitForSteps([
-            "action_view_business_doc:1",
-            "web_search_read",
-        ]);
+        await expect.waitForSteps(["action_view_business_doc:1", "web_search_read"]);
     });
 });

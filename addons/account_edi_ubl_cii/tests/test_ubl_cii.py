@@ -327,7 +327,7 @@ class TestAccountEdiUblCii(TestUblCiiCommon, HttpCase):
             'vat': "LU12977109",
         }
         # assert there is no matching partner
-        partner_match = self.env['res.partner']._retrieve_partner(**partner_vals)
+        partner_match = self.env['res.partner']._get_matching_partner(**partner_vals)
         self.assertFalse(partner_match)
 
         bill = self._import_as_attachment_on(attachment=xml_attachment)

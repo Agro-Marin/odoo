@@ -66,6 +66,37 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _get_default_mail_template_id(self, move):
         return move._get_mail_template()
 
+    def _get_default_mail_sending_settings(self, move, get_setting, mail_template):
+        mail_lang = get_setting("mail_lang") or self._get_default_mail_lang(
+            move, mail_template
+        )
+        return {
+            "mail_template": mail_template,
+            "mail_lang": mail_lang,
+            "mail_body": get_setting(
+                "mail_body",
+                default_value=self._get_default_mail_body(
+                    move, mail_template, mail_lang
+                ),
+            ),
+            "mail_subject": get_setting(
+                "mail_subject",
+                default_value=self._get_default_mail_subject(
+                    move, mail_template, mail_lang
+                ),
+            ),
+            "mail_partner_ids": get_setting(
+                "mail_partner_ids",
+                default_value=self._get_default_mail_partner_ids(
+                    move, mail_template, mail_lang
+                ).ids,
+            ),
+            "reply_to": get_setting("reply_to")
+            or self._get_mail_default_field_value_from_template(
+                mail_template, mail_lang, move, "reply_to"
+            ),
+        }
+
     @api.model
     def _get_default_sending_settings(self, move, from_cron=False, **custom_settings):
         def get_setting(key, from_cron=False, default_value=None):
@@ -103,36 +134,10 @@ class MixinAccountMoveSend(models.AbstractModel):
             "mail_template"
         ) or self._get_default_mail_template_id(move)
         if "email" in vals["sending_methods"]:
-            mail_lang = get_setting("mail_lang") or self._get_default_mail_lang(
-                move, mail_template
-            )
             vals.update(
-                {
-                    "mail_template": mail_template,
-                    "mail_lang": mail_lang,
-                    "mail_body": get_setting(
-                        "mail_body",
-                        default_value=self._get_default_mail_body(
-                            move, mail_template, mail_lang
-                        ),
-                    ),
-                    "mail_subject": get_setting(
-                        "mail_subject",
-                        default_value=self._get_default_mail_subject(
-                            move, mail_template, mail_lang
-                        ),
-                    ),
-                    "mail_partner_ids": get_setting(
-                        "mail_partner_ids",
-                        default_value=self._get_default_mail_partner_ids(
-                            move, mail_template, mail_lang
-                        ).ids,
-                    ),
-                    "reply_to": get_setting("reply_to")
-                    or self._get_mail_default_field_value_from_template(
-                        mail_template, mail_lang, move, "reply_to"
-                    ),
-                }
+                self._get_default_mail_sending_settings(
+                    move, get_setting, mail_template
+                )
             )
         if self._display_attachments_widget(
             vals["invoice_edi_format"], vals["sending_methods"]
@@ -681,13 +686,11 @@ class MixinAccountMoveSend(models.AbstractModel):
         ).message_post(
             message_type="comment",
             **kwargs,
-            **{  # noqa: PIE804
-                "email_layout_xmlid": self._get_mail_layout(),
-                "email_add_signature": not mail_template,
-                "mail_auto_delete": mail_template.auto_delete,
-                "mail_server_id": mail_template.mail_server_id.id,
-                "reply_to_force_new": False,
-            },
+            email_layout_xmlid=self._get_mail_layout(),
+            email_add_signature=not mail_template,
+            mail_auto_delete=mail_template.auto_delete,
+            mail_server_id=mail_template.mail_server_id.id,
+            reply_to_force_new=False,
         )
 
         new_message.attachment_ids.invalidate_recordset(

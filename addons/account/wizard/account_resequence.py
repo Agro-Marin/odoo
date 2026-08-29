@@ -148,31 +148,78 @@ class AccountResequenceWizard(models.TransientModel):
                 }
             )
 
-    @api.depends("first_name", "move_ids", "sequence_number_reset")
-    def _compute_new_values(self):
-        def _get_move_key(move_id, sequence_number_reset):
-            company = move_id.company_id
-            date_start, date_end = get_fiscal_year(
-                move_id.date,
-                day=company.fiscalyear_last_day,
-                month=int(company.fiscalyear_last_month),
-            )
-            match sequence_number_reset:
-                case "year":
-                    return move_id.date.year
-                case "year_range":
-                    return "%s-%s" % (date_start.year, date_end.year)
-                case "year_range_month":
-                    return "%s-%s/%s" % (
-                        date_start.year,
-                        date_end.year,
-                        move_id.date.month,
-                    )
-                case "month":
-                    return (move_id.date.year, move_id.date.month)
-                case _:
-                    return "default"
+    def _get_resequence_period_key(self, move, sequence_number_reset):
+        company = move.company_id
+        date_start, date_end = get_fiscal_year(
+            move.date,
+            day=company.fiscalyear_last_day,
+            month=int(company.fiscalyear_last_month),
+        )
+        match sequence_number_reset:
+            case "year":
+                return move.date.year
+            case "year_range":
+                return "%s-%s" % (date_start.year, date_end.year)
+            case "year_range_month":
+                return "%s-%s/%s" % (date_start.year, date_end.year, move.date.month)
+            case "month":
+                return (move.date.year, move.date.month)
+            case _:
+                return "default"
 
+    def _update_resequence_period_values(
+        self,
+        new_values,
+        period_recs,
+        sequence_number_reset,
+        seq_format,
+        format_values,
+        is_last_period,
+    ):
+        date_start, date_end, forced_year_start, forced_year_end = period_recs[
+            0
+        ]._get_sequence_date_range(sequence_number_reset)
+        for move in period_recs:
+            new_values[move.id] = {
+                "id": move.id,
+                "current_name": move.name,
+                "state": move.state,
+                "date": format_date(self.env, move.date),
+                "server-date": str(move.date),
+                "server-year-start-date": str(date_start),
+            }
+
+        new_name_list = [
+            seq_format.format(
+                **{
+                    **format_values,
+                    "month": date_start.month,
+                    "year_end": (forced_year_end or date_end.year)
+                    % (10 ** format_values["year_end_length"]),
+                    "year": (forced_year_start or date_start.year)
+                    % (10 ** format_values["year_length"]),
+                    "seq": i + (format_values["seq"] if is_last_period else 1),
+                }
+            )
+            for i in range(len(period_recs))
+        ]
+
+        for move, new_name in zip(
+            period_recs.sorted(lambda m: (m.sequence_prefix, m.sequence_number)),
+            new_name_list,
+            strict=True,
+        ):
+            new_values[move.id]["new_by_name"] = new_name
+        for move, new_name in zip(
+            period_recs.sorted(lambda m: (m.date, m.name or "", m.id)),
+            new_name_list,
+            strict=True,
+        ):
+            new_values[move.id]["new_by_date"] = new_name
+
+    @api.depends("first_name", "move_ids", "sequence_number_reset")
+    @api.depends_context("lang")
+    def _compute_new_values(self):
         self.new_values = "{}"
         for record in self.filtered("first_name"):
             sequence_number_reset = record.move_ids[0]._deduce_sequence_number_reset(
@@ -182,7 +229,8 @@ class AccountResequenceWizard(models.TransientModel):
                 lambda record=record: record.env["account.move"]
             )
             for move in record.move_ids._origin:
-                moves_by_period[_get_move_key(move, sequence_number_reset)] += move
+                key = self._get_resequence_period_key(move, sequence_number_reset)
+                moves_by_period[key] += move
 
             seq_format, format_values = record.move_ids[0]._get_sequence_format_param(
                 record.first_name
@@ -190,53 +238,14 @@ class AccountResequenceWizard(models.TransientModel):
 
             new_values = {}
             for j, period_recs in enumerate(moves_by_period.values()):
-                date_start, date_end, forced_year_start, forced_year_end = period_recs[
-                    0
-                ]._get_sequence_date_range(sequence_number_reset)
-                for move in period_recs:
-                    new_values[move.id] = {
-                        "id": move.id,
-                        "current_name": move.name,
-                        "state": move.state,
-                        "date": format_date(self.env, move.date),
-                        "server-date": str(move.date),
-                        "server-year-start-date": str(date_start),
-                    }
-
-                new_name_list = [
-                    seq_format.format(
-                        **{
-                            **format_values,
-                            "month": date_start.month,
-                            "year_end": (forced_year_end or date_end.year)
-                            % (10 ** format_values["year_end_length"]),
-                            "year": (forced_year_start or date_start.year)
-                            % (10 ** format_values["year_length"]),
-                            "seq": i
-                            + (
-                                format_values["seq"]
-                                if j == (len(moves_by_period) - 1)
-                                else 1
-                            ),
-                        }
-                    )
-                    for i in range(len(period_recs))
-                ]
-
-                for move, new_name in zip(
-                    period_recs.sorted(
-                        lambda m: (m.sequence_prefix, m.sequence_number)
-                    ),
-                    new_name_list,
-                    strict=True,
-                ):
-                    new_values[move.id]["new_by_name"] = new_name
-                for move, new_name in zip(
-                    period_recs.sorted(lambda m: (m.date, m.name or "", m.id)),
-                    new_name_list,
-                    strict=True,
-                ):
-                    new_values[move.id]["new_by_date"] = new_name
+                self._update_resequence_period_values(
+                    new_values,
+                    period_recs,
+                    sequence_number_reset,
+                    seq_format,
+                    format_values,
+                    j == (len(moves_by_period) - 1),
+                )
 
             record.new_values = json.dumps(new_values)
 

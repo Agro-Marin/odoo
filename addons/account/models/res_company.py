@@ -599,6 +599,7 @@ class ResCompany(models.Model):
         "fiscal_position_ids.foreign_vat",
         "fiscal_position_ids.country_id",
     )
+    @api.depends_context("uid")
     def _compute_account_enabled_tax_country_ids(self):
         allowed_companies = self.env.user.company_ids
         countries_per_company = self._get_foreign_vat_countries_per_company(
@@ -766,7 +767,7 @@ class ResCompany(models.Model):
             )
         return action
 
-    def _get_unreconciled_statement_lines_domain(self, last_date):
+    def _get_domain_unreconciled_statement_lines(self, last_date):
         return [
             ("company_id", "child_of", self.ids),
             ("is_reconciled", "=", False),
@@ -774,7 +775,7 @@ class ResCompany(models.Model):
             ("move_id.state", "in", ("draft", "posted")),
         ]
 
-    def _validate_locks(self, values):
+    def _check_locks(self, values):
         new_locks = {
             field: fields.Date.to_date(values[field])
             for field in LOCK_DATE_FIELDS
@@ -834,7 +835,7 @@ class ResCompany(models.Model):
         if fiscal_lock_date:
             unreconciled_statement_lines = self.env[
                 "account.bank.statement.line"
-            ].search(self._get_unreconciled_statement_lines_domain(fiscal_lock_date))
+            ].search(self._get_domain_unreconciled_statement_lines(fiscal_lock_date))
             if unreconciled_statement_lines:
                 error_msg = _(
                     "There are still unreconciled bank statement lines in the period you want to lock."
@@ -847,6 +848,20 @@ class ResCompany(models.Model):
                     error_msg, action_error, _("Show Unreconciled Bank Statement Line")
                 )
 
+    def _get_soft_lock_date_exception(self, company, soft_lock_date_field):
+        return self.env["account.lock_exception"].search(
+            [
+                ("state", "=", "active"),
+                "|",
+                ("user_id", "=", False),
+                ("user_id", "=", self.env.user.id),
+                (soft_lock_date_field, "<", company[soft_lock_date_field]),
+                ("company_id", "=", company.id),
+            ],
+            order="lock_date asc NULLS FIRST",
+            limit=1,
+        )
+
     def _get_user_lock_date(self, soft_lock_date_field, ignore_exceptions=False):
         self.ensure_one()
         soft_lock_date = date.min
@@ -855,17 +870,8 @@ class ResCompany(models.Model):
                 if ignore_exceptions:
                     exception = None
                 else:
-                    exception = self.env["account.lock_exception"].search(
-                        [
-                            ("state", "=", "active"),
-                            "|",
-                            ("user_id", "=", False),
-                            ("user_id", "=", self.env.user.id),
-                            (soft_lock_date_field, "<", company[soft_lock_date_field]),
-                            ("company_id", "=", company.id),
-                        ],
-                        order="lock_date asc NULLS FIRST",
-                        limit=1,
+                    exception = self._get_soft_lock_date_exception(
+                        company, soft_lock_date_field
                     )
                 if exception:
                     soft_lock_date = max(
@@ -961,7 +967,7 @@ class ResCompany(models.Model):
         return locks
 
     def write(self, vals):
-        self._validate_locks(vals)
+        self._check_locks(vals)
 
         self.env["res.company"].invalidate_model(
             fnames=[f"user_{field}" for field in LOCK_DATE_FIELDS if field in vals]

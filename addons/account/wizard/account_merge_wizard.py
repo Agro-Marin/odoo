@@ -157,6 +157,51 @@ class AccountMergeWizard(models.TransientModel):
                 )
             )
 
+    def _get_merged_account_name(self, accounts):
+        account_names = self.env.execute_query(
+            SQL(
+                """
+                 SELECT id, name
+                   FROM account_account
+                  WHERE id IN %(account_ids)s
+            """,
+                account_ids=tuple(accounts.ids),
+            )
+        )
+        account_name_by_id = dict(account_names)
+        merged_account_name = {}
+        for account_id in accounts.ids[::-1]:
+            merged_account_name.update(account_name_by_id[account_id])
+        return merged_account_name
+
+    def _replace_merged_accounts(
+        self, accounts_to_remove, account_to_merge_into, merged_account_name
+    ):
+        self.env.cr.execute(
+            SQL(
+                """
+             UPDATE account_account
+                SET name = %(account_name_json)s
+              WHERE id = %(account_to_merge_into_id)s
+            """,
+                account_name_json=json.dumps(merged_account_name),
+                account_to_merge_into_id=account_to_merge_into.id,
+            )
+        )
+
+        self.env.invalidate_all()
+        self.env.cr.execute(
+            SQL(
+                """
+             DELETE FROM account_account
+              WHERE id IN %(account_ids_to_delete)s
+            """,
+                account_ids_to_delete=tuple(accounts_to_remove.ids),
+            )
+        )
+
+        self.env.registry.clear_cache()
+
     @api.model
     def _action_merge(self, accounts):
         company_ids_to_write = accounts.sudo().company_ids
@@ -186,46 +231,11 @@ class AccountMergeWizard(models.TransientModel):
             "account.account", accounts_to_remove, account_to_merge_into
         )
 
-        account_names = self.env.execute_query(
-            SQL(
-                """
-                 SELECT id, name
-                   FROM account_account
-                  WHERE id IN %(account_ids)s
-            """,
-                account_ids=tuple(accounts.ids),
-            )
+        self._replace_merged_accounts(
+            accounts_to_remove,
+            account_to_merge_into,
+            self._get_merged_account_name(accounts),
         )
-        account_name_by_id = dict(account_names)
-
-        merged_account_name = {}
-        for account_id in accounts.ids[::-1]:
-            merged_account_name.update(account_name_by_id[account_id])
-
-        self.env.cr.execute(
-            SQL(
-                """
-             UPDATE account_account
-                SET name = %(account_name_json)s
-              WHERE id = %(account_to_merge_into_id)s
-            """,
-                account_name_json=json.dumps(merged_account_name),
-                account_to_merge_into_id=account_to_merge_into.id,
-            )
-        )
-
-        self.env.invalidate_all()
-        self.env.cr.execute(
-            SQL(
-                """
-             DELETE FROM account_account
-              WHERE id IN %(account_ids_to_delete)s
-            """,
-                account_ids_to_delete=tuple(accounts_to_remove.ids),
-            )
-        )
-
-        self.env.registry.clear_cache()
 
         self.env.cr.execute(
             SQL(

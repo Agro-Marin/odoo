@@ -58,6 +58,50 @@ class AccountMove(models.Model):
         if grant_secure_group_access:
             self.env["res.groups"]._activate_group_account_secured()
 
+    def _get_chain_hash_domain(
+        self, last_move_in_chain, last_move_hashed, common_domain, include_pre_last_hash
+    ):
+        domain = self.env["account.move"]._get_move_hash_domain(
+            [
+                *common_domain,
+                ("sequence_number", "<=", last_move_in_chain.sequence_number),
+                ("inalterable_hash", "=", False),
+            ],
+            force_hash=True,
+        )
+        if last_move_hashed and not include_pre_last_hash:
+            domain &= Domain("sequence_number", ">", last_move_hashed.sequence_number)
+        return domain
+
+    def _get_chain_warnings(
+        self, moves_to_hash, last_move_hashed, include_pre_last_hash
+    ):
+        warnings = set()
+        if not moves_to_hash:
+            warnings.add("no_document")
+            return warnings
+
+        seq_numbers = moves_to_hash.mapped("sequence_number")
+        if last_move_hashed and not include_pre_last_hash:
+            start = last_move_hashed.sequence_number + 1
+        else:
+            start = seq_numbers[0]
+        if seq_numbers != list(range(start, seq_numbers[-1] + 1)):
+            warnings.add("gap")
+
+        has_unreconciled = bool(
+            self.env["account.bank.statement.line"].search_count(
+                [
+                    ("move_id", "in", moves_to_hash.ids),
+                    ("is_reconciled", "=", False),
+                ],
+                limit=1,
+            )
+        )
+        if has_unreconciled:
+            warnings.add("unreconciled")
+        return warnings
+
     def _get_chain_info(
         self, force_hash=False, include_pre_last_hash=False, early_stop=False
     ):
@@ -102,17 +146,12 @@ class AccountMove(models.Model):
             )
         )
 
-        domain = self.env["account.move"]._get_move_hash_domain(
-            [
-                *common_domain,
-                ("sequence_number", "<=", last_move_in_chain.sequence_number),
-                ("inalterable_hash", "=", False),
-            ],
-            force_hash=True,
+        domain = self._get_chain_hash_domain(
+            last_move_in_chain,
+            last_move_hashed,
+            common_domain,
+            include_pre_last_hash,
         )
-        if last_move_hashed and not include_pre_last_hash:
-            domain &= Domain("sequence_number", ">", last_move_hashed.sequence_number)
-
         if early_stop:
             return self.env["account.move"].sudo().search_count(domain, limit=1)
         moves_to_hash = (
@@ -125,31 +164,9 @@ class AccountMove(models.Model):
             "last_move_hashed": last_move_hashed,
         }
         if self.env.context.get("chain_info_warnings", True):
-            warnings = set()
-            if moves_to_hash:
-                seq_numbers = moves_to_hash.mapped("sequence_number")
-                if last_move_hashed and not include_pre_last_hash:
-                    start = last_move_hashed.sequence_number + 1
-                else:
-                    start = seq_numbers[0]
-                if seq_numbers != list(range(start, seq_numbers[-1] + 1)):
-                    warnings.add("gap")
-
-                has_unreconciled = bool(
-                    self.env["account.bank.statement.line"].search_count(
-                        [
-                            ("move_id", "in", moves_to_hash.ids),
-                            ("is_reconciled", "=", False),
-                        ],
-                        limit=1,
-                    )
-                )
-                if has_unreconciled:
-                    warnings.add("unreconciled")
-            else:
-                warnings.add("no_document")
-
-            info["warnings"] = warnings
+            info["warnings"] = self._get_chain_warnings(
+                moves_to_hash, last_move_hashed, include_pre_last_hash
+            )
 
         moves = moves_to_hash.sudo(False)
         info.update(

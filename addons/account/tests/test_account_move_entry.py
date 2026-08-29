@@ -1481,7 +1481,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             .create({})
         )
         wizard.force_post = True
-        wizard.validate_move()
+        wizard.action_post_moves()
         self.assertTrue(self.test_move.state == "posted")
 
     def test_cumulated_balance(self):

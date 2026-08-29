@@ -93,7 +93,7 @@ class AccountJournal(models.Model):
 
     def _get_journal_dashboard_data_batched(self):
         dashboard_data = super()._get_journal_dashboard_data_batched()
-        self._fill_dashboard_data_count(dashboard_data, 'account.payment', 'num_checks_to_print', [
+        self._update_dashboard_data_count(dashboard_data, 'account.payment', 'num_checks_to_print', [
             ('payment_channel_id.code', '=', 'check_printing'),
             ('state', '=', 'in_process'),
             ('is_sent', '=', False),

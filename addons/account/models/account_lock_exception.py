@@ -265,7 +265,7 @@ class AccountLock_Exception(models.Model):
             & Domain("state", "=", "active")
         )
 
-    def _get_audit_trail_during_exception_domain(self):
+    def _get_domain_audit_trail_during_exception(self):
         self.ensure_one()
 
         common_message_domain = [
@@ -327,6 +327,6 @@ class AccountLock_Exception(models.Model):
             "res_model": "account.move.line",
             "view_mode": "list,form",
             "domain": [
-                ("move_id", "any", self._get_audit_trail_during_exception_domain())
+                ("move_id", "any", self._get_domain_audit_trail_during_exception())
             ],
         }

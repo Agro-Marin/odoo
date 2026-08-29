@@ -24,22 +24,31 @@ class AccountPaymentMethod(models.Model):
         return self._auto_link_payment_methods(payment_methods, methods_info)
 
     def _auto_link_payment_methods(self, payment_methods, methods_info):
-        for method in payment_methods:
-            information = methods_info.get(method.code, {})
-            if information.get("mode") == "multi":
-                method_domain = method._get_payment_method_domain(method.code)
-                journals = self.env["account.journal"].search(method_domain)
-                self.env["account.payment.channel"].create(
-                    [
-                        {
-                            "name": method.name,
-                            "payment_method_id": method.id,
-                            "journal_id": journal.id,
-                        }
-                        for journal in journals
-                    ]
-                )
+        multi_methods = payment_methods.filtered(
+            lambda method: methods_info.get(method.code, {}).get("mode") == "multi"
+        )
+        journals_per_code = self._get_journals_per_payment_method_code(
+            set(multi_methods.mapped("code"))
+        )
+        self.env["account.payment.channel"].create(
+            [
+                {
+                    "name": method.name,
+                    "payment_method_id": method.id,
+                    "journal_id": journal.id,
+                }
+                for method in multi_methods
+                for journal in journals_per_code[method.code]
+            ]
+        )
         return payment_methods
+
+    def _get_journals_per_payment_method_code(self, codes):
+        Journal = self.env["account.journal"]
+        return {
+            code: Journal.search(self._get_payment_method_domain(code))
+            for code in codes
+        }
 
     @api.model
     def _get_payment_method_domain(self, code, with_currency=True, with_country=True):

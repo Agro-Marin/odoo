@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="country_group_form_inherit_account" model="ir.ui.view">
@@ -7,7 +7,9 @@
         <field name="inherit_id" ref="base.view_country_group_form" />
         <field name="arch" type="xml">
             <field name="country_ids" position="after">
-                <field name="exclude_state_ids" widget="many2many_tags"
+                <field
+                    name="exclude_state_ids"
+                    widget="many2many_tags"
                     options="{'no_open': True, 'no_create': True}" />
             </field>
         </field>

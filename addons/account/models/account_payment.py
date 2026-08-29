@@ -4,6 +4,53 @@ from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL
 
+_SQL_RECONCILED_INVOICES_PER_PAYMENT = """
+            SELECT
+                payment.id,
+                ARRAY_AGG(DISTINCT invoice.id) AS invoice_ids,
+                invoice.move_type
+            FROM account_payment payment
+            JOIN account_move move ON move.id = payment.move_id
+            JOIN account_move_line line ON line.move_id = move.id
+            JOIN account_partial_reconcile part ON
+                part.debit_move_id = line.id
+                OR
+                part.credit_move_id = line.id
+            JOIN account_move_line counterpart_line ON
+                part.debit_move_id = counterpart_line.id
+                OR
+                part.credit_move_id = counterpart_line.id
+            JOIN account_move invoice ON invoice.id = counterpart_line.move_id
+            JOIN account_account account ON account.id = line.account_id
+            WHERE account.account_type IN ('asset_receivable', 'liability_payable')
+                AND payment.id = ANY(%(payment_ids)s)
+                AND line.id != counterpart_line.id
+                AND invoice.move_type = ANY(%(move_types)s)
+            GROUP BY payment.id, invoice.move_type
+"""
+
+_SQL_RECONCILED_STATEMENT_LINES_PER_PAYMENT = """
+            SELECT
+                payment.id,
+                ARRAY_AGG(DISTINCT counterpart_line.statement_line_id) AS statement_line_ids
+            FROM account_payment payment
+            JOIN account_move move ON move.id = payment.move_id
+            JOIN account_move_line line ON line.move_id = move.id
+            JOIN account_account account ON account.id = line.account_id
+            JOIN account_partial_reconcile part ON
+                part.debit_move_id = line.id
+                OR
+                part.credit_move_id = line.id
+            JOIN account_move_line counterpart_line ON
+                part.debit_move_id = counterpart_line.id
+                OR
+                part.credit_move_id = counterpart_line.id
+            WHERE account.id = payment.outstanding_account_id
+                AND payment.id IN %(payment_ids)s
+                AND line.id != counterpart_line.id
+                AND counterpart_line.statement_line_id IS NOT NULL
+            GROUP BY payment.id
+"""
 
 class AccountPayment(models.Model):
     _name = "account.payment"
@@ -508,16 +555,19 @@ class AccountPayment(models.Model):
             company = payment.company_id or self.env.company
             if not payment.journal_id or company != payment.journal_id.company_id:
                 if company not in default_journal_by_company:
-                    default_journal_by_company[company] = self.env[
-                        "account.journal"
-                    ].search(
-                        [
-                            *self.env["account.journal"]._check_company_domain(company),
-                            ("type", "in", ["bank", "cash", "credit"]),
-                        ],
-                        limit=1,
+                    default_journal_by_company[company] = self._get_default_journal(
+                        company
                     )
                 payment.journal_id = default_journal_by_company[company]
+
+    def _get_default_journal(self, company):
+        return self.env["account.journal"].search(
+            [
+                *self.env["account.journal"]._check_company_domain(company),
+                ("type", "in", ["bank", "cash", "credit"]),
+            ],
+            limit=1,
+        )
 
     @api.depends("journal_id")
     def _compute_company_id(self):
@@ -726,20 +776,23 @@ class AccountPayment(models.Model):
                     )
                 )
 
+    def _get_available_journals(self, company):
+        return self.env["account.journal"].search(
+            [
+                "|",
+                ("company_id", "parent_of", company.id),
+                ("company_id", "child_of", company.id),
+                ("type", "in", ("bank", "cash", "credit")),
+            ]
+        )
+
     @api.depends("payment_type", "company_id")
     def _compute_available_journal_ids(self):
         journals_per_company = {}
         for pay in self:
             company = pay.company_id or self.env.company
             if company not in journals_per_company:
-                journals_per_company[company] = self.env["account.journal"].search(
-                    [
-                        "|",
-                        ("company_id", "parent_of", company.id),
-                        ("company_id", "child_of", company.id),
-                        ("type", "in", ("bank", "cash", "credit")),
-                    ]
-                )
+                journals_per_company[company] = self._get_available_journals(company)
             method_lines = (
                 "inbound_payment_channel_ids"
                 if pay.payment_type == "inbound"
@@ -825,6 +878,28 @@ class AccountPayment(models.Model):
                 else False
             )
 
+    def _get_reconciled_invoices_per_payment(self, stored_payments):
+        return self.env.execute_query(
+            SQL(
+                _SQL_RECONCILED_INVOICES_PER_PAYMENT,
+                payment_ids=stored_payments.ids,
+                move_types=list(
+                    self.env["account.move"].get_sale_types(True)
+                    + self.env["account.move"].get_purchase_types(True)
+                ),
+            )
+        )
+
+    def _get_reconciled_statement_lines_per_payment(self, stored_payments):
+        return dict(
+            self.env.execute_query(
+                SQL(
+                    _SQL_RECONCILED_STATEMENT_LINES_PER_PAYMENT,
+                    payment_ids=tuple(stored_payments.ids),
+                )
+            )
+        )
+
     @api.depends(
         "move_id.line_ids.matched_debit_ids",
         "move_id.line_ids.matched_credit_ids",
@@ -850,38 +925,8 @@ class AccountPayment(models.Model):
             fnames=["debit_move_id", "credit_move_id"]
         )
 
-        invoices_per_payment = self.env.execute_query(
-            SQL(
-                """
-            SELECT
-                payment.id,
-                ARRAY_AGG(DISTINCT invoice.id) AS invoice_ids,
-                invoice.move_type
-            FROM account_payment payment
-            JOIN account_move move ON move.id = payment.move_id
-            JOIN account_move_line line ON line.move_id = move.id
-            JOIN account_partial_reconcile part ON
-                part.debit_move_id = line.id
-                OR
-                part.credit_move_id = line.id
-            JOIN account_move_line counterpart_line ON
-                part.debit_move_id = counterpart_line.id
-                OR
-                part.credit_move_id = counterpart_line.id
-            JOIN account_move invoice ON invoice.id = counterpart_line.move_id
-            JOIN account_account account ON account.id = line.account_id
-            WHERE account.account_type IN ('asset_receivable', 'liability_payable')
-                AND payment.id = ANY(%(payment_ids)s)
-                AND line.id != counterpart_line.id
-                AND invoice.move_type = ANY(%(move_types)s)
-            GROUP BY payment.id, invoice.move_type
-        """,
-                payment_ids=stored_payments.ids,
-                move_types=list(
-                    self.env["account.move"].get_sale_types(True)
-                    + self.env["account.move"].get_purchase_types(True)
-                ),
-            )
+        invoices_per_payment = self._get_reconciled_invoices_per_payment(
+            stored_payments
         )
 
         for pay in self:
@@ -901,35 +946,7 @@ class AccountPayment(models.Model):
             else:
                 pay.reconciled_bill_ids |= invoices
 
-        query_res = dict(
-            self.env.execute_query(
-                SQL(
-                    """
-            SELECT
-                payment.id,
-                ARRAY_AGG(DISTINCT counterpart_line.statement_line_id) AS statement_line_ids
-            FROM account_payment payment
-            JOIN account_move move ON move.id = payment.move_id
-            JOIN account_move_line line ON line.move_id = move.id
-            JOIN account_account account ON account.id = line.account_id
-            JOIN account_partial_reconcile part ON
-                part.debit_move_id = line.id
-                OR
-                part.credit_move_id = line.id
-            JOIN account_move_line counterpart_line ON
-                part.debit_move_id = counterpart_line.id
-                OR
-                part.credit_move_id = counterpart_line.id
-            WHERE account.id = payment.outstanding_account_id
-                AND payment.id IN %(payment_ids)s
-                AND line.id != counterpart_line.id
-                AND counterpart_line.statement_line_id IS NOT NULL
-            GROUP BY payment.id
-        """,
-                    payment_ids=tuple(stored_payments.ids),
-                )
-            )
-        )
+        query_res = self._get_reconciled_statement_lines_per_payment(stored_payments)
 
         for pay in self:
             statement_line_ids = query_res.get(pay.id, [])

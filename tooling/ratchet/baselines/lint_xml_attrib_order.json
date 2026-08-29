@@ -1,4 +1,4 @@
 {
-  "count": 2454,
-  "note": "base/views audit: dropping domain=\"[]\" from 362 group-by-only filters and normalising 66 optional=\"hidden\" values took one element into canonical attribute order. 2455 -> 2454.\n\nEarned by 1ffebf0efb9, which landed that audit and did not re-floor. The number had been round-tripping between 2454 and 2455 for a few hours while the audit was uncommitted and its baseline was not: a floor describes the COMMITTED tree, so 2455 was right while the audit was in flight and 2454 is right now that it has landed."
+  "count": 2321,
+  "note": "account: element attribute order normalised by _sort_xml_records.py in the same pass as the field order.\n\n2367 -> 2321, the floor plus this change s delta (HEAD 2455 -> 2409, measured in a detached worktree carrying only this change). HEAD is separately 1 violation above its own floor of 2454; that one is not absorbed here.\n\nCommand: odoo-bin -d <db> -i test_lint --test-enable --test-tags /test_lint"
 }

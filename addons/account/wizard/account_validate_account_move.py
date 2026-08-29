@@ -91,7 +91,7 @@ class ValidateAccountMove(models.TransientModel):
 
         return result
 
-    def validate_move(self):
+    def action_post_moves(self):
         if self.ignore_abnormal_amount:
             self.abnormal_amount_partner_ids.ignore_abnormal_invoice_amount = True
         if self.ignore_abnormal_date:

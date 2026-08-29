@@ -841,7 +841,7 @@ test("add a section", async () => {
         "C",
         "C1",
     ]);
-    expect(`.o_note_row`).toHaveCount(0);
+    expect(`.o_is_line_note`).toHaveCount(0);
     await contains(".o_field_x2many_list_row_add a:eq(1)").click();
     await edit("D");
     await contains(getFixture()).click();
@@ -905,7 +905,7 @@ test("add note", async () => {
         "C",
         "C1",
     ]);
-    expect(`.o_note_row`).toHaveCount(0);
+    expect(`.o_is_line_note`).toHaveCount(0);
     await contains(".o_field_x2many_list_row_add a:last").click();
     await edit("this is a note");
     await contains(getFixture()).click();
@@ -969,7 +969,7 @@ test("section_and_note_text widget", async () => {
         "C",
         "C1",
     ]);
-    expect(`.o_note_row`).toHaveCount(0);
+    expect(`.o_is_line_note`).toHaveCount(0);
     await contains(".o_field_x2many_list_row_add a:last").click();
     expect(`.o_is_line_note textarea`).toHaveCount(1);
     await edit("this is a note\non 2 lines");

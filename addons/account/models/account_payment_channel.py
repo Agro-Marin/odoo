@@ -52,19 +52,19 @@ class AccountPaymentChannel(models.Model):
                 method.name = method.payment_method_id.name
 
     @api.constrains("name")
-    def _ensure_unique_name_for_journal(self):
+    def _check_unique_name_for_journal(self):
         self.journal_id._check_payment_channel_ids_multiplicity()
 
     def unlink(self):
-        unused_payment_channels = self
-        for line in self:
-            payment_count = (
-                self.env["account.payment"]
-                .sudo()
-                .search_count([("payment_channel_id", "=", line.id)])
+        used_channels = self.browse(
+            channel.id
+            for [channel] in self.env["account.payment"]
+            .sudo()
+            ._read_group(
+                [("payment_channel_id", "in", self.ids)], ["payment_channel_id"]
             )
-            if payment_count > 0:
-                unused_payment_channels -= line
+        )
+        unused_payment_channels = self - used_channels
 
         (self - unused_payment_channels).write({"journal_id": False})
 

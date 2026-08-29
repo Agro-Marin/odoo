@@ -570,7 +570,7 @@ class AccountEdiCommon(models.AbstractModel):
             domain = False
         partner = self.env['res.partner'] \
             .with_company(company_id) \
-            ._retrieve_partner(name=name, phone=phone, email=email, vat=vat, domain=domain)
+            ._get_matching_partner(name=name, phone=phone, email=email, vat=vat, domain=domain)
         country_code = postal_address.get('country_code')
         country = self.env['res.country'].search([('code', '=', country_code.upper())]) if country_code else self.env['res.country']
         state_code = postal_address.get('state_code')

@@ -141,44 +141,45 @@ class AccountBankStatement(models.Model):
         self.ensure_one()
         return self.line_ids.filtered("internal_index").sorted("internal_index")
 
-    @api.depends("create_date")
-    def _compute_balance_start(self):
-        for stmt in self.sorted(lambda x: x.first_line_index or "0"):
-            journal_id = stmt.journal_id.id or stmt.line_ids.journal_id.id
-            previous_line_with_statement = self.env[
-                "account.bank.statement.line"
-            ].search(
-                [
-                    ("internal_index", "<", stmt.first_line_index),
-                    ("journal_id", "=", journal_id),
-                    ("state", "=", "posted"),
-                    ("statement_id", "!=", False),
-                ],
-                limit=1,
-            )
-            balance_start = previous_line_with_statement.statement_id.balance_end_real
-
-            lines_in_between_domain = [
+    def _get_balance_start(self, stmt):
+        journal_id = stmt.journal_id.id or stmt.line_ids.journal_id.id
+        previous_line_with_statement = self.env[
+            "account.bank.statement.line"
+        ].search(
+            [
                 ("internal_index", "<", stmt.first_line_index),
                 ("journal_id", "=", journal_id),
                 ("state", "=", "posted"),
-            ]
-            if previous_line_with_statement:
-                lines_in_between_domain.append(
-                    ("internal_index", ">", previous_line_with_statement.internal_index)
-                )
-                previous_st_lines = previous_line_with_statement.statement_id.line_ids
-                lines_in_common = previous_st_lines.filtered(
-                    lambda l, stmt=stmt: l.id in stmt.line_ids._origin.ids
-                )
-                balance_start -= sum(lines_in_common.mapped("amount"))
+                ("statement_id", "!=", False),
+            ],
+            limit=1,
+        )
+        balance_start = previous_line_with_statement.statement_id.balance_end_real
 
-            [(amount_in_between,)] = self.env[
-                "account.bank.statement.line"
-            ]._read_group(lines_in_between_domain, aggregates=["amount:sum"])
-            balance_start += amount_in_between or 0.0
+        lines_in_between_domain = [
+            ("internal_index", "<", stmt.first_line_index),
+            ("journal_id", "=", journal_id),
+            ("state", "=", "posted"),
+        ]
+        if previous_line_with_statement:
+            lines_in_between_domain.append(
+                ("internal_index", ">", previous_line_with_statement.internal_index)
+            )
+            previous_st_lines = previous_line_with_statement.statement_id.line_ids
+            lines_in_common = previous_st_lines.filtered(
+                lambda line: line.id in stmt.line_ids._origin.ids
+            )
+            balance_start -= sum(lines_in_common.mapped("amount"))
 
-            stmt.balance_start = balance_start
+        [(amount_in_between,)] = self.env[
+            "account.bank.statement.line"
+        ]._read_group(lines_in_between_domain, aggregates=["amount:sum"])
+        return balance_start + (amount_in_between or 0.0)
+
+    @api.depends("create_date")
+    def _compute_balance_start(self):
+        for stmt in self.sorted(lambda x: x.first_line_index or "0"):
+            stmt.balance_start = self._get_balance_start(stmt)
 
     @api.depends("balance_start", "line_ids.amount", "line_ids.state")
     def _compute_balance_end(self):

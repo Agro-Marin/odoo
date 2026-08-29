@@ -1,4 +1,4 @@
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
 
@@ -10,6 +10,7 @@ class DigestDigest(models.Model):
         compute="_compute_kpi_account_total_revenue_value"
     )
 
+    @api.depends_context("uid")
     def _compute_kpi_account_total_revenue_value(self):
         if not self.env.user.has_group("account.group_account_invoice"):
             raise AccessError(

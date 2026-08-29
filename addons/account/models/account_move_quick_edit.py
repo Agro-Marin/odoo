@@ -114,19 +114,24 @@ class AccountMove(models.Model):
             "price_unit": price_untaxed,
         }
 
+    def _get_last_posted_dated_move(self, journal, company):
+        return self.search(
+            [
+                ("state", "=", "posted"),
+                ("journal_id", "=", journal.id),
+                ("company_id", "=", company.id),
+                ("invoice_date", "!=", False),
+            ],
+            limit=1,
+        )
+
     @api.onchange("quick_edit_mode", "journal_id", "company_id")
     def _quick_edit_mode_suggest_invoice_date(self):
         for record in self:
             if record.quick_edit_mode and not record.invoice_date:
                 invoice_date = fields.Date.context_today(self)
-                prev_move = self.search(
-                    [
-                        ("state", "=", "posted"),
-                        ("journal_id", "=", record.journal_id.id),
-                        ("company_id", "=", record.company_id.id),
-                        ("invoice_date", "!=", False),
-                    ],
-                    limit=1,
+                prev_move = self._get_last_posted_dated_move(
+                    record.journal_id, record.company_id
                 )
                 if prev_move:
                     invoice_date = self._get_accounting_date(

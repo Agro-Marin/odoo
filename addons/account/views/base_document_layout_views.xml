@@ -10,7 +10,10 @@
             <xpath expr="//field[@name='paperformat_id']" position="after">
                 <field name="from_invoice" invisible="1" />
                 <field name="vat" />
-                <field name="account_number" string="Bank Account Number" required="qr_code"
+                <field
+                    name="account_number"
+                    string="Bank Account Number"
+                    required="qr_code"
                     placeholder="BE71096123456769" />
                 <field name="qr_code" string="QR Code" invisible="not from_invoice" />
             </xpath>
@@ -19,10 +22,10 @@
 
     <record id="action_base_document_layout_configurator" model="ir.actions.act_window">
         <field name="name">Configure your document layout</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
         <field name="res_model">base.document.layout</field>
+        <field name="view_mode">form</field>
         <field name="view_id" ref="account.view_base_document_layout" />
+        <field name="target">new</field>
         <field name="context">{"dialog_size": "extra-large"}</field>
     </record>
 

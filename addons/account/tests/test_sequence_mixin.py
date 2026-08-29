@@ -1055,7 +1055,7 @@ class TestSequenceGaps(TestSequenceMixinCommon):
         format_string, format_values = self.all_moves[0]._get_sequence_format_param(
             last
         )
-        format_values["seq"] = format_values["seq"] + 10
+        format_values["seq"] += 10
         new_move = self.create_move(name=format_string.format(**format_values))
         new_move.action_post()
         self.assertEqual(new_move.made_sequence_gap, True)

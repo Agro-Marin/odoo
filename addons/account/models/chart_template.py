@@ -191,6 +191,32 @@ class AccountChartTemplate(models.AbstractModel):
 
         return self._load(template_code, company, install_demo, force_create)
 
+    def _get_company_records(self, model, company_field, company):
+        return (
+            self.env[model]
+            .sudo()
+            .with_context(active_test=False)
+            .search([(company_field, "child_of", company.id)])
+        )
+
+    def _remove_existing_accounting_data(self, company):
+        children_companies = self.env["res.company"].search(
+            [("id", "child_of", company.id)]
+        )
+        for model in ("account.move",) + TEMPLATE_MODELS[::-1]:
+            company_field = self._template_company_field(model)
+            records = self._get_company_records(model, company_field, company)
+            if company_field == "company_ids":
+                records_to_keep = records.filtered(
+                    lambda r: r.company_ids - children_companies
+                )
+                records -= records_to_keep
+                for records_for_companies in records_to_keep.grouped(
+                    "company_ids"
+                ).values():
+                    records_for_companies.company_ids -= children_companies
+            records.with_context({MODULE_UNINSTALL_FLAG: True}).unlink()
+
     def _load(self, template_code, company, install_demo, force_create=True):
         if not self.env.is_system():
             raise AccessError(_("Only administrators can install chart templates"))
@@ -228,27 +254,7 @@ class AccountChartTemplate(models.AbstractModel):
             and not company.parent_id
             and (not company.root_id._existing_accounting() or install_demo)
         ):
-            children_companies = self.env["res.company"].search(
-                [("id", "child_of", company.id)]
-            )
-            for model in ("account.move",) + TEMPLATE_MODELS[::-1]:
-                company_field = self._template_company_field(model)
-                records = (
-                    self.env[model]
-                    .sudo()
-                    .with_context(active_test=False)
-                    .search([(company_field, "child_of", company.id)])
-                )
-                if company_field == "company_ids":
-                    records_to_keep = records.filtered(
-                        lambda r: r.company_ids - children_companies
-                    )
-                    records -= records_to_keep
-                    for records_for_companies in records_to_keep.grouped(
-                        "company_ids"
-                    ).values():
-                        records_for_companies.company_ids -= children_companies
-                records.with_context({MODULE_UNINSTALL_FLAG: True}).unlink()
+            self._remove_existing_accounting_data(company)
 
         data = self._get_chart_template_data(template_code)
         template_data = data.pop("template_data")
@@ -292,36 +298,17 @@ class AccountChartTemplate(models.AbstractModel):
             )._load_data(self._get_demo_data(company))
             self.with_context(install_mode=True)._post_load_demo_data(company)
 
-    def _pre_reload_data(self, company, template_data, data, force_create=True):
-        for prop in list(template_data):
-            if prop.startswith("property_"):
-                template_data.pop(prop)
-        data.pop("account.reconcile.model", None)
-        if "res.company" in data:
-            data["res.company"][company.id].clear()
-            data["res.company"][company.id].setdefault(
-                "anglo_saxon_accounting", company.anglo_saxon_accounting
-            )
-        self._pre_reload_journals(company, data)
-        if self.env["account.group"].search_count(
-            [] if company.parent_id else [("company_id", "=", company.id)],
-            limit=1,
-        ):
-            data.pop("account.group", None)
-
-        current_taxes = self._reload_existing_records(company, "account.tax")
-        xmlid2records = {"account.tax": self._reload_xmlid_mapping(current_taxes)}
-        for model in (
-            "account.fiscal.position",
-            "account.tax.group",
-            "account.account",
-        ):
-            xmlid2records[model] = self._reload_xmlid_mapping(
-                self._reload_existing_records(company, model)
-            )
-        unique_tax_name_keys = set(current_taxes.mapped(self._unique_tax_name_key))
-
-        obsolete_xmlid = set()
+    def _get_pre_reload_skips(
+        self,
+        company,
+        template_data,
+        data,
+        xmlid2records,
+        current_taxes,
+        unique_tax_name_keys,
+        obsolete_xmlid,
+        force_create,
+    ):
         skip_update = set()
         for model_name, records in data.items():
             for xmlid, values in records.items():
@@ -357,6 +344,48 @@ class AccountChartTemplate(models.AbstractModel):
                     continue
                 if skip:
                     skip_update.add((model_name, xmlid))
+        return skip_update
+
+    def _pre_reload_data(self, company, template_data, data, force_create=True):
+        for prop in list(template_data):
+            if prop.startswith("property_"):
+                template_data.pop(prop)
+        data.pop("account.reconcile.model", None)
+        if "res.company" in data:
+            data["res.company"][company.id].clear()
+            data["res.company"][company.id].setdefault(
+                "anglo_saxon_accounting", company.anglo_saxon_accounting
+            )
+        self._pre_reload_journals(company, data)
+        if self.env["account.group"].search_count(
+            [] if company.parent_id else [("company_id", "=", company.id)],
+            limit=1,
+        ):
+            data.pop("account.group", None)
+
+        current_taxes = self._reload_existing_records(company, "account.tax")
+        xmlid2records = {"account.tax": self._reload_xmlid_mapping(current_taxes)}
+        for model in (
+            "account.fiscal.position",
+            "account.tax.group",
+            "account.account",
+        ):
+            xmlid2records[model] = self._reload_xmlid_mapping(
+                self._reload_existing_records(company, model)
+            )
+        unique_tax_name_keys = set(current_taxes.mapped(self._unique_tax_name_key))
+
+        obsolete_xmlid = set()
+        skip_update = self._get_pre_reload_skips(
+            company,
+            template_data,
+            data,
+            xmlid2records,
+            current_taxes,
+            unique_tax_name_keys,
+            obsolete_xmlid,
+            force_create,
+        )
 
         for skip_model, skip_xmlid in skip_update:
             data[skip_model].pop(skip_xmlid, None)
@@ -395,6 +424,7 @@ class AccountChartTemplate(models.AbstractModel):
         )
         Journal = self.env["account.journal"].with_context(active_test=False)
         company_domain = self.env["account.journal"]._check_company_domain(company)
+        existing_journals = Journal.search(company_domain)
         for xmlid, journal_data in list(data.get("account.journal", {}).items()):
             if self.ref(xmlid, raise_if_not_found=False):
                 del data["account.journal"][xmlid]
@@ -405,19 +435,19 @@ class AccountChartTemplate(models.AbstractModel):
                     self._get_field_translation(journal_data, "code", lang)
                     or journal_data["code"]
                 )
-                journal = Journal.search([*company_domain, ("code", "=", code)])
+                journal = existing_journals.filtered(
+                    lambda j, code=code: j.code == code
+                )
             if not journal and "name" in journal_data and "type" in journal_data:
                 translated_name = self._get_field_translation(
                     journal_data, "name", lang
                 )
-                journal = Journal.search(
-                    [
-                        *company_domain,
-                        ("type", "=", journal_data["type"]),
-                        ("name", "in", (journal_data["name"], translated_name)),
-                    ],
-                    limit=1,
-                )
+                journal = existing_journals.filtered(
+                    lambda j,
+                    journal_data=journal_data,
+                    translated_name=translated_name: j.type == journal_data["type"]
+                    and j.name in (journal_data["name"], translated_name)
+                )[:1]
             if journal:
                 del data["account.journal"][xmlid]
                 self.env["ir.model.data"]._update_xmlids(
@@ -1240,19 +1270,24 @@ class AccountChartTemplate(models.AbstractModel):
     def _foreign_tax_map_group_accounts(
         self, company, country, tax_group_data, existing_accounts
     ):
-        for field, account_name in self._foreign_tax_group_account_fields(country):
+        account_fields = list(self._foreign_tax_group_account_fields(country))
+        local_tax_group_per_field = {
+            field: self.env["account.tax.group"].search(
+                [
+                    *self.env["account.tax.group"]._check_company_domain(company),
+                    ("country_id", "=", company.account_fiscal_country_id.id),
+                    (field, "!=", False),
+                ],
+                limit=1,
+            )
+            for field, _account_name in account_fields
+        }
+        for field, account_name in account_fields:
             for tax_group in tax_group_data.values():
                 account_template_xml_id = tax_group.get(field)
                 if account_template_xml_id in existing_accounts:
                     continue
-                local_tax_group = self.env["account.tax.group"].search(
-                    [
-                        *self.env["account.tax.group"]._check_company_domain(company),
-                        ("country_id", "=", company.account_fiscal_country_id.id),
-                        (field, "!=", False),
-                    ],
-                    limit=1,
-                )
+                local_tax_group = local_tax_group_per_field[field]
                 if local_tax_group:
                     existing_accounts[account_template_xml_id] = (
                         self._foreign_tax_create_account(
@@ -1847,15 +1882,9 @@ class AccountChartTemplate(models.AbstractModel):
                 translation_module, generic_lang
             ).get(record[fname])
 
-    def _load_translations(self, langs=None, companies=None, template_data=None):
-        langs = langs or [code for code, _name in self.env["res.lang"].get_installed()]
-        available_template_codes = list(self._get_chart_template_mapping(get_all=True))
-        companies = companies or self.env["res.company"].search(
-            [("chart_template", "in", available_template_codes)]
-        )
-
-        translation_importer = TranslationImporter(self.env.cr, verbose=False)
-
+    def _collect_template_translations(
+        self, translation_importer, langs, companies, template_data
+    ):
         for company in companies:
             chart_template_data = template_data or self.env[
                 "account.chart.template"
@@ -1888,9 +1917,9 @@ class AccountChartTemplate(models.AbstractModel):
                                     xml_id
                                 ][lang] = field_translation
 
-        translation_langs = [
-            lang for lang in langs if lang != "en_US"
-        ]
+    def _collect_code_translations(
+        self, translation_importer, translation_langs, companies
+    ):
         for (
             mname,
             _xml_id,
@@ -1931,4 +1960,20 @@ class AccountChartTemplate(models.AbstractModel):
                             ][lang] = value_translated
                             break
 
+    def _load_translations(self, langs=None, companies=None, template_data=None):
+        langs = langs or [code for code, _name in self.env["res.lang"].get_installed()]
+        available_template_codes = list(self._get_chart_template_mapping(get_all=True))
+        companies = companies or self.env["res.company"].search(
+            [("chart_template", "in", available_template_codes)]
+        )
+
+        translation_importer = TranslationImporter(self.env.cr, verbose=False)
+        self._collect_template_translations(
+            translation_importer, langs, companies, template_data
+        )
+        self._collect_code_translations(
+            translation_importer,
+            [lang for lang in langs if lang != "en_US"],
+            companies,
+        )
         translation_importer.save(overwrite=False)

@@ -16,75 +16,123 @@ export class TestsSharedJsPython extends Component {
     }
 
     processTest(params) {
-        if (params.test === "taxes_computation") {
-            let filter_tax_function = null;
-            if (params.excluded_tax_ids && params.excluded_tax_ids.length) {
-                filter_tax_function = (tax) =>
-                    !params.excluded_tax_ids.includes(tax.id);
-            }
+        switch (params.test) {
+            case "taxes_computation":
+                return this.testTaxesComputation(params);
+            case "adapt_price_unit_to_another_taxes":
+                return this.testAdaptPriceUnitToAnotherTaxes(params);
+            case "tax_totals_summary":
+                return this.testTaxTotalsSummary(params);
+            case "global_discount":
+                return this.testGlobalDiscount(params);
+            case "down_payment":
+                return this.testDownPayment(params);
+            case "base_lines_tax_details":
+                return this.testBaseLinesTaxDetails(params);
+        }
+        throw new Error(`Unknown JS/Python shared test: ${params.test}`);
+    }
 
-            const kwargs = {
-                product: params.product,
-                product_uom_id: params.product_uom_id,
-                precision_rounding: params.precision_rounding,
-                rounding_method: params.rounding_method,
-                filter_tax_function: filter_tax_function,
-            };
-            const results = {
-                results: accountTaxHelpers.get_tax_details(
-                    params.taxes,
-                    params.price_unit,
-                    params.quantity,
-                    kwargs,
-                ),
-            };
-            if (params.rounding_method === "round_globally") {
-                results.total_excluded_results = accountTaxHelpers.get_tax_details(
-                    params.taxes,
-                    results.results.total_excluded / params.quantity,
-                    params.quantity,
-                    { ...kwargs, special_mode: "total_excluded" },
-                );
-                results.total_included_results = accountTaxHelpers.get_tax_details(
-                    params.taxes,
-                    results.results.total_included / params.quantity,
-                    params.quantity,
-                    { ...kwargs, special_mode: "total_included" },
-                );
-            }
-            return results;
+    testTaxesComputation(params) {
+        let filter_tax_function = null;
+        if (params.excluded_tax_ids && params.excluded_tax_ids.length) {
+            filter_tax_function = (tax) => !params.excluded_tax_ids.includes(tax.id);
         }
-        if (params.test === "adapt_price_unit_to_another_taxes") {
-            return {
-                price_unit: accountTaxHelpers.adapt_price_unit_to_another_taxes(
-                    params.price_unit,
-                    params.product,
-                    params.original_taxes,
-                    params.new_taxes,
-                    { product_uom_id: params.product_uom_id },
-                ),
-            };
-        }
-        if (params.test === "tax_totals_summary") {
-            const document = this.populateDocument(params.document);
-            const taxTotals = accountTaxHelpers.get_tax_totals_summary(
-                document.lines,
-                document.currency,
-                document.company,
-                { cash_rounding: document.cash_rounding },
+
+        const kwargs = {
+            product: params.product,
+            product_uom_id: params.product_uom_id,
+            precision_rounding: params.precision_rounding,
+            rounding_method: params.rounding_method,
+            filter_tax_function: filter_tax_function,
+        };
+        const results = {
+            results: accountTaxHelpers.get_tax_details(
+                params.taxes,
+                params.price_unit,
+                params.quantity,
+                kwargs,
+            ),
+        };
+        if (params.rounding_method === "round_globally") {
+            results.total_excluded_results = accountTaxHelpers.get_tax_details(
+                params.taxes,
+                results.results.total_excluded / params.quantity,
+                params.quantity,
+                { ...kwargs, special_mode: "total_excluded" },
             );
-            return { tax_totals: taxTotals, soft_checking: params.soft_checking };
+            results.total_included_results = accountTaxHelpers.get_tax_details(
+                params.taxes,
+                results.results.total_included / params.quantity,
+                params.quantity,
+                { ...kwargs, special_mode: "total_included" },
+            );
         }
-        if (params.test === "global_discount") {
-            const document = this.populateDocument(params.document);
-            const baseLines = accountTaxHelpers.prepare_global_discount_lines(
+        return results;
+    }
+
+    testAdaptPriceUnitToAnotherTaxes(params) {
+        return {
+            price_unit: accountTaxHelpers.adapt_price_unit_to_another_taxes(
+                params.price_unit,
+                params.product,
+                params.original_taxes,
+                params.new_taxes,
+                { product_uom_id: params.product_uom_id },
+            ),
+        };
+    }
+
+    testTaxTotalsSummary(params) {
+        const document = this.populateDocument(params.document);
+        return {
+            tax_totals: this.summarizeDocumentTaxes(document),
+            soft_checking: params.soft_checking,
+        };
+    }
+
+    testGlobalDiscount(params) {
+        const document = this.populateDocument(params.document);
+        document.lines.push(
+            ...accountTaxHelpers.prepare_global_discount_lines(
                 document.lines,
                 document.company,
                 params.amount_type,
                 params.amount,
                 "global_discount",
-            );
-            document.lines.push(...baseLines);
+            ),
+        );
+        return {
+            tax_totals: this.summarizeDocumentTaxes(document, { reprice: true }),
+            soft_checking: params.soft_checking,
+        };
+    }
+
+    testDownPayment(params) {
+        const document = this.populateDocument(params.document);
+        document.lines = accountTaxHelpers.prepare_down_payment_lines(
+            document.lines,
+            document.company,
+            params.amount_type,
+            params.amount,
+            "down_payment",
+        );
+        return {
+            tax_totals: this.summarizeDocumentTaxes(document, { reprice: true }),
+            soft_checking: params.soft_checking,
+            base_lines_tax_details: this.extractBaseLinesDetails(document),
+        };
+    }
+
+    testBaseLinesTaxDetails(params) {
+        const document = this.populateDocument(params.document);
+        return {
+            base_lines_tax_details: this.extractBaseLinesDetails(document),
+        };
+    }
+
+    summarizeDocumentTaxes(document, { reprice = false } = {}) {
+        if (reprice) {
             accountTaxHelpers.add_tax_details_in_base_lines(
                 document.lines,
                 document.company,
@@ -93,51 +141,13 @@ export class TestsSharedJsPython extends Component {
                 document.lines,
                 document.company,
             );
-            const taxTotals = accountTaxHelpers.get_tax_totals_summary(
-                document.lines,
-                document.currency,
-                document.company,
-                { cash_rounding: document.cash_rounding },
-            );
-            return { tax_totals: taxTotals, soft_checking: params.soft_checking };
         }
-        if (params.test === "down_payment") {
-            const document = this.populateDocument(params.document);
-            const baseLines = accountTaxHelpers.prepare_down_payment_lines(
-                document.lines,
-                document.company,
-                params.amount_type,
-                params.amount,
-                "down_payment",
-            );
-            document.lines = baseLines;
-            accountTaxHelpers.add_tax_details_in_base_lines(
-                document.lines,
-                document.company,
-            );
-            accountTaxHelpers.round_base_lines_tax_details(
-                document.lines,
-                document.company,
-            );
-            const taxTotals = accountTaxHelpers.get_tax_totals_summary(
-                document.lines,
-                document.currency,
-                document.company,
-                { cash_rounding: document.cash_rounding },
-            );
-            return {
-                tax_totals: taxTotals,
-                soft_checking: params.soft_checking,
-                base_lines_tax_details: this.extractBaseLinesDetails(document),
-            };
-        }
-        if (params.test === "base_lines_tax_details") {
-            const document = this.populateDocument(params.document);
-            return {
-                base_lines_tax_details: this.extractBaseLinesDetails(document),
-            };
-        }
-        throw new Error(`Unknown JS/Python shared test: ${params.test}`);
+        return accountTaxHelpers.get_tax_totals_summary(
+            document.lines,
+            document.currency,
+            document.company,
+            { cash_rounding: document.cash_rounding },
+        );
     }
 
     async processTests() {

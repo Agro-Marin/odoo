@@ -176,6 +176,9 @@ class MixinSequence(models.AbstractModel):
 
     @api.depends(lambda self: [self._sequence_field])
     def _compute_split_sequence(self):
+        self._update_split_sequence()
+
+    def _update_split_sequence(self):
         compiled = {}
         for record in self:
             sequence = record[record._sequence_field] or ""
@@ -368,7 +371,7 @@ class MixinSequence(models.AbstractModel):
 
         self.modified([self._sequence_field])
 
-        self._compute_split_sequence()
+        self._update_split_sequence()
 
     def _get_next_sequence_format(self):
         last_sequence = self._get_last_sequence()

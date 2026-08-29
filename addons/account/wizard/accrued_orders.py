@@ -9,6 +9,12 @@ from odoo.tools import date_utils, format_date
 from odoo.tools.misc import formatLang
 
 
+def _ellipsis(string, size):
+    if len(string) > size:
+        return string[0 : size - 3] + "..."
+    return string
+
+
 class AccountAccruedOrdersWizard(models.TransientModel):
     _name = "account.accrued.orders.wizard"
     _description = "Accrued Orders Wizard"
@@ -114,16 +120,14 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
     @api.depends("company_id")
     def _compute_journal_id(self):
+        Journal = self.env["account.journal"]
+        journals = Journal.search(
+            [*Journal._check_company_domain(self.company_id), ("type", "=", "general")]
+        )
         for record in self:
-            record.journal_id = self.env["account.journal"].search(
-                [
-                    *self.env["account.journal"]._check_company_domain(
-                        record.company_id
-                    ),
-                    ("type", "=", "general"),
-                ],
-                limit=1,
-            )
+            record.journal_id = journals.filtered_domain(
+                Journal._check_company_domain(record.company_id)
+            )[:1]
 
     @api.depends("date", "journal_id", "account_id", "amount", "res_model", "res_ids")
     def _compute_preview_data(self):
@@ -166,46 +170,33 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         else:
             return accounts["income"]
 
-    def _get_move_vals(self):
-        def _get_aml_vals(
-            order,
-            balance,
-            amount_currency,
-            account_id,
-            label="",
-            analytic_distribution=None,
-        ):
-            if not is_purchase:
-                balance *= -1
-                amount_currency *= -1
-            values = {
-                "name": label,
-                "debit": balance if balance > 0 else 0.0,
-                "credit": balance * -1 if balance < 0 else 0.0,
-                "account_id": account_id,
-            }
-            if analytic_distribution:
-                values.update(
-                    {
-                        "analytic_distribution": analytic_distribution,
-                    }
-                )
-            if len(order) == 1 and self.company_id.currency_id != order.currency_id:
-                values.update(
-                    {
-                        "amount_currency": amount_currency,
-                        "currency_id": order.currency_id.id,
-                    }
-                )
-            return values
+    def _get_aml_vals(
+        self,
+        order,
+        balance,
+        amount_currency,
+        account_id,
+        is_purchase,
+        label="",
+        analytic_distribution=None,
+    ):
+        if not is_purchase:
+            balance *= -1
+            amount_currency *= -1
+        values = {
+            "name": label,
+            "debit": balance if balance > 0 else 0.0,
+            "credit": balance * -1 if balance < 0 else 0.0,
+            "account_id": account_id,
+        }
+        if analytic_distribution:
+            values["analytic_distribution"] = analytic_distribution
+        if len(order) == 1 and self.company_id.currency_id != order.currency_id:
+            values["amount_currency"] = amount_currency
+            values["currency_id"] = order.currency_id.id
+        return values
 
-        def _ellipsis(string, size):
-            if len(string) > size:
-                return string[0 : size - 3] + "..."
-            return string
-
-        self.ensure_one()
-        move_lines = []
+    def _get_accrual_orders_and_lines(self):
         selected = self._get_selected_records()
         if selected is None:
             raise UserError(_("Select the orders to accrue first."))
@@ -226,159 +217,165 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             raise UserError(
                 _("Cannot create an accrual entry with orders in different currencies.")
             )
-        orders_with_entries = orders.browse()
-        total_balance = 0.0
-        amounts_by_perpetual_account = defaultdict(float)
+        return orders, lines, is_purchase
 
-        for order, product_lines in lines.grouped("order_id").items():
-            if len(orders) == 1 and product_lines and self.amount and order.line_ids:
-                total_balance = self.amount
-                order_line = product_lines[0]
-                account = self._get_computed_account(
-                    order, order_line.product_id, is_purchase
-                )
-                distribution = order_line.analytic_distribution or {}
-                values = _get_aml_vals(
-                    order,
-                    self.amount,
+    def _get_manual_accrual_aml_vals(self, order, order_line, is_purchase):
+        account = self._get_computed_account(order, order_line.product_id, is_purchase)
+        return self._get_aml_vals(
+            order,
+            self.amount,
+            0,
+            account.id,
+            is_purchase,
+            label=_("Manual entry"),
+            analytic_distribution=order_line.analytic_distribution or {},
+        )
+
+    def _get_accrual_order_lines(self, order, lines):
+        accrual_entry_date = self.env.context.get("accrual_entry_date")
+        accrual_entry_date = (
+            fields.Date.from_string(accrual_entry_date)
+            if accrual_entry_date
+            else self.date
+        )
+        return lines.with_context(
+            accrual_entry_date=accrual_entry_date,
+            uom_reconcile_strict=True,
+        ).filtered(
+            lambda l, order=order: (
+                not l.display_type
+                and not l.is_downpayment
+                and l.id in order.line_ids.ids
+                and fields.Float.compare(
+                    l.amount_to_invoice_at_date,
                     0,
-                    account.id,
-                    label=_("Manual entry"),
-                    analytic_distribution=distribution,
+                    precision_rounding=l.product_uom_id.rounding,
                 )
-                move_lines.append(Command.create(values))
-                orders_with_entries |= order
-            else:
-                accrual_entry_date = self.env.context.get("accrual_entry_date")
-                accrual_entry_date = (
-                    fields.Date.from_string(accrual_entry_date)
-                    if accrual_entry_date
-                    else self.date
-                )
-                order_lines = lines.with_context(
-                    accrual_entry_date=accrual_entry_date,
-                    uom_reconcile_strict=True,
-                ).filtered(
-                    lambda l, order=order: (
-                        not l.display_type
-                        and not l.is_downpayment
-                        and l.id in order.line_ids.ids
-                        and fields.Float.compare(
-                            l.amount_to_invoice_at_date,
-                            0,
-                            precision_rounding=l.product_uom_id.rounding,
-                        )
-                        != 0
-                    )
-                )
-                for order_line in order_lines:
-                    product = order_line.product_id
-                    if is_purchase:
-                        expense_account, stock_variation_account = (
-                            self._get_product_expense_and_stock_var_accounts(product)
-                        )
-                        account = stock_variation_account or self._get_computed_account(
-                            order, order_line.product_id, is_purchase
-                        )
-                        if any(tax.price_include for tax in order_line.tax_ids):
-                            qty_to_invoice = (
-                                order_line.qty_transferred_at_date
-                                - order_line.qty_invoiced_at_date
-                            )
-                            price_subtotal = order_line.tax_ids.compute_all(
-                                order_line.price_unit,
-                                currency=order_line.order_id.currency_id,
-                                quantity=qty_to_invoice,
-                                product=order_line.product_id,
-                                partner=order_line.order_id.partner_id,
-                            )["total_excluded"]
-                        else:
-                            price_subtotal = order_line.amount_to_invoice_at_date
-                        amount_currency = order_line.currency_id.round(price_subtotal)
-                        amount = order.currency_id._convert(
-                            amount_currency,
-                            self.company_id.currency_id,
-                            self.company_id,
-                        )
-                        label = _(
-                            "%(order)s - %(order_line)s; %(quantity_billed)s Billed, %(quantity_received)s Received at %(unit_price)s each",
-                            order=order.name,
-                            order_line=_ellipsis(order_line.name, 20),
-                            quantity_billed=order_line.qty_invoiced_at_date,
-                            quantity_received=order_line.qty_transferred_at_date,
-                            unit_price=formatLang(
-                                self.env,
-                                order_line.price_unit,
-                                currency_obj=order.currency_id,
-                            ),
-                        )
-                    else:
-                        expense_account, stock_variation_account = (
-                            self._get_product_expense_and_stock_var_accounts(product)
-                        )
-                        account = self._get_computed_account(
-                            order, product, is_purchase
-                        )
-                        amount_currency = order_line.amount_to_invoice_at_date
-                        amount = order.currency_id._convert(
-                            amount_currency,
-                            self.company_id.currency_id,
-                            self.company_id,
-                        )
-                        label = _(
-                            "%(order)s - %(order_line)s; %(quantity_invoiced)s Invoiced, %(quantity_delivered)s Delivered at %(unit_price)s each",
-                            order=order.name,
-                            order_line=_ellipsis(order_line.name, 20),
-                            quantity_invoiced=order_line.qty_invoiced_at_date,
-                            quantity_delivered=order_line.qty_transferred_at_date,
-                            unit_price=formatLang(
-                                self.env,
-                                order_line.price_unit,
-                                currency_obj=order.currency_id,
-                            ),
-                        )
-                        if expense_account and stock_variation_account:
-                            label += " (*)"
-                            amounts_by_perpetual_account[
-                                expense_account, stock_variation_account
-                            ] += amount
-                    distribution = order_line.analytic_distribution or {}
-                    values = _get_aml_vals(
-                        order,
-                        amount,
-                        amount_currency,
-                        account.id,
-                        label=label,
-                        analytic_distribution=distribution,
-                    )
-                    move_lines.append(Command.create(values))
-                    total_balance += amount
-                    orders_with_entries |= order
-
-        if not self.company_id.currency_id.is_zero(total_balance):
-            analytic_distribution = {}
-            total = sum(order.amount_total for order in orders)
-            for line in orders.line_ids if total else ():
-                if not line.analytic_distribution:
-                    continue
-                ratio = line.price_total / total
-                for account_id, distribution in line.analytic_distribution.items():
-                    analytic_distribution.update(
-                        {
-                            account_id: analytic_distribution.get(account_id, 0)
-                            + distribution * ratio
-                        }
-                    )
-            values = _get_aml_vals(
-                orders,
-                -total_balance,
-                0.0,
-                self.account_id.id,
-                label=_("Accrued total"),
-                analytic_distribution=analytic_distribution,
+                != 0
             )
-            move_lines.append(Command.create(values))
+        )
 
+    def _get_purchase_accrual_line_amounts(self, order, order_line):
+        product = order_line.product_id
+        _expense_account, stock_variation_account = (
+            self._get_product_expense_and_stock_var_accounts(product)
+        )
+        account = stock_variation_account or self._get_computed_account(
+            order, product, True
+        )
+        if any(tax.price_include for tax in order_line.tax_ids):
+            qty_to_invoice = (
+                order_line.qty_transferred_at_date - order_line.qty_invoiced_at_date
+            )
+            price_subtotal = order_line.tax_ids.compute_all(
+                order_line.price_unit,
+                currency=order_line.order_id.currency_id,
+                quantity=qty_to_invoice,
+                product=order_line.product_id,
+                partner=order_line.order_id.partner_id,
+            )["total_excluded"]
+        else:
+            price_subtotal = order_line.amount_to_invoice_at_date
+        amount_currency = order_line.currency_id.round(price_subtotal)
+        amount = order.currency_id._convert(
+            amount_currency,
+            self.company_id.currency_id,
+            self.company_id,
+        )
+        label = _(
+            "%(order)s - %(order_line)s; %(quantity_billed)s Billed, %(quantity_received)s Received at %(unit_price)s each",
+            order=order.name,
+            order_line=_ellipsis(order_line.name, 20),
+            quantity_billed=order_line.qty_invoiced_at_date,
+            quantity_received=order_line.qty_transferred_at_date,
+            unit_price=formatLang(
+                self.env,
+                order_line.price_unit,
+                currency_obj=order.currency_id,
+            ),
+        )
+        return amount, amount_currency, account, label
+
+    def _get_sale_accrual_line_amounts(
+        self, order, order_line, amounts_by_perpetual_account
+    ):
+        product = order_line.product_id
+        expense_account, stock_variation_account = (
+            self._get_product_expense_and_stock_var_accounts(product)
+        )
+        account = self._get_computed_account(order, product, False)
+        amount_currency = order_line.amount_to_invoice_at_date
+        amount = order.currency_id._convert(
+            amount_currency,
+            self.company_id.currency_id,
+            self.company_id,
+        )
+        label = _(
+            "%(order)s - %(order_line)s; %(quantity_invoiced)s Invoiced, %(quantity_delivered)s Delivered at %(unit_price)s each",
+            order=order.name,
+            order_line=_ellipsis(order_line.name, 20),
+            quantity_invoiced=order_line.qty_invoiced_at_date,
+            quantity_delivered=order_line.qty_transferred_at_date,
+            unit_price=formatLang(
+                self.env,
+                order_line.price_unit,
+                currency_obj=order.currency_id,
+            ),
+        )
+        if expense_account and stock_variation_account:
+            label += " (*)"
+            amounts_by_perpetual_account[expense_account, stock_variation_account] += (
+                amount
+            )
+        return amount, amount_currency, account, label
+
+    def _get_order_accrual_aml_vals(
+        self, order, lines, is_purchase, amounts_by_perpetual_account
+    ):
+        values = []
+        total = 0.0
+        for order_line in self._get_accrual_order_lines(order, lines):
+            if is_purchase:
+                amount, amount_currency, account, label = (
+                    self._get_purchase_accrual_line_amounts(order, order_line)
+                )
+            else:
+                amount, amount_currency, account, label = (
+                    self._get_sale_accrual_line_amounts(
+                        order, order_line, amounts_by_perpetual_account
+                    )
+                )
+            values.append(
+                self._get_aml_vals(
+                    order,
+                    amount,
+                    amount_currency,
+                    account.id,
+                    is_purchase,
+                    label=label,
+                    analytic_distribution=order_line.analytic_distribution or {},
+                )
+            )
+            total += amount
+        return values, total
+
+    def _get_accrual_analytic_distribution(self, orders):
+        analytic_distribution = {}
+        total = sum(order.amount_total for order in orders)
+        for line in orders.line_ids if total else ():
+            if not line.analytic_distribution:
+                continue
+            ratio = line.price_total / total
+            for account_id, distribution in line.analytic_distribution.items():
+                analytic_distribution[account_id] = (
+                    analytic_distribution.get(account_id, 0) + distribution * ratio
+                )
+        return analytic_distribution
+
+    def _get_perpetual_valuation_aml_vals(
+        self, orders, is_purchase, amounts_by_perpetual_account
+    ):
+        values = []
         for (
             expense_account,
             stock_variation_account,
@@ -389,14 +386,74 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 label = _("(*) Goods Delivered not Invoiced (perpetual valuation)")
             else:
                 label = _("(*) Goods Invoiced not Delivered (perpetual valuation)")
-            values = _get_aml_vals(
-                orders, amount, 0.0, stock_variation_account.id, label=label
+            values.append(
+                self._get_aml_vals(
+                    orders,
+                    amount,
+                    0.0,
+                    stock_variation_account.id,
+                    is_purchase,
+                    label=label,
+                )
             )
-            move_lines.append(Command.create(values))
-            values = _get_aml_vals(
-                orders, -amount, 0.0, expense_account.id, label=label
+            values.append(
+                self._get_aml_vals(
+                    orders, -amount, 0.0, expense_account.id, is_purchase, label=label
+                )
             )
-            move_lines.append(Command.create(values))
+        return values
+
+    def _get_move_vals(self):
+        self.ensure_one()
+        orders, lines, is_purchase = self._get_accrual_orders_and_lines()
+        move_lines = []
+        orders_with_entries = orders.browse()
+        total_balance = 0.0
+        amounts_by_perpetual_account = defaultdict(float)
+
+        for order, product_lines in lines.grouped("order_id").items():
+            if len(orders) == 1 and product_lines and self.amount and order.line_ids:
+                total_balance = self.amount
+                move_lines.append(
+                    Command.create(
+                        self._get_manual_accrual_aml_vals(
+                            order, product_lines[0], is_purchase
+                        )
+                    )
+                )
+                orders_with_entries |= order
+            else:
+                order_vals, order_balance = self._get_order_accrual_aml_vals(
+                    order, lines, is_purchase, amounts_by_perpetual_account
+                )
+                if order_vals:
+                    move_lines += [Command.create(vals) for vals in order_vals]
+                    total_balance += order_balance
+                    orders_with_entries |= order
+
+        if not self.company_id.currency_id.is_zero(total_balance):
+            move_lines.append(
+                Command.create(
+                    self._get_aml_vals(
+                        orders,
+                        -total_balance,
+                        0.0,
+                        self.account_id.id,
+                        is_purchase,
+                        label=_("Accrued total"),
+                        analytic_distribution=self._get_accrual_analytic_distribution(
+                            orders
+                        ),
+                    )
+                )
+            )
+
+        move_lines += [
+            Command.create(vals)
+            for vals in self._get_perpetual_valuation_aml_vals(
+                orders, is_purchase, amounts_by_perpetual_account
+            )
+        ]
 
         move_type = _("Expense") if is_purchase else _("Revenue")
         move_vals = {

@@ -201,6 +201,19 @@ class AccountChartTemplate(models.AbstractModel):
             )
         )
         return {
+            **self._get_demo_data_move_invoices_1_3(),
+            **self._get_demo_data_move_invoices_followup_6(),
+            **self._get_demo_data_move_invoices_7_equipment(),
+            **self._get_demo_data_move_invoices_9_10(),
+            **self._get_demo_data_move_auto_reconcile_1_4(one_month_ago),
+            **self._get_demo_data_move_auto_reconcile_5_7(
+                misc_journal, bank_journal, default_receivable, income_account
+            ),
+        }
+
+    @api.model
+    def _get_demo_data_move_invoices_1_3(self):
+        return {
             self.company_xmlid("demo_invoice_1"): {
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_12",
@@ -255,6 +268,11 @@ class AccountChartTemplate(models.AbstractModel):
                     ),
                 ],
             },
+        }
+
+    @api.model
+    def _get_demo_data_move_invoices_followup_6(self):
+        return {
             self.company_xmlid("demo_invoice_followup"): {
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_2",
@@ -317,6 +335,11 @@ class AccountChartTemplate(models.AbstractModel):
                     ),
                 ],
             },
+        }
+
+    @api.model
+    def _get_demo_data_move_invoices_7_equipment(self):
+        return {
             self.company_xmlid("demo_invoice_7"): {
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_5",
@@ -384,6 +407,11 @@ class AccountChartTemplate(models.AbstractModel):
                 ],
                 "message_main_attachment_id": "ir_attachment_in_invoice_2",
             },
+        }
+
+    @api.model
+    def _get_demo_data_move_invoices_9_10(self):
+        return {
             self.company_xmlid("demo_invoice_9"): {
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_6",
@@ -420,6 +448,11 @@ class AccountChartTemplate(models.AbstractModel):
                     ),
                 ],
             },
+        }
+
+    @api.model
+    def _get_demo_data_move_auto_reconcile_1_4(self, one_month_ago):
+        return {
             self.company_xmlid("demo_move_auto_reconcile_1"): {
                 "move_type": "out_refund",
                 "partner_id": "base.res_partner_12",
@@ -483,6 +516,13 @@ class AccountChartTemplate(models.AbstractModel):
                     ),
                 ],
             },
+        }
+
+    @api.model
+    def _get_demo_data_move_auto_reconcile_5_7(
+        self, misc_journal, bank_journal, default_receivable, income_account
+    ):
+        return {
             self.company_xmlid("demo_move_auto_reconcile_5"): {
                 "move_type": "out_refund",
                 "partner_id": "base.res_partner_2",

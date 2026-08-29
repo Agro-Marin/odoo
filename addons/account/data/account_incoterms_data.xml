@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <record id="incoterm_EXW" model="account.incoterms">
             <field name="code">EXW</field>
@@ -45,6 +46,6 @@
             <field name="code">DDP</field>
             <field name="name">DELIVERED DUTY PAID</field>
         </record>
-
     </data>
+
 </odoo>

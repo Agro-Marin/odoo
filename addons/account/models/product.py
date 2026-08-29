@@ -480,6 +480,11 @@ class ProductProduct(models.Model):
         """
         return []
 
+    def _get_classification_record(self, spec, code):
+        return self.env[spec["comodel"]].search(
+            [(spec["code_field"], "=", code)], limit=1
+        )
+
     def _get_import_product_classification_domain(self, product_values):
         extra_domain = []
         order_fields = []
@@ -488,9 +493,7 @@ class ProductProduct(models.Model):
             field = spec["field"]
             if not code:
                 continue
-            record = self.env[spec["comodel"]].search(
-                [(spec["code_field"], "=", code)], limit=1
-            )
+            record = self._get_classification_record(spec, code)
             if not record:
                 continue
             extra_domain.append((field, "in", (record.id, False)))
@@ -521,10 +524,8 @@ class ProductProduct(models.Model):
                 continue
             for criteria in plan_values["criteria"]:
                 if criteria_domain := criteria.get("domain"):
-                    product = self.search(
-                        Domain.AND([domain, list(criteria_domain)]),
-                        order=order,
-                        limit=1,
+                    product = self._get_first_product(
+                        Domain.AND([domain, list(criteria_domain)]), order
                     )
                 elif search_method := criteria.get("search_method"):
                     product = search_method(domain)
@@ -533,6 +534,10 @@ class ProductProduct(models.Model):
                 if product:
                     return product
         return self.browse()
+
+    @api.model
+    def _get_first_product(self, domain, order):
+        return self.search(domain, order=order, limit=1)
 
     def _get_import_product_search_plan(self):
         return [

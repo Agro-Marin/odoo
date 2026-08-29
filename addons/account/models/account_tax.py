@@ -359,8 +359,9 @@ class AccountTax(models.Model):
                         continue
 
                     if domain:
-                        full_domain = static_domain & Domain(domain)
-                        tax = self.search(full_domain, order=",".join(orders), limit=1)
+                        tax = self._get_first_tax(
+                            static_domain & Domain(domain), orders
+                        )
                     elif search_method:
                         tax = search_method(
                             {
@@ -626,6 +627,19 @@ class AccountTax(models.Model):
             )
 
         source_lines = ordered(self)
+        companies = self.env["res.company"].browse(
+            company.id for company in new_record_by_company
+        )
+        descendants = self.env["res.company"].search([("id", "child_of", companies.ids)])
+        descendant_ids_by_company = {
+            company.id: [
+                descendant.id
+                for descendant in descendants
+                if company in descendant.parent_ids
+            ]
+            for company in companies
+        }
+        self.env["account.move.line"].flush_model(["tax_repartition_line_id"])
         for company, new_tax in new_record_by_company.items():
             mapping = {
                 old.id: new.id
@@ -633,7 +647,6 @@ class AccountTax(models.Model):
             }
             if not mapping:
                 continue
-            self.env["account.move.line"].flush_model(["tax_repartition_line_id"])
             self.env.cr.execute(
                 SQL(
                     """
@@ -645,14 +658,13 @@ class AccountTax(models.Model):
                     """,
                     mapping=json.dumps({str(k): v for k, v in mapping.items()}),
                     old_ids=tuple(mapping),
-                    company_ids=tuple(
-                        self.env["res.company"]
-                        .search([("id", "child_of", company.id)])
-                        .ids
-                    ),
+                    company_ids=tuple(descendant_ids_by_company[company.id]),
                 )
             )
         self.env["account.move.line"].invalidate_model(["tax_repartition_line_id"])
+
+    def _get_first_tax(self, domain, orders):
+        return self.search(domain, order=",".join(orders), limit=1)
 
     def _merge_method(self, destination, source):
         # The generic merge cannot know that two taxes with the same rate may
@@ -697,16 +709,22 @@ class AccountTax(models.Model):
         if self.env.context.get("from_account_tax_creation") is True:
             return
         self.invalidate_recordset(fnames=["company_ids"])
+        AccountMoveLine = self.env["account.move.line"]
+        line_companies_by_tax = defaultdict(set)
+        for tax, company in (
+            *AccountMoveLine._read_group(
+                [("tax_line_id", "in", self.ids)], ["tax_line_id", "company_id"]
+            ),
+            *AccountMoveLine._read_group(
+                [("tax_ids", "in", self.ids)], ["tax_ids", "company_id"]
+            ),
+        ):
+            line_companies_by_tax[tax.id].add(company)
         for companies, taxes in self.grouped(lambda tax: tax.company_ids).items():
-            if self.env["account.move.line"].search_count(
-                [
-                    "|",
-                    ("tax_line_id", "in", taxes.ids),
-                    ("tax_ids", "in", taxes.ids),
-                    "!",
-                    ("company_id", "child_of", companies.ids),
-                ],
-                limit=1,
+            if any(
+                not (companies & line_company.parent_ids)
+                for tax in taxes
+                for line_company in line_companies_by_tax[tax.id]
             ):
                 raise UserError(
                     self.env._(

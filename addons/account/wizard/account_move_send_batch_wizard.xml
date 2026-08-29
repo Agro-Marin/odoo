@@ -10,21 +10,29 @@
 
                 <!-- Warnings -->
                 <div class="m-0" id="alerts" invisible="not alerts">
-                    <field name="alerts" class="o_field_html" widget="actionable_errors" />
+                    <field
+                        name="alerts"
+                        class="o_field_html"
+                        widget="actionable_errors" />
                 </div>
 
                 <!-- Summary -->
-                <field name="summary_data" invisible="not summary_data"
-                    widget="account_batch_sending_summary" nolabel="1" />
+                <field
+                    name="summary_data"
+                    invisible="not summary_data"
+                    widget="account_batch_sending_summary"
+                    nolabel="1" />
 
                 <footer>
-                    <button string="Send"
+                    <button
+                        string="Send"
                         data-hotkey="q"
                         name="action_send_and_print"
                         type="object"
                         class="print btn-primary o_mail_send">
                     </button>
-                    <button string="Cancel"
+                    <button
+                        string="Cancel"
                         data-hotkey="x"
                         special="cancel"
                         class="btn-secondary" />

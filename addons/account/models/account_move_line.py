@@ -1681,6 +1681,9 @@ class AccountMoveLine(models.Model):
         return SQL("move_id")
 
     def _inverse_analytic_distribution(self):
+        self._update_analytic_distribution_from_origin()
+
+    def _update_analytic_distribution_from_origin(self):
         if self.env.context.get("skip_analytic_sync"):
             return
         lines_to_modify = (
@@ -1706,7 +1709,7 @@ class AccountMoveLine(models.Model):
 
     @api.onchange("account_id")
     def _inverse_account_id(self):
-        self._inverse_analytic_distribution()
+        self._update_analytic_distribution_from_origin()
         self._conditional_add_to_compute(
             "tax_ids",
             lambda line: (

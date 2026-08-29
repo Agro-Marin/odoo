@@ -1,5 +1,6 @@
-from odoo.addons.account.tests.common import AccountTestInvoicingHttpCommon
 from odoo.tests import tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingHttpCommon
 
 
 @tagged("-at_install", "post_install")
