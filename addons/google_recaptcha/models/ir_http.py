@@ -87,7 +87,9 @@ class IrHttp(models.AbstractModel):
         if not private_key:
             return "no_secret"
         min_score = (
-            request.env["ir.config_parameter"].sudo().get_param("recaptcha_min_score")
+            request.env["ir.config_parameter"]
+            .sudo()
+            .get_param_float("recaptcha_min_score", 0.7)
         )
         try:
             r = requests.post(
@@ -113,7 +115,7 @@ class IrHttp(models.AbstractModel):
 
         if res_success:
             score = result.get("score", False)
-            if score < float(min_score):
+            if score < min_score:
                 logger.warning(
                     "Trial captcha verification for ip address %s failed with score %f.",
                     ip_addr,
