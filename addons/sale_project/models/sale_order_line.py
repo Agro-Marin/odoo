@@ -444,7 +444,7 @@ class SaleOrderLine(models.Model):
     def _timesheet_create_task(self, project):
         """Generate task for the given so line, and link it.
         :param project: record of project.project in which the task should be created
-        :return task: record of the created task
+        :return: record of the created task
         """
         if template := self.product_id.task_template_id:
             vals = self._prepare_task_template_vals(template, project)
