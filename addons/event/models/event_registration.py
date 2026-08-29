@@ -3,7 +3,7 @@ import os
 from datetime import UTC
 
 from odoo import SUPERUSER_ID, _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.tools import email_normalize, format_date, formataddr
@@ -180,6 +180,21 @@ class EventRegistration(models.Model):
         "Attended: registrations for which the attendee attended the event\n"
         "Cancelled: registrations cancelled manually",
     )
+    # multi-entry tickets
+    ticket_entry_limit = fields.Integer(
+        string="Initial Entry Limit",
+        related="event_ticket_id.entry_limit",
+        tracking=True,
+    )
+    remaining_entries = fields.Integer(
+        string="Remaining Entries", compute="_compute_remaining_entries", tracking=True
+    )
+    main_registration_id = fields.Many2one(
+        "event.registration",
+        string="Main Registration",
+        ondelete="restrict",
+        index="btree_not_null",
+    )
     # questions
     registration_answer_ids = fields.One2many(
         "event.registration.answer", "registration_id", string="Attendee Answers"
@@ -326,6 +341,37 @@ class EventRegistration(models.Model):
                 or registration.event_id.date_end
             )
 
+    @api.depends("ticket_entry_limit", "state", "main_registration_id")
+    def _compute_remaining_entries(self):
+        """Entries left on a multi-entry ticket, counted from its attendances.
+
+        Only a main registration on a ticket that allows more than one entry
+        carries a figure; a sub registration is one attendance and a
+        single-use ticket has nothing to count, so both report 0.
+        """
+        attendances = dict(
+            self.env["event.registration"]._read_group(
+                domain=[
+                    ("main_registration_id", "in", self.ids),
+                    ("state", "=", "done"),
+                ],
+                groupby=["main_registration_id"],
+                aggregates=["__count"],
+            )
+        )
+        for registration in self:
+            if (
+                registration.ticket_entry_limit > 1
+                and not registration.main_registration_id
+                and registration.state != "done"
+            ):
+                registration.remaining_entries = max(
+                    0,
+                    registration.ticket_entry_limit - attendances.get(registration, 0),
+                )
+            else:
+                registration.remaining_entries = 0
+
     @api.model
     def _search_event_end_date(self, operator, value):
         return Domain.OR(
@@ -412,7 +458,7 @@ class EventRegistration(models.Model):
             if event_id and attendee.event_id.id != event_id:
                 status = "need_manual_confirmation"
             else:
-                attendee.action_set_done()
+                attendee.action_attend_event()
                 status = "confirmed_registration"
         else:
             status = "already_registered"
@@ -514,6 +560,67 @@ class EventRegistration(models.Model):
 
     def action_confirm(self):
         self.write({"state": "open"})
+
+    def action_confirm_and_reset(self):
+        """Undo an attendance: reopen the registration and forget it attended."""
+        self.write({"state": "open", "date_closed": False})
+
+    def action_attend_event(self):
+        """Record one attendance, closing the registration only when spent.
+
+        On a multi-entry ticket every attendance is its own sub registration
+        pointing back here, so the main registration stays open and keeps its
+        own barcode usable until the entries run out. On a single-use ticket
+        this is `action_set_done` and nothing more.
+        """
+        for registration in self:
+            if registration.remaining_entries > 1:
+                attendance = registration.copy(
+                    {"main_registration_id": registration.id}
+                )
+                attendance.action_set_done()
+                registration._message_log(
+                    body=_(
+                        "New attendance by this attendee created at "
+                        "%(attendance_datetime)s, see %(attendance_link)s",
+                        attendance_datetime=fields.Datetime.to_string(
+                            attendance.create_date
+                        ),
+                        attendance_link=attendance._get_html_link(
+                            title=attendance.name
+                        ),
+                    ),
+                    message_type="notification",
+                )
+            else:
+                registration.action_set_done()
+
+    def action_cancel_last_sub_registration(self):
+        """Give back the most recent attendance of a multi-entry registration.
+
+        Meant for the main registration: a sub registration is a single
+        attendance and has none of its own to give back.
+        """
+        if self.main_registration_id:
+            raise UserError(
+                _(
+                    "You cannot cancel the last attendance of the sub-registration "
+                    "with id: %(registration_id)s. Please try again from the "
+                    "original registration of this attendee.",
+                    registration_id=self.filtered("main_registration_id").ids,
+                )
+            )
+        last_attendances = self.env["event.registration"]._read_group(
+            domain=[
+                ("main_registration_id", "in", self.ids),
+                ("state", "=", "done"),
+            ],
+            groupby=["main_registration_id"],
+            aggregates=["id:max"],
+        )
+        self.browse(
+            [attendance_id for __, attendance_id in last_attendances]
+        ).action_cancel()
 
     def action_set_done(self):
         """Close Registration"""
@@ -696,6 +803,10 @@ class EventRegistration(models.Model):
             ).mapped("display_name"),
             "company_name": self.company_name,
             "badge_format": self.event_id.badge_format,
+            "ticket_entry_limit": self.ticket_entry_limit,
+            # the scan that opened this dialog is already booked, so what the
+            # attendee has left is one fewer than what the record still says
+            "remaining_entries": max(0, self.remaining_entries - 1),
             "date_closed_formatted": format_date(
                 env=self.env, value=self.date_closed, date_format="short"
             )

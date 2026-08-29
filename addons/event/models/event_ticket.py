@@ -46,6 +46,13 @@ class EventEventTicket(models.Model):
     registration_ids = fields.One2many(
         "event.registration", "event_ticket_id", string="Registrations"
     )
+    entry_limit = fields.Integer(
+        string="Entry Limit",
+        default=0,
+        help="Enable multi-entry tickets\n"
+        "- Set to 0 or 1 to disable.\n"
+        "- Enter 2 or more to define the maximum number of allowed entries.",
+    )
     # seats
     seats_reserved = fields.Integer(
         string="Reserved Seats", compute="_compute_seats", store=False
@@ -148,6 +155,18 @@ class EventEventTicket(models.Model):
                         ticket_name=ticket.name,
                     )
                 )
+
+    @api.constrains("entry_limit")
+    def _constrains_entry_limit(self):
+        failing = self.filtered(lambda ticket: ticket.entry_limit < 0)
+        if failing:
+            raise UserError(
+                _(
+                    "The entry limit of event tickets %(ticket_names)s cannot be "
+                    "lower than 0.",
+                    ticket_names=", ".join(failing.mapped("name")),
+                )
+            )
 
     @api.constrains("limit_max_per_order", "seats_max")
     def _constrains_limit_max_per_order(self):

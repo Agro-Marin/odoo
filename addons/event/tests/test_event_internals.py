@@ -1284,6 +1284,149 @@ class TestEventRegistrationData(TestEventInternalsCommon):
         self.assertEqual(new_reg.phone, contact.phone)
 
     @users("user_eventmanager")
+    def test_registration_multi_entry(self):
+        """A ticket with an entry limit lets one attendee come back in.
+
+        Scanning a multi-entry ticket books an attendance without closing the
+        registration, and each attendance is recorded as its own sub
+        registration pointing back at the main one. The registration only
+        reaches "done" once its entries run out.
+        """
+        event = self.env["event.event"].create(
+            {
+                "name": "Multi Entry Event",
+                "date_begin": FieldsDatetime.to_string(
+                    datetime.now() - timedelta(days=1)
+                ),
+                "date_end": FieldsDatetime.to_string(
+                    datetime.now() + timedelta(days=1)
+                ),
+            }
+        )
+        ticket = self.env["event.event.ticket"].create(
+            {
+                "name": "Three Entries",
+                "event_id": event.id,
+                "entry_limit": 3,
+            }
+        )
+        registration = self.env["event.registration"].create(
+            {
+                "name": "Multi Entry Attendee",
+                "event_id": event.id,
+                "event_ticket_id": ticket.id,
+            }
+        )
+        registration.action_confirm()
+        self.assertEqual(
+            registration.remaining_entries,
+            3,
+            "the ticket's entry limit seeds the remaining entries",
+        )
+
+        registration.action_attend_event()
+        registration.invalidate_recordset(["remaining_entries"])
+        self.assertEqual(registration.remaining_entries, 2)
+        self.assertEqual(
+            registration.state, "open", "an entry left keeps the registration open"
+        )
+
+        registration.action_attend_event()
+        registration.action_cancel_last_sub_registration()
+        registration.invalidate_recordset(["remaining_entries"])
+        self.assertEqual(
+            registration.remaining_entries,
+            2,
+            "cancelling the last attendance gives the entry back",
+        )
+        self.assertEqual(registration.state, "open")
+
+        registration.action_attend_event()
+        registration.invalidate_recordset(["remaining_entries"])
+        registration.action_attend_event()
+        registration.invalidate_recordset(["remaining_entries"])
+        self.assertEqual(registration.remaining_entries, 0)
+        self.assertEqual(
+            registration.state,
+            "done",
+            "the last entry closes the registration itself",
+        )
+
+    @users("user_eventmanager")
+    def test_registration_single_entry_is_unchanged(self):
+        """A ticket without an entry limit behaves exactly as before."""
+        event = self.env["event.event"].create(
+            {
+                "name": "Single Entry Event",
+                "date_begin": FieldsDatetime.to_string(
+                    datetime.now() - timedelta(days=1)
+                ),
+                "date_end": FieldsDatetime.to_string(
+                    datetime.now() + timedelta(days=1)
+                ),
+            }
+        )
+        ticket = self.env["event.event.ticket"].create(
+            {"name": "Classic", "event_id": event.id}
+        )
+        registration = self.env["event.registration"].create(
+            {
+                "name": "Single Entry Attendee",
+                "event_id": event.id,
+                "event_ticket_id": ticket.id,
+            }
+        )
+        registration.action_confirm()
+        self.assertEqual(registration.remaining_entries, 0)
+
+        registration.action_attend_event()
+        self.assertEqual(
+            registration.state, "done", "one scan closes a single-use ticket"
+        )
+        self.assertFalse(
+            self.env["event.registration"].search(
+                [("main_registration_id", "=", registration.id)]
+            ),
+            "a single-use ticket spawns no sub registration",
+        )
+
+    def test_registration_form_leaves_the_transaction_group_alone(self):
+        """The multi-entry group must not be called "transaction".
+
+        `event_product` adds a group by that name to this same form, and
+        `event_sale` and `pos_event` reach it with
+        `<group name="transaction" position="inside">`. A second group with the
+        same name in the base arch would win that xpath, and since the
+        multi-entry group is hidden unless the ticket allows several entries,
+        the sale information would vanish from the form for ordinary tickets.
+        """
+        arch = etree.fromstring(
+            self.env.ref("event.view_event_registration_form").arch.encode()
+        )
+        self.assertFalse(
+            arch.xpath("//group[@name='transaction']"),
+            "event must not introduce a group named 'transaction' -- it would "
+            "hijack the xpath event_sale and pos_event use",
+        )
+        self.assertTrue(arch.xpath("//group[@name='event_entries']"))
+
+    @users("user_eventmanager")
+    def test_registration_entry_limit_cannot_be_negative(self):
+        event = self.env["event.event"].create(
+            {
+                "name": "Entry Limit Event",
+                "date_begin": FieldsDatetime.to_string(datetime.now()),
+                "date_end": FieldsDatetime.to_string(
+                    datetime.now() + timedelta(days=1)
+                ),
+            }
+        )
+        with self.assertRaises(exceptions.UserError):
+            self.env["event.event.ticket"].create(
+                {"name": "Negative", "event_id": event.id, "entry_limit": -1}
+            )
+
+    @users("user_eventmanager")
     def test_registration_display_name_unsaved(self):
         """An unsaved attendee shows "New", not the technical NewId.
 
