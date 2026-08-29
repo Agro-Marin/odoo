@@ -55,3 +55,55 @@ class TestRecurrentEvent(common.TransactionCase):
         self.assertEqual(
             meetings_count, 10, "Recurrent weekly meetings are not created!"
         )
+
+    def test_recurrent_meeting_forever_is_capped_in_years(self):
+        # A `forever` recurrence has to be bounded by a horizon in YEARS, not by
+        # a fixed number of occurrences. `MAX_RECURRENT_EVENT` caps the
+        # enumeration at 720 events whatever the frequency, so a yearly forever
+        # event used to materialise 720 rows -- 720 years of meetings -- and a
+        # monthly one 60 years. Daily and weekly stay on the occurrence cap
+        # because 720 of either already falls inside the horizon (~2 and ~14
+        # years), which is why they are asserted unchanged here.
+        values = {
+            "duration": 1.0,
+            "end_type": "forever",
+            "start": "2026-04-01 05:00:00",
+            "stop": "2026-04-01 06:00:00",
+            "recurrency": True,
+        }
+        for rrule_type, name, expected_count in (
+            ("daily", "Daily Meeting", 720),
+            ("monthly", "Monthly Meeting", 180),
+            ("yearly", "Yearly Meeting", 15),
+        ):
+            with self.subTest(rrule_type=rrule_type):
+                self.CalendarEvent.create(
+                    dict(values, name=name, rrule_type=rrule_type)
+                )
+                meetings_count = self.CalendarEvent.search_count([("name", "=", name)])
+                self.assertEqual(
+                    meetings_count,
+                    expected_count,
+                    f"A forever {rrule_type} recurrence should stop at {expected_count} events",
+                )
+
+        # The horizon is configurable. `set_param`/`get_param_int` is the pair
+        # this fork exposes on `ir.config_parameter`; there is no `set_int`.
+        self.env["ir.config_parameter"].sudo().set_param(
+            "calendar.max_recurrence_years", 5
+        )
+        for rrule_type, name, expected_count in (
+            ("daily", "Custom Daily Meeting", 720),
+            ("monthly", "Custom Monthly Meeting", 60),
+            ("yearly", "Custom Yearly Meeting", 5),
+        ):
+            with self.subTest(rrule_type=rrule_type, max_recurrence_years=5):
+                self.CalendarEvent.create(
+                    dict(values, name=name, rrule_type=rrule_type)
+                )
+                meetings_count = self.CalendarEvent.search_count([("name", "=", name)])
+                self.assertEqual(
+                    meetings_count,
+                    expected_count,
+                    f"A forever {rrule_type} recurrence should follow calendar.max_recurrence_years",
+                )
