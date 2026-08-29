@@ -194,10 +194,9 @@ class CalendarAlarm_Manager(models.AbstractModel):
         Get the events with an alarm of the given type between the cron
         last call and now.
 
-        Please note that all new reminders created since the cron last
-        call with an alarm prior to the cron last call are skipped by
-        design. The attendees receive an invitation for any new event
-        already.
+        New reminders created since the cron's last call, with an alarm
+        before that last call, are skipped by design. The attendees
+        receive an invitation for any new event already.
         """
         extra_conditions = self._get_notify_alert_extra_conditions()
         now = fields.Datetime.now()
