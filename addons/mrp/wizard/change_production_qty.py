@@ -133,7 +133,21 @@ class ChangeProductionQty(models.TransientModel):
                 if wo.state == "done" and not wo.is_produced:
                     wo.state = "progress"
                 elif wo.state == "progress" and wo.is_produced:
-                    wo.state = "done"
+                    # Assigning `.state` alone skipped what
+                    # `button_finish()` does for a running work order: its
+                    # open productivity timer stayed open, and
+                    # `costs_hour`/`date_end` never got the values
+                    # `button_finish()` stamps. The move-picking half of
+                    # `button_finish()` is not needed here -- this method
+                    # already reconciled the raw/finished moves above.
+                    wo.end_all()
+                    wo.write(
+                        {
+                            "state": "done",
+                            "date_end": fields.Datetime.now(),
+                            "costs_hour": wo.workcenter_id.costs_hour,
+                        }
+                    )
                 moves_raw = production.move_raw_ids.filtered(
                     lambda move, operation=operation: (
                         move.operation_id == operation
