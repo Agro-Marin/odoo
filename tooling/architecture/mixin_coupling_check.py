@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""BaseModel's 26 mixins are composed by multiple inheritance."""
+
 from __future__ import annotations
 
 import argparse

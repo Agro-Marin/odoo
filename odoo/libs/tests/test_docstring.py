@@ -24,19 +24,23 @@ def _signature(func, **kwargs):
 class TestTypeField:
     def test_type_field_fills_an_unannotated_parameter(self):
         def f(value):
-            pass
+            """Do a thing.
+
+            :param value: what to do it to
+            :type value: SomeCustomType
+            """
 
         assert _params(f)["value"]["annotation"] == "SomeCustomType"
 
     def test_type_field_exports_no_other_key(self):
         def f(value):
-            pass
+            """:type value: SomeCustomType"""
 
         assert set(_params(f)["value"]) == {"annotation"}
 
     def test_an_annotation_wins_over_the_type_field(self):
         def f(value: int):
-            pass
+            """:type value: str"""
 
         assert _params(f)["value"]["annotation"] == "int"
 
@@ -155,7 +159,11 @@ class TestDefaults:
 class TestInfoFields:
     def test_returns_and_rtype(self):
         def f():
-            pass
+            """Do it.
+
+            :returns: the thing
+            :rtype: dict
+            """
 
         d = docstring.parse_signature(f).as_dict()
         assert d["return"]["annotation"] == "dict"
@@ -163,6 +171,7 @@ class TestInfoFields:
 
     def test_an_annotation_wins_over_rtype(self):
         def f() -> list[int]:
+            """:rtype: dict"""
             return []
 
         assert (
@@ -172,7 +181,10 @@ class TestInfoFields:
 
     def test_raises_is_collected_per_exception(self):
         def f():
-            pass
+            """
+            :raises AccessError: not allowed
+            :raises ValueError: bad input
+            """
 
         raised = docstring.parse_signature(f).as_dict()["raise"]
         assert set(raised) == {"AccessError", "ValueError"}
@@ -180,7 +192,7 @@ class TestInfoFields:
 
     def test_inline_annotation_in_a_param_field(self):
         def f(a):
-            pass
+            """:param str a: the a"""
 
         param = _params(f)["a"]
         assert param["annotation"] == "str"
@@ -188,19 +200,26 @@ class TestInfoFields:
 
     def test_prose_survives_as_the_doc(self):
         def f(a):
-            pass
+            """Summary line.
+
+            :param a: ignored
+            """
 
         assert "Summary line." in docstring.parse_signature(f).as_dict()["doc"]
 
     def test_a_field_for_an_unknown_parameter_is_ignored(self):
         def f(a):
-            pass
+            """:param nonexistent: nothing"""
 
         assert set(_params(f)) == {"a"}
 
     def test_var_fields_are_skipped_without_complaint(self, caplog):
         def f():
-            pass
+            """
+            :ivar thing: an attribute
+            :vartype thing: str
+            :meta private:
+            """
 
         with caplog.at_level(logging.WARNING, logger=docstring.__name__):
             docstring.parse_signature(f)
@@ -208,7 +227,7 @@ class TestInfoFields:
 
     def test_an_unknown_field_name_is_reported(self, caplog):
         def f():
-            pass
+            """:nonsense value: what"""
 
         with caplog.at_level(logging.WARNING, logger=docstring.__name__):
             docstring.parse_signature(f)
@@ -257,7 +276,7 @@ class TestBorrowedDocstring:
 
     def test_an_explicit_docstring_wins_over_the_callable_s_own(self):
         def override(a):
-            pass
+            """Own prose."""
 
         d = docstring.parse_signature(override, docstring="Borrowed prose.").as_dict()
         assert "Borrowed prose." in d["doc"]

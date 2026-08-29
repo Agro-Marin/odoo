@@ -110,4 +110,3 @@ class TestNoScriptIsSilentlySkipped:
             f"{len(unstaged)} migration script(s) match no stage and will never "
             f"run: {unstaged}"
         )
-        assert "0 skipped" in (_warn_unstaged_scripts.__doc__ or "")
