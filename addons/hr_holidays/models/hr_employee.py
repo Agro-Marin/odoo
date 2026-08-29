@@ -122,7 +122,7 @@ class HrEmployee(models.Model):
             [
                 ("employee_id", "in", self.ids),
                 ("holiday_status_id.active", "=", True),
-                ("holiday_status_id.requires_allocation", "=", "yes"),
+                ("holiday_status_id.requires_allocation", "=", True),
                 ("state", "=", "validate"),
                 ("date_from", "<=", current_date),
                 "|",
@@ -149,7 +149,7 @@ class HrEmployee(models.Model):
             employee_max_leaves = 0
             for leave_type in leaves_taken[employee]:
                 if (
-                    leave_type.requires_allocation == "no"
+                    not leave_type.requires_allocation
                     or leave_type.hide_on_dashboard
                     or not leave_type.active
                 ):
@@ -290,8 +290,6 @@ class HrEmployee(models.Model):
                 manager and employee.leave_manager_id == previous_manager
             ) or not employee.leave_manager_id:
                 employee.leave_manager_id = manager
-            elif not employee.leave_manager_id:
-                employee.leave_manager_id = False
 
     def _compute_show_leaves(self):
         show_leaves = self.env.user.has_group("hr_holidays.group_hr_holidays_user")

@@ -449,7 +449,7 @@ class HrLeaveType(models.Model):
 
     def _search_virtual_remaining_leaves(self, operator, value):
         def is_valid(leave_type):
-            return leave_type.requires_allocation != "yes" or op(
+            return not leave_type.requires_allocation or op(
                 leave_type.virtual_remaining_leaves, value
             )
 
