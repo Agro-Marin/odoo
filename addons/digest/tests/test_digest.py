@@ -114,27 +114,38 @@ class TestDigest(TestDigestCommon):
     @users("admin")
     def test_digest_numbers(self):
         digest = self.env["digest.digest"].browse(self.digest_1.ids)
-        digest._action_subscribe_users(self.user_employee)
 
-        # digest creates its mails in auto_delete mode so we need to capture
-        # the formatted body during the sending process
-        digest.flush_recordset()
-        with self.mock_mail_gateway():
-            digest.action_send()
+        # the message KPI is reserved to base.group_system, so what the mail
+        # carries depends on who is receiving it: the employee gets the digest
+        # with that table dropped, the administrator gets the numbers.
+        for user, expected_kpis in (
+            (self.user_employee, []),
+            (self.user_admin, ["3", "8", "15"]),
+        ):
+            with self.subTest(login=user.login):
+                digest._action_unsubscribe_users(self.user_employee + self.user_admin)
+                digest._action_subscribe_users(user)
 
-        self.assertEqual(
-            len(self._new_mails), 1, "A new mail.mail should have been created"
-        )
-        mail = self._new_mails[0]
-        # check mail.mail content
-        self.assertEqual(mail.author_id, self.partner_admin)
-        self.assertEqual(mail.email_from, self.company_admin.email_formatted)
-        self.assertEqual(mail.state, "outgoing", "Mail should use the queue")
+                # digest creates its mails in auto_delete mode so we need to
+                # capture the formatted body during the sending process
+                digest.flush_recordset()
+                with self.mock_mail_gateway():
+                    digest.action_send()
 
-        kpi_message_values = html.fromstring(mail.body_html).xpath(
-            '//table[@data-field="kpi_mail_message_total"]//*[hasclass("kpi_value")]/text()'
-        )
-        self.assertEqual([t.strip() for t in kpi_message_values], ["3", "8", "15"])
+                self.assertEqual(
+                    len(self._new_mails), 1, "A new mail.mail should have been created"
+                )
+                mail = self._new_mails[0]
+                # check mail.mail content
+                self.assertEqual(mail.author_id, self.partner_admin)
+                self.assertEqual(mail.email_from, self.company_admin.email_formatted)
+                self.assertEqual(mail.state, "outgoing", "Mail should use the queue")
+
+                kpi_message_values = html.fromstring(mail.body_html).xpath(
+                    '//table[@data-field="kpi_mail_message_total"]'
+                    '//*[hasclass("kpi_value")]/text()'
+                )
+                self.assertEqual([t.strip() for t in kpi_message_values], expected_kpis)
 
     @users("admin")
     def test_digest_subscribe(self):
@@ -1522,4 +1533,68 @@ class TestDigestPreview(TestDigestCommon):
             seen,
             [(reader, reader.lang, reader.tz)],
             "the preview must render under the recipient's locale, as a real send does",
+        )
+
+
+@tagged("digest")
+class TestDigestKpiAccess(TestDigestCommon):
+    """The two KPIs this module contributes itself are administrative.
+
+    Every other module that contributes a KPI guards it behind the group that
+    owns the data -- `sales_team.group_sale_salesman` in `crm`,
+    `account.group_account_invoice` in `account`, and so on for six more. The
+    two defined here were the only ones with no guard at all, so a plain
+    internal subscriber was mailed how many people logged into the company and
+    how many messages were posted, while the digest form already reserves both
+    toggles to `base.group_system`.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.digest_1.user_ids = cls.user_employee
+
+    def _kpi_names_for(self, user):
+        return [
+            kpi["kpi_name"] for kpi in self.digest_1._get_kpi_data(self.company_1, user)
+        ]
+
+    def test_the_base_kpis_are_withheld_from_a_plain_subscriber(self):
+        self.assertFalse(
+            self.user_employee.has_group("base.group_system"),
+            "the premise: this recipient is not an administrator",
+        )
+
+        names = self._kpi_names_for(self.user_employee)
+
+        self.assertNotIn(
+            "kpi_res_users_connected",
+            names,
+            "a non-admin subscriber must not be mailed the company login count",
+        )
+        self.assertNotIn(
+            "kpi_mail_message_total",
+            names,
+            "nor the message count",
+        )
+
+    def test_an_administrator_still_receives_them(self):
+        """The guard drops the KPI for the reader who may not have it, not for
+        everyone: the digest would otherwise lose its two default KPIs."""
+        names = self._kpi_names_for(self.user_admin)
+
+        self.assertIn("kpi_res_users_connected", names)
+        self.assertIn("kpi_mail_message_total", names)
+
+    def test_the_digest_still_renders_for_a_denied_subscriber(self):
+        """A withheld KPI is skipped, not fatal: `_update_kpi_columns` catches
+        the AccessError and drops that KPI for the rest of the render."""
+        with self.mock_mail_gateway():
+            self.digest_1.with_context(
+                lang=self.user_employee.lang,
+                tz=self.user_employee.tz,
+            )._action_send_to_user(self.user_employee)
+
+        self.assertEqual(
+            len(self._new_mails), 1, "the recipient still gets their digest"
         )

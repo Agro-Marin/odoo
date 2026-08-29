@@ -146,7 +146,22 @@ class DigestDigest(models.Model):
             companies,
         )
 
+    def _raise_if_not_member_of(self, *group_names):
+        """Skip a KPI the recipient has no business reading.
+
+        `_update_kpi_columns` catches AccessError and drops that KPI from the
+        rest of the render, so raising here is how a compute opts out of one
+        reader's digest without failing the mail. Every module that contributes
+        a KPI already does this inline with the same message; the helper lives
+        here so the KPIs this module owns do not have to repeat it.
+        """
+        if not any(self.env.user.has_group(name) for name in group_names):
+            raise AccessError(
+                self.env._("Do not have access, skip this data for user's digest email")
+            )
+
     def _compute_kpi_res_users_connected_value(self):
+        self._raise_if_not_member_of("base.group_system")
         self._calculate_company_based_kpi(
             "res.users",
             "kpi_res_users_connected_value",
@@ -154,6 +169,7 @@ class DigestDigest(models.Model):
         )
 
     def _compute_kpi_mail_message_total_value(self):
+        self._raise_if_not_member_of("base.group_system")
         start, end, __ = self._get_kpi_compute_parameters()
         self.kpi_mail_message_total_value = self.env["mail.message"].search_count(
             [
