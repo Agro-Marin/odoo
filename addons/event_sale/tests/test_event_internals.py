@@ -1,9 +1,11 @@
+import re
 from datetime import datetime, timedelta
 
 from freezegun import freeze_time
 
 from odoo.fields import Datetime as FieldsDatetime
-from odoo.tests.common import users
+from odoo.tests import tagged
+from odoo.tests.common import TransactionCase, users
 
 from odoo.addons.event_sale.tests.common import TestEventSaleCommon
 
@@ -157,3 +159,36 @@ class TestEventTicketData(TestEventSaleCommon):
         )
         self.assertFalse(second_ticket.sale_available)
         self.assertFalse(second_ticket.is_expired)
+
+
+@tagged("event_internals", "post_install", "-at_install")
+class TestEventSaleSchema(TransactionCase):
+    """Schema guards for the columns the ORM walks on its own."""
+
+    def test_sale_order_id_is_indexed(self):
+        """`event.registration.state` is stored and depends on `sale_order_id.state`.
+
+        Recomputing it does not start from the registrations, it starts from the
+        orders that changed. `sale_order_id` has no inverse One2many, so
+        `_modified_triggers` cannot read a relation and falls through to a
+        `search([("sale_order_id", "in", ...)])` (odoo/orm/models/mixins/recompute.py).
+        Without an index that search reads the whole table on every order write.
+        """
+        self.env.cr.execute(
+            """
+            SELECT indexdef
+              FROM pg_indexes
+             WHERE schemaname = current_schema()
+               AND tablename = 'event_registration'
+            """
+        )
+        # Pin the exact column list: a loose "sale_order%" would also match
+        # sale_order_line_id, which is already indexed, and pass either way.
+        self.assertTrue(
+            any(
+                re.search(r"USING btree \(sale_order_id\)", indexdef)
+                for [indexdef] in self.env.cr.fetchall()
+            ),
+            "event_registration.sale_order_id must carry a btree index: the stored "
+            "compute of `state` traverses it on every sale.order write.",
+        )
