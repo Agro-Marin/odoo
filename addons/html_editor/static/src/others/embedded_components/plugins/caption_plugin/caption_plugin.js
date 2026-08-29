@@ -192,7 +192,7 @@ export class CaptionPlugin extends Plugin {
             const id = props.id;
             delete props.id;
             const image = this.editable.querySelector(`img[data-caption-id="${id}"]`);
-            const previousCaption = image.getAttribute("data-caption");
+            let previousCaption = image.getAttribute("data-caption");
             Object.assign(props, {
                 image,
                 onUpdateCaption: (caption = "") => {
@@ -207,6 +207,7 @@ export class CaptionPlugin extends Plugin {
                     }
                     if (didCaptionChanged) {
                         image.setAttribute("data-caption", caption);
+                        previousCaption = caption;
                         this.dependencies.history.addStep();
                     }
                 },
