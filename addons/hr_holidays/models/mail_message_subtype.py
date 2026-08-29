@@ -14,6 +14,7 @@ class MailMessageSubtype(models.Model):
         )
 
     def _update_department_subtype(self):
+        department_subtypes = self.browse()
         for subtype in self:
             department_subtype = subtype._get_department_subtype()
             if department_subtype:
@@ -33,8 +34,8 @@ class MailMessageSubtype(models.Model):
                         "relation_field": "department_id",
                     }
                 )
-            return department_subtype
-        return None
+            department_subtypes |= department_subtype
+        return department_subtypes
 
     @api.model_create_multi
     def create(self, vals_list):
