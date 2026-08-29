@@ -1,0 +1,172 @@
+import types
+from typing import Any
+from unittest import mock
+
+import psycopg
+import pytest
+
+from odoo.http import _serve
+from odoo.libs.worker_thread import current_worker_thread
+
+
+class _Cursor:
+    def __init__(self, readonly):
+        self.readonly = readonly
+        self.closed = False
+        self.rollbacks = 0
+
+    def close(self):
+        self.closed = True
+
+    def rollback(self):
+        self.rollbacks += 1
+
+
+class _Env:
+    def __init__(self, cr, registry):
+        self.cr = cr
+        self.registry = registry
+        self.rebound_to = None
+
+    def __call__(self, cr=None, **kw):
+        self.rebound_to = cr
+        return self
+
+
+def _serve_db(this):
+    return _serve._RequestServeMixin._serve_db(this)
+
+
+def _make(readonly_route=True, replica=True):
+    """A request with just enough shape for ``_serve_db`` to run.
+
+    ``replica`` is the whole point: it decides whether ``registry.cursor()``
+    hands back a genuinely read-only cursor. With a replica configured (or
+    ``test_enable`` on, which implies one) it does; on a deployment without one
+    it does not, and ``_serve_db`` takes an entirely different branch.
+    """
+    calls = {"served": 0, "reset_for_replay": [], "opened": []}
+    first = _Cursor(readonly=replica)
+
+    endpoint = types.SimpleNamespace(
+        routing={"readonly": readonly_route, "type": "http"},
+        func=types.SimpleNamespace(__self__=object()),
+    )
+    rule = types.SimpleNamespace(endpoint=endpoint)
+
+    def _cursor():
+        cr = _Cursor(readonly=False)
+        calls["opened"].append(cr)
+        return cr
+
+    class _Registry:
+        db_name = "db"
+
+        def __init__(self):
+            self.cursor = _cursor
+
+        def __getitem__(self, name):
+            return types.SimpleNamespace(_match=lambda path: (rule, {}))
+
+    registry = _Registry()
+    env = _Env(first, registry)
+
+    this: Any = types.SimpleNamespace(
+        db="db",
+        registry=registry,
+        env=None,
+        session=types.SimpleNamespace(uid=1, context={}),
+        httprequest=types.SimpleNamespace(method="GET", path="/x"),
+        dispatcher=None,
+        _acquire_registry_cursor=lambda: first,
+        _set_request_dispatcher=lambda r: None,
+        _serve_ir_http=lambda r, a: "served",
+        _update_served_exception=lambda exc: None,
+        _reset_for_replay=lambda cr=None: calls["reset_for_replay"].append(cr),
+    )
+    this.calls = calls
+    this.first_cursor = first
+    return this, env
+
+
+@pytest.fixture(autouse=True)
+def _clean_thread():
+    current_worker_thread().cursor_mode = None
+    yield
+    current_worker_thread().cursor_mode = None
+
+
+def _run(this, env, retrying_side_effect):
+    with (
+        mock.patch.object(_serve.odoo.api, "Environment", return_value=env),
+        mock.patch.object(_serve, "retrying", side_effect=retrying_side_effect),
+    ):
+        return _serve_db(this)
+
+
+def test_without_a_replica_a_readonly_route_runs_read_write():
+    """The branch every deployment with no replica takes on every request.
+
+    ``registry.cursor(readonly=True)`` hands back a read/write cursor when there
+    is no replica, so ``readonly and cr.readonly`` is False however the route is
+    declared. The suite never measured this: ``test_enable`` opens a replica
+    connection (``Registry.__init__``), so under test the cursor IS read-only
+    and the other branch runs instead.
+    """
+    this, env = _make(readonly_route=True, replica=False)
+    served = _run(this, env, lambda func, env: func())
+
+    assert served == "served"
+    assert current_worker_thread().cursor_mode == "rw"
+    assert this.first_cursor.rollbacks == 1, (
+        "the cursor must be rolled back, not reopened"
+    )
+    assert this.calls["opened"] == [], "no second cursor is opened without a replica"
+    assert this.calls["reset_for_replay"] == []
+
+
+def test_with_a_replica_a_readonly_route_stays_on_the_readonly_cursor():
+    this, env = _make(readonly_route=True, replica=True)
+    served = _run(this, env, lambda func, env: func())
+
+    assert served == "served"
+    assert current_worker_thread().cursor_mode == "ro"
+    assert this.first_cursor.rollbacks == 0
+    assert this.calls["opened"] == []
+
+
+def test_a_write_from_a_readonly_route_is_promoted_and_replayed():
+    this, env = _make(readonly_route=True, replica=True)
+    attempts = []
+
+    def retrying(func, env):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise psycopg.errors.ReadOnlySqlTransaction("cannot execute UPDATE ")
+        return func()
+
+    with mock.patch.object(_serve, "RequestRetryParticipant") as participant:
+        served = _run(this, env, retrying)
+
+    assert served == "served"
+    assert len(attempts) == 2, "the handler must run a second time"
+    assert current_worker_thread().cursor_mode == "ro->rw"
+    assert this.first_cursor.closed, "the readonly cursor must be closed"
+    assert len(this.calls["opened"]) == 1, "a read/write cursor must be opened"
+    assert this.calls["reset_for_replay"] == this.calls["opened"], (
+        "the replay must rebuild the environment on the NEW cursor"
+    )
+    participant.assert_called_once_with(this)
+    instance = participant.return_value
+    assert instance.on_rollback.called and instance.on_retry.called
+
+
+def test_a_read_write_route_with_a_replica_swaps_to_a_read_write_cursor():
+    this, env = _make(readonly_route=False, replica=True)
+    served = _run(this, env, lambda func, env: func())
+
+    assert served == "served"
+    assert current_worker_thread().cursor_mode == "rw"
+    assert this.first_cursor.closed
+    assert len(this.calls["opened"]) == 1
+    assert env.rebound_to is this.calls["opened"][0]

@@ -184,3 +184,55 @@ def test_unmatched_json_error_keeps_the_status_code():
     dispatcher = Json2Dispatcher(_Req())
     dispatcher.handle_error(NotFound())
     assert captured["status"] == 404
+
+
+def test_extending_a_dispatcher_is_not_a_warning(caplog):
+    """iot_drivers replaces JsonRPCDispatcher by subclassing it, on purpose."""
+    import logging
+
+    from odoo.http.dispatcher import JsonRPCDispatcher, _dispatchers
+
+    saved = dict(_dispatchers)
+    try:
+        with caplog.at_level(logging.DEBUG, logger="odoo.http.dispatcher"):
+
+            class _Extended(JsonRPCDispatcher):
+                pass
+
+        levels = {r.levelno for r in caplog.records}
+        assert logging.WARNING not in levels, [r.getMessage() for r in caplog.records]
+        assert any("extends" in r.getMessage() for r in caplog.records)
+        assert _dispatchers["jsonrpc"] is _Extended
+    finally:
+        _dispatchers.clear()
+        _dispatchers.update(saved)
+
+
+def test_an_unrelated_class_claiming_a_routing_type_still_warns(caplog):
+    import logging
+
+    from odoo.http.dispatcher import Dispatcher, _dispatchers
+
+    saved = dict(_dispatchers)
+    try:
+        with caplog.at_level(logging.DEBUG, logger="odoo.http.dispatcher"):
+
+            class _Impostor(Dispatcher):
+                routing_type = "jsonrpc"
+
+                @classmethod
+                def is_compatible_with(cls, request):
+                    return True
+
+                def dispatch(self, endpoint, args):
+                    return None
+
+                def handle_error(self, exc):
+                    return None
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warnings, [r.getMessage() for r in caplog.records]
+        assert "unrelatedly replaces" in warnings[0].getMessage()
+    finally:
+        _dispatchers.clear()
+        _dispatchers.update(saved)

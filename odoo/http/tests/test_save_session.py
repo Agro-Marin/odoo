@@ -1,0 +1,191 @@
+import time
+import types
+from typing import Any
+
+import pytest
+
+from odoo.http import request_class
+from odoo.http.constants import SESSION_LIFETIME, SESSION_ROTATION_INTERVAL
+
+
+class _Store:
+    def __init__(self, fail=False):
+        self.calls: list[str] = []
+        self.fail = fail
+
+    def _record(self, name):
+        self.calls.append(name)
+        if self.fail:
+            raise OSError("disk full")
+
+    def rotate(self, session, env, soft=False):
+        self._record("rotate_soft" if soft else "rotate")
+
+    def save(self, session):
+        self._record("save")
+
+    def keep_alive(self, session):
+        self._record("keep_alive")
+
+
+class _Session(dict):
+    def __init__(self, **kw):
+        super().__init__({"create_time": time.time(), **kw})
+        self.sid = kw.pop("sid", "S" * 84)
+        self.can_save = True
+        self.is_dirty = False
+        self.is_new = False
+        self.should_rotate = False
+        self._content_changed = False
+
+    @property
+    def uid(self):
+        return self.get("uid")
+
+    def has_content_changed(self):
+        return self._content_changed
+
+
+class _Cookies:
+    def __init__(self):
+        self.set: dict[str, Any] = {}
+
+    def set_cookie(self, key, value, **kw):
+        self.set[key] = (value, kw)
+
+
+MAX_INACTIVITY = 4242
+
+
+@pytest.fixture(autouse=True)
+def _fixed_inactivity(monkeypatch):
+    """`get_session_max_inactivity` reads ir.config_parameter; the decision
+    tree under test does not care what it answers, only that it is asked."""
+    monkeypatch.setattr(
+        request_class, "get_session_max_inactivity", lambda env: MAX_INACTIVITY
+    )
+
+
+def _save(session, *, store=None, env="open", cookie_sid=None, path="/x"):
+    store = store or _Store()
+    if env == "open":
+        env = types.SimpleNamespace(cr=types.SimpleNamespace(closed=False))
+    elif env == "closed":
+        env = types.SimpleNamespace(cr=types.SimpleNamespace(closed=True))
+    future = _Cookies()
+    this: Any = types.SimpleNamespace(
+        app=types.SimpleNamespace(session_store=store),
+        session=session,
+        env=env,
+        future_response=future,
+        httprequest=types.SimpleNamespace(session_id=cookie_sid, path=path),
+    )
+    request_class.Request._save_session(this)
+    return store, future
+
+
+def test_a_session_that_may_not_be_saved_is_not_touched_at_all():
+    s = _Session()
+    s.can_save = False
+    s.should_rotate = True
+    store, future = _save(s)
+    assert store.calls == []
+    assert future.set == {}
+
+
+def test_a_rotation_with_a_live_cursor_rotates():
+    s = _Session(uid=2)
+    s.should_rotate = True
+    store, future = _save(s)
+    assert store.calls == ["rotate"]
+    assert "session_id" in future.set
+
+
+def test_a_rotation_without_a_cursor_is_deferred_not_lost():
+    """The cursor is gone (post-dispatch of an error), so the token cannot be
+    recomputed. Marking it pending is what makes the NEXT request rotate."""
+    s = _Session(uid=2)
+    s.should_rotate = True
+    store, _ = _save(s, env="closed")
+    assert store.calls == ["save"]
+    assert s["_rotate_pending"] is True
+
+
+def test_an_anonymous_session_can_always_rotate():
+    """No uid means no session token to recompute, so no cursor is needed."""
+    s = _Session()
+    s.should_rotate = True
+    store, _ = _save(s, env=None)
+    assert store.calls == ["rotate"]
+
+
+def test_an_old_authenticated_session_rotates_softly():
+    s = _Session(uid=2)
+    s["create_time"] = time.time() - SESSION_ROTATION_INTERVAL - 1
+    store, _ = _save(s)
+    assert store.calls == ["rotate_soft"]
+
+
+def test_the_periodic_rotation_skips_excluded_paths(monkeypatch):
+    monkeypatch.setattr(request_class, "SESSION_ROTATION_EXCLUDED_PATHS", {"/poll"})
+    s = _Session(uid=2)
+    s["create_time"] = time.time() - SESSION_ROTATION_INTERVAL - 1
+    store, _ = _save(s, path="/poll")
+    assert store.calls == []
+
+
+def test_changed_content_is_written():
+    s = _Session(uid=2)
+    s._content_changed = True
+    store, _ = _save(s)
+    assert store.calls == ["save"]
+
+
+def test_a_dirty_but_unchanged_session_is_only_touched():
+    """The cheap branch: utime instead of a full write, ~3.6us against ~29us."""
+    s = _Session(uid=2)
+    s.is_dirty = True
+    store, _ = _save(s)
+    assert store.calls == ["keep_alive"]
+
+
+def test_an_untouched_session_costs_nothing_and_sets_no_cookie():
+    s = _Session(uid=2)
+    store, future = _save(s, cookie_sid="S" * 84)
+    assert store.calls == []
+    assert future.set == {}
+
+
+def test_a_new_session_that_was_never_written_gets_no_cookie():
+    """Handing out a cookie for a sid with no file behind it would 404 the
+    next request's lookup."""
+    s = _Session()
+    s.is_new = True
+    store, future = _save(s)
+    assert store.calls == []
+    assert future.set == {}
+
+
+def test_a_failed_write_keeps_the_current_cookie():
+    s = _Session(uid=2)
+    s._content_changed = True
+    store, future = _save(s, store=_Store(fail=True))
+    assert store.calls == ["save"]
+    assert future.set == {}, "a cookie for a session that is not on disk"
+
+
+def test_a_changed_sid_sets_the_cookie_even_when_nothing_else_moved():
+    s = _Session(uid=2)
+    store, future = _save(s, cookie_sid="D" * 84)
+    assert store.calls == []
+    assert future.set["session_id"][0] == s.sid
+
+
+@pytest.mark.parametrize(
+    ("uid", "expected"), [(None, SESSION_LIFETIME), (2, MAX_INACTIVITY)]
+)
+def test_the_cookie_lifetime_follows_authentication(uid, expected):
+    s = _Session(**({"uid": uid} if uid else {}))
+    s._content_changed = True
+    _, future = _save(s)
+    assert future.set["session_id"][1]["max_age"] == expected
