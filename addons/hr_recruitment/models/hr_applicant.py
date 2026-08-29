@@ -387,7 +387,10 @@ class HrApplicant(models.Model):
                 in_pool_linkedins[applicant.linkedin_profile] = talent_pool_count
 
         for applicant in indirectly_linked:
-            if applicant.email_from and in_pool_emails[applicant.email_normalized]:
+            if (
+                applicant.email_normalized
+                and in_pool_emails[applicant.email_normalized]
+            ):
                 applicant.talent_pool_count = in_pool_emails[applicant.email_normalized]
             elif (
                 applicant.partner_phone_sanitized
@@ -910,13 +913,19 @@ class HrApplicant(models.Model):
             vals["date_open"] = fields.Datetime.now()
         old_interviewers = self.interviewer_ids
         # stage_id: track last stage before update
+        # Applicants in the batch can each have a different current stage_id,
+        # so last_stage_id (one per old stage) can't ride in the shared vals
+        # dict applied by a single super().write(vals) below — that would
+        # only keep the last-iterated applicant's previous stage. Group by
+        # old stage_id instead and write each group separately.
+        applicants_by_old_stage = defaultdict(self.browse)
         if "stage_id" in vals:
             vals["date_last_stage_update"] = fields.Datetime.now()
             if "kanban_state" not in vals:
                 vals["kanban_state"] = "normal"
+            new_stage = self.env["hr.recruitment.stage"].browse(vals["stage_id"])
             for applicant in self:
-                vals["last_stage_id"] = applicant.stage_id.id
-                new_stage = self.env["hr.recruitment.stage"].browse(vals["stage_id"])
+                applicants_by_old_stage[applicant.stage_id.id] |= applicant
                 if new_stage.hired_stage and not applicant.stage_id.hired_stage:
                     if applicant.job_id.no_of_recruitment > 0:
                         applicant.job_id.no_of_recruitment -= 1
@@ -926,6 +935,8 @@ class HrApplicant(models.Model):
         if "kanban_state" in vals:
             vals["date_last_stage_update"] = fields.Datetime.now()
         res = super().write(vals)
+        for old_stage_id, applicants in applicants_by_old_stage.items():
+            super(HrApplicant, applicants).write({"last_stage_id": old_stage_id})
 
         for applicant in self:
             if (
