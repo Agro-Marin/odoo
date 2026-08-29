@@ -20,10 +20,6 @@ def _midnight(date):
     return datetime.combine(date, datetime.min.time())
 
 
-def _replace_interval_records(intervals, records):
-    return Intervals((start, end, records) for (start, end, _) in intervals)
-
-
 def _record_overlap_intervals(intervals):
     boundaries = sorted(_boundaries(intervals, "start", "stop"))
     counts = {}
