@@ -10,6 +10,7 @@ from typing import IO, Literal
 
 import odoo.api
 import odoo.modules.neutralize
+import odoo.modules.registry
 import odoo.tools
 from odoo.tools.misc import exec_pg_environ, find_pg_tool
 

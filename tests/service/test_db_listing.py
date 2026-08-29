@@ -7,6 +7,14 @@ import odoo
 from odoo.service.db import listing
 
 
+@pytest.fixture(autouse=True)
+def _fresh_catalogue():
+    """The catalogue cache is process-global; no test may inherit another's."""
+    listing._forget_catalogue()
+    yield
+    listing._forget_catalogue()
+
+
 @pytest.fixture
 def cfg():
     values = {

@@ -67,7 +67,27 @@ def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
     }
 
 
+def _timed_out(timeout: float) -> RuntimeError:
+    return RuntimeError(
+        f"pg_dump exceeded {timeout:.0f}s wall-clock timeout and was "
+        f"terminated.  Set ODOO_PG_DUMP_TOTAL_TIMEOUT for slower DBs."
+    )
+
+
+def _failed(returncode: int, stderr: bytes) -> RuntimeError:
+    return RuntimeError(
+        f"pg_dump failed (exit {returncode}): {stderr.decode(errors='replace').strip()}"
+    )
+
+
 def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
+    """pg_dump writes straight into `stdout`, so nothing is copied in Python.
+
+    The streaming runner exists because a zip member cannot be handed over as a
+    file descriptor; where the destination IS one, this is the cheaper path for
+    a multi-gigabyte dump.  Two transports, one timeout and one failure message
+    -- which is what `_timed_out` and `_failed` are for.
+    """
     timeout = _pg_dump_total_timeout()
     try:
         result = subprocess.run(
@@ -80,15 +100,9 @@ def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as e:
-        raise RuntimeError(
-            f"pg_dump exceeded {timeout:.0f}s wall-clock timeout and was "
-            f"terminated.  Set ODOO_PG_DUMP_TOTAL_TIMEOUT for slower DBs."
-        ) from e
+        raise _timed_out(timeout) from e
     if result.returncode != 0:
-        raise RuntimeError(
-            f"pg_dump failed (exit {result.returncode}): "
-            f"{result.stderr.decode(errors='replace').strip()}"
-        )
+        raise _failed(result.returncode, result.stderr)
 
 
 _STALL_SIGKILL_GRACE_S = 10.0
@@ -187,17 +201,10 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
         else:
             stderr.close()
         _reap_pg_dump(proc)
-    stderr_output = b"".join(stderr_chunks)
     if stall_killed[0] and proc.returncode != 0:
-        raise RuntimeError(
-            f"pg_dump exceeded {total_timeout:.0f}s wall-clock timeout and was "
-            f"terminated.  Set ODOO_PG_DUMP_TOTAL_TIMEOUT for slower DBs."
-        )
+        raise _timed_out(total_timeout)
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"pg_dump failed (exit {proc.returncode}): "
-            f"{stderr_output.decode(errors='replace').strip()}"
-        )
+        raise _failed(proc.returncode, b"".join(stderr_chunks))
 
 
 def _zip_filestore_into(zipf: zipfile.ZipFile, filestore: str) -> None:

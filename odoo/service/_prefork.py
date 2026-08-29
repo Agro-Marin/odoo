@@ -24,7 +24,7 @@ from odoo.tools import config
 from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks, stripped_sys_argv
 
-from . import lifecycle
+from . import _process_state
 from ._base_server import CommonServer
 from ._env import _IS_POSIX, env_float
 from ._helpers import cron_real_time_budget, empty_pipe, job_real_time_budget
@@ -52,6 +52,22 @@ EVENTED_STOP_TIMEOUT_S = 5.0
 
 
 class PreforkServer(CommonServer):
+    flavor = "prefork"
+
+    def metrics(self) -> dict[str, Any]:
+        if os.getpid() != self.pid:
+            return {}
+        return {
+            "workers": {
+                "http": len(self.workers_http),
+                "cron": len(self.workers_cron),
+                "job": len(self.workers_job),
+            },
+            "worker_population": self.population,
+            "worker_generation": self.generation,
+            "long_polling_alive": self.long_polling_pid is not None,
+        }
+
     def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.population = config["workers"]
@@ -75,6 +91,7 @@ class PreforkServer(CommonServer):
         self.long_polling_spawn_time = 0.0
         self._consecutive_fast_deaths = 0
         self._respawn_not_before = 0.0
+        self._selector: selectors.BaseSelector | None = None
 
     def pipe_new(self) -> tuple[int, int]:
         return os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
@@ -123,6 +140,7 @@ class PreforkServer(CommonServer):
             if fd not in keep:
                 with contextlib.suppress(OSError):
                     os.close(fd)
+        self._close_watchdog_selector()
 
     def _note_spawn_failure(self) -> None:
         self._consecutive_fast_deaths += 1
@@ -228,7 +246,7 @@ class PreforkServer(CommonServer):
             if sig in [signal.SIGINT, signal.SIGTERM]:
                 raise KeyboardInterrupt
             if sig == signal.SIGHUP:
-                lifecycle.server_phoenix = True
+                _process_state.set_phoenix(True)
                 raise KeyboardInterrupt
             if sig == signal.SIGTTIN:
                 self.population += 1
@@ -345,12 +363,37 @@ class PreforkServer(CommonServer):
             if self.worker_spawn(WorkerJob, self.workers_job) is None:
                 return
 
-    def sleep(self) -> None:
+    def _close_watchdog_selector(self) -> None:
+        sel, self._selector = getattr(self, "_selector", None), None
+        if sel is not None:
+            with contextlib.suppress(Exception):
+                sel.close()
+
+    def _watchdog_selector(self) -> tuple[selectors.BaseSelector, dict[int, Worker]]:
+        """Keep one epoll instance and re-register only what actually moved.
+
+        The watched set changes only when a worker is spawned or reaped, but
+        this runs once per beat -- and `stop_workers_gracefully` drops the beat
+        to 0.1s, so rebuilding it here meant creating and tearing down an epoll
+        instance ten times a second through the whole shutdown.
+        """
         fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
-        with selectors.DefaultSelector() as sel:
-            for fd in list(fds) + [self.pipe[0]]:
+        wanted = set(fds) | {self.pipe[0]}
+        sel = getattr(self, "_selector", None)
+        if sel is None:
+            sel = self._selector = selectors.DefaultSelector()
+        registered = set(sel.get_map() or ())
+        for fd in registered - wanted:
+            with contextlib.suppress(KeyError, ValueError, OSError):
+                sel.unregister(fd)
+        for fd in wanted - registered:
+            with contextlib.suppress(KeyError, ValueError, OSError):
                 sel.register(fd, selectors.EVENT_READ)
-            ready = sel.select(self.beat)
+        return sel, fds
+
+    def sleep(self) -> None:
+        sel, fds = self._watchdog_selector()
+        ready = sel.select(self.beat)
         for key, _ in ready:
             fd = key.fd
             if fd in fds:
@@ -500,7 +543,7 @@ class PreforkServer(CommonServer):
         self._drain_procs = processes
 
         self.beat = 0.1
-        phoenix_decided = lifecycle.server_phoenix
+        phoenix_decided = _process_state.server_phoenix
         stop_timeout = _graceful_stop_timeout(self.logger)
         deadline = time.monotonic() + stop_timeout
         escalated = False
@@ -533,7 +576,7 @@ class PreforkServer(CommonServer):
             self.sleep()
             self.process_timeout()
 
-        lifecycle.server_phoenix = phoenix_decided
+        _process_state.set_phoenix(phoenix_decided)
 
     def _sweep_stale_workers(self) -> None:
         for pid in list(self.workers):
@@ -544,8 +587,8 @@ class PreforkServer(CommonServer):
             self.worker_kill(pid, signal.SIGTERM)
 
     def stop(self, graceful: bool = True) -> None:
-        if lifecycle.server_phoenix:
-            lifecycle.server_phoenix = False
+        if _process_state.server_phoenix:
+            _process_state.set_phoenix(False)
 
             try:
                 if not self.fork_and_reload():
@@ -565,14 +608,21 @@ class PreforkServer(CommonServer):
 
         if self.socket:
             self.socket.close()
-        if graceful:
+        # The on_stop hooks run on every other path, and a crash is when a
+        # flush hook matters most -- so the forceful path runs them too, just
+        # defensively: one raising hook must not keep the workers alive.
+        try:
             super().stop()
+        except Exception:
+            self.logger.warning("Exception while running stop hooks", exc_info=True)
+        if graceful:
             self.stop_workers_gracefully()
         else:
             self.logger.info("Stopping forcefully")
             self._stop_long_polling()
         for pid in list(self.workers):
             self.worker_kill(pid, signal.SIGTERM)
+        self._close_watchdog_selector()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
         self.start()

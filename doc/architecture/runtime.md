@@ -20,7 +20,7 @@ where a canonical unflattened version exists it is named.
 odoo-bin
 └─ odoo.cli.main()                     cli/command.py — bootstrap parse, pick command
    └─ <Command>.run(args)              cli/server.py for the default `server` command
-      └─ service.lifecycle.start()
+      └─ service._factory.start()
          ├─ load_server_wide_modules()
          ├─ choose EventServer | PreforkServer | ThreadedServer
          └─ server.run(preload, stop)

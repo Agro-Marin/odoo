@@ -87,7 +87,8 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
         super().__init__(*args, **kwargs)
 
     def send_header(self, keyword: str, value: str) -> None:
-        if keyword.casefold() == "date":
+        folded = keyword.casefold()
+        if folded == "date":
             if self._sent_date_header is None:
                 self._sent_date_header = value
             elif self._sent_date_header == value:
@@ -111,7 +112,7 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
                         value,
                     )
 
-        if keyword.casefold() == "server":
+        if folded == "server":
             if self._sent_server_header is None:
                 self._sent_server_header = value
             elif self._sent_server_header == value:
@@ -228,12 +229,48 @@ class ThreadedWSGIServerReloadable(
         self.max_http_threads = env_int(
             "ODOO_MAX_HTTP_THREADS", auto_limit, minimum=0, logger=_logger
         )
+        self._announce_thread_budget(auto_limit)
         if self.max_http_threads:
             self.http_threads_sem = threading.Semaphore(self.max_http_threads)
             self._sem_released_requests: weakref.WeakSet = weakref.WeakSet()
         super().__init__(host, port, app, handler=RequestHandler)
 
         self.daemon_threads = True
+
+    def _announce_thread_budget(self, auto_limit: int) -> None:
+        """Say how many requests can be in flight, and where the number came from.
+
+        It is derived from db_maxconn, so tightening the pool for an unrelated
+        reason silently narrows HTTP concurrency: db_maxconn=8 with the default
+        cron and job counts yields 2.  Requests are not refused -- they wait in
+        the listen backlog -- so an operator sees latency and has nothing in the
+        log connecting it to the pool setting.
+        """
+        if not self.max_http_threads:
+            _logger.info(
+                "HTTP concurrency is unbounded (ODOO_MAX_HTTP_THREADS=0); "
+                "in-flight requests are limited only by db_maxconn=%s",
+                config["db_maxconn"],
+            )
+            return
+        source = (
+            "ODOO_MAX_HTTP_THREADS"
+            if self.max_http_threads != auto_limit
+            else "(db_maxconn %s - max_cron_threads %s - job_workers %s) // 2"
+            % (
+                config["db_maxconn"],
+                config["max_cron_threads"],
+                config["job_workers"],
+            )
+        )
+        log = _logger.warning if self.max_http_threads < 4 else _logger.info
+        log(
+            "At most %d HTTP request(s) will be served concurrently, from %s. "
+            "Further requests wait in the listen backlog; set "
+            "ODOO_MAX_HTTP_THREADS to decouple this from the pool size.",
+            self.max_http_threads,
+            source,
+        )
 
     def server_bind(self) -> None:
         SD_LISTEN_FDS_START = 3

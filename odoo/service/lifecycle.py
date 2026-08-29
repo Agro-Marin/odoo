@@ -21,22 +21,13 @@ from odoo.release import nt_service_name
 from odoo.tools import config, profiler
 from odoo.tools.misc import stripped_sys_argv
 
-from ._base_server import CommonServer
+from . import _process_state
 from ._env import _IS_POSIX, _IS_WINDOWS, env_float, env_int
-from ._watcher import (
-    FSWatcherInotify,
-    FSWatcherWatchdog,
-    inotify,
-    watchdog,
-)
 
 if TYPE_CHECKING:
     from odoo.db import BaseCursor
 
 _logger = logging.getLogger("odoo.service.server")
-
-server: CommonServer | None = None
-server_phoenix = False
 
 
 def load_server_wide_modules() -> None:
@@ -289,70 +280,15 @@ def _warn_on_connection_budget() -> None:
     )
 
 
-def start(preload: list[str] | None = None, stop: bool = False) -> int:
-    global server  # noqa: PLW0603  the running server IS a process singleton
-
-    load_server_wide_modules()
-    import odoo.http
-
-    from .server import EventServer, PreforkServer, ThreadedServer
-
-    if odoo.evented:
-        server = EventServer(odoo.http.root)
-    elif config["workers"]:
-        if config["test_enable"]:
-            _logger.warning("Unit testing in workers mode could fail; use --workers 0.")
-
-        server = PreforkServer(odoo.http.root)
-    else:
-        _limit_malloc_arenas()
-        server = ThreadedServer(odoo.http.root)
-
-    _warn_on_connection_budget()
-
-    watcher = None
-    if {"reload", "assets"} & set(config["dev_mode"]) and not odoo.evented:
-        if inotify or watchdog:
-            try:
-                watcher = FSWatcherInotify() if inotify else FSWatcherWatchdog()
-                watcher.start()
-            except Exception:
-                watcher = None
-                _logger.warning(
-                    "Could not start the file watcher — the server runs without "
-                    "it, so source edits are NOT picked up. On Linux this is "
-                    "usually fs.inotify.max_user_watches being exhausted "
-                    "(shared with your editor); raise it, or run fewer servers.",
-                    exc_info=True,
-                )
-        else:
-            if _IS_POSIX and platform.system() != "Darwin":
-                module = "inotify"
-            else:
-                module = "watchdog"
-            _logger.warning(
-                "'%s' module not installed. Code autoreload is disabled%s",
-                module,
-                (
-                    " — with --dev=assets and no watcher, edited asset sources "
-                    "are NOT picked up; use --dev=xml instead"
-                    if "assets" in config["dev_mode"]
-                    else ""
-                ),
-            )
-
-    try:
-        rc = server.run(preload, stop)
-    finally:
-        if watcher:
-            watcher.stop()
-    if server_phoenix:
-        _reexec()
-
-    return rc or 0
+__all__ = (
+    "load_server_wide_modules",
+    "preload_registries",
+    "restart",
+)
 
 
 def restart() -> None:
+    server = _process_state.server
     if server is None:
         _logger.warning(
             "restart() called before server.start() assigned the server; ignoring"

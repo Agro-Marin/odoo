@@ -19,7 +19,7 @@ import psycopg
 import pytest
 import werkzeug.serving
 
-from odoo.service import _base_server, _helpers, _prefork, _threaded
+from odoo.service import _base_server, _helpers, _prefork, _process_state, _threaded
 from odoo.service import wsgi as _helpers_wsgi
 from odoo.tools import SQL
 
@@ -138,7 +138,7 @@ class TestEventServerWatchdogSurvivesErrors:
                 raise _StopLoop
 
         with (
-            patch.object(server, "process_limits", flaky),
+            patch.object(server, "check_limits", flaky),
             patch.object(_threaded.time, "sleep", fake_sleep),
             patch.object(os, "getppid", return_value=1),
         ):
@@ -159,13 +159,11 @@ class TestPreforkServerProcessSignals:
             prefork_server.process_signals()
 
     def test_sighup_sets_phoenix_flag_and_raises(self, prefork_server):
-        from odoo.service import lifecycle
-
         prefork_server.queue.append(signal.SIGHUP)
-        with patch.object(lifecycle, "server_phoenix", False):
+        with patch.object(_process_state, "server_phoenix", False):
             with pytest.raises(KeyboardInterrupt):
                 prefork_server.process_signals()
-            assert lifecycle.server_phoenix is True
+            assert _process_state.server_phoenix is True
 
     def test_sigttin_increments_population(self, prefork_server):
         prefork_server.queue.append(signal.SIGTTIN)
@@ -758,20 +756,20 @@ class TestWorkerRunFaultExit:
 class TestCommonServerCallbacks:
     @pytest.fixture(autouse=True)
     def _restore_callbacks(self, srv):
-        original = list(srv._ON_STOP_FUNCS)
+        original = list(_base_server._ON_STOP_FUNCS)
         yield
-        srv._ON_STOP_FUNCS[:] = original
+        _base_server._ON_STOP_FUNCS[:] = original
 
     def test_on_stop_appends_callback(self, srv):
         cb = MagicMock()
         srv.CommonServer.on_stop(cb)
-        assert cb in srv._ON_STOP_FUNCS
+        assert cb in _base_server._ON_STOP_FUNCS
 
     def test_stop_calls_all_registered_callbacks(self, srv):
         server = object.__new__(srv.CommonServer)
         server.logger = MagicMock()
         cb1, cb2 = MagicMock(), MagicMock()
-        srv._ON_STOP_FUNCS.extend([cb1, cb2])
+        _base_server._ON_STOP_FUNCS.extend([cb1, cb2])
         server.stop()
         cb1.assert_called_once()
         cb2.assert_called_once()
@@ -783,7 +781,7 @@ class TestCommonServerCallbacks:
         cb1.__name__ = "cb1"
         cb2 = MagicMock()
         cb2.__name__ = "cb2"
-        srv._ON_STOP_FUNCS.extend([cb1, cb2])
+        _base_server._ON_STOP_FUNCS.extend([cb1, cb2])
         server.stop()
         cb2.assert_called_once()
 
@@ -800,7 +798,7 @@ class TestCommonServerCallbacks:
         assert not hasattr(raising_partial, "__name__")
         later = MagicMock()
         later.__name__ = "later"
-        srv._ON_STOP_FUNCS.extend([raising_partial, later])
+        _base_server._ON_STOP_FUNCS.extend([raising_partial, later])
 
         server.stop()
 
@@ -1870,7 +1868,7 @@ class TestThreadedServerProcessLimit:
             patch("odoo.service._helpers.memory_info", return_value=memory),
             patch("odoo.service._threaded.config", cfg),
             patch("odoo.service._helpers.config", cfg),
-            patch("odoo.service._threaded.psutil"),
+            patch("odoo.service._base_server.config", cfg),
             patch("threading.enumerate", return_value=list(threads)),
         ):
             yield
@@ -1881,7 +1879,7 @@ class TestThreadedServerProcessLimit:
         with self._env(
             memory=2000, config_override={"limit_memory_soft": 1000}, threads=[]
         ):
-            tserver.process_limit()
+            tserver.check_limits()
         assert tserver.limit_reached_time is not None
         assert threading.current_thread() not in tserver.limits_reached_threads
 
@@ -1892,10 +1890,10 @@ class TestThreadedServerProcessLimit:
             with (
                 patch("odoo.service._helpers.memory_info", return_value=mem),
                 patch("odoo.service._threaded.config", cfg),
-                patch("odoo.service._threaded.psutil"),
+                patch("odoo.service._base_server.config", cfg),
                 patch("threading.enumerate", return_value=[]),
             ):
-                tserver.process_limit()
+                tserver.check_limits()
 
         tick(2000)
         assert tserver.limit_reached_time is not None
@@ -1911,7 +1909,7 @@ class TestThreadedServerProcessLimit:
         mock_thread.is_alive.return_value = True
 
         with self._env(config_override={"limit_time_real": 60}, threads=[mock_thread]):
-            tserver.process_limit()
+            tserver.check_limits()
         assert mock_thread in tserver.limits_reached_threads
 
     def test_cron_thread_uses_cron_time_limit(self, tserver):
@@ -1925,7 +1923,7 @@ class TestThreadedServerProcessLimit:
             config_override={"limit_time_real": 3600, "limit_time_real_cron": 60},
             threads=[mock_thread],
         ):
-            tserver.process_limit()
+            tserver.check_limits()
         assert mock_thread in tserver.limits_reached_threads
 
     def test_zero_cron_limit_does_not_fall_back_to_the_http_limit(self, tserver):
@@ -1939,7 +1937,7 @@ class TestThreadedServerProcessLimit:
             config_override={"limit_time_real": 60, "limit_time_real_cron": 0},
             threads=[mock_thread],
         ):
-            tserver.process_limit()
+            tserver.check_limits()
         assert mock_thread not in tserver.limits_reached_threads, (
             "--limit-time-real-cron=0 is documented as 'no limit' and PreforkServer "
             "honours it; the threaded watchdog must not kill the thread at "
@@ -1952,7 +1950,7 @@ class TestThreadedServerProcessLimit:
         tserver.limits_reached_threads.add(dead)
 
         with self._env(threads=[]):
-            tserver.process_limit()
+            tserver.check_limits()
         assert dead not in tserver.limits_reached_threads
 
     def test_limit_reached_time_set_and_cleared(self, tserver):
@@ -1963,13 +1961,13 @@ class TestThreadedServerProcessLimit:
         mock_thread.is_alive.return_value = True
 
         with self._env(config_override={"limit_time_real": 60}, threads=[mock_thread]):
-            tserver.process_limit()
+            tserver.check_limits()
         assert tserver.limit_reached_time is not None
 
         tserver.limits_reached_threads.clear()
         mock_thread.start_time = None
         with self._env(config_override={"limit_time_real": 60}, threads=[mock_thread]):
-            tserver.process_limit()
+            tserver.check_limits()
         assert tserver.limit_reached_time is None
 
     def test_websocket_thread_not_counted(self, tserver):
@@ -1980,7 +1978,7 @@ class TestThreadedServerProcessLimit:
         mock_thread.is_alive.return_value = True
 
         with self._env(config_override={"limit_time_real": 1}, threads=[mock_thread]):
-            tserver.process_limit()
+            tserver.check_limits()
         assert mock_thread not in tserver.limits_reached_threads
 
     def test_single_monotonic_call_per_invocation(self, tserver):
@@ -2000,7 +1998,7 @@ class TestThreadedServerProcessLimit:
             patch("odoo.service._threaded.time") as mock_time,
         ):
             mock_time.monotonic.side_effect = original_monotonic
-            tserver.process_limit()
+            tserver.check_limits()
 
         assert mock_time.monotonic.call_count <= 2
 
@@ -2137,8 +2135,6 @@ class TestForkAndReloadTimeout:
         ps.logger.error.assert_called()
 
     def test_stop_preserves_old_workers_when_reload_fails(self, srv):
-        from odoo.service import lifecycle
-
         ps = object.__new__(srv.PreforkServer)
         ps.logger = MagicMock()
         ps.socket = MagicMock()
@@ -2147,7 +2143,7 @@ class TestForkAndReloadTimeout:
         with (
             patch.object(ps, "fork_and_reload", return_value=False) as mock_fr,
             patch.object(ps, "stop_workers_gracefully") as mock_swg,
-            patch.object(lifecycle, "server_phoenix", True),
+            patch.object(_process_state, "server_phoenix", True),
         ):
             ps.stop()
 
@@ -2156,8 +2152,6 @@ class TestForkAndReloadTimeout:
         ps.logger.error.assert_called()
 
     def test_stop_shuts_down_workers_when_reload_succeeds(self, srv):
-        from odoo.service import lifecycle
-
         ps = object.__new__(srv.PreforkServer)
         ps.logger = MagicMock()
         ps.socket = MagicMock()
@@ -2166,7 +2160,7 @@ class TestForkAndReloadTimeout:
         with (
             patch.object(ps, "fork_and_reload", return_value=True),
             patch.object(ps, "stop_workers_gracefully") as mock_swg,
-            patch.object(lifecycle, "server_phoenix", True),
+            patch.object(_process_state, "server_phoenix", True),
         ):
             ps.stop()
 
@@ -2176,13 +2170,13 @@ class TestForkAndReloadTimeout:
 class TestOnStopFuncsModuleLevel:
     @pytest.fixture(autouse=True)
     def _restore(self, srv):
-        original_module = list(srv._ON_STOP_FUNCS)
+        original_module = list(_base_server._ON_STOP_FUNCS)
         yield
-        srv._ON_STOP_FUNCS[:] = original_module
+        _base_server._ON_STOP_FUNCS[:] = original_module
 
-    def test_module_level_list_exists(self, srv):
-        assert hasattr(srv, "_ON_STOP_FUNCS")
-        assert isinstance(srv._ON_STOP_FUNCS, list)
+    def test_module_level_list_exists(self):
+        assert hasattr(_base_server, "_ON_STOP_FUNCS")
+        assert isinstance(_base_server._ON_STOP_FUNCS, list)
 
     def test_class_attr_intentionally_absent(self, srv):
         assert not hasattr(srv.CommonServer, "_on_stop_funcs")
@@ -2190,14 +2184,14 @@ class TestOnStopFuncsModuleLevel:
     def test_on_stop_appends_to_module_list(self, srv):
         cb = MagicMock()
         srv.CommonServer.on_stop(cb)
-        assert cb in srv._ON_STOP_FUNCS
+        assert cb in _base_server._ON_STOP_FUNCS
 
     def test_on_stop_is_idempotent(self, srv):
         cb = MagicMock()
-        before = len(srv._ON_STOP_FUNCS)
+        before = len(_base_server._ON_STOP_FUNCS)
         srv.CommonServer.on_stop(cb)
         srv.CommonServer.on_stop(cb)
-        assert len(srv._ON_STOP_FUNCS) == before + 1
+        assert len(_base_server._ON_STOP_FUNCS) == before + 1
 
         instance = object.__new__(srv.CommonServer)
         instance.logger = MagicMock()
@@ -2262,7 +2256,7 @@ class TestMemoryLogStrings:
             patch("odoo.service._helpers.memory_info", return_value=500),
             patch.object(_threaded.os, "kill"),
         ):
-            event_server.process_limits()
+            event_server.check_limits()
 
         message = self._only_message(event_server.logger)
         assert "RSS" in message
@@ -2290,9 +2284,9 @@ def event_server(srv):
 class TestEventServerGracefulStop:
     @pytest.fixture(autouse=True)
     def _restore_callbacks(self, srv):
-        original = list(srv._ON_STOP_FUNCS)
+        original = list(_base_server._ON_STOP_FUNCS)
         yield
-        srv._ON_STOP_FUNCS[:] = original
+        _base_server._ON_STOP_FUNCS[:] = original
 
     @pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
     def test_quit_handler_raises_keyboard_interrupt(self, event_server, sig):
@@ -2388,7 +2382,7 @@ class TestProcessLimitRealTimeLog:
             patch.object(_helpers, "memory_info", return_value=0),
             patch.object(threading, "enumerate", return_value=[fake_thread]),
         ):
-            ts.process_limit()
+            ts.check_limits()
 
         ts.logger.warning.assert_called_once()
         fmt = ts.logger.warning.call_args.args[0]
@@ -2579,9 +2573,7 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
     def test_survivor_is_sigtermed_after_cut_short_reload_drain(
         self, srv, phoenix_server, monkeypatch
     ):
-        from odoo.service import lifecycle
-
-        monkeypatch.setattr(lifecycle, "server_phoenix", True)
+        monkeypatch.setattr(_process_state, "server_phoenix", True)
         monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
         monkeypatch.setattr(
             srv.PreforkServer, "stop_workers_gracefully", lambda self: None
@@ -2600,9 +2592,7 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
         )
 
     def test_fully_drained_reload_kills_nothing(self, srv, phoenix_server, monkeypatch):
-        from odoo.service import lifecycle
-
-        monkeypatch.setattr(lifecycle, "server_phoenix", True)
+        monkeypatch.setattr(_process_state, "server_phoenix", True)
         monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
 
         def drained(self):
@@ -2639,9 +2629,7 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
     def test_successful_reload_runs_the_hooks(
         self, srv, prefork_server, hooked, monkeypatch
     ):
-        from odoo.service import lifecycle
-
-        monkeypatch.setattr(lifecycle, "server_phoenix", True)
+        monkeypatch.setattr(_process_state, "server_phoenix", True)
         monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
         monkeypatch.setattr(
             srv.PreforkServer, "stop_workers_gracefully", lambda self: None
@@ -2657,9 +2645,7 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
     def test_failed_reload_also_runs_the_hooks(
         self, srv, prefork_server, hooked, monkeypatch
     ):
-        from odoo.service import lifecycle
-
-        monkeypatch.setattr(lifecycle, "server_phoenix", True)
+        monkeypatch.setattr(_process_state, "server_phoenix", True)
         monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: False)
 
         self._phoenix(prefork_server).stop()
@@ -2669,9 +2655,7 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
     def test_plain_shutdown_still_runs_them_once(
         self, srv, prefork_server, hooked, monkeypatch
     ):
-        from odoo.service import lifecycle
-
-        monkeypatch.setattr(lifecycle, "server_phoenix", False)
+        monkeypatch.setattr(_process_state, "server_phoenix", False)
         monkeypatch.setattr(
             srv.PreforkServer, "stop_workers_gracefully", lambda self: None
         )
@@ -2769,9 +2753,7 @@ class TestPreforkForcefulStopStopsLongPolling:
     def test_forceful_stop_stops_the_evented_child(
         self, srv, prefork_server, monkeypatch
     ):
-        from odoo.service import lifecycle
-
-        monkeypatch.setattr(lifecycle, "server_phoenix", False)
+        monkeypatch.setattr(_process_state, "server_phoenix", False)
         prefork_server.socket = None
         prefork_server.workers = {}
         called = []
@@ -2786,9 +2768,7 @@ class TestPreforkForcefulStopStopsLongPolling:
     def test_graceful_stop_still_stops_it_exactly_once(
         self, srv, prefork_server, monkeypatch
     ):
-        from odoo.service import lifecycle
-
-        monkeypatch.setattr(lifecycle, "server_phoenix", False)
+        monkeypatch.setattr(_process_state, "server_phoenix", False)
         prefork_server.socket = None
         prefork_server.workers = {}
         called = []

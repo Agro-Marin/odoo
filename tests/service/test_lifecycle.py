@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from odoo.service import _process_state
+
 
 @pytest.fixture(scope="module")
 def mod():
@@ -364,11 +366,20 @@ class TestReexecNtServiceRestart:
 
 
 class TestServerPhoenixSingleSourceOfTruth:
-    def test_lifecycle_is_the_canonical_holder(self):
-        from odoo.service import lifecycle
+    def test_process_state_is_the_canonical_holder(self):
+        assert hasattr(_process_state, "server")
+        assert hasattr(_process_state, "server_phoenix")
 
-        assert hasattr(lifecycle, "server")
-        assert hasattr(lifecycle, "server_phoenix")
+    def test_no_other_module_keeps_a_copy(self):
+        """A second binding is a second answer the moment either is written."""
+        from odoo.service import _factory, _metrics, _threaded, _watcher, lifecycle
+
+        for mod in (_factory, _metrics, _threaded, _watcher, lifecycle):
+            for name in ("server", "server_phoenix"):
+                assert name not in vars(mod), (
+                    f"{mod.__name__} binds {name} itself; writes through "
+                    f"_process_state would not be seen there"
+                )
 
     def test_server_module_does_not_forward_phoenix(self, srv):
         with pytest.raises(AttributeError):
@@ -382,7 +393,7 @@ class TestServerPhoenixSingleSourceOfTruth:
 class TestLifecycleStartWatcherCleanup:
     def test_watcher_stopped_when_server_run_raises(self):
         import odoo
-        from odoo.service import lifecycle
+        from odoo.service import _factory
 
         mock_server = MagicMock()
         mock_server.run.side_effect = OSError(errno.EADDRINUSE, "address in use")
@@ -390,17 +401,17 @@ class TestLifecycleStartWatcherCleanup:
         fake_config = {"workers": 0, "dev_mode": ["reload"], "server_wide_modules": []}
 
         with (
-            patch.object(lifecycle, "load_server_wide_modules"),
-            patch.object(lifecycle, "config", fake_config),
+            patch.object(_factory, "load_server_wide_modules"),
+            patch.object(_factory, "config", fake_config),
             patch.object(odoo, "evented", False),
-            patch("odoo.service.server.ThreadedServer", return_value=mock_server),
-            patch.object(lifecycle, "inotify", True),
-            patch.object(lifecycle, "FSWatcherInotify", return_value=mock_watcher),
-            patch.object(lifecycle, "server_phoenix", False),
-            patch.object(lifecycle, "server", None),
+            patch.object(_factory, "ThreadedServer", return_value=mock_server),
+            patch.object(_factory, "inotify", True),
+            patch.object(_factory, "FSWatcherInotify", return_value=mock_watcher),
+            patch.object(_process_state, "server_phoenix", False),
+            patch.object(_process_state, "server", None),
             pytest.raises(OSError),
         ):
-            lifecycle.start()
+            _factory.start()
 
         mock_watcher.start.assert_called_once()
         mock_watcher.stop.assert_called_once()
@@ -409,7 +420,7 @@ class TestLifecycleStartWatcherCleanup:
 class TestRestartGuard:
     def test_restart_with_none_server_is_noop(self, srv, caplog):
         with (
-            patch("odoo.service.lifecycle.server", None),
+            patch("odoo.service._process_state.server", None),
             patch.object(os, "kill") as mock_kill,
             patch.object(threading, "Thread") as mock_thread,
             caplog.at_level("WARNING", logger="odoo.service.server"),
@@ -425,7 +436,7 @@ class TestRestartGuard:
         fake_server.pid = 12345
 
         with (
-            patch("odoo.service.lifecycle.server", fake_server),
+            patch("odoo.service._process_state.server", fake_server),
             patch("odoo.service.lifecycle._IS_WINDOWS", False),
             patch.object(os, "kill") as mock_kill,
         ):
@@ -436,7 +447,7 @@ class TestRestartGuard:
     def test_threaded_server_reload_delegates_to_lifecycle(self, srv):
         ts = object.__new__(srv.ThreadedServer)
         ts.pid = 12345
-        with patch("odoo.service.lifecycle.restart") as mock_restart:
+        with patch("odoo.service._threaded.restart") as mock_restart:
             ts.reload()
         mock_restart.assert_called_once_with()
 
@@ -446,7 +457,7 @@ class TestRestartGuard:
         from odoo.service import lifecycle
 
         with (
-            patch("odoo.service.lifecycle.server", ts),
+            patch("odoo.service._process_state.server", ts),
             patch.object(lifecycle, "_IS_WINDOWS", True),
             patch.object(lifecycle, "_reexec") as mock_reexec,
             patch.object(lifecycle.threading, "Thread") as mock_thread,
@@ -463,12 +474,27 @@ class TestRestartGuard:
 
 
 class TestSigHupSentinel:
-    def test_local_sentinel_exported(self, srv):
-        assert hasattr(srv, "_SIGHUP_AVAILABLE")
-        assert isinstance(srv._SIGHUP_AVAILABLE, bool)
+    def test_local_sentinel_exported(self):
+        from odoo.service import _base_server
 
-    def test_on_posix_sentinel_is_true(self, srv):
+        assert hasattr(_base_server, "_SIGHUP_AVAILABLE")
+        assert isinstance(_base_server._SIGHUP_AVAILABLE, bool)
+
+    def test_on_posix_sentinel_is_true(self):
         import os
 
+        from odoo.service import _base_server
+
         if os.name == "posix":
-            assert srv._SIGHUP_AVAILABLE is True
+            assert _base_server._SIGHUP_AVAILABLE is True
+
+    def test_the_facade_advertises_only_what_it_exports(self):
+        """`server` is the public face; private module state lives at home."""
+        from odoo.service import server
+
+        for private in ("_ON_STOP_FUNCS", "_SIGHUP_AVAILABLE", "FSWatcherBase"):
+            assert not hasattr(server, private), (
+                f"odoo.service.server re-exports {private}, which is in no "
+                f"__all__ and has no consumer outside this suite"
+            )
+        assert set(server.__all__) <= set(vars(server))

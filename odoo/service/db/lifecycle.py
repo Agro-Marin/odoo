@@ -14,6 +14,7 @@ import odoo.api
 import odoo.db
 import odoo.modules.db
 import odoo.modules.neutralize
+import odoo.modules.registry
 import odoo.tools
 from odoo.tools import SQL
 

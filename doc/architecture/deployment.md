@@ -11,7 +11,7 @@ runbook — most of all in whether memory is shared.
 
 ## Choosing the shape
 
-`service/lifecycle.py::start` picks the server, in this order:
+`service/_factory.py::start` picks the server, in this order:
 
 | Condition | Server | Concurrency | Shared memory |
 |---|---|---|---|

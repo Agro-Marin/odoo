@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from odoo.service import _process_state
+
 
 @pytest.fixture(scope="module")
 def mod():
@@ -66,18 +68,17 @@ def parse_exposition(text: str) -> tuple[dict[str, str], list[str]]:
 
 class TestServiceMetrics:
     def test_no_server_yet_reports_flavor_none(self, mod):
-        from odoo.service import lifecycle
-
-        with patch.object(lifecycle, "server", None):
+        with patch.object(_process_state, "server", None):
             out = mod.service_metrics()
         assert out["flavor"] == "none"
         assert "registries" in out
 
-    def test_prefork_reports_worker_counts(self, mod):
-        from odoo.service import lifecycle
+    @staticmethod
+    def _prefork(pid):
+        """A real PreforkServer, since it is the one that answers now."""
+        from odoo.service._prefork import PreforkServer
 
-        server = MagicMock()
-        type(server).__name__ = "PreforkServer"
+        server = object.__new__(PreforkServer)
         server.workers = {1: object(), 2: object()}
         server.workers_http = {1: object(), 2: object()}
         server.workers_cron = {3: object()}
@@ -85,9 +86,13 @@ class TestServiceMetrics:
         server.population = 4
         server.generation = 17
         server.long_polling_pid = 999
-        server.pid = os.getpid()
+        server.pid = pid
+        return server
 
-        with patch.object(lifecycle, "server", server):
+    def test_prefork_reports_worker_counts(self, mod):
+        server = self._prefork(os.getpid())
+
+        with patch.object(_process_state, "server", server):
             out = mod.service_metrics()
         assert out["flavor"] == "prefork"
         assert out["workers"] == {"http": 2, "cron": 1, "job": 0}
@@ -96,19 +101,9 @@ class TestServiceMetrics:
         assert out["long_polling_alive"] is True
 
     def test_forked_worker_omits_the_master_only_gauges(self, mod):
-        from odoo.service import lifecycle
+        server = self._prefork(os.getpid() + 1)
 
-        server = MagicMock()
-        type(server).__name__ = "PreforkServer"
-        server.workers_http = {1: object(), 2: object()}
-        server.workers_cron = {3: object()}
-        server.workers_job = {}
-        server.population = 4
-        server.generation = 17
-        server.long_polling_pid = 999
-        server.pid = os.getpid() + 1
-
-        with patch.object(lifecycle, "server", server):
+        with patch.object(_process_state, "server", server):
             out = mod.service_metrics()
         assert out["flavor"] == "prefork"
         for key in (
@@ -119,7 +114,7 @@ class TestServiceMetrics:
         ):
             assert key not in out, f"{key} is master-only but a worker emitted it"
 
-        with patch.object(lifecycle, "server", server):
+        with patch.object(_process_state, "server", server):
             text = mod.render_prometheus()
         for family in (
             "odoo_workers",
@@ -134,21 +129,64 @@ class TestServiceMetrics:
     def test_threaded_reports_thread_counts_and_slot_ceiling(self, mod, monkeypatch):
         import threading
 
-        from odoo.service import lifecycle
+        from odoo.service._threaded import ThreadedServer
 
-        server = MagicMock(spec=["httpd", "limits_reached_threads"])
-        type(server).__name__ = "ThreadedServer"
-        server.httpd.max_http_threads = 31
+        server = object.__new__(ThreadedServer)
+        server.httpd = MagicMock(max_http_threads=31)
         server.limits_reached_threads = set()
 
         monkeypatch.setattr(threading.current_thread(), "type", "http", raising=False)
-        with patch.object(lifecycle, "server", server):
+        with patch.object(_process_state, "server", server):
             out = mod.service_metrics()
 
         assert out["flavor"] == "threaded"
         assert out["http_threads_max"] == 31
         assert out["threads"]["http"] >= 1
         assert set(out["threads"]) == {"http", "cron", "job"}
+
+
+class TestEveryServerAnswersForItself:
+    """`service_metrics` asks the server; it no longer recognises one."""
+
+    def test_each_flavour_names_itself(self):
+        from odoo.service._prefork import PreforkServer
+        from odoo.service._threaded import EventServer, ThreadedServer
+
+        assert PreforkServer.flavor == "prefork"
+        assert ThreadedServer.flavor == "threaded"
+        assert EventServer.flavor == "evented"
+
+    def test_the_base_answers_unknown_rather_than_a_class_name(self):
+        from odoo.service._base_server import CommonServer
+
+        assert CommonServer.flavor == "unknown", (
+            "a new flavour that forgets to set one should be visibly unnamed, "
+            "not silently reported under its class name"
+        )
+
+    def test_a_flavour_that_declares_nothing_still_renders(self, mod):
+        from odoo.service._base_server import CommonServer
+
+        server = object.__new__(CommonServer)
+        with patch.object(_process_state, "server", server):
+            out = mod.service_metrics()
+            text = mod.render_prometheus()
+        assert out["flavor"] == "unknown"
+        _, errors = parse_exposition(text)
+        assert not errors, errors
+
+    def test_the_evented_server_does_not_claim_thread_metrics(self, mod):
+        from odoo.service._threaded import EventServer
+
+        server = object.__new__(EventServer)
+        with patch.object(_process_state, "server", server):
+            out = mod.service_metrics()
+        assert out["flavor"] == "evented"
+        for key in ("threads", "http_threads_max", "limits_reached_threads"):
+            assert key not in out, (
+                f"the evented server has no {key}; reporting one as zero is a "
+                f"number an operator can act on and should not"
+            )
 
 
 class TestPrometheusExposition:
@@ -233,10 +271,9 @@ class TestPrometheusExposition:
         )
 
     def test_booleans_render_as_one_and_zero(self, mod):
-        from odoo.service import lifecycle
+        from odoo.service._prefork import PreforkServer
 
-        server = MagicMock()
-        type(server).__name__ = "PreforkServer"
+        server = object.__new__(PreforkServer)
         server.workers = {}
         server.workers_http = server.workers_cron = server.workers_job = {}
         server.population = 0
@@ -244,7 +281,7 @@ class TestPrometheusExposition:
         server.long_polling_pid = None
         server.pid = os.getpid()
 
-        with patch.object(lifecycle, "server", server):
+        with patch.object(_process_state, "server", server):
             text = mod.render_prometheus()
         assert f'odoo_long_polling_alive{{pid="{os.getpid()}"}} 0' in text
         _, errors = parse_exposition(text)

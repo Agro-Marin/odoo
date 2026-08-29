@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from odoo.service import _threaded, lifecycle
+from odoo.service import _process_state, _threaded
 
 
 @pytest.fixture
@@ -42,16 +42,27 @@ class TestSignalHandlerBehaviour:
         hard_exit.assert_called_once_with(0)
 
     def test_sighup_arms_phoenix_before_unwinding(self, server):
-        with patch.object(lifecycle, "server_phoenix", False):
+        with patch.object(_process_state, "server_phoenix", False):
             with pytest.raises(KeyboardInterrupt):
                 server.signal_handler(signal.SIGHUP, None)
-            assert lifecycle.server_phoenix is True
+            assert _process_state.server_phoenix is True
 
     def test_sigxcpu_exits_immediately(self, server):
         with patch.object(_threaded.os, "_exit", side_effect=SystemExit) as hard_exit:
             with pytest.raises(SystemExit):
                 server.signal_handler(signal.SIGXCPU, None)
-        hard_exit.assert_called_once_with(0)
+        hard_exit.assert_called_once_with(_threaded._SIGXCPU_EXIT_CODE)
+
+    def test_sigxcpu_exits_nonzero_so_a_supervisor_restarts(self, server):
+        code = _threaded._SIGXCPU_EXIT_CODE
+        assert code != 0, (
+            "exiting 0 after a CPU-limit kill tells systemd/Docker the process "
+            "stopped cleanly, so Restart=on-failure never fires"
+        )
+        assert code == 128 + int(signal.SIGXCPU), (
+            "the shell convention for 'killed by signal N' is 128+N; keeping it "
+            "makes the exit code self-describing in a supervisor's log"
+        )
 
 
 class TestSignalHandlerOnAPlatformWithoutSighup:
@@ -82,7 +93,7 @@ class TestStartInstallsTheHandlers:
     @pytest.fixture
     def wired(self, server):
         seen = {}
-        cfg = {"http_enable": False, "test_enable": False}
+        cfg = {"http_enable": False, "test_enable": False, "limit_time_cpu": 0}
         with (
             patch.object(_threaded, "config", cfg),
             patch.object(_threaded.signal, "signal", side_effect=seen.__setitem__),
@@ -107,7 +118,7 @@ class TestStartInstallsTheHandlers:
         assert signal.SIGCHLD not in seen
 
     def test_http_is_not_spawned_when_disabled(self, server):
-        cfg = {"http_enable": False, "test_enable": False}
+        cfg = {"http_enable": False, "test_enable": False, "limit_time_cpu": 0}
         with (
             patch.object(_threaded, "config", cfg),
             patch.object(_threaded.signal, "signal"),
@@ -117,7 +128,7 @@ class TestStartInstallsTheHandlers:
         spawn.assert_not_called()
 
     def test_http_is_spawned_under_test_enable_even_when_stopping(self, server):
-        cfg = {"http_enable": True, "test_enable": True}
+        cfg = {"http_enable": True, "test_enable": True, "limit_time_cpu": 0}
         with (
             patch.object(_threaded, "config", cfg),
             patch.object(_threaded.signal, "signal"),
@@ -163,7 +174,7 @@ class TestGracefulStop:
         log_mod.shutdown.assert_called_once_with()
 
     def test_reload_announces_a_reload_not_a_shutdown(self, stopped):
-        with patch.object(lifecycle, "server_phoenix", True):
+        with patch.object(_process_state, "server_phoenix", True):
             server, _, _, _ = stopped()
         said = " ".join(str(c) for c in server.logger.info.call_args_list)
         assert "reload" in said.lower()

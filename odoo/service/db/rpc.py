@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, Literal
 
+import odoo.modules.registry
 import odoo.tools
 
 from .._db_helpers import check_db_management_enabled, check_super

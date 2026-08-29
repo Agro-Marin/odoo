@@ -21,8 +21,10 @@ def prefork():
     obj._consecutive_fast_deaths = 0
     obj._respawn_not_before = 0.0
     obj.queue = []
+    obj._selector = None
     obj.pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
     yield obj
+    obj._close_watchdog_selector()
     for fd in obj.pipe:
         with contextlib.suppress(OSError):
             os.close(fd)
@@ -213,6 +215,84 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
             f"it {spawn.call_count} times in the same cycle. A fork that failed "
             f"with EAGAIN fails for every later class too, so the cycle must be "
             f"abandoned (return), not merely the current loop (break)."
+        )
+
+
+class TestTheWatchdogSelectorIsReused:
+    """`sleep()` runs once per beat, and graceful stop drops the beat to 0.1s."""
+
+    @pytest.fixture
+    def master(self, prefork):
+        prefork.beat = 0
+        made = []
+
+        def _add():
+            w = MagicMock()
+            w.watchdog_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+            w.watchdog_time = 0.0
+            pid = len(made) + 1
+            prefork.workers[pid] = w
+            made.append(w)
+            return pid, w
+
+        yield prefork, _add
+        for w in made:
+            for fd in w.watchdog_pipe:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+
+    def test_the_same_selector_serves_every_beat(self, master):
+        prefork, add = master
+        add()
+        prefork.sleep()
+        first = prefork._selector
+        prefork.sleep()
+        prefork.sleep()
+        assert prefork._selector is first, (
+            "a new epoll instance per beat; at the 0.1s shutdown beat that is "
+            "ten create/teardown pairs a second"
+        )
+
+    def test_a_new_worker_is_picked_up_without_rebuilding(self, master):
+        prefork, add = master
+        prefork.sleep()
+        first = prefork._selector
+        _, w = add()
+        prefork.sleep()
+        assert prefork._selector is first
+        assert w.watchdog_pipe[0] in set(prefork._selector.get_map())
+
+    def test_a_reaped_worker_is_unregistered(self, master):
+        prefork, add = master
+        pid, w = add()
+        prefork.sleep()
+        del prefork.workers[pid]
+        prefork.sleep()
+        assert w.watchdog_pipe[0] not in set(prefork._selector.get_map())
+
+    def test_the_masters_pipe_is_always_registered(self, master):
+        prefork, add = master
+        add()
+        prefork.sleep()
+        assert prefork.pipe[0] in set(prefork._selector.get_map())
+
+    def test_the_forked_child_does_not_inherit_the_epoll_instance(self, master):
+        prefork, _add = master
+        prefork.sleep()
+        assert prefork._selector is not None
+        newborn = MagicMock()
+        newborn.watchdog_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+        newborn.eintr_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+        try:
+            prefork._close_inherited_pipe_fds_in_child(newborn)
+        finally:
+            for fds in (newborn.watchdog_pipe, newborn.eintr_pipe):
+                for fd in fds:
+                    with contextlib.suppress(OSError):
+                        os.close(fd)
+        assert prefork._selector is None, (
+            "a worker never polls the master's watchdog set; carrying the "
+            "epoll fd into the fork is one more descriptor per worker"
         )
 
 

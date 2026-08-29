@@ -33,8 +33,8 @@ class TestFSWatcherBase:
         py = tmp_path / "good.py"
         py.write_text("x = 1 + 1\n")
         with (
-            patch("odoo.service.lifecycle.server_phoenix", False),
-            patch("odoo.service.lifecycle.restart") as mock_restart,
+            patch("odoo.service._process_state.server_phoenix", False),
+            patch("odoo.service._watcher.restart") as mock_restart,
         ):
             result = watcher.handle_file(str(py))
         mock_restart.assert_called_once()
@@ -45,8 +45,8 @@ class TestFSWatcherBase:
         a.write_text("x = 1\n")
         b.write_text("y = 2\n")
         with (
-            patch("odoo.service.lifecycle.server_phoenix", False),
-            patch("odoo.service.lifecycle.restart") as mock_restart,
+            patch("odoo.service._process_state.server_phoenix", False),
+            patch("odoo.service._watcher.restart") as mock_restart,
         ):
             first = watcher.handle_file(str(a))
             second = watcher.handle_file(str(b))
@@ -57,13 +57,13 @@ class TestFSWatcherBase:
     def test_syntax_error_suppresses_restart(self, watcher, tmp_path):
         bad = tmp_path / "bad.py"
         bad.write_text("def (\n")
-        with patch("odoo.service.lifecycle.restart") as mock_restart:
+        with patch("odoo.service._watcher.restart") as mock_restart:
             result = watcher.handle_file(str(bad))
         mock_restart.assert_not_called()
         assert result is None
 
     def test_missing_file_suppresses_restart(self, watcher, tmp_path):
-        with patch("odoo.service.lifecycle.restart") as mock_restart:
+        with patch("odoo.service._watcher.restart") as mock_restart:
             result = watcher.handle_file(str(tmp_path / "ghost.py"))
         mock_restart.assert_not_called()
         assert result is None
@@ -71,7 +71,7 @@ class TestFSWatcherBase:
     def test_non_py_file_is_ignored(self, watcher, tmp_path):
         txt = tmp_path / "config.yaml"
         txt.write_text("key: value")
-        with patch("odoo.service.lifecycle.restart") as mock_restart:
+        with patch("odoo.service._watcher.restart") as mock_restart:
             result = watcher.handle_file(str(txt))
         mock_restart.assert_not_called()
         assert result is None
@@ -79,7 +79,7 @@ class TestFSWatcherBase:
     def test_hidden_tilde_py_file_is_ignored(self, watcher, tmp_path):
         hidden = tmp_path / ".~mymodule.py"
         hidden.write_text("pass\n")
-        with patch("odoo.service.lifecycle.restart") as mock_restart:
+        with patch("odoo.service._watcher.restart") as mock_restart:
             result = watcher.handle_file(str(hidden))
         mock_restart.assert_not_called()
         assert result is None
@@ -88,8 +88,8 @@ class TestFSWatcherBase:
         py = tmp_path / "ok.py"
         py.write_text("pass\n")
         with (
-            patch("odoo.service.lifecycle.server_phoenix", True),
-            patch("odoo.service.lifecycle.restart") as mock_restart,
+            patch("odoo.service._process_state.server_phoenix", True),
+            patch("odoo.service._watcher.restart") as mock_restart,
         ):
             result = watcher.handle_file(str(py))
         mock_restart.assert_not_called()

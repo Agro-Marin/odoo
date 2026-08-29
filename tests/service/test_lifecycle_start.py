@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from odoo.service import lifecycle
+from odoo.service import _factory, _process_state
 
 
 @pytest.fixture
@@ -39,7 +39,6 @@ def start(monkeypatch):
 
             return _make
 
-        server_mod = MagicMock(**classes)
         cfg = {
             "workers": workers,
             "max_cron_threads": 0,
@@ -48,25 +47,25 @@ def start(monkeypatch):
             "dev_mode": list(dev_mode),
             "test_enable": False,
         }
-        monkeypatch.setattr(lifecycle, "server", None, raising=False)
-        monkeypatch.setattr(lifecycle, "server_phoenix", phoenix, raising=False)
+        monkeypatch.setattr(_process_state, "server", None, raising=False)
+        monkeypatch.setattr(_process_state, "server_phoenix", phoenix, raising=False)
         with (
-            patch.dict("sys.modules", {"odoo.service.server": server_mod}),
-            patch.object(lifecycle, "load_server_wide_modules"),
-            patch.object(lifecycle, "config", cfg),
-            patch.object(lifecycle, "_limit_malloc_arenas") as arenas,
-            patch.object(lifecycle, "_warn_on_connection_budget"),
-            patch.object(lifecycle, "inotify", inotify or None),
-            patch.object(lifecycle, "watchdog", watchdog or None),
-            patch.object(lifecycle, "FSWatcherInotify", _watcher_factory("inotify")),
-            patch.object(lifecycle, "FSWatcherWatchdog", _watcher_factory("watchdog")),
-            patch.object(lifecycle, "_reexec") as reexec,
+            patch.multiple(_factory, **classes),
+            patch.object(_factory, "load_server_wide_modules"),
+            patch.object(_factory, "config", cfg),
+            patch.object(_factory, "_limit_malloc_arenas") as arenas,
+            patch.object(_factory, "_warn_on_connection_budget"),
+            patch.object(_factory, "inotify", inotify or None),
+            patch.object(_factory, "watchdog", watchdog or None),
+            patch.object(_factory, "FSWatcherInotify", _watcher_factory("inotify")),
+            patch.object(_factory, "FSWatcherWatchdog", _watcher_factory("watchdog")),
+            patch.object(_factory, "_reexec") as reexec,
         ):
             import odoo
 
             monkeypatch.setattr(odoo, "evented", evented, raising=False)
             try:
-                rc = lifecycle.start(["db"], stop=False)
+                rc = _factory.start(["db"], stop=False)
             except Exception as exc:
                 rc = exc
         return rc, classes, made_watchers, arenas, reexec
@@ -100,7 +99,7 @@ class TestServerSelection:
 
     def test_the_chosen_server_is_published_as_the_module_global(self, start):
         start(workers=0)
-        assert lifecycle.server is not None, (
+        assert _process_state.server is not None, (
             "`restart()` and the signal handlers reach the running server "
             "through this name; leaving it None makes SIGHUP a no-op"
         )

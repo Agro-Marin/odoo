@@ -37,25 +37,25 @@ class TestJobLimitsAreSeparableFromCron:
         return patch.dict(config.options, {**self.CRON, **overrides})
 
     def test_the_default_follows_cron(self):
-        from odoo.service._helpers import job_max_age, job_time_real
+        from odoo.service._helpers import _job_real_time_limit, job_max_age
 
         with self._with(limit_time_worker_job=-1, limit_time_real_job=-1):
             assert job_max_age() == 300
-            assert job_time_real() == 120
+            assert _job_real_time_limit() == 120
 
     def test_an_explicit_job_limit_wins(self):
-        from odoo.service._helpers import job_max_age, job_time_real
+        from odoo.service._helpers import _job_real_time_limit, job_max_age
 
         with self._with(limit_time_worker_job=900, limit_time_real_job=3600):
             assert job_max_age() == 900
-            assert job_time_real() == 3600
+            assert _job_real_time_limit() == 3600
 
     def test_zero_disables_for_jobs_without_disabling_cron(self):
-        from odoo.service._helpers import job_max_age, job_time_real
+        from odoo.service._helpers import _job_real_time_limit, job_max_age
 
         with self._with(limit_time_worker_job=0, limit_time_real_job=0):
             assert job_max_age() == 0
-            assert job_time_real() == 0
+            assert _job_real_time_limit() == 0
         from odoo.tools import config
 
         with self._with(limit_time_worker_job=0, limit_time_real_job=0):

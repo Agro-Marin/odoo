@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import errno
+import gc
 import logging
 import os
 import threading
 from pathlib import Path
 
 import odoo.addons
+from . import _process_state
+from .lifecycle import restart
 
 if os.name == "posix":
     try:
@@ -41,6 +44,16 @@ else:
 _logger = logging.getLogger("odoo.service.server")
 
 _OBSERVER_JOIN_TIMEOUT_S = 5.0
+
+_WATCHER_JOIN_TIMEOUT_S = 5.0
+
+
+def _fd_is_open(fd: int) -> bool:
+    try:
+        os.fstat(fd)
+    except OSError:
+        return False
+    return True
 
 
 ASSET_SUFFIXES = (".js", ".xml", ".scss", ".css")
@@ -80,13 +93,12 @@ class FSWatcherBase:
 
     _needs_burst_timer = True
 
-    _reload_triggered = False
-
     def __init__(self) -> None:
         self._burst_lock = threading.Lock()
         self._assets_dirty = False
         self._burst_active = False
         self._burst_timer: threading.Timer | None = None
+        self._reload_triggered = False
 
     @staticmethod
     def watch_paths() -> list[str]:
@@ -190,14 +202,12 @@ class FSWatcherBase:
                     path,
                 )
             else:
-                from . import lifecycle
-
-                if not lifecycle.server_phoenix:
+                if not _process_state.server_phoenix:
                     self._reload_triggered = True
                     _logger.info(
                         "autoreload: python code updated, autoreload activated"
                     )
-                    lifecycle.restart()
+                    restart()
                     return True
         return None
 
@@ -254,6 +264,23 @@ class _InotifyInternals:
     def remove_watch_superficially(self, path: str) -> None:
         self._inotify.remove_watch(path, superficial=True)
 
+    def descriptors(self) -> tuple[int, ...]:
+        inot = self._inotify
+        fds = [inot._Inotify__inotify_fd]
+        epoll = getattr(inot, "_Inotify__epoll", None)
+        if epoll is not None:
+            fds.append(epoll.fileno())
+        return tuple(fds)
+
+    def set_cloexec(self) -> None:
+        for fd in self.descriptors():
+            try:
+                os.set_inheritable(fd, False)
+            except OSError:
+                _logger.debug(
+                    "autoreload: could not set FD_CLOEXEC on fd %d", fd, exc_info=True
+                )
+
 
 class FSWatcherInotify(FSWatcherBase):
     _needs_burst_timer = False
@@ -279,6 +306,7 @@ class FSWatcherInotify(FSWatcherBase):
                 raise
             raise OSError(errno.ENOSPC, diagnosis) from exc
         self.internals = _InotifyInternals(self.watcher)
+        self.internals.set_cloexec()
         self.internals.register_path(OVERFLOW_WD, OVERFLOW_PATH)
 
     def _resync(self) -> None:
@@ -351,6 +379,29 @@ class FSWatcherInotify(FSWatcherBase):
         self.started = False
         self._end_burst()
         if self.thread is not None:
-            self.thread.join()
+            self.thread.join(timeout=_WATCHER_JOIN_TIMEOUT_S)
+            if self.thread.is_alive():
+                _logger.warning(
+                    "autoreload: inotify watch thread did not stop within %.0fs; "
+                    "continuing shutdown without it",
+                    _WATCHER_JOIN_TIMEOUT_S,
+                )
             self.thread = None
+        self._release_watcher()
+
+    def _release_watcher(self) -> None:
+        internals, self.internals = getattr(self, "internals", None), None
         self.watcher = None
+        if internals is None:
+            return
+        fds = internals.descriptors()
+        del internals
+        gc.collect()
+        still_open = [fd for fd in fds if _fd_is_open(fd)]
+        if still_open:
+            _logger.warning(
+                "autoreload: the inotify descriptors %s outlived the watcher; "
+                "something still holds a reference to the tree. They carry "
+                "FD_CLOEXEC, so a re-exec will not inherit them.",
+                still_open,
+            )

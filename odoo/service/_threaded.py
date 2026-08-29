@@ -18,18 +18,18 @@ from odoo import db
 from odoo.db import PoolError
 from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
 from odoo.modules.registry import Registry
-from odoo.tools import OrderedSet, config
+from odoo.tools import config
 from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks
 
-from . import lifecycle
+from . import _process_state
 from ._base_server import _SIGHUP_AVAILABLE, CommonServer
 from ._cron import (
     CRON_TRIGGER_CHANNEL,
     JOB_QUEUE_CHANNEL,
+    CronSchedule,
     arm_cron_listen,
     drain_cron_notifies,
-    order_notified_first,
 )
 from ._env import _IS_POSIX, _IS_WINDOWS
 from ._helpers import (
@@ -40,9 +40,8 @@ from ._helpers import (
     cron_real_time_budget,
     job_max_age,
     job_real_time_budget,
-    over_memory_soft_limit,
 )
-from .lifecycle import preload_registries
+from .lifecycle import preload_registries, restart
 from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
 
 _logger = logging.getLogger("odoo.service.server")
@@ -52,8 +51,24 @@ _RECYCLE_CONN_LOST = "connection_lost"
 
 LIMIT_MONITOR_INTERVAL_S = 5.0
 
+_WORKER_THREAD_TYPES = ("http", "cron", "job")
+
+_SIGXCPU_EXIT_CODE = 128 + getattr(signal, "SIGXCPU", 24)
+
+
+def _databases_to_sweep() -> list[str]:
+    """Resolve `cron_database_list` at call time, not at construction.
+
+    The module attribute is the seam every caller and every test patches, and
+    binding it into the schedule once would freeze whatever was there when the
+    worker was built.
+    """
+    return cron_database_list()
+
 
 class ThreadedServer(CommonServer):
+    flavor = "threaded"
+
     def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.main_thread_id = threading.current_thread().ident
@@ -63,7 +78,18 @@ class ThreadedServer(CommonServer):
         self.limits_reached_threads: set[threading.Thread] = set()
         self.limit_reached_time: float | None = None
         self._stop_after_init = False
-        self._process_handle = psutil.Process(os.getpid())
+
+    def metrics(self) -> dict[str, Any]:
+        by_type: dict[str, int] = {}
+        for thread in threading.enumerate():
+            kind = getattr(thread, "type", None)
+            if kind in _WORKER_THREAD_TYPES:
+                by_type[kind] = by_type.get(kind, 0) + 1
+        return {
+            "threads": {k: by_type.get(k, 0) for k in _WORKER_THREAD_TYPES},
+            "http_threads_max": getattr(self.httpd, "max_http_threads", 0),
+            "limits_reached_threads": len(self.limits_reached_threads),
+        }
 
     def signal_handler(self, sig: int, frame: Any) -> None:
         if sig in [signal.SIGINT, signal.SIGTERM]:
@@ -74,26 +100,21 @@ class ThreadedServer(CommonServer):
             raise KeyboardInterrupt
         if hasattr(signal, "SIGXCPU") and sig == signal.SIGXCPU:
             os.write(2, b"CPU time limit exceeded! Shutting down immediately\n")
-            os._exit(0)
+            os._exit(_SIGXCPU_EXIT_CODE)
         elif _SIGHUP_AVAILABLE and sig == signal.SIGHUP:
             if self.quit_signals_received:
                 return
-            lifecycle.server_phoenix = True
+            _process_state.set_phoenix(True)
             self.quit_signals_received += 1
             raise KeyboardInterrupt
 
-    def process_limit(self) -> None:
-        memory = over_memory_soft_limit(
-            self._process_handle, config["limit_memory_soft"]
-        )
-        memory_over_limit = memory is not None
-        if memory_over_limit:
-            self.logger.warning("Server memory limit (%s) reached.", memory)
+    def check_limits(self) -> None:
+        memory_over_limit = self.check_memory_limit() is not None
 
         now = time.monotonic()
         for thread in threading.enumerate():
             thread_type = getattr(thread, "type", None)
-            if thread_type in ("http", "cron", "job"):
+            if thread_type in _WORKER_THREAD_TYPES:
                 start_time = getattr(thread, "start_time", None)
                 if start_time:
                     thread_execution_time = now - start_time
@@ -148,6 +169,7 @@ class ThreadedServer(CommonServer):
         process_jobs: Any,
         cron_logger: logging.Logger,
     ) -> None:
+        release = len(db_names) > 1
         for db_name in db_names:
             thread = current_worker_thread()
             thread.start_time = time.monotonic()
@@ -159,6 +181,8 @@ class ThreadedServer(CommonServer):
                 )
             finally:
                 thread.start_time = None
+                if release:
+                    db.drain_db(db_name)
 
     def _poll_cron_channel(
         self,
@@ -172,8 +196,10 @@ class ThreadedServer(CommonServer):
         pg_conn = cr.connection
         arm_cron_listen(cr, cron_logger, channel=channel, disable_idle_timeout=True)
         cr.commit()
-        check_all_time = float("-inf")
-        all_db_names: OrderedSet[str] = OrderedSet()
+        schedule = CronSchedule(
+            _databases_to_sweep,
+            refresh_interval=SLEEP_INTERVAL,
+        )
         alive_time = time.monotonic()
         first_pass = True
         with selectors.DefaultSelector() as _sel:
@@ -189,14 +215,9 @@ class ThreadedServer(CommonServer):
                         return _RECYCLE_CONN_LOST
                     raise
 
-                if time.monotonic() - SLEEP_INTERVAL > check_all_time:
-                    check_all_time = time.monotonic()
-                    all_db_names = OrderedSet(cron_database_list())
-                    db_names = order_notified_first(notified, all_db_names)
-                else:
-                    db_names = list(notified.intersection(all_db_names))
-                    if not db_names:
-                        continue
+                db_names = schedule.due(notified)
+                if not db_names:
+                    continue
 
                 cron_logger.debug("polling for jobs (notified: %s)", notified)
                 self._run_due_jobs(db_names, process_jobs, cron_logger)
@@ -312,11 +333,20 @@ class ThreadedServer(CommonServer):
                 lambda sig: self.signal_handler(sig, None), 1
             )
 
+        if _IS_POSIX and config["limit_time_cpu"] > 0:
+            self.logger.info(
+                "limit_time_cpu=%ss is not enforced with workers=0: the CPU "
+                "budget is armed per worker process (RLIMIT_CPU in "
+                "odoo.service._worker), and a threaded server has none. Use "
+                "limit_time_real, which this server does enforce per thread.",
+                config["limit_time_cpu"],
+            )
+
         if config["http_enable"] and (config["test_enable"] or not stop):
             self.http_spawn()
 
     def stop(self) -> None:
-        if lifecycle.server_phoenix:
+        if _process_state.server_phoenix:
             self.logger.info("Initiating server reload")
         elif self._stop_after_init:
             self.logger.info("Initialization done, shutting down")
@@ -390,7 +420,7 @@ class ThreadedServer(CommonServer):
             self.job_spawn()
 
             while self.quit_signals_received == 0:
-                self.process_limit()
+                self.check_limits()
                 if self.limit_reached_time:
                     has_other_valid_requests = self._has_other_http_requests()
                     if (
@@ -426,29 +456,28 @@ class ThreadedServer(CommonServer):
         )
 
     def reload(self) -> None:
-        lifecycle.restart()
+        restart()
 
 
 class EventServer(CommonServer):
+    flavor = "evented"
+
     def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.port = config["gevent_port"]
         self.httpd: werkzeug.serving.BaseWSGIServer | None = None
         self.ppid = os.getppid()
-        self._process_handle = psutil.Process(self.pid)
 
-    def process_limits(self) -> None:
+    def memory_soft_limit(self) -> int:
+        return config["limit_memory_soft_gevent"] or config["limit_memory_soft"]
+
+    def check_limits(self) -> None:
         restart = False
         new_ppid = os.getppid()
         if self.ppid != new_ppid:
             self.logger.warning("Parent changed: %s -> %s", self.ppid, new_ppid)
             restart = True
-        limit_memory_soft = (
-            config["limit_memory_soft_gevent"] or config["limit_memory_soft"]
-        )
-        memory = over_memory_soft_limit(self._process_handle, limit_memory_soft)
-        if memory is not None:
-            self.logger.warning("RSS memory soft-limit reached: %s bytes", memory)
+        if self.check_memory_limit() is not None:
             restart = True
         if restart:
             os.kill(self.pid, signal.SIGTERM)
@@ -457,7 +486,7 @@ class EventServer(CommonServer):
         self.ppid = os.getppid()
         while True:
             try:
-                self.process_limits()
+                self.check_limits()
             except Exception:
                 self.logger.warning(
                     "Evented watchdog check failed; retrying in %ss",

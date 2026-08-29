@@ -134,7 +134,7 @@ def run_server(server):
         server.stop = MagicMock(side_effect=lambda: calls.append(("stop", {})))
         server.cron_spawn = MagicMock(side_effect=lambda: calls.append(("cron", {})))
         server.job_spawn = MagicMock(side_effect=lambda: calls.append(("job", {})))
-        server.process_limit = MagicMock(
+        server.check_limits = MagicMock(
             side_effect=loop or (lambda: setattr(server, "quit_signals_received", 1))
         )
         server.reload = MagicMock(side_effect=lambda: calls.append(("reload", {})))
@@ -207,7 +207,7 @@ class TestRunLimitReached:
         server.cron_spawn = MagicMock()
         server.job_spawn = MagicMock()
         passes = iter(range(1))
-        server.process_limit = MagicMock(
+        server.check_limits = MagicMock(
             side_effect=lambda: (
                 next(passes, None) is None
                 and setattr(server, "quit_signals_received", 1)

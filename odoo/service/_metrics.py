@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import math
 import os
-import threading
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any
 
 from odoo.modules.registry import Registry
 
-if TYPE_CHECKING:
-    from ._prefork import PreforkServer
+from . import _process_state
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -25,18 +24,109 @@ def _labels(pairs: dict[str, str]) -> str:
     return "{" + inner + "}"
 
 
+_SUFFIXES_BY_KIND = {
+    "histogram": ("_bucket", "_sum", "_count"),
+    "summary": ("_sum", "_count"),
+}
+
+_POSITIVE_INFINITY = "+Inf"
+
+
+def _format_value(value: float | bool) -> str:
+    if isinstance(value, bool):
+        return str(int(value))
+    if isinstance(value, float):
+        if math.isnan(value):
+            return "NaN"
+        if math.isinf(value):
+            return _POSITIVE_INFINITY if value > 0 else "-Inf"
+    return str(value)
+
+
+def _bucket_sort_key(sample: _Sample) -> tuple[int, float]:
+    edge = sample.labels.get("le")
+    if edge is None:
+        return (1, 0.0)
+    if edge == _POSITIVE_INFINITY:
+        return (0, float("inf"))
+    try:
+        return (0, float(edge))
+    except ValueError:
+        return (0, float("inf"))
+
+
+class _Sample:
+    __slots__ = ("labels", "name", "value")
+
+    def __init__(self, name: str, value: float | bool, labels: dict[str, str]) -> None:
+        self.name = name
+        self.value = value
+        self.labels = labels
+
+    def series_key(self) -> tuple[tuple[str, str], ...]:
+        return tuple((k, v) for k, v in self.labels.items() if k != "le")
+
+    def render(self) -> str:
+        return f"{self.name}{_labels(self.labels)} {_format_value(self.value)}"
+
+
+class _Family:
+    __slots__ = ("help", "kind", "name", "samples")
+
+    def __init__(self, name: str, kind: str, help: str) -> None:
+        self.name = name
+        self.kind = kind
+        self.help = help
+        self.samples: list[_Sample] = []
+
+    def _ordered(self) -> list[_Sample]:
+        """Group a histogram/summary by series, buckets ascending, `le` last.
+
+        Prometheus reads a bucket run as cumulative, so the order inside one
+        series is part of the value.  Everything else keeps insertion order.
+        """
+        if self.kind not in _SUFFIXES_BY_KIND:
+            return self.samples
+        by_series: dict[tuple[tuple[str, str], ...], list[_Sample]] = {}
+        for sample in self.samples:
+            by_series.setdefault(sample.series_key(), []).append(sample)
+        out: list[_Sample] = []
+        for group in by_series.values():
+            buckets = [s for s in group if s.name.endswith("_bucket")]
+            rest = [s for s in group if not s.name.endswith("_bucket")]
+            out.extend(sorted(buckets, key=_bucket_sort_key))
+            out.extend(rest)
+        return out
+
+    def render(self) -> list[str]:
+        lines = [f"# HELP {self.name} {self.help}", f"# TYPE {self.name} {self.kind}"]
+        lines.extend(sample.render() for sample in self._ordered())
+        return lines
+
+
 class _Exposition:
+    """A Prometheus text exposition that keeps each family in one block.
+
+    The text format wants every sample of a metric family emitted together,
+    after that family's single HELP/TYPE pair.  Appending samples in call order
+    breaks that as soon as two callers contribute to the same family -- which
+    is exactly what happens with more than one connection pool, and which costs
+    the second pool its type and its histogram structure.  So samples are
+    bucketed by the family that owns their name and only laid out at render().
+    """
+
     def __init__(self, base_labels: dict[str, str] | None = None) -> None:
-        self._lines: list[str] = []
-        self._declared: set[str] = set()
+        self._families: dict[str, _Family] = {}
+        self._owner: dict[str, str] = {}
         self._base = dict(base_labels or {})
 
     def declare(self, name: str, kind: str, help: str = "") -> None:
-        if name in self._declared:
+        if name in self._families:
             return
-        self._declared.add(name)
-        self._lines.append(f"# HELP {name} {help}")
-        self._lines.append(f"# TYPE {name} {kind}")
+        self._families[name] = _Family(name, kind, help)
+        self._owner[name] = name
+        for suffix in _SUFFIXES_BY_KIND.get(kind, ()):
+            self._owner.setdefault(name + suffix, name)
 
     def sample(
         self,
@@ -45,8 +135,13 @@ class _Exposition:
         *,
         labels: dict[str, str] | None = None,
     ) -> None:
-        rendered = int(value) if isinstance(value, bool) else value
-        self._lines.append(f"{name}{_labels(self._base | (labels or {}))} {rendered}")
+        owner = self._owner.get(name)
+        if owner is None:
+            self.declare(name, "untyped")
+            owner = name
+        self._families[owner].samples.append(
+            _Sample(name, value, self._base | (labels or {}))
+        )
 
     def add(
         self,
@@ -61,50 +156,22 @@ class _Exposition:
         self.sample(name, value, labels=labels)
 
     def render(self) -> str:
-        return "\n".join(self._lines) + "\n"
+        lines: list[str] = []
+        for family in self._families.values():
+            lines.extend(family.render())
+        return "\n".join(lines) + "\n"
 
 
 def service_metrics() -> dict[str, Any]:
-    from . import lifecycle
-
-    server = lifecycle.server
+    server = _process_state.server
     out: dict[str, Any] = {
         "flavor": "none",
         "registries": len(Registry.registries),
     }
     if server is None:
         return out
-
-    out["flavor"] = {
-        "PreforkServer": "prefork",
-        "ThreadedServer": "threaded",
-        "EventServer": "evented",
-    }.get(type(server).__name__, type(server).__name__)
-
-    if hasattr(server, "workers"):
-        prefork = cast("PreforkServer", server)
-        if os.getpid() == prefork.pid:
-            out["workers"] = {
-                "http": len(prefork.workers_http),
-                "cron": len(prefork.workers_cron),
-                "job": len(prefork.workers_job),
-            }
-            out["worker_population"] = prefork.population
-            out["worker_generation"] = prefork.generation
-            out["long_polling_alive"] = prefork.long_polling_pid is not None
-    else:
-        by_type: dict[str, int] = {}
-        for thread in threading.enumerate():
-            kind = getattr(thread, "type", None)
-            if kind in ("http", "cron", "job"):
-                by_type[kind] = by_type.get(kind, 0) + 1
-        out["threads"] = {k: by_type.get(k, 0) for k in ("http", "cron", "job")}
-        httpd = getattr(server, "httpd", None)
-        max_threads = getattr(httpd, "max_http_threads", 0) if httpd else 0
-        out["http_threads_max"] = max_threads
-        out["limits_reached_threads"] = len(
-            getattr(server, "limits_reached_threads", ())
-        )
+    out["flavor"] = server.flavor
+    out.update(server.metrics())
     return out
 
 

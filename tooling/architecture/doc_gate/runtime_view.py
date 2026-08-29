@@ -240,7 +240,7 @@ class TestLifecycleSketches(unittest.TestCase):
             "service/lifecycle.py",
             r"^def load_server_wide_modules\(",
         ),
-        ("service.lifecycle.start()", "service/lifecycle.py", r"^def start\("),
+        ("service._factory.start()", "service/_factory.py", r"^def start\("),
         (
             "preload_registries(dbnames)",
             "service/lifecycle.py",
@@ -259,8 +259,8 @@ class TestLifecycleSketches(unittest.TestCase):
             )
 
     def test_the_three_server_classes_are_the_ones_start_chooses(self) -> None:
-        src = (ROOT / "odoo" / "service" / "lifecycle.py").read_text(encoding="utf-8")
-        body = src.split("\ndef start(", 1)[1]
+        src = (ROOT / "odoo" / "service" / "_factory.py").read_text(encoding="utf-8")
+        body = src.split("\ndef _build_server(", 1)[1]
         chosen = {
             name
             for name in ("EventServer", "PreforkServer", "ThreadedServer")
@@ -269,7 +269,7 @@ class TestLifecycleSketches(unittest.TestCase):
         self.assertEqual(
             chosen,
             {"EventServer", "PreforkServer", "ThreadedServer"},
-            "service.lifecycle.start() no longer constructs all three servers",
+            "service._factory does not construct all three servers",
         )
         block = self._block("### Process boot")
         for name in chosen:

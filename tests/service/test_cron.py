@@ -25,10 +25,11 @@ class TestCronDatabaseList:
 
     def test_falls_back_to_list_dbs_when_empty(self):
         with (
-            patch("odoo.service._helpers.config", {"db_name": []}),
+            patch("odoo.service._helpers.config", {"db_name": [], "dbfilter": ""}),
             patch(
                 "odoo.service._helpers.list_dbs", return_value=["db1", "db2"]
             ) as mock_list,
+            patch("odoo.service._helpers.is_maintenance_db", return_value=False),
         ):
             result = _helpers.cron_database_list()
         mock_list.assert_called_once_with(True)

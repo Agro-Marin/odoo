@@ -1,0 +1,124 @@
+import os
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
+
+import pytest
+
+from odoo.service import _watcher
+
+pytestmark = pytest.mark.skipif(
+    not _watcher.inotify, reason="the inotify backend is not installed"
+)
+
+
+def _inotify_fds():
+    out = []
+    for entry in Path("/proc/self/fd").iterdir():
+        try:
+            if entry.readlink().name == "anon_inode:inotify":
+                out.append(int(entry.name))
+        except OSError:
+            pass
+    return sorted(out)
+
+
+def _make_watcher(tmp_path, monkeypatch):
+    root = tmp_path / "addons"
+    (root / "mod" / "static").mkdir(parents=True)
+    monkeypatch.setattr(
+        _watcher.FSWatcherBase, "watch_paths", staticmethod(lambda: [str(root)])
+    )
+    return _watcher.FSWatcherInotify()
+
+
+class TestInotifyDescriptorLifecycle:
+    def test_stop_releases_the_inotify_descriptor(self, tmp_path, monkeypatch):
+        before = _inotify_fds()
+        watcher = _make_watcher(tmp_path, monkeypatch)
+        opened = [fd for fd in _inotify_fds() if fd not in before]
+        assert opened, "constructing the watcher opened no inotify descriptor"
+
+        watcher.start()
+        watcher.stop()
+
+        assert _inotify_fds() == before, (
+            "stop() left an inotify descriptor open; a --dev=reload cycle leaks "
+            "one instance and every watch under it"
+        )
+
+    def test_stop_drops_every_reference_to_the_tree(self, tmp_path, monkeypatch):
+        watcher = _make_watcher(tmp_path, monkeypatch)
+        watcher.start()
+        watcher.stop()
+        assert watcher.watcher is None
+        assert watcher.internals is None, (
+            "internals still holds _trees, which is what kept the fd alive"
+        )
+
+    def test_the_descriptors_carry_cloexec(self, tmp_path, monkeypatch):
+        watcher = _make_watcher(tmp_path, monkeypatch)
+        try:
+            fds = watcher.internals.descriptors()
+            assert fds
+            for fd in fds:
+                assert os.get_inheritable(fd) is False, (
+                    f"fd {fd} is inheritable, so os.execve() in lifecycle._reexec "
+                    f"hands it to the reloaded process"
+                )
+        finally:
+            watcher.stop()
+
+
+class TestReloadDoesNotAccumulateDescriptors:
+    def test_four_reload_generations_leak_nothing(self, tmp_path):
+        """One start()/stop() then execve, four times over, is --dev=reload."""
+        script = tmp_path / "gen.py"
+        script.write_text(
+            textwrap.dedent(
+                f"""
+                import os, sys
+                sys.path.insert(0, {str(Path(_watcher.__file__).parents[2])!r})
+                gen = int(sys.argv[1])
+                from odoo.service import _watcher
+
+                root = {str(tmp_path / "addons")!r}
+                _watcher.FSWatcherBase.watch_paths = staticmethod(lambda: [root])
+
+                def fds():
+                    out = []
+                    for name in os.listdir('/proc/self/fd'):
+                        try:
+                            if os.readlink(f'/proc/self/fd/{{name}}') == 'anon_inode:inotify':
+                                out.append(int(name))
+                        except OSError:
+                            pass
+                    return sorted(out)
+
+                inherited = fds()
+                w = _watcher.FSWatcherInotify()
+                w.start()
+                w.stop()
+                print(f'gen {{gen}} inherited {{inherited}}', flush=True)
+                if gen < 4:
+                    os.execve(sys.executable, [sys.executable, __file__, str(gen + 1)], os.environ)
+                """
+            )
+        )
+        (tmp_path / "addons" / "mod" / "static").mkdir(parents=True)
+        proc = subprocess.run(
+            [sys.executable, str(script), "1"],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr
+        lines = [l for l in proc.stdout.splitlines() if l.startswith("gen ")]
+        assert len(lines) == 4, proc.stdout
+        for line in lines:
+            assert line.endswith("inherited []"), (
+                f"a reload generation inherited leaked inotify descriptors: {line!r}\n"
+                f"{proc.stdout}"
+            )

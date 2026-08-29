@@ -31,14 +31,14 @@ except ImportError:
 from odoo import db
 from odoo.db import PoolError
 from odoo.modules.registry import Registry
-from odoo.tools import OrderedSet, config
+from odoo.tools import config
 
 from ._cron import (
     CRON_TRIGGER_CHANNEL,
     JOB_QUEUE_CHANNEL,
+    CronSchedule,
     arm_cron_listen,
     drain_cron_notifies,
-    order_notified_first,
 )
 from ._env import env_int
 from ._helpers import (
@@ -56,6 +56,16 @@ if TYPE_CHECKING:
     from .server import PreforkServer
 
 _logger = logging.getLogger("odoo.service.server")
+
+
+def _databases_to_sweep() -> list[str]:
+    """Resolve `cron_database_list` at call time, not at construction.
+
+    The module attribute is the seam every caller and every test patches, and
+    binding it into the schedule once would freeze whatever was there when the
+    worker was built.
+    """
+    return cron_database_list()
 
 
 class CpuTimeLimitExceeded(Exception):
@@ -270,6 +280,10 @@ class WorkerCron(Worker):
         self.db_queue: deque[str] = deque()
         self.db_count: int = 0
         self._reconnect_attempts: int = 0
+        self.schedule = CronSchedule(
+            _databases_to_sweep,
+            refresh_interval=SLEEP_INTERVAL,
+        )
         self._pg_selector: selectors.BaseSelector | None = None
 
     def _sleep_with_watchdog(self, total_seconds: float) -> None:
@@ -351,7 +365,6 @@ class WorkerCron(Worker):
 
         if not self.db_queue:
             try:
-                db_names = OrderedSet(cron_database_list())
                 notified = drain_cron_notifies(
                     self.dbcursor.connection, channel=self.listen_channel
                 )
@@ -370,7 +383,7 @@ class WorkerCron(Worker):
                         self._reconnect_attempts, "Reconnect to postgres", exc
                     )
                 return
-            self.db_queue.extend(order_notified_first(notified, db_names))
+            self.db_queue.extend(self.schedule.due(notified))
             self.db_count = len(self.db_queue)
             if not self.db_count:
                 return

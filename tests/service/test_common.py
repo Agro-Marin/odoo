@@ -359,13 +359,3 @@ class TestExpAuthenticateCredentialOutcome:
         ):
             with pytest.raises(RuntimeError, match="bug in the auth provider"):
                 common_mod.exp_authenticate("db", "alice", "pw", None)
-
-
-class TestServiceModuleDocstring:
-    def test_service_package_has_docstring(self):
-        import odoo.service
-
-        assert odoo.service.__doc__ is not None
-        assert (
-            "RPC" in odoo.service.__doc__ or "network protocols" in odoo.service.__doc__
-        )

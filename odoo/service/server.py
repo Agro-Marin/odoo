@@ -1,15 +1,7 @@
-import logging
-
-from ._base_server import (
-    _ON_STOP_FUNCS,
-    _SIGHUP_AVAILABLE,
-    CommonServer,
-)
+from ._base_server import CommonServer
+from ._factory import start
 from ._prefork import PreforkServer
 from ._threaded import EventServer, ThreadedServer
-from ._watcher import (
-    FSWatcherBase,
-)
 from ._worker import (
     CpuTimeLimitExceeded,
     Worker,
@@ -21,7 +13,6 @@ from .lifecycle import (
     load_server_wide_modules,
     preload_registries,
     restart,
-    start,
 )
 from .wsgi import (
     BaseWSGIServerNoBind,
@@ -30,9 +21,6 @@ from .wsgi import (
     RequestHandler,
     ThreadedWSGIServerReloadable,
 )
-
-_logger = logging.getLogger(__name__)
-
 
 __all__ = (
     "BaseWSGIServerNoBind",

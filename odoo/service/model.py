@@ -1,6 +1,14 @@
 import logging
 import typing
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import (
+    Callable,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableMapping,
+    MutableSequence,
+    Sequence,
+)
 from collections.abc import Set as AbstractSet
 from contextlib import suppress
 from functools import partial
@@ -214,38 +222,100 @@ def execute_cr(
 
 
 def _force_lazy_values(result: typing.Any) -> typing.Any:
-    if not isinstance(result, lazy) and isinstance(result, Iterator):
-        result = list(result)
     try:
-        _force_lazy_in(result)
+        return _force_lazy_in(result)
     except RecursionError:
         _logger.warning(
             "RPC result is cyclic or nested too deep to force lazies; "
             "leaving it to the marshaller",
             exc_info=True,
         )
-    return result
+        return result
 
 
 _SCALAR_LEAF_TYPES = frozenset({int, float, bool, str, bytes, type(None)})
 
 
-def _force_lazy_in(val: typing.Any) -> None:
+def _is_bare_iterator(val: typing.Any) -> bool:
+    """`lazy` proxies __iter__/__next__, so isinstance(lazy_obj, Iterator) is True.
+
+    Every place that asks "would walking this consume it?" has to exclude a
+    lazy first, or the wrapper it exists to warm gets skipped as if it were a
+    generator.
+    """
+    return not isinstance(val, lazy) and isinstance(val, Iterator)
+
+
+def _forced_mapping(val: Mapping) -> Mapping:
+    if isinstance(val, MutableMapping):
+        for key, value in list(val.items()):
+            if value.__class__ not in _SCALAR_LEAF_TYPES:
+                forced = _force_lazy_in(value)
+                if forced is not value:
+                    val[key] = forced
+        return val
+    for value in val.values():
+        if value.__class__ not in _SCALAR_LEAF_TYPES and not _is_bare_iterator(value):
+            _force_lazy_in(value)
+    return val
+
+
+def _forced_sequence(val: Sequence) -> Sequence:
+    if isinstance(val, MutableSequence):
+        for index, item in enumerate(val):
+            if item.__class__ not in _SCALAR_LEAF_TYPES:
+                forced = _force_lazy_in(item)
+                if forced is not item:
+                    val[index] = forced
+        return val
+    items = [
+        item if item.__class__ in _SCALAR_LEAF_TYPES else _force_lazy_in(item)
+        for item in val
+    ]
+    if any(new is not old for new, old in zip(items, val, strict=True)):
+        return tuple(items) if type(val) is tuple else type(val)(items)
+    return val
+
+
+def _warm_in_place(val: Iterable) -> None:
+    """Walk something that cannot be rewritten: skip what walking would eat."""
+    for item in val:
+        if item.__class__ not in _SCALAR_LEAF_TYPES and not _is_bare_iterator(item):
+            _force_lazy_in(item)
+
+
+def _force_lazy_in(val: typing.Any) -> typing.Any:
+    """Warm every `lazy` in the result, and materialise every iterator.
+
+    The warming is the point: `lazy._value` runs the deferred call, and it has
+    to run here, while the cursor is still open -- the marshaller renders the
+    result long after `retrying()` has committed.
+
+    Walking a container means iterating it, which for an *iterator* consumes
+    it.  So an iterator is replaced by the list it yielded rather than merely
+    traversed; where the container it sits in cannot be rewritten (a read-only
+    mapping, a set) it is left untouched instead, which hands the marshaller an
+    intact object rather than an exhausted one.
+
+    The return value is the walked object, which is the same object except
+    where an iterator had to be substituted.
+    """
     if val.__class__ in _SCALAR_LEAF_TYPES:
-        return
+        return val
     if isinstance(val, lazy):
         _force_lazy_in(val._value)
-        return
+        return val
     if isinstance(val, (str, bytes, BaseModel)):
-        return
+        return val
     if isinstance(val, Mapping):
-        for value in val.values():
-            if value.__class__ not in _SCALAR_LEAF_TYPES:
-                _force_lazy_in(value)
-    elif isinstance(val, (Sequence, AbstractSet, Iterable)):
-        for item in val:
-            if item.__class__ not in _SCALAR_LEAF_TYPES:
-                _force_lazy_in(item)
+        return _forced_mapping(val)
+    if isinstance(val, Iterator):
+        return [_force_lazy_in(item) for item in val]
+    if isinstance(val, Sequence):
+        return _forced_sequence(val)
+    if isinstance(val, (AbstractSet, Iterable)):
+        _warm_in_place(val)
+    return val
 
 
 __all__ = (

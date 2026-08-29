@@ -32,15 +32,15 @@ def pytest_report_header(config):
 
 @pytest.fixture(autouse=True)
 def _no_global_state_leak():
-    from odoo.service import lifecycle
+    from odoo.service import _process_state
 
     thread = threading.current_thread()
     missing = object()
 
     def snapshot():
         return {
-            "lifecycle.server": lifecycle.server,
-            "lifecycle.server_phoenix": lifecycle.server_phoenix,
+            "_process_state.server": _process_state.server,
+            "_process_state.server_phoenix": _process_state.server_phoenix,
             "current_thread().name": thread.name,
             "current_thread().rpc_model_method": getattr(
                 thread, "rpc_model_method", missing

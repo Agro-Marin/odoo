@@ -24,9 +24,7 @@ FACADE_TARGETS_OK = {
         "dispatch": "read off the package by the RPC entry point",
         "dump_db": "read off the package by the controller, per call",
     },
-    "odoo.service.server": {
-        "ThreadedServer": "lifecycle.start() imports it at call time",
-    },
+    "odoo.service.server": {},
     "odoo.api": {
         "Environment": "service/common.py and service/model.py read it per call",
     },

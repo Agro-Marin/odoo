@@ -33,9 +33,13 @@ def run_tests(
         _logger.error("run_tests should be used only in threaded mode")
         return None
 
+    from odoo.service import _process_state
     from odoo.service._threaded import ThreadedServer
-    from odoo.service.lifecycle import server
 
+    # read through the module, not `from ... import server`: the name is
+    # rebound when a server starts, and a binding taken at import time is
+    # whatever it was then -- None, for anything imported before start().
+    server = _process_state.server
     if not isinstance(server, ThreadedServer):
         _logger.error("run_tests needs a threaded server; none is running")
         return None
