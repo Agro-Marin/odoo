@@ -784,9 +784,9 @@ class PurchaseOrder(models.Model):
 
     @api.model
     def _get_dashboard_count_domains(self):
-        # Each key is a dashboard card; each domain must stay identical to the
-        # search filter of the same name in `view_purchase_order_filter`, which
-        # is what the card toggles when clicked.
+        # Each key is a dashboard card; each domain must stay identical to the search
+        # filter of the same name in `view_purchase_order_search_quotation`, which is
+        # what the card toggles when clicked.
         return {
             "draft": [("state", "=", "draft")],
             "sent": [("sent", "=", True), ("state", "=", "draft")],
