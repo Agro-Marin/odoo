@@ -105,7 +105,7 @@ class HrAttendanceOvertimeRule(models.Model):
     expected_hours_from_contract = fields.Boolean(
         "Hours from employee schedule",
         default=True,
-        help="The attendance can go into negative extra hours to represent the missing hours compared to what is expected if the Absence Management setting is enabled.",
+        help="When enabled, expected hours are derived from the employee's contract/schedule instead of the fixed 'Expected Hours' value. With Absence Management enabled, this also allows the attendance to go into negative extra hours to represent hours missing compared to what is expected.",
     )
 
     resource_calendar_id = fields.Many2one(
@@ -952,6 +952,7 @@ class HrAttendanceOvertimeRule(models.Model):
         return vals
 
     def _extra_overtime_vals(self):
+        self.ruleset_id.ensure_one()
         paid_rules = self.filtered("paid")
         if not paid_rules:
             return {"amount_rate": 0.0}
