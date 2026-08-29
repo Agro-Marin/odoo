@@ -143,6 +143,30 @@ class CliTests(unittest.TestCase):
         self.assertIn("a", out)
         self.assertIn("b", out)
 
+    def test_list_is_one_line_per_floor(self):
+        self._run(["a", "--count", "1", "--update", "--note", "one\ntwo\nthree"])
+        self._run(["b", "--count", "2", "--update", "--note", "x" * 400])
+        code, out, _ = self._run(["--list"])
+        self.assertEqual(code, EXIT_OK)
+        rows = [line for line in out.splitlines() if line and not line.startswith(" ")]
+        self.assertEqual(
+            len(rows),
+            3,
+            f"--list must stay a list: two floors and a total, got {rows}. "
+            f"Notes are prose -- 94 of 95 committed ones exceed 80 characters "
+            f"and the longest runs 64 lines, so rendering them inline turned a "
+            f"95-row table into 1001 lines of output.",
+        )
+        for line in out.splitlines():
+            self.assertLessEqual(len(line), 100, f"line too wide: {line!r}")
+
+    def test_notes_are_still_reachable(self):
+        self._run(["a", "--count", "1", "--update", "--note", "one\ntwo"])
+        code, out, _ = self._run(["--list", "--notes"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("one", out)
+        self.assertIn("two", out)
+
     def test_list_reports_a_malformed_baseline_instead_of_crashing(self):
         self._run(["good", "--count", "1", "--update"])
         (ratchet.BASELINES_DIR / "broken.json").write_text("{not json")

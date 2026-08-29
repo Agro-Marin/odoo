@@ -140,10 +140,15 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--list", action="store_true", help="list all baselines and exit"
     )
+    parser.add_argument(
+        "--notes",
+        action="store_true",
+        help="with --list, print each floor's note under it",
+    )
     args = parser.parse_args(argv)
 
     if args.list:
-        return _list_baselines(as_json=args.json)
+        return _list_baselines(as_json=args.json, notes=args.notes)
 
     if not args.gate or args.count is None:
         parser.error("a gate name and --count are required (or use --list)")
@@ -181,7 +186,11 @@ def run(argv: list[str] | None = None) -> int:
     return EXIT_OK if verdict.ok else EXIT_DRIFT
 
 
-def _list_baselines(*, as_json: bool) -> int:
+def _note_lines(note: str) -> list[str]:
+    return [line.rstrip() for line in note.strip().splitlines()] or [""]
+
+
+def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
     rows = []
     broken = []
     if BASELINES_DIR.exists():
@@ -206,10 +215,19 @@ def _list_baselines(*, as_json: bool) -> int:
     else:
         if not rows and not broken:
             print("no baselines yet")
+        width = max((len(r["gate"]) for r in rows + broken), default=0)
         for row in rows:
-            print(f"{row['gate']:<16} {row['count']:>8}   {row['note']}")
+            print(f"{row['gate']:<{width}} {row['count']:>8}")
+            if notes:
+                for line in _note_lines(row["note"]):
+                    print(f"{'':<{width}} {'':>8}   {line}")
         for row in broken:
-            print(f"{row['gate']:<16} {'BROKEN':>8}   {row['error']}", file=sys.stderr)
+            print(
+                f"{row['gate']:<{width}} {'BROKEN':>8}   {row['error']}",
+                file=sys.stderr,
+            )
+        if rows and not notes:
+            print(f"\n{len(rows)} floor(s). --notes prints what moved each one.")
     return EXIT_USAGE if broken else EXIT_OK
 
 

@@ -44,15 +44,25 @@ move its floor in the same commit.
 
 ## Wired gates
 
-| Gate | Floor | Workflow |
-|---|---|---|
-| `mypy` | `baselines/mypy.json` | `.github/workflows/py_typecheck.yml` |
-| `ruff` | `baselines/ruff.json` | `.github/workflows/ruff.yml` |
-| `tsc` | `baselines/tsc.json` | `.github/workflows/typecheck.yml` |
-| `eslint` | `baselines/eslint.json` | `.github/workflows/lint.yml` |
+**`baselines/` is the list and `--list` is the reading.** No file states how
+many floors there are or what they hold; a restated count is a second copy that
+drifts, and this section held four rows for a long time after the set passed
+ninety.
 
-All four count gates are blocking. `freethreading.yml` is a pass/fail
-correctness run, not a count, so it is not a ratchet.
+```bash
+python tooling/ratchet/ratchet.py --list           # gate and floor, one line each
+python tooling/ratchet/ratchet.py --list --notes   # with what moved each one
+```
+
+Every floor is read by something, and `test_baseline_enforcement.py` is what
+makes that true rather than aspirational: a workflow step running
+`ratchet.py <gate> --count`, or an `assert_ratchet` call under
+`odoo/addons/test_lint/tests`, or -- for a floor whose name carries a sibling
+repository's suffix -- that repository's own `architecture.yml`. A baseline
+none of the three reads fails the suite by name.
+
+`freethreading.yml` is a pass/fail correctness run, not a count, so it is not a
+ratchet.
 
 A count is the right unit for aggregate drift across a whole repo, but it names
 no file and lets one file's fix pay for another's regression. Where a gate can

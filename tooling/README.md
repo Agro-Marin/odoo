@@ -3,8 +3,11 @@
 Standalone, dependency-light infrastructure for this checkout: the
 architecture gates (`architecture/`), the shared count ratchet (`ratchet/`),
 the HOOT test runner (`hoot/`), typecheck/codegen/doclink helpers, and this
-bootstrap. Each gate documents itself in its module docstring; run any of them
-with `--help`.
+bootstrap. `--help` on any gate lists its flags; **why** the rule exists is
+`doc/adr/`, which every gate names in its `ADR` constant and
+`test_gate_adr_coverage.py` holds it to. The module docstrings that used to
+carry the rationale are gone, deliberately -- prose beside the gate is the one
+place a reader does not look and no check keeps honest.
 
 Two directories here deliberately gate nothing and say so in their own README:
 `testbaseline/` (is this red mine, or was it already red?) and `patchorder/`
