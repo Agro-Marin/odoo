@@ -20,12 +20,7 @@ from odoo.tools import SQL
 from odoo.tools.misc import Callbacks, real_time
 
 from .bulk import _BulkAccessMixin
-from .ddl import (
-    _changes_schema,
-    _ddl_keyword,
-    _inline_ddl_params,
-    _is_rollback_to_savepoint,
-)
+from .ddl import _changes_schema, _inline_ddl_params, classify_statement
 from .errors import (
     PG_STALE_PLAN_EXCEPTIONS,
     _log_sql_error,
@@ -44,6 +39,16 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 _TX_IDLE = _TxStatus.IDLE
+
+
+def _rendered(query: Any) -> Any:
+    """A statement entry point may hand the seam a thunk instead of a string.
+
+    `copy_from` builds a `psycopg.sql.Composed` and rendering it is only ever
+    needed on the error, DEBUG and hook paths; `TestCopyFromMetricsQueryLazy`
+    pins that an ordinary COPY with no hook renders nothing at all.
+    """
+    return query() if callable(query) else query
 
 
 class BaseCursor:
@@ -118,6 +123,13 @@ class BaseCursor:
     def rollback(self) -> None:
         raise NotImplementedError
 
+    # These stay TYPE_CHECKING-only on purpose, and it is not the lie the
+    # README retired when BaseCursor stopped inheriting psycopg.Cursor.
+    # `odoo.tests.cursor.TestCursor` forwards them to the wrapped cursor
+    # through `__getattr__`, which runs only for attributes the class does not
+    # have; defining them here -- even as `raise NotImplementedError` -- would
+    # shadow that forwarding and break every `cr.fetchone()` under a test
+    # cursor. They declare the protocol subclasses must satisfy, not defaults.
     if TYPE_CHECKING:
 
         def close(self) -> None:
@@ -252,10 +264,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             pool.give_back(self._cnx)
             raise
 
-    def fetchscalar(self) -> Any:
-        row = self._obj.fetchone()
-        return row[0] if row else None
-
     def dictfetchone(self) -> dict[str, Any] | None:
         row = self._obj.fetchone()
         if row is None:
@@ -304,26 +312,47 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     def nextset(self) -> bool | None:
         return self._obj.nextset()
 
+    @contextmanager
     def copy(
         self,
         statement: str | bytes | _sql.Composable,
         params: tuple | list | dict | None = None,
         *,
         writer: Any = None,
-    ) -> Any:
+    ) -> Generator[Any]:
+        """Open a COPY, timed and error-logged around the whole transfer.
+
+        This used to `return self._obj.copy(...)` inside a `try/finally`.
+        psycopg's `Cursor.copy` is a `@contextmanager`, so that call builds the
+        manager and puts nothing on the wire: the timer closed before the COPY
+        began and there was no `except` at all. Measured, 200 000 rows —
+        **120.4 ms of transfer reported as 0.008 ms**, and a failing
+        `cr.copy()` logged nothing where the same failure through `copy_from`
+        logs `bad COPY:`. Wrapping the caller's `with` is what makes the
+        timing describe the transfer.
+        """
         self._before_statement()
         hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if hooks else 0.0
         t0 = monotonic()
+        counts = False
         try:
-            return self._obj.copy(statement, params, writer=writer)
+            with self._obj.copy(statement, params, writer=writer) as copy:
+                yield copy
+            counts = True
+        except Exception as e:
+            counts = self._statement_failed(e, statement, label="COPY")
+            raise
         finally:
-            self._record_metrics(
+            self._statement_done(
                 monotonic() - t0,
+                counts=counts,
                 query=statement,
                 params=params,
-                start=start,
+                label="COPY",
                 hooks=hooks,
+                start=start,
+                debug=_logger.isEnabledFor(logging.DEBUG),
             )
 
     def _refuse_copy(self) -> NoReturn:
@@ -353,6 +382,95 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             _logger.warning(msg)
             self._close()
 
+    def _statement_failed(
+        self,
+        exc: Exception,
+        query: Any,
+        *,
+        label: str = "query",
+        log_exceptions: bool = True,
+    ) -> bool:
+        """What a statement entry point owes a statement that raised.
+
+        Returns whether it still counts. The timing, the hook fan-out, the
+        DEBUG line, the error tier, the stale-plan mark and the counting
+        decision were written out once per entry point -- four copies, each
+        drifted differently, and every drift was a defect:
+
+        - `executemany` never called `_note_stale_cached_plan`, so the replay
+          `service.transaction.retrying` performs for `execute` did not happen
+          for it. Measured on one connection across one `ALTER COLUMN … TYPE`:
+          `execute` raised `FeatureNotSupported` marked and `executemany`
+          raised the same error unmarked, and through `retrying()` the first
+          recovered on its second call while the second propagated.
+          `res_users` batches its writes with `executemany` on the request
+          path.
+        - `copy_from` recorded nothing when the COPY failed, against the rule
+          that a statement which reached the server cost a round trip -- and
+          `sql_log_count` is what `assertQueryCount` reads.
+        - `cr.copy()` timed the construction of psycopg's `@contextmanager`
+          rather than the transfer, and logged nothing on failure.
+
+        A statement counts when it failed *at the server*: `reached_the_server`
+        is the discriminator, because psycopg's own client-side rejections
+        never reached the wire and counting them would inflate every query
+        budget.
+
+        Two plain methods rather than one `@contextmanager`, because the
+        wrapper sits on the hot path. Measured against the inline envelope it
+        replaces, with the wire stubbed out so the delta is pure Python,
+        `Cursor.execute` cost **721.9 ns inline against 1888.5 ns behind a
+        generator** -- +1167 ns per statement, in a function where 64 ns has
+        been thought worth banking. The pair costs one call each and keeps
+        every drift-prone decision in one place all the same.
+        """
+        self._note_stale_cached_plan(exc)
+        if log_exceptions:
+            _log_sql_error(exc, _rendered(query), label=label)
+        return reached_the_server(exc)
+
+    def _statement_done(
+        self,
+        delay: float,
+        *,
+        counts: bool,
+        query: Any,
+        params: Any = None,
+        count: int = 1,
+        label: str = "query",
+        hooks: Any = None,
+        start: float = 0.0,
+        debug: bool = False,
+    ) -> None:
+        """What it owes the statement once it is over, pass or fail.
+
+        `debug` is passed in rather than asked for: the callers need the same
+        answer again for their per-table stats, and `Logger.isEnabledFor` costs
+        46 ns -- asking twice per statement was most of the 66 ns this seam
+        cost over the inline envelope it replaced.
+        """
+        if debug:
+            rows = f" ({count} rows)" if count != 1 else ""
+            _logger.debug(
+                "[%.3f ms] %s%s: %s",
+                1000 * delay,
+                label,
+                rows,
+                self._format(_rendered(query), params),
+            )
+        if counts:
+            # only the hooks read `query`, and rendering a Composed COPY
+            # statement is a real cost on a path that otherwise does none:
+            # keep it None when nothing is listening.
+            self._record_metrics(
+                delay,
+                count,
+                query=_rendered(query) if hooks else None,
+                params=params,
+                start=start,
+                hooks=hooks,
+            )
+
     def execute(
         self,
         query: str | bytes | SQL | _sql.Composable,
@@ -378,7 +496,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     f"SQL query parameters should be a tuple, list or dict; got {params!r}"
                 )
 
-        query, params, prepare, qs, ddl_kw = self._resolve_ddl(query, params, prepare)
+        query, params, prepare, qs, ddl_kw, rollback_to = self._resolve_ddl(
+            query, params, prepare
+        )
 
         if self._pipeline_stack is not None:
             self._arm_pipeline()
@@ -388,36 +508,29 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         start = real_time() if hooks else 0.0
         obj = self._obj
         t0 = monotonic()
-        failed = False
+        counts = False
         try:
             obj.execute(query, params, prepare=prepare)
+            counts = True
         except Exception as e:
-            failed = reached_the_server(e)
-            self._note_stale_cached_plan(e)
-            if log_exceptions:
-                _log_sql_error(e, query)
+            counts = self._statement_failed(e, query, log_exceptions=log_exceptions)
             raise
         finally:
             delay = monotonic() - t0
-            if debug:
-                _logger.debug(
-                    "[%.3f ms] query: %s",
-                    1000 * delay,
-                    self._format(query, params),
-                )
-            if failed:
-                self._record_metrics(
-                    delay, query=query, params=params, start=start, hooks=hooks
-                )
+            self._statement_done(
+                delay,
+                counts=counts,
+                query=query,
+                params=params,
+                hooks=hooks,
+                start=start,
+                debug=debug,
+            )
 
         if _changes_schema(qs, ddl_kw):
             self._invalidate_caches_after_ddl()
-        elif ddl_kw is None and _is_rollback_to_savepoint(qs):
+        elif rollback_to:
             self._on_rollback_to_savepoint()
-
-        self._record_metrics(
-            delay, query=query, params=params, start=start, hooks=hooks
-        )
 
         if debug:
             query_type, table = categorize_query(qs)
@@ -428,7 +541,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         query: Any,
         params: tuple | list | dict | None,
         prepare: bool | None,
-    ) -> tuple[Any, tuple | list | dict | None, bool | None, str, str | None]:
+    ) -> tuple[Any, tuple | list | dict | None, bool | None, str, str | None, bool]:
         if isinstance(query, bytes):
             try:
                 qs = query.decode()
@@ -436,14 +549,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 qs = ""
         else:
             qs = query
-        ddl_kw = _ddl_keyword(qs)
+        ddl_kw, rollback_to = classify_statement(qs)
         if ddl_kw is not None:
             if params:
                 query = _inline_ddl_params(qs, params, self._cnx)
                 params = None
             if prepare is None:
                 prepare = False
-        return query, params, prepare, qs, ddl_kw
+        return query, params, prepare, qs, ddl_kw, rollback_to
 
     def discard_cached_plans(self) -> None:
         try:
@@ -456,7 +569,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 "Re-check odoo.db.cursor against the installed psycopg.",
             )
             self._cnx.prepare_threshold = None
-            self._cnx.execute("DEALLOCATE ALL")
+            self.execute("DEALLOCATE ALL")
         self._schema_cache.clear_catalog_facts()
 
     def _on_rollback_to_savepoint(self) -> None:
@@ -508,35 +621,34 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if not rows:
             return
 
+        if self._pipeline_stack is not None:
+            self._arm_pipeline()
+
+        debug = _logger.isEnabledFor(logging.DEBUG)
         hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if hooks else 0.0
         obj = self._obj
         t0 = monotonic()
-        failed = False
+        counts = False
         try:
             obj.executemany(query, rows, returning=returning)
+            counts = True
         except Exception as e:
-            failed = reached_the_server(e)
-            if log_exceptions:
-                _log_sql_error(e, query)
+            counts = self._statement_failed(e, query, log_exceptions=log_exceptions)
             raise
         finally:
             delay = monotonic() - t0
-            if _logger.isEnabledFor(logging.DEBUG):
-                _logger.debug(
-                    "[%.3f ms] executemany (%d rows): %s",
-                    1000 * delay,
-                    len(rows),
-                    query,
-                )
-            if failed:
-                self._record_metrics(
-                    delay, len(rows), query=query, start=start, hooks=hooks
-                )
+            self._statement_done(
+                delay,
+                counts=counts,
+                query=query,
+                count=len(rows),
+                hooks=hooks,
+                start=start,
+                debug=debug,
+            )
 
-        self._record_metrics(delay, len(rows), query=query, start=start, hooks=hooks)
-
-        if _logger.isEnabledFor(logging.DEBUG):
+        if debug:
             query_type, table = categorize_query(query)
             self._record_sql_log(query_type, table, delay)
 

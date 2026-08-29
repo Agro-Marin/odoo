@@ -2,7 +2,12 @@ import unittest
 from unittest.mock import patch
 
 from odoo.db import utils as db_utils
-from odoo.db.utils import _HEALTH_PARAMS, connection_info_for, is_maintenance_db
+from odoo.db.utils import (
+    _HEALTH_PARAMS,
+    categorize_query,
+    connection_info_for,
+    is_maintenance_db,
+)
 
 
 class _Config(dict):
@@ -166,6 +171,83 @@ class TestConnectionInfoForUri(unittest.TestCase):
     def test_postgres_scheme_is_accepted_too(self):
         db, _ = self._info("postgres://user@host/thedb")
         self.assertEqual(db, "thedb")
+
+
+class TestCategorizeQuery(unittest.TestCase):
+    """`categorize_query` is pure: no cursor, no database, no registry.
+
+    These lived in `addons/base/tests/test_db_cursor.py`, so a regression in
+    the read/write bucketing needed a full `odoo-bin` run against a database to
+    surface. A mutation sweep is what said so: breaking the UPDATE branch was
+    the one change of thirteen that `pytest odoo/db/tests` did not catch, and
+    it was a tier problem rather than a coverage one.
+    `coding_guidelines.rst` §6 -- put a test in the lowest tier that can
+    express it.
+    """
+
+    def test_select_from(self):
+        qtype, table = categorize_query("SELECT * FROM res_users")
+        self.assertEqual(qtype, "from")
+        self.assertEqual(table, "res_users")
+
+    def test_insert_into(self):
+        qtype, table = categorize_query("INSERT INTO res_users (name) VALUES ('x')")
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "res_users")
+
+    def test_insert_select_prioritizes_into(self):
+        qtype, table = categorize_query("INSERT INTO t1 SELECT * FROM t2")
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "t1")
+
+    def test_update_is_a_write(self):
+        qtype, table = categorize_query("UPDATE res_users SET name='x'")
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "res_users")
+
+    def test_update_schema_qualified(self):
+        qtype, table = categorize_query('UPDATE "public"."res_users" SET name=1')
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "res_users")
+
+    def test_update_with_from_subquery(self):
+        qtype, table = categorize_query(
+            "UPDATE t1 SET a = s.a FROM (SELECT * FROM t2) s WHERE s.id = t1.id"
+        )
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "t1")
+
+    def test_delete_is_a_write(self):
+        qtype, table = categorize_query("DELETE FROM res_users WHERE id = 1")
+        self.assertEqual(qtype, "into")
+        self.assertEqual(table, "res_users")
+
+    def test_select_for_update_stays_a_read(self):
+        qtype, table = categorize_query(
+            "SELECT id FROM res_users WHERE id = 1 FOR UPDATE NOWAIT"
+        )
+        self.assertEqual(qtype, "from")
+        self.assertEqual(table, "res_users")
+
+    def test_other(self):
+        qtype, table = categorize_query("COMMIT")
+        self.assertEqual(qtype, "other")
+        self.assertIsNone(table)
+
+    def test_quoted_table_name(self):
+        qtype, table = categorize_query('SELECT * FROM "my_table" WHERE id = 1')
+        self.assertEqual(qtype, "from")
+        self.assertEqual(table, "my_table")
+
+    def test_case_insensitive(self):
+        qtype, table = categorize_query("select * from RES_USERS")
+        self.assertEqual(qtype, "from")
+        self.assertEqual(table, "RES_USERS")
+
+    def test_multiline_query(self):
+        qtype, table = categorize_query("SELECT id\n  FROM res_partner\n WHERE active")
+        self.assertEqual(qtype, "from")
+        self.assertEqual(table, "res_partner")
 
 
 if __name__ == "__main__":

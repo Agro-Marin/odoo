@@ -600,9 +600,9 @@ def add_index(
     comment: str | None = None,
 ) -> None:
     if isinstance(definition, str):
+        # SQL() adopts an SQL argument unchanged (libs/sql/builder.py), so only
+        # the str branch has anything to do.
         definition = SQL(definition.replace("%", "%%"))
-    else:
-        definition = SQL(definition)
     query = SQL(
         "CREATE %sINDEX %s ON %s %s",
         SQL("UNIQUE ") if unique else SQL(),

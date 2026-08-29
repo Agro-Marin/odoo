@@ -79,6 +79,27 @@ if TYPE_CHECKING:
             self, query_type: str, table: str | None, delay: float
         ) -> None: ...
         def _before_statement(self) -> None: ...
+        def _statement_failed(
+            self,
+            exc: Exception,
+            query: Any,
+            *,
+            label: str = "query",
+            log_exceptions: bool = True,
+        ) -> bool: ...
+        def _statement_done(
+            self,
+            delay: float,
+            *,
+            counts: bool,
+            query: Any,
+            params: Any = None,
+            count: int = 1,
+            label: str = "query",
+            hooks: Any = None,
+            start: float = 0.0,
+            debug: bool = False,
+        ) -> None: ...
         def _get_column_type_oids(
             self, table: str, columns: list[str]
         ) -> list[int]: ...
@@ -257,36 +278,40 @@ class _BulkAccessMixin:
         copy_stmt = _copy_statement(table, columns, binary, on_error)
         write_rows = _coerced_rows(rows, col_types) if col_types else rows
 
-        have_hooks = getattr(self._thread, "query_hooks", None)
-        start = real_time() if have_hooks else 0.0
+        def rendered() -> str:
+            return copy_stmt.as_string(obj)
+
+        hooks = getattr(self._thread, "query_hooks", None)
+        start = real_time() if hooks else 0.0
         obj = self._obj
+        debug = _logger.isEnabledFor(logging.DEBUG)
         t0 = monotonic()
-        row_count = 0
+        counts = False
         try:
             with obj.copy(copy_stmt) as copy:
                 if col_types:
                     copy.set_types(col_types)
                 for row in write_rows:
                     copy.write_row(row)
-                    row_count += 1
+            counts = True
         except Exception as e:
-            if log_exceptions:
-                _log_sql_error(e, copy_stmt.as_string(self._obj), label="COPY")
+            counts = self._statement_failed(
+                e, rendered, label="COPY", log_exceptions=log_exceptions
+            )
             raise
         finally:
             delay = monotonic() - t0
-            if _logger.isEnabledFor(logging.DEBUG):
-                _logger.debug(
-                    "[%.3f ms] COPY %s (%d rows)",
-                    1000 * delay,
-                    table,
-                    row_count,
-                )
+            self._statement_done(
+                delay,
+                counts=counts,
+                query=rendered,
+                label="COPY",
+                hooks=hooks,
+                start=start,
+                debug=debug,
+            )
 
-        metrics_query = copy_stmt.as_string(self._obj) if have_hooks else None
-        self._record_metrics(delay, query=metrics_query, start=start, hooks=have_hooks)
-
-        if _logger.isEnabledFor(logging.DEBUG):
+        if debug:
             self._record_sql_log("into", table, delay)
 
         return ids

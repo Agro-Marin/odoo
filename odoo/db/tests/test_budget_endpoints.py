@@ -6,13 +6,15 @@ from odoo.db.budget import ConnectionBudget
 
 class _BudgetCase(unittest.TestCase):
     def setUp(self):
-        self._saved = (D._Pool, D._Pool_readonly, dict(D._budgets))
-        D._Pool = D._Pool_readonly = None
+        self._saved = (dict(D._pools), dict(D._budgets))
+        D._pools.clear()
         D._budgets.clear()
         self.addCleanup(self._restore)
 
     def _restore(self):
-        D._Pool, D._Pool_readonly, budgets = self._saved
+        pools, budgets = self._saved
+        D._pools.clear()
+        D._pools.update(pools)
         D._budgets.clear()
         D._budgets.update(budgets)
 
@@ -61,6 +63,61 @@ class TestOneBudgetPerServer(_BudgetCase):
             self.assertIs(D._budget_for(True), D._budget_for(True))
             self.assertEqual(len(D._budgets), 1)
 
+    def test_a_uri_to_the_configured_server_shares_its_budget(self):
+        with self._config(db_host="pg.example", db_port=5432):
+            configured = D._budget_for(False)
+            for uri in (
+                "postgresql://pg.example/db",
+                "postgresql://pg.example/db?user=someone",
+                "postgresql://pg.example:5432/db",
+            ):
+                with self.subTest(uri=uri):
+                    _, info = D.connection_info_for(uri)
+                    self.assertIs(
+                        D._budget_at(D._endpoint_key(info)),
+                        configured,
+                        "a URI that omits ?port= names the same server; filing "
+                        "it apart hands one server two budgets and lets a "
+                        "worker hold 2 * db_maxconn backends against it",
+                    )
+
+    def test_a_uri_that_omits_the_host_defaults_to_the_configured_one(self):
+        with self._config(db_host="pg.example", db_port=5432):
+            _, info = D.connection_info_for("postgresql:///db")
+            self.assertEqual(
+                D._endpoint_key(info),
+                D._endpoint_of(False),
+                "a URI spells only what it spells; the rest has to default the "
+                "way the configured endpoint does, or the same server is filed "
+                "twice and gets two budgets",
+            )
+
+    def test_the_uri_defaults_come_from_the_config_not_the_environment(self):
+        import ast
+        import inspect
+        import textwrap
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(D._endpoint_key)))
+        reads = {
+            ast.unparse(n.func)
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        }
+        self.assertNotIn(
+            "os.environ.get",
+            reads,
+            "db_host/db_port are registered with env_name PGHOST/PGPORT, so "
+            "the config has already folded the environment in; reading it "
+            "again here is a second source of truth that misses a db_host set "
+            "in the conf file",
+        )
+        self.assertIn("tools.config", ast.unparse(tree))
+
+    def test_a_uri_to_another_server_still_gets_its_own_budget(self):
+        with self._config(db_host="pg.example", db_port=5432):
+            _, info = D.connection_info_for("postgresql://other.example/db")
+            self.assertIsNot(D._budget_at(D._endpoint_key(info)), D._budget_for(False))
+
 
 class TestTheOvershootCannotComeBack(_BudgetCase):
     def _ceiling_across_pools(self):
@@ -89,6 +146,95 @@ class TestTheOvershootCannotComeBack(_BudgetCase):
     def test_two_servers_are_capped_at_db_maxconn_each(self):
         with self._config(db_maxconn=64, db_replica_host="replica.example"):
             self.assertEqual(self._ceiling_across_pools(), 128)
+
+    def test_a_uri_to_the_primary_cannot_double_the_ceiling(self):
+        with self._config(db_maxconn=64, db_host="pg.example", db_port=5432):
+            _, info = D.connection_info_for("postgresql://pg.example/db")
+            budgets = {
+                id(b): b
+                for b in (
+                    D._budget_for(False),
+                    D._budget_for(True),
+                    D._budget_at(D._endpoint_key(info)),
+                )
+            }
+            self.assertEqual(
+                sum(b.maxconn for b in budgets.values()),
+                64,
+                "--log-db is the one allow_uri=True caller and it aims at a "
+                "URI; when that URI names the configured server it must draw "
+                "on the configured server's permits",
+            )
+
+    def test_a_uri_to_the_primary_shares_its_pool(self):
+        with self._config(db_host="pg.example", db_port=5432):
+            configured = D._get_pool(False)
+            self.addCleanup(configured.close_all)
+            _, info = D.connection_info_for("postgresql://pg.example/db")
+            self.assertIs(D._pool_at(D._endpoint_key(info), False), configured)
+
+
+class TestOnePoolRegistry(_BudgetCase):
+    def test_every_fan_out_snapshots_under_the_lock(self):
+        import inspect
+
+        for name in ("is_pooled", "close_db", "close_all", "drain_db", "drain_all"):
+            with self.subTest(function=name):
+                src = inspect.getsource(getattr(D, name))
+                self.assertIn(
+                    "_all_pools()",
+                    src,
+                    "iterating the registry bare while another thread creates "
+                    "a pool raises RuntimeError: dictionary changed size "
+                    "during iteration",
+                )
+        self.assertIn("_pool_lock", inspect.getsource(D._all_pools))
+        self.assertIn("_pool_lock", inspect.getsource(D.pool_health))
+
+    def test_there_is_one_registry_and_one_factory(self):
+        for gone in ("_uri_pools", "_uri_budgets", "_Pool", "_Pool_readonly"):
+            with self.subTest(name=gone):
+                self.assertFalse(
+                    hasattr(D, gone),
+                    "the URI pools were a second registry with a second budget "
+                    "map, a second factory and a second copy of the fan-out",
+                )
+
+    def test_a_pool_at_another_endpoint_is_labelled_by_that_endpoint(self):
+        with self._config(db_host="pg.example", db_port=5432):
+            D._get_pool(False)
+            _, info = D.connection_info_for("postgresql://elsewhere.example:5433/db")
+            other = D._pool_at(D._endpoint_key(info), False)
+            self.addCleanup(other.close_all)
+            health = D.pool_health()
+            self.assertIn(
+                "uri:elsewhere.example:5433:read_write",
+                health,
+                "pool_health's keys become the `pool=` label on every metric "
+                "odoo_pool_* exports, so a second server has to name itself "
+                "rather than overwrite read_write",
+            )
+            self.assertIsNotNone(health["read_write"])
+
+    def test_a_uri_is_refused_unless_the_caller_allows_it(self):
+        with self._config():
+            with self.assertRaises(ValueError):
+                D.db_connect("postgresql://elsewhere.example/db")
+            conn = D.db_connect("postgresql://elsewhere.example/db", allow_uri=True)
+            self.addCleanup(D._pools.clear)
+            self.assertEqual(
+                conn.dbname,
+                "db",
+                "with allow_uri the URI's path is the database name",
+            )
+
+    def test_pool_health_still_names_the_configured_endpoints(self):
+        with self._config():
+            rw = D._get_pool(False)
+            self.addCleanup(rw.close_all)
+            health = D.pool_health()
+            self.assertIsNotNone(health["read_write"])
+            self.assertIn("read_only", health)
 
 
 class TestReplicaSizing(_BudgetCase):

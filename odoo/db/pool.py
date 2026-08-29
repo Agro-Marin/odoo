@@ -272,7 +272,17 @@ class ConnectionPool:
                 None if deadline is None else max(0.0, deadline - monotonic())
             )
             if probe.done.wait(wait_timeout) and probe.exc is not None:
-                raise probe.exc
+                # `.with_traceback(None)` because every follower raises the one
+                # object the leader recorded, and a `raise` APPENDS to that
+                # object's traceback. Measured with eight followers on a dead
+                # DSN -- the case this dedup exists for -- the shared exception
+                # reached 19 frames, the same two frames repeated, interleaved
+                # across threads that have nothing to do with each other, and
+                # each frame keeping its thread's locals alive for as long as
+                # the exception did. Clearing first bounds it at one raise.
+                # psycopg does the same thing for the same reason
+                # (`raise ex.with_traceback(None)` in `Cursor.copy`).
+                raise probe.exc.with_traceback(None)
 
     def _database_absent(
         self, conninfo: str, kwargs: dict, deadline: float | None = None
@@ -427,13 +437,7 @@ class ConnectionPool:
 
         if not self._budget.acquire(deadline - monotonic()):
             self.stats.record_borrow_failed()
-            raise PoolError(
-                f"Could not acquire connection: connection budget "
-                f"({self._budget.maxconn}) reached, "
-                f"all connections are in use across {len(self._pools)} database(s) "
-                f"(+{self._direct_out} direct maintenance connection(s)). "
-                f"{self._checkouts.describe()}"
-            )
+            raise self._budget_exhausted()
         conn = None
         try:
             conn, pool = self._getconn_with_retry(pool, key, connection_info, deadline)
@@ -447,6 +451,21 @@ class ConnectionPool:
             self.stats.record_borrow_failed()
             self._unwind_failed_borrow(conn)
             raise
+
+    def _budget_exhausted(self) -> PoolError:
+        """The error both borrow paths raise when no permit is available.
+
+        It names the holders on purpose -- the limit alone does not say which
+        request is sitting on the permits -- and it is one function because
+        the two copies it replaces had already drifted apart in whitespace.
+        """
+        return PoolError(
+            f"Could not acquire connection: connection budget "
+            f"({self._budget.maxconn}) reached, "
+            f"all connections are in use across {len(self._pools)} database(s) "
+            f"(+{self._direct_out} direct maintenance connection(s)). "
+            f"{self._checkouts.describe()}"
+        )
 
     def _unwind_failed_borrow(self, conn: psycopg.Connection | None) -> None:
         if conn is not None and "_odoo_pool" in conn.__dict__:
@@ -481,13 +500,7 @@ class ConnectionPool:
         )
         if not self._budget.acquire(_remaining(deadline)):
             self.stats.record_borrow_failed()
-            raise PoolError(
-                f"Could not acquire connection: connection budget "
-                f"({self._budget.maxconn}) reached, all connections are in use across "
-                f"{len(self._pools)} database(s) "
-                f"(+{self._direct_out} direct maintenance connection(s)). "
-                f"{self._checkouts.describe()}"
-            )
+            raise self._budget_exhausted()
         if deadline is not None:
             connect_timeout = _libpq_connect_timeout(
                 deadline, int(kwargs.get("connect_timeout", _PROBE_CONNECT_TIMEOUT))
@@ -643,52 +656,57 @@ class ConnectionPool:
         with self._lock:
             return any(dict(k).get("database") == db_name for k in self._pools)
 
+    def _for_database(self, db_name: str) -> list[frozenset]:
+        return [k for k in self._pools if dict(k).get("database") == db_name]
+
     def close_database(self, db_name: str) -> None:
         with self._lock:
-            keys = [k for k in self._pools if dict(k).get("database") == db_name]
-            pools = [self._pools.pop(k) for k in keys]
+            pools = [self._pools.pop(k) for k in self._for_database(db_name)]
             for k in [
                 k for k in self._reachable_keys if dict(k).get("database") == db_name
             ]:
                 self._reachable_keys.discard(k)
-        for pool in pools:
-            self._safe_close(pool)
-        if pools:
-            _logger.info("%r: Closed %d pool(s) for %s", self, len(pools), db_name)
+        self._close_each(pools, "for %s" % db_name)
 
     def close_all(self) -> None:
         with self._lock:
             pools = list(self._pools.values())
             self._pools.clear()
             self._reachable_keys.clear()
-        count = 0
+        self._close_each(pools, "")
+
+    def _close_each(self, pools: list[_PsycopgPool], scope: str) -> None:
         for pool in pools:
             self._safe_close(pool)
-            count += 1
-        if count:
-            _logger.info("%r: Closed %d pool(s)", self, count)
+        if pools:
+            _logger.info(
+                "%r: Closed %d pool(s)%s",
+                self,
+                len(pools),
+                f" {scope}" if scope else "",
+            )
 
     def drain_database(self, db_name: str) -> None:
         with self._lock:
-            pools = [
-                pool
-                for key, pool in self._pools.items()
-                if dict(key).get("database") == db_name
-            ]
-        for pool in pools:
-            if not pool.closed:
-                self._safe_drain(pool)
-        if pools:
-            _logger.debug("%r: Drained %d pool(s) for %s", self, len(pools), db_name)
+            pools = [self._pools[k] for k in self._for_database(db_name)]
+        self._drain_each(pools, "for %s" % db_name)
 
     def drain(self) -> None:
         with self._lock:
             pools = list(self._pools.values())
+        self._drain_each(pools, "")
+
+    def _drain_each(self, pools: list[_PsycopgPool], scope: str) -> None:
         for pool in pools:
             if not pool.closed:
                 self._safe_drain(pool)
         if pools:
-            _logger.debug("%r: Drained %d pool(s)", self, len(pools))
+            _logger.debug(
+                "%r: Drained %d pool(s)%s",
+                self,
+                len(pools),
+                f" {scope}" if scope else "",
+            )
 
     def get_stats(self) -> dict[str, dict]:
         with self._lock:

@@ -10,7 +10,9 @@ _DB_PACKAGE = pathlib.Path(pool.__file__).parent
 
 
 def _callees(func) -> set[str]:
-    return set(func.__code__.co_names)
+    # unwrap first: a @contextmanager's attribute is contextlib's helper, and
+    # its co_names are contextlib's rather than the decorated function's.
+    return set(inspect.unwrap(func).__code__.co_names)
 
 
 def _calls_on(func, receiver: str) -> set[str]:
@@ -95,12 +97,33 @@ class TestBudgetAccounting(unittest.TestCase):
 
 
 class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
-    def test_the_cursor_marks_it_on_the_execute_path(self):
+    def test_the_one_failure_seam_marks_it(self):
         self.assertIn(
             "_note_stale_cached_plan",
-            _callees(cursor.Cursor.execute),
+            _callees(cursor.Cursor._statement_failed),
             "nothing else can tell a recoverable 0A000 from a permanent one",
         )
+
+    def test_every_statement_entry_point_routes_through_that_seam(self):
+        import inspect as _inspect
+
+        for owner, name in (
+            (cursor.Cursor, "execute"),
+            (cursor.Cursor, "executemany"),
+            (cursor.Cursor, "copy"),
+            (bulk._BulkAccessMixin, "copy_from"),
+        ):
+            fn = _inspect.unwrap(getattr(owner, name))
+            for seam in ("_statement_failed", "_statement_done"):
+                with self.subTest(entry_point=name, seam=seam):
+                    self.assertIn(
+                        seam,
+                        fn.__code__.co_names,
+                        "each entry point used to carry its own copy of the "
+                        "envelope: executemany's had dropped the stale-plan "
+                        "mark, copy_from's the failed-statement count, and "
+                        "cr.copy()'s the timing and the error log entirely",
+                    )
 
     def test_the_marker_requires_prepared_statements(self):
         src = inspect.getsource(cursor.Cursor._note_stale_cached_plan)
@@ -457,12 +480,20 @@ class TestEveryCheckoutIsTracked(unittest.TestCase):
         )
 
     def test_saturation_errors_name_the_holders(self):
+        self.assertIn(
+            "describe",
+            _calls_on(pool.ConnectionPool._budget_exhausted, "_checkouts"),
+            "a budget-exhausted error must say who is holding the permits",
+        )
+
+    def test_both_borrow_paths_raise_the_one_saturation_error(self):
         for path in ("borrow", "_borrow_direct"):
             with self.subTest(path=path):
                 self.assertIn(
-                    "describe",
-                    _calls_on(getattr(pool.ConnectionPool, path), "_checkouts"),
-                    "a budget-exhausted error must say who is holding the permits",
+                    "_budget_exhausted",
+                    _callees(getattr(pool.ConnectionPool, path)),
+                    "the two copies of this message had already drifted apart; "
+                    "a path that builds its own can drop the holders again",
                 )
 
 

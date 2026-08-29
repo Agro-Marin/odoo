@@ -44,7 +44,7 @@ from odoo.db.pool import (
     _SuppressKnownPoolWarnings,
 )
 from odoo.db.reaper import checked_out as reaper_checked_out
-from odoo.db.utils import categorize_query, connection_info_for
+from odoo.db.utils import connection_info_for
 from odoo.exceptions import ConcurrencyError
 from odoo.modules.registry import Registry
 from odoo.orm.models.mixins._crud_common import COPY_THRESHOLD
@@ -800,6 +800,41 @@ class TestCursorBulkMethods(BaseCase):
                 )
                 self.assertEqual(cr.fetchall(), [(2,)])
 
+    def test_executemany_counts_toward_arming_the_pipeline(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_em_pipe (val int)")
+            with cr.pipeline():
+                cr.executemany(
+                    "INSERT INTO _test_em_pipe (val) VALUES (%s)", [(1,), (2,)]
+                )
+                self.assertFalse(
+                    cr.in_pipeline, "one statement is still a batch that never forms"
+                )
+                cr.executemany(
+                    "INSERT INTO _test_em_pipe (val) VALUES (%s)", [(3,), (4,)]
+                )
+                self.assertTrue(
+                    cr.in_pipeline,
+                    "executemany is a statement and the block arms on the "
+                    "second one; counting only execute() meant a block made of "
+                    "executemany calls never entered the mode its caller asked "
+                    "for, paying one sync per call instead of one per block",
+                )
+            cr.execute("SELECT count(*) FROM _test_em_pipe")
+            self.assertEqual(cr.fetchone()[0], 4)
+
+    def test_an_empty_executemany_does_not_arm_the_pipeline(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_em_empty (val int)")
+            with cr.pipeline():
+                cr.executemany("INSERT INTO _test_em_empty (val) VALUES (%s)", [])
+                cr.executemany("INSERT INTO _test_em_empty (val) VALUES (%s)", [])
+                self.assertFalse(
+                    cr.in_pipeline,
+                    "a call that issues no statement must not count toward the "
+                    "second one, or an empty batch arms a mode with nothing in it",
+                )
+
     def test_pipeline_nesting_does_not_re_enter_the_mode(self):
         with registry().cursor() as cr:
             with cr.pipeline():
@@ -1304,72 +1339,6 @@ class TestComposableQueries(BaseCase):
             )
             cr.execute("SELECT sum(val) FROM _test_composed_many")
             self.assertEqual(cr.fetchone()[0], 6)
-
-
-class TestCategorizeQuery(BaseCase):
-    def test_select_from(self):
-        qtype, table = categorize_query("SELECT * FROM res_users")
-        self.assertEqual(qtype, "from")
-        self.assertEqual(table, "res_users")
-
-    def test_insert_into(self):
-        qtype, table = categorize_query("INSERT INTO res_users (name) VALUES ('x')")
-        self.assertEqual(qtype, "into")
-        self.assertEqual(table, "res_users")
-
-    def test_insert_select_prioritizes_into(self):
-        qtype, table = categorize_query("INSERT INTO t1 SELECT * FROM t2")
-        self.assertEqual(qtype, "into")
-        self.assertEqual(table, "t1")
-
-    def test_update_is_a_write(self):
-        qtype, table = categorize_query("UPDATE res_users SET name='x'")
-        self.assertEqual(qtype, "into")
-        self.assertEqual(table, "res_users")
-
-    def test_update_schema_qualified(self):
-        qtype, table = categorize_query('UPDATE "public"."res_users" SET name=1')
-        self.assertEqual(qtype, "into")
-        self.assertEqual(table, "res_users")
-
-    def test_update_with_from_subquery(self):
-        qtype, table = categorize_query(
-            "UPDATE t1 SET a = s.a FROM (SELECT * FROM t2) s WHERE s.id = t1.id"
-        )
-        self.assertEqual(qtype, "into")
-        self.assertEqual(table, "t1")
-
-    def test_delete_is_a_write(self):
-        qtype, table = categorize_query("DELETE FROM res_users WHERE id = 1")
-        self.assertEqual(qtype, "into")
-        self.assertEqual(table, "res_users")
-
-    def test_select_for_update_stays_a_read(self):
-        qtype, table = categorize_query(
-            "SELECT id FROM res_users WHERE id = 1 FOR UPDATE NOWAIT"
-        )
-        self.assertEqual(qtype, "from")
-        self.assertEqual(table, "res_users")
-
-    def test_other(self):
-        qtype, table = categorize_query("COMMIT")
-        self.assertEqual(qtype, "other")
-        self.assertIsNone(table)
-
-    def test_quoted_table_name(self):
-        qtype, table = categorize_query('SELECT * FROM "my_table" WHERE id = 1')
-        self.assertEqual(qtype, "from")
-        self.assertEqual(table, "my_table")
-
-    def test_case_insensitive(self):
-        qtype, table = categorize_query("select * from RES_USERS")
-        self.assertEqual(qtype, "from")
-        self.assertEqual(table, "RES_USERS")
-
-    def test_multiline_query(self):
-        qtype, table = categorize_query("SELECT id\n  FROM res_partner\n WHERE active")
-        self.assertEqual(qtype, "from")
-        self.assertEqual(table, "res_partner")
 
 
 class TestConnectionInfoFor(BaseCase):
@@ -2953,6 +2922,79 @@ class TestUninitializedCursorClosed(BaseCase):
             cur.some_attribute
 
 
+class TestTheModuleLevelFanOut(BaseCase):
+    """`is_pooled`, `close_db`, `drain_db`, `drain_all` over the pool registry.
+
+    All four were rewritten when the two registries (`_Pool`/`_Pool_readonly`
+    and `_uri_pools`) became one, and none of them had a behavioural test:
+    `is_pooled` had none at all, and the only `drain_db` reference in the suite
+    asserts that `check_signaling` *calls* it. `is_pooled` decides which
+    databases the database-manager list reports as in use.
+    """
+
+    def test_is_pooled_follows_a_real_connection(self):
+        name = common.get_db_name()
+        cr = db_connect(name).cursor()
+        try:
+            cr.execute("SELECT 1")
+            self.assertTrue(
+                odoo.db.is_pooled(name),
+                "a database with a live pool must report as pooled",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+        self.assertFalse(
+            odoo.db.is_pooled("_no_such_database_xyz"),
+            "and one that was never connected to must not",
+        )
+
+    def _fake_registry(self):
+        """Two pools at different endpoints, so the fan-out has to reach both."""
+        pools = {}
+        made = []
+        for endpoint in ((None, 5432), ("elsewhere.example", 5433)):
+            for readonly in (False, True):
+                m = MagicMock()
+                m.has_database.side_effect = lambda n: n == "dbz"
+                pools[endpoint, readonly] = m
+                made.append(m)
+        return pools, made
+
+    def test_close_db_reaches_every_endpoint_and_both_modes(self):
+        pools, made = self._fake_registry()
+        with patch.dict(odoo.db._pools, pools, clear=True):
+            odoo.db.close_db("dbz")
+        for m in made:
+            m.close_database.assert_called_once_with("dbz")
+
+    def test_drain_db_reaches_every_endpoint_and_both_modes(self):
+        pools, made = self._fake_registry()
+        with patch.dict(odoo.db._pools, pools, clear=True):
+            odoo.db.drain_db("dbz")
+        for m in made:
+            m.drain_database.assert_called_once_with("dbz")
+
+    def test_drain_all_drains_every_pool(self):
+        pools, made = self._fake_registry()
+        with patch.dict(odoo.db._pools, pools, clear=True):
+            odoo.db.drain_all()
+        for m in made:
+            m.drain.assert_called_once_with()
+
+    def test_is_pooled_asks_every_pool_before_answering_no(self):
+        pools, made = self._fake_registry()
+        for m in made:
+            m.has_database.side_effect = lambda n: False
+        with patch.dict(odoo.db._pools, pools, clear=True):
+            self.assertFalse(odoo.db.is_pooled("dbz"))
+        self.assertTrue(
+            all(m.has_database.called for m in made),
+            "a 'no' has to have asked every endpoint; short-circuiting on the "
+            "configured one is how the URI pools used to be missed",
+        )
+
+
 class TestCloseDatabaseByName(BaseCase):
     def test_close_database_matches_uri_pools(self):
         pool = ConnectionPool(maxconn=2)
@@ -4386,6 +4428,71 @@ class TestFailedStatementsAreCounted(BaseCase):
             cr.rollback()
             cr.close()
 
+    def test_a_failing_copy_from_counts_like_a_failing_execute(self):
+        cr = self._cr()
+        try:
+            self.assertEqual(
+                self._delta(
+                    cr,
+                    lambda: cr.copy_from(
+                        "_test_count", ["a"], [(1,)], log_exceptions=False
+                    ),
+                ),
+                (1, 1),
+                "copy_from carried its own copy of the metrics envelope and "
+                "that copy recorded nothing when the COPY failed, so a bulk "
+                "insert that violated a constraint cost a round trip nobody "
+                "was charged for",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_a_failing_copy_is_logged_like_every_other_statement(self):
+        cr = self._cr()
+        try:
+            with (
+                self.assertLogs("odoo.db.cursor", level="ERROR") as cm,
+                self.assertRaises(Exception),
+                cr.copy("COPY _test_count (a) FROM STDIN") as cp,
+            ):
+                cp.write("not-an-integer\n")
+            self.assertTrue(
+                any("bad COPY" in r.getMessage() for r in cm.records),
+                "cr.copy() had no except clause at all, so a failed COPY was "
+                "the one statement failure this layer never reported",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
+    def test_copy_times_the_transfer_and_not_the_context_manager(self):
+        cr = self._cr()
+        try:
+            cr.execute("CREATE TEMP TABLE _t_copy_timing (a int)")
+            seen = []
+            thread = threading.current_thread()
+            thread.query_hooks = [lambda _c, _q, _p, _s, delay: seen.append(delay)]
+            try:
+                t0 = time.monotonic()
+                with cr.copy("COPY _t_copy_timing (a) FROM STDIN") as cp:
+                    for i in range(20000):
+                        cp.write(f"{i}\n")
+                wall = time.monotonic() - t0
+            finally:
+                del thread.query_hooks
+            self.assertEqual(len(seen), 1)
+            self.assertGreater(
+                seen[0],
+                wall / 2,
+                "psycopg's Cursor.copy is a @contextmanager, so timing the "
+                "call that builds it measured nothing: 200k rows took 120 ms "
+                "and were reported as 0.008 ms",
+            )
+        finally:
+            cr.rollback()
+            cr.close()
+
     def test_copy_is_counted_like_every_other_statement_entry_point(self):
         cr = self._cr()
         try:
@@ -4535,6 +4642,321 @@ class TestDropDependingViewsQuoting(BaseCase):
         finally:
             cr.rollback()
             cr.close()
+
+
+class TestCreateModelTableAndConstraintColumns(BaseCase):
+    def setUp(self):
+        super().setUp()
+        self.cr = db_connect(common.get_db_name()).cursor()
+        self.addCleanup(self.cr.close)
+        self.addCleanup(self.cr.rollback)
+        self.cr.execute("DROP TABLE IF EXISTS _test_mt CASCADE")
+
+    def test_create_model_table_makes_the_shape_auto_init_expects(self):
+        sql_schema.create_model_table(
+            self.cr,
+            "_test_mt",
+            comment="A model",
+            columns=[("name", "varchar", "The name"), ("qty", "int4", "How many")],
+        )
+        self.assertEqual(
+            sorted(sql_schema.table_columns(self.cr, "_test_mt")),
+            ["id", "name", "qty"],
+        )
+        self.cr.execute(
+            "SELECT column_default FROM information_schema.columns "
+            "WHERE table_name = '_test_mt' AND column_name = 'id'"
+        )
+        self.assertIn(
+            "nextval",
+            self.cr.fetchscalar() or "",
+            "id must be SERIAL: copy_from's returning_ids pre-allocates from "
+            "that sequence",
+        )
+        self.cr.execute(
+            "SELECT a.attname FROM pg_constraint c "
+            "JOIN pg_attribute a ON a.attrelid = c.conrelid "
+            "AND a.attnum = ANY(c.conkey) "
+            "WHERE c.conrelid = '_test_mt'::regclass AND c.contype = 'p'"
+        )
+        self.assertEqual(self.cr.fetchscalar(), "id")
+        self.cr.execute("SELECT obj_description('_test_mt'::regclass)")
+        self.assertEqual(self.cr.fetchscalar(), "A model")
+
+    def test_constraint_columns_needs_the_catalog_for_a_composite_key(self):
+        sql_schema.create_model_table(
+            self.cr, "_test_mt", columns=[("name", "varchar", ""), ("qty", "int4", "")]
+        )
+        self.cr.execute(
+            "ALTER TABLE _test_mt ADD CONSTRAINT _test_mt_uq UNIQUE (name, qty)"
+        )
+        self.cr.execute("INSERT INTO _test_mt (name, qty) VALUES ('a', 1)")
+        # inside a savepoint: a bare rollback would undo the table this test
+        # just created, and the catalog lookup would then find nothing --
+        # which is a different failure wearing the same face.
+        with (
+            self.assertRaises(psycopg.errors.UniqueViolation) as caught,
+            self.cr.savepoint(flush=False),
+        ):
+            self.cr.execute(
+                "INSERT INTO _test_mt (name, qty) VALUES ('a', 1)",
+                log_exceptions=False,
+            )
+        diag = caught.exception.diag
+        self.assertIsNone(
+            diag.column_name,
+            "PostgreSQL names no single column for a composite constraint, "
+            "which is the whole reason check_registry exists",
+        )
+        self.assertEqual(sql_schema.constraint_columns(self.cr, diag), [])
+        self.assertEqual(
+            sql_schema.constraint_columns(self.cr, diag, check_registry=True),
+            ["name", "qty"],
+            "only the catalog lookup can tell the user which fields clashed",
+        )
+
+
+class TestSchemaCapabilityProbesAndDropIndex(BaseCase):
+    def setUp(self):
+        super().setUp()
+        self.cr = db_connect(common.get_db_name()).cursor()
+        self.addCleanup(self.cr.close)
+        self.addCleanup(self.cr.rollback)
+
+    def _catalog_has(self, proname):
+        self.cr.execute(
+            "SELECT count(*) FROM pg_proc WHERE proname = %s "
+            "AND pronamespace = current_schema::regnamespace",
+            (proname,),
+        )
+        return bool(self.cr.fetchscalar())
+
+    def test_has_trigram_agrees_with_the_catalog(self):
+        # asserted against the catalog rather than against a fixed answer, so
+        # it holds whether or not pg_trgm is installed on the runner
+        self.assertEqual(
+            sql_schema.has_trigram(self.cr),
+            self._catalog_has("word_similarity"),
+            "has_trigram gates every trigram index _auto_init would create",
+        )
+
+    def test_has_unaccent_reports_indexability_not_just_presence(self):
+        status = sql_schema.has_unaccent(self.cr)
+        self.assertIsInstance(status, sql_schema.FunctionStatus)
+        if not self._catalog_has("unaccent"):
+            self.assertIs(status, sql_schema.FunctionStatus.MISSING)
+        else:
+            self.cr.execute(
+                "SELECT p.provolatile FROM pg_proc p WHERE p.proname = 'unaccent' "
+                "AND p.pronamespace = current_schema::regnamespace AND p.pronargs = 1"
+            )
+            immutable = self.cr.fetchscalar() == "i"
+            self.assertIs(
+                status,
+                sql_schema.FunctionStatus.INDEXABLE
+                if immutable
+                else sql_schema.FunctionStatus.PRESENT,
+                "only an IMMUTABLE unaccent can go in an index expression, "
+                "which is why this is three states and not a bool",
+            )
+
+    def test_drop_index_removes_one_and_tolerates_a_missing_one(self):
+        self.cr.execute("DROP TABLE IF EXISTS _test_di CASCADE")
+        self.cr.execute("CREATE TABLE _test_di (id serial primary key, a int)")
+        self.cr.execute("CREATE INDEX _test_di_idx ON _test_di (a)")
+        self.assertTrue(sql_schema.index_exists(self.cr, "_test_di_idx"))
+        sql_schema.drop_index(self.cr, "_test_di_idx", "_test_di")
+        self.assertFalse(sql_schema.index_exists(self.cr, "_test_di_idx"))
+        sql_schema.drop_index(self.cr, "_test_di_idx", "_test_di")
+        self.assertFalse(
+            sql_schema.index_exists(self.cr, "_test_di_idx"),
+            "the second drop must be a no-op: convert_column_translatable "
+            "drops an index that may never have existed",
+        )
+
+
+class TestSchemaForeignKeys(BaseCase):
+    """The reconciliation `_registry_schema.check_foreign_keys` runs every load.
+
+    `add_foreign_key`, `get_foreign_keys`, `get_fk_constraints_batch` and
+    `drop_constraint` are named by no test, and together they decide whether a
+    foreign key whose `ondelete` changed gets replaced or silently kept.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cr = db_connect(common.get_db_name()).cursor()
+        self.addCleanup(self.cr.close)
+        self.addCleanup(self.cr.rollback)
+        self.cr.execute("DROP TABLE IF EXISTS _test_fk_child CASCADE")
+        self.cr.execute("DROP TABLE IF EXISTS _test_fk_parent CASCADE")
+        self.cr.execute("CREATE TABLE _test_fk_parent (id serial primary key)")
+        self.cr.execute(
+            "CREATE TABLE _test_fk_child (id serial primary key, parent_id int)"
+        )
+
+    def _add(self, ondelete):
+        sql_schema.add_foreign_key(
+            self.cr, "_test_fk_child", "parent_id", "_test_fk_parent", "id", ondelete
+        )
+
+    def _find(self, ondelete):
+        return sql_schema.get_foreign_keys(
+            self.cr, "_test_fk_child", "parent_id", "_test_fk_parent", "id", ondelete
+        )
+
+    def test_every_ondelete_policy_round_trips(self):
+        for policy in sql_schema._CONFDELTYPES:
+            with self.subTest(ondelete=policy):
+                self.cr.execute(
+                    "ALTER TABLE _test_fk_child "
+                    "DROP CONSTRAINT IF EXISTS _test_fk_child_parent_id_fkey"
+                )
+                self._add(policy)
+                self.assertTrue(self._find(policy), f"{policy} was not found back")
+
+    def test_a_key_is_not_found_under_a_different_policy(self):
+        self._add("RESTRICT")
+        self.assertTrue(self._find("RESTRICT"))
+        self.assertEqual(
+            self._find("CASCADE"),
+            [],
+            "check_foreign_keys drops and re-adds on this answer; matching "
+            "regardless of ondelete would leave a changed policy unapplied",
+        )
+
+    def test_an_invalid_policy_is_refused_before_any_ddl(self):
+        with self.assertRaises(ValueError):
+            self._add("EXPLODE")
+        self.assertEqual(
+            sql_schema.get_fk_constraints_batch(self.cr, ["_test_fk_child"]), []
+        )
+
+    def test_the_policy_is_case_insensitive(self):
+        self._add("cascade")
+        self.assertTrue(self._find("CASCADE"))
+
+    def test_the_batch_query_reports_the_whole_row(self):
+        self._add("SET NULL")
+        rows = sql_schema.get_fk_constraints_batch(self.cr, ["_test_fk_child"])
+        self.assertEqual(len(rows), 1)
+        name, t1, c1, t2, c2, deltype = rows[0]
+        self.assertEqual(
+            (t1, c1, t2, c2, deltype),
+            ("_test_fk_child", "parent_id", "_test_fk_parent", "id", "n"),
+            "check_foreign_keys keys its `existing` map on exactly this shape",
+        )
+        sql_schema.drop_constraint(self.cr, "_test_fk_child", name)
+        self.assertEqual(
+            sql_schema.get_fk_constraints_batch(self.cr, ["_test_fk_child"]), []
+        )
+
+
+class TestSchemaColumnLifecycle(BaseCase):
+    """The column operations `_auto_init` runs on every module upgrade.
+
+    Thirteen of `schema.py`'s functions are named by no test in `odoo/db/tests`,
+    `odoo/addons/base/tests` or `tests/` -- they are exercised only incidentally,
+    by installing a module. These are the ones that mutate a column, where a
+    silent defect surfaces as a broken upgrade rather than a failing test.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cr = db_connect(common.get_db_name()).cursor()
+        self.addCleanup(self.cr.close)
+        self.addCleanup(self.cr.rollback)
+        self.cr.execute("DROP TABLE IF EXISTS _test_collife CASCADE")
+        self.cr.execute("CREATE TABLE _test_collife (id serial primary key)")
+
+    def _col(self, name):
+        return sql_schema.table_columns(self.cr, "_test_collife")[name]
+
+    def test_create_column_reports_through_table_columns(self):
+        sql_schema.create_column(self.cr, "_test_collife", "note", "varchar")
+        self.assertEqual(self._col("note")["udt_name"], "varchar")
+        self.assertEqual(self._col("note")["is_nullable"], "YES")
+
+    def test_a_boolean_column_is_created_with_a_default(self):
+        sql_schema.create_column(self.cr, "_test_collife", "flag", "boolean")
+        self.cr.execute(
+            "SELECT column_default FROM information_schema.columns "
+            "WHERE table_name = '_test_collife' AND column_name = 'flag'"
+        )
+        self.assertEqual(
+            self.cr.fetchscalar(),
+            "false",
+            "a boolean added to existing rows must land false, not NULL",
+        )
+
+    def test_a_column_comment_survives_ddl_param_inlining(self):
+        # DDL cannot take server-side params, so Cursor.execute inlines them.
+        # A field label like "Discount %" is an ordinary Odoo string and the
+        # inliner scans for %s markers.
+        for comment in ("Discount %", "Rate %s of total", "Uses %(name)s"):
+            with self.subTest(comment=comment):
+                self.cr.execute("ALTER TABLE _test_collife DROP COLUMN IF EXISTS c")
+                sql_schema.create_column(
+                    self.cr, "_test_collife", "c", "varchar", comment=comment
+                )
+                self.cr.execute(
+                    "SELECT col_description('_test_collife'::regclass, attnum) "
+                    "FROM pg_attribute WHERE attrelid = '_test_collife'::regclass "
+                    "AND attname = 'c'"
+                )
+                self.assertEqual(self.cr.fetchscalar(), comment)
+
+    def test_not_null_goes_on_and_comes_off(self):
+        sql_schema.create_column(self.cr, "_test_collife", "note", "varchar")
+        self.cr.execute("INSERT INTO _test_collife (note) VALUES ('x')")
+        sql_schema.set_not_null(self.cr, "_test_collife", "note")
+        self.assertEqual(self._col("note")["is_nullable"], "NO")
+        sql_schema.drop_not_null(self.cr, "_test_collife", "note")
+        self.assertEqual(self._col("note")["is_nullable"], "YES")
+
+    def test_translatable_conversion_round_trips_the_value(self):
+        sql_schema.create_column(self.cr, "_test_collife", "note", "varchar")
+        self.cr.execute("INSERT INTO _test_collife (note) VALUES ('hello')")
+        sql_schema.convert_column_translatable(
+            self.cr, "_test_collife", "note", "jsonb"
+        )
+        self.cr.execute("SELECT note FROM _test_collife")
+        self.assertEqual(
+            self.cr.fetchscalar(),
+            {"en_US": "hello"},
+            "the varchar becomes the en_US term of a jsonb translation",
+        )
+        self.assertEqual(self._col("note")["udt_name"], "jsonb")
+        sql_schema.convert_column_translatable(
+            self.cr, "_test_collife", "note", "varchar"
+        )
+        self.cr.execute("SELECT note FROM _test_collife")
+        self.assertEqual(self.cr.fetchscalar(), "hello", "and back again")
+
+    def test_a_null_value_stays_null_across_the_translatable_conversion(self):
+        sql_schema.create_column(self.cr, "_test_collife", "note", "varchar")
+        self.cr.execute("INSERT INTO _test_collife (note) VALUES (NULL)")
+        sql_schema.convert_column_translatable(
+            self.cr, "_test_collife", "note", "jsonb"
+        )
+        self.cr.execute("SELECT note FROM _test_collife")
+        self.assertIsNone(
+            self.cr.fetchscalar(),
+            "the USING clause guards NULL explicitly; without it every "
+            "untranslated row would gain a {'en_US': null} object",
+        )
+
+    def test_convert_column_falls_back_by_dropping_a_dependent_view(self):
+        sql_schema.create_column(self.cr, "_test_collife", "note", "varchar")
+        self.cr.execute("CREATE VIEW _test_collife_v AS SELECT note FROM _test_collife")
+        self.addCleanup(self.cr.execute, "DROP VIEW IF EXISTS _test_collife_v CASCADE")
+        sql_schema.convert_column(self.cr, "_test_collife", "note", "text")
+        self.assertEqual(
+            self._col("note")["udt_name"],
+            "text",
+            "PostgreSQL refuses ALTER TYPE under a view; the savepoint "
+            "fallback drops the view and retries",
+        )
 
 
 class TestPartitionedTablesAreVisible(BaseCase):
@@ -4902,6 +5324,14 @@ class TestReplicaConnectionInfo(BaseCase):
         self.assertEqual(ro["sslmode"], "require")
 
 
+_WIRE_RECEIVERS = frozenset({"_obj", "_cnx"})
+"""The attributes a statement can be issued on from inside the cursor layer.
+
+`_obj` alone left a hole: `discard_cached_plans` reached the connection
+directly, so its `DEALLOCATE ALL` was a wire call this gate could not see.
+"""
+
+
 class TestTestCursorContainsBulkWrites(common.TransactionCase):
     def setUp(self):
         super().setUp()
@@ -4967,6 +5397,23 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
             0,
         )
 
+    def test_copy_is_contained(self):
+        def write(cr):
+            with cr.copy('COPY "_bulk_savepoint_probe" (k) FROM STDIN') as cp:
+                cp.write("1\n2\n")
+
+        self.assertEqual(
+            self._run_and_roll_back(write),
+            0,
+            "rows written through cr.copy() outlived the test's rollback. "
+            "TestCursor must forward `copy` explicitly; reached through "
+            "__getattr__ instead it goes straight to the real cursor and the "
+            "COPY lands outside the savepoint. The sibling structural test "
+            "says the forwarder is missing, this one says what that costs -- "
+            "and `copy` is a @contextmanager, so it is the one entry point "
+            "where the forwarder has to return the manager unopened.",
+        )
+
     def test_binary_copy_from_is_contained(self):
         self.assertEqual(
             self._run_and_roll_back(
@@ -4978,6 +5425,10 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
         )
 
     def test_every_wire_level_write_is_marked(self):
+        # Both receivers, not just `_obj`: `discard_cached_plans` used to issue
+        # `self._cnx.execute("DEALLOCATE ALL")`, a statement on the wire that
+        # this scan could not see because it only matched `_obj`. That branch
+        # now goes through `self.execute`, and the scan can say so.
         import ast
         import textwrap
 
@@ -4997,7 +5448,7 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
                     and len(node.targets) == 1
                     and isinstance(node.targets[0], ast.Name)
                     and isinstance(node.value, ast.Attribute)
-                    and node.value.attr == "_obj"
+                    and node.value.attr in _WIRE_RECEIVERS
                 }
                 calls = [
                     n
@@ -5012,7 +5463,7 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
                         )
                         or (
                             isinstance(n.func.value, ast.Attribute)
-                            and n.func.value.attr == "_obj"
+                            and n.func.value.attr in _WIRE_RECEIVERS
                         )
                     )
                 ]
@@ -5031,6 +5482,14 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
             "these put a statement on the wire without calling "
             "_before_statement(), so TestCursor never opens its savepoint for "
             "them and their writes survive the test's rollback",
+        )
+
+    def test_the_scan_covers_both_wire_receivers(self):
+        self.assertEqual(
+            _WIRE_RECEIVERS,
+            frozenset({"_obj", "_cnx"}),
+            "a statement issued on the connection rather than the cursor is "
+            "still a statement, and was invisible to this gate",
         )
 
     def test_the_wire_scan_would_catch_an_unmarked_method(self):
@@ -5066,8 +5525,10 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
             name
             for name in dir(Cursor)
             if callable(getattr(Cursor, name, None))
-            and getattr(getattr(Cursor, name), "__code__", None) is not None
-            and "_before_statement" in getattr(Cursor, name).__code__.co_names
+            and getattr(inspect.unwrap(getattr(Cursor, name)), "__code__", None)
+            is not None
+            and "_before_statement"
+            in inspect.unwrap(getattr(Cursor, name)).__code__.co_names
         }
         self.assertTrue(marked, "Cursor marks no statement entry points at all")
         not_forwarded = sorted(marked - set(vars(TestCursor)))

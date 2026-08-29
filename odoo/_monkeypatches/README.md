@@ -76,6 +76,12 @@ it is deferred, waiting for its target's import — not failed.
 | `xlsxwriter.py` | Sanitize Excel sheet names; default `strings_to_formulas` off, so an exported cell starting `=` is never a live formula | COMPAT |
 | `_excel_utils.py` | Excel sheet-name sanitization: all four of xlsxwriter's rules, including de-duplicating the clashes truncation creates | UTIL |
 
+### PDF Patches
+
+| File | Purpose | Type |
+|------|---------|------|
+| `pypdf.py` | Three patches `tools/pdf` used to apply inline: `filters.decompress` tolerates a truncated deflate stream rather than raising, `DictionaryObject.get` returns its default instead of propagating `KeyError`, and `NameObject.renumber_table` gains the delimiters and control characters PDF name objects must escape | COMPAT |
+
 ### Text Processing Patches
 
 | File | Purpose | Type |
@@ -169,7 +175,7 @@ Patches should be removed when:
 
 ## Statistics
 
-- **Total**: 14 files (13 patches + 1 utility)
+- **Total**: 15 files (14 patches + 1 utility)
 - **By type**: COMPAT (9), PERF (2), SECURITY (1), FEATURE (1)
 
 These are re-derived from the directory and the Patch Index by

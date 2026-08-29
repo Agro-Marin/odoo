@@ -491,5 +491,77 @@ class TestReachabilityProof(unittest.TestCase):
         self.assertFalse(pool._is_proven_reachable(old))
 
 
+class TestTheDedupedProbeDoesNotShareATraceback(unittest.TestCase):
+    """Every follower raises the ONE exception the leader recorded.
+
+    A `raise` appends to that object's traceback, so without clearing it first
+    the shared exception grows by a frame per follower -- on a dead DSN, which
+    is the case this dedup exists for, and with frames from unrelated threads
+    interleaved.
+    """
+
+    def _run(self, followers=8):
+        import threading
+        import time
+
+        pool = ConnectionPool(maxconn=8)
+        key = _normalize_dsn_key({"dbname": "unreachable"})
+        go = threading.Event()
+        caught: dict = {}
+
+        def slow_failing_probe(*_a, **_k):
+            go.wait(20)
+            raise RuntimeError("unreachable host")
+
+        pool._probe_connectable = slow_failing_probe  # type: ignore[method-assign]
+
+        def call(tag):
+            try:
+                pool._probe_connectable_deduped(key, "", {})
+            except Exception as exc:
+                caught[tag] = exc
+
+        leader = threading.Thread(target=call, args=("leader",), daemon=True)
+        leader.start()
+        time.sleep(0.2)
+        threads = [
+            threading.Thread(target=call, args=(i,), daemon=True)
+            for i in range(followers)
+        ]
+        for t in threads:
+            t.start()
+        time.sleep(0.2)
+        go.set()
+        leader.join(20)
+        for t in threads:
+            t.join(20)
+        return caught
+
+    @staticmethod
+    def _frames(exc):
+        n, tb = 0, exc.__traceback__
+        while tb is not None:
+            n += 1
+            tb = tb.tb_next
+        return n
+
+    def test_every_follower_still_gets_the_leaders_failure(self):
+        caught = self._run()
+        self.assertEqual(len(caught), 9, "leader plus every follower must raise")
+        self.assertTrue(all(isinstance(e, RuntimeError) for e in caught.values()))
+
+    def test_the_shared_traceback_does_not_grow_with_the_followers(self):
+        few = self._run(followers=2)
+        many = self._run(followers=8)
+        self.assertEqual(
+            self._frames(few["leader"]),
+            self._frames(many["leader"]),
+            "the traceback grew with the number of waiters: each follower "
+            "raises the same object and a raise appends to it, so a dead DSN "
+            "under load produced a stack of repeated frames from unrelated "
+            "threads, each keeping its thread's locals alive",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -272,14 +272,20 @@ _STATEMENT_APIS = ("execute", "executemany", "execute_values", "copy_from", "cop
 
 
 def _marks_statements() -> set:
+    import inspect
+
     from odoo.db.cursor import Cursor
 
+    # inspect.unwrap follows __wrapped__, which functools.wraps sets: `copy`
+    # is a @contextmanager, so the attribute is contextlib's helper and its
+    # co_names are contextlib's, not the method's.
     return {
         name
         for name in dir(Cursor)
         if callable(getattr(Cursor, name, None))
-        and getattr(getattr(Cursor, name), "__code__", None) is not None
-        and "_before_statement" in getattr(Cursor, name).__code__.co_names
+        and getattr(inspect.unwrap(getattr(Cursor, name)), "__code__", None) is not None
+        and "_before_statement"
+        in inspect.unwrap(getattr(Cursor, name)).__code__.co_names
     }
 
 
