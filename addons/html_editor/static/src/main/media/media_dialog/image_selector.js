@@ -44,9 +44,8 @@ export class AutoResizeImage extends Attachment {
         this.state.loaded = true;
     }
 }
-const newLocal = "img-fluid";
 export class ImageSelector extends FileSelector {
-    static mediaSpecificClasses = ["img", newLocal, "o_we_custom_image"];
+    static mediaSpecificClasses = ["img", "img-fluid", "o_we_custom_image"];
     static mediaSpecificStyles = ["transform", "width"];
     static mediaExtraClasses = [
         "rounded-circle",
