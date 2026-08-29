@@ -183,11 +183,35 @@ and lock it behind that.
 ## The Python side — `py_scope_gate.py`
 
 The same mechanism over `mypy`, one lock per **core package** instead of per
-addon module. Gate: `py_scope_gate.py`; scope: the six packages `mypy.ini`
-checks (`orm`, `db`, `libs`, `http`, `service`, `modules`); lists:
-`exceptions/mypy/<pkg>.txt` and `budgets/mypy-<pkg>.json`. It runs in
-`.github/workflows/py_typecheck.yml`, beside — not instead of — the count
-ratchet.
+addon module. Gate: `py_scope_gate.py`; scope: the six packages the `mypy`
+count floor covers (`orm`, `db`, `libs`, `http`, `service`, `modules`) plus
+`cli`; lists: `exceptions/mypy/<pkg>.txt` and `budgets/mypy-<pkg>.json`. It
+runs in `.github/workflows/py_typecheck.yml`, beside — not instead of — the
+count ratchets.
+
+**`cli` is checked by a different mypy run, so the gate needs BOTH logs.**
+`odoo.cli` sits on its own count floor (`mypy_cli`, seeded at zero) rather than
+inside the six-package `mypy` total, for the reason the workflow gives for
+keeping `odoo.tools` separate: one integer over several scopes makes every move
+ambiguous between them. The consequence here is that cli's `LOG:  Parsing`
+lines land in `/tmp/mypy_cli.log`, not `/tmp/mypy.log` — so a run given only
+the six-package log reports **every cli file as `unchecked`** and fails. That
+is the gate working: `unchecked` exists so a file nothing compiled cannot pass
+for a file found clean. Concatenate first:
+
+```bash
+cat /tmp/mypy.log /tmp/mypy_cli.log > /tmp/mypy_scoped.log
+python tooling/typecheck/py_scope_gate.py --log /tmp/mypy_scoped.log --check
+```
+
+`--update` has the same requirement, and more sharply: it rewrites the lists
+for **every** package in `SCOPED_PACKAGES` from whatever log it is handed, so
+regenerating from a single-scope log empties the other seven.
+
+`cli` was onboarded at **100% locked, 0 excepted** — 16 files, no exception
+list — which is why `exceptions/mypy/cli.txt` carries a header and no entries.
+It is the only package in the table below with no debt, and a floor of exactly
+zero on top of the per-file locks means it has no fungible slack at all.
 
 **Why it was added.** The Python side had no allowlist to invert; it had
 something weaker, a single integer

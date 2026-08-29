@@ -19,7 +19,7 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_scope_gate")
 EXCEPTIONS_DIR = HERE / "exceptions" / "mypy"
 BUDGETS_DIR = HERE / "budgets"
 
-SCOPED_PACKAGES = ("orm", "db", "libs", "http", "service", "modules")
+SCOPED_PACKAGES = ("orm", "db", "libs", "http", "service", "modules", "cli", "tests")
 
 ERROR_LINE_RE = re.compile(
     r"^(?P<path>[^\s:][^:]*\.py):(?P<line>\d+):(?P<col>\d+): error: "

@@ -1,4 +1,4 @@
 {
-  "count": 1,
-  "note": "2 -> 1. NONE OF THIS IS MINE.\n\nSame measurement and same reason as lint_gettext_repr: a control run at\n3bbd93238b3 with no working-tree state reports 1 against a floor of 2, and base\nholds none of it before or after this change."
+  "count": 0,
+  "note": "1 -> 0. The last one was fields/_field_description.py: env._(self.falsy_value_label) is not extractable HERE, but the string is booked into the catalogue at the field declaration, which is where every producer spells it _lt() -- project, project_hr and project_task all do. The exception is sale_timesheet, whose falsy_value_label='Non-billable' is a bare str and therefore in no catalogue at all; that is a separate finding this gate cannot see and is left for its own change."
 }

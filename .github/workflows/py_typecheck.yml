@@ -48,6 +48,13 @@ on:
       # gate whose paths do not name the tree it measures is a gate that does
       # not run on the change most likely to move it.
       - 'odoo/tools/**/*.py'
+      # The eighth scope, same argument as the seventh. odoo/cli is every
+      # entry point odoo-bin exposes and was in no type gate's scope at all.
+      - 'odoo/cli/**/*.py'
+      # The ninth scope, same argument again. odoo/tests is the test framework
+      # every addon test runs on, and its `tests` directory name kept it out of
+      # this gate and out of every _sources-based one.
+      - 'odoo/tests/**/*.py'
       - 'mypy.ini'
       - 'requirements*.txt'
       - 'tooling/ratchet/**'
@@ -159,6 +166,76 @@ jobs:
           python tooling/ratchet/ratchet.py mypy_tools --count "${{ steps.mypy_tools.outputs.error_count }}" --json | tee /tmp/verdict_tools.json
           python tooling/ratchet/ratchet.py mypy_tools --count "${{ steps.mypy_tools.outputs.error_count }}"
 
+      - name: Run mypy (odoo.cli)
+        id: mypy_cli
+        # AN EIGHTH SCOPE, AND AN EIGHTH FLOOR, for the reason the odoo.tools
+        # step above gives: one integer over several scopes makes every future
+        # move ambiguous between them.
+        #
+        # odoo/cli is every entry point odoo-bin exposes -- server, shell, db,
+        # i18n, obfuscate, upgrade_code, populate, neutralize -- and it was in
+        # NO type gate's scope: mypy.ini names the six framework packages and
+        # odoo.tools carries its own. It measured 55 errors in 8 of its 16
+        # files the first time anyone ran it, among them a version comparison
+        # annotated tuple[int, ...] against a parse_version that returns
+        # tuple[str, ...], an importlib spec dereferenced without its None
+        # check, and a bootstrap_config whose str|None return was assigned
+        # straight into a str field by five of its six callers.
+        #
+        # THE FLOOR OPENS AT ZERO, so this scope has no fungible slack at all
+        # and any new error fails on its own. --verbose is for the per-file
+        # lock step below, which needs cli's "LOG:  Parsing" lines to tell a
+        # file it found clean from a file it never opened.
+        run: |
+          set +e
+          python -m mypy --no-incremental --config-file mypy.ini \
+            -p odoo.cli --verbose 2>&1 | tee /tmp/mypy_cli.log
+          set -e
+          # `|| true`, NOT `|| echo 0` -- see the note on the six-package step.
+          # That note called the bug "latent only while this floor is above
+          # zero"; THIS floor is zero, so the spelling is load-bearing here on
+          # every green run rather than on some future one.
+          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy_cli.log || true)
+          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce ratchet (odoo.cli)
+        run: |
+          python tooling/ratchet/ratchet.py mypy_cli --count "${{ steps.mypy_cli.outputs.error_count }}" --json | tee /tmp/verdict_cli.json
+          python tooling/ratchet/ratchet.py mypy_cli --count "${{ steps.mypy_cli.outputs.error_count }}"
+
+      - name: Run mypy (odoo.tests)
+        id: mypy_tests
+        # A NINTH SCOPE, AND A NINTH FLOOR, and it is here for the reason the
+        # odoo.cli step above gives -- with one twist worth stating, because it
+        # is why this package went unmeasured for longer than cli did.
+        #
+        # odoo/tests is the test *framework*: TransactionCase, HttpCase, Form,
+        # the Chrome CDP driver, the suite runner and the result reporter. It is
+        # production code that every addon test in the repository runs on. But
+        # its directory is named `tests`, and `tooling/architecture/_sources.py`
+        # calls any path with a `tests` component a test path -- so the package
+        # is also invisible to py_function_length, sql_in_placeholder,
+        # py_count_as_boolean, py_x2many_count, compute_context_deps and every
+        # test_lint AST rule. It was clean on all of those when this landed; it
+        # measured 250 mypy errors, in 13 of its 14 modules.
+        #
+        # THE FLOOR OPENS AT ZERO, as cli's did: all 250 were fixed rather than
+        # banked, so this scope has no fungible slack and any new error fails on
+        # its own. --verbose is for the per-file lock step below.
+        run: |
+          set +e
+          python -m mypy --no-incremental --config-file mypy.ini \
+            -p odoo.tests --verbose 2>&1 | tee /tmp/mypy_tests.log
+          set -e
+          # `|| true`, NOT `|| echo 0` -- see the note on the six-package step.
+          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy_tests.log || true)
+          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce ratchet (odoo.tests)
+        run: |
+          python tooling/ratchet/ratchet.py mypy_tests --count "${{ steps.mypy_tests.outputs.error_count }}" --json | tee /tmp/verdict_tests.json
+          python tooling/ratchet/ratchet.py mypy_tests --count "${{ steps.mypy_tests.outputs.error_count }}"
+
       - name: Enforce per-file locks
         id: scope
         # The ratchet above measures ONE integer over six packages, so a clean
@@ -167,7 +244,15 @@ jobs:
         # holds the 189 exceptions to their per-file ceilings. The two are
         # complementary: the ratchet still catches aggregate drift inside the
         # exception set, and this catches every movement the total hides.
-        run: python tooling/typecheck/py_scope_gate.py --log /tmp/mypy.log --check
+        #
+        # ALL THREE logs: cli and tests are SCOPED_PACKAGEs but are checked by
+        # their own mypy runs, so their "LOG:  Parsing" lines are in the other
+        # files. Feed the gate only /tmp/mypy.log and every cli and tests file
+        # reads as `unchecked` -- the verdict that exists precisely so a file
+        # nothing compiled cannot pass for a file found clean.
+        run: |
+          cat /tmp/mypy.log /tmp/mypy_cli.log /tmp/mypy_tests.log > /tmp/mypy_scoped.log
+          python tooling/typecheck/py_scope_gate.py --log /tmp/mypy_scoped.log --check
 
       - name: Summarise
         if: always()
@@ -194,10 +279,14 @@ jobs:
             echo ""
             echo "Config: \`mypy.ini\` · Floor: \`tooling/ratchet/baselines/mypy.json\` · Scope: orm, db, libs, http, service, modules"
             echo ""
+            echo "\`odoo.tools\`, \`odoo.cli\` and \`odoo.tests\` are separate scopes on"
+            echo "separate floors (\`mypy_tools\`, \`mypy_cli\`, \`mypy_tests\`); their counts"
+            echo "are in the step logs above."
+            echo ""
             echo "### Per-file locks"
             echo ""
-            if [ -f /tmp/mypy.log ]; then
-              python tooling/typecheck/py_scope_gate.py --log /tmp/mypy.log --markdown
+            if [ -f /tmp/mypy_scoped.log ]; then
+              python tooling/typecheck/py_scope_gate.py --log /tmp/mypy_scoped.log --markdown
             else
               echo "> Not produced — mypy did not run."
             fi

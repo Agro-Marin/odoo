@@ -860,6 +860,33 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run Python function-length ratchet (odoo/tests)
+        id: py_funclen_tests
+        # The test framework, floored by nothing until now, and for a different
+        # reason from tooling's: this one was not out of scope, it was invisible
+        # inside it. `odoo/tests` is TransactionCase, HttpCase, Form, the Chrome
+        # CDP driver and the suite runner -- production code every addon test in
+        # the repository runs on -- and `_sources.is_test_path` calls any path
+        # with a `tests` component a test path, so the `pyfunclen` core scan
+        # skipped all 14 modules of it. The per-package breakdown of the core
+        # floor sums to that floor exactly with no odoo/tests row, which is what
+        # says this step ADDS a scope rather than raising one.
+        #
+        # `--addon tests` is therefore the only scope that keeps its test paths;
+        # under the default predicate the scan would be empty and the gate would
+        # refuse it. test_py_function_length pins both halves: that the scan is
+        # non-empty, and that it stays disjoint from the core scan so the two
+        # floors cannot start counting the same lines.
+        run: |
+          set +e
+          python tooling/architecture/py_function_length.py --addon tests | tee /tmp/py_funclen_tests.log
+          python tooling/architecture/py_function_length.py --addon tests --count \
+            | xargs python tooling/ratchet/ratchet.py pyfunclen_tests --count
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          set -e
+          exit $rc
+
       - name: Run Python function-length ratchet (survey)
         id: py_funclen_survey
         # Same pair as `--addon mail` and `--addon loyalty` above, for the same
@@ -1775,6 +1802,7 @@ jobs:
             cat /tmp/py_funclen_mail.log 2>/dev/null || echo "(python mail gate did not run)"
             cat /tmp/py_funclen_loyalty.log 2>/dev/null || echo "(python loyalty gate did not run)"
             cat /tmp/py_funclen_tooling.log 2>/dev/null || echo "(python tooling gate did not run)"
+            cat /tmp/py_funclen_tests.log 2>/dev/null || echo "(python odoo/tests gate did not run)"
             cat /tmp/py_funclen_survey.log 2>/dev/null || echo "(python survey gate did not run)"
             cat /tmp/py_funclen_crm.log 2>/dev/null || echo "(python crm gate did not run)"
             cat /tmp/js_funclen_mail.log 2>/dev/null || echo "(mail gate did not run)"

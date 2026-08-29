@@ -1,0 +1,6 @@
+# mypy / tests: files NOT yet clean under mypy.ini — the
+# EXCEPTIONS to a default-deny gate, so this list may only shrink.
+# Everything else under odoo/tests/ is locked at zero, including
+# files added after this list was written. Per-file ceilings for the
+# entries below are in budgets/mypy-tests.json.
+#
