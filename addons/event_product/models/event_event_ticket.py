@@ -29,6 +29,7 @@ class EventEventTicket(models.Model):
             EventEventTicket, self - inactive_product_tickets
         )._compute_sale_available()
 
+    @api.depends("price_reduce", "product_id", "product_id.taxes_id")
     def _compute_price_reduce_taxinc(self):
         for event in self:
             # sudo necessary here since the field is most probably accessed through the website
