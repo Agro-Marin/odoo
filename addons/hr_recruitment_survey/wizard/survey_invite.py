@@ -20,12 +20,11 @@ class SurveyInvite(models.TransientModel):
                 partners_done |= self.applicant_id.partner_id
         return partners_done, emails_done, answers
 
-    def _send_mail(self, answer):
-        mail = super()._send_mail(answer)
+    def _prepare_mail_values(self, answer, rendered):
+        mail_values = super()._prepare_mail_values(answer, rendered)
         if answer.applicant_id:
-            answer.applicant_id.message_post(body=Markup(mail.body_html))
-            mail.send()
-        return mail
+            answer.applicant_id.message_post(body=Markup(mail_values["body_html"]))
+        return mail_values
 
     def action_invite(self):
         self.ensure_one()
