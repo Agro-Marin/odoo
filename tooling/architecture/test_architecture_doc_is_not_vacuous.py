@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import io
 import re
 import sys
@@ -17,12 +18,18 @@ EMPTY_DOC = "# Nothing\n\nThis page makes no claims.\n"
 
 EXPECTED_SURVIVORS: dict[str, str] = {
     "TestAddonSuiteFigures.test_every_prose_figure_is_fresh": "code-only",
+    "TestSignallingTables.test_the_runtime_derives_the_tables_rather_than_listing_them": "code-only",
+    "TestAddonSuiteFigures.test_no_page_states_a_suite_size_the_tree_does_not_hold": "negative",
+    "TestRiskRegisterFigures.test_no_page_states_a_checker_total_the_workflow_does_not_run": "negative",
+    "TestRiskRegisterFigures.test_the_index_agrees_with_the_entry_bodies": "code-only",
     "TestReferencedArtifacts.test_a_sibling_driven_baseline_is_driven_by_its_sibling": "code-only",
     "TestCountsRestatedElsewhere.test_checker_docstring": "code-only",
     "TestCountsRestatedElsewhere.test_metadata_fan_in_figures": "code-only",
     "TestCountsRestatedElsewhere.test_workflow_comment": "code-only",
-    "TestGateInventoryIsWiredShut.test_annotate_condition_covers_every_step": "code-only",
     "TestGateInventoryIsWiredShut.test_every_gate_step_is_blocking": "code-only",
+    "TestGateInventoryIsWiredShut.test_the_annotation_does_not_enumerate_the_steps": "code-only",
+    "TestGateInventoryIsWiredShut.test_the_premises_that_make_failure_equivalent_still_hold": "code-only",
+    "TestGateInventoryIsWiredShut.test_no_step_writes_an_output_nothing_reads": "code-only",
     "TestGateInventoryIsWiredShut.test_no_gate_is_described_as_unwired": "negative",
     "TestHttpCallGraphIsRecoverable.test_every_named_ir_http_hook_exists": "code-only",
     "TestHttpCallGraphIsRecoverable.test_every_named_request_method_exists": "code-only",
@@ -63,28 +70,112 @@ _SUBTEST_PARAMS = re.compile(r" \(.*\)$")
 
 
 def _short_id(case: unittest.TestCase) -> str:
-    return case.id().split(".", 1)[1]
+    return _class_and_method(case.id())
+
+
+def _class_and_method(test_id: str) -> str:
+    return ".".join(test_id.split(".")[-2:])
 
 
 def _normalise(test_id: str) -> str:
 
-    return _SUBTEST_PARAMS.sub("", test_id.split(".", 1)[1])
+    return _SUBTEST_PARAMS.sub("", _class_and_method(test_id))
+
+
+def _bound_to_the_document() -> list[object]:
+    holders = [
+        module
+        for name, module in sorted(sys.modules.items())
+        if (name == "test_architecture_doc" or name.startswith("doc_gate"))
+        and hasattr(module, "DOC")
+        and hasattr(module, "DOC_FLAT")
+    ]
+    assert holders, "nothing binds DOC; the suite no longer reads the pages"
+    return holders
+
+
+def _failures_against(text: str, suite: unittest.TestSuite) -> set[str]:
+    holders = _bound_to_the_document()
+    originals = [(m, m.DOC, m.DOC_FLAT) for m in holders]
+    flat = " ".join(text.split())
+    for module in holders:
+        module.DOC, module.DOC_FLAT = text, flat
+    try:
+        result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
+    finally:
+        for module, doc, doc_flat in originals:
+            module.DOC, module.DOC_FLAT = doc, doc_flat
+    return {_normalise(c[0].id()) for c in result.failures + result.errors}
 
 
 def _run_against(text: str) -> tuple[set[str], set[str]]:
-    original_doc, original_flat = doc_suite.DOC, doc_suite.DOC_FLAT
-    doc_suite.DOC = text
-    doc_suite.DOC_FLAT = " ".join(text.split())
-    try:
-        result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(
-            _suite()
-        )
-    finally:
-        doc_suite.DOC, doc_suite.DOC_FLAT = original_doc, original_flat
-    failed = {_normalise(c[0].id()) for c in result.failures}
-    failed |= {_normalise(c[0].id()) for c in result.errors}
+    failed = _failures_against(text, _suite())
     every = {_short_id(case) for case in _suite()}
     return every - failed, every
+
+
+class TestTheFacadeReachesEveryCase(unittest.TestCase):
+    def test_every_case_in_the_package_is_re_exported(self) -> None:
+        import doc_gate
+
+        package = Path(doc_gate.__file__).parent
+        exported = {
+            name
+            for name in dir(doc_suite)
+            if isinstance(getattr(doc_suite, name), type)
+            and issubclass(getattr(doc_suite, name), unittest.TestCase)
+        }
+        defined: dict[str, str] = {}
+        for source in sorted(package.glob("*.py")):
+            for node in ast.parse(source.read_text(encoding="utf-8")).body:
+                if isinstance(node, ast.ClassDef) and any(
+                    getattr(base, "attr", getattr(base, "id", "")) == "TestCase"
+                    for base in node.bases
+                ):
+                    defined[node.name] = source.name
+        self.assertTrue(defined, "the package defines no TestCase; the walk rotted")
+        missing = {n: where for n, where in defined.items() if n not in exported}
+        self.assertEqual(
+            {},
+            missing,
+            f"defined in doc_gate/ and re-exported by nothing, so collected by "
+            f"nothing: {missing}",
+        )
+
+
+class TestEveryPageIsRead(unittest.TestCase):
+    @staticmethod
+    def _reading_suites() -> list[tuple[str, unittest.TestSuite]]:
+        by_class: dict[str, unittest.TestSuite] = {}
+        for case in _suite():
+            if _short_id(case) in EXPECTED_SURVIVORS:
+                continue
+            by_class.setdefault(type(case).__name__, unittest.TestSuite()).addTest(case)
+        return list(by_class.items())
+
+    def test_no_page_can_be_blanked_unnoticed(self) -> None:
+        witness = {}
+        for page in doc_suite.DOC_PATHS:
+            blanked = "\n\n".join(
+                "# blanked\n" if other is page else other.read_text(encoding="utf-8")
+                for other in doc_suite.DOC_PATHS
+            )
+            for name, suite in self._reading_suites():
+                failures = _failures_against(blanked, suite)
+                if failures:
+                    witness[page.name] = f"{name}.{min(failures).split('.')[-1]}"
+                    break
+        unread = sorted(
+            page.name for page in doc_suite.DOC_PATHS if page.name not in witness
+        )
+        self.assertEqual(
+            [],
+            unread,
+            f"page(s) this suite concatenates but does not constrain — blanking "
+            f"one fails no test, so its prose is unchecked in either "
+            f"direction: {unread}. What holds the others: "
+            + ", ".join(f"{name}={test}" for name, test in witness.items()),
+        )
 
 
 class TestDocSuiteIsNotVacuous(unittest.TestCase):

@@ -18,12 +18,6 @@ def figure(name, path, pattern, values, render, tolerance=0.0):
 
 
 class ReportedValues(unittest.TestCase):
-    """The doc states figures in a rendered form -- grouped, in tenths, padded.
-    A message that prints the raw measurement beside the stated one reads as a
-    parse failure rather than as drift, which is how `states 22.1, measured 220`
-    was first mistaken for a broken regex.
-    """
-
     def setUp(self):
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -133,9 +127,6 @@ class Updating(unittest.TestCase):
 
 
 class EveryFigureRoundTrips(unittest.TestCase):
-    """A render whose output its own pattern cannot match again would make the
-    figure permanently stale: --update writes a form --check rejects."""
-
     def test_update_then_check_is_clean_for_every_renderer(self):
         for render, measured, prose, pattern in (
             (drc._plain, (7,), "counts 3 things", r"counts\s+(\d+)\s+things"),
@@ -161,6 +152,33 @@ class EveryFigureRoundTrips(unittest.TestCase):
                     [],
                     f"{render.__name__} writes a form its own pattern rejects",
                 )
+
+
+class RealTree(unittest.TestCase):
+    ARCHITECTURE = drc.ROOT / "doc" / "architecture"
+
+    def test_the_partition_covers_every_figure(self):
+        here = drc.figures_for(drc.ROOT / "doc")
+        elsewhere = [f for f in drc.FIGURES if f not in here]
+        self.assertEqual(
+            len(here) + len(elsewhere),
+            len(drc.FIGURES),
+            "the two halves must partition FIGURES, or a figure is checked twice "
+            "or not at all",
+        )
+        self.assertTrue(drc.figures_for(self.ARCHITECTURE), "no architecture figure")
+
+    def test_every_figure_outside_the_architecture_pages_is_fresh(self):
+        architecture = set(drc.figures_for(self.ARCHITECTURE))
+        figures = tuple(f for f in drc.FIGURES if f not in architecture)
+        self.assertTrue(figures, "every figure now measures doc/architecture")
+        problems = drc.check(figures)
+        self.assertFalse(
+            problems,
+            "prose figures have drifted from what the tree measures; run "
+            "`python tooling/architecture/doc_restated_counts.py --update`:\n  "
+            + "\n  ".join(problems),
+        )
 
 
 if __name__ == "__main__":

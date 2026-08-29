@@ -42,7 +42,11 @@ that is correct threaded and wrong prefork is code that assumed one process.
 | `WorkerJob` | its own pool | queued jobs |
 
 `--workers 4` does **not** mean four processes: four HTTP workers *plus* the
-cron and job populations, each sized independently. The listen backlog is
+cron and job populations, each sized independently. The three populations are
+sized separately and **timed separately too**: the table below carries a
+per-job wall-time knob and two worker-lifetime knobs beside the cron ones, each
+defaulting to *defer to the tier above it* rather than to a number, so a
+deployment that tunes only `limit_time_real` has silently tuned all three. The listen backlog is
 `8 * population`, and the population can be adjusted at runtime
 (`self.population += 1`).
 
@@ -62,12 +66,16 @@ Defaults, from `odoo/tools/config.py`:
 | `limit_memory_soft` | `2048 MB` | RSS above this stops the worker *after* the current request; the only memory limit the process enforces |
 | `limit_memory_soft_gevent` | `None` | overrides `limit_memory_soft` on the `EventServer` path only |
 | `limit_memory_hard` | `2560 MB` | **deprecated, enforced by nothing in-process** — see below |
+| `limit_memory_hard_gevent` | `None` | the `EventServer` twin of the row above, and enforced by nothing for the same reason |
 | `limit_time_cpu` | `60 s` | CPU time per request |
 | `limit_time_real` | `120 s` | wall time per request |
 | `limit_time_real_cron` | `-1` | wall time per cron job; `-1` defers to `limit_time_real` |
+| `limit_time_real_job` | `-1` | wall time per background job; `-1` defers to `limit_time_real_cron`, which defers in turn |
+| `limit_time_worker_cron` | `0` | how long a cron thread or worker lives before it is restarted; `0` disables |
+| `limit_time_worker_job` | `-1` | the same for a job worker; `-1` defers to `limit_time_worker_cron` |
 | `db_maxconn` | `64` | checked-out connections, **per PostgreSQL server** |
 
-**There is one memory limit, not a pair.** `limit_memory_soft` is enforced at
+**There is one memory limit, not one of four.** `limit_memory_soft` is enforced at
 three sites — `_worker.py`'s `check_limits`, and `_threaded.py` for the HTTP and
 gevent paths — each calling `over_memory_soft_limit()` on the process's RSS and,
 above it, clearing `alive` so the worker stops after the current request. A
@@ -100,6 +108,16 @@ long-lived Python process accumulates; recycling is the design, not a workaround
 | `lag.py` | `ReplicaLagGate` + `LAG_SQL` — a sampled apply-lag ceiling that **demotes stale reads to the primary** |
 | `reaper.py` | `IdlePoolReaper` — which quiet per-DSN pools to close, and how often to look |
 | `leaks.py` | `CheckoutTracker` — which connections are out, since when, from which thread and borrow site |
+| `metrics.py` | `_MetricsMixin` — the per-cursor SQL counters (`sql_from_log`, `sql_into_log`, `sql_log_count`), so a slow request can name its statements rather than report a total |
+| `stats.py` | `PoolStats` — the counters behind `ConnectionPool.health()`: borrows, failures, and a bucketed borrow-wait histogram, each written under one lock because `x += 1` lost increments in exactly the concurrency they exist to diagnose |
+
+**Four of the seven act and three only observe**, and the two this table
+omitted until 2026-08-28 were both observers: `breaker`, `lag`, `budget` and
+`reaper` change what a request gets, while `leaks`, `metrics` and `stats` only
+say what happened. A table about degradation is where an observer is easiest to
+leave out and hardest to miss, since the observers are what a capacity decision
+is made from. The tier is `db-resilience-below-connectivity`'s `source` list —
+a contract that runs — and this table is read against it.
 
 Two properties for any capacity decision:
 

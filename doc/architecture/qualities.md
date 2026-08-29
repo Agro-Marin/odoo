@@ -27,15 +27,17 @@ the portable part.
 
 | | |
 |---|---|
-| Measured | **2026-08-08**, re-measured **2026-08-09** |
+| Measured | **2026-08-08**, re-measured **2026-08-09**; Scenario 3 again and Scenarios 5–6 first on **2026-08-28** |
 | CPU / RAM | Intel Core Ultra 9 185H, 22 logical cores, 30 GB |
 | PostgreSQL | 18.4, unix-socket peer auth, local |
 | Python | 3.14.4 (venv, with `odoo_rust` built in) |
-| Server mode | `workers = 0` (threaded), `log_level = info` |
-| Databases | `base` only (154 models) and `sale_management,purchase,stock,account` (105 modules, 529 models); the 2026-08-09 latency repeat used `base,web`, also 154 models |
+| Server mode | `workers = 0` (threaded), `log_level = info`; Scenarios 5 and 6 are the exceptions and state their own — `workers = 4`, prefork |
+| Databases | `base` only (154 models) and `sale_management,purchase,stock,account` (105 modules, 529 models); the 2026-08-09 latency repeat used `base,web`, also 154 models. The 2026-08-28 Scenario 3 repeat used the same two names, which by then held 19/162 and 114/597 — the drift is the point of stating them |
 
-All four scenarios were reproduced independently on 2026-08-09 against a
-separately installed database. Where a repeat differs from the original it is
+The four scenarios that existed then were all reproduced independently on
+2026-08-09 against a
+separately installed database; Scenario 3 was repeated again on 2026-08-28 and
+Scenarios 5 and 6 were added that day. Where a repeat differs from the original it is
 recorded in the scenario, with the environment that explains the difference.
 
 Two registry sizes throughout, because one number would mislead: the framework's
@@ -163,6 +165,37 @@ distinct 529-model registry is the figure to plan with**; the +8 MB says only
 that duplicate tenants are cheaper than distinct ones, without saying how much
 of that generalises.
 
+**Re-measured 2026-08-28, and the condition turned out to be *overlap*, not
+duplication.** The 2026-08-08 rows describe one order — `base` first, the larger
+schema second. Running it both ways, three times each, on `base` (19 modules,
+162 models today) and `sale_management,purchase,stock,account` (114 modules,
+597 models — the same four names the 2026-08-08 row used, which have since
+pulled in nine more modules and 68 more models):
+
+| First registry | Second registry | Second adds | MB per model of the second |
+|---|---|---:|---:|
+| `base`, 162 models | 597 models | **+72.0 MB** | **0.120** |
+| 597 models | `base`, 162 models | **+6.1 MB** | **0.037** |
+
+The forward direction reproduces the row: 0.120 MB per model against 0.117 in
+2026-08-08's +62 MB for 529, so the absolute moved with the model count and the
+*rate* held to within 4 % across twenty days and 68 more models — which is what
+this page means by the ratios being the portable part.
+
+The reverse direction is the new result. `base`'s models are very nearly a
+subset of the larger schema's, and loading it second costs **6 MB rather than
+the 93 MB it costs first** — 0.037 MB per model against 0.57, a fifteenth of
+the rate the same registry costs loaded into an empty process. So the second registry pays for **what the process
+does not already hold**, not for its own size, and the +8 MB row is not a fact
+about duplicate tenants: it is the same overlap effect at 100 %. A capacity
+estimate built by multiplying tenants by a per-registry figure over-counts by
+however much the tenants' schemas share.
+
+First registries, for the same reason, are the expensive ones: 162 models cost
++92.6 MB loaded into an empty process (0.57 MB per model) and 597 cost
++160.2 MB (0.27), because the first registry pays every once-only cost the rest
+inherit.
+
 Method caveat: both are deltas of `ru_maxrss`, a *peak* that never falls. They
 are lower bounds on growth and cannot observe memory being released.
 
@@ -179,6 +212,23 @@ of field/model metadata across distinct registries would collapse the 62 MB; a
 per-registry cache growing with *data* rather than schema would make it
 unbounded. Neither is visible in a single measurement, which is why this
 scenario states a condition rather than a rate.
+
+Reproduce: install two databases, read
+`resource.getrusage(RUSAGE_SELF).ru_maxrss` as a baseline, then in **one**
+process construct `Registry(db)` for each in turn, reading the peak again after
+each and asserting the two registry objects are distinct. Run it in both orders
+— the pair is the measurement, not either number.
+
+```bash
+odoo-bin -c <conf> -d <db_a> -i base --stop-after-init
+odoo-bin -c <conf> -d <db_b> -i sale_management,purchase,stock,account --stop-after-init
+```
+
+This block was missing until 2026-08-28. The page's closing rule — "A number
+added to this page must arrive with its command and its date" — was stated and
+half-enforced: a test read the date and nothing read the command, and the one
+scenario that carried none was the one whose figure this page flagged as never
+re-measured.
 
 ## Scenario 4 — Request latency
 
@@ -225,13 +275,145 @@ Reproduce: install `base,web`, serve on a free port, then 200 requests per route
 after a 30-request warm-up over one keep-alive connection, timing each
 round-trip and reading percentiles off the sorted samples.
 
+## Scenario 5 — Contention and retry
+
+> **Stimulus** Sixteen clients write the same field on the **same record**,
+> concurrently and without pause.
+> **Environment** `PreforkServer`, `workers = 4`, `max_cron_threads = 0`,
+> `db_maxconn = 24`, `base,web`, XML-RPC `res.partner.write` over loopback,
+> 16 threads × 200 calls. Measured **2026-08-28**, two runs each way.
+> **Response** PostgreSQL raises `SerializationFailure`; `retrying()` sleeps a
+> uniform backoff and re-runs the handler, up to
+> `MAX_TRIES_ON_CONCURRENCY_FAILURE`.
+> **Measure** Throughput, latency percentiles, the retry rate, and how many
+> requests exhaust the budget and reach the client as a 500.
+
+The control is the same load on **sixteen different records**: identical
+concurrency, identical request, only the row differs — so what separates the two
+columns is contention and nothing else.
+
+| | 16 rows (control) | 1 row (contended) |
+|---|---|---|
+| Throughput | 601.5 / 613.8 per s | **177.1 / 198.6 per s** |
+| p50 | 26.3 / 25.5 ms | **67.1 / 61.3 ms** |
+| p95 | 30.2 / 30.5 ms | 91.2 / 74.8 ms |
+| p99 | 33.8 / 32.8 ms | **347.8 / 158.0 ms** |
+| max | 165 / 186 ms | **2677 / 2028 ms** |
+| Requests retried | **0** | 145 of 6,400 (2.3 %) |
+| Failed to the client | **0 of 6,400** | **32 of 6,400 (0.5 %)** |
+
+Contention on one row costs **~3× the throughput, ~2.5× the p50 and 5–10× the
+p99**, and turns a lane with no failures into one with a floor of half a percent.
+
+**The retry ladder barely converges.** Every re-run logs one line, so the depth
+distribution is countable without instrumenting anything. Across both contended
+runs:
+
+| Attempt | Requests still failing | Survived to here |
+|---|---:|---:|
+| 1st retry | 145 | — |
+| 2nd | 97 | 67 % |
+| 3rd | 69 | 71 % |
+| 4th | 45 | 65 % |
+| budget exhausted | **32** | 71 % |
+
+Two thirds to three quarters of the requests that need one retry need another,
+at **every** depth. So **22 % of the requests that ever retried failed
+outright** — the ladder sheds about a third of its survivors per rung, and five
+rungs is not enough to drain a queue that is being refilled.
+
+**`retrying()` is a burst absorber, not a queue.** `delay()` draws
+`uniform(0, ceiling)` with the ceiling doubling from
+`BASE_CONCURRENCY_BACKOFF_SECONDS` to `MAX_CONCURRENCY_BACKOFF_SECONDS`, which
+spreads a *burst* of writers apart. Under a load that never stops offering, a
+retry lands back into the same contention it left, and the mechanism converges
+to a fixed loss rate instead of to zero. That is the shape to design against:
+retry budgets protect against transient conflict, and no budget converts
+sustained same-row write contention into success.
+
+**What would falsify this:** a workload where the retried requests drain — where
+the per-rung survival falls sharply rather than staying near 70 % — would mean
+the backoff is doing what it looks like it does. A *lower* failure rate at
+higher concurrency would mean the loss is queueing, not serialization; it is
+not, since the control at the same concurrency loses nothing.
+
+Reproduce: boot prefork on a free port, create enough records for the control,
+then drive N client threads through XML-RPC `execute_kw(..., "res.partner",
+"write", ...)` — all on one id for the contended column, one id each for the
+control — timing every round trip, and count the server's retry lines.
+
+```bash
+odoo-bin -c <conf> -d <db> --http-port 8171 --workers 4 \
+    --max-cron-threads 0 --db_maxconn 24
+grep -c "tries left, try again" <server log>          # retries
+grep -c "maximum number of tries reached" <server log>  # budget exhausted
+```
+
+## Scenario 6 — Cross-process invalidation
+
+> **Stimulus** One worker clears a named cache — `ir.config_parameter.set_param`
+> calls `registry.clear_cache("stable")`, which `INSERT`s a row into
+> `orm_signaling_stable` and keeps the id the database generated.
+> **Environment** `PreforkServer`, `workers = 4`, `max_cron_threads = 0`,
+> `base,web`, loopback, measured **2026-08-28**. Two conditions: eight client
+> threads keeping every worker busy, and no traffic at all.
+> **Response** Every other worker reads the sequence on its next
+> `check_signaling()` and drops the LRUs behind that key, logging one line.
+> **Measure** How long that takes, and how many of the other workers it reaches.
+
+| | 8 background clients | no traffic |
+|---|---|---|
+| Other workers reached per signal | **3 of 3**, on 9 of 10 rounds | **none** |
+| p50 | **1 ms** | — |
+| p95 / max | 3 ms / 3 ms | — |
+
+**The latency is not the interesting half; the placement is.**
+`check_signaling()` is called from `_acquire_registry_cursor`
+(`odoo/http/_serve.py`), on the read-only cursor the request was already
+taking, **before the request is dispatched**. So it is a poll at request start,
+not a push — which is why the idle column is empty, and why that is correct
+rather than a defect: a worker serving nothing has no opportunity to serve a
+stale cache, and the first request it does take clears the cache before
+dispatch. Staleness is bounded by "before the next request", not by a
+propagation delay.
+
+Two consequences worth carrying:
+
+**The tax is one query, not eight.** `get_sequences` builds a single `SELECT`
+of eight scalar subqueries, one per signalling table, so the per-request cost of
+the whole mechanism is one round trip — **1.08 ms measured from `psql`**, and
+less in-process, on a cursor already being acquired. A design that polled each
+table separately would pay eight.
+
+**A quoted propagation figure belongs to a traffic level.** The 1 ms above is
+what a *busy* worker shows. The same signal reaches an idle worker in no time at
+all, because nothing is looking; a deployment with uneven traffic has workers
+whose caches are arbitrarily old and none of them can serve one.
+
+**What would falsify this:** a worker dispatching a request on a registry older
+than the sequence in the database — which would mean the check has moved off the
+cursor-acquisition path, or that the read-only cursor is landing on a replica
+far enough behind to report no change. The second is not hypothetical and is
+described in [`data.md`](data.md#2-the-signalling-tables--cross-process-coordination):
+signalling read through a replica reads *below* the local sequence as staleness
+and ignores it, but a replica merely behind reads as "nothing has changed".
+
+Reproduce: boot prefork on a free port, keep N clients calling any cheap route
+so every worker is serving, then call `set_param` from one more client and read
+the deltas out of the server's own log — the access line for the signalling
+request and the `Invalidating caches after database signaling` line each worker
+writes. Both carry the pid, so no clock alignment with the client is needed.
+
+```bash
+odoo-bin -c <conf> -d <db> --http-port 8172 --workers 4 --max-cron-threads 0
+grep "Invalidating caches after database signaling" <server log>
+```
+
 ## What this page does not measure
 
-- **Contention and retry.** `retrying()` re-runs a handler on serialization and
-  deadlock errors; the rate under real concurrency, and the cost of a re-run,
-  are unmeasured. The most load-bearing gap.
-- **`workers > 0`.** Every figure here is threaded, single-process, so the
-  cross-process signalling path is exercised by none of them.
+- **Contention on anything but one row.** Scenario 5's two columns are the
+  extremes: total conflict and none. Realistic workloads sit between, and where
+  the retry ladder starts converging is not measured.
 - **Flush fixpoint depth.** How many passes a realistic write takes is
   unmeasured, and non-convergence is an error the architecture asserts but this
   page does not characterise.

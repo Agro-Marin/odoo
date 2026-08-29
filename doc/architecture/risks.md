@@ -18,10 +18,10 @@ a question — those live at the bottom of the view that owns the subject, under
 | R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 | **2026-08-09** |
 | R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 | — |
 | R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 | — |
-| R4 | "Enforced" means structural only — 32 gates cannot see behaviour | High | 2026-08-08 | — |
-| R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | — |
+| R4 | "Enforced" means structural only — 58 gates cannot see behaviour | High | 2026-08-08 | — |
+| R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | **2026-08-14** |
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
-| R7 | Every measured figure is single-process; contention is unmeasured | Medium | 2026-08-08 | — |
+| R7 | Every measured figure is single-process | Medium | 2026-08-08 | **2026-08-28** |
 
 ---
 
@@ -128,8 +128,38 @@ prefixed, **0** dropped.
 A risk stated at the level of its hardest half hides the half that is cheap to
 close.
 
-**What would close it.** A DB-backed upgrade test on a populated fixture, in the
-integration lane. Nothing cheaper can see the semantic half.
+**Narrowed again 2026-08-28: the guarantee is under test; the filing is not.**
+`tests/loading/test_migration_schema_visibility.py` installs a probe module at
+1.0, rewrites it to 1.1 with a new field and one script per stage, upgrades, and
+asks each script — through `information_schema`, since the registry's field list
+is what the module *declares* rather than what the table *has* — what it could
+see when it ran. `pre` sees no column; `post` sees it. That is the first test
+anywhere of the ordering this entry rests on, and no fixture tree can do it:
+`test_migration_ordering` covers which scripts run and in what order, against
+filenames, which is a different claim.
+
+Three mutations were checked against it, and the third is this entry's own
+narrowed half reproduced in a database: probing a column that already exists
+fails the `pre` assertion; a version directory that matches no stage, and
+scripts whose stage prefix is spelled with an underscore rather than the hyphen
+`_get_migration_files` selects on, each fail the guard that refuses to let the
+suite pass having run nothing.
+
+(Both spellings were written into this paragraph as backticked filenames first,
+and `test_every_backticked_python_file_exists` refused them — a name in
+backticks on these pages asserts the file exists. The exemption list is for the
+two hypothetical names above, and it stays that size by rewording rather than
+growing.)
+
+**What is left, and it is the original entry.** An author can still file a
+script that reads the old schema as `post-`, and nothing will notice: the
+guarantee is now tested, the *use* of it is not, and no test of the framework
+can distinguish a `post-` script that wanted the new schema from one that
+needed the old. What would close it is a review rule, not a gate.
+
+**What would close it.** Nothing mechanical. The stage semantics are pinned; the
+remaining half is a property of each migration an addon author writes, which is
+why this entry stays open at High rather than closing on the test above.
 
 ## R4 — "Enforced" means structural only
 
@@ -143,7 +173,7 @@ addon tests in 2026-08 while every gate and both tiers stayed green.
 
 **Cost.** A green boundary job reads as "the framework works" when it means "the
 structure holds". The integration lane is the only one that runs addon tests,
-and it runs ten suites.
+and it runs twelve suites.
 
 **What would close it.** Broadening the integration lane is the only lever;
 adding structural gates cannot reach this class of defect by construction.
@@ -188,6 +218,7 @@ mean:
 | `date_range` entered at the `@web/core/tree` face | **218** | `in_range_providers` was reached directly by the only consumer outside `web`; the face republishes it, so the file stops being surface |
 | `fields/field_options` published | **219** | the shared `supportedOptions` entries, reached by `html_editor` and `analytic`; one option descriptor had been written out twelve times across ten files, so this is a specifier bought deliberately to delete duplication (ADR-0045) |
 | the search bar split, and one selector newly reached | **221** | `adfb8afce15` gave `purchase_stock` and `product` real accessors instead of reaching around the search model, and split `search_bar` into `search_bar` and `search_bar_toggler` — one pinned specifier becoming two is +1 with no new exposure — while `components/record_selectors/avatar_models` is a genuinely new one specifier |
+| **today** | **224 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
 
 **A scope is not a specifier.** Recording that `agromarin`'s `geoengine` also
 enters at `@web/views/widgets` added a third scope tag to a line already pinned
@@ -242,18 +273,49 @@ hit on 2026-08-08:
   than as surface to preserve. `unresolved()` now enforces this half, but it
   cannot make a stale checkout current.
 
-## R7 — Every measured figure is single-process
+## R7 — Every measured figure is single-process — **CLOSED 2026-08-28**
 
-**What.** All of [`qualities.md`](qualities.md) was measured with `workers = 0`,
-threaded, on loopback, with no concurrent writers.
+**What.** Every figure on [`qualities.md`](qualities.md) was measured with
+`workers = 0`, threaded, on loopback, with no concurrent writers. Scenarios 5
+and 6 are now the exceptions and say so; the first four still are not, and are
+not meant to be — the page keeps them as the single-process baseline the other
+two are read against.
 
 **Cost.** The forces the numbers are meant to defend — *correctness under
-contention*, *horizontal scale* — are precisely the ones no figure covers.
-`retrying()`'s re-run rate and cost under real concurrency are unknown, and the
-cross-process signalling path is exercised by none of the measurements.
+contention*, *horizontal scale* — were precisely the ones no figure covered.
+`retrying()`'s re-run rate and cost under real concurrency were unknown, and the
+cross-process signalling path was exercised by none of the measurements.
 
-**What would close it.** A `workers > 0` measurement with a concurrent writer,
-recording retry rate, p99 under contention, and the signalling round-trip.
+**Half closed 2026-08-28: contention.** [Scenario 5](qualities.md#scenario-5--contention-and-retry) runs
+`workers = 4` under prefork with sixteen concurrent writers, against a control
+at the same concurrency on different rows. Same-row contention costs ~3× the
+throughput, ~2.5× the p50 and 5–10× the p99, and turns a lane with no failures
+into one losing **0.5 % of requests to an exhausted retry budget**.
+
+The result worth carrying into design is not the ratio: **the retry ladder
+barely converges.** Two thirds to three quarters of the requests that need one
+retry need another, at every depth, so 22 % of everything that ever retried
+failed outright. `retrying()` spreads a *burst* apart; under a load that never
+stops offering, a retry lands back into the contention it left and the mechanism
+settles at a fixed loss rate rather than at zero. A retry budget is not a queue,
+and no budget converts sustained same-row write contention into success.
+
+**Closed 2026-08-28 by the second half.**
+[Scenario 6](qualities.md#scenario-6--cross-process-invalidation) measures the
+signalling round trip: a cache clear reaches every other worker in **1 ms at
+p50, 3 ms at p95**, complete fan-out, when the workers are busy — and reaches
+nobody when they are idle, which is the mechanism working rather than failing.
+`check_signaling()` runs in `_acquire_registry_cursor` on the cursor the request
+was already taking, **before dispatch**, so it is a poll at request start and
+not a push: a worker serving nothing cannot serve a stale cache, and the first
+request it takes clears the cache before the handler sees it. The whole check is
+one `SELECT` of eight scalar subqueries, **1.08 ms**, on a cursor already open.
+
+Both halves of this entry are now measured, so it closes. What it leaves behind
+is stated on the page rather than here: where between total conflict and none
+the retry ladder begins to converge, and the replica case — signalling read
+through a cursor that lands on a replica merely *behind* reads as "nothing has
+changed".
 
 ---
 

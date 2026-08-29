@@ -90,6 +90,15 @@ to read. Not recoverable at run time, and caught by no gate in
 [`gates.md`](gates.md) — every one is structural and DB-free.
 [`risks.md`](risks.md) R3.
 
+That ordering is no longer only asserted here.
+`tests/loading/test_migration_schema_visibility.py` upgrades a probe module
+across a real schema change and asks each stage what the table looked like: the
+`pre` script sees no new column, the `post` script sees it. It is a DB-backed
+suite because it has to be — the registry's field list is what a module
+declares, not what its table has, so only `information_schema` on a database
+that really gained the column can answer. What stays untested is the half R3
+keeps: that a script *wanting* the old shape was filed at the right stage.
+
 Two asymmetries against Scenario A:
 
 - **Cost is not comparable.** Scenario A's measured 35.85 s installs 105 modules

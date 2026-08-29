@@ -276,6 +276,21 @@ env:
   SQL_REPORT_INSTALL: base_sql_report
   SQL_REPORT_TEST_TAGS: /base_sql_report
 
+  # `test_read_group` is the only coverage of the five read_group/ units --
+  # _empty, fill, format, mixin and sql -- and gates.md has named it as the next
+  # suite worth taking since the lane was built. 123 test methods, none of them
+  # reachable by either DB-free tier: a read_group is a GROUP BY, and what it
+  # groups is decided by SQL the in-memory path never runs.
+  READ_GROUP_INSTALL: test_read_group
+  READ_GROUP_TEST_TAGS: /test_read_group
+
+  # `test_access_rights` is record rules and ACLs, which is the one subsystem
+  # where a wrong answer is a security answer rather than a broken one. 52
+  # tests, one of which skips for want of an HTTP server, so the floor below
+  # sits under that.
+  ACCESS_RIGHTS_INSTALL: test_access_rights
+  ACCESS_RIGHTS_TEST_TAGS: /test_access_rights
+
 jobs:
   base-smoke:
     name: base suite (PostgreSQL 18)
@@ -669,6 +684,71 @@ jobs:
           echo "base_sql_report tests run: $RAN (floor: 70)"
           if [ "$RAN" -lt 70 ]; then
             echo "::error::only $RAN base_sql_report tests ran, below the floor of 70 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run test_read_group suite
+        # Its own database (ci_read_group), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_read_group \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${READ_GROUP_INSTALL}" \
+            --test-enable --test-tags "${READ_GROUP_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/read-group-suite.log
+
+      - name: Assert the test_read_group suite actually ran
+        # Same guard as the suites above. 123 tests today, none skipping; the
+        # floor sits under that so a narrowed tag or a module that failed to
+        # install fails loudly rather than quietly.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/read-group-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — test_read_group did not report a count"
+            exit 1
+          fi
+          echo "test_read_group tests run: $RAN (floor: 115)"
+          if [ "$RAN" -lt 115 ]; then
+            echo "::error::only $RAN test_read_group tests ran, below the floor of 115 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run test_access_rights suite
+        # Its own database (ci_access_rights), same reasoning as the suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_access_rights \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${ACCESS_RIGHTS_INSTALL}" \
+            --test-enable --test-tags "${ACCESS_RIGHTS_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/access-rights-suite.log
+
+      - name: Assert the test_access_rights suite actually ran
+        # Same guard as the suites above. 52 tests, one skipping for want of an
+        # HTTP server; the floor sits under that.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/access-rights-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — test_access_rights did not report a count"
+            exit 1
+          fi
+          echo "test_access_rights tests run: $RAN (floor: 45)"
+          if [ "$RAN" -lt 45 ]; then
+            echo "::error::only $RAN test_access_rights tests ran, below the floor of 45 —"
             echo "::error::something was skipped rather than failed."
             exit 1
           fi

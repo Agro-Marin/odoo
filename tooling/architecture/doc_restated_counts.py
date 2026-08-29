@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import functools
 import re
 import sys
 from collections.abc import Callable, Sequence
@@ -322,14 +323,6 @@ GUIDELINES = ROOT / "doc" / "coding_guidelines.rst"
 
 
 def architecture_checkers() -> tuple[int, ...]:
-    """Distinct gate scripts architecture.yml actually invokes.
-
-    risks.md states this number three times while arguing that passing every
-    structural gate is not the same as being right. test_architecture_doc.py
-    already compared the prose against the workflow, so the figure was checked
-    -- but it was not MEASURED, so the only way to move it was to retype it in
-    three places, which is what ADR-0041 exists to stop.
-    """
     workflow = (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
         encoding="utf-8"
     )
@@ -338,7 +331,7 @@ def architecture_checkers() -> tuple[int, ...]:
     )
 
 
-FIGURES: tuple[Figure, ...] = (
+_MEASUREMENTS: tuple[Figure, ...] = (
     Figure(
         "architecture_checkers",
         RISKS,
@@ -897,6 +890,23 @@ FIGURES: tuple[Figure, ...] = (
     ),
 )
 
+FIGURES: tuple[Figure, ...] = tuple(
+    figure._replace(measure=functools.cache(figure.measure)) for figure in _MEASUREMENTS
+)
+"""Every figure, with its measurement memoized for the life of the process.
+
+`check()` costs ~40s, and 31s of that is recomputed on a second call: the
+figures that dominate walk the tree themselves rather than through a cached
+helper -- `field_hook_exemptions` alone is 12s, on the first call and on every
+one after it. The gate calls `check()` once and exits, but the suite does not:
+the figures are checked per document, and `test_architecture_doc_is_not_vacuous`
+re-runs the whole doc suite twice more against a substituted page.
+
+Memoizing is sound because the tree cannot change inside one process -- `main`
+either checks or updates, and `update` rewrites the documents, never the code
+being measured.
+"""
+
 
 def _match(figure: Figure) -> re.Match[str]:
     match = figure.pattern.search(figure.path.read_text(encoding="utf-8"))
@@ -907,6 +917,12 @@ def _match(figure: Figure) -> re.Match[str]:
             f"restore the sentence or drop the figure from FIGURES."
         )
     return match
+
+
+def figures_for(
+    directory: Path, figures: Sequence[Figure] = FIGURES
+) -> tuple[Figure, ...]:
+    return tuple(f for f in figures if directory in f.path.parents)
 
 
 def check(figures: Sequence[Figure] = FIGURES) -> list[str]:
@@ -953,7 +969,7 @@ def update(figures: Sequence[Figure] = FIGURES) -> list[str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--update", action="store_true")
     args = parser.parse_args()
@@ -964,7 +980,7 @@ def main() -> int:
     problems = check()
     for problem in problems:
         print(problem)
-    return 1 if problems else 0
+    return 1 if (problems and args.check) else 0
 
 
 if __name__ == "__main__":
