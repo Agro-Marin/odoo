@@ -159,7 +159,7 @@ export class IoTLongpolling {
             if (!fallback && error?.name !== "AbortError") {
                 this._doWarnFail(iot_ip);
             }
-            throw new Error("Longpolling action failed");
+            throw new Error("Longpolling action failed", { cause: error });
         }
     }
 
@@ -193,7 +193,7 @@ export class IoTLongpolling {
                 }
             },
             (e) => {
-                if (e.name === "TimeoutError") {
+                if (e.cause?.name === "TimeoutError") {
                     this._onError();
                 }
             }
