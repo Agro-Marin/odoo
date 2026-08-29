@@ -10,6 +10,8 @@ address fields — directly on the controller, with the HTTP layer mocked.
 from contextlib import contextmanager
 from unittest.mock import patch
 
+import requests
+
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.google_address_autocomplete.controllers.google_address_autocomplete import (
@@ -156,14 +158,39 @@ class TestAutocompleteControllerParsing(TransactionCase):
         self.assertEqual(res["session_id"], "sess")
 
     def test_place_search_timeout_returns_empty(self):
-        """A google-side timeout degrades to an empty result set (boundary)."""
+        """A google-side timeout degrades to an empty result set (boundary).
+
+        Raises the real ``requests.exceptions.ConnectTimeout`` here, not the
+        builtin ``TimeoutError`` — the two are unrelated exception hierarchies
+        and only the former is what ``requests.get`` actually raises.
+        """
 
         def _raise_timeout(_controller, _route, _params):
-            raise TimeoutError("google is down")
+            raise requests.exceptions.ConnectTimeout("google is down")
 
         with (
             self._mock_request(),
             patch.object(AutoCompleteController, "_call_google_route", _raise_timeout),
+        ):
+            res = self.controller._perform_place_search(
+                "Paris, somewhere", api_key="key", session_id="sess"
+            )
+        self.assertEqual(res, {"results": [], "session_id": "sess"})
+
+    def test_place_search_real_requests_timeout_returns_empty(self):
+        """A real ``requests`` timeout (not the builtin) also degrades gracefully.
+
+        ``requests.exceptions.Timeout``/``ReadTimeout``/``ConnectTimeout`` do
+        not subclass the builtin ``TimeoutError``, so this exercises
+        ``requests.get`` itself rather than mocking ``_call_google_route``
+        away — the gap the previous test alone left uncovered.
+        """
+        with (
+            self._mock_request(),
+            patch(
+                f"{CONTROLLER_MODULE}.requests.get",
+                side_effect=requests.exceptions.ReadTimeout("google is down"),
+            ),
         ):
             res = self.controller._perform_place_search(
                 "Paris, somewhere", api_key="key", session_id="sess"
