@@ -141,10 +141,11 @@ class ProjectProject(models.Model):
         ).update({"sale_line_id": False})
 
     def _get_projects_for_invoice_state(self, invoice_state):
-        """Returns a recordset of project.project that has any Sale Order which invoice_state is the same as the
-        provided invoice_state.
+        """Return project.project records that have a Sale Order at the given invoice_state.
 
         :param invoice_state: The invoice status.
+        :return: project.project recordset matching the invoice state
+        :rtype: project.project
         """
         result = self.env.execute_query(
             SQL(
