@@ -6,7 +6,6 @@ class SurveySurvey(models.Model):
 
     certification_validity_months = fields.Integer(
         "Validity",
-        required=False,
         help="Specify the number of months the certification is valid after being awarded. "
         "Enter 0 for certifications that never expire.",
     )
