@@ -40,7 +40,10 @@ class MrpProductionSerials(models.TransientModel):
     @api.depends("production_id")
     def _compute_lot_quantity(self):
         for wizard in self:
-            wizard.lot_quantity = wizard.production_id.product_qty
+            # `lot_quantity` is an Integer; assigning the Float `product_qty`
+            # straight into it truncated toward zero instead of rounding
+            # (10.7 became 10, not 11).
+            wizard.lot_quantity = round(wizard.production_id.product_qty)
 
     def _serial_names(self):
         """The serial numbers typed into the wizard: blanks dropped, repeats folded.
