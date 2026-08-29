@@ -697,6 +697,117 @@ class TestImportModule(odoo.tests.TransactionCase):
             set(module.dependencies_id.mapped("name")), {"bar", "base", "foo"}
         )
 
+    def _stub_dependency_install_reloading_the_registry(self, written_names):
+        """Make a dependency auto-install behave here like it does in production.
+
+        The real `button_immediate_install()` cannot run in a test --
+        `_button_immediate_function` raises "Module operations inside tests are
+        not transactional and thus forbidden" -- so it is stubbed down to the
+        two effects the rest of the import depends on: the dependency ends up
+        installed, and the registry is rebuilt.
+
+        The rebuild is stood in for by registering a subclass of
+        `ir.module.module` that records the names it writes. In production that
+        rebuilt class is the one carrying whatever the freshly installed
+        dependency contributes to this model -- `website` and `account` both
+        override its `write()` in this fork -- so a recordset still bound to the
+        pre-reload class silently skips them.
+
+        Returns the two context managers to enter, the first of which puts the
+        registry back the way it was.
+        """
+        registry = self.env.registry
+        Registered = registry["ir.module.module"]
+
+        class ReloadedIrModuleModule(Registered):
+            _register = False  # test-local, must never become a real model
+
+            def write(self, vals):
+                written_names.extend(self.mapped("name"))
+                return super().write(vals)
+
+        def fake_immediate_install(records):
+            # write first, swap second: only what comes *after* the reload
+            # is what this proves anything about
+            records.write({"state": "installed"})
+            registry.models["ir.module.module"] = ReloadedIrModuleModule
+
+        return (
+            patch.dict(registry.models),
+            patch.object(
+                Registered, "button_immediate_install", fake_immediate_install
+            ),
+        )
+
+    def test_import_module_rebinds_the_model_after_installing_dependencies(self):
+        """t27590: once `button_immediate_install()` has rebuilt the registry,
+        the rest of the import has to run on the model class of the *new*
+        registry. `browse()`, `with_env()` and `sudo()` cannot supply it: they
+        spawn from `cls` (`odoo/orm/models/mixins/iteration.py`), so the
+        recordset keeps the pre-reload class while `env.registry` -- a property
+        over `transaction.registry` -- has already moved on.
+        """
+        IrModuleModule = self.env["ir.module.module"]
+        dependency = IrModuleModule.create(
+            {"name": "test_bim_dependency", "state": "uninstalled"}
+        )
+        IrModuleModule.create({"name": "foo", "state": "uninstalled", "imported": True})
+        written_names = []
+        restore_registry, stub_install = (
+            self._stub_dependency_install_reloading_the_registry(written_names)
+        )
+        files = [
+            (
+                "foo/__manifest__.py",
+                self.manifest_content(depends=["base", "test_bim_dependency"]),
+            ),
+        ]
+        with restore_registry, stub_install:
+            self.import_zipfile(files)
+
+        self.assertEqual(
+            dependency.state, "installed", "the stub must have installed the dependency"
+        )
+        self.assertIn(
+            "foo",
+            written_names,
+            "after auto-installing 'test_bim_dependency' the import went on "
+            "writing 'foo' through the pre-reload ir.module.module class, so "
+            "anything that dependency adds to the model is silently skipped",
+        )
+
+    def test_import_zipfile_rebinds_the_model_between_modules(self):
+        """The same rebinding one level up: `_import_zipfile` keeps calling
+        `self.sudo()._import_module(...)` for every remaining module of the
+        archive, and `sudo()` carries the pre-reload class exactly like
+        `browse()` does. So a dependency installed while importing the first
+        module must not leave the ones after it on the old class.
+        """
+        IrModuleModule = self.env["ir.module.module"]
+        IrModuleModule.create({"name": "test_bim_dependency", "state": "uninstalled"})
+        IrModuleModule.create({"name": "foo", "state": "uninstalled", "imported": True})
+        IrModuleModule.create({"name": "bar", "state": "uninstalled", "imported": True})
+        written_names = []
+        restore_registry, stub_install = (
+            self._stub_dependency_install_reloading_the_registry(written_names)
+        )
+        files = [
+            (
+                "foo/__manifest__.py",
+                self.manifest_content(depends=["base", "test_bim_dependency"]),
+            ),
+            ("bar/__manifest__.py", self.manifest_content(depends=["base", "foo"])),
+        ]
+        with restore_registry, stub_install:
+            self.import_zipfile(files)
+
+        self.assertIn(
+            "bar",
+            written_names,
+            "'bar' is imported after 'foo' pulled in a dependency, so the "
+            "_import_zipfile loop handed it a pre-reload ir.module.module class",
+        )
+
     def test_multiple_file_open_temporary_directory(self):
         files = [("foo/__manifest__.py", self.manifest_content(name="foo"))]
         with (

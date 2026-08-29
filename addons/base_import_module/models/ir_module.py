@@ -140,7 +140,14 @@ class IrModuleModule(models.Model):
             if attachment:
                 module.icon_image = attachment.datas
 
-    def _import_module(self, module, path, force=False, with_demo=False):
+    def _import_module(
+        self,
+        module,
+        path,
+        force=False,
+        with_demo=False,
+        after_dependency_install=False,
+    ):
         # Do not create a bridge module for these neutralizations.
         # Do not involve specific website during import by resetting
         # information used by website's get_current_website.
@@ -185,6 +192,18 @@ class IrModuleModule(models.Model):
                 )
                 raise UserError(err)
             to_install = known_mods.filtered(lambda mod: mod.name in unmet_dependencies)
+            if after_dependency_install:
+                # We already came through here once and installed these; if
+                # they are still missing, recursing again would install them
+                # again, and each round hard-commits (see below). Stop instead.
+                raise UserError(
+                    _(
+                        "Dependencies of module '%(module)s' are still not "
+                        "installed after installing them: %(dependencies)s",
+                        module=module,
+                        dependencies=", ".join(sorted(unmet_dependencies)),
+                    )
+                )
             # t27114: button_immediate_install() hard-commits the current
             # transaction (twice) and reloads the registry — it cannot be
             # wrapped in a savepoint, because a real COMMIT ends the
@@ -195,7 +214,29 @@ class IrModuleModule(models.Model):
             # was applied. This is accepted, not fixed — there is no
             # transactional way to undo a registry-reloading install once
             # it has committed.
+            _logger.info(
+                "Module %r depends on %s, installing them first",
+                module,
+                ", ".join(sorted(to_install.mapped("name"))),
+            )
             to_install.button_immediate_install()
+            # That reload leaves `self` on the *previous* registry's model
+            # class: `browse()`, `with_env()` and `sudo()` all spawn from
+            # `cls`, so no recordset derived from `self` can escape it, and
+            # every override the modules we just installed contribute to
+            # `ir.module.module` would be skipped for the rest of the import.
+            # `env[...]` is the one lookup that goes through
+            # `env.registry`, which already points at the rebuilt registry.
+            # Restart from there so the module list is re-read from it too;
+            # the commits above stand either way.
+            rebound = self.env[self._name].browse(self._ids)
+            return rebound._import_module(
+                module,
+                path,
+                force=force,
+                with_demo=with_demo,
+                after_dependency_install=True,
+            )
         elif "web_studio" not in installed_mods and _is_studio_custom(path):
             raise UserError(_("Studio customizations require the Odoo Studio app."))
 
@@ -527,11 +568,18 @@ class IrModuleModule(models.Model):
                     if is_data_file or is_static or is_translation:
                         _extract(file)
 
+                # Same rebinding as in _import_module, one level up: importing
+                # any module of the archive may auto-install a dependency and
+                # rebuild the registry, and `self` — `sudo()` included — would
+                # hand the modules that follow the model class of the registry
+                # from before. Resolving through the environment each round
+                # picks up the current one.
+                env = self.sudo().env
                 for mod_name in sorted_dirs:
                     module_names.append(mod_name)
                     try:
                         path = str(Path(module_dir) / mod_name)
-                        self.sudo()._import_module(
+                        env[self._name]._import_module(
                             mod_name, path, force=force, with_demo=with_demo
                         )
                     except Exception as e:
