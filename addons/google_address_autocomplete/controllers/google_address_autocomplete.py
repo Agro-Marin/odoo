@@ -129,7 +129,7 @@ class AutoCompleteController(http.Controller):
 
         try:
             results = self._call_google_route("/autocomplete/json", params)
-        except (TimeoutError, ValueError) as e:
+        except (requests.exceptions.RequestException, ValueError) as e:
             _logger.error(e)
             return {"results": [], "session_id": session_id}
 
@@ -171,7 +171,7 @@ class AutoCompleteController(http.Controller):
 
         try:
             results = self._call_google_route("/details/json", params)
-        except (TimeoutError, ValueError) as e:
+        except (requests.exceptions.RequestException, ValueError) as e:
             _logger.error(e)
             return {"address": None}
 
