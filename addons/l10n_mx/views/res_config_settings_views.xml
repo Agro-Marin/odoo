@@ -13,6 +13,10 @@
                         <label for="l10n_mx_account_income_return_discount_id" class="col-lg-5 o_light_label" string="Credit notes"/>
                         <field name="l10n_mx_account_income_return_discount_id" placeholder="Returns and discounts"/>
                     </div>
+                    <div class="row mt8" invisible="company_country_code != 'MX'">
+                        <label for="l10n_mx_account_income_re_invoicing_id" class="col-lg-5 o_light_label" string="Re-invoicing"/>
+                        <field name="l10n_mx_account_income_re_invoicing_id" placeholder="Re-invoicing"/>
+                    </div>
                 </xpath>
             </field>
         </record>
