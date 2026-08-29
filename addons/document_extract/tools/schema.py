@@ -49,7 +49,13 @@ class FieldSpec:
             )
 
     def accepts(self, value: Any) -> bool:
-        return value is None or isinstance(value, TYPES[self.type])
+        if value is None:
+            return True
+        if self.type in ("int", "float") and isinstance(value, bool):
+            # bool is a subclass of int; without this a True/False value would
+            # pass as a valid numeric candidate for total/consumption/etc.
+            return False
+        return isinstance(value, TYPES[self.type])
 
 
 @dataclass(frozen=True)
