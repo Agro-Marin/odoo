@@ -67,6 +67,9 @@ export class IoTLongpolling {
      */
     removeListener(iot_ip, device_identifier, listener_id) {
         const listener = this._listeners[iot_ip];
+        if (!listener) {
+            return;
+        }
         const device = listener.devices[device_identifier];
         if (device && device.listener_id === listener_id) {
             delete listener.devices[device_identifier];
