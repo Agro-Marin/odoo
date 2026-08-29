@@ -2,15 +2,7 @@ from odoo import api, fields, models
 
 
 class MixinEventMailSchedule(models.AbstractModel):
-    """What an event communication is scheduled as, independent of what it hangs on.
-
-    ``event.mail`` (on an event) and ``event.type.mail`` (on a template) carried
-    an identical copy of this: the same five fields, the same notification-type
-    compute and the same value preparation. The copies had already drifted -- the
-    two ``interval_type`` labels differed by a trailing space -- and every module
-    adding a channel had to extend both models with the same two ``selection_add``
-    lines. Extending this one abstract model reaches both.
-    """
+    """Scheduling fields shared by event.mail and event.type.mail."""
 
     _name = "mixin.event.mail.schedule"
     _description = "Event Communication Scheduling"
