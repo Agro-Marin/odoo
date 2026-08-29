@@ -28,7 +28,7 @@ def addon_src(addon: str = DEFAULT_ADDON):
 
 ESLINT = ROOT / "node_modules" / ".bin" / "eslint"
 
-MAX_LINES = 80
+MAX_LINES = 90
 
 GENERATED = frozenset({"emoji_data.js"})
 

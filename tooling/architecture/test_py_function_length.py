@@ -206,19 +206,19 @@ class TestTheRatchetHintIsCopyPastable(unittest.TestCase):
     def test_the_tree_scope_hints_the_one_sided_mode(self):
         out = self._hint(["--top", "0", "--addon", pfl.ALL_ADDONS])
         self.assertIn("ratchet.py pyfunclen_addons --mode no-increase --count", out)
-        self.assertIn("(> 80 lines, addons/)", out)
+        self.assertIn(f"(> {pfl.MAX_LINES} lines, addons/)", out)
 
     def test_the_core_scope_hints_no_mode_and_stays_exact(self):
         out = self._hint(["--top", "0"])
         self.assertIn("ratchet.py pyfunclen --count", out)
         self.assertNotIn("--mode", out)
-        self.assertIn("(> 80 lines, odoo/)", out)
+        self.assertIn(f"(> {pfl.MAX_LINES} lines, odoo/)", out)
 
     def test_a_single_module_hints_its_own_exact_floor(self):
         out = self._hint(["--top", "0", "--addon", "stock"])
         self.assertIn("ratchet.py pyfunclen_stock --count", out)
         self.assertNotIn("--mode", out)
-        self.assertIn("(> 80 lines, addons/stock/)", out)
+        self.assertIn(f"(> {pfl.MAX_LINES} lines, addons/stock/)", out)
 
 
 class TestRealTree(unittest.TestCase):

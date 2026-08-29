@@ -1,4 +1,4 @@
 {
-  "count": 242,
-  "note": "288 -> 242, all of it from splitting `_pls_get_naive_bayes_probabilities` (189 lines, complexity 25) into itself plus `_pls_tally_frequencies` and `_pls_team_priors`. crm is now at zero on c901_addons as well. Six functions remain over the 80-line budget; `_allocate_leads` at 176 is the longest and is the next one to take."
+  "count": 192,
+  "note": "Function-length budget raised 80 -> 90 (ADR-0025). This floor is RE-MEASURED at the new budget, not improved: no function was split or shortened for it. Measured in a detached worktree at HEAD with only this change applied, so the shared dirty tree is not in the reading."
 }

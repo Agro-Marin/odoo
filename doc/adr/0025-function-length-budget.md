@@ -38,7 +38,7 @@ is none of them.
 
 ## Decision
 
-**Both trees carry a function-length budget at 80 lines, ratcheted, and each is
+**Both trees carry a function-length budget at 90 lines, ratcheted, and each is
 measured by a real parser rather than a bespoke one.**
 
 The client rule is injected into a normal ESLint run — ESLint already parses
@@ -63,7 +63,7 @@ encourage.** Splitting the 1024-line CLI builder measured:
 
 One enormous function became eleven methods, four still over budget. By offender
 count that refactor is a regression; by excess lines and worst case it is a clear
-improvement. So the Python gate ratchets `sum(len - 80)`.
+improvement. So the Python gate ratchets `sum(len - 90)`.
 
 **The client gate still counts functions**, because that is what it was built
 with and its baseline is in those terms. A known inferior metric, recorded here

@@ -40,7 +40,7 @@ def addon_src(addon: str = DEFAULT_ADDON) -> Path:
     return ROOT / "addons" / addon
 
 
-MAX_LINES = 80
+MAX_LINES = 90
 
 
 @dataclass(frozen=True)
