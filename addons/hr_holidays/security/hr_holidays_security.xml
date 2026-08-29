@@ -100,8 +100,14 @@ A user without any rights on Time Off will be able to see the application, creat
         <field name="name">Time Off All Approver read</field>
         <field name="model_id" ref="model_hr_leave"/>
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="perm_write" eval="True"/>
-        <field name="perm_create" eval="True"/>
+        <!-- perm_write/perm_create must stay False: ir.rule ORs same-group
+             domains per operation, so a True here would OR this rule's
+             unconditional domain into every write/create check for this
+             group and silently defeat hr_leave_rule_officer_update's
+             state-gated domain below. perm_unlink stays True: it is this
+             group's only unlink grant on hr.leave. -->
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
         <field name="perm_unlink" eval="True"/>
         <field name="groups" eval="[(4, ref('hr_holidays.group_hr_holidays_user'))]"/>
     </record>
@@ -238,18 +244,33 @@ A user without any rights on Time Off will be able to see the application, creat
     <record id="resource_leaves_base_user" model="ir.rule">
         <field name="name">Time Off Resources: Approver</field>
         <field name="model_id" ref="model_resource_calendar_leaves"/>
-        <field name="domain_force">[(1,'=',1)]</field>
+        <!-- Global/company-wide entries only (resource_id unset). An
+             unconditional (1,'=',1) here used to OR-defeat resource's own
+             read rule for this same group
+             (resource_calendar_leaves_rule_group_user_create, which scopes
+             to global-or-own), exposing every employee's individual leave
+             to every internal user. Own-leave visibility still comes from
+             that resource rule, unaffected by this one. -->
+        <field name="domain_force">[('resource_id', '=', False)]</field>
         <field name="perm_create" eval="False"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_unlink" eval="False"/>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
-    <!-- FIXME RLi Maybe this should be restricted somewhat -->
     <record id="resource_leaves_holidays_user" model="ir.rule">
         <field name="name">Time Off Resources: All Approver</field>
         <field name="model_id" ref="model_resource_calendar_leaves"/>
-        <field name="domain_force">[(1,'=',1)]</field>
+        <!-- Scoped to what an HR Time Off Officer actually manages: a
+             company/calendar-wide entry (resource_id unset) or one tied to
+             an employee's own resource. Excludes non-hr resources (rooms,
+             machines, vehicles) and resources with no employee at all,
+             which the previous unconditional (1,'=',1) exposed. -->
+        <field name="domain_force">[
+            '|',
+                ('resource_id', '=', False),
+                ('resource_id.employee_id', '!=', False),
+        ]</field>
         <field name="groups" eval="[(4, ref('hr_holidays.group_hr_holidays_user'))]"/>
     </record>
 
@@ -257,7 +278,7 @@ A user without any rights on Time Off will be able to see the application, creat
         <field name="name">Time Off multi company rule</field>
         <field name="model_id" ref="model_hr_leave_type"/>
         <field name="domain_force">[
-            '|', 
+            '|',
                 ('company_id', 'in', company_ids),
                 '&amp;',
                     ('company_id', '=', False),
