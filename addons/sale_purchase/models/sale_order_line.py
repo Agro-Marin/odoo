@@ -229,10 +229,10 @@ class SaleOrderLine(models.Model):
     ):
         """Returns the values to create the purchase order line from the current SO line.
         :param purchase_order: record of purchase.order
-        :rtype: dict
         :param quantity: the quantity to force on the PO line, expressed in SO line UoM
         :param supplierinfo: the vendor pricelist line the purchase order was chosen
             from; resolved here when the caller has none
+        :rtype: dict
         """
         self.ensure_one()
         if supplierinfo is None:
@@ -271,6 +271,7 @@ class SaleOrderLine(models.Model):
 
         :param partner: restrict to this vendor. Left out when the question is
             *which* vendor to buy from; passed once a purchase order has settled it.
+        :param warning: raise UserError when no vendor matches; pass False to test for one silently
         """
         supplier = self.product_id._select_seller(
             partner_id=partner or self._get_purchase_partner(),
@@ -342,7 +343,7 @@ class SaleOrderLine(models.Model):
             purchase_order.origin = ", ".join([*origins, self.order_id.name])
 
     def _purchase_service_create(self, quantity=False):
-        """On Sales Order confirmation, some lines (services ones) can create a purchase order line and maybe a purchase order.
+        """Create a purchase order line (and maybe a purchase order) for `quantity` of this sale line.
         If a line should create a RFQ, it will check for existing PO. If no one is find, the SO line will create one, then adds
         a new PO line. The created purchase order line will be linked to the SO line.
         :param quantity: the quantity to force on the PO line, expressed in SO line UoM
