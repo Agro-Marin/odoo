@@ -35,6 +35,20 @@ class MrpRoutingWorkcenter(models.Model):
         "unarchiving the BoM brings it back. An operation retired on its own "
         "does not carry the flag and stays retired.",
     )
+    archived_bom_line_ids = fields.Many2many(
+        "mrp.bom.line",
+        relation="mrp_routing_workcenter_archived_bom_line_rel",
+        copy=False,
+        help="Technical: bom lines that pointed to this operation before it "
+        "was archived, so unarchiving can restore the link.",
+    )
+    archived_byproduct_ids = fields.Many2many(
+        "mrp.bom.byproduct",
+        relation="mrp_routing_workcenter_archived_byproduct_rel",
+        copy=False,
+        help="Technical: byproduct lines that pointed to this operation before "
+        "it was archived, so unarchiving can restore the link.",
+    )
     time_mode = fields.Selection(
         [("manual", "Fixed"), ("auto", "Computed")],
         string="Duration Computation",
@@ -335,10 +349,17 @@ class MrpRoutingWorkcenter(models.Model):
     def action_archive(self):
         res = super().action_archive()
         bom_lines = self.env["mrp.bom.line"].search([("operation_id", "in", self.ids)])
-        bom_lines.write({"operation_id": False})
         byproduct_lines = self.env["mrp.bom.byproduct"].search(
             [("operation_id", "in", self.ids)]
         )
+        # Snapshot which lines pointed here before clearing the link, so
+        # `action_unarchive` can restore it -- mirroring `archived_with_bom`
+        # for the operation/BoM pair.
+        for op, lines in bom_lines.grouped("operation_id").items():
+            op.archived_bom_line_ids = lines
+        for op, lines in byproduct_lines.grouped("operation_id").items():
+            op.archived_byproduct_ids = lines
+        bom_lines.write({"operation_id": False})
         byproduct_lines.write({"operation_id": False})
         self.bom_id.with_context(
             skip_bom_outdated_unmark=True
@@ -347,6 +368,11 @@ class MrpRoutingWorkcenter(models.Model):
 
     def action_unarchive(self):
         res = super().action_unarchive()
+        for op in self:
+            op.archived_bom_line_ids.write({"operation_id": op.id})
+            op.archived_byproduct_ids.write({"operation_id": op.id})
+        self.archived_bom_line_ids = [Command.clear()]
+        self.archived_byproduct_ids = [Command.clear()]
         self.bom_id.with_context(
             skip_bom_outdated_unmark=True
         )._update_outdated_bom_in_productions()
