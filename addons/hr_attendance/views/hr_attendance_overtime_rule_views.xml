@@ -17,8 +17,8 @@
                     </div>
                     <notebook>
                         <page string="Definition">
-                            <group 
-                                string="Condition" 
+                            <group
+                                string="Condition"
                                 style="grid-template-columns:max-content 1fr"
                             >
                                 <field name="base_off" widget="radio" string="The rule is based on"/>
@@ -51,9 +51,9 @@
                                 </span>
                                 <field name="resource_calendar_id" string="Schedule" invisible="base_off != 'timing' or timing_type != 'schedule'"/>
                             </group>
-                            <group 
+                            <group
                                 name="action_section"
-                                string="Action" 
+                                string="Action"
                                 style="grid-template-columns:max-content 1fr"
                             >
                                 <span colspan="2" class="mb-3 fw-bold">The hours will be considered extra and submitted to approval.</span>
@@ -81,8 +81,8 @@
             <list>
                 <field name="name"/>
                 <field name="base_off"/>
-                <field 
-                    name="expected_hours_from_contract" 
+                <field
+                    name="expected_hours_from_contract"
                     string="Get working hours from contract"/>
                 <field name="expected_hours" invisible="expected_hours_from_contract or base_off != 'quantity'"/>
                 <field name="resource_calendar_id" invisible="expected_hours_from_contract or base_off != 'timing'"/>
@@ -121,7 +121,7 @@
                         </group>
                     </group>
                     <group colspan="4">
-                        <field 
+                        <field
                             name="description" colspan="4"
                             placeholder="Provide a description or sources for this ruleset."/>
                     </group>
@@ -172,12 +172,6 @@
         </field>
     </record>
 
-
-    <record id="hr_attendance_overtime_rule_action" model="ir.actions.act_window">
-        <field name="name">Overtime Rules</field>
-        <field name="res_model">hr.attendance.overtime.rule</field>
-        <field name="view_mode">list,form</field>
-    </record>
 
     <record id="hr_attendance_overtime_ruleset_action" model="ir.actions.act_window">
         <field name="name">Rulesets</field>
