@@ -444,14 +444,6 @@ class HrAttendance(models.Model):
             start_day_employee_tz.date(),
         )
 
-    def _get_week_date_range(self):
-        assert self
-        dates = self.mapped("date")
-        date_start, date_end = min(dates), max(dates)
-        date_start -= relativedelta(days=date_start.weekday())
-        date_end += relativedelta(days=6 - date_end.weekday())
-        return date_start, date_end
-
     def _get_overtimes_to_update_domain(self):
         if not self:
             return Domain.FALSE
