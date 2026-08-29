@@ -10,7 +10,6 @@ class SurveySurvey(models.Model):
     )
     hr_job_ids = fields.One2many("hr.job", "survey_id", string="Job Position")
 
-    @api.depends("survey_type")
     @api.depends_context("uid")
     def _compute_allowed_survey_types(self):
         super()._compute_allowed_survey_types()
