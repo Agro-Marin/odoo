@@ -240,7 +240,12 @@ print("python half ran")
         for env in envs:
             interpreter = ws / env / "bin" / "python"
             interpreter.parent.mkdir(parents=True)
-            interpreter.write_text(f'#!/bin/sh\necho "PY={env}"\n', encoding="utf-8")
+            # `shift` drops the script path the trampoline passes as $1, so ARGV
+            # is what the CALLER typed -- the half these tests never looked at.
+            interpreter.write_text(
+                f'#!/bin/sh\necho "PY={env}"\nshift\necho "ARGV=$*"\n',
+                encoding="utf-8",
+            )
             interpreter.chmod(0o755)
             (ws / f"{env}.conf").write_text("[options]\n", encoding="utf-8")
         script = ws / "repo" / "tooling" / "runner" / "probe"
@@ -248,14 +253,14 @@ print("python half ran")
         script.chmod(0o755)
         return script
 
-    def _run(self, script, **env):
+    def _run(self, script, *args, **env):
         clean = {
             k: v
             for k, v in os.environ.items()
             if k not in ("ODOO_VENV_PYTHON", "ODOO_CONF")
         }
         return subprocess.run(
-            [str(script)],
+            [str(script), *args],
             capture_output=True,
             text=True,
             timeout=60,
@@ -267,6 +272,15 @@ print("python half ran")
         done = self._run(self._workspace(tmp_path, ["p314"]))
         assert done.returncode == 0, done.stderr
         assert "PY=p314" in done.stdout
+
+    def test_the_arguments_reach_the_runner(self, tmp_path):
+        done = self._run(
+            self._workspace(tmp_path, ["p314"]), "--db", "mine", "@web/core/domain"
+        )
+        assert done.returncode == 0, done.stderr
+        assert "ARGV=--db mine @web/core/domain" in done.stdout, (
+            f"the trampoline dropped what the caller typed: {done.stdout!r}"
+        )
 
     def test_odoo_conf_chooses_between_several(self, tmp_path):
         script = self._workspace(tmp_path, ["p314", "p313"])

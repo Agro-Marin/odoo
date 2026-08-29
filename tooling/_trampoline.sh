@@ -35,18 +35,25 @@ if [ -z "$py" ]; then
         case " $found " in *" $cand "*) continue ;; esac
         found="$found $cand"
     done
-    set -- $found
-    if [ "$#" -eq 0 ]; then
+    # Count without `set --`: it assigns the positional parameters, and the exec
+    # below forwards "$@" to the runner. `set -- $found` therefore replaced every
+    # argument the caller typed with the candidate list, so with one venv found
+    # `hoot --db mine '@web/x'` reached the python half as `hoot <interpreter>`.
+    n=0
+    for cand in $found; do
+        n=$((n + 1))
+        [ "$n" -eq 1 ] && py="$cand"
+    done
+    if [ "$n" -eq 0 ]; then
         echo "$(basename "$0"): no venv python under $ws or $ws/venv;" >&2
         echo "  set ODOO_VENV_PYTHON, or ODOO_CONF to name the environment" >&2
         exit 1
-    elif [ "$#" -gt 1 ]; then
-        echo "$(basename "$0"): $# venvs under $ws and no way to choose:" >&2
-        for cand in "$@"; do echo "    $cand" >&2; done
+    elif [ "$n" -gt 1 ]; then
+        echo "$(basename "$0"): $n venvs under $ws and no way to choose:" >&2
+        for cand in $found; do echo "    $cand" >&2; done
         echo "  set ODOO_CONF to the environment's config, or ODOO_VENV_PYTHON" >&2
         echo "  to the interpreter itself" >&2
         exit 1
     fi
-    py="$1"
 fi
 exec "$py" "$0" "$@"
