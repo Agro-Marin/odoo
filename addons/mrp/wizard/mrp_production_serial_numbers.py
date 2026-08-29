@@ -130,15 +130,25 @@ class MrpProductionSerials(models.TransientModel):
         lots = self._serial_names()
         if not lots:
             raise UserError(self.env._("No valid serial numbers provided."))
-        existing_lots = self.env["stock.lot"].search(
-            [
-                "|",
-                ("company_id", "=", False),
-                ("company_id", "=", self.production_id.company_id.id),
-                ("product_id", "=", self.production_id.product_id.id),
-                ("name", "in", lots),
-            ]
+        # `active_test=False`: a typed name equal to an *archived* lot's name
+        # still collides on `stock.lot`'s unique constraint, which isn't
+        # active-filtered (`_check_unique_lot` re-checks with the same
+        # context). Left default, the search missed it, and `create()` below
+        # died on the duplicate instead of reusing the archived lot.
+        existing_lots = (
+            self.env["stock.lot"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    "|",
+                    ("company_id", "=", False),
+                    ("company_id", "=", self.production_id.company_id.id),
+                    ("product_id", "=", self.production_id.product_id.id),
+                    ("name", "in", lots),
+                ]
+            )
         )
+        existing_lots.filtered(lambda lot: not lot.active).action_unarchive()
         existing_lot_names = existing_lots.mapped("name")
         new_lots_vals = []
         sequence = self.production_id.product_id.lot_sequence_id
