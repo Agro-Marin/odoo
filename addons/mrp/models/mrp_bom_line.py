@@ -117,9 +117,18 @@ class MrpBomLine(models.Model):
         "bom_product_template_attribute_value_ids",
     )
 
+    #: Fields whose change on an existing line makes the BoM's in-progress
+    #: productions outdated. Mirrors `mrp.bom._OUTDATING_FIELDS`: writing a
+    #: line directly (bypassing `mrp.bom.write()`) used to leave
+    #: `is_outdated_bom` stale.
+    _OUTDATING_FIELDS = ("product_id", "product_qty", "product_uom_id")
+
     @api.model_create_multi
     def create(self, vals_list):
         lines = super().create(vals_list)
+        lines.bom_id.with_context(
+            skip_bom_outdated_unmark=True
+        )._update_outdated_bom_in_productions()
         # The thread recorded that a component changed and that one was removed,
         # and said nothing about one being added.
         if not self._chatter_is_muted():
@@ -144,6 +153,11 @@ class MrpBomLine(models.Model):
         return lines
 
     def write(self, vals):
+        if any(field_name in vals for field_name in self._OUTDATING_FIELDS):
+            self.bom_id.with_context(
+                skip_bom_outdated_unmark=True
+            )._update_outdated_bom_in_productions()
+
         tracked = [name for name in self._CHATTER_TRACKED_FIELDS if name in vals]
         if not tracked or self._chatter_is_muted():
             return super().write(vals)
@@ -186,6 +200,14 @@ class MrpBomLine(models.Model):
         return result
 
     def unlink(self):
+        boms = self.bom_id
+        result = self._unlink_notify(boms)
+        boms.with_context(
+            skip_bom_outdated_unmark=True
+        )._update_outdated_bom_in_productions()
+        return result
+
+    def _unlink_notify(self, boms):
         if self._chatter_is_muted():
             return super().unlink()
 
