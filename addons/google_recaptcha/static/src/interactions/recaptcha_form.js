@@ -30,9 +30,6 @@ export class RecaptchaForm extends Interaction {
         }
         if (!this.el.querySelector("input[name='recaptcha_token_response']")) {
             ev.preventDefault();
-            if (!submitEl.disabled) {
-                addLoadingEffect(submitEl);
-            }
             const action = this.el.dataset.captcha || "generic";
             const tokenCaptcha = await this.waitFor(this.recaptcha.getToken(action));
             if (tokenCaptcha.token) {
