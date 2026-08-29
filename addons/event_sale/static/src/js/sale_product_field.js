@@ -50,7 +50,7 @@ patch(SaleOrderLineProductField.prototype, {
         }
         if (this.props.record.data.event_slot_id) {
             actionContext.default_event_slot_id =
-                this.props.record.data.event_slot_id.id;
+                this.props.record.data.event_slot_id[0];
         }
         if (this.props.record.data.event_ticket_id) {
             actionContext.default_event_ticket_id =
