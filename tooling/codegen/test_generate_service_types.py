@@ -1,4 +1,9 @@
+import contextlib
+import io
+import json
+import sys
 from pathlib import Path
+from unittest import mock
 
 import generate_service_types as gen
 import pytest
@@ -44,3 +49,54 @@ class TestDiscovery:
     def test_test_and_legacy_registrations_are_skipped(self):
         sources = [str(r.source_file) for r in gen.discover()]
         assert not [s for s in sources if "/tests/" in s or "/legacy/" in s]
+
+
+class TestUntypedRegistrationCount:
+    def test_count_prints_a_bare_integer(self):
+        buf = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", ["g", "--count"]),
+            contextlib.redirect_stdout(buf),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            assert gen.main() == 0
+        assert buf.getvalue().strip().isdigit()
+
+    def test_the_count_is_the_registrations_that_cannot_be_typed(self):
+        skipped: list[str] = []
+        with contextlib.redirect_stderr(io.StringIO()):
+            typed = gen.discover(skipped=skipped)
+        assert typed, "no service was typed at all"
+        assert skipped, "nothing was skipped, so the floor measures nothing"
+        for entry in skipped:
+            assert entry not in [r.key for r in typed]
+
+    def test_the_count_matches_its_committed_floor(self):
+        floor = json.loads(
+            (
+                gen.ODOO_ROOT
+                / "tooling"
+                / "ratchet"
+                / "baselines"
+                / "service_types_untyped.json"
+            ).read_text(encoding="utf-8")
+        )["count"]
+        skipped: list[str] = []
+        with contextlib.redirect_stderr(io.StringIO()):
+            gen.discover(skipped=skipped)
+        assert len(skipped) == floor, (
+            "move the floor in the same change:\n"
+            "    python tooling/codegen/generate_service_types.py --count \\\n"
+            "        | xargs python tooling/ratchet/ratchet.py "
+            "service_types_untyped --count --update --note '<what moved>'"
+        )
+
+    def test_a_scan_that_finds_nothing_is_refused(self):
+        buf = io.StringIO()
+        with (
+            mock.patch.object(gen, "discover", lambda **_: []),
+            mock.patch.object(sys, "argv", ["g", "--check"]),
+            contextlib.redirect_stderr(buf),
+        ):
+            assert gen.main() == 2
+        assert "no service registration found" in buf.getvalue()

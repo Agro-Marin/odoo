@@ -97,7 +97,9 @@ def _build_registration_re(aliases: set[str]) -> re.Pattern[str]:
     )
 
 
-def discover(src_root: Path = WEB_SRC_ROOT) -> list[Registration]:
+def discover(
+    src_root: Path = WEB_SRC_ROOT, skipped: list[str] | None = None
+) -> list[Registration]:
 
     found: list[Registration] = []
     for js_file in sorted(src_root.rglob("*.js")):
@@ -118,6 +120,8 @@ def discover(src_root: Path = WEB_SRC_ROOT) -> list[Registration]:
         for match in registration_re.finditer(text):
             key, factory_var = match.group(1), match.group(2)
             if not _find_export(text, factory_var):
+                if skipped is not None:
+                    skipped.append(f"{js_file.name}: {key} as {factory_var}")
                 print(
                     f"  ⚠ {js_file.name}: registers {key!r} as "
                     f"{factory_var!r} but no `export const {factory_var}` "
@@ -217,9 +221,33 @@ def main() -> int:
         ),
     )
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--count",
+        action="store_true",
+        help=(
+            "print the number of registrations that cannot be typed, and "
+            "exit; the ratcheted number"
+        ),
+    )
     args = parser.parse_args()
 
-    registrations = discover()
+    skipped: list[str] = []
+    registrations = discover(skipped=skipped)
+
+    if not registrations and not skipped:
+        print(
+            f"✗ no service registration found under {_rel(WEB_SRC_ROOT)}. "
+            f"A scan that reaches nothing renders an empty file, and "
+            f"--check would then compare it against whatever is committed "
+            f"and report success once that empty file lands.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.count:
+        print(len(skipped))
+        return 0
+
     new_content = render(registrations)
     output_path = Path(args.output)
 

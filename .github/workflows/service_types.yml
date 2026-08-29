@@ -69,6 +69,20 @@ jobs:
           set -e
           echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
 
+      - name: Ratchet the registrations that cannot be typed
+        id: untyped
+        # A service registered without `export const` on its factory has no
+        # type in @types/services.d.ts. The generator has warned about each one
+        # to stderr since it was written and the step above tees that to a log;
+        # nothing read it. 18 of 46 registrations the day this floor was set.
+        run: |
+          set +e
+          python tooling/codegen/generate_service_types.py --count \
+            | xargs python tooling/ratchet/ratchet.py service_types_untyped --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Summarise
         if: always()
         run: |
