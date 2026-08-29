@@ -618,4 +618,7 @@ class TestMailGateway(MailCommon):
         for document in self.send_test_mail_with_attachment_on_different_company(
             self.pre_existing_partner.email
         ):
-            self.assertIsNotNone(document)
+            self.assertEqual(document.folder_id, self.folder_2)
+            self.assertEqual(document.company_id, self.company_2)
+            self.assertEqual(document.attachment_id.res_model, "documents.document")
+            self.assertEqual(document.attachment_id.res_id, document.id)
