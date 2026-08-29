@@ -373,6 +373,37 @@ class TestDataRecycle(TransactionCase):
         self.assertFalse(any(server.active for server in self.old_servers))
         self.assertTrue(all(server.active for server in self.new_servers))
 
+    def test_switching_to_automatic_recycles_what_manual_mode_had_queued(self):
+        """Those proposals are neither stale nor new, so no other branch reaches them."""
+        self.recycle_model._recycle_records()
+        self.assertEqual(len(self.recycle_model.recycle_record_ids), 5)
+
+        self.recycle_model.recycle_mode = "automatic"
+        self.recycle_model._recycle_records()
+
+        self.assertFalse(
+            self.recycle_model.recycle_record_ids,
+            "a queue built in manual mode must not outlive the switch to automatic",
+        )
+        self.assertFalse(any(server.active for server in self.old_servers))
+
+    def test_switching_to_automatic_leaves_the_discarded_proposals_alone(self):
+        """The user refused these; the mode they were queued under does not undo that."""
+        self.recycle_model._recycle_records()
+        discarded = self.recycle_model.recycle_record_ids[0]
+        refused = self.old_servers.filtered(
+            lambda server: server.id == discarded.res_id
+        )
+        discarded.action_discard()
+
+        self.recycle_model.recycle_mode = "automatic"
+        self.recycle_model._recycle_records()
+
+        self.assertTrue(discarded.exists() and not discarded.active)
+        self.assertTrue(
+            refused.active, "automatic mode must not archive a refused record"
+        )
+
     # Notifications
 
     def test_a_silent_run_does_not_consume_the_notification_period(self):

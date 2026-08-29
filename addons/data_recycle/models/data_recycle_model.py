@@ -215,9 +215,10 @@ class Data_RecycleModel(models.Model):
         # propose the record the user just refused again.
         queued_per_model = defaultdict(dict)
         for queued in Record.with_context(active_test=False).search_fetch(
-            [("recycle_model_id", "in", self.ids)], ["res_id", "recycle_model_id"]
+            [("recycle_model_id", "in", self.ids)],
+            ["res_id", "recycle_model_id", "active"],
         ):
-            queued_per_model[queued.recycle_model_id.id][queued.res_id] = queued.id
+            queued_per_model[queued.recycle_model_id.id][queued.res_id] = queued
 
         for recycle_model in self:
             model = recycle_model._get_model_target()
@@ -254,11 +255,14 @@ class Data_RecycleModel(models.Model):
             candidate_ids = model.search(domain).ids
             candidate_res_ids = set(candidate_ids)
 
-            stale_ids = [
-                rec_id
-                for res_id, rec_id in queued_res_ids.items()
-                if res_id not in candidate_res_ids
-            ]
+            # One pass, because reading `active` off a proposal already unlinked
+            # as stale would raise: the two groups are disjoint by construction.
+            stale_ids, standing_ids = [], []
+            for res_id, queued in queued_res_ids.items():
+                if res_id not in candidate_res_ids:
+                    stale_ids.append(queued.id)
+                elif queued.active:
+                    standing_ids.append(queued.id)
             Record.browse(stale_ids).unlink()
 
             new_res_ids = [
@@ -268,6 +272,18 @@ class Data_RecycleModel(models.Model):
             batch_size = (
                 RECYCLE_BATCH_AUTOMATIC if is_automatic else RECYCLE_BATCH_MANUAL
             )
+            if is_automatic:
+                # A rule switched from manual to automatic inherits a queue nobody
+                # will ever act on: those proposals still match the filter, so they
+                # are not stale, and they are already queued, so they are not new
+                # either. Neither branch reaches them and they sit there for good.
+                # `standing_ids` excludes the discarded ones on purpose -- the user
+                # refused those, and the switch is not a way to overrule it.
+                standing = Record.browse(standing_ids)
+                for index in range(0, len(standing), batch_size):
+                    standing[index : index + batch_size].action_validate()
+                    if commit:
+                        self.env.cr.commit()
             for res_id_batch in batched(new_res_ids, batch_size, strict=False):
                 records = Record.create(
                     [
