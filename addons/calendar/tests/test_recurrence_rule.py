@@ -9,6 +9,7 @@ class TestRecurrenceRule(TransactionCase):
             {
                 "rrule_type": "daily",
                 "interval": 2,
+                "end_type": "count",
                 "count": 3,
                 "event_tz": "UTC",
             }
@@ -46,6 +47,7 @@ class TestRecurrenceRule(TransactionCase):
                 "tue": True,
                 "wed": True,
                 "interval": 2,
+                "end_type": "count",
                 "count": 3,
                 "event_tz": "UTC",
             }
@@ -182,6 +184,7 @@ class TestRecurrenceRule(TransactionCase):
             {
                 "rrule_type": "yearly",
                 "interval": 2,
+                "end_type": "count",
                 "count": 3,
                 "event_tz": "UTC",
             }

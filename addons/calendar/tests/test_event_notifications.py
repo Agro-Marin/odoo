@@ -474,6 +474,7 @@ class TestEventNotifications(CalendarMailCommon):
                         "rrule_type": "monthly",
                         "month_by": "date",
                         "day": 13,
+                        "end_type": "count",
                         "count": 5,
                         "alarm_ids": [fields.Command.link(alarm.id)],
                     }
@@ -527,6 +528,7 @@ class TestEventNotifications(CalendarMailCommon):
                         "rrule_type": "monthly",
                         "month_by": "date",
                         "day": 13,
+                        "end_type": "count",
                         "count": 5,
                         "alarm_ids": [fields.Command.link(alarm.id)],
                     }
@@ -555,6 +557,7 @@ class TestEventNotifications(CalendarMailCommon):
                         "stop": now + relativedelta(hours=3),
                         "recurrency": True,
                         "rrule_type": "monthly",
+                        "end_type": "count",
                         "count": 2,
                         "day": 16,
                         "alarm_ids": [fields.Command.link(alarm_hour.id)],
@@ -612,6 +615,7 @@ class TestEventNotifications(CalendarMailCommon):
                         "stop": now + relativedelta(minutes=20),
                         "recurrency": True,
                         "rrule_type": "daily",
+                        "end_type": "count",
                         "count": 3,
                         "alarm_ids": [fields.Command.link(alarm.id)],
                     }
@@ -767,6 +771,7 @@ class TestEventNotifications(CalendarMailCommon):
                 "interval": 2,
                 "rrule_type": "weekly",
                 "tue": True,
+                "end_type": "count",
                 "count": 2,
             }
         )
@@ -822,6 +827,7 @@ class TestEventNotifications(CalendarMailCommon):
                 "duration": 3,
                 "recurrency": True,
                 "rrule_type": "daily",
+                "end_type": "count",
                 "count": 3,
                 "location": "Odoo S.A.",
                 "privacy": "public",

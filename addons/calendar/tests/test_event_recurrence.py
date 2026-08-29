@@ -46,6 +46,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                 "rrule_type": "weekly",
                 "tue": True,
                 "interval": 1,
+                "end_type": "count",
                 "count": 3,
                 "event_tz": "UTC",
             }
@@ -76,6 +77,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                 "interval": 2,
                 "rrule_type": "weekly",
                 "tue": True,
+                "end_type": "count",
                 "count": 2,
                 "event_tz": "UTC",
             }
@@ -101,6 +103,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                 "interval": 2,
                 "rrule_type": "weekly",
                 "tue": True,
+                "end_type": "count",
                 "count": 2,
                 "event_tz": "UTC",
             }
@@ -257,6 +260,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
             {
                 "interval": 2,
                 "rrule_type": "yearly",
+                "end_type": "count",
                 "count": 2,
                 "event_tz": "UTC",
             }
@@ -283,6 +287,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                 "interval": 2,
                 "rrule_type": "weekly",
                 "mon": True,
+                "end_type": "count",
                 "count": "2",
                 "event_tz": "America/New_York",  # DST change on 2002/10/27
             }
@@ -316,6 +321,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                 "interval": 1,
                 "rrule_type": "weekly",
                 "sun": True,
+                "end_type": "count",
                 "count": "2",
                 "event_tz": "America/New_York",  # DST change on 2002/4/7
             }
@@ -348,6 +354,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                 "interval": 1,
                 "rrule_type": "weekly",
                 "sun": True,
+                "end_type": "count",
                 "count": "2",
                 "event_tz": "America/New_York",  # DST change on 2002/4/7
             }
@@ -377,6 +384,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                 "interval": 1,
                 "rrule_type": "weekly",
                 "mon": True,
+                "end_type": "count",
                 "count": 2,
                 "event_tz": "Europe/Brussels",  # DST change on 2020/3/23
             }
@@ -397,6 +405,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                 "interval": 1,
                 "rrule_type": "weekly",
                 "mon": True,
+                "end_type": "count",
                 "count": 2,
             }
         )
@@ -501,6 +510,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
                     "rrule_type": "weekly",
                     "tue": True,
                     "interval": 1,
+                    "end_type": "count",
                     "count": 2,
                     "event_tz": "UTC",
                     "allday": True,
@@ -551,6 +561,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
         events[5].write(
             {
                 "recurrence_update": "future_events",
+                "end_type": "count",
                 "count": 2,
             }
         )
@@ -581,6 +592,7 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
                 "rrule_type": "weekly",
                 "tue": True,
                 "interval": 1,
+                "end_type": "count",
                 "count": 3,
                 "event_tz": "Etc/GMT-4",
             }
@@ -784,6 +796,7 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
             {
                 "recurrence_update": "future_events",
                 "fri": True,  # recurrence is now Tuesday AND Friday
+                "end_type": "count",
                 "count": 4,
             }
         )
@@ -832,6 +845,7 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
                 "name": "New name",
                 "recurrence_update": "future_events",
                 "rrule_type": "daily",
+                "end_type": "count",
                 "count": 5,
             }
         )
@@ -914,6 +928,7 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
             {
                 "recurrence_update": "all_events",
                 "recurrency": False,
+                "end_type": "count",
                 "count": 0,  # In practice, JS framework sends updated recurrency fields, since they have been recomputed, triggered by the `recurrency` change
             }
         )
@@ -935,6 +950,7 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
                     "rrule_type": "weekly",
                     "tue": True,
                     "interval": 1,
+                    "end_type": "count",
                     "count": 3,
                     "event_tz": "Etc/GMT-4",
                     "allday": True,
@@ -1092,6 +1108,7 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
                 "wed": True,
                 "fri": True,
                 "interval": 1,
+                "end_type": "count",
                 "count": 3,
                 "event_tz": "Etc/GMT-4",
             }
@@ -1145,6 +1162,7 @@ class TestUpdateMultiDayWeeklyRecurrentEvents(TestRecurrentEvents):
                 "tue": True,
                 "fri": True,
                 "interval": 1,
+                "end_type": "count",
                 "count": 3,
                 "event_tz": "Etc/GMT-4",
             }
@@ -1230,6 +1248,7 @@ class TestUpdateMonthlyByDay(TestRecurrentEvents):
                 "recurrency": True,
                 "rrule_type": "monthly",
                 "interval": 1,
+                "end_type": "count",
                 "count": 3,
                 "month_by": "day",
                 "weekday": "TUE",
@@ -1275,6 +1294,7 @@ class TestUpdateMonthlyByDate(TestRecurrentEvents):
                 "recurrency": True,
                 "rrule_type": "monthly",
                 "interval": 1,
+                "end_type": "count",
                 "count": 3,
                 "month_by": "date",
                 "day": 22,
@@ -1333,6 +1353,7 @@ class TestUpdateMonthlyByDate(TestRecurrentEvents):
             calendar_form.name = "test recurrence daily"
             calendar_form.recurrency = True
             calendar_form.rrule_type_ui = "daily"
+            calendar_form.end_type = "count"
             calendar_form.count = 2
             calendar_form.start = datetime(2019, 6, 23, 16)
             calendar_form.stop = datetime(2019, 6, 23, 17)
@@ -1352,6 +1373,7 @@ class TestUpdateMonthlyByDate(TestRecurrentEvents):
             calendar_form.name = "test recurrence monthly"
             calendar_form.recurrency = True
             calendar_form.rrule_type_ui = "monthly"
+            calendar_form.end_type = "count"
             calendar_form.count = 2
             calendar_form.start = datetime(2019, 6, 11, 16)
             calendar_form.stop = datetime(2019, 6, 11, 17)
@@ -1372,6 +1394,7 @@ class TestUpdateMonthlyByDate(TestRecurrentEvents):
             calendar_form.name = "test recurrence yearly"
             calendar_form.recurrency = True
             calendar_form.rrule_type_ui = "yearly"
+            calendar_form.end_type = "count"
             calendar_form.count = 2
             calendar_form.start = datetime(2019, 6, 11, 16)
             calendar_form.stop = datetime(2019, 6, 11, 17)
@@ -1494,3 +1517,57 @@ class TestUpdateMonthlyByDate(TestRecurrentEvents):
                         "needsAction",
                         "Attendees state except current user must be pending after update.",
                     )
+
+
+class TestRecurrenceDefaults(TestRecurrentEvents):
+    def test_recurrence_without_end_type_repeats_forever(self):
+        """Ticking "Recurrent" and saving used to produce a single occurrence.
+
+        `end_type` defaulted to 'count' and `count` to 1, so a recurrence nobody
+        bothered to bound was a recurrence of exactly one event -- the box was
+        ticked and nothing repeated. Unbounded is both the honest reading of "I did
+        not say when this stops" and the only default that makes the checkbox mean
+        something.
+        """
+        event = self.env["calendar.event"].create(
+            {
+                "name": "Recurrent with no end given",
+                "start": datetime(2040, 3, 5, 9, 0),
+                "stop": datetime(2040, 3, 5, 10, 0),
+                "recurrency": True,
+                "rrule_type": "weekly",
+                "mon": True,
+            }
+        )
+        recurrence = event.recurrence_id
+        self.assertEqual(recurrence.end_type, "forever")
+        self.assertNotIn("COUNT=", recurrence.rrule)
+        self.assertGreater(
+            self.env["calendar.event"].search_count(
+                [("recurrence_id", "=", recurrence.id)]
+            ),
+            1,
+            "A recurrence with no stated end must produce more than one event",
+        )
+
+    def test_explicit_count_still_bounds_the_recurrence(self):
+        """Saying 'stop after 3' still stops after 3."""
+        event = self.env["calendar.event"].create(
+            {
+                "name": "Recurrent bounded by count",
+                "start": datetime(2040, 3, 5, 9, 0),
+                "stop": datetime(2040, 3, 5, 10, 0),
+                "recurrency": True,
+                "rrule_type": "weekly",
+                "mon": True,
+                "end_type": "count",
+                "count": 3,
+            }
+        )
+        self.assertEqual(event.recurrence_id.end_type, "count")
+        self.assertEqual(
+            self.env["calendar.event"].search_count(
+                [("recurrence_id", "=", event.recurrence_id.id)]
+            ),
+            3,
+        )

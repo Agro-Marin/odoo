@@ -12,6 +12,7 @@ class TestRecurrentEvent(common.TransactionCase):
         # I create a recurrent meeting with daily recurrence and fixed amount of time.
         self.CalendarEvent.create(
             {
+                "end_type": "count",
                 "count": 5,
                 "start": "2011-04-13 11:04:00",
                 "stop": "2011-04-13 12:04:00",
