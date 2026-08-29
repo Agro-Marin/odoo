@@ -644,3 +644,45 @@ class TestAccessRights(TransactionCase):
         # so nothing is shown, but the two must not disagree.
         event.privacy = "public"
         self.assertEqual(event.privacy_placeholder, "Public")
+
+    def test_res_record_links_the_meeting_to_a_document(self):
+        """A meeting can be attached to the record it is about, from its own form.
+
+        `res_model_id`/`res_id` were only ever set by whatever created the meeting
+        -- an activity, a lead, a leave -- and the form showed the result read-only
+        and hid it when empty. A meeting created straight in the calendar could
+        therefore never be pointed at the document it was about; the only way was
+        to delete it and create it again from that record.
+        """
+        model_id = self.env["ir.model"]._get_id("res.partner")
+        event = self.create_event(
+            self.john, res_model_id=model_id, res_id=self.george.partner_id.id
+        )
+
+        linked = event.with_user(self.john).res_record
+        self.assertEqual(linked._name, "res.partner")
+        self.assertEqual(linked.id, self.george.partner_id.id)
+        self.assertEqual(
+            event.with_user(self.john).read(["res_record"])[0]["res_record"],
+            f"res.partner,{self.george.partner_id.id}",
+        )
+
+        # Writing the reference is what the form now does, and it must land in the
+        # two stored columns the rest of calendar reads.
+        event.with_user(self.john).write(
+            {"res_record": f"res.partner,{self.raoul.partner_id.id}"}
+        )
+        self.assertEqual(event.res_model_id.model, "res.partner")
+        self.assertEqual(event.res_id, self.raoul.partner_id.id)
+
+        # Clearing it clears both, rather than leaving a dangling res_id.
+        event.with_user(self.john).write({"res_record": False})
+        self.assertFalse(event.res_model_id)
+        self.assertFalse(event.res_id)
+
+    def test_res_record_selection_is_limited_to_mail_threads(self):
+        """Only models with a chatter, and no abstract or transient ones."""
+        selection = dict(self.env["calendar.event"]._selection_res_record())
+        self.assertIn("res.partner", selection)
+        self.assertIn("calendar.event", selection)
+        self.assertNotIn("res.users.settings", selection)

@@ -306,6 +306,12 @@ class CalendarEvent(models.Model):
         "Document Model Name", related="res_model_id.model", readonly=True, store=True
     )
     res_model_name = fields.Char(related="res_model_id.name")
+    res_record = fields.Reference(
+        string="Linked to",
+        selection="_selection_res_record",
+        compute="_compute_res_record",
+        inverse="_inverse_res_record",
+    )
     # messaging
     activity_ids = fields.One2many(
         "mail.activity", "calendar_event_id", string="Activities"
@@ -519,6 +525,45 @@ class CalendarEvent(models.Model):
             event.invalid_email_partner_ids = event.partner_ids.filtered(
                 lambda a: not (a.email and single_email_re.match(a.email))
             )
+
+    @api.model
+    def _selection_res_record(self):
+        """Every model a meeting can be about: the ones that carry a chatter.
+
+        sudo: reading `ir.model` is what building a selection needs, and the
+        selection is the same for everybody; the records themselves are still
+        read as the user, and an unreadable one simply cannot be picked.
+        """
+        return [
+            (model.model, model.name)
+            for model in self.env["ir.model"]
+            .sudo()
+            .search(
+                [
+                    ("is_mail_thread", "=", True),
+                    ("abstract", "=", False),
+                    ("transient", "=", False),
+                ]
+            )
+        ]
+
+    @api.depends("res_model", "res_id")
+    def _compute_res_record(self):
+        for event in self:
+            event.res_record = (
+                f"{event.res_model},{event.res_id}"
+                if event.res_model and event.res_id
+                else False
+            )
+
+    def _inverse_res_record(self):
+        for event in self:
+            if not event.res_record:
+                event.res_model_id = False
+                event.res_id = False
+                continue
+            event.res_model_id = self.env["ir.model"]._get_id(event.res_record._name)
+            event.res_id = event.res_record.id
 
     @api.depends("privacy", "user_id")
     def _compute_effective_privacy(self):

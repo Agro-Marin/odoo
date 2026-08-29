@@ -172,7 +172,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <field name="res_id" string="Linked to" invisible="not res_id" readonly="1" />
+                            <field name="res_record" readonly="not user_can_edit"/>
+                            <field name="res_id" invisible="1"/>
                             <field name="res_model" invisible="1"/>
                             <field name="videocall_source" invisible="1"/>
                             <field name="access_token" invisible="1" force_save="1"/>
