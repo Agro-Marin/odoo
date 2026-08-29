@@ -298,10 +298,27 @@ class MrpRoutingWorkcenter(models.Model):
         )._update_outdated_bom_in_productions()
         return res
 
+    #: Fields whose change actually affects routing/costing and therefore
+    #: warrants re-flagging the BoM's in-progress productions as outdated.
+    #: Mirrors `mrp.bom._OUTDATING_FIELDS` -- a purely cosmetic write (e.g.
+    #: renaming the operation) must not outdate anything.
+    _OUTDATING_FIELDS = (
+        "workcenter_id",
+        "time_mode",
+        "time_mode_batch",
+        "time_cycle_manual",
+        "cost_mode",
+        "sequence",
+        "bom_id",
+        "active",
+        "blocked_by_operation_ids",
+    )
+
     def write(self, vals):
-        self.bom_id.with_context(
-            skip_bom_outdated_unmark=True
-        )._update_outdated_bom_in_productions()
+        if any(field_name in vals for field_name in self._OUTDATING_FIELDS):
+            self.bom_id.with_context(
+                skip_bom_outdated_unmark=True
+            )._update_outdated_bom_in_productions()
         if "bom_id" in vals:
             for op in self:
                 op.bom_id.bom_line_ids.filtered(
