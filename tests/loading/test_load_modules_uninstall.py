@@ -2,21 +2,22 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
 from unittest import mock
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+from .._pg import psql_path, repo_root
 
-pytestmark = pytest.mark.requires_pg
+REPO_ROOT = repo_root()
+
+pytestmark = [pytest.mark.requires_pg, pytest.mark.requires_psql]
 
 VICTIM = "test_uninstall"
 
 
 def _psql(dbname: str, sql: str) -> str:
     proc = subprocess.run(
-        ["psql", "-d", dbname, "-tAc", sql],
+        [psql_path(), "-d", dbname, "-tAc", sql],
         capture_output=True,
         text=True,
         check=True,

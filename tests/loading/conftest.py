@@ -3,18 +3,25 @@ from __future__ import annotations
 import subprocess
 import sys
 import uuid
-from pathlib import Path
 
 import pytest
 
-from .._pg import dependency_plugin, pg_reachable
+from .._pg import (
+    dependency_plugin,
+    dropdb_path,
+    pg_reachable,
+    psql_path,
+    repo_root,
+)
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+REPO_ROOT = repo_root()
 
 requires_pg = pytest.mark.requires_pg
+requires_psql = pytest.mark.requires_psql
 
 REQUIREMENTS = {
     "requires_pg": (pg_reachable, "no reachable PostgreSQL (loading suite needs one)"),
+    "requires_psql": (lambda: psql_path() is not None, "psql not on PATH"),
 }
 
 pytest_configure, _skip_without_dependencies = dependency_plugin(REQUIREMENTS)
@@ -40,6 +47,8 @@ def odoo_config(tmp_path_factory):
 def base_db(odoo_config):
     if not pg_reachable():
         pytest.skip("no reachable PostgreSQL")
+    if dropdb_path() is None:
+        pytest.skip("dropdb not on PATH")
     name = f"odoo_loading_{uuid.uuid4().hex[:12]}"
     proc = subprocess.run(
         [
@@ -61,7 +70,7 @@ def base_db(odoo_config):
         check=False,
     )
     if proc.returncode != 0:
-        subprocess.run(["dropdb", "--if-exists", "--force", name], check=False)
+        subprocess.run([dropdb_path(), "--if-exists", "--force", name], check=False)
         pytest.fail(
             f"could not install base:\n{proc.stdout[-4000:]}\n{proc.stderr[-4000:]}"
         )
@@ -69,5 +78,7 @@ def base_db(odoo_config):
         yield name
     finally:
         subprocess.run(
-            ["dropdb", "--if-exists", "--force", name], check=False, capture_output=True
+            [dropdb_path(), "--if-exists", "--force", name],
+            check=False,
+            capture_output=True,
         )

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 from unittest import mock
 
 import pytest
-
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 pytestmark = pytest.mark.requires_pg
 
@@ -112,8 +109,7 @@ def test_update_is_a_superset_of_the_plain_schedule(base_db):
 def test_constraints_are_finalized_before_the_null_check(base_db):
     for kwargs in ({}, {"update_module": True}):
         trace = _load(base_db, **kwargs)
-        names = [c.split(" x")[0] for c in trace]
-        assert names.index("finalize_constraints") < names.index(
+        assert trace.index("finalize_constraints") < trace.index(
             "check_null_constraints"
         ), trace
 
