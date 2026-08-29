@@ -175,7 +175,7 @@ def not_after(name: str, earlier: str, later: str) -> Rule:
     """A date ordering rule, tolerant of dates written as strings."""
 
     def _check(values: dict[str, Any]) -> bool:
-        return str(values[earlier]) <= str(values[later])
+        return _as_date(values[earlier]) <= _as_date(values[later])
 
     return Rule(
         name=name,
@@ -183,3 +183,15 @@ def not_after(name: str, earlier: str, later: str) -> Rule:
         check=_check,
         message=f"{earlier} should not be after {later}",
     )
+
+
+def _as_date(value: datetime.date | str) -> datetime.date:
+    """Parse a ``"date"`` field's value for ordering comparison.
+
+    ``FieldSpec("date")`` accepts any ``str``, so comparing raw strings (as
+    ``not_after`` used to) is only correct for the ISO form; a non-ISO date
+    string from an extractor would order lexically rather than chronologically.
+    """
+    if isinstance(value, datetime.date):
+        return value
+    return datetime.date.fromisoformat(str(value)[:10])
