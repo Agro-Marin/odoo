@@ -982,7 +982,9 @@ class HrVersion(models.Model):
         # it can happen that the date_generated_from and date_generated_to fields are not
         # pushed to start and stop
         # It is more interesting for batching to process statically generated work entries first
-        # since we get benefits from having multiple versions on the same calendar
+        # since they are cheap and calendar-batchable, unlike the dynamic ones; this only
+        # separates the two groups, it does not itself group versions by calendar (that
+        # batching benefit comes downstream, in _attendance_intervals_batch)
         versions_todo = versions_todo.sorted(
             key=lambda v: 1 if v.has_static_work_entries() else 100
         )
