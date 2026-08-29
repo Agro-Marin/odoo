@@ -1,5 +1,5 @@
-from odoo import Command, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo import Command, _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools import float_round
 
 
@@ -87,7 +87,7 @@ class MrpProductionSplit(models.TransientModel):
                 wizard.production_detailed_vals_ids = commands
                 continue
             remaining_qty = wizard.product_qty
-            for _ in range(wizard.num_splits):
+            for _split_index in range(wizard.num_splits):
                 qty = min(wizard.max_batch_size, remaining_qty)
                 commands.append(
                     Command.create(
@@ -115,6 +115,20 @@ class MrpProductionSplit(models.TransientModel):
                 )
 
     def action_split(self):
+        # The "Split" button is only `invisible="not valid_details"` in the
+        # view -- a client-side gate a direct/RPC call bypasses. Left
+        # unchecked, under-summed details make `_get_split_amounts` append an
+        # extra leftover production, and the `zip(strict=True)` below raises
+        # a raw `ValueError` instead of this clean error.
+        if not self.valid_details:
+            raise UserError(
+                _(
+                    "The total quantity to split (%(total)s) does not match "
+                    "the manufacturing order's quantity (%(product_qty)s).",
+                    total=sum(self.production_detailed_vals_ids.mapped("quantity")),
+                    product_qty=self.product_qty,
+                )
+            )
         productions = self.production_id._split_productions(
             {
                 self.production_id: [
