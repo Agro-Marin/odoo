@@ -484,9 +484,14 @@ class HrLeaveAllocation(models.Model):
         if carryover_time == "year_start":
             carryover_date = date(date_from.year, 1, 1)
         elif carryover_time == "allocation":
-            carryover_date = date(
-                date_from.year, self.date_from.month, self.date_from.day
+            # Same Feb-29 guard as the custom-date branch below: an
+            # allocation started on a leap day has no exact anniversary on
+            # a non-leap year.
+            day = min(
+                monthrange(date_from.year, self.date_from.month)[1],
+                self.date_from.day,
             )
+            carryover_date = date(date_from.year, self.date_from.month, day)
         else:
             month = int(accrual_plan.carryover_month)
             # 2020/2/31 will be changed to 2020/2/29
