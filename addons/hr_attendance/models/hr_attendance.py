@@ -559,6 +559,7 @@ class HrAttendance(models.Model):
             vals.get("employee_id")
             and vals["employee_id"] not in self.env.user.employee_ids.ids
             and not self.env.user.has_group("hr_attendance.group_hr_attendance_manager")
+            and not self.env.user.has_group("hr_attendance.group_hr_attendance_user")
             and self.env["hr.employee"]
             .sudo()
             .browse(vals["employee_id"])
