@@ -19,3 +19,4 @@ from . import test_multiple_bank_accounts
 from . import test_hr_audit_fixes
 from . import test_hr_audit_round3
 from . import test_user_local_dates
+from . import test_hr_employee_rights

@@ -421,42 +421,42 @@ class HrEmployee(models.Model):
         readonly=False,
         related="version_id.contract_date_start",
         inherited=True,
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     contract_date_end = fields.Date(
         readonly=False,
         related="version_id.contract_date_end",
         inherited=True,
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     trial_date_end = fields.Date(
         readonly=False,
         related="version_id.trial_date_end",
         inherited=True,
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     contract_wage = fields.Monetary(
         related="version_id.contract_wage", inherited=True, groups="hr.group_hr_manager"
     )
     date_start = fields.Date(
-        related="version_id.date_start", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.date_start", inherited=True, groups="hr.group_hr_user"
     )
     date_end = fields.Date(
-        related="version_id.date_end", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.date_end", inherited=True, groups="hr.group_hr_user"
     )
     is_current = fields.Boolean(
-        related="version_id.is_current", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.is_current", inherited=True, groups="hr.group_hr_user"
     )
     is_past = fields.Boolean(
-        related="version_id.is_past", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.is_past", inherited=True, groups="hr.group_hr_user"
     )
     is_future = fields.Boolean(
-        related="version_id.is_future", inherited=True, groups="hr.group_hr_manager"
+        related="version_id.is_future", inherited=True, groups="hr.group_hr_user"
     )
     is_in_contract = fields.Boolean(
         related="version_id.is_in_contract",
         inherited=True,
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     structure_type_id = fields.Many2one(
         readonly=False,

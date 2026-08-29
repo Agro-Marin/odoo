@@ -848,16 +848,6 @@ class TestHrVersion(TestHrCommon):
             msg="HR Officer should not be able to access to 'payroll fields'",
         ):
             HrEmployee_with_office_user.search(
-                [
-                    ("contract_date_start", "<", "2022-01-01"),
-                    ("id", "in", employees.ids),
-                ]
-            )
-        with self.assertRaises(
-            AccessError,
-            msg="HR Officer should not be able to access to 'payroll fields'",
-        ):
-            HrEmployee_with_office_user.search(
                 [("wage", "=", 2000), ("id", "in", employees.ids)]
             )
         with self.assertRaises(

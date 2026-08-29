@@ -180,41 +180,37 @@ class HrVersion(models.Model):
 
     # Contract Information
     contract_date_start = fields.Date(
-        "Contract Start Date", tracking=True, groups="hr.group_hr_manager"
+        "Contract Start Date", tracking=True, groups="hr.group_hr_user"
     )
     contract_date_end = fields.Date(
         "Contract End Date",
         tracking=True,
         help="End date of the contract (if it's a fixed-term contract).",
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
     )
     trial_date_end = fields.Date(
         "End of Trial Period",
         help="End date of the trial period (if there is one).",
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
         tracking=True,
     )
     date_start = fields.Date(
         compute="_compute_dates",
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
         search="_search_date_start",
     )
     date_end = fields.Date(
         compute="_compute_dates",
-        groups="hr.group_hr_manager",
+        groups="hr.group_hr_user",
         search="_search_date_end",
     )
     is_current = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
+        compute="_compute_date_state", groups="hr.group_hr_user"
     )
-    is_past = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
-    )
-    is_future = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
-    )
+    is_past = fields.Boolean(compute="_compute_date_state", groups="hr.group_hr_user")
+    is_future = fields.Boolean(compute="_compute_date_state", groups="hr.group_hr_user")
     is_in_contract = fields.Boolean(
-        compute="_compute_is_in_contract", groups="hr.group_hr_manager"
+        compute="_compute_is_in_contract", groups="hr.group_hr_user"
     )
 
     contract_template_id = fields.Many2one(
