@@ -318,18 +318,29 @@ class IrUiView(models.Model):
             "website.template_footer_mega_links",
         }:
             ancestor = self.inherit_id.inherit_id.inherit_id
-            arch = etree.fromstring(ancestor.arch.encode("utf-8"))
-            has_change = False
-            for node in arch.xpath(
-                "//div[hasclass('o_footer_copyright')]//div[hasclass('col-sm')]"
-            ):
-                if "col-md" not in node.get("class"):
-                    node.set("class", node.get("class") + " col-md")
-                    has_change = True
-            if has_change:
-                ancestor.with_context(no_cow=True).write(
-                    {"arch": etree.tostring(arch, encoding="unicode")}
+            if not ancestor:
+                # The website footer inheritance chain this shim expects is
+                # shallower than usual (e.g. a customized/truncated chain);
+                # skip the mega-footer column-class fixup rather than crash
+                # on `ancestor.arch` (False on an empty recordset).
+                _logger.warning(
+                    "Skipping mega-footer column-class fixup for %s: "
+                    "inherit_id chain is shorter than expected.",
+                    self.key,
                 )
+            else:
+                arch = etree.fromstring(ancestor.arch.encode("utf-8"))
+                has_change = False
+                for node in arch.xpath(
+                    "//div[hasclass('o_footer_copyright')]//div[hasclass('col-sm')]"
+                ):
+                    if "col-md" not in node.get("class"):
+                        node.set("class", node.get("class") + " col-md")
+                        has_change = True
+                if has_change:
+                    ancestor.with_context(no_cow=True).write(
+                        {"arch": etree.tostring(arch, encoding="unicode")}
+                    )
 
         new_arch = self.replace_arch_section(xpath, arch_section)
         old_arch = etree.fromstring(self.arch.encode("utf-8"))
