@@ -394,7 +394,7 @@
                     <i class="fa-solid fa-video text-600" title="Videocall URL"/>
                     <field name="videocall_location" nolabel="1"
                         widget="CopyClipboardChar"
-                        class="w-100 mb-0 o_field_CopyClipboardChar" 
+                        class="w-100 mb-0 o_field_CopyClipboardChar"
                     />
                     <button name="clear_videocall_location" class="btn btn-sm px-0"><i class="fa-solid fa-xmark" title="Remove"/></button>
                 </div>
@@ -403,7 +403,7 @@
                     <field name="privacy" nolabel="1" class="w-100 mb-0" placeholder="Visibility"/>
                 </div>
                 <div class="d-flex" colspan="2">
-                    <i class="fa-solid fa-sticky-note mt-2 text-600" title="Notes"/> 
+                    <i class="fa-solid fa-sticky-note mt-2 text-600" title="Notes"/>
                     <field name="notes" nolabel="1" class="w-100" placeholder="Notes" widget="calendar_event_notes_html"/>
                 </div>
             </form>
