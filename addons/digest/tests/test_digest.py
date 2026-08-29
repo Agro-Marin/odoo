@@ -1124,6 +1124,27 @@ class TestDigestDefects(TestDigestCommon):
             "quarterly is the floor: there is nothing slower to fall back to",
         )
 
+    def test_get_next_periodicity_covers_every_slower_target(self):
+        """`_get_next_periodicity` used to look up its label in a second,
+        hand-written dict keyed by the three `slower` values the table
+        happens to produce today. A `PERIODICITIES` entry whose `slower`
+        isn't one of those hardcoded keys passed
+        `test_periodicity_table_is_the_selection` in full and only raised
+        here, on the next slowed-down digest send. Exercise every non-floor
+        entry so the next added periodicity is caught by a test, not a
+        live cron."""
+        digest = self.env["digest.digest"].create(
+            {"name": "Test", "periodicity": "daily"}
+        )
+        for name, periodicity in PERIODICITIES.items():
+            if name == periodicity.slower:  # the floor has nowhere to slow down to
+                continue
+            with self.subTest(periodicity=name):
+                digest.periodicity = name
+                slower, label = digest._get_next_periodicity()
+                self.assertEqual(slower, periodicity.slower)
+                self.assertTrue(label)
+
     def test_auto_subscription_honours_the_unticked_setting(self):
         """res.config.settings stores a Boolean config_parameter as the STRING
         'False', which is truthy: every user created after Digest Emails was
