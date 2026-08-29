@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { Component, useState, onWillStart } from "@odoo/owl";
+import { Component, useState, onWillStart, onMounted, onWillUnmount } from "@odoo/owl";
 
+import { browser } from "@web/core/browser/browser";
 import { Domain } from "@web/core/domain";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
@@ -42,6 +43,12 @@ export class KioskManualSelection extends Component {
         onWillStart(async () => {
             await this._fetchEmployeeData();
         })
+        this._onResize = async () => {
+            this.state.limit = this.calculateLimit();
+            await this._fetchEmployeeData();
+        };
+        onMounted(() => browser.addEventListener("resize", this._onResize));
+        onWillUnmount(() => browser.removeEventListener("resize", this._onResize));
     }
 
     calculateLimit() {

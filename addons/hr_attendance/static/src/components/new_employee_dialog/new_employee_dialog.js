@@ -88,7 +88,7 @@ export class NewEmployeeDialog extends Component {
             });
             this.props.close();
         } else {
-            this.notification.add( _t("Error: ") + _t(data?.message),{
+            this.notification.add( _t("Error: ") + data?.message,{
                 type: "danger",
             });
         }
