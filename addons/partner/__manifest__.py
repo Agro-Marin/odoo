@@ -7,7 +7,7 @@
 This module gives you a quick view of your contacts directory, accessible from your home page.
 You can track your vendors, customers and other contacts.
 """,
-    "depends": ["mail"],
+    "depends": ["mail", "web_hierarchy"],
     "data": [
         "views/res_partner_views.xml",
         "views/ir_ui_menu_views.xml",
@@ -19,6 +19,9 @@ You can track your vendors, customers and other contacts.
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "assets": {
+        "web.assets_backend": [
+            "partner/static/src/views/partner_hierarchy_card.scss",
+        ],
         "web.assets_tests": [
             "partner/static/tests/tours/**/*",
         ],
