@@ -1,0 +1,6 @@
+// The contact card carries an avatar, a name, three contact lines, tags and
+// properties. That does not fit the 130px-tall, 250px-wide node that
+// web_hierarchy sizes for an org chart, so widen the node when it holds one.
+.o_hierarchy_node_container:has(.o_partner_hierarchy_card) {
+    width: 310px !important;
+}
