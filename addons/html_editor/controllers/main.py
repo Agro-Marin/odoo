@@ -190,7 +190,12 @@ class HTML_Editor(http.Controller):
     def remove(self, ids, **kwargs):
         self._clean_context()
         Attachment = attachments_to_remove = request.env["ir.attachment"]
-        Views = request.env["ir.ui.view"]
+        # sudo(): the existence-check must see every referencing view, not
+        # just the ones visible under the caller's own ACL/record rules
+        # (e.g. a restricted-visibility website page) -- otherwise a
+        # lower-privileged caller could delete an attachment still in use
+        # by a page they can't see.
+        Views = request.env["ir.ui.view"].sudo()
 
         removal_blocked_by = {}
 
