@@ -5,6 +5,7 @@ from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
+from odoo.addons.iap.models import iap_account as iap_account_module
 from odoo.addons.iap.tools import iap_tools
 
 
@@ -160,3 +161,29 @@ class TestIapAccount(TransactionCase):
             side_effect=AccessError("down"),
         ):
             self.assertEqual(self.env["iap.account"].get_credits("reveal"), -1)
+
+    def test_get_account_information_from_iap_syncs_balance_and_state(self):
+        """Fetching account info from IAP writes back balance and state
+        from a synthetic batched 'iap_accounts' payload."""
+        account = self.env["iap.account"].create({"service_id": self.service.id})
+        token = account.sudo().account_token
+        fake_payload = {
+            token: {
+                "balance": 12.3456,
+                # 0, not a positive value: no recipient is set on this
+                # account, and validate_warning_alerts now requires one
+                # once the threshold is positive.
+                "warning_threshold": 0,
+                "registered": "registered",
+            }
+        }
+        with (
+            patch.object(iap_account_module.module, "current_test", False),
+            patch.object(iap_tools, "iap_jsonrpc", return_value=fake_payload),
+        ):
+            account._get_account_information_from_iap()
+        self.assertEqual(account.state, "registered")
+        self.assertEqual(account.warning_threshold, 0)
+        # 'reveal' is an integer_balance service: rounds to a whole unit.
+        self.assertEqual(account.balance, "12 Credits")
+        self.assertTrue(account.service_locked)
