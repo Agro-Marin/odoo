@@ -310,3 +310,43 @@ class TestEventNotifications(TransactionCase):
         self.assertNotIn(partner_extra, mesage_user.notified_partner_ids)
         mesage_user_extra = messages.filtered(lambda x: partner_extra in x.partner_ids)
         self.assertNotIn(self.partner, mesage_user_extra.notified_partner_ids)
+
+
+class TestQuickCreateUnavailability(TransactionCase):
+    def test_quick_create_form_knows_who_is_already_busy(self):
+        """The quick create warns about a clash instead of booking it silently.
+
+        The full form signals it through the many2many_attendee widget, which
+        colours the busy tags; the quick create renders plain many2many_tags, so
+        `unavailable_partner_ids` was not even in its arch and the client never
+        loaded it. Booking over somebody's existing meeting from the calendar grid
+        therefore said nothing at all.
+        """
+        busy_partner = self.env["res.partner"].create(
+            {"name": "Already booked", "email": "booked@example.com"}
+        )
+        self.env["calendar.event"].create(
+            {
+                "name": "The meeting they are already in",
+                "start": datetime(2040, 4, 2, 9, 0),
+                "stop": datetime(2040, 4, 2, 11, 0),
+                "partner_ids": [Command.link(busy_partner.id)],
+            }
+        )
+
+        form = Form(
+            self.env["calendar.event"],
+            view="calendar.view_calendar_event_form_quick_create",
+        )
+        form.name = "Booking over them"
+        form.start = datetime(2040, 4, 2, 10, 0)
+        form.stop = datetime(2040, 4, 2, 12, 0)
+        form.partner_ids.add(busy_partner)
+
+        # This is the expression the banner's `invisible` reads. Reaching it at all
+        # means the field is in the quick-create arch.
+        self.assertEqual(
+            form.unavailable_partner_ids[:],
+            busy_partner,
+            "The clash must be visible from the quick create, not only the full form",
+        )

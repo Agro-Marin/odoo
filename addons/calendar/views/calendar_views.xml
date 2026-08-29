@@ -338,6 +338,14 @@
         <field name="priority" eval="2"/>
         <field name="arch" type="xml">
             <form string="Meetings" class="o_calendar_event_form_quick_create" js_class="calendar_quick_create_form_view">
+                <!-- The full form signals a clash through the many2many_attendee widget;
+                     this one renders plain tags, so without the banner booking over
+                     somebody's existing meeting from the grid says nothing at all. -->
+                <div class="o_unavailable_attendees_alert alert alert-warning border-0 d-flex flex-wrap m-0 mb-3" role="alert"
+                    invisible="not unavailable_partner_ids or allday">
+                    <span class="me-1">The following attendees are not available at the selected time</span>
+                    <field name="unavailable_partner_ids" widget="many2many_tags"/>
+                </div>
                 <field name="invalid_email_partner_ids" invisible="1"/> <!--used in many2many_attendees widget-->
                 <div class="d-flex align-items-center" colspan="2">
                     <i class="fa-solid fa-tag text-600" title="Booking Name"/>
