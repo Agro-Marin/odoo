@@ -340,6 +340,9 @@ class HrWorkEntry(models.Model):
                 company_by_employee_id[employee.id] = employee.company_id.id
             vals["company_id"] = company_by_employee_id[vals["employee_id"]]
         work_entries = super().create(vals_list)
+        # has_work_entries has no @api.depends (it's a raw-SQL EXISTS compute),
+        # so the ORM never invalidates it on its own: force it here.
+        work_entries.employee_id.invalidate_recordset(["has_work_entries"])
         work_entries._check_if_error()
         return work_entries
 
@@ -371,8 +374,13 @@ class HrWorkEntry(models.Model):
 
     def unlink(self):
         employee_ids = self.employee_id.ids
+        employees = self.employee_id
         with self._error_checking(employee_ids=employee_ids):
-            return super().unlink()
+            result = super().unlink()
+        # has_work_entries has no @api.depends (it's a raw-SQL EXISTS compute),
+        # so the ORM never invalidates it on its own: force it here.
+        employees.invalidate_recordset(["has_work_entries"])
+        return result
 
     def _reset_conflicting_state(self):
         self.filtered(lambda w: w.state == "conflict").write({"state": "draft"})
