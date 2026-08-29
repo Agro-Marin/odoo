@@ -232,6 +232,21 @@ class GamificationQuestEnrollment(models.Model):
         if self.state != "in_progress":
             return False
 
+        # A step belongs to exactly one quest; completing a foreign quest's
+        # step through this enrollment would grant that step's reward without
+        # ever enrolling in its quest, and could push this enrollment's own
+        # completion count past its quest's step count -- auto-completing a
+        # quest never actually done.
+        if step.quest_id != self.quest_id:
+            raise exceptions.UserError(
+                _(
+                    "'%(step)s' belongs to quest '%(other_quest)s', not '%(quest)s'.",
+                    step=step.name,
+                    other_quest=step.quest_id.name,
+                    quest=self.quest_id.name,
+                )
+            )
+
         # Check not already completed
         if step.id in self.completion_ids.mapped("step_id").ids:
             return False

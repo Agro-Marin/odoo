@@ -1227,3 +1227,73 @@ class TestClosedGoalCurrentFrozen(common.TransactionCase):
         self.goal.invalidate_recordset()
 
         self.assertEqual(self.goal.current, 999)
+
+
+class TestQuestStepCrossQuestGuard(common.TransactionCase):
+    """``complete_step`` must reject a step from a different quest."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = mail_new_test_user(
+            cls.env,
+            login="quest_cross_user",
+            name="Quest Cross User",
+            email="quest_cross@example.com",
+            groups="base.group_user",
+        )
+        definition = cls.env["gamification.goal.definition"].create(
+            {
+                "name": "Cross-quest step definition",
+                "computation_mode": "manually",
+                "model_id": cls.env.ref("base.model_res_partner").id,
+            }
+        )
+        cls.quest_a = cls.env["gamification.quest"].create({"name": "Quest A"})
+        cls.quest_b = cls.env["gamification.quest"].create({"name": "Quest B"})
+        cls.step_a = cls.env["gamification.quest.step"].create(
+            {
+                "quest_id": cls.quest_a.id,
+                "name": "A-step",
+                "sequence": 1,
+                "definition_id": definition.id,
+                "target_goal": 1,
+            }
+        )
+        cls.step_b = cls.env["gamification.quest.step"].create(
+            {
+                "quest_id": cls.quest_b.id,
+                "name": "B-step",
+                "sequence": 1,
+                "definition_id": definition.id,
+                "target_goal": 1,
+                "karma_reward": 999,
+            }
+        )
+        cls.enrollment_a = (
+            cls.env["gamification.quest.enrollment"]
+            .sudo()
+            .create(
+                {
+                    "user_id": cls.user.id,
+                    "quest_id": cls.quest_a.id,
+                    "state": "in_progress",
+                }
+            )
+        )
+
+    def test_cannot_complete_a_foreign_quests_step(self):
+        karma_before = self.user.karma
+        with self.assertRaises(UserError):
+            self.enrollment_a.with_user(self.user).complete_step(self.step_b)
+
+        self.user.invalidate_recordset()
+        self.enrollment_a.invalidate_recordset()
+        self.assertEqual(self.user.karma, karma_before)
+        self.assertEqual(self.enrollment_a.state, "in_progress")
+
+    def test_can_still_complete_its_own_quests_step(self):
+        """CONTROL: the guard must not block the normal, same-quest path."""
+        completion = self.enrollment_a.with_user(self.user).complete_step(self.step_a)
+        self.assertTrue(completion)
+        self.assertEqual(self.enrollment_a.state, "completed")
