@@ -8,7 +8,7 @@ from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
 
 @tagged("post_install", "-at_install", "accruals")
-class TestAccrualAllocations(TestHrHolidaysCommon):
+class TestPastAccrualAllocations(TestHrHolidaysCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
