@@ -1,7 +1,8 @@
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError
-from odoo.tests import common
+from odoo.tests import common, tagged
+from odoo.tests.common import HttpCase
 
 from odoo.addons.mail.tests.common import mail_new_test_user
 
@@ -296,3 +297,123 @@ class TestAclParity(common.TransactionCase):
 
         tracking = self.env["gamification.karma.tracking"].with_user(manager)
         self.assertFalse(tracking.browse().has_access("write"))
+
+
+@tagged("post_install", "-at_install")
+class TestPortalAccessSurface(common.TransactionCase):
+    """Portal and public users must not reach gamification models by RPC.
+
+    Everything gamification shows on a website page is fetched with ``sudo()``
+    or through ``env.user``, which is already a ``su=True`` environment. The
+    ACL rows for ``base.group_portal`` and ``base.group_public`` therefore
+    bought nothing on the pages and only widened what those audiences could
+    read directly.
+
+    ``post_install`` is required, not decorative: an ACL row dropped from the
+    CSV is deleted in ``_process_end``, which runs after every module has
+    loaded. An ``at_install`` run still sees the old rows and reports green.
+    """
+
+    # The seven models this module's CSV used to open to portal and/or public.
+    CLOSED_TO_EXTERNAL = (
+        "gamification.badge",
+        "gamification.badge.user",
+        "gamification.challenge",
+        "gamification.challenge.line",
+        "gamification.goal",
+        "gamification.goal.definition",
+        "gamification.karma.rank",
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.portal = mail_new_test_user(
+            cls.env,
+            login="gam_ext_portal",
+            name="External Portal",
+            email="gam_ext_portal@example.com",
+            groups="base.group_portal",
+        )
+        cls.public = cls.env.ref("base.public_user")
+
+    def test_portal_cannot_read_a_private_users_badge_grants(self):
+        """The privacy setting is enforced by a rule bound to the app tier only.
+
+        ``badge_user_visibility`` (security/gamification_security.xml) lists
+        ``gamification.group_gamification_user``. A portal user is not in that
+        group, so it matches no record rule at all and the ACL alone decided --
+        which meant it read every grant in the table, including those of a user
+        who had set ``gamification_visibility`` to ``private``.
+        """
+        private_user = mail_new_test_user(
+            self.env,
+            login="gam_private_holder",
+            name="Private Holder",
+            email="gam_private@example.com",
+            groups="base.group_user",
+        )
+        private_user.gamification_visibility = "private"
+        grant = (
+            self.env["gamification.badge.user"]
+            .sudo()
+            .create(
+                {
+                    "badge_id": self.env.ref("gamification.badge_good_job").id,
+                    "user_id": private_user.id,
+                }
+            )
+        )
+
+        with self.assertRaises(AccessError):
+            self.env["gamification.badge.user"].with_user(self.portal).search(
+                [("id", "=", grant.id)]
+            )
+
+    def test_no_gamification_model_is_reachable_by_portal_or_public(self):
+        """The whole surface, not just the one model with a privacy setting."""
+        for user in (self.portal, self.public):
+            for model in self.CLOSED_TO_EXTERNAL:
+                with self.subTest(login=user.login, model=model):
+                    self.assertFalse(
+                        self.env[model].with_user(user).browse().has_access("read")
+                    )
+
+
+class TestKarmaRankImageStaysPublic(HttpCase):
+    """Guard: rank images must keep serving once the ACL is gone.
+
+    A profile page renders the rank picture as ``t-field="rank_id.image_1920"``,
+    which the browser then fetches from ``/web/image/gamification.karma.rank/..``
+    as the portal or public visitor itself -- not through the sudo recordset the
+    page was rendered with. That request used to pass on the ACL alone. This
+    test is a guard rather than a proof: it passes before the ACL rows are
+    dropped, and it is what catches their removal if
+    ``GamificationKarmaRank._can_return_content`` ever goes away.
+
+    ``/web/image`` answers an AccessError with the placeholder image and a 200,
+    so the status code proves nothing; the assertion is on the filename the
+    response advertises.
+    """
+
+    # 1x1 transparent PNG.
+    PIXEL = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+        "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    )
+
+    def test_rank_image_is_served_to_an_anonymous_visitor(self):
+        rank = self.env.ref("gamification.rank_bachelor")
+        rank.image_1920 = self.PIXEL
+
+        response = self.url_open(
+            f"/web/image/gamification.karma.rank/{rank.id}/image_1920"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "Bachelor",
+            response.headers.get("Content-Disposition", ""),
+            "the public visitor got the placeholder, not the rank image: "
+            "/web/image fell back after check_access('read') refused",
+        )
