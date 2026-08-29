@@ -1,5 +1,6 @@
 from odoo import http
-from odoo.http import request
+from odoo.http import content_disposition, request
+from odoo.tools import consteq
 from odoo.tools.misc import get_lang
 
 
@@ -140,6 +141,46 @@ class CalendarController(http.Controller):
         )
         return request.make_response(
             response_content, headers=[("Content-Type", "text/html")]
+        )
+
+    @http.route(
+        "/calendar/ics/<int:event_id>/<string:access_token>",
+        type="http",
+        auth="public",
+        website=True,
+    )
+    def calendar_ics_file(self, event_id, access_token, **kwargs):
+        """Serve a meeting's .ics so an invitee can add it to their own calendar.
+
+        Linked from the invitation mail, so it answers unauthenticated requests
+        and the token is the whole credential.
+
+        `_event_from_token` above is not reusable here: it looks an event up BY
+        token, and this route is handed the id as well, so it compares instead.
+        The falsy case still has to be ruled out first and for the same reason --
+        a NULL `access_token` is the norm on this model, and `consteq` raises on
+        one rather than returning False, which would turn a guessed URL into a
+        500 instead of a 404.
+        """
+        event = request.env["calendar.event"].sudo().browse(event_id).exists()
+        if not event or not event.access_token or not event.attendee_ids:
+            return request.not_found()
+        if not consteq(event.access_token, access_token):
+            return request.not_found()
+        # Empty when vobject is not installed; nothing to serve either way.
+        content = event._get_ics_file().get(event.id)
+        if not content:
+            return request.not_found()
+        return request.make_response(
+            content,
+            headers=[
+                ("Content-Type", "application/octet-stream"),
+                ("Content-Length", len(content)),
+                (
+                    "Content-Disposition",
+                    content_disposition(f"{event._get_customer_summary()}.ics"),
+                ),
+            ],
         )
 
     @http.route("/calendar/meeting/join", type="http", auth="user", website=True)
