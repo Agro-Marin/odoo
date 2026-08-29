@@ -64,40 +64,43 @@ class MailActivityPlanTemplate(models.Model):
             return super()._determine_responsible(on_demand_responsible, employee)
         result = {"error": "", "warning": "", "responsible": False}
         if self.responsible_type == "coach":
-            if not employee.coach_id:
-                result["error"] = self.env._(
-                    "Coach of employee %s is not set.", employee.name
-                )
             result["responsible"] = employee.coach_id.user_id
-            if employee.coach_id and not result["responsible"]:
-                # If a plan cannot be launched due to the coach not being linked to an user,
-                # attempt to assign it to the coach's manager user. If that manager is also not linked
-                # to an user, continue searching upwards until a manager with a linked user is found.
-                # If no one is found still, assign to current user.
+            if not result["responsible"]:
+                # No usable coach: walk up from the coach's manager until someone
+                # has a user, and fall back to the current user if nobody does.
+                # A missing coach starts that walk from nothing, so it lands on
+                # the same fallback -- an employee still being onboarded is
+                # precisely who these plans are for, and refusing to launch the
+                # plan at all is worse than saying who it went to instead.
                 result = self._get_closest_parent_user(
                     employee=employee,
                     responsible=employee.coach_id.parent_id,
-                    error_message=self.env._(
-                        "The user of %s's coach is not set.", employee.name
+                    error_message=(
+                        self.env._("The user of %s's coach is not set.", employee.name)
+                        if employee.coach_id
+                        else self.env._(
+                            "Coach of employee %s is not set.", employee.name
+                        )
                     ),
                 )
 
         elif self.responsible_type == "manager":
-            if not employee.parent_id:
-                result["error"] = self.env._(
-                    "Manager of employee %s is not set.", employee.name
-                )
             result["responsible"] = employee.parent_id.user_id
-            if employee.parent_id and not result["responsible"]:
-                # If a plan cannot be launched due to the manager not being linked to an user,
-                # attempt to assign it to the manager's manager user. If that manager is also not linked
-                # to an user, continue searching upwards until a manager with a linked user is found.
-                # If no one is found still, assign to current user.
+            if not result["responsible"]:
+                # Same walk as above, one level up: from the manager's manager,
+                # and from nothing when there is no manager yet.
                 result = self._get_closest_parent_user(
                     employee=employee,
                     responsible=employee.parent_id.parent_id,
-                    error_message=self.env._(
-                        "The manager of %s should be linked to a user.", employee.name
+                    error_message=(
+                        self.env._(
+                            "The manager of %s should be linked to a user.",
+                            employee.name,
+                        )
+                        if employee.parent_id
+                        else self.env._(
+                            "Manager of employee %s is not set.", employee.name
+                        )
                     ),
                 )
 
