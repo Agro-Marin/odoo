@@ -78,6 +78,13 @@ def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
                 continue
         target, item, allow_none = _resolve(annotation)
         if target is None:
+            _logger.debug(
+                "%s: %r is annotated %r, which typed routes do not coerce; "
+                "the parameter is passed through and its absence is not caught",
+                endpoint,
+                param.name,
+                annotation,
+            )
             continue
         specs[param.name] = ParamSpec(
             target=target,

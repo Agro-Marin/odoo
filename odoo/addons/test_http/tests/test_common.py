@@ -46,15 +46,9 @@ class TestHttpBase(HttpCaseWithUserDemo):
 
     def nodb_url_open(self, url, *args, allow_redirects=False, **kwargs):
         with (
-            patch("odoo.http.db_list") as db_list1,
-            patch("odoo.http.db_filter") as db_filter1,
-            patch("odoo.http.request_class._list_all_dbs") as list_all_dbs2,
-            patch("odoo.http.request_class.db_filter") as db_filter2,
+            patch("odoo.http.db_list", return_value=[]),
+            patch("odoo.http.db_filter", return_value=[]),
         ):
-            db_list1.return_value = []
-            list_all_dbs2.return_value = []
-            for db_filter in (db_filter1, db_filter2):
-                db_filter.return_value = []
             odoo.http.request_class.clear_monodb_cache()
             return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
@@ -62,19 +56,14 @@ class TestHttpBase(HttpCaseWithUserDemo):
         dblist = dblist or self.db_list
         assert len(dblist) >= 2, "There should be at least 2 databases"
         with (
-            patch("odoo.http.db_list") as db_list1,
-            patch("odoo.http.db_filter") as db_filter1,
-            patch("odoo.http.request_class._list_all_dbs") as list_all_dbs2,
-            patch("odoo.http.request_class.db_filter") as db_filter2,
+            patch("odoo.http.db_list", return_value=list(dblist)),
+            patch(
+                "odoo.http.db_filter",
+                side_effect=lambda dbs, host=None: [db for db in dbs if db in dblist],
+            ),
             patch("odoo.http.request_class.Registry") as Registry,
             patch("odoo.http._serve.Registry") as ServeRegistry,
         ):
-            db_list1.return_value = dblist
-            list_all_dbs2.return_value = dblist
-            for db_filter in (db_filter1, db_filter2):
-                db_filter.side_effect = lambda dbs, host=None: [
-                    db for db in dbs if db in dblist
-                ]
             Registry.return_value = self.registry
             ServeRegistry.return_value = self.registry
             odoo.http.request_class.clear_monodb_cache()

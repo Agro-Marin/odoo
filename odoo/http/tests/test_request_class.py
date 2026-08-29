@@ -1,9 +1,11 @@
+import pathlib
 from unittest.mock import patch
 
 import psycopg
 import pytest
 
-from odoo.http import request_class
+import odoo.http
+from odoo.http import helpers, request_class
 
 
 @pytest.fixture
@@ -13,13 +15,18 @@ def fresh_monodb_cache():
     request_class.clear_monodb_cache()
 
 
+def _catalog(dbs):
+    return patch.object(helpers.odoo.service.db, "list_dbs", return_value=list(dbs))
+
+
+def _passthrough_filter():
+    return patch.object(
+        helpers, "db_filter", side_effect=lambda dbs, host=None: list(dbs)
+    )
+
+
 def test_monodb_dblist_filters_cached_catalog(fresh_monodb_cache):
-    with (
-        patch.object(request_class, "_list_all_dbs", return_value=["a", "b"]) as lister,
-        patch.object(
-            request_class, "db_filter", side_effect=lambda dbs, host: list(dbs)
-        ),
-    ):
+    with _catalog(["a", "b"]) as lister, _passthrough_filter():
         assert request_class._monodb_dblist("h") == ["a", "b"]
         assert request_class._monodb_dblist("h") == ["a", "b"]
     assert lister.call_count == 1
@@ -27,15 +34,10 @@ def test_monodb_dblist_filters_cached_catalog(fresh_monodb_cache):
 
 def test_monodb_dblist_degrades_when_postgres_unreachable(fresh_monodb_cache):
     boom = psycopg.OperationalError("connection refused")
-    with patch.object(request_class, "_list_all_dbs", side_effect=boom):
+    with patch.object(helpers.odoo.service.db, "list_dbs", side_effect=boom):
         assert request_class._monodb_dblist("h") == []
 
-    with (
-        patch.object(request_class, "_list_all_dbs", return_value=["only"]),
-        patch.object(
-            request_class, "db_filter", side_effect=lambda dbs, host: list(dbs)
-        ),
-    ):
+    with _catalog(["only"]), _passthrough_filter():
         assert request_class._monodb_dblist("h") == ["only"]
 
 
@@ -46,38 +48,58 @@ def test_monodb_dblist_degrades_on_any_psycopg_error(fresh_monodb_cache):
         psycopg.errors.InsufficientPrivilege("denied"),
     ):
         request_class.clear_monodb_cache()
-        with patch.object(request_class, "_list_all_dbs", side_effect=exc):
+        with patch.object(helpers.odoo.service.db, "list_dbs", side_effect=exc):
             assert request_class._monodb_dblist("h") == []
 
 
-def test_db_list_degrades_on_any_psycopg_error():
-    from odoo.http import helpers
-
+def test_db_list_degrades_on_any_psycopg_error(fresh_monodb_cache):
     with patch.object(
         helpers.odoo.service.db, "list_dbs", side_effect=psycopg.Error("boom")
     ):
         assert helpers.db_list(force=True, host="h") == []
 
 
-def test_monodb_dblist_caches_the_filtering_not_only_the_catalog(fresh_monodb_cache):
-    with (
-        patch.object(request_class, "_list_all_dbs", return_value=["a", "b"]),
-        patch.object(
-            request_class, "db_filter", side_effect=lambda dbs, host: list(dbs)
-        ) as filterer,
-    ):
+def test_resolution_goes_through_the_public_db_list(fresh_monodb_cache):
+    with patch.object(odoo.http, "db_list", return_value=[]) as public:
+        assert request_class._monodb_dblist("h") == []
+    assert public.call_args.kwargs == {"force": True, "host": "h"}
+
+
+def test_resolution_goes_through_the_public_db_filter():
+    """Both seams are the public ones, and both are needed to say "no database".
+
+    A session that already carries a ``db`` never reaches the listing at all --
+    ``_get_session_and_dbname`` asks ``db_filter`` whether that database is
+    still served by this host. Patching only ``db_list`` therefore simulates
+    "no database" for a fresh visitor and not for a logged-in one, which is how
+    ``test_http``'s ``nodb_url_open`` came to need two patches rather than one.
+    """
+    import odoo.http.request_class as rc
+
+    source = pathlib.Path(rc.__file__).read_text(encoding="utf-8")
+    assert "http.db_filter(" in source
+    assert "\n    db_filter,\n" not in source, (
+        "request_class must not bind db_filter at import time, or patching "
+        "odoo.http.db_filter stops reaching the resolution path"
+    )
+
+
+def test_the_catalog_is_read_once_per_ttl_bucket(fresh_monodb_cache):
+    with _catalog(["a", "b"]) as lister, _passthrough_filter():
         for _ in range(5):
             assert request_class._monodb_dblist("h") == ["a", "b"]
-    assert filterer.call_count == 1
+    assert lister.call_count == 1
 
 
 def test_each_host_gets_its_own_filtered_answer(fresh_monodb_cache):
     with (
-        patch.object(request_class, "_list_all_dbs", return_value=["a_one", "b_two"]),
+        _catalog(["a_one", "b_two"]),
         patch.object(
-            request_class,
+            helpers,
             "db_filter",
-            side_effect=lambda dbs, host: [db for db in dbs if db.startswith(host)],
+            side_effect=lambda dbs, host=None: [
+                db for db in dbs if db.startswith(host)
+            ],
         ),
     ):
         assert request_class._monodb_dblist("a") == ["a_one"]
@@ -86,12 +108,7 @@ def test_each_host_gets_its_own_filtered_answer(fresh_monodb_cache):
 
 
 def test_the_caller_cannot_mutate_the_cached_answer(fresh_monodb_cache):
-    with (
-        patch.object(request_class, "_list_all_dbs", return_value=["a"]),
-        patch.object(
-            request_class, "db_filter", side_effect=lambda dbs, host: list(dbs)
-        ),
-    ):
+    with _catalog(["a"]), _passthrough_filter():
         first = request_class._monodb_dblist("h")
         first.append("smuggled")
         assert request_class._monodb_dblist("h") == ["a"]
@@ -100,18 +117,14 @@ def test_the_caller_cannot_mutate_the_cached_answer(fresh_monodb_cache):
 def test_the_monodb_cache_is_registered_as_a_catalog_listener():
     from odoo.service.db import listing
 
-    assert request_class.clear_monodb_cache in listing._catalog_listeners
+    assert helpers.clear_db_list_cache in listing._catalog_listeners
+    assert request_class.clear_monodb_cache is helpers.clear_db_list_cache
 
 
 def test_a_catalog_change_expires_the_cached_list(fresh_monodb_cache):
     from odoo.service.db import listing
 
-    with (
-        patch.object(request_class, "_list_all_dbs", return_value=["a"]) as lister,
-        patch.object(
-            request_class, "db_filter", side_effect=lambda dbs, host: list(dbs)
-        ),
-    ):
+    with _catalog(["a"]) as lister, _passthrough_filter():
         assert request_class._monodb_dblist("h") == ["a"]
         assert request_class._monodb_dblist("h") == ["a"]
         assert lister.call_count == 1

@@ -50,6 +50,23 @@ class TestHttpWebJson_2(TestHttpBase):
             headers=CT_JSON | self.bearer_header,
             dblist=(get_db_name(), "another-database"),
         )
+        # A json2 client is answered in JSON, exactly as it is when a database
+        # IS resolved and the path matches nothing. The HTML page is what a
+        # browser gets -- see test_webjson2_multi_db_no_header_html below.
+        self.assertEqual(res.status_code, HTTPStatus.NOT_FOUND)
+        self.assertEqual(
+            res.headers.get("Content-Type"), "application/json; charset=utf-8"
+        )
+        self.assertIn(
+            "not found in the server-wide controllers", res.json()["message"]
+        )
+
+    def test_webjson2_multi_db_no_header_html(self):
+        res = self.multidb_url_open(
+            "/json/2/res.users/search",
+            headers=self.bearer_header,
+            dblist=(get_db_name(), "another-database"),
+        )
         self.assertIn("URL was not found in the server-wide controllers.</p>", res.text)
         self.assertEqual(res.status_code, HTTPStatus.NOT_FOUND)
         self.assertEqual(res.headers.get("Content-Type"), "text/html; charset=utf-8")
@@ -65,9 +82,13 @@ class TestHttpWebJson_2(TestHttpBase):
             },
             dblist=(get_db_name(), "another-database"),
         )
-        self.assertIn("URL was not found in the server-wide controllers.</p>", res.text)
         self.assertEqual(res.status_code, HTTPStatus.NOT_FOUND)
-        self.assertEqual(res.headers.get("Content-Type"), "text/html; charset=utf-8")
+        self.assertEqual(
+            res.headers.get("Content-Type"), "application/json; charset=utf-8"
+        )
+        self.assertIn(
+            "not found in the server-wide controllers", res.json()["message"]
+        )
 
     def test_webjson2_multi_db_good_header(self):
         res = self.multidb_url_open(
@@ -113,15 +134,17 @@ class TestHttpWebJson_2(TestHttpBase):
             data=r"not json",
             headers=CT_JSON | self.bearer_header,
         )
-        m = "could not parse the body as json: invalid literal: line 1 column 1 (char 0)"
-        self.assertErrorLike(
-            res,
-            {
-                "name": "werkzeug.exceptions.BadRequest",
-                "message": m,
-                "arguments": [m, HTTPStatus.BAD_REQUEST],
-            },
+        # Only the prefix is ours. The rest is the JSON library's own sentence
+        # and it moves with the library -- pinning it here made this test red on
+        # an orjson upgrade ("invalid literal" -> "invalid literal, expected
+        # 'null'") with nothing wrong in the framework.
+        body = res.json()
+        self.assertEqual(body["name"], "werkzeug.exceptions.BadRequest")
+        self.assertTrue(
+            body["message"].startswith("could not parse the body as json: "),
+            body["message"],
         )
+        self.assertEqual(body["arguments"], [body["message"], HTTPStatus.BAD_REQUEST])
         self.assertEqual(res.status_code, HTTPStatus.BAD_REQUEST)
         self.assertEqual(
             res.headers.get("Content-Type"), "application/json; charset=utf-8"

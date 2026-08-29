@@ -51,6 +51,17 @@ def register_routing_parameters(*names: str) -> None:
     _KNOWN_ROUTING_PARAMETERS.update(names)
 
 
+class RouteDefinitionError(ValueError):
+    """A @route override the framework cannot honour.
+
+    Raised while merging one endpoint and caught by ``_merge_routing``, which
+    drops that endpoint and logs. One unserviceable route must not cost the
+    routing map: ``ir.http.routing_map`` is ormcached, so raising through it
+    would recur on every request in every worker and a single third-party addon
+    would take the instance down.
+    """
+
+
 class LazyCompiledBuilder:
     def __init__(
         self,
@@ -229,6 +240,20 @@ def _is_from_installed_addon(cls: type, modules: Collection[str]) -> bool:
     return path[:2] == ["odoo", "addons"] and path[2] in modules
 
 
+def _newest_by_identity(classes: Iterable[type]) -> list[type]:
+    by_key: dict[tuple[str, str], int] = {}
+    result: list[type] = []
+    for cls in classes:
+        key = (cls.__module__, cls.__qualname__)
+        idx = by_key.get(key)
+        if idx is None:
+            by_key[key] = len(result)
+            result.append(cls)
+        else:
+            result[idx] = cls
+    return result
+
+
 def _get_leaf_classes(cls: type, modules: Collection[str]) -> list[type]:
     result = []
     for subcls in cls.__subclasses__():
@@ -236,7 +261,7 @@ def _get_leaf_classes(cls: type, modules: Collection[str]) -> list[type]:
             result.extend(_get_leaf_classes(subcls, modules))
     if not result and _is_from_installed_addon(cls, modules):
         result.append(cls)
-    return result
+    return _newest_by_identity(result)
 
 
 def _group_controller_trees(
@@ -255,7 +280,7 @@ def _group_controller_trees(
             for other in also:
                 groups[target].extend(groups[other])
                 groups[other] = []
-            groups[target] = list(unique([*groups[target], *leaves]))
+            groups[target] = _newest_by_identity([*groups[target], *leaves])
         else:
             target = len(groups)
             groups.append(list(leaves))
@@ -274,7 +299,7 @@ def _get_controllers(modules: Collection[str]) -> Generator[Controller]:
         highest_controllers.extend(Controller.children_classes.get(module, []))
 
     trees = (
-        (top_ctrl, list(unique(_get_leaf_classes(top_ctrl, modules))))
+        (top_ctrl, _get_leaf_classes(top_ctrl, modules))
         for top_ctrl in highest_controllers
     )
 
@@ -320,9 +345,14 @@ def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
             continue
 
         defining_cls = cls
-        merged_routing.update(
-            _check_and_complete_route_definition(cls, submethod, merged_routing)
-        )
+        try:
+            fragment = _check_and_complete_route_definition(
+                cls, submethod, merged_routing
+            )
+        except RouteDefinitionError as exc:
+            _logger.error("%s The route is not served.", exc)
+            return None
+        merged_routing.update(fragment)
 
     if not merged_routing["routes"]:
         owner = defining_cls if defining_cls is not None else type(ctrl)
@@ -376,12 +406,18 @@ def _check_and_complete_route_definition(
     fragment = dict(submethod.original_routing)
 
     routing_type = merged_routing.setdefault("type", fragment.get("type", "http"))
-    if fragment.get("type") not in (None, routing_type):
-        _logger.warning(
-            "The endpoint %s changes the route type, using the original type: %r.",
-            f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}",
-            routing_type,
+    declared_type = fragment.get("type")
+    if declared_type not in (None, routing_type):
+        where = f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}"
+        e = (
+            f"{where} overrides a type={routing_type!r} route with "
+            f"type={declared_type!r}. One URL has one dispatcher, so the merged "
+            f"route would keep {routing_type!r} -- but the override's own "
+            f"@route(type=...) still decides how its return value is wrapped, so "
+            f"the two disagree and every request to the route fails. Drop the "
+            f"type= from the override, or give the override its own route."
         )
+        raise RouteDefinitionError(e)
     fragment["type"] = routing_type
 
     if bool(fragment.get("typed", merged_routing.get("typed", False))):

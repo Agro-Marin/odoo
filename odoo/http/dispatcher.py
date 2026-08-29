@@ -78,11 +78,19 @@ class Dispatcher(ABC):
             return
         existing = _dispatchers.get(routing_type)
         if existing is not None and existing is not cls:
-            _logger.warning(
-                "Dispatcher routing_type=%r already registered as %s; %s overrides it.",
+            # Subclassing the incumbent is how an addon replaces a dispatcher on
+            # purpose -- odoo/addons/iot_drivers/http.py extends
+            # JsonRPCDispatcher to add a 403 shape. Two UNRELATED classes
+            # claiming one routing_type is the accident worth a warning: which
+            # of them wins is then decided by import order.
+            deliberate = issubclass(cls, existing)
+            _logger.log(
+                logging.DEBUG if deliberate else logging.WARNING,
+                "Dispatcher routing_type=%r was %s; %s %s it.",
                 routing_type,
                 existing.__name__,
                 cls.__name__,
+                "extends" if deliberate else "unrelatedly replaces",
             )
         _dispatchers[routing_type] = cls
 
@@ -394,11 +402,11 @@ class Json2Dispatcher(Dispatcher):
             status = exc.http_status
             body = serialize_exception(exc)
         elif isinstance(exc, HTTPException):
-            status = exc.code
+            status = exc.code or HTTPStatus.INTERNAL_SERVER_ERROR
             body = serialize_exception(
                 exc,
                 message=exc.description,
-                arguments=(exc.description, exc.code),
+                arguments=(exc.description, status),
             )
             headers = [(k, v) for k, v in exc.get_headers() if k != "Content-Type"]
         else:

@@ -64,12 +64,17 @@ a werkzeug request and itself in an Odoo HTTP request, exposes it at
 depending on the request path and the presence of a database. Also responsible
 for logging any error and encapsulating it in an HTTP error response.
 
-**`Request._serve_static`** — handles `/<module>/static/<asset>` paths: opens the
-underlying file on the filesystem and streams it via `Stream.get_response`.
+**`Request._serve_static`** — streams an already-resolved file via
+`Stream.get_response`. It does **not** resolve the path: `Application.get_static_file`
+does, before the request reaches here, with `file_path()` plus a
+`Path.resolve().is_relative_to()` containment check. There is one resolver on
+purpose — a second one lived in this method until it was found to be unreachable.
 
 **`Request._serve_nodb`** — handles `@route(auth='none')` endpoints when there is
 no database connection. It matches the `auth='none'` endpoint from the request
-path and delegates to the `Dispatcher`.
+path and delegates to the `Dispatcher`. An unmatched path infers a dispatcher
+from the request's media type, exactly as `_serve_db` does, so a JSON client is
+answered in JSON and a browser gets the `NOT_FOUND_NODB` page.
 
 **`Request._serve_db`** — handles every non-static request when a database can be
 reached. Opens a registry, manages the request cursor and environment, and
@@ -78,12 +83,19 @@ decides read-only versus read/write: `check_signaling`, `match` and
 (reset) read-only cursor, or a new read/write one.
 
 **`Request._serve_aborted`** — the short path for a request werkzeug rejected
-before dispatch; it does not appear in the graph above.
+before dispatch; it does not appear in the graph above. An exception carrying
+its own response (`abort(no_content())`, the CORS preflight) is delivered
+verbatim; a status-less one goes through the dispatcher, so the error body
+matches the route's media type rather than always being werkzeug's HTML page.
 
 **`service.transaction.retrying`** — manages the cursor, the environment, and the
 exceptions raised while executing the wrapped callable. Recovers from
-serialization errors and from writes attempted in a read-only transaction;
-catches everything else and attaches an HTTP response to it (e.g. 500). It also
+serialization errors; resets the environment and **re-raises** everything else.
+It does *not* attach an HTTP response — `_serve._update_served_exception`, which
+wraps both `retrying()` calls, is what asks `ir.http._handle_error` for one. The
+read-only → read/write promotion is `_serve_db`'s, not `retrying`'s: it catches
+`psycopg.errors.ReadOnlySqlTransaction`, replays the retry participant and calls
+`retrying()` a second time on a fresh read/write cursor. `retrying` also
 performs the commit: `env.cr.commit()` is the last thing it does once the
 callable returns.
 
@@ -141,9 +153,9 @@ post_dispatch out of band.
 | `controller.py` | serving | `Controller` and the controller registry |
 | `session.py` | serving | `Session`, `FilesystemSessionStore`, session rotation and GC |
 | `stream.py` | serving | `Stream`: file/attachment streaming and conditional responses |
-| `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl`, `no_content` — the werkzeug wrappers, cookie defaults, and the `HTTPException.get_response` override that keeps a status-less exception from answering 200 |
+| `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl`, `no_content` — the werkzeug wrappers, cookie defaults, and the `HTTPException.get_response` override that keeps a status-less exception from answering 200. **`HTTPRequest.environ` is a filtered copy**: every `werkzeug.*`, `wsgi.*` and `socket*` key is dropped except `wsgi.url_scheme` and `werkzeug.proxy_fix.orig`, so `environ["wsgi.input"]` raises `KeyError` — `raw_environ` is the unfiltered one |
 | `core.py` | serving | `_request_stack` (a werkzeug `LocalStack`), the `request` proxy bound to it, and `borrow_request` |
-| `helpers.py` | serving | `content_disposition`, `rewind_uploaded_files`, `db_list` and the `dbfilter` machinery |
+| `helpers.py` | serving | `content_disposition`, `rewind_uploaded_files`, `db_list` — the package's one database-listing entry point, cached and read by both the selector and `Request._get_session_and_dbname` — and the `dbfilter` machinery |
 | `_retry.py` | serving | `RequestRetryParticipant`: restores the session and rewinds uploads when `retrying()` replays a handler, installed on `service.transaction` at import |
 | `openapi.py` | features | `build_openapi`: an OpenAPI `3.1.0` document generated from the routing map |
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |

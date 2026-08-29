@@ -2,6 +2,7 @@ import contextlib
 import functools
 import logging
 import re
+import time
 import traceback
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
@@ -17,7 +18,7 @@ from odoo.db import is_maintenance_db
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools import config
 
-from .constants import SESSION_LIFETIME
+from .constants import DB_LIST_CACHE_TTL, SESSION_LIFETIME
 from .core import borrow_request, request
 
 _logger = logging.getLogger(__name__)
@@ -43,10 +44,49 @@ def rewind_uploaded_files(
             ) from cause
 
 
+@functools.lru_cache(maxsize=2)
+def _all_dbs_cached(_ttl_bucket: int, force: bool) -> tuple[str, ...]:
+    return tuple(odoo.service.db.list_dbs(force))
+
+
+def clear_db_list_cache() -> None:
+    _all_dbs_cached.cache_clear()
+
+
+odoo.service.db.register_catalog_listener(clear_db_list_cache)
+"""``db_list`` below is the package's ONE database-listing entry point.
+
+Both readers of "which databases does this host serve" go through it: the
+selector and database manager (``web/controllers``), and
+``Request._get_session_and_dbname`` resolving a session-less request to the
+single one. Those were two implementations with two caches and two error
+policies, which is why ``test_http``'s ``nodb_url_open`` had to patch four names
+to say "no database".
+
+``_serve._acquire_registry_cursor`` calls ``service.db.list_dbs`` directly and
+should: it is asking a DIFFERENT question -- does this database exist at all,
+right now, after a registry failure -- so it wants neither the host filter (a
+database can exist and be filtered out) nor the cache (the answer it needs is
+the one from after the failure, not from up to five seconds before it).
+
+The listener expires the cache the moment this process changes the catalogue: a
+database created or dropped through the database manager would otherwise stay
+visible, or invisible, for the rest of the TTL, and on a single-database
+deployment that is the difference between the selector working and 404-ing
+right after a restore. Filtering stays OUTSIDE the cache because ``db_filter``
+falls back to the *current request's* Host header when ``host`` is None, and
+that must not be memoised.
+"""
+
+
 def db_list(force: bool = False, host: str | None = None) -> list[str]:
     try:
-        dbs = odoo.service.db.list_dbs(force)
+        dbs = _all_dbs_cached(int(time.time() // DB_LIST_CACHE_TTL), force)
     except psycopg.Error:
+        _logger.warning(
+            "Could not list databases; answering as though this instance serves none.",
+            exc_info=True,
+        )
         return []
     return db_filter(dbs, host)
 

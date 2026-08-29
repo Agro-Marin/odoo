@@ -32,7 +32,9 @@ if TYPE_CHECKING:
         registry: Registry | None
         session: Session
 
-        def _get_session_and_dbname(self) -> tuple[Session, str | None]: ...
+        def _get_session_and_dbname(
+            self, sid: str | None = None
+        ) -> tuple[Session, str | None]: ...
 
         def _inject_future_response(self, response: Response) -> Response: ...
 

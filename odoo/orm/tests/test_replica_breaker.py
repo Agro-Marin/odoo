@@ -234,3 +234,43 @@ def test_a_lag_demotion_does_not_consume_the_breakers_probe():
     assert reg.cursor(readonly=True) == "primary-cursor"
     assert breaker._probing_since == 0.0, "the probe claim must be untouched"
     assert breaker.allow(), "a real probe must still be grantable"
+
+
+def test_enabling_tests_is_what_opens_a_readonly_connection():
+    """The coupling that makes the suite and production run different branches.
+
+    Each term is pinned separately because the surprising one is ``test_enable``:
+    a lane that merely turns tests on gets a simulated replica, so
+    ``registry.cursor(readonly=True)`` is genuinely read-only under test and
+    read/write on a deployment that configures none. ``_serve_db`` branches on
+    that, and the branch a replica-less deployment takes on EVERY request is
+    executed by no integration test -- see
+    ``odoo/http/tests/test_serve_db_cursor_modes.py``, which measures both
+    halves without a database.
+
+    If this test is what fails, the question is not "which term do I delete" but
+    "which lane now measures the other half".
+    """
+    from unittest import mock
+
+    from odoo.orm.runtime import registry as registry_module
+
+    base = {"db_replica_host": None, "test_enable": False, "dev_mode": []}
+
+    def _with(**overrides):
+        # patch the module's own `config` reference: mutating the global one
+        # leaks into whatever else the session runs.
+        return mock.patch.object(registry_module, "config", base | overrides)
+
+    with _with():
+        assert registry_module.serves_readonly_cursors() is False, (
+            "a plain deployment must not open a second connection"
+        )
+
+    for key, value in (
+        ("db_replica_host", "replica.example"),
+        ("test_enable", True),
+        ("dev_mode", ["replica"]),
+    ):
+        with _with(**{key: value}):
+            assert registry_module.serves_readonly_cursors() is True, key

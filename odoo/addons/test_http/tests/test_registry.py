@@ -77,15 +77,6 @@ class TestHttpRegistry(BaseCase):
             return [db for db in dbs if db in cls._db_list()]
 
         cls.startClassPatcher(patch("odoo.http.db_filter", side_effect=fake_db_filter))
-        cls.startClassPatcher(
-            patch("odoo.http.request_class.db_filter", side_effect=fake_db_filter)
-        )
-        cls.startClassPatcher(
-            patch(
-                "odoo.http.request_class._list_all_dbs",
-                side_effect=lambda force=False: list(cls._db_list()),
-            )
-        )
 
     def setUp(self):
         super().setUp()

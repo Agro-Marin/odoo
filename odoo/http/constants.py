@@ -80,6 +80,18 @@ NOT_FOUND_NODB = """\
 <!-- Alternatively, use the X-Odoo-Database header. -->
 """
 
+NOT_FOUND_NODB_TEXT = (
+    "No database is selected and the requested URL was not found in the "
+    "server-wide controllers. Verify the hostname, or name a database with "
+    "the X-Odoo-Database header."
+)
+"""What ``NOT_FOUND_NODB`` says, for a client that cannot render HTML.
+
+The two must stay in step: `_serve_nodb` picks between them by the inferred
+dispatcher, so a JSON client gets this and a browser gets the page.
+"""
+
+
 ENSURE_DB_PATHS: set[str] = set()
 ENSURE_DB_PATH_PREFIXES: tuple[str, ...] = ()
 """A tuple, not a set, because its only reader feeds it to ``str.startswith``.
@@ -134,4 +146,4 @@ STATIC_CACHE = 60 * 60 * 24 * 7
 
 STATIC_CACHE_LONG = 60 * 60 * 24 * 365
 
-DB_MONODB_CACHE_TTL = 5.0
+DB_LIST_CACHE_TTL = 5.0

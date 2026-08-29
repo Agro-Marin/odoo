@@ -4,6 +4,7 @@ from typing import Any, cast
 
 import pytest
 
+from odoo.http import routing as routing_module
 from odoo.http._params import coerce_params
 from odoo.http._protocols import HasRouting
 from odoo.http.controller import Controller
@@ -104,14 +105,14 @@ def test_plain_user_route_persists_session():
 def test_merge_never_mutates_declared_fragments():
 
     class Parent(Controller):
-        @route("/m", type="http", auth="user")
+        @route("/m", type="http", auth="user", readonly=False)
         def x(self):
             return None
 
     Parent.__module__ = "odoo.addons.ma.controllers"
 
     class Child(Parent):
-        @route(type="jsonrpc", readonly=True)
+        @route(readonly=True)
         def x(self):
             return super().x()
 
@@ -126,7 +127,6 @@ def test_merge_never_mutates_declared_fragments():
 
     assert dict(Parent.__dict__["x"].original_routing) == parent_decl
     assert dict(Child.__dict__["x"].original_routing) == child_decl
-    assert child_decl["type"] == "jsonrpc"
     assert child_decl["readonly"] is True
     assert not hasattr(Parent.__dict__["x"], "_merged_route_type")
     assert not hasattr(Child.__dict__["x"], "_merged_route_type")
@@ -135,6 +135,63 @@ def test_merge_never_mutates_declared_fragments():
         assert routing["type"] == "http"
         assert routing["readonly"] is False
     assert dict(Child.__dict__["x"].original_routing) == child_decl
+
+
+def test_an_override_may_not_change_the_route_type():
+    class Parent(Controller):
+        @route("/typeconflict", type="jsonrpc", auth="none")
+        def x(self):
+            return {}
+
+    Parent.__module__ = "odoo.addons.ma.controllers"
+
+    class Child(Parent):
+        @route(type="http")
+        def x(self):
+            return {}
+
+    Child.__module__ = "odoo.addons.mb.controllers"
+
+    Controller.children_classes.clear()
+    Controller.children_classes["ma"].append(Parent)
+    Controller.children_classes["mb"].append(Child)
+
+    records = []
+
+    class _Cap(logging.Handler):
+        def emit(self, record):
+            records.append(record.getMessage())
+
+    handler = _Cap()
+    routing_module._logger.addHandler(handler)
+    try:
+        rules = dict(routing_module._generate_routing_rules(["ma", "mb"], False))
+    finally:
+        routing_module._logger.removeHandler(handler)
+
+    # loud, and contained: the route is dropped, the routing map still builds
+    assert rules == {}
+    assert any("overrides a type='jsonrpc' route" in m for m in records), records
+    assert any("The route is not served." in m for m in records), records
+
+
+def test_an_override_restating_the_same_type_is_fine():
+    class Parent(Controller):
+        @route("/same", type="jsonrpc", auth="none")
+        def x(self):
+            return {}
+
+    Parent.__module__ = "odoo.addons.ma.controllers"
+
+    class Child(Parent):
+        @route(type="jsonrpc")
+        def x(self):
+            return {}
+
+    Child.__module__ = "odoo.addons.mb.controllers"
+
+    for routing in _merge(("ma", Parent), ("mb", Child)).values():
+        assert routing["type"] == "jsonrpc"
 
 
 def test_options_added_to_methods_allow_list():

@@ -8,7 +8,12 @@ from typing import Any
 from urllib.parse import urlencode, urlparse
 
 import werkzeug.routing
-from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
+from werkzeug.exceptions import (
+    HTTPException,
+    InternalServerError,
+    MethodNotAllowed,
+    NotFound,
+)
 from werkzeug.middleware.proxy_fix import ProxyFix as ProxyFix_
 from werkzeug.wrappers import Response as WerkzeugResponse
 
@@ -53,6 +58,17 @@ def _get_proxy_fix(hops: int) -> ProxyFix_:
         x_proto=hops,
         x_host=hops,
     )
+
+
+debugger_attached = False
+
+
+def _hands_over_to_the_debugger(request: Request | None) -> bool:
+    if not debugger_attached:
+        return False
+    if request is None:
+        return True
+    return not request.dispatcher.serializes_errors_in_dev_mode
 
 
 _UNSET = object()
@@ -122,7 +138,13 @@ class Application:
 
         try:
             return _resolve_static_resource(static_path, resource)
-        except FileNotFoundError:
+        except FileNotFoundError, ValueError:
+            # ValueError is an embedded NUL, which `Path.resolve` refuses to
+            # stat. Application.__call__ rejects those before it ever gets
+            # here, but this is also called with an ir.attachment URL
+            # (`_get_static_file_path`), and a resolver contracted to answer
+            # `str | None` must not raise at one caller because another one
+            # happens to filter first.
             return None
 
     @_locked_cached_property
@@ -265,12 +287,14 @@ class Application:
             return
         if isinstance(exc, AccessDenied):
             exc.suppress_traceback()
-        if request is not None:
-            set_error_response(exc, request.dispatcher.handle_error(exc))
-        else:
-            from werkzeug.exceptions import InternalServerError
-
+        if request is None:
             set_error_response(exc, InternalServerError(str(exc) or None))
+            return
+        try:
+            set_error_response(exc, request.dispatcher.handle_error(exc))
+        except Exception:
+            _logger.exception("The dispatcher could not build an error response")
+            set_error_response(exc, InternalServerError())
 
     def _finalize_error_response(self, exc: Exception, request: Request | None) -> None:
         if request is None or not request._post_init_done:
@@ -279,7 +303,8 @@ class Application:
             response = get_error_response(exc)
             if isinstance(response, HTTPException):
                 response = response.get_response(request.httprequest.environ)
-            assert response is not None
+            if response is None:
+                return
             request.dispatcher.post_dispatch(response)
             set_error_response(exc, response)
         except Exception:
@@ -329,10 +354,13 @@ class Application:
 
             except Exception as exc:
                 self._log_request_exception(exc)
+                if _hands_over_to_the_debugger(request):
+                    raise
                 self._ensure_error_response(exc, request)
                 self._finalize_error_response(exc, request)
                 error_response = get_error_response(exc)
-                assert error_response is not None
+                if error_response is None:
+                    error_response = InternalServerError(str(exc) or None)
                 return error_response(environ, start_response)
 
             finally:

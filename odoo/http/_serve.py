@@ -6,7 +6,6 @@ from typing import Any
 
 import psycopg
 import psycopg.errors
-import werkzeug.security
 from werkzeug.exceptions import (
     HTTPException,
     NotFound,
@@ -23,7 +22,7 @@ from odoo.tools import config
 
 from ._protocols import RequestState
 from ._retry import RequestRetryParticipant
-from .constants import NOT_FOUND_NODB, STATIC_CACHE
+from .constants import NOT_FOUND_NODB, NOT_FOUND_NODB_TEXT, STATIC_CACHE
 from .core import borrow_request
 from .dispatcher import _dispatchers, infer_dispatcher_for_unmatched
 from .exceptions import RegistryError, get_error_response, set_error_response
@@ -56,21 +55,11 @@ class _RequestServeMixin(RequestState):
             raise UnsupportedMediaType(response=res)
         self.dispatcher = dispatcher_cls(self)
 
-    def _serve_static(self, filepath: str | None = None) -> Response:
+    def _serve_static(self, filepath: str) -> Response:
         root = self.app
 
         try:
-            if filepath is None:
-                module, _, path = self.httprequest.path[1:].partition("/static/")
-                directory = root.static_path(module)
-                if not directory:
-                    raise NotFound(f'Module "{module}" not found.\n')
-                filepath = werkzeug.security.safe_join(directory, path)
-                if filepath is None:
-                    raise NotFound(f'File "{path}" not found in module {module}.\n')
-                stream = Stream.from_path(filepath, public=True)
-            else:
-                stream = Stream._from_trusted_path(filepath, public=True)
+            stream = Stream._from_trusted_path(filepath, public=True)
             debug = "assets" in self.session.debug
             res = stream.get_response(
                 max_age=0 if debug else STATIC_CACHE,
@@ -83,15 +72,23 @@ class _RequestServeMixin(RequestState):
             raise NotFound(f'File "{path}" not found in module {module}.\n') from None
 
     def _serve_aborted(self, exc: HTTPException) -> Response:
-        if exc.response is None and exc.code is None:
+        if exc.response is not None:
+            response = exc.get_response()
+        else:
             _logger.error(
                 "Aborted with a status-less HTTPException while serving %s",
                 self.httprequest.path,
                 exc_info=exc,
             )
-        response = exc.get_response()
+            response = self._dispatcher_error_response(exc)
         self.dispatcher.post_dispatch(response)
         return response
+
+    def _dispatcher_error_response(self, exc: HTTPException) -> Response:
+        handled = self.dispatcher.handle_error(exc)
+        if isinstance(handled, HTTPException):
+            return handled.get_response()
+        return handled
 
     def _serve_nodb(self) -> Response:
         root = self.app
@@ -101,13 +98,8 @@ class _RequestServeMixin(RequestState):
             try:
                 rule, args = router.match(return_rule=True)
             except NotFound as exc:
-                exc.response = Response(
-                    NOT_FOUND_NODB,
-                    status=exc.code,
-                    headers=[
-                        ("Content-Type", "text/html; charset=utf-8"),
-                    ],
-                )
+                self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
+                exc.response = self._nodb_not_found_response(exc)
                 raise
             self._set_request_dispatcher(rule)
             self.dispatcher.pre_dispatch(rule, args)
@@ -118,6 +110,16 @@ class _RequestServeMixin(RequestState):
             if exc.code is not None:
                 raise
             return self._serve_aborted(exc)
+
+    def _nodb_not_found_response(self, exc: NotFound) -> Response:
+        if self.dispatcher.routing_type == "http":
+            return Response(
+                NOT_FOUND_NODB,
+                status=exc.code,
+                headers=[("Content-Type", "text/html; charset=utf-8")],
+            )
+        exc.description = NOT_FOUND_NODB_TEXT
+        return self._dispatcher_error_response(exc)
 
     def _acquire_registry_cursor(self) -> Any:
         db = self.db
@@ -221,7 +223,15 @@ class _RequestServeMixin(RequestState):
                 cr = env.registry.cursor()
             else:
                 cr.rollback()
-            assert not cr.readonly
+            if cr.readonly:
+                # Not a type narrowing -- this is the invariant the promotion
+                # exists to establish, and `assert` would be stripped by -O.
+                e = (
+                    f"{self.httprequest.method} {self.httprequest.path} needs a "
+                    f"read/write cursor and the registry handed back a read-only "
+                    f"one; refusing to run the handler against it."
+                )
+                raise RuntimeError(e)
             if promoted:
                 self._reset_for_replay(cr)
             else:

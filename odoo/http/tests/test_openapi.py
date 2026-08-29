@@ -64,6 +64,8 @@ def test_typed_route_documents_query_params_and_400():
     def handler(self, n: int, flag: bool = False):
         pass
 
+    handler.__doc__ = "List things."
+
     route = _route(
         "/typed",
         methods=frozenset({"GET"}),

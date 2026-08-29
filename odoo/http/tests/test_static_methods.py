@@ -66,3 +66,37 @@ def test_allow_header_treats_empty_as_a_declaration_not_an_absence():
     assert allow_header(()) == "OPTIONS"
     assert allow_header([]) == "OPTIONS"
     assert allow_header(None) == ", ".join([*DEFAULT_ALLOWED_METHODS, "OPTIONS"])
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "\x00x.js",
+        "a" * 5000 + ".js",
+        "src/scss/primary_variables.scss/nested.js",
+        "\udcff.js",
+        "../../../../etc/passwd",
+        "..%2f..%2f..%2fetc/passwd",
+        "....//....//etc/passwd",
+        "./../../odoo-bin",
+        "/..//..//odoo-bin",
+        "\\..\\..\\odoo-bin",
+    ],
+)
+def test_get_static_file_answers_none_and_never_raises(resource):
+    """`str | None` is the contract, and two callers depend on it differently.
+
+    Application.__call__ rejects a NUL path before reaching here, so the WSGI
+    path never exercised the NUL case -- but ir_attachment._get_static_file_path
+    calls this with a stored URL and expects None, not an exception. Traversal
+    shapes are in the same list because this is now the ONLY static resolver:
+    the second one, in _serve_static, was unreachable and is gone.
+    """
+    from odoo.modules import module as module_manager
+
+    module_manager.initialize_sys_path()
+    app = Application()
+    if app.static_path("web") is None:
+        pytest.skip("addons path not initialised in this environment")
+
+    assert app.get_static_file(f"/web/static/{resource}") is None

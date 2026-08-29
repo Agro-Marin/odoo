@@ -64,6 +64,13 @@ class RouteInfo(NamedTuple):
     methods: frozenset[str]
     routing: typing.Mapping[str, Any]
     handler: typing.Callable
+    param_specs: dict[str, ParamSpec] | None = None
+
+
+def _specs_of(route: RouteInfo) -> dict[str, ParamSpec]:
+    if route.param_specs is not None:
+        return route.param_specs
+    return build_param_specs(route.handler)
 
 
 def _nullable(schema: dict[str, Any]) -> dict[str, Any]:
@@ -129,7 +136,7 @@ def build_operation(
         path_param_names = {p["name"] for p in path_params}
         specs = {
             name: spec
-            for name, spec in build_param_specs(route.handler).items()
+            for name, spec in _specs_of(route).items()
             if name not in path_param_names
         }
         if route_type == "http":
@@ -232,6 +239,7 @@ def iter_map_routes(routing_map: Any) -> typing.Iterator[RouteInfo]:
             methods=frozenset(rule.methods or ()),
             routing=routing,
             handler=handler,
+            param_specs=getattr(endpoint, "_param_specs", None),
         )
 
 

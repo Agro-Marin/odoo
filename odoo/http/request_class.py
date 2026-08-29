@@ -6,7 +6,6 @@ from collections.abc import Iterable
 from typing import Any
 
 import babel.core
-import psycopg
 import werkzeug.datastructures
 import werkzeug.exceptions
 
@@ -14,15 +13,12 @@ import odoo
 from odoo.libs.json import loads as _fast_loads
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
-from odoo.service.db import list_dbs as _list_all_dbs
-from odoo.service.db import register_catalog_listener
 from odoo.tools import profiler
 
 from ._csrf import _RequestCsrfMixin
 from ._response import _RequestResponseMixin
 from ._serve import _RequestServeMixin
 from .constants import (
-    DB_MONODB_CACHE_TTL,
     DEFAULT_LANG,
     SESSION_LIFETIME,
     SESSION_ROTATION_EXCLUDED_PATHS,
@@ -32,7 +28,7 @@ from .constants import (
 from .dispatcher import _dispatchers
 from .geoip import GeoIP
 from .helpers import (
-    db_filter,
+    clear_db_list_cache,
     get_session_max_inactivity,
 )
 from .session import Session
@@ -59,44 +55,30 @@ def _union_header_tokens(values: Iterable[str]) -> str:
     return ", ".join(seen.values())
 
 
-@functools.lru_cache(maxsize=1)
-def _all_dbs_cached(_ttl_bucket: int) -> tuple[str, ...]:
-    return tuple(_list_all_dbs(force=True))
-
-
-@functools.lru_cache(maxsize=64)
-def _monodb_dblist_cached(_ttl_bucket: int, host: str) -> tuple[str, ...]:
-    return tuple(db_filter(list(_all_dbs_cached(_ttl_bucket)), host=host))
-
-
 def _monodb_dblist(host: str) -> list[str]:
-    try:
-        return list(
-            _monodb_dblist_cached(int(time.time() // DB_MONODB_CACHE_TTL), host)
-        )
-    except psycopg.Error:
-        _logger.warning(
-            "Could not list databases to resolve a session-less request; "
-            "answering as though this instance serves none.",
-            exc_info=True,
-        )
-        return []
+    from odoo import http
+
+    return http.db_list(force=True, host=host)
 
 
-def clear_monodb_cache() -> None:
-    _all_dbs_cached.cache_clear()
-    _monodb_dblist_cached.cache_clear()
+"""Resolve through the package's public ``db_list``, not around it.
 
+``odoo.http.db_list`` is the name the database selector calls, the name
+``iot_drivers`` replaces to say "this box serves no database", and the name
+``test_http`` patches. Reaching past it into ``odoo.service.db`` -- which is
+what a private copy of the listing did -- made every one of those a half
+measure: it changed what was *listed* and not what was *resolved*.
 
-register_catalog_listener(clear_monodb_cache)
-"""Expire the catalogue caches the moment this process changes the catalogue.
-
-Until this was wired, ``clear_monodb_cache`` had no production caller at all --
-every reference in four repos was a test. A database created or dropped through
-the database manager stayed invisible, or visible, for the rest of the TTL, and
-on a single-database deployment that is the difference between the selector
-working and 404-ing right after a restore.
+The import is function-local because ``odoo.http.__init__`` imports this
+module, so the package cannot be reached at import time. Measured at 211 ns
+against a 19 ns module-global lookup, once per ``_get_session_and_dbname`` and
+once more on the monodb path -- against 16 us to read a session off disk and 29
+to write one, so it is not worth a cached module reference. Frozen at
+2026-08-29; re-measure before treating it as a cost.
 """
+
+
+clear_monodb_cache = clear_db_list_cache
 
 
 class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
@@ -129,6 +111,8 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     def _get_session_and_dbname(
         self, sid: str | None = None
     ) -> tuple[Session, str | None]:
+        from odoo import http
+
         root = self.app
 
         if sid is None:
@@ -150,14 +134,14 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         dbname = None
         host = self.httprequest.environ.get("HTTP_HOST", "")
         header_dbname = self.httprequest.headers.get("X-Odoo-Database")
-        if session.db and db_filter([session.db], host=host):
+        if session.db and http.db_filter([session.db], host=host):
             dbname = session.db
             if header_dbname and header_dbname != dbname:
                 e = "Cannot use both the session_id cookie and the x-odoo-database header."
                 raise werkzeug.exceptions.Forbidden(e)
         elif header_dbname:
             session.can_save = False
-            if db_filter([header_dbname], host=host):
+            if http.db_filter([header_dbname], host=host):
                 dbname = header_dbname
         else:
             all_dbs = _monodb_dblist(host)
