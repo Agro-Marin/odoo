@@ -208,7 +208,7 @@ export class VideoSelector extends Component {
         if (
             embedMatch &&
             embedMatch[2].length > 0 &&
-            embedMatch[2].indexOf("instagram")
+            !embedMatch[2].includes("instagram")
         ) {
             embedMatch[1] = embedMatch[2];
         }
