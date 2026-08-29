@@ -473,6 +473,14 @@ class GamificationChallenge(models.Model):
 
         Skips lines where a goal already exists for a given user and period.
         Called after any change to the participant list or goal lines.
+
+        Only the newly-added participants of a period get the line's current
+        ``target_goal``: a user who already has a goal for this period keeps
+        whatever target that goal was created with, even if the line's
+        ``target_goal`` is edited afterwards. This method (and the daily cron
+        that calls it) never touches an existing goal's ``target_goal`` --
+        only ``action_check()`` does, by unlinking in-progress automatic
+        goals first so they get regenerated with the current value.
         """
         Goals = self.env["gamification.goal"]
         for challenge in self:

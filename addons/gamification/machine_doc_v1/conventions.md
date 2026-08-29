@@ -200,6 +200,14 @@ grep "tests when loading" ./odoo.log
    The consolidation cron handles this. Manual consolidated records will
    confuse the consolidation logic.
 
+6. **Don't expect editing a `challenge.line`'s `target_goal` to retarget
+   goals already generated for the current period.** Only participants added
+   *after* the edit get the new value; existing goals keep the target they
+   were created with until the period rolls over or a manager calls
+   `action_check()` (which unlinks in-progress automatic goals so they
+   regenerate with the current value). Neither `_generate_goals_from_challenge`
+   nor the daily cron ever rewrites an existing goal's `target_goal`.
+
 ---
 
 ## Extension Points
