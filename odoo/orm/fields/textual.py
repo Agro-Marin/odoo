@@ -61,7 +61,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         if record is None:
             return self
         env = record.env
-        if not (not self.groups or env.su or record._has_field_access(self, "read")):
+        if self.groups and not env.su and not record._has_field_access(self, "read"):
             record._check_field_access(self, "read")
         ids = record._ids
         if len(ids) != 1:
@@ -880,8 +880,10 @@ class Html(BaseString):
             if not self._needs_translate_fallback(record_id):
                 return Field.__get__(self, record, owner)
             env = record.env
-            if not (
-                not self.groups or env.su or record._has_field_access(self, "read")
+            if (
+                self.groups
+                and not env.su
+                and not record._has_field_access(self, "read")
             ):
                 record._check_field_access(self, "read")
             fb_val = self._scalar_translate_fallback(env, record_id)

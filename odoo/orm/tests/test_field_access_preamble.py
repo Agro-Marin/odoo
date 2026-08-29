@@ -3,7 +3,7 @@ import re
 
 _FIELDS_DIR = pathlib.Path(__file__).resolve().parent.parent / "fields"
 
-_CANONICAL = 'not (not self.groups or env.su or {rec}._has_field_access(self, "read"))'
+_CANONICAL = 'self.groups and not env.su and not {rec}._has_field_access(self, "read")'
 _ALLOWED = {_CANONICAL.format(rec="record"), _CANONICAL.format(rec="records")}
 
 _EXPECTED_SITES = {

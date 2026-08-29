@@ -29,6 +29,15 @@ def is_model_definition(cls: type) -> bool:
     return isinstance(cls, models.MetaModel) and getattr(cls, "pool", None) is None
 
 
+def registry_of(model_cls: type[BaseModel]) -> Registry:
+    pool = model_cls.pool
+    assert pool is not None, (
+        f"{model_cls.__name__} is a model definition class and has no registry; "
+        f"registration operates on registry classes"
+    )
+    return pool
+
+
 def is_model_class(cls: type) -> bool:
     return getattr(cls, "pool", None) is not None
 
@@ -191,7 +200,7 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
     if depends:
         model_cls._depends = depends
 
-    registry = model_cls.pool
+    registry = registry_of(model_cls)
     for parent_name in model_cls._inherits:
         registry[parent_name]._inherits_children.add(model_cls._name)
 
@@ -260,12 +269,13 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
 
     _collect_and_install_fields(model_cls, env)
 
-    if model_cls.pool._init_modules:
+    registry = registry_of(model_cls)
+    if registry._init_modules:
         _add_manual_fields(model_cls, env)
 
     _check_inherits(model_cls)
     for parent_name in model_cls._inherits:
-        _setup(model_cls.pool[parent_name], env)
+        _setup(registry[parent_name], env)
     _add_inherited_fields(model_cls)
 
     model_cls._setup_done__ = True
@@ -305,8 +315,9 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list):
+    registry = registry_of(model_cls)
     key = f"{model_cls._name}.{name}"
-    if key not in model_cls.pool._database_translated_fields:
+    if key not in registry._database_translated_fields:
         return
 
     translate = next(
@@ -319,7 +330,7 @@ def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list)
     )
     if not translate:
         field_translate = FIELD_TRANSLATE.get(
-            model_cls.pool._database_translated_fields[key],
+            registry._database_translated_fields[key],
             True,
         )
         _logger.debug("Patching %s.%s with translate=True", model_cls._name, name)
@@ -330,7 +341,7 @@ def _patch_company_dependent_field(
     model_cls: type[BaseModel], env: Environment, name: str, fields_: list
 ):
     key = f"{model_cls._name}.{name}"
-    if key not in model_cls.pool._database_company_dependent_fields:
+    if key not in registry_of(model_cls)._database_company_dependent_fields:
         return
 
     company_dependent = next(
@@ -423,7 +434,7 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
 
     to_inherit: dict[str, tuple[str, Field]] = {}
     for parent_model_name, parent_fname in model_cls._inherits.items():
-        for name, field in model_cls.pool[parent_model_name]._fields.items():
+        for name, field in registry_of(model_cls)[parent_model_name]._fields.items():
             if name in model_cls._fields:
                 continue
             if (existing := to_inherit.get(name)) is not None:
@@ -457,7 +468,7 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
 
 def _setup_fields(model_cls: type[BaseModel], env: Environment):
     bad_fields = []
-    many2one_company_dependents = model_cls.pool.many2one_company_dependents
+    many2one_company_dependents = registry_of(model_cls).many2one_company_dependents
     model = model_cls(env, (), ())
     for name, field in model_cls._fields.items():
         try:
@@ -545,7 +556,7 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
     is_class_field = any(
         isinstance(getattr(model, name, None), fields.Field)
         for model in [model_cls]
-        + [model_cls.pool[inherit] for inherit in model_cls._inherits]
+        + [registry_of(model_cls)[inherit] for inherit in model_cls._inherits]
     )
     if not (is_class_field or is_manual_name(name)):
         raise ValidationError(
@@ -579,10 +590,11 @@ def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:
     discardattr(model_cls, name)
     if model_cls._rec_name == name:
         model_cls._rec_name = None
-        if model_cls.display_name in model_cls.pool.field_depends:
-            model_cls.pool.field_depends[model_cls.display_name] = tuple(
+        registry = registry_of(model_cls)
+        if model_cls.display_name in registry.field_depends:
+            registry.field_depends[model_cls.display_name] = tuple(
                 dep
-                for dep in model_cls.pool.field_depends[model_cls.display_name]
+                for dep in registry.field_depends[model_cls.display_name]
                 if dep != name
             )
     return field

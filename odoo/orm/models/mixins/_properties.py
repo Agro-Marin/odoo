@@ -33,9 +33,9 @@ class _PropertiesMixin(_ModelStubs):
         field_definition = target_model._fields[field.definition_record_field]
         result = self.env.execute_query_dict(
             SQL(
-                """ SELECT definition
-                  FROM %(table)s, jsonb_array_elements(%(field)s) definition
-                 WHERE %(field)s IS NOT NULL AND definition->>'name' = %(name)s
+                """ SELECT __property AS definition
+                  FROM %(table)s, jsonb_array_elements(%(field)s) __property
+                 WHERE %(field)s IS NOT NULL AND __property->>'name' = %(name)s
                  LIMIT 1 """,
                 table=SQL.identifier(target_model._table),
                 field=SQL.identifier(

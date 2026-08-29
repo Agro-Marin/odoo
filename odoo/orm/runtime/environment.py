@@ -307,27 +307,30 @@ class Environment(Mapping[str, "BaseModel"]):
     def _ir_defaults(self) -> BaseModel:
         return self["ir.default"].with_user(SUPERUSER_ID).with_company(self.company)
 
+    def _allowed_company_ids(self) -> list[int]:
+        """`allowed_company_ids`, refused unless the user may have them.
+
+        Both `company` and `companies` read the context key and both must
+        police it; the check lived twice, in two spellings, which is how a
+        security check drifts.
+        """
+        company_ids = self.context.get("allowed_company_ids", [])
+        if company_ids and not self.su:
+            if set(company_ids) - set(self.user._get_company_ids()):
+                raise AccessError(
+                    self._("Access to unauthorized or invalid companies.")
+                )
+        return company_ids
+
     @functools.cached_property
     def company(self) -> BaseModel:
-        company_ids = self.context.get("allowed_company_ids", [])
-        if company_ids:
-            if not self.su:
-                user_company_ids = self.user._get_company_ids()
-                if set(company_ids) - set(user_company_ids):
-                    raise AccessError(
-                        self._("Access to unauthorized or invalid companies.")
-                    )
+        if company_ids := self._allowed_company_ids():
             return self["res.company"].browse(company_ids[0])
         return self.user.company_id.with_env(self)
 
     @functools.cached_property
     def companies(self) -> BaseModel:
-        company_ids = self.context.get("allowed_company_ids", [])
-        if company_ids:
-            if not self.su and set(company_ids) - set(self.user._get_company_ids()):
-                raise AccessError(
-                    self._("Access to unauthorized or invalid companies.")
-                )
+        if company_ids := self._allowed_company_ids():
             return self["res.company"].browse(company_ids)
         return self["res.company"].browse(self.user._get_company_ids())
 
@@ -448,8 +451,8 @@ class Environment(Mapping[str, "BaseModel"]):
             yield
             return
         core = self._core
+        core.push_protection()
         try:
-            core.push_protection()
             if records is not None:
                 ids = frozenset(records._ids)
                 for field in what:

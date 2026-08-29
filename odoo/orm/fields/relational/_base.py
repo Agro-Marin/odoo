@@ -81,7 +81,7 @@ class _Relational(Field["BaseModel"]):
             return super().__get__(records, owner)
 
         env = records.env
-        if not (not self.groups or env.su or records._has_field_access(self, "read")):
+        if self.groups and not env.su and not records._has_field_access(self, "read"):
             records._check_field_access(self, "read")
 
         if self.is_stored_computed and env._core.has_pending_field(self):

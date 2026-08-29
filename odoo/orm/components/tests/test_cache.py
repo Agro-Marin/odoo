@@ -380,3 +380,53 @@ class TestPopDirtyForModel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestInvalidateDerivesContextDependence(unittest.TestCase):
+    """The caller may state context-dependence; it is not obliged to.
+
+    It used to be a required keyword, which made every caller responsible for a
+    fact the cache can read off its own keys -- and a caller that got it wrong
+    left every context sub-cache untouched by the invalidation, silently.
+    """
+
+    def _context_cache(self) -> FieldCache:
+        cache = FieldCache()
+        cache.get_field_data("F")[("en_US",)] = {1: "a", 2: "b"}
+        cache.get_field_data("F")[("fr_FR",)] = {1: "x", 2: "y"}
+        return cache
+
+    def test_a_context_cache_is_invalidated_without_being_told(self) -> None:
+        cache = self._context_cache()
+        cache.invalidate("F", [1])
+        self.assertEqual(cache.get_field_data("F")[("en_US",)], {2: "b"})
+        self.assertEqual(cache.get_field_data("F")[("fr_FR",)], {2: "y"})
+
+    def test_a_flat_cache_is_invalidated_without_being_told(self) -> None:
+        cache = FieldCache()
+        cache.get_field_data("F").update({1: "a", 2: "b"})
+        cache.invalidate("F", [1])
+        self.assertEqual(cache.get_field_data("F"), {2: "b"})
+
+    def test_deriving_matches_stating_it_correctly(self) -> None:
+        derived, stated = self._context_cache(), self._context_cache()
+        derived.invalidate("F", [1])
+        stated.invalidate("F", [1], context_dependent=True)
+        self.assertEqual(derived.get_field_data("F"), stated.get_field_data("F"))
+
+    def test_all_cached_ids_derives_too(self) -> None:
+        cache = self._context_cache()
+        self.assertEqual(set(cache.all_cached_ids("F")), {1, 2})
+        flat = FieldCache()
+        flat.get_field_data("G").update({7: "a"})
+        self.assertEqual(set(flat.all_cached_ids("G")), {7})
+
+    def test_stating_it_wrongly_is_what_deriving_avoids(self) -> None:
+        wrong = self._context_cache()
+        wrong.invalidate("F", [1], context_dependent=False)
+        self.assertEqual(
+            wrong.get_field_data("F")[("en_US",)],
+            {1: "a", 2: "b"},
+            "this is the trap: a caller that says False leaves the sub-caches "
+            "stale, and nothing complains",
+        )

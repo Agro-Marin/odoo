@@ -45,7 +45,7 @@ class UnlinkMixin(_ModelStubs):
         if core.has_pending():
             model_name = self._name
             deleted_ids = self._ids
-            for field in list(core.pending_fields()):
+            for field in core.pending_fields():
                 if field.model_name == model_name:
                     core.mark_done(field, deleted_ids)
 

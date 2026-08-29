@@ -177,3 +177,26 @@ class TestComputeCustomFactory(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPendingViewContracts(unittest.TestCase):
+    """Which of the two accessors aliases engine state, and which does not."""
+
+    def test_pending_fields_survives_being_iterated_while_computing(self):
+        engine = ComputeEngine()
+        for name in ("a", "b", "c"):
+            engine.schedule(name, [1])
+        seen = []
+        for field in engine.pending_fields():
+            seen.append(field)
+            engine.mark_done(field, [1])
+        self.assertEqual(sorted(seen), ["a", "b", "c"])
+        self.assertFalse(engine.has_pending())
+
+    def test_pending_ids_is_deliberately_a_live_alias(self):
+        engine = ComputeEngine()
+        engine.schedule("a", [1, 2, 3])
+        ids = engine.pending_ids("a")
+        engine.mark_done("a", [1])
+        self.assertEqual(sorted(ids), [2, 3])
+        self.assertIs(ids, engine.pending["a"])

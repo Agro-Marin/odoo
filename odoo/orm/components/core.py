@@ -44,14 +44,16 @@ class OrmCore[F: FieldKey = FieldKey]:
         field: F,
         ids: Iterable[Any] | None = None,
         *,
-        context_dependent: bool,
+        context_dependent: bool | None = None,
         keep_dirty: bool = False,
     ) -> None:
         self._cache.invalidate(
             field, ids, context_dependent=context_dependent, keep_dirty=keep_dirty
         )
 
-    def all_cached_ids(self, field: F, *, context_dependent: bool) -> Mapping[Any, Any]:
+    def all_cached_ids(
+        self, field: F, *, context_dependent: bool | None = None
+    ) -> Mapping[Any, Any]:
         return self._cache.all_cached_ids(field, context_dependent=context_dependent)
 
     def iter_context_caches(self, field: F) -> Iterator[tuple[tuple, dict[Any, Any]]]:

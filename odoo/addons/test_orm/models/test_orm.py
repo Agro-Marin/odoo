@@ -3030,3 +3030,43 @@ class TestOrmUserFavoriteLine(models.Model):
     _description = "test_orm.user.favorite.line"
 
     favorite_id = fields.Many2one("test_orm.user.favorite")
+
+
+class TestOrmPropertiesHolderA(models.Model):
+    _name = "test_orm.properties.holder.a"
+    _description = "test_orm.properties.holder.a"
+
+    name = fields.Char()
+    definition = fields.PropertiesDefinition("Holder A Properties")
+
+
+class TestOrmPropertiesHolderB(models.Model):
+    _name = "test_orm.properties.holder.b"
+    _description = "test_orm.properties.holder.b"
+
+    name = fields.Char()
+    definition = fields.PropertiesDefinition("Holder B Properties")
+
+
+class TestOrmPropertiesTarget(models.Model):
+    _name = "test_orm.properties.target"
+    _description = "test_orm.properties.target"
+
+    name = fields.Char()
+    holder_id = fields.Many2one("test_orm.properties.holder.b")
+    attributes = fields.Properties(
+        string="Target Properties", definition="holder_id.definition"
+    )
+
+
+class TestOrmPropertiesSource(models.Model):
+    _name = "test_orm.properties.source"
+    _description = "test_orm.properties.source"
+
+    name = fields.Char()
+    amount = fields.Float()
+    target_id = fields.Many2one("test_orm.properties.target")
+    holder_id = fields.Many2one("test_orm.properties.holder.a")
+    attributes = fields.Properties(
+        string="Source Properties", definition="holder_id.definition"
+    )

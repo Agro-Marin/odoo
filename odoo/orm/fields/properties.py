@@ -519,7 +519,7 @@ class Properties(Field):
 
             elif property_value and property_type == "selection":
                 options = property_definition.get("selection") or []
-                options = {option[0] for option in options if option or ()}
+                options = {option[0] for option in options if option}
                 if property_value not in options:
                     property_value = False
 

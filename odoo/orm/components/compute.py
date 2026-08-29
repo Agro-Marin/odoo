@@ -70,10 +70,23 @@ class ComputeEngine[F: FieldKey = FieldKey]:
         return record_id in self._pending.get(field, ())
 
     def pending_ids(self, field: F) -> set[Any] | tuple[()]:
+        """The LIVE pending set for `field` -- an alias, not a snapshot.
+
+        `Field.recompute` depends on this: it re-tests membership as it walks a
+        recordset, so records a batch already computed are skipped.  A caller
+        that wants to iterate it while computing must copy it first, or it will
+        get `RuntimeError: Set changed size during iteration`.
+        """
         return self._pending.get(field, ())
 
     def pending_fields(self) -> Collection[F]:
-        return self._pending.keys()
+        """A snapshot of the scheduled fields, safe to iterate while computing.
+
+        Recomputing a field clears its entry, so a live `keys()` view here
+        turned any straightforward loop into a mutation-during-iteration bug.
+        Nothing calls this often enough for the tuple to matter.
+        """
+        return tuple(self._pending)
 
     def has_pending(self) -> bool:
         return bool(self._pending)

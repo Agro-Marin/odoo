@@ -170,6 +170,92 @@ class TestReadGroupAuditFixes(TransactionCase):
         )
 
 
+class TestGroupingSetsPropertiesComodel(TransactionCase):
+    """A dotted groupby must resolve its property definition on the comodel.
+
+    ``_groupby_spec_might_duplicate_rows`` recurses into a many2one's comodel
+    and decides whether the groupby can duplicate rows.  Resolving the
+    definition on the *calling* model instead silently answered "no" for a
+    tags-valued property, the grouping sets were then not split, and every
+    aggregate double-counted.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.holder_a = cls.env["test_orm.properties.holder.a"].create({"name": "A"})
+        cls.holder_b = cls.env["test_orm.properties.holder.b"].create({"name": "B"})
+        # Same property name on both sides, deliberately different types: the
+        # bug is invisible unless the two definitions disagree.
+        cls.holder_a.definition = [
+            {"name": "kind", "type": "char", "string": "Kind"},
+        ]
+        cls.holder_b.definition = [
+            {
+                "name": "kind",
+                "type": "tags",
+                "string": "Kind",
+                "tags": [["x", "X", 1], ["y", "Y", 2]],
+            },
+        ]
+        cls.target = cls.env["test_orm.properties.target"].create(
+            {
+                "name": "target",
+                "holder_id": cls.holder_b.id,
+                "attributes": {"kind": ["x", "y"]},
+            }
+        )
+        cls.source = cls.env["test_orm.properties.source"].create(
+            {
+                "name": "source",
+                "amount": 100.0,
+                "target_id": cls.target.id,
+                "holder_id": cls.holder_a.id,
+            }
+        )
+        cls.env.flush_all()
+
+    def test_the_definition_is_read_from_the_comodel(self):
+        source = self.env["test_orm.properties.source"]
+        target = self.env["test_orm.properties.target"]
+        self.assertTrue(
+            target._groupby_spec_might_duplicate_rows(target, "attributes.kind"),
+            "a tags property duplicates rows; this is the ground truth",
+        )
+        self.assertTrue(
+            source._groupby_spec_might_duplicate_rows(
+                source, "target_id.attributes.kind"
+            ),
+            "reached through a many2one it must give the same answer -- reading "
+            "the definition on the calling model instead answers False, because "
+            "holder A declares 'kind' as a char",
+        )
+
+    def test_a_tags_property_behind_a_many2one_does_not_duplicate_aggregates(self):
+        result = self.env["test_orm.properties.source"]._read_grouping_sets(
+            [("id", "=", self.source.id)],
+            [["target_id"], ["target_id.attributes.kind"]],
+            ["amount:sum"],
+        )
+        by_target, by_tag = result
+        self.assertEqual(
+            by_target,
+            [(self.target, 100.0)],
+            "one record of 100.0 grouped by a plain many2one is 100.0; the "
+            "tags expansion must not leak into this grouping set",
+        )
+        self.assertEqual(
+            sorted(by_tag),
+            [("x", 100.0), ("y", 100.0)],
+            "the record carries both tags, so it legitimately appears once per tag",
+        )
+
+    def test_grouping_by_a_bare_properties_field_says_so(self):
+        source = self.env["test_orm.properties.source"]
+        with self.assertRaisesRegex(ValueError, "group by one of its properties"):
+            source._groupby_spec_might_duplicate_rows(source, "attributes")
+
+
 class TestExportXidDeterminism(TransactionCase):
     def test_ensure_xml_ids_oldest_wins_and_matches_get_metadata(self):
         record = self.env["test_orm.lesson"].create({"name": "xid lesson"})

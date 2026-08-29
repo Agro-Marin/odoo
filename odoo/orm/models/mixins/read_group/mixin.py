@@ -45,7 +45,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
     def _read_grouping_sets_m2m_batches(
         grouping_sets: Sequence[Sequence[str]], many2many_groupby_specs: list[str]
     ) -> list[tuple[list[int], list[Sequence[str]]]]:
-        m2m_combinaisons = (
+        m2m_combinations = (
             groupby
             for i in range(len(many2many_groupby_specs), -1, -1)
             for groupby in itertools.combinations(many2many_groupby_specs, i)
@@ -54,7 +54,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         grouping_sets_to_process = dict(enumerate(grouping_sets))
         batched_calls = []
 
-        for m2m_comb in m2m_combinaisons:
+        for m2m_comb in m2m_combinations:
             if not grouping_sets_to_process:
                 break
             sub_grouping_sets = []
@@ -244,7 +244,13 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         fname, property_name, __ = parse_read_group_spec(spec)
         field = model._fields[fname]
         if field.is_properties:
-            definition = self.get_property_definition(f"{fname}.{property_name}")
+            if not property_name:
+                raise ValueError(
+                    f"Field {fname!r} on model {model._name!r} is a properties "
+                    f"field; group by one of its properties "
+                    f"({fname}.<property>), not by the field itself"
+                )
+            definition = model.get_property_definition(f"{fname}.{property_name}")
             property_type = definition.get("type")
             return property_type in ("tags", "many2many")
 
@@ -254,8 +260,8 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     f"Field {fname!r} on {model._name!r}: dotted groupby spec "
                     f"only supported for many2one, got {field.type!r}"
                 )
-            return self._groupby_spec_might_duplicate_rows(
-                self.env[field.comodel_name], property_name
+            return model._groupby_spec_might_duplicate_rows(
+                model.env[field.comodel_name], property_name
             )
 
         return field.is_many2many

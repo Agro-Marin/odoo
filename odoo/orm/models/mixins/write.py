@@ -90,9 +90,7 @@ class WriteMixin(_ModelStubs):
     def _write_classify_fields(self, vals: ValuesType) -> _WriteFieldPlan:
         plan = _WriteFieldPlan([], defaultdict(list), [], set(), [])
         for fname, value in vals.items():
-            field = self._fields.get(fname)
-            if not field:
-                raise ValueError(f"Invalid field {fname!r} on model {self._name!r}")
+            field = self._fields[fname]
             plan.field_values.append((field, value))
             if field.inverse:
                 if field.is_x2many:

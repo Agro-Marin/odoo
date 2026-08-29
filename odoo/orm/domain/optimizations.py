@@ -16,6 +16,7 @@ from ..primitives import COLLECTION_TYPES
 from .ast import (
     _FALSE_DOMAIN,
     _MERGE_OPTIMIZATIONS,
+    _OPTIMIZATION_KEY_KIND,
     _OPTIMIZATIONS_FOR,
     _TRUE_DOMAIN,
     ANY_TYPES,
@@ -58,33 +59,49 @@ def _check_operators(caller: str, operators: Collection[str]) -> None:
         )
 
 
+def _register_condition_optimization(
+    keys: Collection[str], level: OptimizationLevel, kind: str
+) -> typing.Callable[[typing.Any], typing.Any]:
+    """Claim `keys` for `kind` and register the optimisation under them.
+
+    One registrar for both decorators: they differ only in which key space the
+    names come from, and having written it twice is how one of them ended up
+    validating its names and the other not.
+    """
+
+    def register(optimization: typing.Any) -> typing.Any:
+        mapping = _OPTIMIZATIONS_FOR[level]
+        for key in keys:
+            claimed = _OPTIMIZATION_KEY_KIND.setdefault(key, kind)
+            if claimed != kind:
+                raise ValueError(
+                    f"{key!r} is already registered as a domain {claimed} and "
+                    f"cannot also be a {kind}: condition optimisations are "
+                    f"looked up by operator and by field type against one "
+                    f"mapping, so a name in both key spaces would run each "
+                    f"other's optimisations"
+                )
+            mapping[key].append(optimization)
+        return optimization
+
+    return register
+
+
 def operator_optimization(
     operators: Collection[str],
     level: OptimizationLevel = OptimizationLevel.BASIC,
 ) -> typing.Callable[[typing.Any], typing.Any]:
     _check_operators("operator_optimization", operators)
-
-    def register(optimization: typing.Any) -> typing.Any:
-        mapping = _OPTIMIZATIONS_FOR[level]
-        for op in operators:
-            mapping[op].append(optimization)
-        return optimization
-
-    return register
+    return _register_condition_optimization(operators, level, "operator")
 
 
 def field_type_optimization(
     field_types: Collection[str],
     level: OptimizationLevel = OptimizationLevel.BASIC,
 ) -> typing.Callable[[typing.Any], typing.Any]:
-
-    def register(optimization: typing.Any) -> typing.Any:
-        mapping = _OPTIMIZATIONS_FOR[level]
-        for field_type in field_types:
-            mapping[field_type].append(optimization)
-        return optimization
-
-    return register
+    if not field_types:
+        raise ValueError("field_type_optimization() requires at least one field type")
+    return _register_condition_optimization(field_types, level, "field_type")
 
 
 def nary_optimization(optimization: typing.Any) -> typing.Any:

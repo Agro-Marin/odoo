@@ -161,6 +161,12 @@ _OPTIMIZATIONS_FOR: dict[OptimizationLevel, dict[str, list]] = {
     for level in OptimizationLevel
     if level != OptimizationLevel.NONE
 }
+# Condition optimisations are looked up twice against the SAME mapping -- once
+# by the condition's operator, once by the field's type -- so the two key spaces
+# share it and a name in both would cross-wire them.  They are disjoint today
+# and nothing in the lookup would notice if they stopped being, so registration
+# records which kind each key was claimed as, and refuses the second claim.
+_OPTIMIZATION_KEY_KIND: dict[str, str] = {}
 _MERGE_OPTIMIZATIONS: list = []
 
 
@@ -629,7 +635,17 @@ class DomainNary(Domain):
                 gate = merge._match_operators
                 if gate is not None and gate.isdisjoint(present_ops):
                     continue
-                children = merge(cls, children, model)
+                merged = merge(cls, children, model)
+                if merged is not children:
+                    # A merge can introduce an operator a later merge gates on.
+                    # Recomputing here costs one set build per *changed* pass;
+                    # not recomputing costs a whole extra optimisation pass,
+                    # because the fixpoint loop only re-runs the step when the
+                    # children changed.
+                    present_ops = {
+                        c.operator for c in merged if isinstance(c, DomainCondition)
+                    }
+                children = merged
             if len(self.children) == len(children) and all(
                 map(operator.is_, self.children, children, strict=True)
             ):

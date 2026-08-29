@@ -128,14 +128,22 @@ def determine(
         raise TypeError(msg)
     if isinstance(needle, str):
         method = getattr(records, needle)
-        if not method.__name__.startswith("__"):
-            return method(*args)
+        call_args: tuple = args
     elif callable(needle):
-        if not getattr(needle, "__name__", "").startswith("__"):
-            return needle(records, *args)
+        method = needle
+        call_args = (records, *args)
+    else:
+        msg = "Determination requires a callable or method name"
+        raise TypeError(msg)
 
-    msg = "Determination requires a callable or method name"
-    raise TypeError(msg)
+    name = getattr(method, "__name__", "")
+    if name.startswith("__"):
+        msg = (
+            f"Determination refuses {name!r}: a dunder cannot be a compute, "
+            f"inverse, search or group_expand target"
+        )
+        raise TypeError(msg)
+    return method(*call_args)
 
 
 _global_seq = itertools.count()
@@ -1153,7 +1161,7 @@ class Field[T](
             return self
 
         env = record.env
-        if not (not self.groups or env.su or record._has_field_access(self, "read")):
+        if self.groups and not env.su and not record._has_field_access(self, "read"):
             record._check_field_access(self, "read")
 
         record_ids = record._ids
@@ -1389,7 +1397,7 @@ class Field[T](
 
     def ensure_access(self, record: ModelLike) -> None:
         env = record.env
-        if not (not self.groups or env.su or record._has_field_access(self, "read")):
+        if self.groups and not env.su and not record._has_field_access(self, "read"):
             record._check_field_access(self, "read")
 
     def read_cache(self, record_id: int, env: Environment) -> tuple[bool, typing.Any]:
@@ -1535,7 +1543,7 @@ def _make_scalar_get(
         if record is None:
             return self
         env = record.env
-        if not (not self.groups or env.su or record._has_field_access(self, "read")):
+        if self.groups and not env.su and not record._has_field_access(self, "read"):
             record._check_field_access(self, "read")
         ids = record._ids
         if len(ids) != 1:

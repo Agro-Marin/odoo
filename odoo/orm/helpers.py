@@ -3,6 +3,8 @@ from operator import itemgetter
 
 from odoo_rust import origin_ids as _origin_ids_rust
 
+from .domain import Domain
+
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -83,30 +85,31 @@ def _ancestor_company_ids(self: BaseModel, company_ids: list[int]) -> list[int]:
 def check_company_domain_parent_of(
     self: BaseModel,
     companies: BaseModel | list[int] | int | str,
-) -> list:
+) -> Domain:
     if isinstance(companies, str):
-        return [
-            "|",
-            ("company_id", "=", False),
-            ("company_id", "parent_of", companies),
-        ]
+        return Domain.OR(
+            [
+                Domain("company_id", "=", False),
+                Domain("company_id", "parent_of", companies),
+            ]
+        )
 
     companies = to_record_ids(companies)
     if not companies:
-        return [("company_id", "=", False)]
+        return Domain("company_id", "=", False)
 
-    return [("company_id", "in", _ancestor_company_ids(self, companies) + [False])]
+    return Domain("company_id", "in", _ancestor_company_ids(self, companies) + [False])
 
 
 def check_companies_domain_parent_of(
     self: BaseModel,
     companies: BaseModel | list[int] | int | str,
-) -> list:
+) -> Domain:
     if isinstance(companies, str):
-        return [("company_ids", "parent_of", companies)]
+        return Domain("company_ids", "parent_of", companies)
 
     companies = to_record_ids(companies)
     if not companies:
-        return []
+        return Domain.TRUE
 
-    return [("company_ids", "in", _ancestor_company_ids(self, companies))]
+    return Domain("company_ids", "in", _ancestor_company_ids(self, companies))

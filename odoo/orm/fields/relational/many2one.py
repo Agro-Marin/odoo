@@ -51,7 +51,7 @@ class Many2one(_Relational):
         if len(ids) != 1:
             return super().__get__(record, owner)
         env = record.env
-        if not (not self.groups or env.su or record._has_field_access(self, "read")):
+        if self.groups and not env.su and not record._has_field_access(self, "read"):
             record._check_field_access(self, "read")
         if self.is_stored_computed and env._core.has_pending_field(self):
             self.recompute(record)

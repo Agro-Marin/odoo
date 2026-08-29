@@ -89,30 +89,59 @@ class FieldCache[F: FieldKey = FieldKey]:
     def get_patches(self, field: F) -> dict[Any, list[Any]] | None:
         return self._patches.get(field)
 
+    def _has_context_keys(self, field_cache: dict[Any, Any]) -> bool:
+        """Whether this field's cache is keyed by context, read off the keys.
+
+        The caller may state it -- every hot path does, because it already
+        knows -- but it is never obliged to, and it cannot be believed over the
+        cache itself: passing False for a cache that does hold context
+        sub-caches would leave every one of them untouched by an invalidation,
+        silently.
+        """
+        return any(isinstance(key, tuple) for key in field_cache)
+
     def invalidate(
         self,
         field: F,
         ids: Iterable[Any] | None = None,
         *,
-        context_dependent: bool,
+        context_dependent: bool | None = None,
         keep_dirty: bool = False,
     ) -> None:
         field_cache = self._data.get(field)
         if not field_cache:
             return
+        if context_dependent is None:
+            context_dependent = self._has_context_keys(field_cache)
         dirty = (self._dirty.get(field) or None) if keep_dirty else None
-        if not context_dependent:
-            if ids is None:
-                if dirty is None:
-                    field_cache.clear()
-                else:
-                    for id_ in [k for k in field_cache if k not in dirty]:
-                        del field_cache[id_]
+        if context_dependent:
+            self._invalidate_context(field_cache, ids, dirty)
+        else:
+            self._invalidate_flat(field_cache, ids, dirty)
+
+    @staticmethod
+    def _invalidate_flat(
+        field_cache: dict[Any, Any],
+        ids: Iterable[Any] | None,
+        dirty: set[Any] | None,
+    ) -> None:
+        if ids is None:
+            if dirty is None:
+                field_cache.clear()
             else:
-                for id_ in ids:
-                    if dirty is None or id_ not in dirty:
-                        field_cache.pop(id_, None)
+                for id_ in [k for k in field_cache if k not in dirty]:
+                    del field_cache[id_]
             return
+        for id_ in ids:
+            if dirty is None or id_ not in dirty:
+                field_cache.pop(id_, None)
+
+    @staticmethod
+    def _invalidate_context(
+        field_cache: dict[Any, Any],
+        ids: Iterable[Any] | None,
+        dirty: set[Any] | None,
+    ) -> None:
         if ids is None:
             for key in list(field_cache):
                 if isinstance(key, tuple):
@@ -136,10 +165,14 @@ class FieldCache[F: FieldKey = FieldKey]:
                 for id_ in ids:
                     sub_cache.pop(id_, None)
 
-    def all_cached_ids(self, field: F, *, context_dependent: bool) -> Mapping[Any, Any]:
+    def all_cached_ids(
+        self, field: F, *, context_dependent: bool | None = None
+    ) -> Mapping[Any, Any]:
         field_cache = self._data.get(field)
         if not field_cache:
             return {}
+        if context_dependent is None:
+            context_dependent = self._has_context_keys(field_cache)
         if context_dependent:
             subs = [v for k, v in field_cache.items() if isinstance(k, tuple)]
             return ChainMap(*subs) if subs else {}
@@ -160,7 +193,7 @@ class FieldCache[F: FieldKey = FieldKey]:
         if ids is None:
             field_cache.clear()
             return
-        context_dependent = any(isinstance(key, tuple) for key in field_cache)
+        context_dependent = self._has_context_keys(field_cache)
         self.invalidate(field, ids, context_dependent=context_dependent)
         if context_dependent:
             emptied = [
