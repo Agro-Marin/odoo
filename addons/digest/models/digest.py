@@ -879,12 +879,16 @@ class DigestDigest(models.Model):
     def _get_next_periodicity(self):
         """``(value, translated label)`` of the periodicity to slow down to."""
         slower = PERIODICITIES[self.periodicity].slower
-        labels = {
-            "weekly": self.env._("weekly"),
-            "monthly": self.env._("monthly"),
-            "quarterly": self.env._("quarterly"),
-        }
-        return slower, labels[slower]
+        # Read the label off the field's own (translated) selection instead
+        # of a second hand-written dict keyed by today's three `slower`
+        # values: a `PERIODICITIES` entry whose `slower` isn't one of those
+        # hardcoded keys used to raise a KeyError here, uncaught by
+        # test_periodicity_table_is_the_selection. This can't fall out of
+        # sync with the table, because it's the table.
+        selection_labels = dict(
+            self._fields["periodicity"]._description_selection(self.env)
+        )
+        return slower, selection_labels[slower].lower()
 
     def _format_currency_amount(self, amount, currency_id):
         symbol = currency_id.symbol or ""
