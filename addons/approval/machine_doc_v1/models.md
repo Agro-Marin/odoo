@@ -787,7 +787,7 @@ Approving is a 1-click action that never opens this wizard.
 | Order | `category_id, avg_approval_hours` |
 
 The model does **not** write `_table_query` itself. `mixin.sql.report`
-(`odoo/addons/base_sql_report`) owns `_table_query` and assembles the
+(`odoo/addons/mixin_report_sql`) owns `_table_query` and assembles the
 statement in `_query()` from four overrides this model supplies:
 `_get_fields_select()`, `_get_from_tables()`, `_get_where_conditions()`,
 `_get_fields_group_by()`. Add a field here and you must add its SELECT

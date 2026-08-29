@@ -16,8 +16,8 @@ class RollingCase(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.report = cls.env["base.sql.report.test.rolling"]
-        cls.Source = cls.env["base.sql.report.test.source"]
+        cls.report = cls.env["mixin.report.sql.test.rolling"]
+        cls.Source = cls.env["mixin.report.sql.test.source"]
         cls.table = cls.report._table
         cls.today = dt.date.today()
 
@@ -172,7 +172,7 @@ class TestSelfHealing(RollingCase):
         )
         with self.assertRaises(Exception):
             self.report.refresh()
-        self.env["ir.config_parameter"].sudo().set_param("base_sql_report.roll", "1")
+        self.env["ir.config_parameter"].sudo().set_param("mixin_report_sql.roll", "1")
         self.env.flush_all()
 
 

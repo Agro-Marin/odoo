@@ -8,7 +8,7 @@ from odoo.libs.sql import SQL
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-from odoo.addons.base_sql_report.models import mixin_materialized_view
+from odoo.addons.mixin_report_sql.models import mixin_materialized_view
 
 
 class MaterializedCase(TransactionCase):
@@ -17,8 +17,8 @@ class MaterializedCase(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.report = cls.env["base.sql.report.test.mv"]
-        cls.Source = cls.env["base.sql.report.test.source"]
+        cls.report = cls.env["mixin.report.sql.test.mv"]
+        cls.Source = cls.env["mixin.report.sql.test.source"]
         cls.table = cls.report._table
 
     def _seed(self, grain, value):
@@ -74,7 +74,7 @@ class TestIntrospection(MaterializedCase):
 
     def test_relation_exists_is_kind_scoped(self):
         self.assertFalse(
-            self.report._relation_exists("base_sql_report_test_source")  # a table
+            self.report._relation_exists("mixin_report_sql_test_source")  # a table
         )
 
     def test_is_populated_returns_bool_for_missing(self):
@@ -84,7 +84,7 @@ class TestIntrospection(MaterializedCase):
 
     def test_relkind(self):
         self.assertEqual(self.report._relkind(self.table), "m")
-        self.assertEqual(self.report._relkind("base_sql_report_test_source"), "r")
+        self.assertEqual(self.report._relkind("mixin_report_sql_test_source"), "r")
         self.assertIsNone(self.report._relkind("obviously_missing_relation_xyz"))
 
     def test_dependent_relations_listed(self):
@@ -228,7 +228,7 @@ class TestRefresh(MaterializedCase):
         )
         with self.assertRaises(psycopg.errors.ObjectNotInPrerequisiteState):
             self.report.refresh()
-        self.env["ir.config_parameter"].sudo().set_param("base_sql_report.probe", "1")
+        self.env["ir.config_parameter"].sudo().set_param("mixin_report_sql.probe", "1")
         self.env.flush_all()
 
     def test_a_failing_rebuild_also_leaves_the_cursor_usable(self):
@@ -245,7 +245,7 @@ class TestRefresh(MaterializedCase):
             self.assertTrue(self.report._relation_definition_changed())
             with self.assertRaises(psycopg.errors.UndefinedColumn):
                 self.report.refresh()
-        self.env["ir.config_parameter"].sudo().set_param("base_sql_report.reb", "1")
+        self.env["ir.config_parameter"].sudo().set_param("mixin_report_sql.reb", "1")
         self.env.flush_all()
 
     def test_transient_errors_return_false_and_keep_the_cursor(self):
@@ -430,7 +430,7 @@ class TestQueryResolution(MaterializedCase):
 
     def test_composed_model_resolves_to_the_registry_builder(self):
         self.assertIsInstance(self.report._query(), SQL)
-        self.assertIn("base_sql_report_test_source", self.report._query().code)
+        self.assertIn("mixin_report_sql_test_source", self.report._query().code)
 
     def test_standalone_mixin_raises_a_directive_error(self):
         mixin = self.env["mixin.materialized.view"]

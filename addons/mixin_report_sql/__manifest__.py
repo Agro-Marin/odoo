@@ -1,6 +1,6 @@
 {
     "name": "Base SQL Report",
-    "version": "19.0.5.0.0",
+    "version": "19.0.6.0.0",
     "category": "Hidden",
     "summary": "SQL report construction, materialized view and rolling report mixins",
     "description": """

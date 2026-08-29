@@ -32,24 +32,24 @@ class TestRegistryComposition(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.report = cls.env["base.sql.report.test.plain"]
+        cls.report = cls.env["mixin.report.sql.test.plain"]
 
     def test_select_and_from_assemble(self):
         sql = self.report._query()
         self.assertIn("SELECT", sql.code)
         self.assertIn('s.grain AS "grain"', sql.code)
         self.assertIn("FROM", sql.code)
-        self.assertIn("base_sql_report_test_source s", sql.code)
+        self.assertIn("mixin_report_sql_test_source s", sql.code)
 
     def test_the_assembled_query_runs(self):
-        self.env["base.sql.report.test.source"].create({"grain": "a", "value": 2.0})
+        self.env["mixin.report.sql.test.source"].create({"grain": "a", "value": 2.0})
         self.env.flush_all()
         self.env.cr.execute(self.report._query())
         rows = {row[1]: row[2] for row in self.env.cr.fetchall()}
         self.assertEqual(rows["a"], 2.0)
 
     def test_the_orm_reads_the_report(self):
-        Source = self.env["base.sql.report.test.source"]
+        Source = self.env["mixin.report.sql.test.source"]
         Source.create({"grain": "a", "value": 2.0})
         Source.create({"grain": "a", "value": 3.0})
         Source.create({"grain": "b", "value": 7.0})
@@ -83,7 +83,7 @@ class TestRegistryComposition(TransactionCase):
 
     def test_having_has_a_named_home(self):
         """Aggregate filters land in HAVING, after GROUP BY and before ORDER BY."""
-        Source = self.env["base.sql.report.test.source"]
+        Source = self.env["mixin.report.sql.test.source"]
         Source.create({"grain": "a", "value": 1.0})
         Source.create({"grain": "b", "value": 1.0})
         Source.create({"grain": "b", "value": 1.0})
@@ -138,7 +138,7 @@ class TestFromEntryShapes(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.report = cls.env["base.sql.report.test.plain"]
+        cls.report = cls.env["mixin.report.sql.test.plain"]
 
     def test_base_table(self):
         entry = self.report._prepare_from_entry("t", "a", None, None)
@@ -213,7 +213,7 @@ class TestPercentEscaping(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.report = cls.env["base.sql.report.test.plain"]
+        cls.report = cls.env["mixin.report.sql.test.plain"]
 
     def test_unescaped_percent_in_select_raises_value_error(self):
         with self.assertRaises(ValueError) as cm:
@@ -236,7 +236,7 @@ class TestPercentEscaping(TransactionCase):
             },
         )
         self.assertIn("a%%", sql.code)
-        self.env["base.sql.report.test.source"].create({"grain": "abc", "value": 1.0})
+        self.env["mixin.report.sql.test.source"].create({"grain": "abc", "value": 1.0})
         self.env.flush_all()
         self.env.cr.execute(sql)
         # Odoo's cursor passes params=() rather than None, so psycopg still
@@ -260,11 +260,11 @@ class TestMaterializedMarkerInteraction(TransactionCase):
     """
 
     def test_non_materialized_model_is_inlined(self):
-        report = self.env["base.sql.report.test.plain"]
+        report = self.env["mixin.report.sql.test.plain"]
         self.assertIsInstance(report._table_query, SQL)
         self.assertTrue(report._table_sql.code.startswith("(SELECT"))
 
     def test_materialized_model_reads_the_relation(self):
-        report = self.env["base.sql.report.test.mv"]
+        report = self.env["mixin.report.sql.test.mv"]
         self.assertIsNone(report._table_query)
-        self.assertEqual(report._table_sql.code, '"base_sql_report_test_mv"')
+        self.assertEqual(report._table_sql.code, '"mixin_report_sql_test_mv"')

@@ -16,7 +16,7 @@ from odoo.libs.sql import SQL
 
 
 class ReportTestSource(models.Model):
-    _name = "base.sql.report.test.source"
+    _name = "mixin.report.sql.test.source"
     _description = "SQL Report Test Source"
 
     date = fields.Date()
@@ -27,7 +27,7 @@ class ReportTestSource(models.Model):
 class ReportTestPlain(models.Model):
     """`mixin.sql.report` alone: the ORM inlines the query as a subquery."""
 
-    _name = "base.sql.report.test.plain"
+    _name = "mixin.report.sql.test.plain"
     _inherit = ["mixin.sql.report"]
     _description = "SQL Report Test (not materialized)"
     _auto = False
@@ -45,7 +45,7 @@ class ReportTestPlain(models.Model):
         }
 
     def _get_from_tables(self) -> list:
-        return [("base_sql_report_test_source", "s", None, None)]
+        return [("mixin_report_sql_test_source", "s", None, None)]
 
     def _get_fields_group_by(self) -> list:
         return ["s.grain"]
@@ -58,7 +58,7 @@ class ReportTestMv(models.Model):
     leave `id` with no index at all.
     """
 
-    _name = "base.sql.report.test.mv"
+    _name = "mixin.report.sql.test.mv"
     _inherit = ["mixin.sql.report", "mixin.materialized.view"]
     _description = "SQL Report Test (materialized view)"
     _auto = False
@@ -75,14 +75,14 @@ class ReportTestMv(models.Model):
         }
 
     def _get_from_tables(self) -> list:
-        return [("base_sql_report_test_source", "s", None, None)]
+        return [("mixin_report_sql_test_source", "s", None, None)]
 
     def _get_fields_group_by(self) -> list:
         return ["s.grain"]
 
 
 class ReportTestRolling(models.Model):
-    _name = "base.sql.report.test.rolling"
+    _name = "mixin.report.sql.test.rolling"
     _inherit = ["mixin.sql.report", "mixin.rolling.report"]
     _description = "SQL Report Test (rolling window)"
     _auto = False
@@ -95,7 +95,7 @@ class ReportTestRolling(models.Model):
 
     def _rolling_scope(self) -> SQL:
         return SQL(
-            "(SELECT * FROM base_sql_report_test_source WHERE date >= %s) s",
+            "(SELECT * FROM mixin_report_sql_test_source WHERE date >= %s) s",
             self._rolling_cutoff_sql(),
         )
 
@@ -110,7 +110,7 @@ class ReportTestRolling(models.Model):
     def _get_from_tables(self) -> list:
         return [
             (
-                self._rolling_scope_sql() or SQL("base_sql_report_test_source s"),
+                self._rolling_scope_sql() or SQL("mixin_report_sql_test_source s"),
                 None,
                 None,
                 None,

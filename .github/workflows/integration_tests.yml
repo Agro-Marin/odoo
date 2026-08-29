@@ -251,7 +251,7 @@ env:
   CRM_INSTALL: crm
   CRM_TEST_TAGS: /crm
 
-  # base_sql_report, added 2026-08-28 -- another suite nothing ran, found by
+  # mixin_report_sql, added 2026-08-28 -- another suite nothing ran, found by
   # auditing the module rather than by a failure. It shipped 30 tests and no
   # lane executed one of them: not integration_tests (its tags name /base,
   # /test_http, /test_orm, /mrp, /certificate, /stock and /rpc), not
@@ -271,10 +271,10 @@ env:
   # The suite now runs against concrete fixture models rather than patched
   # abstract mixins, which is what makes those reachable at all.
   #
-  # Its own database, same reasoning as the suites above. base_sql_report
+  # Its own database, same reasoning as the suites above. mixin_report_sql
   # depends on base alone, so this is the cheapest lane here.
-  SQL_REPORT_INSTALL: base_sql_report
-  SQL_REPORT_TEST_TAGS: /base_sql_report
+  SQL_REPORT_INSTALL: mixin_report_sql
+  SQL_REPORT_TEST_TAGS: /mixin_report_sql
 
   # `test_read_group` is the only coverage of the five read_group/ units --
   # _empty, fill, format, mixin and sql -- and gates.md has named it as the next
@@ -652,7 +652,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run base_sql_report suite
+      - name: Run mixin_report_sql suite
         # Its own database (ci_sql_report), same reasoning as the suites above.
         run: |
           set -o pipefail
@@ -667,7 +667,7 @@ jobs:
             --max-cron-threads=0 --no-http \
             --log-level=test --logfile=/dev/stdout | tee /tmp/sql-report-suite.log
 
-      - name: Assert the base_sql_report suite actually ran
+      - name: Assert the mixin_report_sql suite actually ran
         # Same guard as the suites above, and it matters more here than most:
         # part of this suite is post_install (init() branches on
         # registry.loaded, so the ready path cannot be measured at_install), and
@@ -678,12 +678,12 @@ jobs:
           RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/sql-report-suite.log \
                 | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
           if [ -z "$RAN" ]; then
-            echo "::error::no test-result summary in the log — base_sql_report did not report a count"
+            echo "::error::no test-result summary in the log — mixin_report_sql did not report a count"
             exit 1
           fi
-          echo "base_sql_report tests run: $RAN (floor: 70)"
+          echo "mixin_report_sql tests run: $RAN (floor: 70)"
           if [ "$RAN" -lt 70 ]; then
-            echo "::error::only $RAN base_sql_report tests ran, below the floor of 70 —"
+            echo "::error::only $RAN mixin_report_sql tests ran, below the floor of 70 —"
             echo "::error::something was skipped rather than failed."
             exit 1
           fi

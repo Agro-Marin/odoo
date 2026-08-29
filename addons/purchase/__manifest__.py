@@ -7,7 +7,7 @@
     "website": "https://www.odoo.com/app/purchase",
     "depends": [
         "base_order",
-        "base_sql_report",
+        "mixin_report_sql",
         "account",
     ],
     "data": [

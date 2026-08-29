@@ -2992,18 +2992,6 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_account
-msgid ""
-"\n"
-"Base Account\n"
-"============\n"
-"Provides the core Chart of Accounts structure: account types, codes,\n"
-"tags, and multi-company code mappings.  Designed as a lightweight\n"
-"foundation that heavier accounting modules (``account``, ``account_accountant``)\n"
-"depend on.\n"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,description:base.module_approval
 msgid ""
 "\n"
@@ -3112,7 +3100,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_sql_report
+#: model:ir.module.module,description:base.module_mixin_report_sql
 msgid ""
 "\n"
 "Base SQL Report\n"
@@ -3804,6 +3792,18 @@ msgid ""
 "\n"
 "If you install this module, and select Custom chart a basic chart will be proposed,\n"
 "but you will need set manually account defaults for taxes.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_account_coa
+msgid ""
+"\n"
+"Chart of Accounts\n"
+"=================\n"
+"Provides the core Chart of Accounts structure: account types, codes,\n"
+"tags, and multi-company code mappings.  Designed as a lightweight\n"
+"foundation that heavier accounting modules (``account``, ``account_accountant``)\n"
+"depend on.\n"
 msgstr ""
 
 #. module: base
@@ -21841,11 +21841,6 @@ msgid "Base - Module Install Request"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_account
-msgid "Base Account"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,shortdesc:base.module_approval
 msgid "Base Approval"
 msgstr ""
@@ -21892,7 +21887,7 @@ msgid "Base Order Test"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_sql_report
+#: model:ir.module.module,shortdesc:base.module_mixin_report_sql
 msgid "Base SQL Report"
 msgstr ""
 
@@ -23505,7 +23500,12 @@ msgid "Channel names must be unique."
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_account
+#: model:ir.module.module,shortdesc:base.module_account_coa
+msgid "Chart of Accounts"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,summary:base.module_account_coa
 msgid "Chart of Accounts foundation"
 msgstr ""
 
@@ -43001,7 +43001,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_sql_report
+#: model:ir.module.module,summary:base.module_mixin_report_sql
 msgid "SQL report construction, materialized view and rolling report mixins"
 msgstr ""
 

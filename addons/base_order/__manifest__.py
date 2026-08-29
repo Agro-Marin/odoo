@@ -47,7 +47,7 @@ amount_taxexc_invoiced, etc.) for drop-in adoption.
         "portal",
         "account",
         "product",
-        "base_sql_report",
+        "mixin_report_sql",
     ],
     "data": [
         "views/res_partner_category_views.xml",

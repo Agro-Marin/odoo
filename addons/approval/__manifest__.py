@@ -31,7 +31,7 @@ activities to a substitute for a dated window; escalation reminds by priority.
     "license": "LGPL-3",
     "depends": [
         "automation",
-        "base_sql_report",
+        "mixin_report_sql",
         "mail",
     ],
     "data": [
