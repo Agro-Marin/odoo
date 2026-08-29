@@ -1,4 +1,4 @@
 {
-  "count": 48,
-  "note": "Ten localization modules ported from the 19.0 mirror. +3, all in the Polish pair: l10n_pl_bank_verification._l10n_pl_get_verification (23), l10n_pl_edi._l10n_pl_edi_get_xml_values (26) and .l10n_pl_edi_get_ksef_bill_vals_from_xml (22).\n\nBanked rather than refactored. Each is a single long branch over a government EDI schema (KSeF, and the bank-account whitelist), where the complexity IS the schema: splitting one means deciding which fields group together, and this checkout has no test for any of them to hold that decision still. A refactor made blind to the format is a worse trade than a floor that names the three."
+  "count": 45,
+  "note": "base_import_module._import_module (35) and base_import._extract_header_types (22) decomposed into named phase methods.\n\n_import_module was one 299-line procedure doing eleven jobs: website neutralization, manifest read, dependency install, module upsert, cloc exclusion, data files, static attachments, translations, assets, terms, welcome article. Each is now its own method.\n\n_extract_header_types held its float branch as a `raise ValueError` out of a `try` used purely as loop control. Verified first that neither _remove_currency_symbol nor _currency_symbols raises ValueError (both return False), so explicit returns are behaviour-preserving.\n\n  47 -> 45"
 }

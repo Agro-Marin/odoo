@@ -368,39 +368,17 @@ class Base_ImportImport(models.TransientModel):
                 )
             )
 
-    def _get_fields_tree(self, model, depth):
-        """Recursive body of :meth:`get_fields_tree`, without its access
-        check -- see the note there on why the check is not repeated per level.
+    def _expand_properties_fields(self, Model, model_fields):
+        """Add each Properties field's sub-columns to ``model_fields`` in place.
+
+        A Properties field holds user-defined sub-columns whose definitions live
+        on a *parent* record, so ``fields_get`` never reports them and the
+        mapper would have nothing to offer for them. One pseudo-field is added
+        per definition found on a non-archived parent, keyed ``<field>.<name>``.
+
+        :param Model: the model being imported into
+        :param dict model_fields: ``fields_get`` output, mutated in place
         """
-        Model = self.env[model]
-        importable_fields = [
-            {
-                "id": "id",
-                "name": "id",
-                "string": _("External ID"),
-                "required": False,
-                "fields": [],
-                "type": "id",
-                "model_name": model,
-            }
-        ]
-        if not depth:
-            return importable_fields
-
-        model_fields = Model.fields_get(
-            attributes=[
-                "string",
-                "required",
-                "type",
-                "readonly",
-                "relation",
-                "selection",
-                "definition_record",
-                "definition_record_field",
-            ]
-        )
-        blacklist = models.MAGIC_COLUMNS
-
         for name, field in dict(model_fields).items():
             # `not in 'properties'` was a substring test against the *string*
             # "properties", not a type comparison: it happened to behave for
@@ -453,63 +431,107 @@ class Base_ImportImport(models.TransientModel):
                             definition.get("selection") or []
                         )
 
-        for name, field in model_fields.items():
-            if name in blacklist:
-                continue
-            if field.get("readonly"):
-                continue
-            field_value = {
-                "id": name,
-                "name": name,
-                "string": field["string"],
-                # fields_get does not always return a "required" key
-                "required": bool(field.get("required")),
-                "fields": [],
-                "type": field["type"],
-                "model_name": model,
-            }
+    def _get_field_tree_node(self, model, name, field, depth):
+        """One importable-field node, with the subtree of a relational field.
 
-            if field["type"] == "selection":
-                # A Properties sub-column is not a field of `model`, so the
-                # client cannot recover its selection with a second fields_get.
-                field_value["selection"] = field.get("selection") or []
+        :param str model: the model the field belongs to
+        :param str name: technical field name
+        :param dict field: its ``fields_get`` entry
+        :param int depth: remaining recursion budget, see :meth:`get_fields_tree`
+        :rtype: dict
+        """
+        field_value = {
+            "id": name,
+            "name": name,
+            "string": field["string"],
+            # fields_get does not always return a "required" key
+            "required": bool(field.get("required")),
+            "fields": [],
+            "type": field["type"],
+            "model_name": model,
+        }
 
-            if field["type"] in ("many2many", "many2one"):
-                field_value["fields"] = [
+        if field["type"] == "selection":
+            # A Properties sub-column is not a field of `model`, so the
+            # client cannot recover its selection with a second fields_get.
+            field_value["selection"] = field.get("selection") or []
+
+        if field["type"] in ("many2many", "many2one"):
+            field_value["fields"] = [
+                dict(
+                    field_value,
+                    model_name=field["relation"],
+                    name="id",
+                    string=_("External ID"),
+                    type="id",
+                ),
+                dict(
+                    field_value,
+                    model_name=field["relation"],
+                    name=".id",
+                    string=_("Database ID"),
+                    type="id",
+                ),
+            ]
+            field_value["comodel_name"] = field["relation"]
+        elif field["type"] == "one2many":
+            field_value["fields"] = self._get_fields_tree(
+                field["relation"], depth=depth - 1
+            )
+            if self.env.user.has_group("base.group_no_one"):
+                field_value["fields"].append(
                     dict(
                         field_value,
                         model_name=field["relation"],
-                        name="id",
-                        string=_("External ID"),
-                        type="id",
-                    ),
-                    dict(
-                        field_value,
-                        model_name=field["relation"],
+                        fields=[],
                         name=".id",
                         string=_("Database ID"),
                         type="id",
-                    ),
-                ]
-                field_value["comodel_name"] = field["relation"]
-            elif field["type"] == "one2many":
-                field_value["fields"] = self._get_fields_tree(
-                    field["relation"], depth=depth - 1
-                )
-                if self.env.user.has_group("base.group_no_one"):
-                    field_value["fields"].append(
-                        dict(
-                            field_value,
-                            model_name=field["relation"],
-                            fields=[],
-                            name=".id",
-                            string=_("Database ID"),
-                            type="id",
-                        )
                     )
-                field_value["comodel_name"] = field["relation"]
+                )
+            field_value["comodel_name"] = field["relation"]
 
-            importable_fields.append(field_value)
+        return field_value
+
+    def _get_fields_tree(self, model, depth):
+        """Recursive body of :meth:`get_fields_tree`, without its access
+        check -- see the note there on why the check is not repeated per level.
+        """
+        Model = self.env[model]
+        importable_fields = [
+            {
+                "id": "id",
+                "name": "id",
+                "string": _("External ID"),
+                "required": False,
+                "fields": [],
+                "type": "id",
+                "model_name": model,
+            }
+        ]
+        if not depth:
+            return importable_fields
+
+        model_fields = Model.fields_get(
+            attributes=[
+                "string",
+                "required",
+                "type",
+                "readonly",
+                "relation",
+                "selection",
+                "definition_record",
+                "definition_record_field",
+            ]
+        )
+        self._expand_properties_fields(Model, model_fields)
+
+        for name, field in model_fields.items():
+            if name in models.MAGIC_COLUMNS or field.get("readonly"):
+                continue
+            importable_fields.append(
+                self._get_field_tree_node(model, name, field, depth)
+            )
 
         return importable_fields
 
@@ -883,10 +905,12 @@ class Base_ImportImport(models.TransientModel):
         # tail every producer writes.
         return doc.get_sheet(sheet)
 
-    def _read_csv(self, options):
-        """Returns a CSV-parsed list of all non-empty lines in the file.
+    def _check_csv_quoting(self, options):
+        """The text delimiter, defaulted and validated.
 
-        :raises csv.Error: if an error is detected during CSV parsing
+        :param dict options: parsing options, defaulted in place
+        :rtype: str
+        :raises ImportValidationError: if it is not a single character
         """
         # Validated before any use of `quoting` below. It used to be checked
         # only *after* the separator-sniffing loop had already handed it to
@@ -900,11 +924,20 @@ class Base_ImportImport(models.TransientModel):
                     "Error while importing records: Text Delimiter should be a single character."
                 )
             )
+        return quoting
 
-        csv_data = self.file or b""
-        if not csv_data:
-            return []
+    def _decode_csv_text(self, csv_data, options):
+        """Decode the uploaded bytes, detecting the encoding when unspecified.
 
+        Records the encoding it settles on into ``options``, so the client sees
+        what was guessed and the error message can say whether the user chose
+        it or we did.
+
+        :param bytes csv_data: the raw uploaded file
+        :param dict options: parsing options, mutated in place
+        :rtype: str
+        :raises ImportValidationError: if the encoding cannot be detected or applied
+        """
         encoding = options.get("encoding")
         encoding_guessed = False
         if not encoding:
@@ -928,7 +961,7 @@ class Base_ImportImport(models.TransientModel):
                 encoding = options["encoding"] = encoding[:-2]
 
         try:
-            csv_text = csv_data.decode(encoding)
+            return csv_data.decode(encoding)
         except UnicodeDecodeError as exc:
             if encoding_guessed:
                 msg = _(
@@ -942,38 +975,62 @@ class Base_ImportImport(models.TransientModel):
                 )
             raise ImportValidationError(msg) from exc
 
-        separator = options.get("separator")
-        if not separator:
-            # default for unspecified separator so user gets a message about
-            # having to specify it
-            separator = ","
-            for candidate in (
-                ",",
-                ";",
-                "\t",
-                " ",
-                "|",
-                unicodedata.lookup("unit separator"),
-            ):
-                # Check whether the first rows all split to the same, >1 width;
-                # if so assume this is the right delimiter. Bounded to
-                # SEPARATOR_SNIFF_ROWS: a delimiter that happens to be
-                # consistent (e.g. ',' on a file with one comma per line) used
-                # to drag the whole decoded file through csv.reader once per
-                # candidate before being accepted or rejected.
-                it = csv.reader(
-                    io.StringIO(csv_text), quotechar=quoting, delimiter=candidate
-                )
-                w = None
-                for row in itertools.islice(it, SEPARATOR_SNIFF_ROWS):
-                    width = len(row)
-                    if w is None:
-                        w = width
-                    if width == 1 or width != w:
-                        break  # next candidate
-                else:  # nobreak
-                    separator = options["separator"] = candidate
-                    break
+    def _sniff_csv_separator(self, csv_text, quoting, options):
+        """Guess the column separator, recording it into ``options`` when found.
+
+        Falls back to ``','`` *without* recording it, so the caller's parse
+        still produces something and the user gets a message about having to
+        specify the separator.
+
+        :param str csv_text: the decoded file
+        :param str quoting: the text delimiter
+        :param dict options: parsing options, mutated in place
+        :rtype: str
+        """
+        for candidate in (
+            ",",
+            ";",
+            "\t",
+            " ",
+            "|",
+            unicodedata.lookup("unit separator"),
+        ):
+            # Check whether the first rows all split to the same, >1 width;
+            # if so assume this is the right delimiter. Bounded to
+            # SEPARATOR_SNIFF_ROWS: a delimiter that happens to be
+            # consistent (e.g. ',' on a file with one comma per line) used
+            # to drag the whole decoded file through csv.reader once per
+            # candidate before being accepted or rejected.
+            it = csv.reader(
+                io.StringIO(csv_text), quotechar=quoting, delimiter=candidate
+            )
+            w = None
+            for row in itertools.islice(it, SEPARATOR_SNIFF_ROWS):
+                width = len(row)
+                if w is None:
+                    w = width
+                if width == 1 or width != w:
+                    break  # next candidate
+            else:  # nobreak
+                options["separator"] = candidate
+                return candidate
+        return ","
+
+    def _read_csv(self, options):
+        """Returns a CSV-parsed list of all non-empty lines in the file.
+
+        :raises csv.Error: if an error is detected during CSV parsing
+        """
+        quoting = self._check_csv_quoting(options)
+
+        csv_data = self.file or b""
+        if not csv_data:
+            return []
+
+        csv_text = self._decode_csv_text(csv_data, options)
+        separator = options.get("separator") or self._sniff_csv_separator(
+            csv_text, quoting, options
+        )
 
         csv_iterator = csv.reader(
             io.StringIO(csv_text), quotechar=quoting, delimiter=separator
@@ -982,6 +1039,104 @@ class Base_ImportImport(models.TransientModel):
         return [row for row in csv_iterator if any(x for x in row if x.strip())]
 
     @api.model
+    def _match_float_separators(self, preview_values, options):
+        """Whether the column reads as float, inferring its separators.
+
+        Records the thousand/decimal separators it deduces into ``options``,
+        which is why it is not a pure predicate: the caller's parse plan needs
+        them. A column that turns out not to be numeric keeps whatever
+        ``options`` picked up on the way -- the same as when this was written
+        as a ``raise ValueError`` out of a ``try`` block, since a dict mutation
+        is not unwound by an exception either.
+
+        :param list[str] preview_values: stripped values for the column
+        :param dict options: parsing options, mutated in place
+        :rtype: bool
+        """
+        thousand_separator = decimal_separator = False
+        currency_symbols = None
+        for val in preview_values:
+            val = val.strip()
+            if not val:
+                continue
+            # value might have the currency symbol left or right from the value
+            # (looked up once per column, lazily, instead of once per value)
+            if currency_symbols is None:
+                currency_symbols = self._currency_symbols()
+            val = self._remove_currency_symbol(val, currency_symbols)
+            if not val:
+                return False
+            if options.get("float_thousand_separator") and options.get(
+                "float_decimal_separator"
+            ):
+                if options["float_decimal_separator"] == "." and val.count(".") > 1:
+                    return False
+                val = val.replace(options["float_thousand_separator"], "").replace(
+                    options["float_decimal_separator"], "."
+                )
+            # We are now sure that this is a float, but we still need to find the
+            # thousand and decimal separator
+            elif val.count(".") > 1:
+                options["float_thousand_separator"] = "."
+                options["float_decimal_separator"] = ","
+            elif val.count(",") > 1:
+                options["float_thousand_separator"] = ","
+                options["float_decimal_separator"] = "."
+            elif val.find(".") > val.find(","):
+                thousand_separator = ","
+                decimal_separator = "."
+            elif val.find(",") > val.find("."):
+                thousand_separator = "."
+                decimal_separator = ","
+        if thousand_separator and not options.get("float_decimal_separator"):
+            options["float_thousand_separator"] = thousand_separator
+            options["float_decimal_separator"] = decimal_separator
+        return True
+
+    def _match_string_column_types(self, preview_values, options):
+        """The type heuristics that only apply to a column of strings.
+
+        Tried in priority order; ``None`` means none of them matched and the
+        caller should fall through to the date heuristics.
+
+        :param list[str] preview_values: stripped values for the column
+        :param dict options: parsing options
+        :rtype: list[str] | None
+        """
+        values = set(preview_values)
+        # If all values are empty in preview than can be any field
+        if values == {""}:
+            return ["all"]
+
+        # If all values starts with __export__ this is probably an id
+        if all(v.startswith("__export__") for v in values):
+            return ["id", "many2many", "many2one", "one2many"]
+
+        # If all values can be cast to int type is either integer, float or monetary
+        # Exception: if we only have 1 and 0, it can also be a boolean
+        # `str.isdigit` was both too narrow and too wide here: it rejects
+        # "-1" (a column of negative integers was typed as float/monetary,
+        # so integer fields never showed up as suggestions) and it accepts
+        # non-ASCII digits such as "٣" or "²", for which int() then fails.
+        if all(_is_integer_literal(v) for v in values if v):
+            field_type = ["integer", "float", "monetary"]
+            if {"0", "1", ""}.issuperset(values):
+                field_type.append("boolean")
+            return field_type
+
+        # If all values are either True or False, type is boolean
+        if all(
+            val.lower() in ("true", "false", "t", "f", "") for val in preview_values
+        ):
+            return ["boolean"]
+
+        # If all values can be cast to float, type is either float or monetary
+        if self._match_float_separators(preview_values, options):
+            # Allow float to be mapped on a text field.
+            return ["float", "monetary"]
+
+        return None
+
     def _extract_header_types(self, preview_values, options):
         """Returns the potential field types, based on the preview values, using heuristics.
 
@@ -1018,86 +1173,12 @@ class Base_ImportImport(models.TransientModel):
             return ["all"]
 
         if all(isinstance(v, str) for v in preview_values):
+            # The stripped values, not the raw ones, are what the date
+            # heuristics below go on to see.
             preview_values = [v.strip() for v in preview_values]
-            values = set(preview_values)
-            # If all values are empty in preview than can be any field
-            if values == {""}:
-                return ["all"]
-
-            # If all values starts with __export__ this is probably an id
-            if all(v.startswith("__export__") for v in values):
-                return ["id", "many2many", "many2one", "one2many"]
-
-            # If all values can be cast to int type is either integer, float or monetary
-            # Exception: if we only have 1 and 0, it can also be a boolean
-            # `str.isdigit` was both too narrow and too wide here: it rejects
-            # "-1" (a column of negative integers was typed as float/monetary,
-            # so integer fields never showed up as suggestions) and it accepts
-            # non-ASCII digits such as "٣" or "²", for which int() then fails.
-            if all(_is_integer_literal(v) for v in values if v):
-                field_type = ["integer", "float", "monetary"]
-                if {"0", "1", ""}.issuperset(values):
-                    field_type.append("boolean")
-                return field_type
-
-            # If all values are either True or False, type is boolean
-            if all(
-                val.lower() in ("true", "false", "t", "f", "") for val in preview_values
-            ):
-                return ["boolean"]
-
-            # If all values can be cast to float, type is either float or monetary
-            try:
-                thousand_separator = decimal_separator = False
-                currency_symbols = None
-                for val in preview_values:
-                    val = val.strip()
-                    if not val:
-                        continue
-                    # value might have the currency symbol left or right from the value
-                    # (looked up once per column, lazily, instead of once per value)
-                    if currency_symbols is None:
-                        currency_symbols = self._currency_symbols()
-                    val = self._remove_currency_symbol(val, currency_symbols)
-                    if val:
-                        if options.get("float_thousand_separator") and options.get(
-                            "float_decimal_separator"
-                        ):
-                            if (
-                                options["float_decimal_separator"] == "."
-                                and val.count(".") > 1
-                            ):
-                                # not a float: leave the try block
-                                raise ValueError(val)
-                            val = val.replace(
-                                options["float_thousand_separator"], ""
-                            ).replace(options["float_decimal_separator"], ".")
-                        # We are now sure that this is a float, but we still need to find the
-                        # thousand and decimal separator
-                        elif val.count(".") > 1:
-                            options["float_thousand_separator"] = "."
-                            options["float_decimal_separator"] = ","
-                        elif val.count(",") > 1:
-                            options["float_thousand_separator"] = ","
-                            options["float_decimal_separator"] = "."
-                        elif val.find(".") > val.find(","):
-                            thousand_separator = ","
-                            decimal_separator = "."
-                        elif val.find(",") > val.find("."):
-                            thousand_separator = "."
-                            decimal_separator = ","
-                    else:
-                        # not a float: leave the try block
-                        raise ValueError(val)
-                if thousand_separator and not options.get("float_decimal_separator"):
-                    options["float_thousand_separator"] = thousand_separator
-                    options["float_decimal_separator"] = decimal_separator
-                return [
-                    "float",
-                    "monetary",
-                ]  # Allow float to be mapped on a text field.
-            except ValueError:
-                pass
+            field_types = self._match_string_column_types(preview_values, options)
+            if field_types:
+                return field_types
 
         if _is_native_date_column(preview_values):
             return ["date", "datetime"]
@@ -1179,6 +1260,146 @@ class Base_ImportImport(models.TransientModel):
             headers_types[(column_index, header_name)] = type_field
         return headers_types
 
+    def _get_saved_mapping_suggestion(self, header, fields_tree, mapping_fields):
+        """The mapping the user saved for this header, if it still resolves.
+
+        :param str header: header name from the file
+        :param list fields_tree: see :meth:`get_fields_tree`
+        :param dict mapping_fields: previously saved ``{header_name: field_name}``
+        :rtype: dict
+        """
+        mapping_field_name = mapping_fields.get(_normalize_column_name(header))
+        # A saved mapping outlives the field it points at: renaming or removing
+        # the field (or uninstalling the module that defined it) leaves a row in
+        # `base_import.mapping` that was replayed verbatim, with distance -1 --
+        # the highest possible priority -- so the column was claimed by a path
+        # the client cannot resolve and ended up silently unmapped, suppressing
+        # the suggestion it would otherwise have received.
+        if mapping_field_name and self._mapping_path_exists(
+            mapping_field_name, fields_tree
+        ):
+            return {
+                "field_path": mapping_field_name.split("/"),
+                "distance": -1,  # Trick to force to keep that match during mapping deduplication.
+            }
+        return {}
+
+    def _get_exact_field_match(self, header, fields_tree, field_strings_en):
+        """The field whose technical name or label equals ``header``, if any.
+
+        Compared case-insensitively against the technical name, the (possibly
+        translated) label, and the english label.
+
+        :param str header: header name from the file
+        :param list fields_tree: see :meth:`get_fields_tree`
+        :param field_strings_en: memoized lookup from :meth:`_get_field_strings_en`
+        :rtype: dict | None
+        """
+        for field in fields_tree:
+            fname = field["name"]
+            # exact match found based on the field technical name
+            if header.casefold() == fname.casefold():
+                return field
+            # match found using either user translation, either model defined field label
+            if header.casefold() == field["string"].casefold():
+                return field
+            strings_en = field_strings_en(field["model_name"])
+            if (
+                fname in strings_en
+                and header.casefold() == strings_en[fname].casefold()
+            ):
+                return field
+        return None
+
+    def _get_fuzzy_field_match(
+        self, header, fields_tree, header_types, field_strings_en
+    ):
+        """The closest field to ``header`` by word distance, if close enough.
+
+        Word distance is a score between 0 and 1 to express the distance
+        between two char strings where ``0`` denotes an exact match and
+        ``1`` indicates completely different strings. Candidates are first
+        narrowed to the field types the column's data is compatible with
+        (see :meth:`_extract_header_types`), so a numeric column is never
+        fuzzy-matched against a date field.
+
+        The distance is returned as well as the field, because it drives
+        :meth:`_deduplicate_mapping_suggestions`: when two headers claim the
+        same field, only the smaller distance survives.
+
+        :param str header: header name from the file
+        :param list fields_tree: see :meth:`get_fields_tree`
+        :param list header_types: see :meth:`_extract_header_types`
+        :param field_strings_en: memoized lookup from :meth:`_get_field_strings_en`
+        :rtype: dict
+        """
+        # Filter out fields with types that does not match corresponding header types.
+        filtered_fields = self._filter_fields_by_types(fields_tree, header_types)
+        if not filtered_fields:
+            return {}
+
+        min_dist = 1
+        min_dist_field = False
+        for field in filtered_fields:
+            fname = field["name"]
+            # use string distance for fuzzy match only on most likely field types
+            distances = [
+                self._get_distance(header.casefold(), fname.casefold()),
+                self._get_distance(header.casefold(), field["string"].casefold()),
+            ]
+
+            if field_string_en := field_strings_en(field["model_name"]).get(fname):
+                distances.append(
+                    self._get_distance(header.casefold(), field_string_en.casefold()),
+                )
+
+            current_field_dist = min(distances)
+            if current_field_dist < min_dist:
+                min_dist_field = fname
+                min_dist = current_field_dist
+
+        if min_dist < self.FUZZY_MATCH_DISTANCE:
+            return {"field_path": [min_dist_field], "distance": min_dist}
+
+        return {}
+
+    def _get_relational_mapping_suggestion(self, header, fields_tree, header_types):
+        """Resolve a ``'/'``-joined header one segment at a time.
+
+        ``lead_id/description`` matches ``description`` on the comodel of
+        ``lead_id``, so each segment is matched against the subtree the
+        previous one selected. Any segment that fails to match abandons the
+        whole path.
+
+        No distance is returned: hierarchy mapping is an advanced behaviour and
+        :meth:`_deduplicate_mapping_suggestions` ignores it, leaving the user to
+        resolve duplicates on sub-fields by hand.
+
+        :param str header: ``'/'``-joined header name from the file
+        :param list fields_tree: see :meth:`get_fields_tree`
+        :param list header_types: see :meth:`_extract_header_types`
+        :rtype: dict
+        """
+        field_path = []
+        subfields_tree = fields_tree
+        for sub_header in header.split("/"):
+            # Strip sub_header in case spaces are added around '/' for
+            # readability of paths
+            # Skip Saved mapping (mapping_field = {})
+            match = self._get_mapping_suggestion(
+                sub_header.strip(), subfields_tree, header_types, {}
+            )
+            # Any match failure, exit
+            if not match:
+                return {}
+            # prep subfields for next iteration within match['field_path'][0]
+            field_name = match["field_path"][0]
+            subfields_tree = next(
+                item["fields"] for item in subfields_tree if item["name"] == field_name
+            )
+            field_path.append(field_name)
+        return {"field_path": field_path}
+
     def _get_mapping_suggestion(
         self, header, fields_tree, header_types, mapping_fields
     ):
@@ -1192,39 +1413,17 @@ class Base_ImportImport(models.TransientModel):
           relation field of the target model (= subfield) e.g.:
           'lead_id/description' aim to match the field ``description`` of the field lead_id.
 
-        When returning result, to ease further treatments, the result is
-        returned as a list, where each element of the list is a field or
-        a sub-field of the preceding field.
+        The result is returned as a list, where each element is a field or a
+        sub-field of the preceding one -- ``["lead_id"]`` for the simple case,
+        ``["lead_id", "description"]`` for the composed one.
 
-        - ``["lead_id"]`` for simple case = simple matching
-        - ``["lead_id", "description"]`` for composed case = hierarchy matching
-
-        Mapping suggestion is found using the following heuristic:
-
-        - first we check if there was a saved mapping by the user
-        - then try to make an exact match on the field technical name /
-          english label / translated label
-        - finally, try the "fuzzy match": word distance between the header
-          title and the field technical name / english label / translated
-          label, using the lowest result. The field used for the fuzzy match
-          are based on the field types we extracted from the header data
-          (see :meth:`_extract_header_types`).
-
-        For subfields, use the same logic.
-
-        Word distance is a score between 0 and 1 to express the distance
-        between two char strings where ``0`` denotes an exact match and
-        ``1`` indicates completely different strings
-
-        In order to keep only one column matched per field, we return the
-        distance. That distance will be used during the deduplicate process
-        (see :meth:`_deduplicate_mapping_suggestions`) and only the
-        mapping with the smallest distance will be kept in case of multiple
-        mapping on the same field. We don't need to return the
-        distance in case of hierachy mapping as we consider that as an
-        advanced behaviour. The deduplicate process will ignore hierarchy
-        mapping. The user will have to manually select on which field he
-        wants to map what in case of mapping duplicates for sub-fields.
+        Three heuristics are tried in order, each in its own method:
+        a mapping the user saved earlier
+        (:meth:`_get_saved_mapping_suggestion`), an exact match on name or
+        label (:meth:`_get_exact_field_match`), and finally a fuzzy match
+        (:meth:`_get_fuzzy_field_match`). A ``'/'``-joined header takes
+        :meth:`_get_relational_mapping_suggestion` instead, which applies the
+        same three per segment.
 
         :param str header: header name from the file
         :param list fields_tree: list of all the field of the target model
@@ -1247,106 +1446,27 @@ class Base_ImportImport(models.TransientModel):
         if not fields_tree:
             return {}
 
-        # First, check in saved mapped fields
-        mapping_field_name = mapping_fields.get(_normalize_column_name(header))
-        # A saved mapping outlives the field it points at: renaming or removing
-        # the field (or uninstalling the module that defined it) leaves a row in
-        # `base_import.mapping` that was replayed verbatim, with distance -1 --
-        # the highest possible priority -- so the column was claimed by a path
-        # the client cannot resolve and ended up silently unmapped, suppressing
-        # the suggestion it would otherwise have received.
-        if mapping_field_name and self._mapping_path_exists(
-            mapping_field_name, fields_tree
+        if saved_match := self._get_saved_mapping_suggestion(
+            header, fields_tree, mapping_fields
         ):
-            return {
-                "field_path": mapping_field_name.split("/"),
-                "distance": -1,  # Trick to force to keep that match during mapping deduplication.
-            }
+            return saved_match
+
+        if "/" in header:
+            return self._get_relational_mapping_suggestion(
+                header, fields_tree, header_types
+            )
 
         # `get_field_string` rebuilds a {field: label} dict on every call; it was
         # invoked once per candidate field per header (475 calls for 5 headers on
         # res.partner, all for the same handful of models). Memoize per call tree.
         field_strings_en = self._get_field_strings_en()
 
-        if "/" not in header:
-            for field in fields_tree:
-                fname = field["name"]
-                # exact match found based on the field technical name
-                if header.casefold() == fname.casefold():
-                    break
-                # match found using either user translation, either model defined field label
-                if header.casefold() == field["string"].casefold():
-                    break
-                strings_en = field_strings_en(field["model_name"])
-                if (
-                    fname in strings_en
-                    and header.casefold() == strings_en[fname].casefold()
-                ):
-                    break
-            else:
-                field = None
+        if field := self._get_exact_field_match(header, fields_tree, field_strings_en):
+            return {"field_path": [field["name"]], "distance": 0}
 
-            if field:  # found an exact match, no need to go further
-                return {"field_path": [field["name"]], "distance": 0}
-
-            # If no match found, try fuzzy match on fields filtered based on extracted header types
-            # Filter out fields with types that does not match corresponding header types.
-            filtered_fields = self._filter_fields_by_types(fields_tree, header_types)
-            if not filtered_fields:
-                return {}
-
-            min_dist = 1
-            min_dist_field = False
-            for field in filtered_fields:
-                fname = field["name"]
-                # use string distance for fuzzy match only on most likely field types
-                distances = [
-                    self._get_distance(header.casefold(), fname.casefold()),
-                    self._get_distance(header.casefold(), field["string"].casefold()),
-                ]
-
-                if field_string_en := field_strings_en(field["model_name"]).get(fname):
-                    distances.append(
-                        self._get_distance(
-                            header.casefold(), field_string_en.casefold()
-                        ),
-                    )
-
-                # Keep only the closest mapping suggestion. In case of multiple mapping on the same field,
-                # a mapping suggestion could be canceled by another one that has a smaller distance on the same field.
-                # See '_deduplicate_mapping_suggestions' method for more info.
-                current_field_dist = min(distances)
-                if current_field_dist < min_dist:
-                    min_dist_field = fname
-                    min_dist = current_field_dist
-
-            if min_dist < self.FUZZY_MATCH_DISTANCE:
-                return {"field_path": [min_dist_field], "distance": min_dist}
-
-            return {}
-
-        # relational field path
-        field_path = []
-        subfields_tree = fields_tree
-        # Iteratively dive into fields tree
-        for sub_header in header.split("/"):
-            # Strip sub_header in case spaces are added around '/' for
-            # readability of paths
-            # Skip Saved mapping (mapping_field = {})
-            match = self._get_mapping_suggestion(
-                sub_header.strip(), subfields_tree, header_types, {}
-            )
-            # Any match failure, exit
-            if not match:
-                return {}
-            # prep subfields for next iteration within match['field_path'][0]
-            field_name = match["field_path"][0]
-            subfields_tree = next(
-                item["fields"] for item in subfields_tree if item["name"] == field_name
-            )
-            field_path.append(field_name)
-        # No need to return distance for hierarchy mapping
-        return {"field_path": field_path}
+        return self._get_fuzzy_field_match(
+            header, fields_tree, header_types, field_strings_en
+        )
 
     def _get_field_strings_en(self):
         """Return a memoized ``model_name -> {field: english label}`` lookup,
@@ -1479,6 +1599,152 @@ class Base_ImportImport(models.TransientModel):
         for header in mapping_suggestions.keys() - headers_to_keep:
             del mapping_suggestions[header]
 
+    def _get_preview_matches(self, headers, header_types, fields_tree, options):
+        """The header -> field-path mapping the client should start from.
+
+        Either the mapping the user already made -- advanced mode re-parses the
+        file but keeps its mapping as is, so no new proposal is made -- or a
+        fresh suggestion per header.
+
+        :param list headers: the header row
+        :param dict header_types: see :meth:`_extract_headers_types`
+        :param list fields_tree: see :meth:`get_fields_tree`
+        :param dict options: parsing options
+        :rtype: dict
+        """
+        matches = {}
+        if options.get("keep_matches") and options.get("fields"):
+            for index, match in enumerate(options.get("fields", [])):
+                if match:
+                    matches[index] = match.split("/")
+        elif options.get("has_headers"):
+            suggestions = self._get_mapping_suggestions(
+                headers, header_types, fields_tree
+            )
+            # remove header_name for matches keys as tuples are no supported in json.
+            # and remove distance from suggestion (keep only the field path) as not used at client side.
+            matches = {
+                header_key[0]: suggestion["field_path"]
+                for header_key, suggestion in suggestions.items()
+                if suggestion
+            }
+        return matches
+
+    def _is_advanced_mode(self, headers, matches, options):
+        """Whether the client should open the mapping UI in advanced mode.
+
+        True if it already was, or if the file addresses relational fields --
+        either through a ``'/'``-joined header or through a matched path of
+        more than one segment.
+
+        :rtype: bool
+        """
+        if options.get("keep_matches"):
+            return options.get("advanced")
+        # Check is label contain relational field
+        has_relational_header = any(
+            len(models.fix_import_export_id_paths(col)) > 1 for col in headers
+        )
+        # Check is matches fields have relational field
+        has_relational_match = any(
+            len(match) > 1 for match in matches.values() if match
+        )
+        return has_relational_header or has_relational_match
+
+    def _get_preview_error(self, error):
+        """The payload for a preview that could not be produced.
+
+        :param Exception error: what :meth:`_get_preview` raised
+        :rtype: dict
+        """
+        # Expected failures carry a message written for the user and are
+        # reported verbatim. Anything else is a defect in this code: it used
+        # to be reported the same way, so the user saw raw Python text
+        # ("list index out of range" was a real one, from a header-only
+        # file) while the only trace was a debug-level log line that no
+        # deployment has enabled -- the bug was invisible to monitoring and
+        # unactionable to the user. Log those loudly and say something
+        # honest instead.
+        if isinstance(
+            error, ImportValidationError | UserError | ValueError | csv.Error
+        ):
+            message = str(error)
+        else:
+            # exc_info=error, not `.exception()`: this runs one frame below the
+            # `except` clause, so there is no ambient sys.exc_info() to rely on.
+            _logger.error(
+                "Unexpected error while parsing the import preview", exc_info=error
+            )
+            message = _(
+                "The file could not be read. Please check the format options, or contact your administrator if the problem persists."
+            )
+        preview = None
+        if self.file_type == "text/csv" and self.file:
+            preview = self.file[:ERROR_PREVIEW_BYTES].decode("iso-8859-1")
+        return {
+            "error": message,
+            # iso-8859-1 ensures decoding will always succeed,
+            # even if it yields non-printable characters. This is
+            # in case of UnicodeDecodeError (or csv.Error
+            # compounded with UnicodeDecodeError)
+            "preview": preview,
+        }
+
+    def _get_preview(self, options, count, fields_tree):
+        """The successful preview payload, see :meth:`parse_preview`.
+
+        :param dict options: format-specific options, normalized in place
+        :param int count: number of preview lines to generate
+        :param list fields_tree: see :meth:`get_fields_tree`
+        :rtype: dict
+        """
+        self._normalize_row_window_options(options)
+        data_rows = self._read_file(options)
+        if not data_rows:
+            raise ImportValidationError(_("Import file has no content or is corrupt"))
+
+        preview = data_rows[:count]
+
+        # Get file headers
+        if options.get("has_headers") and preview:
+            # We need the header types before matching columns to fields
+            headers = preview.pop(0)
+            header_types = self._extract_headers_types(headers, preview, options)
+        else:
+            header_types, headers = {}, []
+
+        matches = self._get_preview_matches(headers, header_types, fields_tree, options)
+        advanced_mode = self._is_advanced_mode(headers, matches, options)
+        column_example = self._prepare_column_examples(headers, preview, options)
+
+        # Data rows only, i.e. excluding the header that was popped above.
+        num_rows = len(data_rows) - (1 if headers else 0)
+        # Whether the file needs more than one `execute_import` round trip.
+        # This used to be derived with `itertools.islice(data_rows,
+        # limit - count, ...)`, an offset that is only correct if the
+        # preview has already *consumed* the first `count` rows from a lazy
+        # generator. `_read_file` returns a list, so the probe landed
+        # `count` rows (plus the header) short and the flag over-reported
+        # batching for any limit within `count` of the row count.
+        batch_cutoff = options.get("limit")
+        batch = bool(batch_cutoff) and num_rows > batch_cutoff
+
+        return {
+            "fields": fields_tree,
+            "matches": matches or False,
+            "headers": headers or False,
+            "header_types": list(header_types.values()) or False,
+            "preview": column_example,
+            "options": options,
+            "advanced_mode": advanced_mode,
+            "debug": self.env.user.has_group("base.group_no_one"),
+            "batch": batch,
+            # Data rows only. This drives the client's batch count
+            # (`totalSteps = ceil((num_rows - skip) / limit)`); counting the
+            # header row in it made that count one too high.
+            "num_rows": num_rows,
+        }
+
     def parse_preview(self, options, count=10):
         """Generates a preview of the uploaded files, and performs
         fields-matching between the import's file data and the model's
@@ -1498,120 +1764,12 @@ class Base_ImportImport(models.TransientModel):
         self._check_model_name(self.res_model)
         fields_tree = self.get_fields_tree(self.res_model)
         try:
-            self._normalize_row_window_options(options)
-            data_rows = self._read_file(options)
-            if not data_rows:
-                raise ImportValidationError(
-                    _("Import file has no content or is corrupt")
-                )
-
-            preview = data_rows[:count]
-
-            # Get file headers
-            if options.get("has_headers") and preview:
-                # We need the header types before matching columns to fields
-                headers = preview.pop(0)
-                header_types = self._extract_headers_types(headers, preview, options)
-            else:
-                header_types, headers = {}, []
-
-            # Get matches: the ones already selected by the user or propose a new matching.
-            matches = {}
-            # If user checked to the advanced mode, we re-parse the file but we keep the mapping "as is".
-            # No need to make another mapping proposal
-            if options.get("keep_matches") and options.get("fields"):
-                for index, match in enumerate(options.get("fields", [])):
-                    if match:
-                        matches[index] = match.split("/")
-            elif options.get("has_headers"):
-                matches = self._get_mapping_suggestions(
-                    headers, header_types, fields_tree
-                )
-                # remove header_name for matches keys as tuples are no supported in json.
-                # and remove distance from suggestion (keep only the field path) as not used at client side.
-                matches = {
-                    header_key[0]: suggestion["field_path"]
-                    for header_key, suggestion in matches.items()
-                    if suggestion
-                }
-
-            # compute if we should activate advanced mode or not:
-            # if was already activated of if file contains "relational fields".
-            if options.get("keep_matches"):
-                advanced_mode = options.get("advanced")
-            else:
-                # Check is label contain relational field
-                has_relational_header = any(
-                    len(models.fix_import_export_id_paths(col)) > 1 for col in headers
-                )
-                # Check is matches fields have relational field
-                has_relational_match = any(
-                    len(match) > 1 for match in matches.values() if match
-                )
-                advanced_mode = has_relational_header or has_relational_match
-
-            column_example = self._prepare_column_examples(headers, preview, options)
-
-            # Data rows only, i.e. excluding the header that was popped above.
-            num_rows = len(data_rows) - (1 if headers else 0)
-            # Whether the file needs more than one `execute_import` round trip.
-            # This used to be derived with `itertools.islice(data_rows,
-            # limit - count, ...)`, an offset that is only correct if the
-            # preview has already *consumed* the first `count` rows from a lazy
-            # generator. `_read_file` returns a list, so the probe landed
-            # `count` rows (plus the header) short and the flag over-reported
-            # batching for any limit within `count` of the row count.
-            batch_cutoff = options.get("limit")
-            batch = bool(batch_cutoff) and num_rows > batch_cutoff
-
-            return {
-                "fields": fields_tree,
-                "matches": matches or False,
-                "headers": headers or False,
-                "header_types": list(header_types.values()) or False,
-                "preview": column_example,
-                "options": options,
-                "advanced_mode": advanced_mode,
-                "debug": self.env.user.has_group("base.group_no_one"),
-                "batch": batch,
-                # Data rows only. This drives the client's batch count
-                # (`totalSteps = ceil((num_rows - skip) / limit)`); counting the
-                # header row in it made that count one too high.
-                "num_rows": num_rows,
-            }
+            return self._get_preview(options, count, fields_tree)
         except Exception as error:
             # Due to lazy generators, UnicodeDecodeError (for
             # instance) may only be raised when serializing the
             # preview to a list in the return.
-            #
-            # Expected failures carry a message written for the user and are
-            # reported verbatim. Anything else is a defect in this code: it used
-            # to be reported the same way, so the user saw raw Python text
-            # ("list index out of range" was a real one, from a header-only
-            # file) while the only trace was a debug-level log line that no
-            # deployment has enabled -- the bug was invisible to monitoring and
-            # unactionable to the user. Log those loudly and say something
-            # honest instead.
-            if isinstance(
-                error, ImportValidationError | UserError | ValueError | csv.Error
-            ):
-                message = str(error)
-            else:
-                _logger.exception("Unexpected error while parsing the import preview")
-                message = _(
-                    "The file could not be read. Please check the format options, or contact your administrator if the problem persists."
-                )
-            preview = None
-            if self.file_type == "text/csv" and self.file:
-                preview = self.file[:ERROR_PREVIEW_BYTES].decode("iso-8859-1")
-            return {
-                "error": message,
-                # iso-8859-1 ensures decoding will always succeed,
-                # even if it yields non-printable characters. This is
-                # in case of UnicodeDecodeError (or csv.Error
-                # compounded with UnicodeDecodeError)
-                "preview": preview,
-            }
+            return self._get_preview_error(error)
 
     def _prepare_column_examples(self, headers, preview, options):
         """Up to 5 example values per column, for the mapping UI.
@@ -1684,7 +1842,49 @@ class Base_ImportImport(models.TransientModel):
                     )
                 )
 
-    @api.model
+    def _map_import_rows(
+        self, rows_to_import, mapper, max_index, title_row_entries, options
+    ):
+        """Each row narrowed to the mapped columns, dropping rows left empty.
+
+        :param list rows_to_import: parsed rows, header already removed
+        :param mapper: picks the mapped columns out of one row
+        :param int max_index: highest column index the mapping addresses
+        :param int title_row_entries: width of the title row, for the message
+        :param dict options: parsing options
+        :rtype: list[list]
+        :raises ImportValidationError: on a row too narrow for the mapping
+        """
+        # The width check in the caller only ever looked at the *first* row, so
+        # a row narrower than the header later in the file reached `mapper` --
+        # `operator.itemgetter` over a short row -- and raised IndexError.
+        # `execute_import` catches only ImportValidationError, so that escaped
+        # as an HTTP 500, while the precise, translated message for exactly
+        # this situation sat unused a few lines above. Report it per row, and
+        # name the row so the user can find it.
+        data = []
+        for row_number, row in enumerate(
+            rows_to_import, start=2 if options.get("has_headers") else 1
+        ):
+            if len(row) <= max_index:
+                raise ImportValidationError(
+                    _(
+                        "Error while importing records: all rows should be of the same size, "
+                        "but the title row has %(title_row_entries)d entries while row "
+                        "%(row_number)d has %(row_entries)d. You may need to change the "
+                        "separator character.",
+                        title_row_entries=title_row_entries,
+                        row_number=row_number,
+                        row_entries=len(row),
+                    )
+                )
+            mapped = list(mapper(row))
+            # don't try inserting completely empty rows (e.g. from
+            # filtering out o2m fields)
+            if any(mapped):
+                data.append(mapped)
+        return data
+
     def _convert_import_data(
         self,
         fields: Sequence[str | bool],
@@ -1737,35 +1937,9 @@ class Base_ImportImport(models.TransientModel):
         if options.get("has_headers"):
             rows_to_import = rows_to_import[1:]
 
-        # The width check above only ever looked at the *first* row, so a row
-        # narrower than the header later in the file reached `mapper` --
-        # `operator.itemgetter` over a short row -- and raised IndexError.
-        # `execute_import` catches only ImportValidationError, so that escaped
-        # as an HTTP 500, while the precise, translated message for exactly
-        # this situation sat unused a few lines above. Report it per row, and
-        # name the row so the user can find it.
-        max_index = indices[-1]
-        data = []
-        for row_number, row in enumerate(
-            rows_to_import, start=2 if options.get("has_headers") else 1
-        ):
-            if len(row) <= max_index:
-                raise ImportValidationError(
-                    _(
-                        "Error while importing records: all rows should be of the same size, "
-                        "but the title row has %(title_row_entries)d entries while row "
-                        "%(row_number)d has %(row_entries)d. You may need to change the "
-                        "separator character.",
-                        title_row_entries=len(fields),
-                        row_number=row_number,
-                        row_entries=len(row),
-                    )
-                )
-            mapped = list(mapper(row))
-            # don't try inserting completely empty rows (e.g. from
-            # filtering out o2m fields)
-            if any(mapped):
-                data.append(mapped)
+        data = self._map_import_rows(
+            rows_to_import, mapper, indices[-1], len(fields), options
+        )
 
         # slicing needs to happen after filtering out empty rows as the
         # data offsets from load are post-filtering
@@ -1998,7 +2172,7 @@ class Base_ImportImport(models.TransientModel):
         Char) raised ``KeyError('relation')``, which `execute_import` does not
         catch, so it surfaced as an HTTP 500 rather than an import error.
         """
-        self._validate_import_paths(import_fields)
+        self._check_import_paths(import_fields)
         for index, path in enumerate(import_fields):
             field = self._resolve_import_path(path)
             if field is None:
@@ -2027,7 +2201,7 @@ class Base_ImportImport(models.TransientModel):
         available here.
 
         A path descending *through* a non-relation is a different matter and
-        raises -- see :meth:`_validate_import_paths`.
+        raises -- see :meth:`_check_import_paths`.
 
         :param str path: e.g. ``'name'``, ``'partner_id/country_id/code'``
         :rtype: odoo.fields.Field | None
@@ -2053,7 +2227,7 @@ class Base_ImportImport(models.TransientModel):
             model = parent.comodel_name
         return model if model in self.env else None
 
-    def _validate_import_paths(self, import_fields):
+    def _check_import_paths(self, import_fields):
         """Reject column mappings that descend through a non-relational field.
 
         ``name/foo`` asks for a subfield of a Char. This module used to raise
@@ -2277,6 +2451,63 @@ class Base_ImportImport(models.TransientModel):
             res = data
         return res.strip() if trim else res
 
+    def _merge_import_columns(self, import_fields, input_file_data, options):
+        """Reduce the parsed rows to one value per mapped field.
+
+        Collapses columns mapped more than once onto the same field, then
+        substitutes fallback values for cells their field would refuse.
+
+        :rtype: tuple[list[str], list[list]]
+        """
+        import_fields, merged_data = self.with_context(
+            import_options=options
+        )._handle_multi_mapping(import_fields, input_file_data)
+
+        if options.get("fallback_values"):
+            merged_data = self._handle_fallback_values(
+                import_fields, merged_data, options["fallback_values"]
+            )
+        return import_fields, merged_data
+
+    def _load_import_data(self, import_fields, merged_data, options, import_limit):
+        """Hand the prepared rows to ``load`` on the target model.
+
+        :param list import_fields: field paths, without holes
+        :param list merged_data: the matching data matrix
+        :param dict options: parsing options, ``limit`` popped off here
+        :param import_limit: the ``limit`` read before the merge stages
+        :rtype: dict
+        """
+        name_create_enabled_fields = options.pop("name_create_enabled_fields", {})
+        options.pop("limit", None)
+        model = self.env[self.res_model].with_context(
+            import_file=True,
+            name_create_enabled_fields=name_create_enabled_fields,
+            import_set_empty_fields=options.get("import_set_empty_fields", []),
+            import_skip_records=options.get("import_skip_records", []),
+            _import_limit=import_limit,
+        )
+        return model.load(import_fields, merged_data)
+
+    def _finalize_import_result(
+        self, import_result, columns, fields, import_fields, merged_data, options
+    ):
+        """Post-process what ``load`` returned, in place.
+
+        Saves the column mapping for next time, names the imported records and
+        rebases ``nextrow`` onto the file the user uploaded rather than the
+        batch ``load`` saw.
+        """
+        # Insert/Update mapping columns when import complete successfully
+        if import_result["ids"] and options.get("has_headers"):
+            self._save_column_mappings(columns, fields)
+
+        import_result["name"] = self._record_names(import_fields, merged_data, options)
+
+        # convert load's internal nextrow to the imported file's
+        if import_result["nextrow"]:  # don't update if nextrow = 0 (= no nextrow)
+            import_result["nextrow"] += options.get("skip", 0)
+
     def execute_import(self, fields, columns, options, dryrun=False):
         """Actual execution of the import
 
@@ -2328,26 +2559,12 @@ class Base_ImportImport(models.TransientModel):
             binary_filenames = self._extract_binary_filenames(
                 import_fields, input_file_data
             )
-
-            import_fields, merged_data = self.with_context(
-                import_options=options
-            )._handle_multi_mapping(import_fields, input_file_data)
-
-            if options.get("fallback_values"):
-                merged_data = self._handle_fallback_values(
-                    import_fields, merged_data, options["fallback_values"]
-                )
-
-            name_create_enabled_fields = options.pop("name_create_enabled_fields", {})
-            options.pop("limit", None)
-            model = self.env[self.res_model].with_context(
-                import_file=True,
-                name_create_enabled_fields=name_create_enabled_fields,
-                import_set_empty_fields=options.get("import_set_empty_fields", []),
-                import_skip_records=options.get("import_skip_records", []),
-                _import_limit=import_limit,
+            import_fields, merged_data = self._merge_import_columns(
+                import_fields, input_file_data, options
             )
-            import_result = model.load(import_fields, merged_data)
+            import_result = self._load_import_data(
+                import_fields, merged_data, options, import_limit
+            )
             _logger.info("done")
 
             # If transaction aborted, RELEASE SAVEPOINT is going to raise
@@ -2362,18 +2579,9 @@ class Base_ImportImport(models.TransientModel):
                 # don't propagate to other workers since it was rollbacked
                 self.pool.reset_changes()
 
-            # Insert/Update mapping columns when import complete successfully
-            if import_result["ids"] and options.get("has_headers"):
-                self._save_column_mappings(columns, fields)
-
-            import_result["name"] = self._record_names(
-                import_fields, merged_data, options
+            self._finalize_import_result(
+                import_result, columns, fields, import_fields, merged_data, options
             )
-
-            skip = options.get("skip", 0)
-            # convert load's internal nextrow to the imported file's
-            if import_result["nextrow"]:  # don't update if nextrow = 0 (= no nextrow)
-                import_result["nextrow"] += skip
             if binary_filenames:
                 import_result["binary_filenames"] = binary_filenames
 
@@ -2587,6 +2795,77 @@ class Base_ImportImport(models.TransientModel):
                     binary_filenames[name].append(filename)
         return binary_filenames
 
+    def _get_merge_plan(self, mapped_field_indexes):
+        """How to merge each mapped field's columns, resolved once per import.
+
+        One entry per field: the column indexes feeding it, its type, the
+        separator its type is concatenated with (``None`` when it is not
+        concatenated at all) and whether char values want trimming.
+
+        :param dict mapped_field_indexes: ``{field_path: [column index, ...]}``
+        :rtype: list[tuple]
+        """
+        # Resolve each mapped field ONCE, ahead of the row loop. This walk
+        # (`self.env[model]._fields.get(...)` per path segment) used to sit
+        # inside the per-row loop even though nothing in it depends on the row:
+        # a 20k-row file mapped to 3 columns performed 60k identical registry
+        # resolutions. Measured 221.6 ms -> 30.1 ms.
+        #
+        # `_resolve_import_path` walks by *position*, which also fixes a
+        # self-referential path such as 'parent_id/parent_id': the previous
+        # walk compared each segment to the last one by name, so the first
+        # segment matched and the model was left un-retargeted.
+        merge_plan = []
+        for field_path, indexes in mapped_field_indexes.items():
+            field = self._resolve_import_path(field_path)
+            field_type = field.type if field else ""
+            merge_plan.append(
+                (
+                    indexes,
+                    field_type,
+                    CONCAT_SEPARATOR_IMPORT.get(field_type),
+                    # Trim trailing whitespaces before joining
+                    field_type == "char" and field.trim,
+                )
+            )
+        return merge_plan
+
+    def _merge_mapped_row(self, record, merge_plan, import_options):
+        """One input row reduced to one value per mapped field.
+
+        :param list record: a row of the parsed file
+        :param list merge_plan: see :meth:`_get_merge_plan`
+        :param dict import_options: the context's ``import_options``
+        :rtype: list
+        """
+        new_record = []
+        for indexes, field_type, separator, trim in merge_plan:
+            # merge data if necessary
+            if separator is not None:
+                # `_stringify_date_like_objects` on every branch: the
+                # xls/xlsx readers can put a native date in a char or
+                # many2many column, and str.join on it raised a bare
+                # TypeError that escaped execute_import as an HTTP 500.
+                new_record.append(
+                    separator.join(
+                        self._stringify_date_like_objects(
+                            record[idx], import_options, trim
+                        )
+                        for idx in indexes
+                        if record[idx]
+                    )
+                )
+            elif field_type == "properties":
+                # for property fields date and datetime objects are not suitable for JSON values
+                new_record.append(
+                    self._stringify_date_like_objects(
+                        record[indexes[0]], import_options
+                    )
+                )
+            else:
+                new_record.append(record[indexes[0]])
+        return new_record
+
     def _handle_multi_mapping(self, import_fields, input_file_data):
         """This method handles multiple mapping on the same field.
 
@@ -2631,104 +2910,25 @@ class Base_ImportImport(models.TransientModel):
         import_fields = list(mapped_field_indexes.keys())
         import_options = self.env.context.get("import_options", {})
 
-        # Resolve each mapped field ONCE, ahead of the row loop. This walk
-        # (`self.env[model]._fields.get(...)` per path segment) used to sit
-        # inside the per-row loop even though nothing in it depends on the row:
-        # a 20k-row file mapped to 3 columns performed 60k identical registry
-        # resolutions. Measured 221.6 ms -> 30.1 ms.
-        #
-        # `_resolve_import_path` walks by *position*, which also fixes a
-        # self-referential path such as 'parent_id/parent_id': the previous
-        # walk compared each segment to the last one by name, so the first
-        # segment matched and the model was left un-retargeted.
-        merge_plan = []
-        for field_path, indexes in mapped_field_indexes.items():
-            field = self._resolve_import_path(field_path)
-            field_type = field.type if field else ""
-            merge_plan.append(
-                (
-                    indexes,
-                    field_type,
-                    CONCAT_SEPARATOR_IMPORT.get(field_type),
-                    # Trim trailing whitespaces before joining
-                    field_type == "char" and field.trim,
-                )
-            )
+        merge_plan = self._get_merge_plan(mapped_field_indexes)
 
         # recreate data and merge duplicates (applies to char, text, html and many2many fields)
         # Also handles multi-mapping on "field of relation fields".
-        merged_data = []
-        for record in input_file_data:
-            new_record = []
-            for indexes, field_type, separator, trim in merge_plan:
-                # merge data if necessary
-                if separator is not None:
-                    # `_stringify_date_like_objects` on every branch: the
-                    # xls/xlsx readers can put a native date in a char or
-                    # many2many column, and str.join on it raised a bare
-                    # TypeError that escaped execute_import as an HTTP 500.
-                    new_record.append(
-                        separator.join(
-                            self._stringify_date_like_objects(
-                                record[idx], import_options, trim
-                            )
-                            for idx in indexes
-                            if record[idx]
-                        )
-                    )
-                elif field_type == "properties":
-                    # for property fields date and datetime objects are not suitable for JSON values
-                    new_record.append(
-                        self._stringify_date_like_objects(
-                            record[indexes[0]], import_options
-                        )
-                    )
-                else:
-                    new_record.append(record[indexes[0]])
-
-            merged_data.append(new_record)
+        merged_data = [
+            self._merge_mapped_row(record, merge_plan, import_options)
+            for record in input_file_data
+        ]
 
         return import_fields, merged_data
 
-    def _handle_fallback_values(self, import_field, input_file_data, fallback_values):
-        """
-        If there are fallback values, this method will replace the input file
-        data value if it does not match the possible values for the given field.
-        This is only valid for boolean and selection fields.
+    def _resolve_fallback_accepted_values(self, fallback_values):
+        """Record, per fallback field, the set of values it actually accepts.
 
-        .. note::
+        Adds an ``accepted_values`` key in place. Boolean and selection fields
+        get one; any other type gets none, which the caller reads as "leave the
+        cell alone".
 
-            We can consider that we need to retrieve the selection values for
-            all the fields in fallback_values, as if they are present, it's because
-            there was already a conflict during first import run and user had to
-            select a fallback value for the field.
-
-        :param list import_field: ordered list of field that have been matched to import data
-        :param list input_file_data: ordered list of values (list) that need to be imported in
-            the given import_fields
-        :param dict fallback_values:
-
-            contains all the fields that have been tagged by the user to use a
-            specific fallback value in case the value to import does not match
-            values accepted by the field (selection or boolean) e.g.::
-
-                {
-                    "fieldName": {
-                        "fallback_value": fallback_value,
-                        "field_model": field_model,
-                        "field_type": field_type,
-                    },
-                    "state": {
-                        "fallback_value": "draft",
-                        "field_model": field_model,
-                        "field_type": "selection",
-                    },
-                    "active": {
-                        "fallback_value": "true",
-                        "field_model": field_model,
-                        "field_type": "boolean",
-                    },
-                }
+        :param dict fallback_values: see :meth:`_handle_fallback_values`
         """
         # What counts as "a value this field accepts" is `ir.fields.converter`'s
         # answer, not a second list kept here. This used to build
@@ -2770,29 +2970,80 @@ class Base_ImportImport(models.TransientModel):
                 str(token).lower() for pair in selection for token in pair
             )
 
+    def _apply_fallback_value(self, value, fallback):
+        """One cell, replaced by its fallback when the field would refuse it.
+
+        :param value: the raw cell
+        :param dict fallback: one entry of ``fallback_values``, already through
+            :meth:`_resolve_fallback_accepted_values`
+        """
+        # A spreadsheet date cell reaching here is not a str, and
+        # `.lower()` on it raised a bare AttributeError that escaped
+        # execute_import as an HTTP 500.
+        value = self._stringify_date_like_objects(
+            value, self.env.context.get("import_options", {})
+        )
+        # Only boolean and selection get an accept-list; for any
+        # other type the cell stands, as it always has. Indexing
+        # unconditionally here would turn a client sending a third
+        # field_type into a KeyError, and so into an HTTP 500.
+        accepted = fallback.get("accepted_values")
+        if accepted is not None and value.lower() not in accepted:
+            # "skip" means leave the cell empty rather than guess
+            fallback_value = fallback["fallback_value"]
+            return fallback_value if fallback_value != "skip" else None
+        return value
+
+    def _handle_fallback_values(self, import_field, input_file_data, fallback_values):
+        """
+        If there are fallback values, this method will replace the input file
+        data value if it does not match the possible values for the given field.
+        This is only valid for boolean and selection fields.
+
+        .. note::
+
+            We can consider that we need to retrieve the selection values for
+            all the fields in fallback_values, as if they are present, it's because
+            there was already a conflict during first import run and user had to
+            select a fallback value for the field.
+
+        :param list import_field: ordered list of field that have been matched to import data
+        :param list input_file_data: ordered list of values (list) that need to be imported in
+            the given import_fields
+        :param dict fallback_values:
+
+            contains all the fields that have been tagged by the user to use a
+            specific fallback value in case the value to import does not match
+            values accepted by the field (selection or boolean) e.g.::
+
+                {
+                    "fieldName": {
+                        "fallback_value": fallback_value,
+                        "field_model": field_model,
+                        "field_type": field_type,
+                    },
+                    "state": {
+                        "fallback_value": "draft",
+                        "field_model": field_model,
+                        "field_type": "selection",
+                    },
+                    "active": {
+                        "fallback_value": "true",
+                        "field_model": field_model,
+                        "field_type": "boolean",
+                    },
+                }
+        """
+        self._resolve_fallback_accepted_values(fallback_values)
+
         # check fallback values
         for record_index, records in enumerate(input_file_data):
             for column_index, value in enumerate(records):
                 field = import_field[column_index]
-
                 if field in fallback_values:
-                    fallback_value = fallback_values[field]["fallback_value"]
-                    # A spreadsheet date cell reaching here is not a str, and
-                    # `.lower()` on it raised a bare AttributeError that escaped
-                    # execute_import as an HTTP 500.
-                    value = self._stringify_date_like_objects(
-                        value, self.env.context.get("import_options", {})
+                    input_file_data[record_index][column_index] = (
+                        self._apply_fallback_value(value, fallback_values[field])
                     )
-                    # Only boolean and selection get an accept-list; for any
-                    # other type the cell stands, as it always has. Indexing
-                    # unconditionally here would turn a client sending a third
-                    # field_type into a KeyError, and so into an HTTP 500.
-                    accepted = fallback_values[field].get("accepted_values")
-                    if accepted is not None and value.lower() not in accepted:
-                        # "skip" means leave the cell empty rather than guess
-                        value = fallback_value if fallback_value != "skip" else None
-
-                    input_file_data[record_index][column_index] = value
 
         return input_file_data
 

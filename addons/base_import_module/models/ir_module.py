@@ -5,10 +5,12 @@ import json
 import logging
 import zipfile
 from collections import defaultdict
+from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
 
 import lxml
+import requests
 from babel.messages import extract
 
 from odoo import _, api, fields, models
@@ -140,22 +142,20 @@ class IrModuleModule(models.Model):
             if attachment:
                 module.icon_image = attachment.datas
 
-    def _import_module(self, module, path, force=False, with_demo=False):
-        # Do not create a bridge module for these neutralizations.
+    @contextmanager
+    def _neutralized_website(self):
         # Do not involve specific website during import by resetting
         # information used by website's get_current_website.
-        self = self.with_context(website_id=None)
         force_website_id = None
         if request and request.session.get("force_website_id"):
             force_website_id = request.session.pop("force_website_id")
+        try:
+            yield
+        finally:
+            if force_website_id:
+                request.session["force_website_id"] = force_website_id
 
-        known_mods = self.search([])
-        known_mods_names = {m.name: m for m in known_mods}
-        installed_mods = [m.name for m in known_mods if m.state == "installed"]
-
-        terp = Manifest._from_path(path, env=self.env)
-        if not terp:
-            return False
+    def _get_imported_module_vals(self, terp, with_demo):
         values = self.get_values_from_terp(terp)
         try:
             icon_path = terp.raw_value("icon") or str(
@@ -170,55 +170,58 @@ class IrModuleModule(models.Model):
             values["module_type"] = "industries"
         if with_demo:
             values["demo"] = True
+        return values
 
+    def _install_manifest_dependencies(self, terp, path, known_mods, installed_mods):
         unmet_dependencies = set(terp.get("depends", [])).difference(installed_mods)
+        if not unmet_dependencies:
+            if "web_studio" not in installed_mods and _is_studio_custom(path):
+                raise UserError(_("Studio customizations require the Odoo Studio app."))
+            return
 
-        if unmet_dependencies:
-            wrong_dependencies = unmet_dependencies.difference(
-                known_mods.mapped("name")
+        wrong_dependencies = unmet_dependencies.difference(known_mods.mapped("name"))
+        if wrong_dependencies:
+            raise UserError(
+                _("Unknown module dependencies:")
+                + "\n - "
+                + "\n - ".join(wrong_dependencies)
             )
-            if wrong_dependencies:
-                err = (
-                    _("Unknown module dependencies:")
-                    + "\n - "
-                    + "\n - ".join(wrong_dependencies)
-                )
-                raise UserError(err)
-            to_install = known_mods.filtered(lambda mod: mod.name in unmet_dependencies)
-            # t27114: button_immediate_install() hard-commits the current
-            # transaction (twice) and reloads the registry — it cannot be
-            # wrapped in a savepoint, because a real COMMIT ends the
-            # transaction a savepoint lives in. So if _import_zipfile's
-            # per-module loop later fails on a *different* module in the
-            # same zip, this dependency install is NOT rolled back with it:
-            # the user-facing "import failed" error does not mean nothing
-            # was applied. This is accepted, not fixed — there is no
-            # transactional way to undo a registry-reloading install once
-            # it has committed.
-            to_install.button_immediate_install()
-        elif "web_studio" not in installed_mods and _is_studio_custom(path):
-            raise UserError(_("Studio customizations require the Odoo Studio app."))
+        to_install = known_mods.filtered(lambda mod: mod.name in unmet_dependencies)
+        # t27114: button_immediate_install() hard-commits the current
+        # transaction (twice) and reloads the registry — it cannot be
+        # wrapped in a savepoint, because a real COMMIT ends the
+        # transaction a savepoint lives in. So if _import_zipfile's
+        # per-module loop later fails on a *different* module in the
+        # same zip, this dependency install is NOT rolled back with it:
+        # the user-facing "import failed" error does not mean nothing
+        # was applied. This is accepted, not fixed — there is no
+        # transactional way to undo a registry-reloading install once
+        # it has committed.
+        to_install.button_immediate_install()
 
-        mod = known_mods_names.get(module)
+    def _upsert_imported_module(self, module, values, terp, known_mods, force):
+        mod = next((m for m in known_mods if m.name == module), None)
         if mod:
             mod.write(dict(state="installed", **values))
-            mode = "update" if not force else "init"
-        else:
-            assert terp.get("installable", True), "Module not installable"
-            mod = self.create(
-                dict(name=module, state="installed", imported=True, **values)
-            )
-            mode = "init"
+            return mod, "update" if not force else "init"
 
+        assert terp.get("installable", True), "Module not installable"
+        mod = self.create(dict(name=module, state="installed", imported=True, **values))
+        return mod, "init"
+
+    def _get_cloc_exclude_paths(self, terp, base_dir):
         exclude_list = set()
-        base_dir = Path(path)
         for pattern in terp.get("cloc_exclude", []):
             exclude_list.update(
                 str(p.relative_to(base_dir))
                 for p in base_dir.glob(pattern)
                 if p.is_file()
             )
+        return exclude_list
 
+    def _load_imported_data_files(
+        self, module, path, terp, mode, with_demo, exclude_list
+    ):
         kind_of_files = ["data", "init_xml"]
         if with_demo:
             kind_of_files.append("demo")
@@ -232,140 +235,192 @@ class IrModuleModule(models.Model):
                     continue
                 _logger.info("module %s: loading %s", module, filename)
                 noupdate = ext == ".csv" and kind == "init_xml"
-                pathname = str(Path(path) / filename)
                 idref = {}
                 convert_file(
-                    self.env, module, filename, idref, mode, noupdate, pathname=pathname
+                    self.env,
+                    module,
+                    filename,
+                    idref,
+                    mode,
+                    noupdate,
+                    pathname=str(Path(path) / filename),
                 )
                 if filename in exclude_list:
-                    for xml_id, rec_id in idref.items():
-                        name = xml_id.replace(".", "_")
-                        if self.env.ref(
-                            f"__cloc_exclude__.{name}", raise_if_not_found=False
-                        ):
-                            continue
-                        self.env["ir.model.data"].create(
-                            [
-                                {
-                                    "name": name,
-                                    "model": self.env["ir.model.data"]._xmlid_lookup(
-                                        xml_id
-                                    )[0],
-                                    "module": "__cloc_exclude__",
-                                    "res_id": rec_id,
-                                }
-                            ]
-                        )
+                    self._mark_cloc_excluded_records(idref)
 
-        path_static = Path(path) / "static"
-        IrAttachment = self.env["ir.attachment"]
-        if path_static.is_dir():
-            for root, _dirs, files in path_static.walk():
-                for static_file in files:
-                    full_path = str(root / static_file)
-                    with file_open(full_path, "rb", env=self.env) as fp:
-                        data = base64.b64encode(fp.read())
-                    url_path = (
-                        f"/{module}/{Path(full_path).relative_to(path).as_posix()}"
-                    )
-                    filename = Path(url_path).name
-                    values = {
-                        "name": filename,
-                        "url": url_path,
-                        "res_model": "ir.ui.view",
-                        "type": "binary",
-                        "datas": data,
+    def _mark_cloc_excluded_records(self, idref):
+        IrModelData = self.env["ir.model.data"]
+        for xml_id, rec_id in idref.items():
+            name = xml_id.replace(".", "_")
+            if self.env.ref(f"__cloc_exclude__.{name}", raise_if_not_found=False):
+                continue
+            IrModelData.create(
+                [
+                    {
+                        "name": name,
+                        "model": IrModelData._xmlid_lookup(xml_id)[0],
+                        "module": "__cloc_exclude__",
+                        "res_id": rec_id,
                     }
-                    # Do not create a bridge module for this check.
-                    if "public" in IrAttachment._fields:
-                        # Static data is public and not website-specific.
-                        values["public"] = True
-                    attachment = IrAttachment.sudo().search(
-                        [
-                            ("url", "=", url_path),
-                            ("type", "=", "binary"),
-                            ("res_model", "=", "ir.ui.view"),
-                        ]
-                    )
-                    if attachment:
-                        attachment.write(values)
-                    else:
-                        attachment = IrAttachment.create(values)
-                        self.env["ir.model.data"].create(
-                            {
-                                "name": f"attachment_{url_path}".replace(
-                                    ".", "_"
-                                ).replace(" ", "_"),
-                                "model": "ir.attachment",
-                                "module": module,
-                                "res_id": attachment.id,
-                            }
-                        )
-                        if str(Path(full_path).relative_to(base_dir)) in exclude_list:
-                            self.env["ir.model.data"].create(
-                                {
-                                    "name": f"cloc_exclude_attachment_{url_path}".replace(
-                                        ".", "_"
-                                    ).replace(" ", "_"),
-                                    "model": "ir.attachment",
-                                    "module": "__cloc_exclude__",
-                                    "res_id": attachment.id,
-                                }
-                            )
+                ]
+            )
 
-        # store translation files as attachments to allow loading translations for webclient
-        path_lang = Path(path) / "i18n"
-        if path_lang.is_dir():
-            for entry in path_lang.iterdir():
-                if not entry.is_file() or not entry.name.endswith(".po"):
-                    # we don't support sub-directories in i18n
-                    continue
-                with file_open(str(entry), "rb", env=self.env) as fp:
-                    raw = fp.read()
-                lang = entry.name.split(".")[0]
-                # store as binary ir.attachment
-                values = {
-                    "name": f"{module}_{lang}.po",
-                    "url": f"/{module}/i18n/{lang}.po",
-                    "res_model": "ir.module.module",
-                    "res_id": mod.id,
-                    "type": "binary",
-                    "raw": raw,
+    def _get_attachments_by_url(self, urls, domain):
+        """Every existing attachment for ``urls``, grouped by url, in one query.
+
+        The lookup used to sit inside the per-file loop, so importing a module
+        issued one ``ir.attachment`` SELECT per static file and per translation
+        it shipped. Grouped rather than flat because the url is not unique by
+        construction, and the callers' write-or-create must keep seeing every
+        row a per-file search would have returned.
+
+        :param urls: the urls to look for
+        :param list domain: the rest of the callers' search domain
+        :rtype: dict[str, odoo.models.Model]
+        """
+        urls = list(urls)
+        if not urls:
+            return {}
+        attachments = (
+            self.env["ir.attachment"].sudo().search([("url", "in", urls), *domain])
+        )
+        by_url = {}
+        for attachment in attachments:
+            by_url[attachment.url] = (
+                by_url.get(attachment.url, attachments.browse()) | attachment
+            )
+        return by_url
+
+    def _import_static_attachments(self, module, path, base_dir, exclude_list):
+        path_static = Path(path) / "static"
+        if not path_static.is_dir():
+            return
+
+        IrAttachment = self.env["ir.attachment"]
+        IrModelData = self.env["ir.model.data"]
+        # Do not create a bridge module for this check.
+        is_public_aware = "public" in IrAttachment._fields
+
+        static_files = [
+            str(root / static_file)
+            for root, _dirs, files in path_static.walk()
+            for static_file in files
+        ]
+        url_paths = {
+            full_path: f"/{module}/{Path(full_path).relative_to(path).as_posix()}"
+            for full_path in static_files
+        }
+        existing = self._get_attachments_by_url(
+            url_paths.values(),
+            [("type", "=", "binary"), ("res_model", "=", "ir.ui.view")],
+        )
+
+        for full_path in static_files:
+            url_path = url_paths[full_path]
+            with file_open(full_path, "rb", env=self.env) as fp:
+                data = base64.b64encode(fp.read())
+            values = {
+                "name": Path(url_path).name,
+                "url": url_path,
+                "res_model": "ir.ui.view",
+                "type": "binary",
+                "datas": data,
+            }
+            if is_public_aware:
+                # Static data is public and not website-specific.
+                values["public"] = True
+
+            attachment = existing.get(url_path)
+            if attachment:
+                attachment.write(values)
+                continue
+
+            attachment = IrAttachment.create(values)
+            IrModelData.create(
+                {
+                    "name": f"attachment_{url_path}".replace(".", "_").replace(
+                        " ", "_"
+                    ),
+                    "model": "ir.attachment",
+                    "module": module,
+                    "res_id": attachment.id,
                 }
-                attachment = IrAttachment.sudo().search(
-                    [
-                        ("url", "=", values["url"]),
-                        ("type", "=", "binary"),
-                        ("name", "=", values["name"]),
-                    ]
+            )
+            if str(Path(full_path).relative_to(base_dir)) in exclude_list:
+                IrModelData.create(
+                    {
+                        "name": f"cloc_exclude_attachment_{url_path}".replace(
+                            ".", "_"
+                        ).replace(" ", "_"),
+                        "model": "ir.attachment",
+                        "module": "__cloc_exclude__",
+                        "res_id": attachment.id,
+                    }
                 )
-                if attachment:
-                    attachment.write(values)
-                else:
-                    attachment = IrAttachment.create(values)
-                    self.env["ir.model.data"].create(
-                        {
-                            "name": f"attachment_{module}_{lang}".replace(
-                                ".", "_"
-                            ).replace(" ", "_"),
-                            "model": "ir.attachment",
-                            "module": module,
-                            "res_id": attachment.id,
-                        }
-                    )
 
+    def _import_translation_attachments(self, module, path, mod):
+        # store translation files as attachments to allow loading translations
+        # for webclient
+        path_lang = Path(path) / "i18n"
+        if not path_lang.is_dir():
+            return
+
+        IrAttachment = self.env["ir.attachment"]
+        entries = [
+            entry
+            for entry in path_lang.iterdir()
+            # we don't support sub-directories in i18n
+            if entry.is_file() and entry.name.endswith(".po")
+        ]
+        langs = {entry: entry.name.split(".")[0] for entry in entries}
+        existing = self._get_attachments_by_url(
+            [f"/{module}/i18n/{lang}.po" for lang in langs.values()],
+            [("type", "=", "binary")],
+        )
+
+        for entry in entries:
+            lang = langs[entry]
+            with file_open(str(entry), "rb", env=self.env) as fp:
+                raw = fp.read()
+            # store as binary ir.attachment
+            values = {
+                "name": f"{module}_{lang}.po",
+                "url": f"/{module}/i18n/{lang}.po",
+                "res_model": "ir.module.module",
+                "res_id": mod.id,
+                "type": "binary",
+                "raw": raw,
+            }
+            candidates = existing.get(values["url"], IrAttachment)
+            attachment = candidates.filtered(lambda a, n=values["name"]: a.name == n)
+            if attachment:
+                attachment.write(values)
+                continue
+
+            attachment = IrAttachment.create(values)
+            self.env["ir.model.data"].create(
+                {
+                    "name": f"attachment_{module}_{lang}".replace(".", "_").replace(
+                        " ", "_"
+                    ),
+                    "model": "ir.attachment",
+                    "module": module,
+                    "res_id": attachment.id,
+                }
+            )
+
+    def _get_manifest_asset_vals(self, module, terp):
         IrAsset = self.env["ir.asset"]
         assets_vals = []
-
-        # Generate 'ir.asset' record values for each asset delared in the manifest
         for bundle, commands in terp.get("assets", {}).items():
             for command in commands:
                 directive, target, path = IrAsset._parse_manifest_command(command)
                 if is_wildcard_glob(path):
                     raise UserError(
                         _(
-                            "The assets path in the manifest of imported module '%(module_name)s' "
-                            "cannot contain glob wildcards (e.g., *, **).",
+                            "The assets path in the manifest of imported module "
+                            "'%(module_name)s' cannot contain glob wildcards "
+                            "(e.g., *, **).",
                             module_name=module,
                         )
                     )
@@ -379,8 +434,12 @@ class IrModuleModule(models.Model):
                         "bundle": bundle,
                     }
                 )
+        return assets_vals
 
-        # Look for existing assets
+    def _import_manifest_assets(self, module, terp):
+        IrAsset = self.env["ir.asset"]
+        assets_vals = self._get_manifest_asset_vals(module, terp)
+
         existing_assets = {
             asset.name: asset
             for asset in IrAsset.search(
@@ -388,15 +447,12 @@ class IrModuleModule(models.Model):
             )
         }
         assets_to_create = []
-
-        # Update existing assets and generate the list of new assets values
         for values in assets_vals:
             if values["name"] in existing_assets:
                 existing_assets[values["name"]].write(values)
             else:
                 assets_to_create.append(values)
 
-        # Create new assets and attach 'ir.model.data' records to them
         created_assets = IrAsset.create(assets_to_create)
         self.env["ir.model.data"].create(
             [
@@ -410,38 +466,64 @@ class IrModuleModule(models.Model):
             ]
         )
 
-        self.env["ir.module.module"]._load_module_terms(
-            [module],
-            [lang for lang, _name in self.env["res.lang"].get_installed()],
-            overwrite=True,
+    def _render_welcome_article(self, module):
+        if "knowledge.article" not in self.env:
+            return
+        article_record = self.env.ref(
+            f"{module}.welcome_article", raise_if_not_found=False
         )
-
         if (
-            "knowledge.article" in self.env
-            and (
-                article_record := self.env.ref(
-                    f"{module}.welcome_article", raise_if_not_found=False
-                )
+            not article_record
+            or article_record._name != "knowledge.article"
+            or not self.env.ref(
+                f"{module}.welcome_article_body", raise_if_not_found=False
             )
-            and article_record._name == "knowledge.article"
-            and self.env.ref(f"{module}.welcome_article_body", raise_if_not_found=False)
         ):
-            body = self.env["ir.qweb"]._render(
-                f"{module}.welcome_article_body", lang=self.env.user.lang
+            return
+        body = self.env["ir.qweb"]._render(
+            f"{module}.welcome_article_body", lang=self.env.user.lang
+        )
+        article_record.write({"body": body})
+
+    def _import_module(self, module, path, force=False, with_demo=False):
+        # Do not create a bridge module for these neutralizations.
+        self = self.with_context(website_id=None)
+        with self._neutralized_website():
+            terp = Manifest._from_path(path, env=self.env)
+            if not terp:
+                return False
+
+            known_mods = self.search([])
+            installed_mods = [m.name for m in known_mods if m.state == "installed"]
+
+            values = self._get_imported_module_vals(terp, with_demo)
+            self._install_manifest_dependencies(terp, path, known_mods, installed_mods)
+            mod, mode = self._upsert_imported_module(
+                module, values, terp, known_mods, force
             )
-            article_record.write({"body": body})
 
-        mod._update_from_terp(terp)
-        _logger.info("Successfully imported module '%s'", module)
+            base_dir = Path(path)
+            exclude_list = self._get_cloc_exclude_paths(terp, base_dir)
+            self._load_imported_data_files(
+                module, path, terp, mode, with_demo, exclude_list
+            )
+            self._import_static_attachments(module, path, base_dir, exclude_list)
+            self._import_translation_attachments(module, path, mod)
+            self._import_manifest_assets(module, terp)
 
-        if force_website_id:
-            # Restore neutralized website_id.
-            request.session["force_website_id"] = force_website_id
+            self._load_module_terms(
+                [module],
+                [lang for lang, _name in self.env["res.lang"].get_installed()],
+                overwrite=True,
+            )
+            self._render_welcome_article(module)
 
-        return True
+            mod._update_from_terp(terp)
+            _logger.info("Successfully imported module '%s'", module)
+            return True
 
-    @api.model
-    def _import_zipfile(self, module_file, force=False, with_demo=False):
+    def _check_zip_upload(self, module_file):
+        """Refuse an upload that is not an admin-sent zip archive."""
         if not self.env.is_admin():
             raise AccessError(_("Only administrators can install data modules."))
         if not module_file:
@@ -449,7 +531,118 @@ class IrModuleModule(models.Model):
         if not zipfile.is_zipfile(module_file):
             raise UserError(_("Only zip files are supported."))
 
+    def _read_zip_manifests(self, z, extract, module_dir, with_demo):
+        """Extract each module's manifest and read what it declares.
+
+        :param z: the open archive
+        :param extract: the size-budgeted extractor, see :meth:`_import_zipfile`
+        :param str module_dir: the temporary directory being extracted into
+        :param bool with_demo: whether demo data is wanted too
+        :returns: ``({module: [data file, ...]}, {module: [dependency, ...]})``
+        :rtype: tuple[dict, dict]
+        """
+        manifest_files = sorted(
+            (file.filename.split("/")[0], file)
+            for file in z.infolist()
+            if file.filename.count("/") == 1
+            and file.filename.split("/")[1] in MANIFEST_NAMES
+        )
+        module_data_files = defaultdict(list)
+        dependencies = defaultdict(list)
+        module_dir_path = Path(module_dir)
+        for mod_name, manifest in manifest_files:
+            extract(manifest)
+            terp = Manifest._from_path(str(module_dir_path / mod_name), env=self.env)
+            if not terp:
+                continue
+            files_to_import = (
+                terp.get("data", [])
+                + terp.get("init_xml", [])
+                + terp.get("update_xml", [])
+            )
+            if with_demo:
+                files_to_import += terp.get("demo", [])
+            for filename in files_to_import:
+                if Path(filename).suffix.lower() not in (".xml", ".csv", ".sql"):
+                    continue
+                module_data_files[mod_name].append(f"{mod_name}/{filename}")
+            dependencies[mod_name] = terp.get("depends", [])
+        return module_data_files, dependencies
+
+    def _sort_zip_modules(self, module_dir, dependencies):
+        """The archive's modules in dependency order.
+
+        Refuses the whole archive if it holds a directory no manifest claimed,
+        rather than importing the rest and leaving that one silently dropped.
+
+        :rtype: list[str]
+        """
+        dirs = {d.name for d in Path(module_dir).iterdir() if d.is_dir()}
+        sorted_dirs = topological_sort(dependencies)
+        if wrong_modules := dirs.difference(sorted_dirs):
+            raise UserError(
+                _(
+                    "No manifest found in '%(modules)s'. Can't import the zip file.",
+                    modules=", ".join(wrong_modules),
+                )
+            )
+        return sorted_dirs
+
+    def _extract_zip_module_files(self, z, extract, module_data_files):
+        """Extract the data, static and translation files of every module.
+
+        Everything else in the archive stays unextracted, which is what keeps
+        the extraction budget spent on files that will actually be loaded.
+        """
+        for file in z.infolist():
+            filename = file.filename
+            mod_name = filename.split("/")[0]
+            is_data_file = filename in module_data_files[mod_name]
+            is_static = filename.startswith(f"{mod_name}/static")
+            is_translation = filename.startswith(
+                f"{mod_name}/i18n"
+            ) and filename.endswith(".po")
+            if is_data_file or is_static or is_translation:
+                extract(file)
+
+    def _import_zip_modules(self, sorted_dirs, module_dir, force, with_demo):
+        """Import every module of the archive, in dependency order.
+
+        :rtype: list[str]
+        """
         module_names = []
+        for mod_name in sorted_dirs:
+            module_names.append(mod_name)
+            try:
+                path = str(Path(module_dir) / mod_name)
+                self.sudo()._import_module(
+                    mod_name, path, force=force, with_demo=with_demo
+                )
+            except Exception as e:
+                # Full traceback (file paths, line numbers) goes to the
+                # server log only; the user-facing UserError carries just
+                # the exception's own message (t24068 — this message was
+                # embedding traceback.format_exc() verbatim, surfaced
+                # as-is in both the wizard's error dialog and the CLI
+                # deploy endpoint's HTTP 500 body). Note this message
+                # does not mean the whole zip's effects were undone: an
+                # earlier module's dependency auto-install
+                # (_import_module's button_immediate_install() call,
+                # t27114) hard-commits before this loop even gets here.
+                _logger.exception("Error while importing module %r from zip", mod_name)
+                raise UserError(
+                    _(
+                        "Error while importing module '%(module)s'.\n\n%(error_message)s",
+                        module=mod_name,
+                        error_message=e,
+                    )
+                ) from e
+        return module_names
+
+    @api.model
+    def _import_zipfile(self, module_file, force=False, with_demo=False):
+        self._check_zip_upload(module_file)
+
         with zipfile.ZipFile(module_file, "r") as z:
             for zf in z.infolist():
                 if zf.file_size > MAX_FILE_SIZE:
@@ -470,91 +663,14 @@ class IrModuleModule(models.Model):
                         )
                     return path
 
-                manifest_files = sorted(
-                    (file.filename.split("/")[0], file)
-                    for file in z.infolist()
-                    if file.filename.count("/") == 1
-                    and file.filename.split("/")[1] in MANIFEST_NAMES
+                module_data_files, dependencies = self._read_zip_manifests(
+                    z, _extract, module_dir, with_demo
                 )
-                module_data_files = defaultdict(list)
-                dependencies = defaultdict(list)
-                for mod_name, manifest in manifest_files:
-                    _manifest_path = _extract(manifest)
-                    module_dir_path = Path(module_dir)
-                    terp = Manifest._from_path(
-                        str(module_dir_path / mod_name), env=self.env
-                    )
-                    if not terp:
-                        continue
-                    files_to_import = (
-                        terp.get("data", [])
-                        + terp.get("init_xml", [])
-                        + terp.get("update_xml", [])
-                    )
-                    if with_demo:
-                        files_to_import += terp.get("demo", [])
-                    for filename in files_to_import:
-                        if Path(filename).suffix.lower() not in (
-                            ".xml",
-                            ".csv",
-                            ".sql",
-                        ):
-                            continue
-                        module_data_files[mod_name].append(
-                            "%s/%s" % (mod_name, filename)
-                        )
-                    dependencies[mod_name] = terp.get("depends", [])
-
-                module_dir_path = Path(module_dir)
-                dirs = {d.name for d in module_dir_path.iterdir() if d.is_dir()}
-                sorted_dirs = topological_sort(dependencies)
-                if wrong_modules := dirs.difference(sorted_dirs):
-                    raise UserError(
-                        _(
-                            "No manifest found in '%(modules)s'. Can't import the zip file.",
-                            modules=", ".join(wrong_modules),
-                        )
-                    )
-
-                for file in z.infolist():
-                    filename = file.filename
-                    mod_name = filename.split("/")[0]
-                    is_data_file = filename in module_data_files[mod_name]
-                    is_static = filename.startswith("%s/static" % mod_name)
-                    is_translation = filename.startswith(
-                        "%s/i18n" % mod_name
-                    ) and filename.endswith(".po")
-                    if is_data_file or is_static or is_translation:
-                        _extract(file)
-
-                for mod_name in sorted_dirs:
-                    module_names.append(mod_name)
-                    try:
-                        path = str(Path(module_dir) / mod_name)
-                        self.sudo()._import_module(
-                            mod_name, path, force=force, with_demo=with_demo
-                        )
-                    except Exception as e:
-                        # Full traceback (file paths, line numbers) goes to the
-                        # server log only; the user-facing UserError carries just
-                        # the exception's own message (t24068 — this message was
-                        # embedding traceback.format_exc() verbatim, surfaced
-                        # as-is in both the wizard's error dialog and the CLI
-                        # deploy endpoint's HTTP 500 body). Note this message
-                        # does not mean the whole zip's effects were undone: an
-                        # earlier module's dependency auto-install
-                        # (_import_module's button_immediate_install() call,
-                        # t27114) hard-commits before this loop even gets here.
-                        _logger.exception(
-                            "Error while importing module %r from zip", mod_name
-                        )
-                        raise UserError(
-                            _(
-                                "Error while importing module '%(module)s'.\n\n%(error_message)s",
-                                module=mod_name,
-                                error_message=e,
-                            )
-                        ) from e
+                sorted_dirs = self._sort_zip_modules(module_dir, dependencies)
+                self._extract_zip_module_files(z, _extract, module_data_files)
+                module_names = self._import_zip_modules(
+                    sorted_dirs, module_dir, force, with_demo
+                )
         return "", module_names
 
     def module_uninstall(self):
@@ -619,6 +735,54 @@ class IrModuleModule(models.Model):
         else:
             return super().web_read(specification)
 
+    def _decorate_apps_modules(self, modules_list, fields, module_type):
+        """Fill in the fields apps.odoo.com cannot know, in place.
+
+        Whether the module is installed here, and the URLs that are only
+        meaningful relative to this deployment's series.
+        """
+        for mod in modules_list:
+            mod_name = mod["name"]
+            existing_mod = self.search(
+                [("name", "=", mod_name), ("state", "=", "installed")]
+            )
+            mod["id"] = existing_mod.id if existing_mod else -1
+            if "icon" in fields:
+                mod["icon"] = f"{APPS_URL}{mod['icon']}"
+            if "state" in fields:
+                mod["state"] = "installed" if existing_mod else "uninstalled"
+            if "module_type" in fields:
+                mod["module_type"] = module_type
+            if "website" in fields:
+                mod["website"] = f"{APPS_URL}/apps/modules/{major_version}/{mod_name}/"
+
+    def _filter_apps_modules(self, modules_list, domain):
+        """Re-apply ``domain`` to the fields only this side could fill in.
+
+        :rtype: list[dict]
+        """
+        # t27114: `domain` is forwarded to apps.odoo.com by the caller, but
+        # fields computed only locally (e.g. `state`, just set from local
+        # install status) can never be filtered by the remote server.
+        # Re-apply the domain locally against those now-known values.
+        # `category_id` is excluded: it does not exist on these modules and
+        # was already applied server-side (same caveat as upstream).
+        domain_without_category = Domain(domain).map_conditions(
+            lambda c: Domain.TRUE if c.field_expr == "category_id" else c
+        )
+        new_records = self.browse()
+        for mod in modules_list:
+            new_records += self.new({k: v for k, v in mod.items() if k in self._fields})
+        # `.ids` resolves to real/origin ids and is empty for pure
+        # `.new()` records (no origin) — use the raw `._ids` tuple
+        # (NewId objects) to match filtered_domain()'s own result.
+        kept_ids = set(new_records.filtered_domain(domain_without_category)._ids)
+        return [
+            mod
+            for mod, rec_id in zip(modules_list, new_records._ids, strict=True)
+            if rec_id in kept_ids
+        ]
+
     @api.model
     def _get_modules_from_apps(
         self, fields, module_type, module_name, domain=None, limit=None, offset=None
@@ -636,58 +800,14 @@ class IrModuleModule(models.Model):
                 "offset": offset,
             }
         }
-        import requests
 
         try:
             resp = self._call_apps(json.dumps(payload))
             resp.raise_for_status()
             modules_list = resp.json().get("result", [])
-            for mod in modules_list:
-                module_name = mod["name"]
-                existing_mod = self.search(
-                    [("name", "=", module_name), ("state", "=", "installed")]
-                )
-                mod["id"] = existing_mod.id if existing_mod else -1
-                if "icon" in fields:
-                    mod["icon"] = f"{APPS_URL}{mod['icon']}"
-                if "state" in fields:
-                    if existing_mod:
-                        mod["state"] = "installed"
-                    else:
-                        mod["state"] = "uninstalled"
-                if "module_type" in fields:
-                    mod["module_type"] = module_type
-                if "website" in fields:
-                    mod["website"] = (
-                        f"{APPS_URL}/apps/modules/{major_version}/{module_name}/"
-                    )
+            self._decorate_apps_modules(modules_list, fields, module_type)
             if domain:
-                # t27114: `domain` is forwarded to apps.odoo.com above, but
-                # fields computed only locally (e.g. `state`, just set from
-                # local install status) can never be filtered by the remote
-                # server. Re-apply the domain locally against those
-                # now-known values before returning. `category_id` is
-                # excluded: it does not exist on these modules and was
-                # already applied server-side (same caveat as upstream).
-                domain_without_category = Domain(domain).map_conditions(
-                    lambda c: Domain.TRUE if c.field_expr == "category_id" else c
-                )
-                new_records = self.browse()
-                for mod in modules_list:
-                    new_records += self.new(
-                        {k: v for k, v in mod.items() if k in self._fields}
-                    )
-                # `.ids` resolves to real/origin ids and is empty for pure
-                # `.new()` records (no origin) — use the raw `._ids` tuple
-                # (NewId objects) to match filtered_domain()'s own result.
-                kept_ids = set(
-                    new_records.filtered_domain(domain_without_category)._ids
-                )
-                modules_list = [
-                    mod
-                    for mod, rec_id in zip(modules_list, new_records._ids, strict=True)
-                    if rec_id in kept_ids
-                ]
+                modules_list = self._filter_apps_modules(modules_list, domain)
             return modules_list
         except requests.exceptions.HTTPError:
             raise UserError(

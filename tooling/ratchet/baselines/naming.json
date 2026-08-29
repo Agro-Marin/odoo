@@ -1,4 +1,4 @@
 {
-  "count": 110,
-  "note": "Rebase onto origin/19.0-marin. 115 at the merge-base; origin banked 112 for crm's\nthree abolished verbs and this branch banked 113. Measured 110 on the merged tree\nwith `naming_vocabulary.py --count` and again with `--roots odoo`, both 110 -- the\ngate's own invocation in architecture.yml passes no --roots, so the two shapes are\nthe same measurement and agreeing is the check, not a coincidence.\n\nHere the arithmetic and the measurement happen to agree. They did not for the two\nsibling baselines moved in this same rebase (eslint off by 59, n-plus-one by 2),\nso the agreement is a result, not a reason to skip the run."
+  "count": 95,
+  "note": "base_import._validate_import_paths -> _check_import_paths. One definition, the abolished verb `validate` -> the canonical _check_* per coding_guidelines.rst 2.4. Three references in one file, no caller outside it.\n\n  96 -> 95"
 }

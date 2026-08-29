@@ -37,8 +37,10 @@ def migrate(cr, version):
 
     if deleted or normalized:
         from logging import getLogger
+
         getLogger(__name__).info(
             "base_import.mapping: normalized %s column names and removed %s "
             "case/whitespace-duplicate rows",
-            normalized, deleted,
+            normalized,
+            deleted,
         )

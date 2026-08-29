@@ -1,6 +1,6 @@
 {
-    'name': 'Base import',
-    'description': """
+    "name": "Base import",
+    "description": """
 New extensible file import for Odoo
 ======================================
 
@@ -21,31 +21,31 @@ Re-implement Odoo's file import system:
 * In a module, so that administrators and users of Odoo who do not
   need or want an online import can avoid it being available to users.
 """,
-    'depends': ['web'],
-    'external_dependencies': {
-        'python': ['chardet'],
-        'apt': {
-            'chardet': 'python3-chardet',
+    "depends": ["web"],
+    "external_dependencies": {
+        "python": ["chardet"],
+        "apt": {
+            "chardet": "python3-chardet",
         },
     },
-    'version': '2.2',
-    'category': 'Hidden/Tools',
-    'installable': True,
-    'auto_install': True,
-    'data': [
-        'security/ir.model.access.csv',
-        'security/base_import_security.xml',
+    "version": "2.2",
+    "category": "Hidden/Tools",
+    "installable": True,
+    "auto_install": True,
+    "data": [
+        "security/ir.model.access.csv",
+        "security/base_import_security.xml",
     ],
-    'assets': {
-        'web.assets_backend': [
-            'base_import/static/src/**/*.scss',
-            'base_import/static/src/**/*.js',
-            'base_import/static/src/**/*.xml',
+    "assets": {
+        "web.assets_backend": [
+            "base_import/static/src/**/*.scss",
+            "base_import/static/src/**/*.js",
+            "base_import/static/src/**/*.xml",
         ],
-        'web.assets_unit_tests': [
-            'base_import/static/tests/**/*.test.js',
+        "web.assets_unit_tests": [
+            "base_import/static/tests/**/*.test.js",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
 }

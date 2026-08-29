@@ -2,14 +2,15 @@ from odoo import api, models
 
 
 class IrUiView(models.Model):
-    _inherit = 'ir.ui.view'
+    _inherit = "ir.ui.view"
 
     @api.model
     def _check_custom_views(self, model):
         # views from imported modules should be considered as custom views
         result = super()._check_custom_views(model)
 
-        self.env.cr.execute("""
+        self.env.cr.execute(
+            """
             SELECT max(v.id)
                FROM ir_ui_view v
           LEFT JOIN ir_model_data md ON (md.model = 'ir.ui.view' AND md.res_id = v.id)
@@ -18,7 +19,9 @@ class IrUiView(models.Model):
                 AND v.model = %s
                 AND v.active = true
            GROUP BY coalesce(v.inherit_id, v.id)
-        """, [model])
+        """,
+            [model],
+        )
 
         ids = (row[0] for row in self.env.cr.fetchall())
         views = self.with_context(load_all_views=True).browse(ids)

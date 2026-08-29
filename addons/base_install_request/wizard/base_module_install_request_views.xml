@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="base_module_install_request_view_form" model="ir.ui.view">
         <field name="name">base.module.install.request.view.form</field>
         <field name="model">base.module.install.request</field>
@@ -43,4 +44,5 @@
         <field name="context">{ 'default_module_id': active_id }</field>
         <field name="target">new</field>
     </record>
+
 </odoo>

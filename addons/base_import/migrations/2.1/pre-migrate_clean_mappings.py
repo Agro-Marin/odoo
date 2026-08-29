@@ -35,8 +35,10 @@ def migrate(cr, version):
 
     if deleted_unmapped or deleted_duplicates:
         from logging import getLogger
+
         getLogger(__name__).info(
             "base_import.mapping: removed %s unmapped-column rows and %s "
             "duplicate (res_model, column_name) rows",
-            deleted_unmapped, deleted_duplicates,
+            deleted_unmapped,
+            deleted_duplicates,
         )

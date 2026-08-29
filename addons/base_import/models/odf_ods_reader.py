@@ -23,7 +23,7 @@ _TEXT_NODE = 3
 
 
 def _repeat_count(element, attribute, cap):
-    """ Read an ODF repeat attribute, clamped to ``cap``.
+    """Read an ODF repeat attribute, clamped to ``cap``.
 
     :param element: an odfpy element
     :param str attribute: ``'numbercolumnsrepeated'`` / ``'numberrowsrepeated'``
@@ -39,7 +39,7 @@ def _repeat_count(element, attribute, cap):
 
 
 def _cell_text(cell):
-    """ The visible text of one cell, including styled runs.
+    """The visible text of one cell, including styled runs.
 
     A cell whose text is partially formatted (bold, coloured, a different
     font) is written by every producer as one or more ``<text:span>`` children
@@ -52,10 +52,7 @@ def _cell_text(cell):
 
     :rtype: str
     """
-    return ''.join(
-        _node_text(paragraph)
-        for paragraph in cell.getElementsByType(P)
-    )
+    return "".join(_node_text(paragraph) for paragraph in cell.getElementsByType(P))
 
 
 def _node_text(node):
@@ -65,11 +62,11 @@ def _node_text(node):
             parts.append(child.data)
         elif child.nodeType == _ELEMENT_NODE:
             parts.append(_node_text(child))
-    return ''.join(parts)
+    return "".join(parts)
 
 
 class ODSReader:
-    """ Minimal ODS reader: each sheet becomes a list of rows, each row a list
+    """Minimal ODS reader: each sheet becomes a list of rows, each row a list
     of cell strings.
 
     :param file: a file-like object holding the .ods archive
@@ -95,12 +92,12 @@ class ODSReader:
             # count of an empty row costs nothing.
             if not any(cell.strip() for cell in cells):
                 continue
-            repeat = _repeat_count(row, 'numberrowsrepeated', MAX_ROW_REPEAT)
+            repeat = _repeat_count(row, "numberrowsrepeated", MAX_ROW_REPEAT)
             rows.extend([cells] * repeat)
         return rows
 
     def _read_row(self, row):
-        """ One row's cells, repeats expanded.
+        """One row's cells, repeats expanded.
 
         Two things this deliberately does NOT do, both of which it used to:
 
@@ -140,12 +137,12 @@ class ODSReader:
             if position == len(elements) and not text.strip():
                 repeat = 1
             else:
-                repeat = _repeat_count(cell, 'numbercolumnsrepeated', MAX_CELL_REPEAT)
+                repeat = _repeat_count(cell, "numbercolumnsrepeated", MAX_CELL_REPEAT)
             cells.extend([text] * repeat)
         return cells
 
     def get_sheet(self, name):
-        """ One sheet as a list of rows.
+        """One sheet as a list of rows.
 
         :param str name: sheet name
         :rtype: list[list[str]]

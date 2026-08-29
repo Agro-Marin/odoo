@@ -2,15 +2,15 @@ from odoo import _, models
 
 
 class IrModuleModule(models.Model):
-    _inherit = 'ir.module.module'
+    _inherit = "ir.module.module"
 
     def action_view_install_request(self):
         self.ensure_one()
         return {
-            'type': 'ir.actions.act_window',
-            'target': 'new',
-            'name': _('Activation Request of "%s"', self.shortdesc),
-            'view_mode': 'form',
-            'res_model': 'base.module.install.request',
-            'context': {'default_module_id': self.id},
+            "type": "ir.actions.act_window",
+            "target": "new",
+            "name": _('Activation Request of "%s"', self.shortdesc),
+            "view_mode": "form",
+            "res_model": "base.module.install.request",
+            "context": {"default_module_id": self.id},
         }
