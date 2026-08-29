@@ -68,9 +68,6 @@ GATES = {
     "doc_restated_counts": ["--check"],
     "edi_vocabulary": ["--check"],
     "payment_vocabulary": ["--check"],
-    # And for the installable-dependency gate: 0 unreachable modules is what
-    # a tree whose every dependency resolves looks like, so a scan that finds
-    # no manifest at all must refuse rather than report the clean number.
     "module_depends_installable": ["--check"],
     "external_dependency_pins": ["--check"],
 }

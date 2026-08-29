@@ -265,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     else:
         print(_render(report))
-    return 0 if report.ok else 1
+    return 1 if (not report.ok and args.check) else 0
 
 
 if __name__ == "__main__":

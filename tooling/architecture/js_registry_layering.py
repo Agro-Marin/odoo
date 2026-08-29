@@ -333,7 +333,7 @@ def check(files: list[Path] | None = None) -> tuple[list[Inversion], list[Invers
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="CI mode: exit 1 on any NEW inversion"
     )

@@ -157,7 +157,7 @@ def audit(libs: dict) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--drift", action="store_true", help="check manifest against shipped bytes"
     )

@@ -63,6 +63,38 @@ def test_an_undeclared_reach_through_a_useService_binding_is_caught(tree):
     assert [(f.member, f.line) for f in findings] == [("loadAction", 5)]
 
 
+def test_an_undeclared_reach_through_a_const_binding_is_caught(tree):
+    tree(
+        "some/component.js",
+        'const actionService = useService("action");\n'
+        "export function go() {\n"
+        "    return actionService.loadAction(1);\n"
+        "}\n",
+    )
+    findings, _, _ = _scan(tree)
+    assert [(f.member, f.line) for f in findings] == [("loadAction", 3)]
+
+
+@pytest.mark.parametrize("keyword", ["const", "let", "var"])
+def test_every_binding_keyword_aliases_the_service(tree, keyword):
+    tree(
+        "some/consumer.js",
+        f"{keyword} am = env.services.action;\nam.loadState();\n",
+    )
+    findings, _, _ = _scan(tree)
+    assert [f.member for f in findings] == ["loadState"], (
+        f"a `{keyword}` binding of the service is not followed"
+    )
+
+
+def test_a_declared_member_through_a_const_binding_stays_silent(tree):
+    tree(
+        "some/consumer.js",
+        'const actionService = useService("action");\nactionService.doAction({});\n',
+    )
+    assert _scan(tree)[0] == []
+
+
 def test_a_controller_bound_off_the_service_is_not_the_service(tree):
     tree(
         "some/consumer.js",

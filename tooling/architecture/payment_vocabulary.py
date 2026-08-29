@@ -1,32 +1,3 @@
-"""Default-deny gate over model names carrying "payment".
-
-ADR-0070: the word names nine unrelated things in this tree, and five of them are
-called "payment method". The pair that actually misleads is method against
-channel -- `account.payment.method` is a capability, `account.payment.method.line`
-is that capability wired to a journal and an outstanding account -- and until
-2026-08-26 the two shipped the identical `_description`, the only such collision
-among the forty payment-named models in the workspace.
-
-Two checks, because the word fails in two ways:
-
-* a **new** model takes the word without saying which of the nine it is, and
-* two models take the word and become indistinguishable in the UI, which is what
-  a `_description` is for.
-
-Gated at model level, not field level: `payment_method_line_id` alone is 407
-occurrences whose spelling is already consistent, and they inherit only their
-model's noun. ADR-0048 rejected the same widening for its own vocabulary.
-
-`l10n_*` models are exempt from the allowlist by rule -- those names are Odoo
-ecosystem identifiers -- but not from the description check, which asks a
-question no ecosystem convention answers.
-
-Usage:
-    payment_vocabulary.py --check    # the gate; non-zero on an unlisted model or a shared description
-    payment_vocabulary.py --list     # what is pinned, and which category each one is
-    payment_vocabulary.py --prune    # drop entries whose model no longer exists
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -55,9 +26,6 @@ ALLOWLIST = Path(__file__).with_name("payment_vocabulary_allowlist.json")
 CHECKOUT_ROOTS = ("addons", "odoo/addons")
 
 
-# ADR-0070's nine senses of the word, plus the two annotations a model needs when
-# "payment" is not its head noun at all. An entry reads "<category>" or
-# "<category> -- <clarifier>".
 CATEGORIES = (
     "settlement",
     "provider transaction",
@@ -68,7 +36,6 @@ CATEGORIES = (
     "fiscal code",
     "due schedule",
     "wizard",
-    # "payment" qualifies a different head noun: a provider, a token, a QR code.
     "domain qualifier",
     "test fixture",
 )
@@ -122,7 +89,6 @@ def is_localisation(model: str) -> bool:
 
 
 def declared_models() -> dict[str, tuple[str | None, str]]:
-    """model name -> (declared _description, path of the declaring file)."""
     found: dict[str, tuple[str | None, str]] = {}
     for root in scan_roots():
         for path in sorted(root.glob("*/**/*.py")):
@@ -139,9 +105,6 @@ def declared_models() -> dict[str, tuple[str | None, str]]:
                 if not name or not carries_payment(name) or name in found:
                     continue
                 if name in _inherit_names(node.body):
-                    # `_name` alongside `_name` in `_inherit` extends a model; it
-                    # does not declare one, and the extension carries no
-                    # description of its own.
                     continue
                 found[name] = (_string_attr(node.body, "_description"), str(path))
     return found
@@ -268,7 +231,7 @@ def _report_collisions(models: dict, collisions: dict) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="fail on an unlisted model"
     )

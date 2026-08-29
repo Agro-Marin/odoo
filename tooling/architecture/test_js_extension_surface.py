@@ -42,6 +42,33 @@ def test_a_plain_subclass_overriding_a_base_method_is_a_point(tree):
     assert points(tree) == {"FormController.save"}
 
 
+def test_a_base_reached_through_export_star_is_still_followed(tree):
+    root, web_src = tree
+    _write(
+        web_src, "views/form.js", "export class FormController {\n    save() {}\n}\n"
+    )
+    _write(web_src, "views/index.js", 'export * from "@web/views/form";\n')
+    _write(
+        root,
+        "addons/sale/static/src/x.js",
+        'import { FormController } from "@web/views/index";\n'
+        "export class SaleForm extends FormController {\n    save() {}\n}\n",
+    )
+    assert points(tree) == {"FormController.save"}
+
+
+def test_a_star_barrel_that_leads_nowhere_invents_no_point(tree):
+    root, web_src = tree
+    _write(web_src, "views/index.js", 'export * from "@web/views/absent";\n')
+    _write(
+        root,
+        "addons/sale/static/src/x.js",
+        'import { FormController } from "@web/views/index";\n'
+        "export class SaleForm extends FormController {\n    save() {}\n}\n",
+    )
+    assert points(tree) == set()
+
+
 def test_a_method_the_base_does_not_declare_is_not_a_point(tree):
     root, web_src = tree
     _write(

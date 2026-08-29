@@ -115,7 +115,7 @@ def find_drift(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="exit 1 on findings")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--table", action="store_true", help="print every layer")

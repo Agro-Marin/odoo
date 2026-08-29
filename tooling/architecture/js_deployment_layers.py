@@ -46,7 +46,6 @@ class Violation:
     path: str
     lineno: int
     missing: tuple[str, ...]
-    """Contexts the importer ships in that the target does not — the reason."""
 
 
 def layer_of(rel: str) -> str | None:
@@ -152,7 +151,7 @@ def check(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="CI mode: exit 1 on any NEW violation"
     )

@@ -1,60 +1,3 @@
-"""Writes of ``product_uom_qty`` on a sale or purchase order line.
-
-``product_qty`` and ``product_uom_qty`` swapped meanings in this fork, and both
-names survived (`doc/coding_guidelines.rst` Appendix A). ``product_qty`` is the
-ordered quantity **in the line's own unit** and is the writable one;
-``product_uom_qty`` is that quantity converted to the product's **reference**
-unit, computed, stored and ``readonly``.
-
-Writing ``product_uom_qty`` now raises --
-``mixin.order.line.amount._check_write_derived_quantity``, on both ``create``
-and ``write``. Before that guard landed it did one of two wrong things::
-
-    create({..., "product_uom_qty": 10})   value discarded, product_qty
-                                            falls back to its default of 1
-    line.write({"product_uom_qty": 3})     value lands in the column while
-                                            product_qty keeps its old value
-
-The first is why a test that says it orders ten passed while ordering one — the
-default absorbed it, and nothing downstream could tell the difference. The second
-left the record self-contradictory: 1 in the line's unit, 3 in the reference
-unit, for a product whose two units are the same, until some dependency
-recomputed and one of the numbers changed under whoever was reading it.
-
-Both were live across the mrp ring. ``sale_mrp_margin`` sold three boxes of ten
-and delivered one; ``sale_mrp_renting``'s four failures were seven ``write``
-calls desynchronising one rental line; ``sale_stock_margin``'s helper made every
-line quantity 1, which is the whole of the eight failures `CLAUDE.md` §4
-attributed to "the order layer". Model code had it too: ``sale_mrp`` and
-``purchase_mrp`` fed the reference-unit number to a conversion that declares its
-input to be in ``product_uom_id``.
-
-**What is counted.** Any ``product_uom_qty`` key written into a dict that is
-recognisably an order line — a ``create``/``write`` on ``sale.order.line`` or
-``purchase.order.line``, a dict carrying ``order_id``, a dict under a
-``line_ids``/``order_line`` command — and any assignment to
-``<an order-line expression>.product_uom_qty``. ``stock.move.product_uom_qty`` is a
-real, writable field and is not counted; most matches in mrp's own tests are
-moves, which is why the target has to be recognised rather than the name alone.
-
-**A value of 1 is counted too.** It used to be inert -- the default absorbed it,
-so the record came out right by luck -- and since the guard landed it raises like
-any other. A rule with "unless the value is 1" in it was never one anyone could
-apply, and the line still says the wrong thing about which field holds the
-ordered quantity.
-
-**Why a ratchet as well as the raise.** The raise has landed, so no new write
-survives a test run. The count stays because the raise only fires when the code
-runs: a write on a branch no suite exercises is still there, waiting, and the
-floor is what drives those out module by module. Every remaining one is now a
-latent ``ValueError``, not a silent half-write, which makes the floor a list of
-crashes-in-waiting rather than of quiet corruption.
-
-Scope note: like ``naming_vocabulary.py`` this measures the ``odoo`` checkout by
-default, because that is what CI checks out. ``--roots`` measures a sibling repo;
-those have no baseline of their own (`CLAUDE.md` §9.4).
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -227,7 +170,7 @@ def _module_of(write: Write) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true")
     parser.add_argument(

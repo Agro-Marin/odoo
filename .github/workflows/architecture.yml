@@ -113,7 +113,6 @@ jobs:
           python tooling/architecture/layer_check.py --check | tee /tmp/layers.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run mixin coupling check
@@ -136,7 +135,6 @@ jobs:
             | tee /tmp/mixin_coupling.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run JS mixin coupling check
@@ -165,7 +163,6 @@ jobs:
             | tee /tmp/js_mixin_coupling.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run subsystem-map check
@@ -188,7 +185,6 @@ jobs:
             | tee /tmp/subsystem_map.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run package-index check
@@ -210,7 +206,6 @@ jobs:
             | tee /tmp/package_index.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run env-surface check
@@ -238,7 +233,6 @@ jobs:
             | tee /tmp/env_surface.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run Layer → Registry (pool) surface check
@@ -262,7 +256,6 @@ jobs:
             | tee /tmp/pool_surface.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run framework → addon-model surface check
@@ -281,7 +274,6 @@ jobs:
             | tee /tmp/env_model_surface.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run worker-thread surface check
@@ -301,7 +293,6 @@ jobs:
             | tee /tmp/worker_thread_surface.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run odoo.libs façade check
@@ -326,7 +317,6 @@ jobs:
             | tee /tmp/libs_facade.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run façade surface check
@@ -352,7 +342,6 @@ jobs:
             | tee /tmp/facade_surface.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run mail hook keyword-surface check
@@ -379,7 +368,6 @@ jobs:
             | tee /tmp/mail_hook_keywords.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run external dependency pin check
@@ -411,7 +399,6 @@ jobs:
             | tee /tmp/external_dependency_pins.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run SQL placeholder contract
@@ -440,7 +427,6 @@ jobs:
             | tee /tmp/sql_placeholder.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run installable-dependency check
@@ -469,7 +455,6 @@ jobs:
             | tee /tmp/module_depends_installable.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run Python import-cycle check
@@ -495,7 +480,6 @@ jobs:
           python tooling/architecture/py_cycle_check.py --check | tee /tmp/py_cycles.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run JS layer check
@@ -508,7 +492,6 @@ jobs:
           python tooling/architecture/js_layer_check.py --check | tee /tmp/js_layers.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run JS deployment-layer check
@@ -530,7 +513,6 @@ jobs:
           python tooling/architecture/js_deployment_layers.py --check | tee /tmp/js_deployment_layers.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run JS import-cycle check
@@ -551,7 +533,6 @@ jobs:
           python tooling/architecture/js_cycle_check.py --check | tee /tmp/js_cycles.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run named-export coherence check
@@ -583,7 +564,6 @@ jobs:
             | tee /tmp/named_exports.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run addon-import resolution check
@@ -605,7 +585,6 @@ jobs:
             | tee /tmp/py_addon_imports.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run JS suite/source parity check
@@ -620,7 +599,6 @@ jobs:
           python tooling/architecture/js_suite_parity.py | tee /tmp/js_parity.log
           python tooling/architecture/js_suite_parity.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -637,7 +615,6 @@ jobs:
             | tee /tmp/js_cohesion.log
           python tooling/architecture/js_layer_cohesion.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -657,7 +634,6 @@ jobs:
             | tee /tmp/js_resolution.log
           python tooling/architecture/js_import_resolution.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -676,7 +652,6 @@ jobs:
             | tee /tmp/js_component_data_access.log
           python tooling/architecture/js_component_data_access.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           exit $rc
 
       - name: Run component face-coverage check
@@ -693,7 +668,6 @@ jobs:
             | tee /tmp/js_component_face.log
           python tooling/architecture/js_component_face.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           exit $rc
 
       - name: Run JS self-bridge check
@@ -712,7 +686,6 @@ jobs:
             | tee /tmp/js_self_bridge.log
           python tooling/architecture/js_self_bridge.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -732,7 +705,6 @@ jobs:
             | tee /tmp/js_shadow_root.log
           python tooling/architecture/js_shadow_root.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -758,7 +730,6 @@ jobs:
             | xargs python tooling/ratchet/ratchet.py jsforcedrender --count
           ratchet_rc=$?
           [ "$rc" -eq 0 ] && rc=$ratchet_rc
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -782,7 +753,6 @@ jobs:
             | tee /tmp/js_patch_blind_facade.log
           python tooling/architecture/js_patch_blind_facade.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -801,7 +771,6 @@ jobs:
           python tooling/architecture/py_unresolved_calls.py --count \
             | xargs python tooling/ratchet/ratchet.py unresolved_calls --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -818,7 +787,6 @@ jobs:
           python tooling/architecture/py_function_length.py --count \
             | xargs python tooling/ratchet/ratchet.py pyfunclen --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -831,7 +799,6 @@ jobs:
           python tooling/architecture/py_function_length.py --count --addon addons \
             | xargs python tooling/ratchet/ratchet.py pyfunclen_addons --mode no-increase --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -848,7 +815,6 @@ jobs:
           python tooling/architecture/py_function_length.py --addon mail --count \
             | xargs python tooling/ratchet/ratchet.py pyfunclen_mail --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -864,7 +830,6 @@ jobs:
           python tooling/architecture/py_function_length.py --addon loyalty --count \
             | xargs python tooling/ratchet/ratchet.py pyfunclen_loyalty --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -892,7 +857,6 @@ jobs:
           python tooling/architecture/py_function_length.py --addon tooling --count \
             | xargs python tooling/ratchet/ratchet.py pyfunclen_tooling --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -908,7 +872,6 @@ jobs:
           python tooling/architecture/py_function_length.py --addon survey --count \
             | xargs python tooling/ratchet/ratchet.py pyfunclen_survey --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -927,7 +890,6 @@ jobs:
           python tooling/architecture/py_function_length.py --addon crm --count \
             | xargs python tooling/ratchet/ratchet.py pyfunclen_crm --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -945,7 +907,6 @@ jobs:
           python tooling/architecture/py_x2many_count.py --count \
             | xargs python tooling/ratchet/ratchet.py py_x2many_count --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -957,7 +918,6 @@ jobs:
           python tooling/architecture/py_x2many_count.py --addon addons --count \
             | xargs python tooling/ratchet/ratchet.py py_x2many_count_addons --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -969,7 +929,6 @@ jobs:
           python tooling/architecture/py_x2many_count.py --addon mail --count \
             | xargs python tooling/ratchet/ratchet.py py_x2many_count_mail --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -981,7 +940,6 @@ jobs:
           python tooling/architecture/py_x2many_count.py --addon account --count \
             | xargs python tooling/ratchet/ratchet.py py_x2many_count_account --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -993,7 +951,6 @@ jobs:
           python tooling/architecture/py_x2many_count.py --addon stock --count \
             | xargs python tooling/ratchet/ratchet.py py_x2many_count_stock --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1005,7 +962,6 @@ jobs:
           python tooling/architecture/py_x2many_count.py --addon project --count \
             | xargs python tooling/ratchet/ratchet.py py_x2many_count_project --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1022,7 +978,6 @@ jobs:
           python tooling/architecture/sql_in_placeholder.py --count \
             | xargs python tooling/ratchet/ratchet.py sql_in_placeholder --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1034,7 +989,6 @@ jobs:
           python tooling/architecture/sql_in_placeholder.py --addon addons --count \
             | xargs python tooling/ratchet/ratchet.py sql_in_placeholder_addons --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1051,7 +1005,6 @@ jobs:
           python tooling/architecture/py_count_as_boolean.py --count \
             | xargs python tooling/ratchet/ratchet.py py_count_as_boolean --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1063,7 +1016,6 @@ jobs:
           python tooling/architecture/py_count_as_boolean.py --addon addons --count \
             | xargs python tooling/ratchet/ratchet.py py_count_as_boolean_addons --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1081,7 +1033,6 @@ jobs:
           python tooling/architecture/py_shadowed_member.py --count \
             | xargs python tooling/ratchet/ratchet.py py_shadowed_member --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1097,7 +1048,6 @@ jobs:
           python tooling/architecture/py_shadowed_member.py --addon addons --count \
             | xargs python tooling/ratchet/ratchet.py py_shadowed_member_addons --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1112,7 +1062,6 @@ jobs:
           python tooling/architecture/js_function_length.py --count \
             | xargs python tooling/ratchet/ratchet.py jsfunclen --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1130,7 +1079,6 @@ jobs:
           python tooling/architecture/js_duplication.py --count \
             | xargs python tooling/ratchet/ratchet.py jsduplication --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1148,7 +1096,6 @@ jobs:
           python tooling/architecture/js_function_length.py --addon mail --count \
             | xargs python tooling/ratchet/ratchet.py jsfunclen_mail --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1164,7 +1111,6 @@ jobs:
           python tooling/architecture/js_function_length.py --addon account --count \
             | xargs python tooling/ratchet/ratchet.py jsfunclen_account --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1180,7 +1126,6 @@ jobs:
           python tooling/architecture/js_function_length.py --addon stock --count \
             | xargs python tooling/ratchet/ratchet.py jsfunclen_stock --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1194,7 +1139,6 @@ jobs:
           python tooling/architecture/js_function_length.py --addon product --count \
             | xargs python tooling/ratchet/ratchet.py jsfunclen_product --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1209,7 +1153,6 @@ jobs:
           python tooling/architecture/js_function_length.py --addon survey --count \
             | xargs python tooling/ratchet/ratchet.py jsfunclen_survey --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1224,7 +1167,6 @@ jobs:
           python tooling/architecture/js_vacuous_assertions.py --count \
             | xargs python tooling/ratchet/ratchet.py jsvacuous --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1241,7 +1183,6 @@ jobs:
           python tooling/architecture/js_eager_mock_fixture.py --count \
             | xargs python tooling/ratchet/ratchet.py jseagerfixture --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1262,7 +1203,6 @@ jobs:
           set +e
           python tooling/architecture/edi_vocabulary.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1284,7 +1224,6 @@ jobs:
           set +e
           python tooling/architecture/payment_vocabulary.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1302,7 +1241,6 @@ jobs:
           python tooling/architecture/naming_vocabulary.py --count \
             | xargs python tooling/ratchet/ratchet.py naming --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1322,7 +1260,6 @@ jobs:
           python tooling/architecture/order_line_qty.py --count \
             | xargs python tooling/ratchet/ratchet.py orderlineqty --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1352,7 +1289,6 @@ jobs:
           python tooling/architecture/translation_catalog.py --count \
             | xargs python tooling/ratchet/ratchet.py translations --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
       - name: Run field-hook naming ratchet
@@ -1369,7 +1305,6 @@ jobs:
           python tooling/architecture/field_hook_naming.py --count \
             | xargs python tooling/ratchet/ratchet.py fieldhooks --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1388,7 +1323,6 @@ jobs:
           python tooling/architecture/compute_context_deps.py --count \
             | xargs python tooling/ratchet/ratchet.py computectx --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
       - name: Run field-hook purity ratchet
@@ -1403,7 +1337,6 @@ jobs:
           python tooling/architecture/field_hook_purity.py --count \
             | xargs python tooling/ratchet/ratchet.py hookpurity --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1423,7 +1356,6 @@ jobs:
           python tooling/architecture/js_private_access.py --count \
             | xargs python tooling/ratchet/ratchet.py jsprivate --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1442,7 +1374,6 @@ jobs:
           python tooling/architecture/js_private_access.py --count-cross-tree \
             | xargs python tooling/ratchet/ratchet.py jsprivate_crosstree --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1459,7 +1390,6 @@ jobs:
           python tooling/architecture/js_service_shape.py --count \
             | xargs python tooling/ratchet/ratchet.py jsserviceshape --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1476,7 +1406,6 @@ jobs:
           python tooling/architecture/js_service_shape.py --addon mail --count \
             | xargs python tooling/ratchet/ratchet.py jsserviceshape_mail --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1492,7 +1421,6 @@ jobs:
           python tooling/architecture/js_service_shape.py --addon account --count \
             | xargs python tooling/ratchet/ratchet.py jsserviceshape_account --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1510,7 +1438,6 @@ jobs:
           python tooling/architecture/js_service_shape.py --addon stock --count \
             | xargs python tooling/ratchet/ratchet.py jsserviceshape_stock --count
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1534,7 +1461,6 @@ jobs:
           python tooling/architecture/js_public_surface.py | tee /tmp/js_surface.log
           python tooling/architecture/js_public_surface.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1557,7 +1483,6 @@ jobs:
           python tooling/architecture/js_public_surface.py --addon mail | tee /tmp/js_surface_mail.log
           python tooling/architecture/js_public_surface.py --addon mail --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1585,7 +1510,6 @@ jobs:
           python tooling/architecture/js_extension_surface.py | tee /tmp/js_extension_surface.log
           python tooling/architecture/js_extension_surface.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1611,7 +1535,6 @@ jobs:
           set +e
           python tooling/architecture/js_env_config_surface.py --check | tee /tmp/js_env_config.log
           rc=${PIPESTATUS[0]}
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1636,7 +1559,6 @@ jobs:
           set +e
           python tooling/architecture/js_action_surface.py --check | tee /tmp/js_action_surface.log
           rc=${PIPESTATUS[0]}
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1656,7 +1578,6 @@ jobs:
           set +e
           python tooling/architecture/js_template_binding.py --check | tee /tmp/js_template_binding.log
           rc=${PIPESTATUS[0]}
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1679,7 +1600,6 @@ jobs:
             | tee /tmp/js_arch_info.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run field-widget record surface gate
@@ -1702,7 +1622,6 @@ jobs:
             | tee /tmp/js_field_record.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
           exit "${GATE_EXIT}"
 
       - name: Run XML reference-coherence check
@@ -1725,7 +1644,6 @@ jobs:
             | tee /tmp/xml_refs.log
           python tooling/architecture/xml_reference_coherence.py --check
           rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc
 
@@ -1892,7 +1810,16 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR on failure
-        if: always() && (steps.layers.outputs.exit_code != '0' || steps.mixin_coupling.outputs.exit_code != '0' || steps.subsystem_map.outputs.exit_code != '0' || steps.package_index.outputs.exit_code != '0' || steps.env_surface.outputs.exit_code != '0' || steps.pool_surface.outputs.exit_code != '0' || steps.env_model_surface.outputs.exit_code != '0' || steps.worker_thread_surface.outputs.exit_code != '0' || steps.libs_facade.outputs.exit_code != '0' || steps.py_cycles.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_deployment_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0' || steps.py_addon_imports.outputs.exit_code != '0' || steps.js_parity.outputs.exit_code != '0' || steps.js_cohesion.outputs.exit_code != '0' || steps.js_resolution.outputs.exit_code != '0' || steps.js_self_bridge.outputs.exit_code != '0' || steps.js_shadow_root.outputs.exit_code != '0' || steps.js_component_data_access.outputs.exit_code != '0' || steps.js_component_face.outputs.exit_code != '0' || steps.js_forced_render.outputs.exit_code != '0' || steps.js_patch_blind_facade.outputs.exit_code != '0' || steps.py_funclen.outputs.exit_code != '0' || steps.py_funclen_addons.outputs.exit_code != '0' || steps.py_funclen_mail.outputs.exit_code != '0' || steps.py_funclen_loyalty.outputs.exit_code != '0' || steps.py_funclen_survey.outputs.exit_code != '0' || steps.py_funclen_crm.outputs.exit_code != '0' || steps.py_x2many_count.outputs.exit_code != '0' || steps.py_x2many_count_addons.outputs.exit_code != '0' || steps.py_x2many_count_mail.outputs.exit_code != '0' || steps.py_x2many_count_account.outputs.exit_code != '0' || steps.py_x2many_count_stock.outputs.exit_code != '0' || steps.py_x2many_count_project.outputs.exit_code != '0' || steps.sql_in_placeholder.outputs.exit_code != '0' || steps.sql_in_placeholder_addons.outputs.exit_code != '0' || steps.py_count_as_boolean.outputs.exit_code != '0' || steps.py_count_as_boolean_addons.outputs.exit_code != '0' || steps.js_funclen.outputs.exit_code != '0' || steps.js_duplication.outputs.exit_code != '0' || steps.js_funclen_mail.outputs.exit_code != '0' || steps.js_funclen_account.outputs.exit_code != '0' || steps.js_funclen_stock.outputs.exit_code != '0' || steps.js_funclen_product.outputs.exit_code != '0' || steps.js_funclen_survey.outputs.exit_code != '0' || steps.js_vacuous.outputs.exit_code != '0' || steps.js_eager_fixture.outputs.exit_code != '0' || steps.naming_vocab.outputs.exit_code != '0' || steps.field_hooks.outputs.exit_code != '0' || steps.hook_purity.outputs.exit_code != '0' || steps.edi_vocabulary.outputs.exit_code != '0' || steps.payment_vocabulary.outputs.exit_code != '0' || steps.js_private.outputs.exit_code != '0' || steps.js_private_crosstree.outputs.exit_code != '0' || steps.js_serviceshape.outputs.exit_code != '0' || steps.js_serviceshape_mail.outputs.exit_code != '0' || steps.js_serviceshape_account.outputs.exit_code != '0' || steps.js_serviceshape_stock.outputs.exit_code != '0' || steps.js_surface.outputs.exit_code != '0' || steps.js_surface_mail.outputs.exit_code != '0' || steps.js_extension_surface.outputs.exit_code != '0' || steps.js_env_config_surface.outputs.exit_code != '0' || steps.js_action_surface.outputs.exit_code != '0' || steps.js_template_binding.outputs.exit_code != '0' || steps.js_arch_info_surface.outputs.exit_code != '0' || steps.js_field_record_surface.outputs.exit_code != '0' || steps.xml_refs.outputs.exit_code != '0' || steps.js_mixin_coupling.outputs.exit_code != '0' || steps.mail_hook_keywords.outputs.exit_code != '0' || steps.compute_ctx.outputs.exit_code != '0' || steps.translation_catalog.outputs.exit_code != '0' || steps.sql_placeholder.outputs.exit_code != '0' || steps.unresolved_calls.outputs.exit_code != '0' || steps.facade_surface.outputs.exit_code != '0' || steps.order_line_qty.outputs.exit_code != '0' || steps.module_depends_installable.outputs.exit_code != '0' || steps.py_funclen_tooling.outputs.exit_code != '0' || steps.py_shadowed_member.outputs.exit_code != '0' || steps.py_shadowed_member_addons.outputs.exit_code != '0' || steps.external_dependency_pins.outputs.exit_code != '0')
+        # `failure()` is exactly what the 4,217-character enumeration of 82
+        # step ids said. The three premises: this workflow declares a single
+        # job, every gate step in it re-raises its gate's status as the step's
+        # own, and the file carries no `continue-on-error` outside a comment.
+        # The enumeration was a second, hand-maintained copy of the step list
+        # -- the shape this workflow's own header abandoned for its `paths:`
+        # filter -- and its only purpose was to be kept in step with itself.
+        # test_the_premises_that_make_failure_equivalent_still_hold pins all
+        # three.
+        if: failure()
         uses: actions/github-script@v7
         with:
           script: |

@@ -41,14 +41,10 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/fields", "@web/views", "@web/search", "@web/webclient"),
         allow=(),
         rationale=(
-            "The shared layer (core/, ui/, components/) is the bottom of the "
-            "dependency graph: it must not reach up into the feature (fields/), "
-            "widget (views/, search/) or page (webclient/) layers. Cross-layer "
-            "needs are met by registry indirection or dependency injection. "
-            "Mirrors the ESLint core/ui/components rules as one contract. "
-            "`services/` was a fourth member until it was dissolved: it grouped "
-            "20 modules by the fact that they call registry.add(), with zero "
-            "import edges between any two of them."
+            "The shared layer (core/, ui/, components/) is the bottom of the graph and "
+            "must not reach up into fields/, views/, search/ or webclient/. "
+            "Cross-layer needs go through registry indirection or dependency "
+            "injection. Mirrors the ESLint core/ui/components rules."
         ),
     ),
     Contract(
@@ -57,11 +53,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/ui", "@web/components", "@web/model"),
         allow=(),
         rationale=(
-            "core/ is the floor: registry, domain, py_js, l10n, network, the "
-            "browser abstraction. It owns no surface and no datapoint, so a "
-            "core module reaching into ui/, components/ or model/ means "
-            "something was filed too low — the edge that took "
-            "`core/formatters.js` into the old `services/currency.js`."
+            "core/ is the floor -- registry, domain, py_js, l10n, network, the browser "
+            "abstraction. It owns no surface and no datapoint, so it must not reach "
+            "into ui/, components/ or model/."
         ),
     ),
     Contract(
@@ -70,13 +64,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/components", "@web/model"),
         allow=(),
         rationale=(
-            "Overlay infrastructure (dialog, popover, tooltip, notification, "
-            "overlay) sits BELOW the widgets that use it, not above: a widget "
-            "opens a popover, a popover does not know what a widget is. A "
-            "ui/ module importing a component is a single-purpose service "
-            "filed away from what it serves — how `datetime_picker_service` "
-            "and `error_handlers` came to sit here before moving next to the "
-            "components they render."
+            "Overlay infrastructure (dialog, popover, tooltip, notification, overlay) "
+            "sits below the widgets that use it: a widget opens a popover, a popover "
+            "does not know what a widget is."
         ),
     ),
     Contract(
@@ -85,9 +75,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/model",),
         allow=(),
         rationale=(
-            "Presentational components take their data as props. Reaching "
-            "into model/ would let a component bind itself to the relational "
-            "datapoint rather than to the values it renders."
+            "Presentational components take their data as props; reaching into model/ "
+            "would bind them to the relational datapoint rather than the values they "
+            "render."
         ),
     ),
     Contract(
@@ -96,8 +86,8 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/views", "@web/webclient"),
         allow=(),
         rationale=(
-            "views/ composes search/ (the control panel is part of a view), so "
-            "the dependency runs one way only. Both sit below the page layer."
+            "views/ composes search/, so the dependency runs one way only. Both sit "
+            "below the page layer."
         ),
     ),
     Contract(
@@ -106,9 +96,8 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/webclient",),
         allow=(),
         rationale=(
-            "webclient/ is the app shell: it mounts views, and a view that "
-            "reached back into the shell could not be rendered anywhere else — "
-            "which is what a dialog, a POS screen and a public page all need."
+            "webclient/ is the app shell that mounts views; a view that reached back "
+            "into it could not be rendered anywhere else."
         ),
     ),
     Contract(
@@ -117,11 +106,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/views", "@web/search", "@web/webclient"),
         allow=(),
         rationale=(
-            "The entity layer (the relational data model, plus core/domain.js) "
-            "must not import the widget (views/, search/) or page (webclient/) "
-            "layers. The data layer talks to the UI only through injected hooks "
-            "(makeModelUIHooks). Mirrors the ESLint model/ + core/domain.js "
-            "rules."
+            "The entity layer (model/, plus core/domain.js) must not import views/, "
+            "search/ or webclient/. It talks to the UI only through injected hooks "
+            "(makeModelUIHooks). Mirrors the ESLint model/ and core/domain.js rules."
         ),
     ),
     Contract(
@@ -130,13 +117,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/fields",),
         allow=(),
         rationale=(
-            "GAP-CLOSING: FSD places entities below features, so the data "
-            "model (model/) must not import field widgets (fields/). The "
-            "ESLint model/ rule omits this, letting an entity->feature import "
-            "pass lint. Verified zero today; locked here so it stays zero — a "
-            "model that reached into a specific widget would re-couple the data "
-            "layer to the view layer the makeModelUIHooks seam exists to "
-            "decouple."
+            "model/ must not import fields/: FSD places entities below features, and "
+            "the ESLint model/ rule omits this edge. Zero today, locked so it stays "
+            "zero."
         ),
     ),
     Contract(
@@ -145,9 +128,8 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("@web/views", "@web/search", "@web/webclient"),
         allow=(),
         rationale=(
-            "The feature layer (fields/) must not import the widget (views/, "
-            "search/) or page (webclient/) layers. Shared field/view code lives "
-            "in core/ or is reached via registry indirection. Mirrors the "
+            "fields/ must not import views/, search/ or webclient/. Shared field/view "
+            "code lives in core/ or is reached via registry indirection. Mirrors the "
             "ESLint fields/ rule."
         ),
     ),
@@ -241,7 +223,7 @@ def check(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="CI mode: exit 1 on any NEW violation"
     )

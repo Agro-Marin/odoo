@@ -140,7 +140,7 @@ def measure(src: Path = WEB_SRC, eslint: Path = ESLINT) -> list[LongFunction]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true")
     parser.add_argument(

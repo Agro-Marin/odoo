@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import sys
 from pathlib import Path
 
@@ -214,3 +215,94 @@ def test_an_empty_scan_refuses_instead_of_reporting_zero(tmp_path):
 
 def test_the_attribute_families_are_all_declared():
     assert set(gate.ATTRS) >= {"compute", "search", "inverse", "default", "domain"}
+
+
+def _default_value(expression: str) -> ast.expr:
+    call = ast.parse(f"fields.Integer(default={expression})", mode="eval").body
+    return call.keywords[0].value
+
+
+class TestAConstantIsNotAHookName:
+    def test_a_bare_constant_is_not_a_hook(self):
+        value = _default_value("DEFAULT_TOTAL")
+        assert gate._hook_name("default", value) is None
+
+    def test_a_dotted_constant_is_not_a_hook(self):
+        value = _default_value("const.DEFAULT_TOTAL")
+        assert gate._hook_name("default", value) is None
+
+    def test_a_method_reference_is_still_read_as_a_hook(self):
+        assert gate._hook_name("default", _default_value("_default_total")) == (
+            "_default_total"
+        )
+        assert gate._hook_name("default", _default_value("self._default_total")) == (
+            "_default_total"
+        )
+
+    def test_a_misnamed_default_hook_is_reported_through_the_gate(self, tmp_path):
+        found = _measure(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    total = fields.Integer(default=_default_wrong_name)
+
+    def _default_wrong_name(self):
+        pass
+""",
+        )
+        assert [f.method for f in found] == ["_default_wrong_name"]
+
+    def test_the_same_field_defaulted_from_a_constant_is_not(self, tmp_path):
+        assert (
+            _measure(
+                tmp_path,
+                """
+DEFAULT_WRONG_NAME = 1
+
+
+class Thing(models.Model):
+    _name = "thing"
+
+    total = fields.Integer(default=DEFAULT_WRONG_NAME)
+""",
+            )
+            == []
+        )
+
+
+class TestAHookNameMentionedInAFieldCountsAsBound:
+    def _unbound(self, tmp_path, source):
+        path = tmp_path / "models" / "thing.py"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+        return gate.unbound_prefixes(roots=[tmp_path])
+
+    def test_a_method_named_in_a_selection_is_bound(self, tmp_path):
+        names, _calls = self._unbound(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    kind = fields.Selection(selection=_selection_kinds)
+
+    def _selection_kinds(self):
+        return []
+""",
+        )
+        assert names == 0, "the selection mentions it, so it is not unbound"
+
+    def test_a_method_nothing_mentions_is_unbound(self, tmp_path):
+        names, _calls = self._unbound(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    def _selection_reached_by_nothing(self):
+        return []
+""",
+        )
+        assert names == 1

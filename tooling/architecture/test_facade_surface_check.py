@@ -1,4 +1,5 @@
 import ast
+import functools
 import textwrap
 
 import pytest
@@ -9,6 +10,11 @@ from . import facade_surface_check as gate
 def _surface(source):
     bound, declared = gate._bound_names(ast.parse(textwrap.dedent(source)))
     return bound, declared
+
+
+@functools.cache
+def _live_report():
+    return gate.check()
 
 
 class TestBoundNames:
@@ -78,7 +84,7 @@ class TestSubmoduleNames:
 
 class TestCheck:
     def test_the_repository_is_clean(self):
-        report = gate.check()
+        report = _live_report()
         assert report.missing == (), "\n".join(
             f"{f.path}:{f.lineno} {f.facade} has no {f.name!r}" for f in report.missing
         )
@@ -91,7 +97,7 @@ class TestCheck:
         assert "scanned" in report.vacuous
 
     def test_undeclared_names_are_reported_and_do_not_fail(self):
-        report = gate.check()
+        report = _live_report()
         assert report.undeclared, "misc alone forwards dozens beyond __all__"
         assert report.ok
 

@@ -1,53 +1,3 @@
-"""Installable modules whose declared dependencies are marked uninstallable.
-
-Marking a module ``installable: False`` is not a local edit. Every module that
-depends on it becomes unreachable, and Odoo does not report that as an error --
-the module graph drops the dependent with one WARNING and carries on::
-
-    module l10n_in_reports: some depends are not loaded
-    (account_invoice_extract), skipped
-
-The dependent is then left committed in state ``to install`` and ``odoo-bin``
-exits 0. Nothing downstream distinguishes that from a module nobody asked for:
-no test fails, no lane goes red, and the module simply never runs again. Indian
-GST reporting sat in that state from the day ``account_invoice_extract`` was
-disabled until 2026-08-24, discovered by reading manifests rather than by any
-gate.
-
-**Why this fork accumulates the shape.** Replacing an upstream module is a
-standing practice here -- ``document_extract_account`` replaced
-``account_invoice_extract``, and marking the replaced module uninstallable
-rather than merely uninstalling it is what makes the choice hold against the
-next module update (`CLAUDE.md` §3). Every such replacement puts the dependents
-of the disabled module one edit away from silent death, and the edit that would
-save them is in a different module from the one being changed.
-
-**What is checked.** For every module whose manifest does not say
-``installable: False``, every name in its ``depends`` that resolves to a module
-*within the scanned roots* must not itself be marked ``installable: False``. A
-dependency that resolves to nothing in scope is **not** an offence: the scanned
-roots are rarely the whole addons path, a sibling repo run sees only its own
-tree plus what it is given, and `tools.config.addons_data_dir` can supply a
-module at runtime that no checkout contains. Reporting those would make the gate
-argue with its user about scope rather than about the rule, and a gate that
-over-counts is one people learn to argue with instead of fix.
-
-That narrowness is the point: both modules are on disk, one says outright that
-it cannot be installed, and the other says it needs it. There is no reading of
-that pair which is correct.
-
-**A contract, not a ratchet.** The count is zero and the fix for any occurrence
-is small -- drop the dependency, port what was used, or mark the dependent
-uninstallable too. A floor would bank the next silent breakage for as long as
-someone left it.
-
-**Scope.** Defaults to the ``odoo`` checkout because that is what CI checks out.
-The defect this was written for was entirely inside ``enterprise``, one sibling
-depending on another, which the default scope cannot see -- so the sibling repos
-run it with ``--roots`` from their own cross-repo lane, the same arrangement
-`CLAUDE.md` §9.4 describes for the naming gate.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -99,12 +49,6 @@ def _read_manifest(path: Path) -> dict | None:
 
 
 def collect_modules(roots: list[Path]) -> dict[str, Module]:
-    """Every module under ``roots``, last root winning on a name collision.
-
-    Collisions are real: ``addons_path`` order decides which of two modules with
-    one name is served, and this mirrors it rather than reporting a conflict the
-    server resolves silently.
-    """
     modules: dict[str, Module] = {}
     for root in roots:
         for manifest in sorted(root.glob(f"*/{MANIFEST}")):
@@ -136,8 +80,6 @@ def measure(roots: list[Path] | None = None) -> list[Offence]:
 
     modules = collect_modules(roots)
     if not modules:
-        # Zero offences over a tree with no manifests is the number a clean tree
-        # reports, and neither the gate nor a reader can tell them apart.
         raise RuntimeError(
             "no `__manifest__.py` under "
             + ", ".join(str(root) for root in roots)
@@ -160,7 +102,7 @@ def measure(roots: list[Path] | None = None) -> list[Offence]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="exit non-zero if any offence is found"
     )

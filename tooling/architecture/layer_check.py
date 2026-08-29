@@ -82,14 +82,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo",),
         allow=("odoo.libs",),
         rationale=(
-            "odoo/libs/ is the home for Odoo-framework-free utilities. The "
-            "invariant is 'imports no odoo.* (except odoo.libs)', NOT "
-            "'dependency-free' in the literal sense — libs/ freely uses "
-            "third-party packages (lxml, PIL, babel, markupsafe) and the "
-            "odoo_rust extension. What it must not import is the framework "
-            "(orm, tools, http, ...), so it stays reusable and testable in "
-            "isolation. The contract name is kept for continuity; read it as "
-            "'libs-is-odoo-free'. See ADR-0004."
+            "odoo/libs/ imports no odoo.* except odoo.libs, so it stays reusable and "
+            "testable in isolation. Third-party packages and odoo_rust are allowed; "
+            "read the name as libs-is-odoo-free. See ADR-0004."
         ),
     ),
     Contract(
@@ -99,9 +94,8 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.orm", "odoo.models", "odoo.fields", "odoo.api"),
         allow=("odoo.libs",),
         rationale=(
-            "The db/ package (the decomposed sql_db.py) connects to the ORM only "
-            "through injected hooks (e.g. BaseCursor._flushing_savepoint_cls), "
-            "never by importing it."
+            "db/ reaches the ORM only through injected hooks "
+            "(BaseCursor._flushing_savepoint_cls), never by importing it."
         ),
     ),
     Contract(
@@ -111,23 +105,10 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.orm.runtime",),
         allow=(),
         rationale=(
-            "Closes the laundering conduit. Every ORM-layer contract here is a "
-            "DIRECT-edge rule, so `orm-layer1-below-models-and-runtime` stops "
-            "`odoo/orm/fields` importing `odoo.orm.runtime` and says nothing "
-            "about `odoo/orm/fields` -> `odoo.tools.x` -> `odoo.orm.runtime`. "
-            "That path was demonstrated, not hypothesised: two real modules "
-            "spelling exactly it were added to the tree and `--check` reported "
-            "'New: 0' over 6448 files. Making the layer contracts transitive is "
-            "the wrong fix -- `tools/` is the Odoo-COUPLED utility layer by "
-            "design (ARCHITECTURE.md), everything reaches everything through a "
-            "shared utility tier, and a transitive rule would need a large "
-            "low-signal pinned baseline. The narrow invariant is the useful one: "
-            "utilities may use ORM VALUES and TYPES, but must not reach the "
-            "RUNTIME. Measured, that already holds at zero -- the only "
-            "`odoo.orm.runtime` references in tools/ are TYPE_CHECKING-guarded "
-            "(`date_utils.py`, `security.py`), and the real edges target Layers "
-            "0-1 (`view_validation` -> `orm.domain`, `date_utils`/"
-            "`depends_audit` -> `orm.fields`), which stay allowed."
+            "Utilities may use ORM values and types but must not reach the runtime. "
+            "Every layer contract is a direct-edge rule, so odoo/orm/fields -> "
+            "odoo.tools.x -> odoo.orm.runtime needs its own rule; the tools/ "
+            "references that exist are TYPE_CHECKING-guarded."
         ),
     ),
     Contract(
@@ -137,21 +118,10 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.orm.runtime",),
         allow=(),
         rationale=(
-            "The second ungoverned channel of the same kind as "
-            "`tools-does-not-reach-the-orm-runtime`, this time INSIDE the ORM. "
-            "Measured: of the top-level `odoo/orm/*.py`, four were in no "
-            "LAYERING contract at all (`helpers`, `registration`, "
-            "`model_test_env`, `__init__`) -- 1296 of 1987 lines, ~65%. They "
-            "looked covered because `core-does-not-depend-on-addons` names "
-            "`odoo.orm`, but that contract only forbids `odoo.addons` and "
-            "governs no layering. `helpers.py` is the one that matters: it is "
-            "imported by 11 Layer-2 mixins, so anything it imports is reachable "
-            "from Layer 2 without Layer 2 importing it -- exactly the shape the "
-            "tools conduit had. Both modules are clean today (`helpers` reaches "
-            "only `orm.models.base`; `registration` reaches Layers 0-2), so "
-            "this pins them there. `model_test_env.py` is deliberately NOT a "
-            "source: it is the DB-free test harness and constructs "
-            "`Environment`/`Transaction`/`Registry` by design."
+            "orm/helpers.py and orm/registration.py are reachable from Layer 2 without "
+            "Layer 2 importing them, so they are pinned below the runtime. "
+            "model_test_env.py is deliberately not a source: the DB-free harness "
+            "constructs Environment/Transaction/Registry by design."
         ),
     ),
     Contract(
@@ -161,9 +131,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo",),
         allow=("odoo.orm.components", "odoo.libs"),
         rationale=(
-            "FieldCache / ComputeEngine / UnitOfWork / ModelGraph must be "
-            "testable without an Environment, Registry, or database. They take "
-            "their collaborators by injection."
+            "FieldCache / ComputeEngine / UnitOfWork / ModelGraph take their "
+            "collaborators by injection and must be testable without an Environment, "
+            "Registry, or database."
         ),
     ),
     Contract(
@@ -173,9 +143,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.orm.models", "odoo.orm.runtime", "odoo.models", "odoo.api"),
         allow=(),
         rationale=(
-            "Fields (Layer 1) and domains (Layer 1) sit below models (Layer 2) "
-            "and runtime (Layer 3). Crossing this at runtime would reintroduce "
-            "the import cycles the layering exists to prevent."
+            "Fields and domains (Layer 1) sit below models (Layer 2) and runtime "
+            "(Layer 3); crossing that at runtime reintroduces the import cycles the "
+            "layering prevents."
         ),
     ),
     Contract(
@@ -201,12 +171,10 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
         allow=(),
         rationale=(
-            "Layer 0 (primitives, parsing, validation, constants, _typing, "
-            "_protocols) is the zero-dependency foundation: it may not import "
-            "any higher ORM layer (nor its public shims odoo.fields / "
-            "odoo.models / odoo.api). _protocols declares what the framework "
-            "requires of addon-owned models and is typing-only at runtime, "
-            "which is why its reach for orm.domain is TYPE_CHECKING-guarded."
+            "Layer 0 (primitives, parsing, validation, constants, _typing, _protocols) "
+            "may import no higher ORM layer, nor the odoo.fields / odoo.models / "
+            "odoo.api shims. _protocols is typing-only at runtime, which is why its "
+            "reach for orm.domain is TYPE_CHECKING-guarded."
         ),
     ),
     Contract(
@@ -216,17 +184,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.http",),
         allow=(),
         rationale=(
-            "retrying() is a transaction primitive -- ARCHITECTURE.md presents "
-            "it as one -- and until 2026-08-09 it reached odoo.http through two "
-            "function-level imports and a thread-local, to refresh a session, "
-            "rewind uploaded files and read request.database_detached. That was "
-            "the entire service -> http coupling outside service/lifecycle.py, "
-            "concentrated in the one module claimed to be transport-independent, "
-            "and it let the RPC path opt out only by http.request being falsy. "
-            "The transport now injects a RetryParticipant, the same shape "
-            "ADR-0003 uses to give db/ its flushing savepoint without db/ "
-            "importing the ORM."
-            ""
+            "retrying() is a transaction primitive and must not reach odoo.http. The "
+            "transport injects a RetryParticipant, the shape ADR-0003 uses to give db/ "
+            "its flushing savepoint."
         ),
     ),
     Contract(
@@ -236,18 +196,10 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo",),
         allow=("odoo.libs",),
         rationale=(
-            "odoo/exceptions.py and odoo/release.py are imported by everything "
-            "-- exceptions by 179 files across every package including odoo/db "
-            "-- and were constrained by nothing pointing downward: "
-            "core-does-not-depend-on-addons names them as sources, but only "
-            "forbids odoo.addons. Nothing stopped either from importing "
-            "odoo.orm, odoo.http or odoo.service and inverting the whole stack. "
-            "Both hold at zero odoo imports today, so the invariant is free to "
-            "declare; odoo.libs is permitted because it is itself "
-            "dependency-free. NOT odoo/logutils.py: it imports odoo.db, "
-            "odoo.release and odoo.tools at module level and is a consumer of "
-            "the stack, not a foundation of it."
-            ""
+            "odoo/exceptions.py and odoo/release.py are imported by everything and may "
+            "import no odoo package except odoo.libs, which is itself dependency-free. "
+            "Not odoo/logutils.py: it imports odoo.db, odoo.release and odoo.tools and "
+            "is a consumer of the stack."
         ),
     ),
     Contract(
@@ -257,9 +209,8 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.orm.runtime",),
         allow=(),
         rationale=(
-            "Models (Layer 2) sit below the runtime (Layer 3: Environment, "
-            "Registry, Transaction). Layer 3 builds on Layer 2, not the reverse. "
-            ""
+            "Models (Layer 2) sit below the runtime (Layer 3: Environment, Registry, "
+            "Transaction). Layer 3 builds on Layer 2, not the reverse."
         ),
     ),
     Contract(
@@ -291,14 +242,10 @@ CONTRACTS: tuple[Contract, ...] = (
         allow=(),
         allow_exact=("odoo.addons", "odoo.addons.__path__"),
         rationale=(
-            "The framework core must be importable without any addon. A core "
-            "module that imports odoo.addons.<module> inverts the layering and "
-            "makes the framework depend on its own consumer. Reach addon "
+            "The framework core must be importable without any addon. Reach addon "
             "behaviour through the registry (env['ir.cron']) or move the shared "
-            "definition down into the core, as MODULE_UNINSTALL_FLAG "
-            "(-> odoo.orm.primitives) and format_number "
-            "(-> odoo.libs.locale.number_format) were. Bare ``import "
-            "odoo.addons`` for __path__ discovery is fine and not matched here."
+            "definition down into the core. Bare `import odoo.addons` for __path__ "
+            "discovery is not matched here."
         ),
     ),
     Contract(
@@ -308,11 +255,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.orm",),
         allow=(),
         rationale=(
-            "Addon and application code imports model features from the public "
-            "façades (odoo.api, odoo.fields, odoo.models), never from odoo.orm.* "
-            "internals. This is the boundary the whole façade strategy rests on: "
-            "it keeps the ORM free to evolve behind a stable public surface. "
-            ""
+            "Addon and application code imports model features from the public facades "
+            "(odoo.api, odoo.fields, odoo.models), never from odoo.orm.* internals, so "
+            "the ORM stays free to evolve behind a stable surface."
         ),
     ),
     Contract(
@@ -322,10 +267,9 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.orm.models", "odoo.orm.runtime", "odoo.models", "odoo.api"),
         allow=(),
         rationale=(
-            "The Layer-1 recordset injection seam (orm/_recordset.py) and the "
-            "@api decorators must not import the model (Layer 2) or runtime "
-            "(Layer 3) layers at runtime. The seam exists precisely to break "
-            "that cycle; enforcing it keeps the seam honest."
+            "The Layer-1 recordset injection seam (orm/_recordset.py) and the @api "
+            "decorators must not import the model or runtime layers at runtime; the "
+            "seam exists to break that cycle."
         ),
     ),
     Contract(
@@ -352,13 +296,10 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
         allow=(),
         rationale=(
-            "The resilience tier (breaker, lag, budget, leaks, reaper, metrics, "
-            "stats) is instrumentation and policy ABOUT connections; the "
-            "connectivity tier owns them. Connectivity calls into resilience "
-            "(pool -> budget/leaks/reaper/stats, cursor -> metrics), never the "
-            "reverse, so resilience stays independently testable without "
-            "standing up a pool or a cursor. Shared leaf helpers belong in the "
-            "[foundation] tier (errors, dsn, utils), which both may import."
+            "Connectivity owns connections and calls into resilience (breaker, lag, "
+            "budget, leaks, reaper, metrics, stats), never the reverse, so resilience "
+            "stays testable without a pool or a cursor. Shared leaf helpers belong in "
+            "[foundation], which both may import."
         ),
     ),
     Contract(
@@ -390,12 +331,8 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
         allow=(),
         rationale=(
-            "The [features] modules (OpenAPI generation, typed-route parameter "
-            "coercion, geoip, and the shared constants/exceptions/protocols) "
-            "describe or decorate the request pipeline; the [serving] modules "
-            "run it. Features must not import serving, so the pipeline can be "
-            "reasoned about — and the OpenAPI generator run — without dragging "
-            "in the dispatcher and session machinery."
+            "The [features] modules describe or decorate the request pipeline; the "
+            "[serving] modules run it. Features must not import serving."
         ),
     ),
     Contract(
@@ -405,14 +342,10 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo.service", "odoo.http", "odoo.cli"),
         allow=(),
         rationale=(
-            "The ORM (Layers 0-3 plus components/ and the seams) is the "
-            "substrate the serving tier runs on: service/ owns process "
-            "lifecycle and RPC, http/ owns the WSGI pipeline, cli/ owns the "
-            "entry points, and all three import the ORM freely. The reverse "
-            "direction must stay empty so a Registry/Environment can exist — "
-            "and be tested — without a server. Constants both tiers need "
-            "(SYSTEM_DBS, is_maintenance_db) belong in odoo.db or odoo.tools, "
-            "below both."
+            "service/, http/ and cli/ import the ORM freely; the reverse direction "
+            "stays empty so a Registry/Environment can exist and be tested without a "
+            "server. Constants both tiers need belong in odoo.db or odoo.tools, below "
+            "both."
         ),
     ),
 )
@@ -616,7 +549,7 @@ def check(files: list[Path] | None = None) -> tuple[list[Violation], list[Violat
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="CI mode: exit 1 on any NEW violation"
     )

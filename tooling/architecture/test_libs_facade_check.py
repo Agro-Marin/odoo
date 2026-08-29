@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import functools
 import sys
 import unittest
 from pathlib import Path
@@ -24,6 +25,11 @@ def _check_source(src: str, name: str = "_probe.py"):
         return lfc.check(files=[tmp])
     finally:
         tmp.unlink()
+
+
+@functools.cache
+def _live_report():
+    return lfc.check()
 
 
 class TestSymbolVersusModule(unittest.TestCase):
@@ -91,7 +97,7 @@ class TestAreas(unittest.TestCase):
 
 class TestPinsAreLive(unittest.TestCase):
     def test_every_known_violation_still_matches(self):
-        report = lfc.check()
+        report = _live_report()
         pinned = {(k.path, k.module) for k in lfc.KNOWN_VIOLATIONS}
         seen = {(v.path, v.module) for v in report.known}
         self.assertEqual(
@@ -114,7 +120,7 @@ class TestPinsAreLive(unittest.TestCase):
 
 class TestRealTree(unittest.TestCase):
     def test_the_addon_trees_are_clean(self):
-        report = lfc.check()
+        report = _live_report()
         self.assertEqual(
             [(v.path, v.lineno, v.module) for v in report.new],
             [],
@@ -122,7 +128,7 @@ class TestRealTree(unittest.TestCase):
         )
 
     def test_it_actually_scanned_something(self):
-        report = lfc.check()
+        report = _live_report()
         self.assertGreater(report.scanned, 1000, "addon trees not found")
 
     def test_addon_trees_exist(self):

@@ -193,15 +193,6 @@ def _always_raises(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _overrides_same_name(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """Does the body call ``super().<its own name>(...)``?
-
-    An override does not choose its name -- the base does. Counting one as its
-    own violation double-counts the debt (fixing the base fixes every override
-    with it) and, worse, invites a rename that silently unhooks the override:
-    the method keeps compiling, `super()` still resolves, and the behaviour just
-    stops being reached. Measured when this landed, 52 of 368 workspace-wide
-    definitions were of this shape, 15 of them inside the floored `odoo` count.
-    """
     return any(
         isinstance(n, ast.Call)
         and isinstance(n.func, ast.Attribute)
@@ -673,7 +664,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--verb", help="restrict the report to one abolished verb")

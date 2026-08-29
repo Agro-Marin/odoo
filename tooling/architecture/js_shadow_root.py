@@ -1,25 +1,3 @@
-"""Every shadow root must be attached through ``attachShadowRoot``.
-
-A shadow root is invisible to a selector: there is no ``:has-shadow-root``, and
-no event fires when one is attached, so the only way to *discover* a host is to
-walk every element and read ``.shadowRoot``.  Measured on an 8000-element form
-that scan costs about +40% on ``getTabableElements``, which runs on the
-focus-trap path once per Tab keypress -- too much to pay on every page so that a
-handful of them can be traversed correctly.
-
-``attachShadowRoot`` moves the cost to attach time, where there is exactly one
-host, by marking it with an attribute the traversal can select.  A raw
-``attachShadow`` skips the mark, and everything that has to cross the boundary
--- tab order today, whatever needs it next -- then silently steps over the tree
-it creates.  Silently is the problem: nothing fails, the content is simply not
-there.
-
-Drift-zero: there is no tolerated list, because there are three shadow roots in
-the whole workspace and each one is a deliberate architectural choice.  Tests
-are not scanned; a test that attaches a raw shadow root to prove the traversal
-ignores it is asserting this rule, not breaking it.
-"""
-
 import argparse
 import json
 import re
@@ -34,7 +12,6 @@ ADR = "0069"
 
 ATTACH_SHADOW = re.compile(r"\.\s*attachShadow\s*\(")
 
-#: The helper itself is where the one real call lives.
 HELPER = "addons/web/static/src/core/utils/dom/ui.js"
 
 
@@ -93,7 +70,7 @@ def find_raw_attachments(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="exit 1 on findings")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)

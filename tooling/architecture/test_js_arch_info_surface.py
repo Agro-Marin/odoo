@@ -1,3 +1,4 @@
+import functools
 import json
 import shutil
 import subprocess
@@ -22,6 +23,11 @@ def _analyse(tmp_path, source):
         check=True,
     )
     return json.loads(done.stdout.splitlines()[0])
+
+
+@functools.cache
+def _live_state():
+    return gate.measure()
 
 
 class TestRootResolution:
@@ -134,17 +140,17 @@ class TestAnalyzer:
 @needs_node
 class TestLiveTree:
     def test_the_compiler_still_emits_into_template_source(self):
-        state = gate.measure()
+        state = _live_state()
         assert {"fieldNodes", "widgetNodes"} <= set(state["template_reads"])
 
     def test_every_template_key_is_declared(self):
         owned, foreign = gate.declared_surface()
-        state = gate.measure()
+        state = _live_state()
         undeclared = set(state["template_reads"]) - owned - foreign
         assert not undeclared, undeclared
 
     def test_every_view_type_agrees_with_its_parser(self):
-        state = gate.measure()
+        state = _live_state()
         disagreeing = {
             name: info["unproduced"]
             for name, info in state["per_view"].items()
@@ -153,7 +159,7 @@ class TestLiveTree:
         assert not disagreeing, disagreeing
 
     def test_the_real_view_types_are_reached(self):
-        state = gate.measure()
+        state = _live_state()
         for name in ("form", "list", "kanban", "graph", "pivot"):
             assert state["per_view"][name]["emitted"], f"{name} emitted nothing"
 
@@ -180,7 +186,7 @@ class TestCrossViewReads:
     @needs_node
     def test_an_exception_that_stopped_being_needed_is_visible(self):
 
-        state = gate.measure()
+        state = _live_state()
         for directory, keys in gate.CROSS_VIEW_READS.items():
             read = set(state["per_view"][directory]["read"])
             assert set(keys) <= read, (

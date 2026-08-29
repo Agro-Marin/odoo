@@ -154,7 +154,7 @@ def measure(src: Path | None = None, acorn: Path | None = None) -> list[Violatio
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="CI mode: exit 1 on drift")
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true")

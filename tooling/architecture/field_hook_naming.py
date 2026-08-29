@@ -1,24 +1,3 @@
-"""Field hooks are named after the field they serve.
-
-``doc/coding_guidelines.rst`` §2.4 fixes the prefix for a compute, search,
-inverse, default or domain method. It does not say what follows the prefix, and the
-answer is not free: the field declaration already names the method, so the two
-strings sit inches apart and can disagree. When they do, a reader looking for
-what writes ``reconciled`` has nothing to grep for.
-
-Two shapes are reported, and the second is the reason this gate exists:
-
-* a hook serving ONE field whose name is not ``_<attr>_<field>``;
-* a hook serving SEVERAL fields but named after exactly one of them, which
-  promises a single field and quietly writes the rest.
-
-Both are decidable from the declaration alone -- the field name and the method
-name are in the same call -- which is what makes them countable at all. The
-count is global rather than per-file on purpose: whether ``_compute_amounts``
-may keep its name depends on how many fields point at it, and no single file
-knows that.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -375,7 +354,7 @@ def unbound_prefixes(roots: list[Path] | None = None) -> tuple[int, int]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--attr", choices=ATTRS, help="restrict to one attribute")

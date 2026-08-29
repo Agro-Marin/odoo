@@ -1,25 +1,4 @@
 #!/usr/bin/env python3
-"""``self._something()`` whose definition is nowhere in the checkout (ADR-0058).
-
-A call to a private method that no class in this tree defines is one of three
-things: a typo, a method deleted from under its caller, or a reach into a base
-that lives outside the repository. The first two are defects that only fail when
-the branch runs -- which for an error path can be never -- and the third is
-legitimate and finite.
-
-So the third is enumerated rather than guessed. :data:`EXTERNAL` names the
-attributes reached on a receiver whose class this scan cannot see: a stdlib or
-third-party base, or a namedtuple. **An entry there is a claim that the receiver
-is external, so check the call site before adding one** -- "I could not find it"
-is the finding, not the excuse for silencing it.
-
-SCOPE IS ``odoo/`` AND ``addons/`` TOGETHER, and unlike its sibling counters this
-one does NOT exclude test files: 7 of the floored 25 findings sit under `tests/`
-(`addons/sale_mrp/tests/test_sale_mrp_flow.py`, `odoo/tests/suite.py`, …). A test
-calling a method that no longer exists is the same defect as production code
-doing it, and arguably worse, because the test then cannot fail for the reason it
-was written.
-"""
 
 from __future__ import annotations
 
@@ -60,11 +39,6 @@ _ATTR_BUILTINS = frozenset({"getattr", "hasattr", "setattr", "delattr"})
 
 
 def _names_a_string_binds(node: ast.AST) -> set[str]:
-    # A string literal only names an attribute in two shapes: the name argument
-    # of the getattr family -- including ``object.__setattr__(self, "_x", …)``,
-    # which a frozen dataclass needs -- and a ``__slots__`` declaration. Treating
-    # EVERY string constant as a binding, as this once did, let one unrelated
-    # list of names anywhere in the tree silence a real unresolved call.
     if isinstance(node, ast.Call):
         func = node.func
         name = (
@@ -92,18 +66,7 @@ def _names_a_string_binds(node: ast.AST) -> set[str]:
     return set()
 
 
-#: Per-``--roots`` additions to :data:`EXTERNAL`. A sibling repository reaches
-#: third-party receivers the community fork never touches, and one flat list
-#: would silence those names in ``odoo/`` too. Same rule as EXTERNAL: an entry is
-#: a claim about the receiver, checked at the call site.
-#:
-#: Keyed by repository name, matched against ``scope.name``, so every key must be
-#: one of :data:`~_repo_root.SIBLING_REPOS`. An entry for a repository that is
-#: not checked out is inert rather than wrong — that is the normal shape in CI,
-#: which checks this repository out alone.
 EXTERNAL_BY_ROOT: dict[str, frozenset[str]] = {
-    # zeep's WS-Security helpers, reached as `wsse.signature.<name>` on
-    # `from zeep import wsse` in l10n_nl_reports' SBR wizard.
     "enterprise": frozenset(
         {
             "_make_sign_key",
@@ -204,7 +167,7 @@ def measure(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true", help="machine-readable")
     parser.add_argument("--top", type=int, default=30, help="0 for all")
@@ -228,9 +191,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     def resolved(paths: list[str], flag: str) -> tuple[Path, ...]:
-        # A root that does not exist reports nothing, and nothing passes a
-        # no-increase ratchet. Refuse instead: measuring the wrong tree and
-        # measuring no tree must not look like a clean one.
         out = []
         for raw in paths:
             path = Path(raw).resolve()

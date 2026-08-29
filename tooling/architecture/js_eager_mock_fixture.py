@@ -1,43 +1,3 @@
-"""Test fixtures that mutate another addon's mock model at module scope.
-
-Hoot imports **every** test file in the unit-test bundle during collection, and
-model definitions are job-scoped per test. A statement at column zero in a
-`static/tests/**/*.data.js` therefore has both failure modes at once:
-
-* it runs for every suite in the bundle, not only the addon's own, so one
-  addon's fixture becomes every addon's fixture; and
-* it runs before the per-test mock server exists, so it does not reach the
-  suite that wrote it.
-
-Neither is theoretical. `pos_hr` sat at 12 failed / 11 passed because
-`module_pos_hr` never arrived from its own fixture, so twelve assertions
-measured `point_of_sale` instead. `pos_iot_six` and `pos_restaurant_appointment`
-were passing *without* their fixtures at all -- once the records reached the
-mock server, one failed on a field the mock had never validated and the other
-turned out to be patching a model nobody registered. Across twelve addons the
-sweep that closed this moved 37 scoped failures to zero.
-
-The fix is the shape `pos_restaurant` reached first: export the mutation as a
-function, and have the addon's own `definePos<Addon>Models()` apply it with
-`beforeEach`. `beforeEach` called at module scope registers on the suite being
-collected -- the calling FILE -- which is exactly the scope a fixture wants.
-`before` is not a substitute: it mutates the parent job's definition and never
-reaches the mock server.
-
-Two shapes are reported, both decidable from the file's own imports:
-
-* `Foreign._records = ...` / `.push(...)` / `.splice(...)` at column zero;
-* `patch(foreignBinding, [ ... ])` at column zero -- the
-  `patch(hootPosModels, [...hootPosModels, X])` self-registration, whose
-  ordering `pos_sale`'s own docstring had already recorded as unreliable.
-
-Extending behaviour is not reported, in either spelling:
-`patch(Class.prototype, {...})` and `patch(helperObject, {...})` both compose
-through `super` rather than replacing shared state, and every addon needs the
-first before its models are registered. Only an array second argument, which
-can only be a wholesale replacement, is reported.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -62,9 +22,6 @@ RECORDS_MUTATION = re.compile(
     r"^(?P<name>[A-Za-z_$][\w$]*)\._records\s*(?:=[^=]|\.push\b|\.splice\b)",
     re.MULTILINE,
 )
-# An ARRAY second argument replaces shared state wholesale. An object literal
-# extends behaviour through super -- the object-level form of
-# patch(Class.prototype, ...), exempt for the same reason.
 PATCH_BINDING = re.compile(
     r"^patch\(\s*(?P<name>[A-Za-z_$][\w$]*)\s*,\s*\[", re.MULTILINE
 )
@@ -82,7 +39,6 @@ class Finding:
 
 
 def foreign_bindings(text: str, addon: str) -> set[str]:
-    """Names this file imports from an addon other than its own."""
     bindings: set[str] = set()
     for match in IMPORT_BINDING.finditer(text):
         spec = match.group("spec")
@@ -141,7 +97,7 @@ def measure(roots: list[Path]) -> list[Finding]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true")
     parser.add_argument(

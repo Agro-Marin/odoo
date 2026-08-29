@@ -86,7 +86,7 @@ def literals(services: list[Service]) -> list[Service]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the budget only")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     parser.add_argument(

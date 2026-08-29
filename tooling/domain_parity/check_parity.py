@@ -107,7 +107,7 @@ def server_verdicts(env, records: list[dict], cases: list[list]) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--database", required=True)
     parser.add_argument("--config", default=None)
     parser.add_argument("--json", action="store_true", dest="as_json")

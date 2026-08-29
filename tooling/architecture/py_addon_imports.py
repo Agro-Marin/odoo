@@ -1,27 +1,3 @@
-"""Every ``from odoo.addons.X import`` finds an X, across the checkouts (ADR-0031).
-
-The Python twin of :mod:`named_export_coherence` (ADR-0073), which asks the same
-question of ``import { x }`` and has asked it since ADR-0031, superseded by
-ADR-0072. Nothing asked it of Python, and
-the omission is not academic: measured 2026-08-27, **published
-``agromarin/mcp_server`` imports ``odoo.addons.rpc.tools.preflight`` at module
-level, and no published repository provides it.** The module cannot be imported
-against the published community fork at all, so it cannot install -- and both
-repositories' CI reported green, because each one only ever sees its own tree.
-
-CROSS-REPO, AND IT HAS TO BE, for the reason its JS twin gives. A sibling
-checkout imports `odoo.addons.web`, `odoo.addons.mail` and `odoo.addons.rpc`
-that it does not contain, so a repo-alone run cannot resolve them. This yields
-**no verdict** for an addon whose tree is absent rather than guessing one -- an
-absent checkout is not a missing module -- which is why each sibling re-runs it
-from its own lane with the community fork beside it.
-
-WHAT IT DELIBERATELY DOES NOT SEE. Only the leading module path is resolved: an
-attribute the module does not define is Python's to raise and is not decidable
-from the import line. `if TYPE_CHECKING:` blocks are skipped, since those imports
-never execute.
-"""
-
 import argparse
 import ast
 import json
@@ -39,29 +15,16 @@ SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
 
 EXCLUDED_PARTS = frozenset({"__pycache__", "node_modules", "static", "migrations"})
 
-# Addons that exist only while a test is running: the suite writes the package
-# into a temporary addons path and installs it, so the import resolves at run
-# time and to no tree on disk. Named rather than skipped by directory, because
-# "it is under tests/" is also true of every real cross-addon test import, which
-# is the majority of what this gate checks.
 RUNTIME_FIXTURE_ADDONS = frozenset(
     {
-        # odoo/http/tests/test_routing_diamond.py builds these per test.
         "rd_sides",
         "rd_ov",
         "rd_leaf",
         "rd_chain",
-        # odoo/http/tests/test_routing_per_build_state.py, same shape.
         "pb_base",
     }
 )
 
-# Module prefixes assembled on a device rather than shipped in a checkout. The
-# IoT box empties `iot_drivers/iot_handlers/` and re-downloads it from every
-# installed module (`helpers.delete_iot_handlers`, `download_iot_handlers`), so
-# a driver importing `...iot_handlers.lib.ctypes_terminal_driver` resolves there
-# and in no server tree. Exempted by prefix, not by importing directory: a
-# handler importing an ordinary module is still checked.
 RUNTIME_ASSEMBLED_PREFIXES = ("odoo.addons.iot_drivers.iot_handlers.",)
 
 
@@ -85,7 +48,6 @@ def _addon_dirs(addons_roots: list[Path]) -> dict[str, Path]:
 
 
 def _resolves(dotted: str, addon_dirs: dict[str, Path]) -> bool | None:
-    """True/False, or None when the providing checkout is simply absent."""
     if dotted.startswith(RUNTIME_ASSEMBLED_PREFIXES):
         return None
     parts = dotted.split(".")[2:]
@@ -100,15 +62,10 @@ def _resolves(dotted: str, addon_dirs: dict[str, Path]) -> bool | None:
     if not rest:
         return True
     target = directory.joinpath(*rest)
-    # A bare directory counts: Python 3 imports a namespace package with no
-    # `__init__.py`, and several addons ship one (`account_loans/lib`,
-    # `ai/utils/tools_schema`). Requiring the marker file reported five
-    # perfectly importable modules as missing.
     return target.with_suffix(".py").is_file() or target.is_dir()
 
 
 def _imported_modules(tree: ast.AST) -> set[str]:
-    """Every `odoo.addons.*` module an executed import names."""
     skipped: set[int] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.If) and ast.dump(node.test).find("TYPE_CHECKING") >= 0:
@@ -163,7 +120,7 @@ def discover_addons_roots() -> list[Path]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("roots", nargs="*", type=Path, help="addons roots to SCAN")
     parser.add_argument(
         "--addons-root",

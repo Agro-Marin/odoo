@@ -18,7 +18,6 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="cross_repo_coherence")
 SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
 
 _MODULE_PATH_RE = re.compile(r"^addons/([^/]+)/static/src/(.+)\.js$")
-_MODULE_ANNOT_RE = re.compile(r"@module\s+(@[\w./-]+)")
 
 DEFAULT_FROM_REF = "19.0-marin"
 DEFAULT_TO_REF = "HEAD"
@@ -164,13 +163,6 @@ class DanglingName:
 
 
 def changed_specifiers(from_ref: str, to_ref: str) -> dict[str, str]:
-    """Core client modules MODIFIED in the range, by specifier.
-
-    The whole-module half above asks which files disappeared. A rename inside a
-    file that stays put disappears from neither the path list nor the specifier
-    list, so this is the other half's starting set: the modules whose exported
-    names could have moved under a consumer.
-    """
     raw = _git(
         ROOT, "diff", "--name-only", "-z", "--diff-filter=M", f"{from_ref}..{to_ref}"
     )
@@ -204,14 +196,6 @@ def find_dangling_names(
     consumer_repos: list[Path],
     addons_roots: list[Path] | None = None,
 ) -> list[DanglingName]:
-    """Named imports in a consumer that the changed core module no longer exports.
-
-    Imported deferred: :mod:`named_export_coherence` imports this module for its
-    consumer-repo discovery, so a module-level import here is a cycle. The
-    parsing and the export resolution are that gate's, deliberately -- two
-    readings of what a module exports would drift apart, and the one that is
-    wrong is the one nobody runs.
-    """
     import named_export_coherence as nec
 
     if not changed:
@@ -222,7 +206,6 @@ def find_dangling_names(
     dangling: list[DanglingName] = []
     for repo in consumer_repos:
         if not repo.is_dir() or not _git(repo, "rev-parse", "--git-dir").strip():
-            # The whole-module half above already said so for this repo.
             continue
         for spec, path in changed.items():
             for consumer in _consumer_js_files_importing_any(repo, spec):
@@ -339,7 +322,7 @@ def _print_report(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="exit 1 on dangling")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     parser.add_argument("--from", dest="from_ref", help="range start (default base)")

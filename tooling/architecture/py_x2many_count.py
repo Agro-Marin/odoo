@@ -1,62 +1,14 @@
 #!/usr/bin/env python3
-"""Counters that count by hand, which ADR-0052 replaced with ``fields.Count``.
-
-Two shapes, both of which the record argues should stop being written:
-
-* ``record.<counter> = len(record.<x2many>)`` inside a ``_compute*`` method --
-  the WHOLE assignment, not a ``len()`` anywhere in one.
-  It reads as the batched form and is the slowest of the three at list-view
-  scale -- ``One2many.read`` does not count, it instantiates every line of every
-  record in the prefetch set and groups them in Python -- while on a warm cache
-  it is the fastest. ``fields.Count`` takes that branch per call.
-* ``search_count()`` inside a ``for`` loop over ``self`` in a ``_compute*``
-  method. One query per record, which ``test_lint E8507`` already counts as a
-  query inside a loop; it is here too because the fix is usually the same
-  declaration rather than a hand-written ``_read_group``.
-
-THE ``_ids`` SUFFIX IS DOING REAL WORK HERE, and that is deliberate rather than
-sloppy: ``coding_guidelines.rst``'s naming table fixes ``_ids`` for relational
-fields, so a name ending that way is a relation by the fork's own rule. Resolving
-the field properly would mean following ``_inherit`` across files to find where
-it was declared, and a ratchet wants a definition that is stable and cheap to
-re-derive over one that is complete. A counter over a field named otherwise is
-missed, and that is the trade.
-
-NOR A ``len()`` THAT IS NOT A COUNTER. ADR-0052 replaced a counter FIELD, and
-`fields.Count` can express nothing else, so the `len()` has to be the entire
-right-hand side of an assignment to a field on the record being looped over.
-`len(move.suitable_journal_ids) > 1` is a boolean, `i == len(self.line_ids) - 1`
-is an index bound, and `done = len(enrollment.completion_ids)` is a ratio
-numerator bound to a local -- all legitimate, none convertible. Counting them
-inflated the floor with code that has no fix, which is the same defect as the
-guard below and was found the same way: by reading the sites instead of the
-number.
-
-NOR A ``len()`` UNDER A ``NewId`` GUARD. ``fields.Count`` itself falls back to
-``len()`` for an unsaved record, because its lines are in cache and in no table;
-a compute that already does the same thing by hand -- ``if not any(self._ids):``
-and then ``len()``, ``_read_group`` otherwise -- is the correct shape, not the
-one this gate exists to remove. Counting it would put correct code in the floor,
-and a gate whose findings include correct code is read as broken and ignored.
-Three sites in ``addons/project/models/project_task.py`` are exactly this.
-
-WHAT IT DOES NOT COUNT. A ``len()`` over a multi-hop path
-(``len(record.parent_id.line_ids)``) is not a field on the record, so
-``fields.Count`` cannot express it and it is out of scope. Nor is a compute that
-already uses ``_read_group``: those are correct as written and this gate must not
-push anyone off them.
-"""
 
 from __future__ import annotations
 
-import argparse
 import ast
-import json
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _count_gate
 import _sources
 from _repo_root import find_odoo_root, sibling_repos_root
 
@@ -204,81 +156,29 @@ def measure(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--count", action="store_true", help="print the count only")
-    parser.add_argument("--json", action="store_true", help="machine-readable")
-    parser.add_argument("--top", type=int, default=25, help="0 for all")
-    parser.add_argument(
-        "--addon",
-        default=DEFAULT_ADDON,
-        help=(
-            f"what to measure: {DEFAULT_ADDON} (default) is the odoo/ package, "
-            f"{ALL_ADDONS} is the whole bundled-addons tree as one number, "
-            f"{' and '.join(SIBLING_SCOPES)} are sibling checkouts, and "
-            f"anything else is that one module under addons/"
+    return _count_gate.run(
+        argv,
+        script="py_x2many_count.py",
+        gate="py_x2many_count",
+        headline="Counters that count by hand (ADR-0052, {where})",
+        unit="counter(s)",
+        default_addon=DEFAULT_ADDON,
+        everything=ALL_ADDONS,
+        siblings=SIBLING_SCOPES,
+        governed=GOVERNED_ADDONS,
+        addon_src=addon_src,
+        measure=measure,
+        root_name=ROOT.name,
+        summary=lambda found: "  len(x2many): {}   search_count in a loop: {}".format(
+            sum(1 for f in found if f.kind == "len"),
+            sum(1 for f in found if f.kind == "search_count"),
         ),
+        where_for=lambda addon: {DEFAULT_ADDON: "odoo/", ALL_ADDONS: "addons/"}.get(
+            addon,
+            f"{addon}/" if addon in SIBLING_SCOPES else f"addons/{addon}/",
+        ),
+        addon_help_tail=", and anything else is that one module under addons/",
     )
-    args = parser.parse_args(argv)
-
-    if args.addon not in GOVERNED_ADDONS:
-        print(
-            f"error: {args.addon!r} is not a governed scope. Onboarding one is a "
-            f"row in GOVERNED_ADDONS and its own baseline, not a flag: a floor "
-            f"over an unscanned tree checks nothing.\n"
-            f"       governed: {', '.join(GOVERNED_ADDONS)}",
-            file=sys.stderr,
-        )
-        return 2
-
-    src = addon_src(args.addon)
-    if args.addon in SIBLING_SCOPES and not src.is_dir():
-        print(
-            f"SKIP: {args.addon} is not checked out beside {ROOT.name}; "
-            f"its own architecture.yml pairs the two and runs this there.",
-            file=sys.stderr,
-        )
-        return 0
-
-    try:
-        found = measure(src=src)
-    except RuntimeError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    if args.count:
-        print(len(found))
-        return 0
-    if args.json:
-        print(json.dumps([asdict(f) for f in found], indent=2))
-        return 0
-
-    where = {DEFAULT_ADDON: "odoo/", ALL_ADDONS: "addons/"}.get(
-        args.addon,
-        f"{args.addon}/" if args.addon in SIBLING_SCOPES else f"addons/{args.addon}/",
-    )
-    print(f"Counters that count by hand (ADR-0052, {where})")
-    print("=" * 72)
-    shown = found if args.top == 0 else found[: args.top]
-    for item in shown:
-        print(item)
-    if len(found) > len(shown):
-        print(f"  ... and {len(found) - len(shown)} more (--top 0 for all)")
-    print("-" * 72)
-    by_kind = {k: sum(1 for f in found if f.kind == k) for k in ("len", "search_count")}
-    print(f"\n{len(found)} counter(s)   <- the ratcheted number")
-    print(
-        f"  len(x2many): {by_kind['len']}   search_count in a loop: {by_kind['search_count']}"
-    )
-    suffix = "" if args.addon == DEFAULT_ADDON else f" --addon {args.addon}"
-    name = (
-        "py_x2many_count"
-        if args.addon == DEFAULT_ADDON
-        else f"py_x2many_count_{args.addon}"
-    )
-    print("\nRatchet it:")
-    print(f"  python tooling/architecture/py_x2many_count.py --count{suffix} \\")
-    print(f"      | xargs python tooling/ratchet/ratchet.py {name} --count")
-    return 0
 
 
 if __name__ == "__main__":

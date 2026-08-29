@@ -1,72 +1,15 @@
 #!/usr/bin/env python3
-"""``IN %s`` bound to a value, which psycopg3 cannot execute (ADR-0055).
-
-psycopg2 adapted a Python tuple into the literal ``(1, 2, 3)`` before the
-statement left the client, so ``WHERE id IN %s`` had a parenthesised list to
-read by the time the server saw it. psycopg3 -- the only driver this fork uses
--- binds server-side: the placeholder reaches PostgreSQL as ``$N``, and
-``IN $N`` is not valid SQL for ANY value type. Measured on this fork's cursor:
-
-    cr.execute("... id IN %(x)s", {"x": (1, 2)})   SyntaxError near "$1"
-    cr.execute("... id IN %(x)s", {"x": [1, 2]})   SyntaxError near "$1"
-    execute_query(SQL("... id IN %(x)s", x=(1, 2)))            runs
-    execute_query(SQL("... id IN %(x)s", x=[1, 2]))            SyntaxError
-
-THE SPELLING IS NOT WRONG, THE CALLER IS. ``odoo.libs.sql.builder.SQL`` gives a
-tuple argument its own branch: it expands into ``(%s, %s, ...)`` with one bound
-parameter per element, and ``(NULL)`` when empty. So ``IN %s`` through ``SQL()``
-with a tuple is CORRECT, and over a hundred sites in this tree depend on it. The
-same text handed to ``cr.execute`` has no builder in front of it and is broken.
-That is why this gate reads the call, not the string: a grep for ``IN %s``
-answers with correct code roughly two times in three.
-
-WHAT IT COUNTS. Two shapes, both decidable at the call site:
-
-* A query literal passed DIRECTLY to ``cr.execute`` and friends. Nothing
-  expands the placeholder there, so every ``IN %s`` in it is broken.
-* An ``SQL(...)`` whose matching argument is provably NOT a tuple: a list
-  display, a comprehension, ``list()``, ``sorted()``, ``.mapped()`` or a
-  ``.ids`` attribute, each of which reaches the builder's generic branch and
-  becomes one array parameter.
-
-WHAT IT CANNOT SEE, stated plainly because the limit is real. A query assembled
-into a VARIABLE and executed elsewhere is invisible to it, and that is the shape
-of both bugs that prompted this gate: ``l10n_ec`` appended ``AND <col> in %(x)s``
-to a where-string that ``account``'s sequence mixin executed two files away, and
-``marin``'s year-over-year wizard built its conditions in a list before handing
-the join to ``cr.execute``. Deciding those needs real dataflow. Flagging every
-literal that is not inside an ``SQL()`` instead was tried and is WRONG: core's
-own ``ir_ui_view._get_filter_xmlid_query`` returns the query text from one method
-and builds it with ``SQL(query, res_ids=tuple(...))`` in another, which is
-correct and would be reported. A gate whose findings include correct code is
-read as broken and ignored, so this one reports less and means it. Those two
-shapes are held by their tests instead.
-
-WHAT IT DOES NOT COUNT, and must not. An ``SQL(...)`` argument it cannot resolve
--- a bare name, a parameter, an attribute -- is left alone. All forty-nine such
-sites were read by hand when this gate was written and every one was a tuple.
-Nor a literal that Python's own ``%`` operator formats before it is ever a
-query: ``calendar_recurrence``'s CHECK constraint interpolates two tuples into
-``weekday IN %s AND byday IN %s`` at class-definition time, producing SQL
-literals, not placeholders.
-
-Nor ``= ANY(%s)``, which is the other correct spelling and wants a LIST -- the
-exact inverse container. Nor ``IN (SELECT ...)`` or ``IN %s`` filled with a
-composed ``SQL`` object such as ``query.subselect()``: those are SQL text
-spliced before the statement is sent, not bound values.
-"""
 
 from __future__ import annotations
 
-import argparse
 import ast
-import json
 import re
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _count_gate
 import _sources
 from _repo_root import find_odoo_root, sibling_repos_root
 
@@ -241,80 +184,26 @@ def measure(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--count", action="store_true", help="print the count only")
-    parser.add_argument("--json", action="store_true", help="machine-readable")
-    parser.add_argument("--top", type=int, default=25, help="0 for all")
-    parser.add_argument(
-        "--addon",
-        default=DEFAULT_ADDON,
-        help=(
-            f"what to measure: {DEFAULT_ADDON} (default) is the odoo/ package, "
-            f"{ALL_ADDONS} is the whole bundled-addons tree as one number, and "
-            f"{' and '.join(SIBLING_SCOPES)} are sibling checkouts"
+    return _count_gate.run(
+        argv,
+        script="sql_in_placeholder.py",
+        gate="sql_in_placeholder",
+        headline="`IN %s` bound to a value (ADR-0055, {where})",
+        unit="site(s)",
+        default_addon=DEFAULT_ADDON,
+        everything=ALL_ADDONS,
+        siblings=SIBLING_SCOPES,
+        governed=GOVERNED_ADDONS,
+        addon_src=addon_src,
+        measure=measure,
+        root_name=ROOT.name,
+        summary=lambda found: (
+            f"  no SQL() builder: "
+            f"{sum(1 for f in found if f.kind == 'unbuilt')}   "
+            f"builder given a non-tuple: "
+            f"{sum(1 for f in found if f.kind == 'sequence')}"
         ),
     )
-    args = parser.parse_args(argv)
-
-    if args.addon not in GOVERNED_ADDONS:
-        print(
-            f"error: {args.addon!r} is not a governed scope. Onboarding one is a "
-            f"row in GOVERNED_ADDONS and its own baseline, not a flag: a floor "
-            f"over an unscanned tree checks nothing.\n"
-            f"       governed: {', '.join(GOVERNED_ADDONS)}",
-            file=sys.stderr,
-        )
-        return 2
-
-    src = addon_src(args.addon)
-    if args.addon in SIBLING_SCOPES and not src.is_dir():
-        print(
-            f"SKIP: {args.addon} is not checked out beside {ROOT.name}; "
-            f"its own architecture.yml pairs the two and runs this there.",
-            file=sys.stderr,
-        )
-        return 0
-
-    try:
-        found = measure(src=src)
-    except RuntimeError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    if args.count:
-        print(len(found))
-        return 0
-    if args.json:
-        print(json.dumps([asdict(f) for f in found], indent=2))
-        return 0
-
-    where = {DEFAULT_ADDON: "odoo/", ALL_ADDONS: "addons/"}.get(
-        args.addon, f"{args.addon}/"
-    )
-    print(f"`IN %s` bound to a value (ADR-0055, {where})")
-    print("=" * 72)
-    shown = found if args.top == 0 else found[: args.top]
-    for item in shown:
-        print(item)
-    if len(found) > len(shown):
-        print(f"  ... and {len(found) - len(shown)} more (--top 0 for all)")
-    print("-" * 72)
-    by_kind = {k: sum(1 for f in found if f.kind == k) for k in ("unbuilt", "sequence")}
-    print(f"\n{len(found)} site(s)   <- the ratcheted number")
-    print(
-        f"  no SQL() builder: {by_kind['unbuilt']}   "
-        f"builder given a non-tuple: {by_kind['sequence']}"
-    )
-    suffix = "" if args.addon == DEFAULT_ADDON else f" --addon {args.addon}"
-    name = (
-        "sql_in_placeholder"
-        if args.addon == DEFAULT_ADDON
-        else f"sql_in_placeholder_{args.addon}"
-    )
-    print("\nRatchet it:")
-    print(f"  python tooling/architecture/sql_in_placeholder.py --count{suffix} \\")
-    print(f"      | xargs python tooling/ratchet/ratchet.py {name} --count")
-    return 0
 
 
 if __name__ == "__main__":

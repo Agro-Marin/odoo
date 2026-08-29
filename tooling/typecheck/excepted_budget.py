@@ -104,7 +104,7 @@ def render(gate: str, module: str, current: dict[str, int], v: Verdict) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("gate", help="strict | noimplicitany")
     parser.add_argument("--module", default="web")
     parser.add_argument("--log", required=True, type=Path, help="tsc output to read")

@@ -1,63 +1,14 @@
 #!/usr/bin/env python3
-"""A ``search_count`` whose answer is only ever a yes or a no (ADR-0057).
-
-``search_count(domain)`` scans every matching row and returns how many there
-are. When the caller then asks only whether that number is nonzero -- ``if``,
-``not``, ``bool()``, a comparison against 0 -- the count is discarded and the
-scan bought nothing. ``search_count(domain, limit=1)`` answers the same question
-and stops at the first row.
-
-The cost is proportional to the table, so it is invisible on a development
-database and grows without bound on a real one. Measured on this fork against
-``ir.model.fields`` at 8,001 rows, best of twenty with the cache invalidated
-between runs::
-
-    search_count([])            0.248 ms
-    search_count([], limit=1)   0.053 ms     4.7x
-
-That ratio is not the point -- the shape of the curve is. One is O(rows) and the
-other is O(1), so the same call on a production ``account.move.line`` costs
-whatever that table has grown to.
-
-WHAT IT COUNTS. A ``search_count`` call passing no ``limit`` whose result reaches
-exactly one of: the test of an ``if`` or a conditional expression, ``not``,
-``bool()``, or a comparison against the literal ``0``. Each of those is decided
-by the same node that produced the count, so the judgement is local and the
-rewrite is one keyword.
-
-``and``, ``or`` and ``not`` are walked THROUGH rather than stopped at, because
-they pass a value on rather than consuming one. In::
-
-    if combo_item and Template.sudo().search_count(domain):
-
-the count reaches an ``if`` and nothing else, so its number is as discarded as it
-would be without the ``and``. ADR-0057 excluded this shape when it was written,
-on the ground that the value escapes -- and it does, but only when the
-EXPRESSION escapes. Assign the same thing to a name and the walk stops at the
-assignment, which is the case that record was really describing.
-
-WHAT IT DOES NOT COUNT, and must not. A count whose enclosing expression is
-consumed for anything but its truth: ``vals = a and self.search_count(domain)``
-hands the number on, and ``limit=1`` would make it a 1. Nor a count already
-passing a ``limit``, which is the fixed form. Nor ``search_count`` used for its
-number, however small the table is expected to be -- the gate judges the use,
-not the guess.
-
-Tests are out of scope, as they are for the other Python gates here: the cost
-this measures is what a server pays serving a request, and a floor that mixed
-that with a fixture of four rows would move for reasons nobody could read.
-"""
 
 from __future__ import annotations
 
-import argparse
 import ast
-import json
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _count_gate
 import _sources
 from _repo_root import find_odoo_root, sibling_repos_root
 
@@ -184,76 +135,21 @@ def measure(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--count", action="store_true", help="print the count only")
-    parser.add_argument("--json", action="store_true", help="machine-readable")
-    parser.add_argument("--top", type=int, default=25, help="0 for all")
-    parser.add_argument(
-        "--addon",
-        default=DEFAULT_ADDON,
-        help=(
-            f"what to measure: {DEFAULT_ADDON} (default) is the odoo/ package, "
-            f"{ALL_ADDONS} is the whole bundled-addons tree as one number, and "
-            f"{' and '.join(SIBLING_SCOPES)} are sibling checkouts"
-        ),
+    return _count_gate.run(
+        argv,
+        script="py_count_as_boolean.py",
+        gate="py_count_as_boolean",
+        headline="Counts asked only whether they are nonzero (ADR-0057, {where})",
+        unit="site(s)",
+        default_addon=DEFAULT_ADDON,
+        everything=ALL_ADDONS,
+        siblings=SIBLING_SCOPES,
+        governed=GOVERNED_ADDONS,
+        addon_src=addon_src,
+        measure=measure,
+        root_name=ROOT.name,
+        summary=lambda found: "  each is one keyword: search_count(domain, limit=1)",
     )
-    args = parser.parse_args(argv)
-
-    if args.addon not in GOVERNED_ADDONS:
-        print(
-            f"error: {args.addon!r} is not a governed scope. Onboarding one is a "
-            f"row in GOVERNED_ADDONS and its own baseline, not a flag: a floor "
-            f"over an unscanned tree checks nothing.\n"
-            f"       governed: {', '.join(GOVERNED_ADDONS)}",
-            file=sys.stderr,
-        )
-        return 2
-
-    src = addon_src(args.addon)
-    if args.addon in SIBLING_SCOPES and not src.is_dir():
-        print(
-            f"SKIP: {args.addon} is not checked out beside {ROOT.name}; "
-            f"its own architecture.yml pairs the two and runs this there.",
-            file=sys.stderr,
-        )
-        return 0
-
-    try:
-        found = measure(src=src)
-    except RuntimeError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    if args.count:
-        print(len(found))
-        return 0
-    if args.json:
-        print(json.dumps([asdict(f) for f in found], indent=2))
-        return 0
-
-    where = {DEFAULT_ADDON: "odoo/", ALL_ADDONS: "addons/"}.get(
-        args.addon, f"{args.addon}/"
-    )
-    print(f"Counts asked only whether they are nonzero (ADR-0057, {where})")
-    print("=" * 72)
-    shown = found if args.top == 0 else found[: args.top]
-    for item in shown:
-        print(item)
-    if len(found) > len(shown):
-        print(f"  ... and {len(found) - len(shown)} more (--top 0 for all)")
-    print("-" * 72)
-    print(f"\n{len(found)} site(s)   <- the ratcheted number")
-    print("  each is one keyword: search_count(domain, limit=1)")
-    suffix = "" if args.addon == DEFAULT_ADDON else f" --addon {args.addon}"
-    name = (
-        "py_count_as_boolean"
-        if args.addon == DEFAULT_ADDON
-        else f"py_count_as_boolean_{args.addon}"
-    )
-    print("\nRatchet it:")
-    print(f"  python tooling/architecture/py_count_as_boolean.py --count{suffix} \\")
-    print(f"      | xargs python tooling/ratchet/ratchet.py {name} --count")
-    return 0
 
 
 if __name__ == "__main__":
