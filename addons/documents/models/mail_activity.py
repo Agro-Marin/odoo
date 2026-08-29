@@ -5,7 +5,6 @@ from odoo.fields import Domain
 
 
 class MailActivity(models.Model):
-
     _inherit = "mail.activity"
 
     @api.model_create_multi
