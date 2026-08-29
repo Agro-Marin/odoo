@@ -968,9 +968,10 @@ class ProjectProject(models.Model):
         If the final total is 0 for either to_invoice or invoiced (ex: invoice -> credit note),
         we don't output a new section
 
-        :param excluded_move_line_ids a list of 'account.move.line' to ignore
+        :param excluded_move_line_ids: a list of 'account.move.line' to ignore
         when fetching the move lines, for example a list of invoices that were
         generated from a sales order
+        :param with_action: whether to attach the drill-down action to each item
         """
         if excluded_move_line_ids is None:
             excluded_move_line_ids = []
