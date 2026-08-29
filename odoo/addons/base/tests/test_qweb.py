@@ -22,7 +22,7 @@ from odoo.addons.base.models.ir_qweb import (
 )
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
-unsafe_eval = eval  # noqa: S307  evaluates the test's own expected-value expressions
+unsafe_eval = eval  # noqa: S307  runs QWeb compiler output (_compile_expr, _compile_format)
 
 
 @tagged("post_install", "-at_install")
