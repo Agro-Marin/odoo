@@ -67,7 +67,7 @@ class Base(models.AbstractModel):
         :param str number: number to format (in which case fields-based computation
           is skipped);
         :param <res.country> country: country used for formatting number; otherwise
-          it is fetched based on record, using :meth:`_phone_get_number_fields`.;
+          it is fetched based on record, using :meth:`_phone_get_country`.;
         :param str force_format: stringified version of format globals; should be
           one of ``'E164'``, ``'INTERNATIONAL'``, ``'NATIONAL'`` or ``'RFC3966'``;
         :param bool raise_exception: raise if formatting is not possible (notably
