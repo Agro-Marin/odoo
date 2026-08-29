@@ -1297,3 +1297,62 @@ class TestQuestStepCrossQuestGuard(common.TransactionCase):
         completion = self.enrollment_a.with_user(self.user).complete_step(self.step_a)
         self.assertTrue(completion)
         self.assertEqual(self.enrollment_a.state, "completed")
+
+
+class TestKudosImmutableAfterSend(common.TransactionCase):
+    """A sent kudos' recognition-defining fields must not be editable."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.sender = mail_new_test_user(
+            cls.env,
+            login="kudos_immutable_sender",
+            name="Kudos Sender",
+            email="kudos_sender@example.com",
+            groups="base.group_user",
+        )
+        cls.recipient = mail_new_test_user(
+            cls.env,
+            login="kudos_immutable_recipient",
+            name="Kudos Recipient",
+            email="kudos_recipient@example.com",
+            groups="base.group_user",
+        )
+        cls.category_a = cls.env["gamification.kudos.category"].create(
+            {"name": "Category A", "karma_granted": 10}
+        )
+        cls.category_b = cls.env["gamification.kudos.category"].create(
+            {"name": "Category B", "karma_granted": 50}
+        )
+        cls.kudos = (
+            cls.env["gamification.kudos"]
+            .with_user(cls.sender)
+            .create(
+                {
+                    "recipient_id": cls.recipient.id,
+                    "category_id": cls.category_a.id,
+                    "message": "Great work",
+                }
+            )
+        )
+
+    def test_owner_cannot_edit_category(self):
+        with self.assertRaises(UserError):
+            self.kudos.with_user(self.sender).write({"category_id": self.category_b.id})
+        self.kudos.invalidate_recordset()
+        self.assertEqual(self.kudos.category_id, self.category_a)
+        self.assertEqual(self.kudos.karma_granted, 10)
+
+    def test_owner_cannot_edit_recipient_or_message(self):
+        for field_name, value in (
+            ("recipient_id", self.sender.id),
+            ("message", "edited after the fact"),
+        ):
+            with self.subTest(field=field_name), self.assertRaises(UserError):
+                self.kudos.with_user(self.sender).write({field_name: value})
+
+    def test_a_sudo_caller_still_can(self):
+        """CONTROL: imports/migrations, not end-user edits, keep working."""
+        self.kudos.sudo().write({"category_id": self.category_b.id})
+        self.assertEqual(self.kudos.category_id, self.category_b)

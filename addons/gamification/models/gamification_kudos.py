@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from markupsafe import Markup, escape
 
@@ -36,6 +36,14 @@ class GamificationKudosCategory(models.Model):
     # in the first place; declaring the relation makes the counter one line and
     # its invalidation the ORM's problem.
     kudos_count = fields.Count("kudos_ids", "# Kudos")
+
+
+# Fields whose value the sender picked at send-time and that karma_granted /
+# the activity feed / the mail-thread post were all computed from. Editing
+# them after create() does not re-run any of that: summary re-renders (it is
+# a stored @api.depends compute) but karma_granted keeps the original
+# category's value, so the two would silently disagree.
+KUDOS_VALUE_FIELDS = frozenset({"recipient_id", "category_id", "message"})
 
 
 # Kudos are lightweight, informal recognition acts. Unlike badges (which
@@ -106,6 +114,32 @@ class GamificationKudos(models.Model):
                 recipient=kudos.recipient_id.name or "",
                 category=kudos.category_id.name or "",
             )
+
+    def write(self, vals: ValuesType) -> Literal[True]:
+        """Freeze the fields that already drove karma/summary/the mail post.
+
+        Only ``create()`` grants karma and posts to the thread; editing
+        ``recipient_id``/``category_id``/``message`` afterwards would
+        re-render ``summary`` (a stored compute) without touching
+        ``karma_granted`` or the already-sent post, leaving the three
+        disagreeing about what was actually recognized. ``sudo()`` (imports,
+        migrations) still bypasses this, same as ``create()``'s sender check.
+
+        The ``kudos_user_write`` record rule already blocks anyone but the
+        sender from writing at all, so a non-sender's attempt must keep
+        raising the ORM's own ``AccessError`` via ``super().write()`` below
+        -- this only adds a stricter rule for the one path the record rule
+        *does* allow: the sender editing their own already-sent kudos.
+        """
+        if (
+            not self.env.su
+            and KUDOS_VALUE_FIELDS.intersection(vals)
+            and any(kudos.sender_id == self.env.user for kudos in self)
+        ):
+            raise exceptions.UserError(
+                _("A sent kudos cannot be edited; send a new one instead.")
+            )
+        return super().write(vals)
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
