@@ -8,6 +8,9 @@ loosens the guard is caught rather than silently accepted.
 
 import datetime
 from datetime import date, timedelta
+from unittest.mock import patch
+
+from psycopg import IntegrityError
 
 from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -1356,3 +1359,83 @@ class TestKudosImmutableAfterSend(common.TransactionCase):
         """CONTROL: imports/migrations, not end-user edits, keep working."""
         self.kudos.sudo().write({"category_id": self.category_b.id})
         self.assertEqual(self.kudos.category_id, self.category_b)
+
+
+class TestStreakConcurrentFirstVisit(common.TransactionCase):
+    """Two interleaved first-visit calls must not raise on the unique index."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = mail_new_test_user(
+            cls.env,
+            login="streak_race_user",
+            name="Streak Race User",
+            email="streak_race@example.com",
+            groups="base.group_user",
+        )
+        partner_model = cls.env["ir.model"]._get("res.partner")
+        date_field = cls.env["ir.model.fields"].search(
+            [("model", "=", "res.partner"), ("name", "=", "write_date")],
+            limit=1,
+        )
+        cls.streak_type = cls.env["gamification.streak.type"].create(
+            {
+                "name": "Race Type",
+                "model_id": partner_model.id,
+                "date_field_id": date_field.id,
+                "domain": "[]",
+            }
+        )
+
+    def test_raw_duplicate_insert_is_rejected_by_the_unique_index(self):
+        """CONTROL: the constraint this guard protects against is real."""
+        Streak = self.env["gamification.streak"].sudo()
+        Streak.create({"user_id": self.user.id, "streak_type_id": self.streak_type.id})
+        with self.assertRaises(IntegrityError):
+            with self.env.cr.savepoint():
+                Streak.create(
+                    {
+                        "user_id": self.user.id,
+                        "streak_type_id": self.streak_type.id,
+                    }
+                )
+
+    def test_get_user_streaks_survives_a_stale_missing_read(self):
+        """Simulates the race: another transaction's insert committed
+        between this call's ``NOT EXISTS`` check and its own ``create()`` --
+        modeled here by forcing the "missing" read to report the type as
+        absent even though a row for it already exists."""
+        Streak = self.env["gamification.streak"]
+        Streak.sudo().create(
+            {"user_id": self.user.id, "streak_type_id": self.streak_type.id}
+        )
+
+        # Only the very first `fetchall()` call is faked (the one
+        # `_get_user_streaks` itself makes for its NOT EXISTS query); every
+        # later call -- flush's own bookkeeping queries included -- reaches
+        # the real cursor, so only the race being simulated is affected.
+        cursor_cls = type(self.env.cr)
+        real_fetchall = cursor_cls.fetchall
+        call_count = 0
+
+        def fake_fetchall(cr_self):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return [(self.streak_type.id, 0)]
+            return real_fetchall(cr_self)
+
+        with patch.object(cursor_cls, "fetchall", fake_fetchall):
+            result = Streak._get_user_streaks(self.user)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(
+            Streak.search_count(
+                [
+                    ("user_id", "=", self.user.id),
+                    ("streak_type_id", "=", self.streak_type.id),
+                ]
+            ),
+            1,
+        )

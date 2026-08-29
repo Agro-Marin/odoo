@@ -2,6 +2,8 @@ import logging
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Self
 
+from psycopg import IntegrityError
+
 from odoo import _, api, fields, models
 from odoo.libs.datetime import timezone
 from odoo.tools.safe_eval import safe_eval
@@ -457,14 +459,24 @@ class GamificationStreak(models.Model):
         )
         missing = self.env.cr.fetchall()
         if missing:
-            self.sudo().create(
-                [
-                    {
-                        "user_id": user.id,
-                        "streak_type_id": type_id,
-                        "freeze_remaining": freeze_allowance,
-                    }
-                    for type_id, freeze_allowance in missing
-                ]
-            )
+            # Two concurrent first-visits (two tabs, a double-click) can both
+            # see the same "missing" list and both try to create it: the
+            # second insert hits `_user_streak_type_uniq` and would otherwise
+            # raise instead of just returning the streak the first insert
+            # already made. One savepoint for the whole batch, matching the
+            # per-batch savepoint style already used by the streak cron above.
+            try:
+                with self.env.cr.savepoint():
+                    self.sudo().create(
+                        [
+                            {
+                                "user_id": user.id,
+                                "streak_type_id": type_id,
+                                "freeze_remaining": freeze_allowance,
+                            }
+                            for type_id, freeze_allowance in missing
+                        ]
+                    )
+            except IntegrityError:
+                pass
         return self.search([("user_id", "=", user.id)], order="current_count desc")
