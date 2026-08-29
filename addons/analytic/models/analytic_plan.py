@@ -495,6 +495,14 @@ class AccountAnalyticPlan(models.Model):
         closes out two (or more) tallies with different compounding errors. This means there is no one correct
         amount that we can assign to a line that will correctly close out both all plans. This is described in
         more detail in the commit message, under "concurrent closing line edge case".
+
+        :param amount:                      the total amount to distribute
+        :param percentage:                  this line's share of the distribution, as a percentage
+        :param total_percentage:            the percentage this plan's distribution should add up to
+        :param distribution_on_each_plan:   accumulator dict, keyed by plan, mutated in place to track
+                                            progress toward each plan's total_percentage
+        :return: the amount to assign to this line for this plan
+        :rtype:   float
         """
         decimal_precision = self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
