@@ -251,16 +251,16 @@ class HrVersion(models.Model):
             for leave in itertools.chain(
                 leaves_by_resource[False], leaves_by_resource[resource.id]
             ):
-                for resource in resources_list:
+                for res in resources_list:
                     # Global time off is not for this calendar, can happen with multiple calendars in self
                     if (
-                        resource
+                        res
                         and leave.calendar_id
                         and leave.calendar_id != calendar
                         and not leave.resource_id
                     ):
                         continue
-                    tz = tz or timezone((resource or version).tz)
+                    tz = tz or timezone((res or version).tz)
                     if (tz, start_dt) in tz_dates:
                         start = tz_dates[tz, start_dt]
                     else:
@@ -281,9 +281,9 @@ class HrVersion(models.Model):
                     )
                     if leave_interval:
                         if leave.time_type == "leave":
-                            leave_result[resource.id] += leave_interval
+                            leave_result[res.id] += leave_interval
                         else:
-                            work_result[resource.id] += leave_interval
+                            work_result[res.id] += leave_interval
             mapped_leaves = {
                 r.id: Intervals(leave_result[r.id], keep_distinct=True)
                 for r in resources_list
