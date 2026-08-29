@@ -236,6 +236,20 @@ class DigestDigest(models.Model):
         be considered as unwanted spam."""
         return self._action_send(update_periodicity=False)
 
+    def action_test(self):
+        """Open the wizard that mails a preview of this digest to chosen users."""
+        self.ensure_one()
+        return {
+            "context": dict(
+                self.env.context, default_digest_id=self.id, dialog_size="medium"
+            ),
+            "name": self.env._("Test Digest"),
+            "res_model": "digest.test",
+            "target": "new",
+            "type": "ir.actions.act_window",
+            "view_mode": "form",
+        }
+
     def _action_send(self, update_periodicity=True):
         """Send digests email to all the registered users.
 
@@ -260,7 +274,9 @@ class DigestDigest(models.Model):
                 digest.periodicity = digest._get_next_periodicity()[0]
             digest.next_run_date = digest._get_next_run_date()
 
-    def _action_send_to_user(self, user, tips_count=1, consume_tips=True):
+    def _action_send_to_user(
+        self, user, tips_count=1, consume_tips=True, force_send=False
+    ):
         unsubscribe_token = self._get_unsubscribe_token(user.id)
 
         rendered_body = self.env["mixin.mail.render"]._render_template(
@@ -331,7 +347,11 @@ class DigestDigest(models.Model):
             "state": "outgoing",
             "subject": f"{user.company_id.name}: {self.name}",
         }
-        self.env["mail.mail"].sudo().create(mail_values)
+        mail = self.env["mail.mail"].sudo().create(mail_values)
+        if force_send:
+            # a preview the sender has to wait for the mail cron to see is not
+            # a preview; the periodic send stays queued as `outgoing`.
+            mail.send()
         return True
 
     @api.model

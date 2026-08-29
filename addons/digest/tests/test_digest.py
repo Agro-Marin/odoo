@@ -1390,3 +1390,136 @@ class TestUnsubscribeRoutes(MailCommon, HttpCaseWithUserDemo):
             404,
             "it used to redirect to /odoo/digest.digest/False",
         )
+
+
+@tagged("digest")
+class TestDigestPreview(TestDigestCommon):
+    """`digest.test`: render a digest to yourself before switching it on.
+
+    Until this wizard existed the only way to see a digest was
+    ``action_send_manual``, which writes to every subscriber and consumes a tip
+    for each of them -- so "let me check what this looks like" cost the whole
+    recipient list a mail and burned a tip nobody had read yet.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # the real recipient list, which a preview must NOT write to
+        cls.digest_1.user_ids = cls.user_employee
+
+    @users("admin")
+    def test_preview_writes_only_to_the_chosen_recipients(self):
+        digest = self.digest_1.with_user(self.env.user)
+        wizard = self.env["digest.test"].create(
+            {
+                "digest_id": digest.id,
+                "user_ids": [Command.set(self.env.user.ids)],
+            }
+        )
+
+        with self.mock_mail_gateway():
+            wizard.send_mail_test()
+
+        self.assertEqual(len(self._new_mails), 1, "one preview, one mail")
+        self.assertEqual(
+            self._new_mails.email_to,
+            self.env.user.email_formatted,
+            "the subscriber list stays untouched: only the chosen user is written to",
+        )
+
+    @users("admin")
+    def test_preview_is_sent_at_once_not_parked_as_outgoing(self):
+        """A preview you have to wait for the cron to see is not a preview."""
+        wizard = self.env["digest.test"].create(
+            {
+                "digest_id": self.digest_1.id,
+                "user_ids": [Command.set(self.env.user.ids)],
+            }
+        )
+
+        with self.mock_mail_gateway():
+            wizard.send_mail_test()
+
+        self.assertEqual(
+            self._new_mails.state,
+            "sent",
+            "the real send leaves mails 'outgoing' for the cron; a preview must not",
+        )
+
+    @users("admin")
+    def test_preview_does_not_burn_a_tip(self):
+        """Tips are consumed once per user for good, so a preview that consumed
+        one would silently cost the reader a tip they never saw."""
+        Tip = self.env["digest.tip"].sudo()
+        Tip.search([]).unlink()
+        tip = Tip.create(
+            {"name": "Unread tip", "sequence": 1, "tip_description": "<p>T</p>"}
+        )
+        wizard = self.env["digest.test"].create(
+            {
+                "digest_id": self.digest_1.id,
+                "user_ids": [Command.set(self.env.user.ids)],
+            }
+        )
+
+        with self.mock_mail_gateway():
+            wizard.send_mail_test()
+
+        self.assertNotIn(
+            self.env.user,
+            tip.user_ids,
+            "the preview must leave the tip unread",
+        )
+
+        with self.mock_mail_gateway():
+            self.digest_1.with_user(self.env.user)._action_send_to_user(self.env.user)
+
+        self.assertIn(
+            self.env.user,
+            tip.user_ids,
+            "...while a real send still consumes it",
+        )
+
+    @users("admin")
+    def test_preview_renders_in_the_recipient_s_language_not_the_sender_s(self):
+        """`_action_send` renders each mail under the recipient's lang and tz
+        (`digest.py`, `_action_send`). A preview that skipped that would show
+        the sender their own locale and misreport what the recipient receives.
+        """
+        seen = []
+        digest_cls = type(self.env["digest.digest"])
+        original = digest_cls._action_send_to_user
+
+        def _spy(records, user, *args, **kwargs):
+            seen.append(
+                (user, records.env.context.get("lang"), records.env.context.get("tz"))
+            )
+            return original(records, user, *args, **kwargs)
+
+        reader = self.env["res.users"].create(
+            {
+                "name": "Preview Reader",
+                "login": "digest_preview_reader",
+                "email": "preview.reader@test.example.com",
+                "lang": "en_US",
+                "tz": "America/Mexico_City",
+                "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+            }
+        )
+        wizard = self.env["digest.test"].create(
+            {
+                "digest_id": self.digest_1.id,
+                "user_ids": [Command.set(reader.ids)],
+            }
+        )
+
+        with patch.object(digest_cls, "_action_send_to_user", _spy):
+            with self.mock_mail_gateway():
+                wizard.send_mail_test()
+
+        self.assertEqual(
+            seen,
+            [(reader, reader.lang, reader.tz)],
+            "the preview must render under the recipient's locale, as a real send does",
+        )
