@@ -13,8 +13,12 @@ class SaleOrderLine(models.Model):
         return super()._can_be_invoiced_alone() and not self.is_delivery
 
     def unlink(self):
-        self.filtered("is_delivery").order_id.filtered("carrier_id").carrier_id = False
-        return super().unlink()
+        orders = self.filtered("is_delivery").order_id
+        res = super().unlink()
+        orders.filtered("carrier_id").filtered(
+            lambda order: not order.line_ids.filtered("is_delivery")
+        ).carrier_id = False
+        return res
 
     def _is_delivery(self):
         self.ensure_one()
