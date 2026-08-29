@@ -8,7 +8,7 @@ class MrpBomByproduct(models.Model):
 
     _bom_child_field = "byproduct_ids"
 
-    product_id = fields.Many2one("product.product", "By-product", index=False)
+    product_id = fields.Many2one("product.product", "By-product")
     bom_id = fields.Many2one("mrp.bom", "BoM")
     operation_id = fields.Many2one("mrp.routing.workcenter", "Produced in Operation")
     cost_share = fields.Float(
