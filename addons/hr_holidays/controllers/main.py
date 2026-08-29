@@ -4,22 +4,12 @@ from odoo.addons.mail.controllers.mail import MailController
 
 
 class HrHolidaysController(http.Controller):
-    @http.route("/leave/approve", type="http", auth="user", methods=["GET"])
+    # /leave/validate is kept only for URL compatibility with links sent
+    # before it was unified with /leave/approve; both do the same thing.
+    @http.route(
+        ["/leave/approve", "/leave/validate"], type="http", auth="user", methods=["GET"]
+    )
     def hr_holidays_request_approve(self, res_id, token):
-        comparison, record, redirect = (
-            MailController._check_token_and_record_or_redirect(
-                "hr.leave", int(res_id), token
-            )
-        )
-        if comparison and record:
-            try:
-                record.action_approve()
-            except Exception:
-                return MailController._redirect_to_generic_fallback("hr.leave", res_id)
-        return redirect
-
-    @http.route("/leave/validate", type="http", auth="user", methods=["GET"])
-    def hr_holidays_request_validate(self, res_id, token):
         comparison, record, redirect = (
             MailController._check_token_and_record_or_redirect(
                 "hr.leave", int(res_id), token
