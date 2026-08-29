@@ -295,7 +295,7 @@ class AccountAnalyticAccount(models.Model):
         :param additive:        if True, the unit_amount and (distributed) amount get added to the existing lines
 
         :returns: a list of dicts containing the values for new analytic lines that need to be created
-        :rtype:   dict
+        :rtype:   list
         """
         if not distribution:
             lines.unlink()
